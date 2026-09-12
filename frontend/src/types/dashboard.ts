@@ -95,6 +95,7 @@ export interface AcademicHealth {
   assignments: number;
   internalMarks: number;
   engagement: number;
+  academicHealth?: number;
 }
 
 export type AcademicRisk = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -125,4 +126,9 @@ export interface StudentDashboardData {
   academicHealth: AcademicHealth;
   academicRisk: AcademicRisk;
   recommendations: string[];
+  career?: {
+    targetRole: { id: string; name: string } | null;
+    readiness: number;
+    missingSkills: { name: string; requiredLevel: number; currentLevel: number }[];
+  };
 }

@@ -1,0 +1,10 @@
+import { Router } from "express";
+import * as controller from "../controllers/intelligence.controller";
+import { authenticate } from "../middleware/authenticate";
+const router = Router(); router.use(authenticate);
+router.get("/students/:id", controller.student);
+router.get("/students/:id/risk", controller.studentRisk);
+router.get("/students/:id/recommendations", controller.recommendations);
+router.get("/students/:id/career", controller.careerProfile);
+router.get("/command-center", controller.commandCenter);
+export default router;

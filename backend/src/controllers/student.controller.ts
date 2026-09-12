@@ -5,6 +5,8 @@ import * as attendanceStatsService from "../services/attendanceStats.service";
 import * as demo from "../services/demo/studentDashboard.demo";
 import * as marksService from "../services/internalMark.service";
 import * as studentPortalService from "../services/studentPortal.service";
+import * as intelligenceService from "../services/intelligence.service";
+import * as careerIntelligenceService from "../services/careerIntelligence.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 
@@ -115,23 +117,28 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     name: o.course.name,
   }));
 
-  const [institution, attendanceSummary, upcomingAssignments, marksAveragePercent] =
+  const [institution, attendanceSummary, upcomingAssignments, marksAveragePercent, intelligence] =
     await Promise.all([
       studentPortalService.getInstitutionBranding(institutionId),
       attendanceStatsService.getStudentAttendanceSummary(institutionId, user.id),
       assignmentService.getMyUpcomingAssignments(institutionId, user.id, 5),
       marksService.getMyMarksAveragePercent(institutionId, user.id),
+      intelligenceService.getStudentIntelligence(institutionId, user.id),
     ]);
 
   const assignmentsCompletionPercent =
     await assignmentService.getMySubmissionCompletionPercent(institutionId, user.id);
 
-  const academicHealth: demo.AcademicHealth = {
+  const academicHealth = intelligence?.scores ?? {
     attendance: attendanceSummary.overallPercentage,
     assignments: assignmentsCompletionPercent,
     internalMarks: marksAveragePercent,
-    engagement: demo.getDemoEngagementScore(), // still demo — no real proxy yet
+    engagement: 0,
+    academicHealth: 0,
   };
+  const career = await careerIntelligenceService.getCareerIntelligence(
+    institutionId, user.id, academicHealth.academicHealth
+  );
 
   res.status(200).json({
     success: true,
@@ -174,8 +181,9 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       announcements: demo.getDemoAnnouncements(),
       upcomingEvents: demo.getDemoUpcomingEvents(),
       academicHealth,
-      academicRisk: demo.getDemoAcademicRisk(academicHealth),
-      recommendations: demo.getDemoRecommendations(academicHealth, realCourses),
+      academicRisk: intelligence?.risk ?? "LOW",
+      recommendations: intelligence?.recommendations ?? [],
+      career,
     },
   });
 });

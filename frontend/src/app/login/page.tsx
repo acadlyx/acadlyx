@@ -16,8 +16,8 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      router.push("/student");
+      const user = await login(email, password);
+      router.push(user.roles.some((role) => ["MANAGEMENT", "DIRECTOR", "HOD", "INSTITUTION_ADMIN"].includes(role)) ? "/intelligence" : user.roles.includes("FACULTY") ? "/faculty" : "/student");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

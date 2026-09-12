@@ -47,6 +47,11 @@ model Institution {
   assignments        Assignment[]
   assignmentSubmissions AssignmentSubmission[]
   internalMarks      InternalMark[]
+  skills             Skill[]
+  targetRoles        TargetRole[]
+  opportunities      Opportunity[]
+  studentSkills      StudentSkill[]
+  applications       Application[]
 
   @@index([isActive])
   @@map("institutions")
@@ -87,6 +92,10 @@ model User {
   assignmentReviews       AssignmentSubmission[]  @relation("AssignmentSubmissionReviewedBy")
   internalMarksReceived   InternalMark[]          @relation("InternalMarkStudent")
   internalMarksEntered    InternalMark[]          @relation("InternalMarkEnteredBy")
+  departmentAccesses      DepartmentAccess[]
+  studentSkills           StudentSkill[]
+  careerPaths             CareerPath[]
+  applications            Application[]
 
   @@index([institutionId])
   @@map("users")
@@ -278,6 +287,7 @@ model Department {
 
   programs      Program[]
   courses       Course[]
+  departmentAccesses DepartmentAccess[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -649,4 +659,139 @@ model InternalMark {
   @@index([studentId])
   @@index([courseOfferingId])
   @@map("internal_marks")
+}
+
+// ==========================================================
+// INSTITUTIONAL + CAREER INTELLIGENCE
+// ==========================================================
+
+/// Explicit departmental scope for HODs and delegated academic staff.
+/// A role name alone never grants access to every department.
+model DepartmentAccess {
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  scope        String     @default("HOD")
+  createdAt    DateTime   @default(now())
+
+  @@id([userId, departmentId])
+  @@index([departmentId])
+  @@map("department_accesses")
+}
+
+model Skill {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  category      String?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  studentSkills StudentSkill[]
+  roleSkills    RoleSkill[]
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+  @@map("skills")
+}
+
+model TargetRole {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  roleSkills    RoleSkill[]
+  careerPaths   CareerPath[]
+  opportunities Opportunity[]
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+  @@map("target_roles")
+}
+
+model RoleSkill {
+  targetRoleId String
+  targetRole   TargetRole @relation(fields: [targetRoleId], references: [id], onDelete: Cascade)
+  skillId      String
+  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  weight       Int        @default(1)
+  minimumLevel Int        @default(60)
+
+  @@id([targetRoleId, skillId])
+  @@index([skillId])
+  @@map("role_skills")
+}
+
+model StudentSkill {
+  studentId     String
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skillId       String
+  skill         Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  proficiency   Int      @default(0) // transparent 0-100 rubric
+  evidence      String?
+  updatedAt     DateTime @updatedAt
+
+  @@id([studentId, skillId])
+  @@index([institutionId])
+  @@index([skillId])
+  @@map("student_skills")
+}
+
+model CareerPath {
+  id           String      @id @default(uuid())
+  studentId    String
+  student      User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  targetRoleId String
+  targetRole   TargetRole  @relation(fields: [targetRoleId], references: [id], onDelete: Cascade)
+  isPrimary    Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([studentId, targetRoleId])
+  @@index([targetRoleId])
+  @@map("career_paths")
+}
+
+model Opportunity {
+  id            String       @id @default(uuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  targetRoleId  String?
+  targetRole    TargetRole?  @relation(fields: [targetRoleId], references: [id], onDelete: SetNull)
+  title         String
+  organization  String
+  description   String?
+  deadline      DateTime?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  applications  Application[]
+
+  @@index([institutionId])
+  @@index([targetRoleId])
+  @@map("opportunities")
+}
+
+model Application {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  status        String      @default("APPLIED")
+  appliedAt     DateTime    @default(now())
+
+  @@unique([studentId, opportunityId])
+  @@index([institutionId])
+  @@index([opportunityId])
+  @@map("applications")
 }

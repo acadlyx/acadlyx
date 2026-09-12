@@ -124,6 +124,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "assignments.review",
     "marks.read",
     "reports.read",
+    "intelligence.read",
     ...ACADEMIC_READ_PERMISSIONS,
     "sections.update",
     "course-offerings.update",
@@ -271,6 +272,7 @@ async function main() {
   const facultyUser = await prisma.user.findUnique({
     where: { email: "faculty@aimt.acadlyx.com" },
   });
+  const hodUser = await prisma.user.findUnique({ where: { email: "hod@aimt.acadlyx.com" } });
 
   const cse = await upsertDepartment(aimt.id, "Computer Science & Engineering", "CSE");
   const ece = await upsertDepartment(aimt.id, "Electronics & Communication Engineering", "ECE");
@@ -297,6 +299,12 @@ async function main() {
 
   await upsertCourseOffering(aimt.id, dbms.id, sem3.id, sectionA.id, facultyUser?.id);
   await upsertCourseOffering(aimt.id, os.id, sem3.id, sectionA.id, facultyUser?.id);
+  if (hodUser) {
+    await prisma.departmentAccess.upsert({
+      where: { userId_departmentId: { userId: hodUser.id, departmentId: cse.id } },
+      update: { scope: "HOD" }, create: { userId: hodUser.id, departmentId: cse.id, scope: "HOD" },
+    });
+  }
 
   const studentUser = await prisma.user.findUnique({
     where: { email: "student@aimt.acadlyx.com" },
@@ -537,6 +545,25 @@ async function main() {
     console.log("  - Internal marks seeded: 'Internal 1' component, DBMS/Section A");
   }
 
+  // Career intelligence demo data is explicitly scoped to AIMT and is
+  // deterministic input for readiness calculations, never invented at read time.
+  const studentForCareer = await prisma.user.findUnique({ where: { email: "student@aimt.acadlyx.com" } });
+  if (studentForCareer) {
+    const skillRows = await Promise.all([
+      upsertSkill(aimt.id, "SQL", "Technical"), upsertSkill(aimt.id, "Python", "Technical"),
+      upsertSkill(aimt.id, "Data Structures", "Technical"), upsertSkill(aimt.id, "Communication", "Professional"),
+    ]);
+    const role = await prisma.targetRole.upsert({ where: { institutionId_name: { institutionId: aimt.id, name: "Junior Data Analyst" } }, update: {}, create: { institutionId: aimt.id, name: "Junior Data Analyst", description: "Entry-level analytics role" } });
+    for (const [skill, weight, minimumLevel] of [[skillRows[0], 3, 70], [skillRows[1], 3, 65], [skillRows[2], 2, 65], [skillRows[3], 2, 60]] as const) {
+      await prisma.roleSkill.upsert({ where: { targetRoleId_skillId: { targetRoleId: role.id, skillId: skill.id } }, update: { weight, minimumLevel }, create: { targetRoleId: role.id, skillId: skill.id, weight, minimumLevel } });
+    }
+    await prisma.careerPath.upsert({ where: { studentId_targetRoleId: { studentId: studentForCareer.id, targetRoleId: role.id } }, update: { isPrimary: true }, create: { studentId: studentForCareer.id, targetRoleId: role.id, isPrimary: true } });
+    for (const [skill, proficiency] of [[skillRows[0], 72], [skillRows[1], 55], [skillRows[2], 68], [skillRows[3], 70]] as const) {
+      await prisma.studentSkill.upsert({ where: { studentId_skillId: { studentId: studentForCareer.id, skillId: skill.id } }, update: { proficiency }, create: { institutionId: aimt.id, studentId: studentForCareer.id, skillId: skill.id, proficiency } });
+    }
+    await prisma.opportunity.upsert({ where: { id: "aimt-demo-data-analyst-opportunity" }, update: { isActive: true }, create: { id: "aimt-demo-data-analyst-opportunity", institutionId: aimt.id, targetRoleId: role.id, title: "Data Analyst Intern", organization: "AIMT Career Cell", isActive: true } });
+  }
+
   console.log("\nSeed complete.");
   console.log(`Demo password for all seeded users: ${DEMO_PASSWORD}`);
 }
@@ -643,6 +670,10 @@ async function upsertCourseOffering(
     update: { facultyId },
     create: { institutionId, courseId, semesterId, sectionId, facultyId },
   });
+}
+
+async function upsertSkill(institutionId: string, name: string, category: string) {
+  return prisma.skill.upsert({ where: { institutionId_name: { institutionId, name } }, update: { category }, create: { institutionId, name, category } });
 }
 
 main()

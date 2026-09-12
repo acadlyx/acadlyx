@@ -19,6 +19,8 @@ import programRoutes from "./routes/program.routes";
 import sectionRoutes from "./routes/section.routes";
 import semesterRoutes from "./routes/semester.routes";
 import studentRoutes from "./routes/student.routes";
+import intelligenceRoutes from "./routes/intelligence.routes";
+import askRoutes from "./routes/ask.routes";
 
 /**
  * Builds and configures the Express application.
@@ -59,6 +61,8 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
   app.use(`${apiPrefix}/assignments`, assignmentRoutes);
   app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
+  app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
+  app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
 
   // Future route mounts (Phase 6+):
   // app.use(`${apiPrefix}/users`, userRoutes);

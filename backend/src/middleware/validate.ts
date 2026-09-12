@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { AnyZodObject, ZodError } from "zod";
+import { ZodError, ZodTypeAny } from "zod";
 import { AppError } from "./errorHandler";
 
 function formatZodError(err: ZodError, label: string): AppError {
@@ -13,7 +13,7 @@ function formatZodError(err: ZodError, label: string): AppError {
  * Validates req.body against a Zod schema. On success, replaces
  * req.body with the parsed (typed, stripped-of-extra-fields) result.
  */
-export function validateBody(schema: AnyZodObject) {
+export function validateBody(schema: ZodTypeAny) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       req.body = schema.parse(req.body);
@@ -33,7 +33,7 @@ export function validateBody(schema: AnyZodObject) {
  * req.query with the parsed result. Use for list-endpoint filters
  * (page, pageSize, search, isActive, etc.).
  */
-export function validateQuery(schema: AnyZodObject) {
+export function validateQuery(schema: ZodTypeAny) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       req.query = schema.parse(req.query) as typeof req.query;

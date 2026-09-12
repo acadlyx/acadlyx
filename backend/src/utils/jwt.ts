@@ -5,7 +5,7 @@ import { AccessTokenPayload } from "../types/auth";
 
 export function signAccessToken(payload: AccessTokenPayload): string {
   return jwt.sign(payload, env.jwtAccessSecret, {
-    expiresIn: env.jwtAccessExpiresIn,
+    expiresIn: env.jwtAccessExpiresIn as jwt.SignOptions["expiresIn"],
   });
 }
 
