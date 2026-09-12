@@ -3,8 +3,12 @@
  * All future data-fetching code should build request URLs from
  * here instead of hard-coding the backend origin.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const defaultApiUrl =
+  process.env.NODE_ENV === "production"
+    ? "https://acadlyx-api.onrender.com"
+    : "http://localhost:5000";
+
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || defaultApiUrl).replace(/\/$/, "");
 
 export const API_VERSION = "v1";
 

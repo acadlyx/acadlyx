@@ -45,6 +45,12 @@ export function createApp(): Application {
     app.use(morgan("dev"));
   }
 
+  // Lightweight deployment/liveness response. Detailed service health remains
+  // available at GET /api/v1/health.
+  app.get("/", (_req, res) => {
+    res.status(200).json({ success: true, message: "ACADLYX API is running" });
+  });
+
   // Versioned API routes
   const apiPrefix = `/api/${env.apiVersion}`;
   app.use(`${apiPrefix}/health`, healthRoutes);
