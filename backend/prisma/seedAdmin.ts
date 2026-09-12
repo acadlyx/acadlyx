@@ -48,7 +48,19 @@ async function main() {
     create: { userId: user.id, roleId: role.id },
   });
 
-  console.log(existing ? "Initial SUPER_ADMIN already existed; role binding verified." : "Initial SUPER_ADMIN created.");
+  // The permission catalog is normally installed before operator creation.
+  // Bind every existing catalog permission without creating or modifying any
+  // permission definitions here.
+  const permissions = await prisma.permission.findMany({ select: { id: true } });
+  for (const permission of permissions) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+      update: {},
+      create: { roleId: role.id, permissionId: permission.id },
+    });
+  }
+
+  console.log(existing ? "Initial SUPER_ADMIN already existed; role and permission bindings verified." : "Initial SUPER_ADMIN created.");
 }
 
 main()
