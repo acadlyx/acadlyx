@@ -1,6 +1,6 @@
 /**
- * Production-safe, idempotent bootstrap for the first platform operator.
- * This intentionally creates only a SUPER_ADMIN user and its role binding;
+ * Production-safe, idempotent bootstrap for the first institution operator.
+ * This intentionally creates only an INSTITUTION_ADMIN user and its role binding;
  * it does not create demo institutions, students, or academic records.
  */
 import { PrismaClient } from "@prisma/client";
@@ -20,16 +20,32 @@ async function main() {
   const firstName = process.env.INITIAL_ADMIN_FIRST_NAME?.trim() || "Platform";
   const lastName = process.env.INITIAL_ADMIN_LAST_NAME?.trim() || "Administrator";
 
+  // Follow the same AIMT tenant pattern used by the main seed. The production
+  // database requires role institution IDs, so this bootstrap deliberately
+  // creates an institution-scoped administrator rather than a platform role.
+  const aimt = await prisma.institution.upsert({
+    where: { slug: "aimt" },
+    update: {},
+    create: {
+      name: "Accurate Institute of Management & Technology",
+      slug: "aimt",
+      isActive: true,
+    },
+  });
+
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing?.institutionId) {
-    throw new Error("Initial admin email belongs to an institution-scoped user and cannot be promoted automatically.");
+  if (existing && existing.institutionId !== aimt.id) {
+    throw new Error("Initial admin email already belongs to a different tenant and will not be changed automatically.");
   }
 
-  const role = await prisma.role.upsert({
-    where: { institutionId_name: { institutionId: null, name: "SUPER_ADMIN" } },
-    update: { isSystem: true },
-    create: { name: "SUPER_ADMIN", institutionId: null, isSystem: true, description: "Platform administrator" },
+  let role = await prisma.role.findFirst({
+    where: { institutionId: aimt.id, name: "INSTITUTION_ADMIN" },
   });
+  if (!role) {
+    role = await prisma.role.create({
+      data: { name: "INSTITUTION_ADMIN", institutionId: aimt.id, isSystem: true, description: "Institution administrator" },
+    });
+  }
 
   const user = existing || await prisma.user.create({
     data: {
@@ -37,7 +53,7 @@ async function main() {
       passwordHash: await hashPassword(password),
       firstName,
       lastName,
-      institutionId: null,
+      institutionId: aimt.id,
       isActive: true,
     },
   });
@@ -60,7 +76,7 @@ async function main() {
     });
   }
 
-  console.log(existing ? "Initial SUPER_ADMIN already existed; role and permission bindings verified." : "Initial SUPER_ADMIN created.");
+  console.log(existing ? "Initial INSTITUTION_ADMIN already existed; role and permission bindings verified." : "Initial INSTITUTION_ADMIN created.");
 }
 
 main()
