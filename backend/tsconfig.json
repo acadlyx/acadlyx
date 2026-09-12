@@ -1,9 +1,10 @@
+```json
 {
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "rootDir": "./src",
     "outDir": "./dist",
     "esModuleInterop": true,
@@ -15,12 +16,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": true,
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": ["*"]
-    }
+    "sourceMap": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
+```
