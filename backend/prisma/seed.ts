@@ -15,7 +15,13 @@ import { hashPassword } from "../src/utils/password";
 
 const prisma = new PrismaClient();
 
-const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD || "ChangeMe123!";
+function requireDemoPassword(): string {
+  const password = process.env.SEED_DEMO_PASSWORD;
+  if (!password) {
+    throw new Error("SEED_DEMO_PASSWORD must be set before running the demo seed.");
+  }
+  return password;
+}
 
 const PERMISSIONS: Array<{ key: string; module: string; description: string }> = [
   { key: "users.read", module: "users", description: "View users" },
@@ -240,7 +246,7 @@ async function main() {
   console.log(`Roles ready: ${roleRecords.size}`);
 
   // --- Demo users ---
-  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const passwordHash = await hashPassword(requireDemoPassword());
 
   for (const demo of DEMO_USERS) {
     const user = await prisma.user.upsert({
@@ -349,7 +355,7 @@ async function main() {
 
   const rosterStudentIds: string[] = [];
   const studentRoleId = roleRecords.get("STUDENT");
-  const studentPasswordHash = await hashPassword(DEMO_PASSWORD);
+  const studentPasswordHash = await hashPassword(requireDemoPassword());
 
   for (const [firstName, lastName] of rosterNames) {
     const email = `${firstName}.${lastName}@aimt.acadlyx.com`.toLowerCase();
@@ -565,7 +571,7 @@ async function main() {
   }
 
   console.log("\nSeed complete.");
-  console.log(`Demo password for all seeded users: ${DEMO_PASSWORD}`);
+  console.log("Demo users seeded with the configured SEED_DEMO_PASSWORD.");
 }
 
 // --- Phase 2 upsert helpers (Prisma composite-unique upserts) ---

@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "prisma:seed:admin": "tsx prisma/seedAdmin.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
