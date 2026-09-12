@@ -2,13 +2,13 @@ import { Request } from "express";
 import { AppError } from "../middleware/errorHandler";
 import * as intelligence from "../services/intelligence.service";
 import * as career from "../services/careerIntelligence.service";
+import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
 async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
   if (roles.some(r => ["MANAGEMENT", "DIRECTOR", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
-  const { prisma } = await import("../lib/prisma");
   return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
 }
 function canReadOther(req: Request) { return user(req).permissions.includes("intelligence.read"); }
