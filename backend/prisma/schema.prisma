@@ -1,0 +1,652 @@
+// ACADLYX — Prisma schema
+// Phase 1: multi-tenant foundation — Institution, User, RBAC, auth,
+// audit log.
+// Phase 2: academic structure — Campus, Department, Program,
+// AcademicYear, Semester, Section, Course, CourseOffering.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================================
+// TENANT
+// ==========================================================
+
+/// A single institution (tenant). AIMT is the first row here,
+/// not a special case in code.
+model Institution {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  logoUrl       String?
+  primaryColor  String?
+  secondaryColor String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users           User[]
+  roles           Role[]
+  auditLogs       AuditLog[]
+
+  campuses        Campus[]
+  departments     Department[]
+  programs        Program[]
+  academicYears   AcademicYear[]
+  semesters       Semester[]
+  sections        Section[]
+  courses         Course[]
+  courseOfferings CourseOffering[]
+  studentEnrollments StudentEnrollment[]
+  attendanceSessions AttendanceSession[]
+  assignments        Assignment[]
+  assignmentSubmissions AssignmentSubmission[]
+  internalMarks      InternalMark[]
+
+  @@index([isActive])
+  @@map("institutions")
+}
+
+// ==========================================================
+// USERS
+// ==========================================================
+
+/// A person who can log in. institutionId is null only for
+/// platform-level users (SUPER_ADMIN). Every other user belongs
+/// to exactly one institution.
+model User {
+  id             String    @id @default(uuid())
+  institutionId  String?
+  institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  email          String    @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  userRoles              UserRole[]
+  refreshTokens          RefreshToken[]
+  auditLogs              AuditLog[]
+  facultyCourseOfferings CourseOffering[] @relation("CourseOfferingFaculty")
+  studentEnrollments     StudentEnrollment[]
+  attendanceSessionsTaken AttendanceSession[] @relation("AttendanceSessionFaculty")
+  attendanceRecordsOwned  AttendanceRecord[]  @relation("AttendanceRecordStudent")
+  assignmentsCreated      Assignment[]            @relation("AssignmentCreatedBy")
+  assignmentSubmissions   AssignmentSubmission[]  @relation("AssignmentSubmissionStudent")
+  assignmentReviews       AssignmentSubmission[]  @relation("AssignmentSubmissionReviewedBy")
+  internalMarksReceived   InternalMark[]          @relation("InternalMarkStudent")
+  internalMarksEntered    InternalMark[]          @relation("InternalMarkEnteredBy")
+
+  @@index([institutionId])
+  @@map("users")
+}
+
+// ==========================================================
+// RBAC
+// ==========================================================
+
+/// A named role. Institution-scoped except SUPER_ADMIN, which is
+/// a platform role (institutionId null). Institutions are not
+/// hard-coded to a fixed role list — new roles can be inserted
+/// per institution without a schema change.
+model Role {
+  id             String   @id @default(uuid())
+  institutionId  String?
+  institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+  @@map("roles")
+}
+
+/// A single grantable capability, e.g. "students.read".
+/// Global catalog shared across all institutions.
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  module      String
+  description String?
+
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+/// Join table: which permissions a role grants.
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Join table: which role(s) a user has. A user's effective
+/// institution/tenant context for authorization purposes comes
+/// from their roles, never from client input.
+model UserRole {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ==========================================================
+// AUTH
+// ==========================================================
+
+/// Opaque refresh tokens, stored only as a SHA-256 hash.
+/// Supports rotation + reuse detection.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ==========================================================
+// AUDIT
+// ==========================================================
+
+/// Foundation for audit logging of sensitive actions.
+/// institutionId/userId are nullable so a log survives deletion
+/// of the institution or user it references.
+model AuditLog {
+  id            String       @id @default(uuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action        String
+  entityType    String?
+  entityId      String?
+  metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+
+  createdAt     DateTime     @default(now())
+
+  @@index([institutionId])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ==========================================================
+// ACADEMIC STRUCTURE (Phase 2)
+// ==========================================================
+//
+// Institution → Campus (optional) → Department → Program → Semester
+// (a program's Nth semester, occurring within a specific AcademicYear)
+// → Section (a group of students within that semester) → CourseOffering
+// (a Course taught in that Semester+Section by a faculty User).
+//
+// There is no separate "Faculty" model — a faculty member is simply
+// a User holding the FACULTY role (see Phase 1 RBAC); CourseOffering
+// references User directly via facultyId.
+//
+// Student enrollment (linking a future Student record to a Program
+// and Section) is intentionally NOT modeled yet — that arrives with
+// the Student model in Phase 3, so it isn't half-built here.
+//
+// Academic history is preserved by never deleting AcademicYear/
+// Semester rows when a new year/semester starts — old ones are just
+// no longer "current". CourseOfferings are scoped to a specific
+// Semester, so a course taught across multiple semesters produces
+// multiple CourseOffering rows, not overwritten history.
+
+/// A physical/administrative campus. Optional today (AIMT is single-
+/// campus) but modeled from the start so multi-campus institutions
+/// don't require a schema change later.
+model Campus {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  name          String
+  code          String
+  address       String?
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  departments   Department[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@map("campuses")
+}
+
+model Department {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  campusId      String?
+  campus        Campus?     @relation(fields: [campusId], references: [id], onDelete: SetNull)
+
+  name          String
+  code          String
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  programs      Program[]
+  courses       Course[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@index([campusId])
+  @@map("departments")
+}
+
+model Program {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  name          String
+  code          String
+  /// Free text on purpose (e.g. "UG", "PG", "DIPLOMA") — not every
+  /// institution uses the same program levels.
+  level         String
+  durationYears Int
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  semesters     Semester[]
+
+  studentEnrollments StudentEnrollment[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@index([departmentId])
+  @@map("programs")
+}
+
+/// A concrete academic year, e.g. "2025-2026". Never deleted when a
+/// new year starts — preserves academic history.
+model AcademicYear {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  name          String
+  startDate     DateTime
+  endDate       DateTime
+  isCurrent     Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  semesters     Semester[]
+
+  studentEnrollments StudentEnrollment[]
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+  @@map("academic_years")
+}
+
+/// A program's Nth semester, occurring in a specific academic year.
+/// e.g. "B.Tech CSE, Semester 3, 2025-2026".
+model Semester {
+  id             String   @id @default(uuid())
+  institutionId  String
+  institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId      String
+  program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  number         Int
+  name           String
+  startDate      DateTime?
+  endDate        DateTime?
+  isActive       Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sections        Section[]
+  courseOfferings CourseOffering[]
+
+  @@unique([programId, academicYearId, number])
+  @@index([institutionId])
+  @@index([programId])
+  @@index([academicYearId])
+  @@map("semesters")
+}
+
+/// A group of students within a semester, e.g. "Section A".
+/// Student membership is added in Phase 3.
+model Section {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  semesterId    String
+  semester      Semester    @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  name          String
+  capacity      Int?
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courseOfferings CourseOffering[]
+
+  studentEnrollments StudentEnrollment[]
+
+  @@unique([semesterId, name])
+  @@index([institutionId])
+  @@index([semesterId])
+  @@map("sections")
+}
+
+/// A subject owned by a department, e.g. "Database Management
+/// Systems". Not tied to any one semester — CourseOffering is what
+/// schedules it into a specific Semester+Section.
+model Course {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  code          String
+  name          String
+  credits       Int
+  description   String?
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courseOfferings CourseOffering[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@index([departmentId])
+  @@map("courses")
+}
+
+/// The concrete scheduling of a Course into a Semester+Section,
+/// optionally assigned to a faculty User. A course taught across
+/// multiple semesters produces multiple rows here — history is
+/// never overwritten.
+model CourseOffering {
+  id            String   @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseId      String
+  course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  semesterId    String
+  semester      Semester    @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  sectionId     String
+  section       Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  facultyId     String?
+  faculty       User?       @relation("CourseOfferingFaculty", fields: [facultyId], references: [id], onDelete: SetNull)
+
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attendanceSessions AttendanceSession[]
+  assignments        Assignment[]
+  internalMarks      InternalMark[]
+
+  @@unique([courseId, semesterId, sectionId])
+  @@index([institutionId])
+  @@index([courseId])
+  @@index([semesterId])
+  @@index([sectionId])
+  @@index([facultyId])
+  @@map("course_offerings")
+}
+
+// ==========================================================
+// STUDENT ENROLLMENT (Phase 3)
+// ==========================================================
+
+/// Links a User (holding the STUDENT role) to a Program for a given
+/// AcademicYear, optionally to a Section. One row per student per
+/// academic year — re-enrolling for a new year creates a NEW row
+/// rather than overwriting the old one, so a student's academic
+/// history (which program/section/year they were in) is preserved.
+/// A full "Student" profile model (photo, guardian info, admission
+/// details, etc.) is intentionally out of scope here — this model
+/// only carries what the Student Portal needs: which
+/// program/section/year the student currently belongs to.
+model StudentEnrollment {
+  id             String       @id @default(uuid())
+  institutionId  String
+  institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId      String
+  program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  sectionId      String?
+  section        Section?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  rollNumber     String?
+  status         String       @default("ACTIVE") // ACTIVE | COMPLETED | DROPPED | TRANSFERRED
+
+  enrolledAt     DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, academicYearId])
+  @@index([institutionId])
+  @@index([userId])
+  @@index([programId])
+  @@index([sectionId])
+  @@index([academicYearId])
+  @@map("student_enrollments")
+}
+
+// ==========================================================
+// ATTENDANCE (Phase 4 — foundation; reports/analytics land in
+// the dedicated Attendance phase later)
+// ==========================================================
+
+/// One class session for a CourseOffering on a given date.
+/// Unique per (courseOffering, date) — a course meets its section
+/// at most once per day in this model. Marking is idempotent:
+/// re-opening an existing session's date returns the same row
+/// rather than creating a duplicate.
+model AttendanceSession {
+  id               String   @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  facultyId        String
+  faculty          User           @relation("AttendanceSessionFaculty", fields: [facultyId], references: [id], onDelete: Cascade)
+
+  sessionDate      DateTime @db.Date
+  isSubmitted      Boolean  @default(false)
+  submittedAt      DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  records AttendanceRecord[]
+
+  @@unique([courseOfferingId, sessionDate])
+  @@index([institutionId])
+  @@index([facultyId])
+  @@index([sessionDate])
+  @@map("attendance_sessions")
+}
+
+/// One student's mark within a session. Correcting a mark after
+/// submission is allowed (upsert, not insert-only) — "submitted"
+/// means the faculty has finished a first pass, not that the
+/// record is frozen.
+model AttendanceRecord {
+  id                  String   @id @default(uuid())
+  attendanceSessionId String
+  attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             User              @relation("AttendanceRecordStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  status    String   @default("ABSENT") // PRESENT | ABSENT | LATE
+  markedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([attendanceSessionId, studentId])
+  @@index([studentId])
+  @@map("attendance_records")
+}
+
+// ==========================================================
+// ASSIGNMENTS (Phase 5)
+// ==========================================================
+
+/// A piece of coursework set for a CourseOffering. Only PUBLISHED
+/// assignments are visible to students — DRAFT lets a faculty member
+/// prepare one before students see it.
+model Assignment {
+  id               String   @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  createdById      String
+  createdBy        User           @relation("AssignmentCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  dueDate     DateTime
+  maxMarks    Int
+  status      String   @default("DRAFT") // DRAFT | PUBLISHED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions AssignmentSubmission[]
+
+  @@index([institutionId])
+  @@index([courseOfferingId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("assignments")
+}
+
+/// One student's submission for an Assignment. Resubmitting updates
+/// this same row (unique per assignment+student) rather than
+/// stacking history — "submit" is a write, not an append-only log.
+model AssignmentSubmission {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  assignmentId  String
+  assignment    Assignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation("AssignmentSubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  content     String? // text submission; file upload is a later phase (Cloudinary/S3)
+  status      String   @default("SUBMITTED") // SUBMITTED | LATE | REVIEWED
+  submittedAt DateTime @default(now())
+
+  marksAwarded Int?
+  feedback     String?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?     @relation("AssignmentSubmissionReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, studentId])
+  @@index([institutionId])
+  @@index([studentId])
+  @@index([status])
+  @@map("assignment_submissions")
+}
+
+// ==========================================================
+// INTERNAL MARKS (Phase 5)
+// ==========================================================
+
+/// One graded component (e.g. "Internal 1", "Quiz 2") for one
+/// student in one CourseOffering. Multiple components accumulate as
+/// separate rows rather than overwriting a single "marks" field, so
+/// a course's full internal-assessment history is preserved.
+model InternalMark {
+  id               String   @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User           @relation("InternalMarkStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  enteredById      String
+  enteredBy        User           @relation("InternalMarkEnteredBy", fields: [enteredById], references: [id], onDelete: Cascade)
+
+  component     String // e.g. "Internal 1", "Internal 2", "Quiz 1"
+  marksObtained Float
+  maxMarks      Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseOfferingId, studentId, component])
+  @@index([institutionId])
+  @@index([studentId])
+  @@index([courseOfferingId])
+  @@map("internal_marks")
+}
