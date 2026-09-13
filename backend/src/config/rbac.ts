@@ -93,6 +93,16 @@ export const PERMISSIONS = [
   },
 
   {
+    key: "site.manage",
+    module: "site",
+    description: "Manage the public institutional website",
+  },
+  {
+    key: "imports.manage",
+    module: "imports",
+    description: "Import institutional data from spreadsheets",
+  },
+  {
     key: "reports.read",
     module: "reports",
     description: "View reports",
@@ -304,6 +314,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "marks.read",
     "reports.read",
     "intelligence.read",
+    "site.manage",
+    "imports.manage",
     ...ACADEMIC_READ,
   ],
 
@@ -315,6 +327,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     "marks.read",
     "reports.read",
     "intelligence.read",
+    "site.manage",
+    "imports.manage",
     ...ACADEMIC_READ,
   ],
 
