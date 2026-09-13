@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { AppError } from "../middleware/errorHandler";
 import * as userService from "../services/user.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -9,7 +10,7 @@ import {
 
 function requireSuperAdmin(req: Request): void {
   if (!req.user?.roles.includes("SUPER_ADMIN")) {
-    throw new Error("SUPER_ADMIN access required");
+    throw new AppError("SUPER_ADMIN access required", 403);
   }
 }
 
