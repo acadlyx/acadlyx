@@ -40,7 +40,7 @@ function requireUserManagementRole(req: Request) {
 
 export const list = asyncHandler(
   async (req: Request, res: Response) => {
-    const user = requireUser();
+    const user = requireUser(req);
 
     const pagination = parsePagination(req);
 
@@ -115,7 +115,7 @@ export const list = asyncHandler(
 
 export const getById = asyncHandler(
   async (req: Request, res: Response) => {
-    const user = requireUser();
+    const user = requireUser(req);
 
     const isSuperAdmin =
       user.roles.includes("SUPER_ADMIN");
