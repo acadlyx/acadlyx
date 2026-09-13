@@ -24,6 +24,8 @@ import studentRoutes from "./routes/student.routes";
 import intelligenceRoutes from "./routes/intelligence.routes";
 import askRoutes from "./routes/ask.routes";
 import erpRoutes from "./routes/erp.routes";
+import importRoutes from "./routes/import.routes";
+import siteContentRoutes from "./routes/siteContent.routes";
 
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
@@ -104,6 +106,8 @@ export function createApp(): Application {
 
   app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
   app.use(`${apiPrefix}/erp`, erpRoutes);
+  app.use(`${apiPrefix}/imports`, importRoutes);
+  app.use(`${apiPrefix}/site-content`, siteContentRoutes);
 
   app.use(notFound);
 
