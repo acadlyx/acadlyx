@@ -11,14 +11,6 @@ const MANAGEMENT_ROLES = [
   "STAFF",
 ];
 
-const ACADEMIC_MANAGEMENT_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "MANAGEMENT",
-  "HOD",
-];
-
 const weekday = new Date().getDay();
 
 function assertRole(
