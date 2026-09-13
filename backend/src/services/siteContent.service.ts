@@ -105,7 +105,7 @@ export async function updateSiteContent(institutionId: string, actor: Authentica
     throw new AppError("You are not allowed to manage website content", 403);
   }
   const normalized = mergeDefaults(content);
-  const existing = await prisma.siteContent.findUnique({ where: { institutionId } });
+
   return prisma.siteContent.upsert({
     where: { institutionId },
     update: { content: normalized as any, version: { increment: 1 }, updatedById: actor.id, publishedAt: new Date() },
