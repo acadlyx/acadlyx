@@ -61,6 +61,7 @@ model Institution {
   documents             Document[]
   notifications         Notification[]
   parentStudentLinks    ParentStudentLink[]
+  siteContents          SiteContent[]
 
   @@index([isActive])
   @@map("institutions")
@@ -970,4 +971,28 @@ model Notification {
 
   @@index([institutionId, userId, readAt])
   @@map("notifications")
+}
+
+
+// ==========================================================
+// PUBLIC WEBSITE CMS
+// ==========================================================
+
+/// One dynamic public-site configuration document per institution.
+/// The JSON payload is intentionally flexible so the public website can
+/// evolve without repeated schema migrations for every text/image field.
+model SiteContent {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  content       Json
+  version       Int         @default(1)
+  publishedAt   DateTime    @default(now())
+  updatedById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([institutionId])
+  @@index([institutionId, updatedAt])
+  @@map("site_contents")
 }
