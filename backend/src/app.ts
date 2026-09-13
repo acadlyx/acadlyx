@@ -24,25 +24,11 @@ import studentRoutes from "./routes/student.routes";
 import intelligenceRoutes from "./routes/intelligence.routes";
 import askRoutes from "./routes/ask.routes";
 
-/*
- * Administrative/platform routes will be added in the next batch:
- *
- * /institutions
- * /users
- * /roles
- * /permissions
- * /audit
- *
- * Keeping route registration here centralized makes the API versioned
- * and prevents frontend pages from depending on internal controllers.
- */
+import institutionRoutes from "./routes/institution.routes";
+import userRoutes from "./routes/user.routes";
 
 export function createApp(): Application {
   const app: Application = express();
-
-  // ----------------------------------------------------------
-  // SECURITY
-  // ----------------------------------------------------------
 
   app.use(helmet());
 
@@ -53,24 +39,12 @@ export function createApp(): Application {
     })
   );
 
-  // ----------------------------------------------------------
-  // REQUEST PARSING
-  // ----------------------------------------------------------
-
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true, limit: "2mb" }));
-
-  // ----------------------------------------------------------
-  // DEVELOPMENT REQUEST LOGGING
-  // ----------------------------------------------------------
 
   if (!isProduction) {
     app.use(morgan("dev"));
   }
-
-  // ----------------------------------------------------------
-  // ROOT / DEPLOYMENT CHECK
-  // ----------------------------------------------------------
 
   app.get("/", (_req, res) => {
     res.status(200).json({
@@ -81,19 +55,21 @@ export function createApp(): Application {
     });
   });
 
-  // ----------------------------------------------------------
-  // VERSIONED API
-  // ----------------------------------------------------------
-
   const apiPrefix = `/api/${env.apiVersion}`;
 
-  // System
   app.use(`${apiPrefix}/health`, healthRoutes);
 
-  // Authentication
   app.use(`${apiPrefix}/auth`, authRoutes);
 
-  // Academic structure
+  /*
+   * PLATFORM ADMINISTRATION
+   */
+  app.use(`${apiPrefix}/institutions`, institutionRoutes);
+  app.use(`${apiPrefix}/users`, userRoutes);
+
+  /*
+   * ACADEMIC STRUCTURE
+   */
   app.use(`${apiPrefix}/departments`, departmentRoutes);
   app.use(`${apiPrefix}/programs`, programRoutes);
   app.use(`${apiPrefix}/academic-years`, academicYearRoutes);
@@ -102,28 +78,32 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/courses`, courseRoutes);
   app.use(`${apiPrefix}/course-offerings`, courseOfferingRoutes);
 
-  // People / student self-service
+  /*
+   * PEOPLE / STUDENT SELF SERVICE
+   */
   app.use(`${apiPrefix}/students`, studentRoutes);
   app.use(`${apiPrefix}/faculty`, facultyRoutes);
 
-  // Academic operations
-  app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
+  /*
+   * ACADEMIC OPERATIONS
+   */
+  app.use(
+    `${apiPrefix}/attendance-sessions`,
+    attendanceSessionRoutes
+  );
+
   app.use(`${apiPrefix}/assignments`, assignmentRoutes);
+
   app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
 
-  // Intelligence
+  /*
+   * INTELLIGENCE
+   */
   app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
+
   app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
 
-  // ----------------------------------------------------------
-  // 404
-  // ----------------------------------------------------------
-
   app.use(notFound);
-
-  // ----------------------------------------------------------
-  // CENTRAL ERROR HANDLER
-  // ----------------------------------------------------------
 
   app.use(errorHandler);
 
