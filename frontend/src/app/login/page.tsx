@@ -43,8 +43,11 @@ function getDashboardRoute(roles: string[]): string {
     return "/staff";
   }
 
-  // Default student workspace.
-  return "/student";
+  if (roles.includes("STUDENT")) {
+    return "/student";
+  }
+
+  return "/login";
 }
 
 export default function LoginPage() {

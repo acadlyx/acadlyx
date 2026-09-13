@@ -10,6 +10,19 @@ function assertRole(user: AuthenticatedUser, allowed: string[]) {
   if (!user.roles.some((role) => allowed.includes(role))) throw new AppError("Not authorized for this ERP operation", 403);
 }
 
+async function assertDepartmentScope(institutionId: string, actor: AuthenticatedUser, courseOfferingId?: string, departmentId?: string) {
+  if (!actor.roles.includes("HOD")) return;
+  let scopedDepartmentId = departmentId;
+  if (courseOfferingId) {
+    const offering = await prisma.courseOffering.findFirst({ where: { id: courseOfferingId, institutionId }, select: { course: { select: { departmentId: true } } } });
+    if (!offering) throw new AppError("Course offering not found in this institution", 404);
+    scopedDepartmentId = offering.course.departmentId;
+  }
+  if (!scopedDepartmentId) throw new AppError("HOD actions require a department scope", 403);
+  const access = await prisma.departmentAccess.findFirst({ where: { userId: actor.id, departmentId: scopedDepartmentId } });
+  if (!access) throw new AppError("Department is outside your authorized scope", 403);
+}
+
 async function assertStudentScope(institutionId: string, actor: AuthenticatedUser, studentId: string) {
   if (actor.id === studentId || actor.roles.some((role) => ADMIN_ROLES.includes(role))) return;
   if (actor.roles.includes("PARENT")) {
@@ -37,6 +50,7 @@ export async function getMyWorkspace(institutionId: string, actor: Authenticated
 
 export async function createTimetableEntry(institutionId: string, actor: AuthenticatedUser, input: { courseOfferingId: string; dayOfWeek: number; startTime: string; endTime: string; room?: string }) {
   assertRole(actor, ["INSTITUTION_ADMIN", "HOD", "STAFF"]);
+  await assertDepartmentScope(institutionId, actor, input.courseOfferingId);
   const offering = await prisma.courseOffering.findFirst({ where: { id: input.courseOfferingId, institutionId } });
   if (!offering) throw new AppError("Course offering not found in this institution", 404);
   const row = await prisma.timetableEntry.upsert({ where: { courseOfferingId_dayOfWeek_startTime: { courseOfferingId: input.courseOfferingId, dayOfWeek: input.dayOfWeek, startTime: input.startTime } }, update: { endTime: input.endTime, room: input.room || null }, create: { institutionId, ...input, room: input.room || null } });
@@ -46,6 +60,7 @@ export async function createTimetableEntry(institutionId: string, actor: Authent
 
 export async function createNotice(institutionId: string, actor: AuthenticatedUser, input: { title: string; body: string; audience?: string; departmentId?: string; expiresAt?: string }) {
   assertRole(actor, ["INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD", "STAFF"]);
+  await assertDepartmentScope(institutionId, actor, undefined, input.departmentId);
   const row = await prisma.notice.create({ data: { institutionId, createdById: actor.id, title: input.title, body: input.body, audience: input.audience || "ALL", departmentId: input.departmentId || null, expiresAt: input.expiresAt ? new Date(input.expiresAt) : null } });
   await recordAuditLog({ institutionId, userId: actor.id, action: "notice.create", entityType: "Notice", entityId: row.id });
   return row;
@@ -53,6 +68,7 @@ export async function createNotice(institutionId: string, actor: AuthenticatedUs
 
 export async function createExam(institutionId: string, actor: AuthenticatedUser, input: { courseOfferingId: string; title: string; examDate: string; maxMarks: number }) {
   assertRole(actor, ["INSTITUTION_ADMIN", "HOD", "FACULTY"]);
+  await assertDepartmentScope(institutionId, actor, input.courseOfferingId);
   const offering = await prisma.courseOffering.findFirst({ where: { id: input.courseOfferingId, institutionId, OR: actor.roles.includes("FACULTY") ? [{ facultyId: actor.id }] : undefined } });
   if (!offering) throw new AppError("Course offering is not authorized", 403);
   return prisma.exam.create({ data: { institutionId, createdById: actor.id, ...input, examDate: new Date(input.examDate) } });
@@ -62,6 +78,7 @@ export async function upsertExamResult(institutionId: string, actor: Authenticat
   assertRole(actor, ["INSTITUTION_ADMIN", "HOD", "FACULTY"]);
   const exam = await prisma.exam.findFirst({ where: { id: input.examId, institutionId, OR: actor.roles.includes("FACULTY") ? [{ courseOffering: { facultyId: actor.id } }] : undefined } });
   if (!exam) throw new AppError("Exam is not authorized", 403);
+  await assertDepartmentScope(institutionId, actor, exam.courseOfferingId);
   if (input.marks < 0 || input.marks > exam.maxMarks) throw new AppError("Marks must be within the exam maximum", 400);
   await assertStudentScope(institutionId, { ...actor, roles: ["INSTITUTION_ADMIN"] }, input.studentId);
   return prisma.examResult.upsert({ where: { examId_studentId: { examId: input.examId, studentId: input.studentId } }, update: { marks: input.marks, remarks: input.remarks || null, enteredById: actor.id }, create: { institutionId, examId: input.examId, studentId: input.studentId, marks: input.marks, remarks: input.remarks || null, enteredById: actor.id } });
