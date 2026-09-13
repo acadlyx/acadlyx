@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { login } from "@/lib/auth";
@@ -85,13 +86,13 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-lg font-bold text-white shadow-sm">
-            A
+          <div className="flex items-center justify-center gap-3">
+            <Image src="/branding/aimt-logo.png" alt="AIMT" width={56} height={56} className="h-14 w-14 object-contain" priority />
+            <div className="h-10 w-px bg-slate-200" />
+            <Image src="/branding/acadlyx-logo.png" alt="ACADLYX" width={48} height={48} className="h-12 w-12 rounded-xl object-contain" priority />
           </div>
 
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-            ACADLYX
-          </h1>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">AIMT × ACADLYX</h1>
 
           <p className="mt-1 text-sm text-slate-500">
             Education ERP & Institutional Intelligence
