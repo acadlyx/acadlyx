@@ -14,13 +14,6 @@ function requireSuperAdmin(req: Request): void {
   }
 }
 
-function requestMeta(req: Request) {
-  return {
-    ipAddress: req.ip,
-    userAgent: req.headers["user-agent"],
-  };
-}
-
 export const list = asyncHandler(async (req: Request, res: Response) => {
   requireSuperAdmin(req);
 
@@ -65,10 +58,9 @@ export const getById = asyncHandler(async (req: Request, res: Response) => {
 export const create = asyncHandler(async (req: Request, res: Response) => {
   requireSuperAdmin(req);
 
-  const institution =
-    await institutionService.createInstitution(
-      req.body as CreateInstitutionInput
-    );
+  const institution = await institutionService.createInstitution(
+    req.body as CreateInstitutionInput
+  );
 
   res.status(201).json({
     success: true,
@@ -79,11 +71,10 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 export const update = asyncHandler(async (req: Request, res: Response) => {
   requireSuperAdmin(req);
 
-  const institution =
-    await institutionService.updateInstitution(
-      req.params.id,
-      req.body as UpdateInstitutionInput
-    );
+  const institution = await institutionService.updateInstitution(
+    req.params.id,
+    req.body as UpdateInstitutionInput
+  );
 
   res.status(200).json({
     success: true,
@@ -97,11 +88,10 @@ export const setActive = asyncHandler(
 
     const isActive = req.body.isActive === true;
 
-    const institution =
-      await institutionService.setInstitutionActive(
-        req.params.id,
-        isActive
-      );
+    const institution = await institutionService.setInstitutionActive(
+      req.params.id,
+      isActive
+    );
 
     res.status(200).json({
       success: true,
