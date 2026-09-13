@@ -319,8 +319,13 @@ export async function createUser(
   input: CreateUserInput,
   actor: AuthenticatedUser
 ) {
-  const targetInstitutionId =
-    input.institutionId ?? null;
+  // Institution administrators are tenant-scoped. Their institution is
+  // derived from the authenticated actor, never from the browser payload.
+  // This both fixes the create-user flow and prevents cross-institution
+  // assignment if a client tampers with institutionId.
+  const targetInstitutionId = isSuperAdmin(actor)
+    ? input.institutionId ?? null
+    : requireActorInstitution(actor);
 
   if (isSuperAdmin(actor)) {
     if (
@@ -342,27 +347,11 @@ export async function createUser(
         400
       );
     }
-  } else {
-    const actorInstitutionId =
-      requireActorInstitution(actor);
-
-    if (
-      !targetInstitutionId ||
-      targetInstitutionId !==
-        actorInstitutionId
-    ) {
-      throw new AppError(
-        "Institution administrators may only create users inside their own institution",
-        403
-      );
-    }
-
-    if (input.role === "SUPER_ADMIN") {
-      throw new AppError(
-        "Institution administrators cannot create SUPER_ADMIN users",
-        403
-      );
-    }
+  } else if (input.role === "SUPER_ADMIN") {
+    throw new AppError(
+      "Institution administrators cannot create SUPER_ADMIN users",
+      403
+    );
   }
 
   if (
