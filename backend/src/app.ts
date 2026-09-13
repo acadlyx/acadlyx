@@ -2,9 +2,11 @@ import cors from "cors";
 import express, { Application } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+
 import { env, isProduction } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
+
 import academicYearRoutes from "./routes/academicYear.routes";
 import assignmentRoutes from "./routes/assignment.routes";
 import attendanceSessionRoutes from "./routes/attendanceSession.routes";
@@ -22,39 +24,76 @@ import studentRoutes from "./routes/student.routes";
 import intelligenceRoutes from "./routes/intelligence.routes";
 import askRoutes from "./routes/ask.routes";
 
-/**
- * Builds and configures the Express application.
- * Route modules are mounted under a versioned prefix (/api/v1/...)
- * so future breaking changes can live under /api/v2 without disruption.
+/*
+ * Administrative/platform routes will be added in the next batch:
+ *
+ * /institutions
+ * /users
+ * /roles
+ * /permissions
+ * /audit
+ *
+ * Keeping route registration here centralized makes the API versioned
+ * and prevents frontend pages from depending on internal controllers.
  */
+
 export function createApp(): Application {
   const app: Application = express();
 
-  // Security & parsing middleware
+  // ----------------------------------------------------------
+  // SECURITY
+  // ----------------------------------------------------------
+
   app.use(helmet());
+
   app.use(
     cors({
       origin: env.corsOrigin,
       credentials: true,
     })
   );
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+
+  // ----------------------------------------------------------
+  // REQUEST PARSING
+  // ----------------------------------------------------------
+
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+
+  // ----------------------------------------------------------
+  // DEVELOPMENT REQUEST LOGGING
+  // ----------------------------------------------------------
 
   if (!isProduction) {
     app.use(morgan("dev"));
   }
 
-  // Lightweight deployment/liveness response. Detailed service health remains
-  // available at GET /api/v1/health.
+  // ----------------------------------------------------------
+  // ROOT / DEPLOYMENT CHECK
+  // ----------------------------------------------------------
+
   app.get("/", (_req, res) => {
-    res.status(200).json({ success: true, message: "ACADLYX API is running" });
+    res.status(200).json({
+      success: true,
+      message: "ACADLYX API is running",
+      version: env.apiVersion,
+      environment: env.nodeEnv,
+    });
   });
 
-  // Versioned API routes
+  // ----------------------------------------------------------
+  // VERSIONED API
+  // ----------------------------------------------------------
+
   const apiPrefix = `/api/${env.apiVersion}`;
+
+  // System
   app.use(`${apiPrefix}/health`, healthRoutes);
+
+  // Authentication
   app.use(`${apiPrefix}/auth`, authRoutes);
+
+  // Academic structure
   app.use(`${apiPrefix}/departments`, departmentRoutes);
   app.use(`${apiPrefix}/programs`, programRoutes);
   app.use(`${apiPrefix}/academic-years`, academicYearRoutes);
@@ -62,19 +101,30 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/sections`, sectionRoutes);
   app.use(`${apiPrefix}/courses`, courseRoutes);
   app.use(`${apiPrefix}/course-offerings`, courseOfferingRoutes);
+
+  // People / student self-service
   app.use(`${apiPrefix}/students`, studentRoutes);
   app.use(`${apiPrefix}/faculty`, facultyRoutes);
+
+  // Academic operations
   app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
   app.use(`${apiPrefix}/assignments`, assignmentRoutes);
   app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
+
+  // Intelligence
   app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
   app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
 
-  // Future route mounts (Phase 6+):
-  // app.use(`${apiPrefix}/users`, userRoutes);
+  // ----------------------------------------------------------
+  // 404
+  // ----------------------------------------------------------
 
-  // 404 + centralized error handling (must be last)
   app.use(notFound);
+
+  // ----------------------------------------------------------
+  // CENTRAL ERROR HANDLER
+  // ----------------------------------------------------------
+
   app.use(errorHandler);
 
   return app;
