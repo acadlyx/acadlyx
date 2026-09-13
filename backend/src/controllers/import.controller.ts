@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import * as importer from "../services/import.service";
 import { AppError } from "../middleware/errorHandler";
