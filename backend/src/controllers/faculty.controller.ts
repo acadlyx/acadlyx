@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import * as demo from "../services/demo/facultyDashboard.demo";
 import * as facultyService from "../services/faculty.service";
 import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -52,28 +51,20 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     user.id
   );
 
-  const realCourseRefs = offerings.map((o) => ({
-    code: o.course.code,
-    name: o.course.name,
-    sectionName: o.section.name,
-  }));
-
   const [
     attendanceOverview,
     atRisk,
     pendingAttendanceCount,
     pendingReviewCount,
-    submissionGaps,
+    submissionGaps, timetable,
   ] = await Promise.all([
     facultyService.getAttendanceOverview(institutionId, user.id),
     facultyService.getAtRiskStudents(institutionId, user.id),
     facultyService.getPendingAttendanceCount(institutionId, user.id),
     facultyService.getPendingAssignmentReviewCount(institutionId, user.id),
     facultyService.getAssignmentSubmissionGaps(institutionId, user.id),
+    prisma.timetableEntry.findMany({ where: { institutionId, dayOfWeek: new Date().getDay(), courseOffering: { facultyId: user.id } }, include: { courseOffering: { include: { course: true, section: true } } }, orderBy: { startTime: "asc" } }),
   ]);
-
-  const todaysClasses = demo.getDemoTodaysClasses(realCourseRefs);
-  const lecturePlansPending = demo.getDemoLecturePlansPending();
 
   res.status(200).json({
     success: true,
@@ -91,16 +82,15 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       pending: {
         attendanceSessions: pendingAttendanceCount,
         assignmentsToReview: pendingReviewCount,
-        lecturePlansPending, // demo — no Lecture Plans model yet
+        lecturePlansPending: 0,
       },
       smartInsights: {
         studentsBelowAttendanceThreshold: atRisk,
         assignmentSubmissionGaps: submissionGaps,
       },
 
-      // --- demo (course/section names are real; time slots are not) ---
-      todaysClassCount: todaysClasses.length,
-      todaysClasses,
+      todaysClassCount: timetable.length,
+      todaysClasses: timetable.map((entry) => ({ time: `${entry.startTime}–${entry.endTime}`, courseCode: entry.courseOffering.course.code, courseName: entry.courseOffering.course.name, sectionName: entry.courseOffering.section.name })),
     },
   });
 });

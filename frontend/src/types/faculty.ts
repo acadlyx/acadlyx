@@ -36,13 +36,11 @@ export interface FacultyCourseOffering {
   semester: FacultySemesterSummary;
 }
 
-/** time is a placeholder until Phase 7 (Timetable) ships. */
 export interface FacultyTodayClassSlot {
   time: string;
   courseCode: string;
   courseName: string;
   sectionName: string;
-  isDemoSchedule: true;
 }
 
 export interface AttendanceOverviewItem {

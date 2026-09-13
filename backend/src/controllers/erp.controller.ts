@@ -1,0 +1,14 @@
+import { Request } from "express";
+import * as erp from "../services/erp.service";
+import { asyncHandler } from "../utils/asyncHandler";
+import { requireInstitution } from "../utils/requireInstitution";
+import { AppError } from "../middleware/errorHandler";
+const actor = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
+export const workspace = asyncHandler(async (req, res) => res.json({ success: true, data: await erp.getMyWorkspace(requireInstitution(req), actor(req)) }));
+export const timetable = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.createTimetableEntry(requireInstitution(req), actor(req), req.body) }));
+export const notice = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.createNotice(requireInstitution(req), actor(req), req.body) }));
+export const exam = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.createExam(requireInstitution(req), actor(req), req.body) }));
+export const result = asyncHandler(async (req, res) => res.status(200).json({ success: true, data: await erp.upsertExamResult(requireInstitution(req), actor(req), req.body) }));
+export const invoice = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.createInvoice(requireInstitution(req), actor(req), req.body) }));
+export const payment = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.recordPayment(requireInstitution(req), actor(req), req.params.id, req.body.amount, req.body.reference) }));
+export const parentLink = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await erp.linkParent(requireInstitution(req), actor(req), req.body.parentId, req.body.studentId, req.body.relationship) }));

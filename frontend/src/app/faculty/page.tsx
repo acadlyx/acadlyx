@@ -117,7 +117,6 @@ export default function FacultyDashboardPage() {
                 courseCode: c.courseCode,
                 courseName: c.courseName,
                 location: `Section ${c.sectionName}`,
-                isDemoSchedule: c.isDemoSchedule,
               }))}
             />
           </DashboardCard>

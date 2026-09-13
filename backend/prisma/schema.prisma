@@ -20,38 +20,47 @@ datasource db {
 /// A single institution (tenant). AIMT is the first row here,
 /// not a special case in code.
 model Institution {
-  id            String   @id @default(uuid())
-  name          String
-  slug          String   @unique
-  logoUrl       String?
-  primaryColor  String?
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  logoUrl        String?
+  primaryColor   String?
   secondaryColor String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  users           User[]
-  roles           Role[]
-  auditLogs       AuditLog[]
+  users     User[]
+  roles     Role[]
+  auditLogs AuditLog[]
 
-  campuses        Campus[]
-  departments     Department[]
-  programs        Program[]
-  academicYears   AcademicYear[]
-  semesters       Semester[]
-  sections        Section[]
-  courses         Course[]
-  courseOfferings CourseOffering[]
-  studentEnrollments StudentEnrollment[]
-  attendanceSessions AttendanceSession[]
-  assignments        Assignment[]
+  campuses              Campus[]
+  departments           Department[]
+  programs              Program[]
+  academicYears         AcademicYear[]
+  semesters             Semester[]
+  sections              Section[]
+  courses               Course[]
+  courseOfferings       CourseOffering[]
+  studentEnrollments    StudentEnrollment[]
+  attendanceSessions    AttendanceSession[]
+  assignments           Assignment[]
   assignmentSubmissions AssignmentSubmission[]
-  internalMarks      InternalMark[]
-  skills             Skill[]
-  targetRoles        TargetRole[]
-  opportunities      Opportunity[]
-  studentSkills      StudentSkill[]
-  applications       Application[]
+  internalMarks         InternalMark[]
+  skills                Skill[]
+  targetRoles           TargetRole[]
+  opportunities         Opportunity[]
+  studentSkills         StudentSkill[]
+  applications          Application[]
+  timetableEntries      TimetableEntry[]
+  exams                 Exam[]
+  examResults           ExamResult[]
+  feeInvoices           FeeInvoice[]
+  feePayments           FeePayment[]
+  notices               Notice[]
+  documents             Document[]
+  notifications         Notification[]
+  parentStudentLinks    ParentStudentLink[]
 
   @@index([isActive])
   @@map("institutions")
@@ -65,37 +74,44 @@ model Institution {
 /// platform-level users (SUPER_ADMIN). Every other user belongs
 /// to exactly one institution.
 model User {
-  id             String    @id @default(uuid())
-  institutionId  String?
-  institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
-  email          String    @unique
-  passwordHash   String
-  firstName      String
-  lastName       String
-  phone          String?
-  isActive       Boolean   @default(true)
-  lastLoginAt    DateTime?
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  userRoles              UserRole[]
-  refreshTokens          RefreshToken[]
-  auditLogs              AuditLog[]
-  facultyCourseOfferings CourseOffering[] @relation("CourseOfferingFaculty")
-  studentEnrollments     StudentEnrollment[]
-  attendanceSessionsTaken AttendanceSession[] @relation("AttendanceSessionFaculty")
-  attendanceRecordsOwned  AttendanceRecord[]  @relation("AttendanceRecordStudent")
-  assignmentsCreated      Assignment[]            @relation("AssignmentCreatedBy")
-  assignmentSubmissions   AssignmentSubmission[]  @relation("AssignmentSubmissionStudent")
-  assignmentReviews       AssignmentSubmission[]  @relation("AssignmentSubmissionReviewedBy")
-  internalMarksReceived   InternalMark[]          @relation("InternalMarkStudent")
-  internalMarksEntered    InternalMark[]          @relation("InternalMarkEnteredBy")
+  userRoles               UserRole[]
+  refreshTokens           RefreshToken[]
+  auditLogs               AuditLog[]
+  facultyCourseOfferings  CourseOffering[]       @relation("CourseOfferingFaculty")
+  studentEnrollments      StudentEnrollment[]
+  attendanceSessionsTaken AttendanceSession[]    @relation("AttendanceSessionFaculty")
+  attendanceRecordsOwned  AttendanceRecord[]     @relation("AttendanceRecordStudent")
+  assignmentsCreated      Assignment[]           @relation("AssignmentCreatedBy")
+  assignmentSubmissions   AssignmentSubmission[] @relation("AssignmentSubmissionStudent")
+  assignmentReviews       AssignmentSubmission[] @relation("AssignmentSubmissionReviewedBy")
+  internalMarksReceived   InternalMark[]         @relation("InternalMarkStudent")
+  internalMarksEntered    InternalMark[]         @relation("InternalMarkEnteredBy")
   departmentAccesses      DepartmentAccess[]
   studentSkills           StudentSkill[]
   careerPaths             CareerPath[]
   applications            Application[]
+  parentLinks             ParentStudentLink[]    @relation("ParentLinks")
+  childLinks              ParentStudentLink[]    @relation("ChildLinks")
+  examResults             ExamResult[]
+  feeInvoices             FeeInvoice[]
+  feePayments             FeePayment[]
+  documents               Document[]             @relation("DocumentOwner")
+  notifications           Notification[]
 
   @@index([institutionId])
   @@map("users")
@@ -110,16 +126,16 @@ model User {
 /// hard-coded to a fixed role list — new roles can be inserted
 /// per institution without a schema change.
 model Role {
-  id             String   @id @default(uuid())
-  institutionId  String?
-  institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
-  name           String
-  description    String?
-  isSystem       Boolean  @default(false)
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   userRoles       UserRole[]
   rolePermissions RolePermission[]
@@ -132,12 +148,12 @@ model Role {
 /// A single grantable capability, e.g. "students.read".
 /// Global catalog shared across all institutions.
 model Permission {
-  id          String   @id @default(uuid())
-  key         String   @unique
+  id          String  @id @default(uuid())
+  key         String  @unique
   module      String
   description String?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   rolePermissions RolePermission[]
 
@@ -152,7 +168,7 @@ model RolePermission {
   permissionId String
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
@@ -162,10 +178,10 @@ model RolePermission {
 /// institution/tenant context for authorization purposes comes
 /// from their roles, never from client input.
 model UserRole {
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  roleId    String
-  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -180,17 +196,17 @@ model UserRole {
 /// Opaque refresh tokens, stored only as a SHA-256 hash.
 /// Supports rotation + reuse detection.
 model RefreshToken {
-  id         String    @id @default(uuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash  String    @unique
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  ipAddress  String?
-  userAgent  String?
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ipAddress String?
+  userAgent String?
 
-  createdAt  DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@map("refresh_tokens")
@@ -210,14 +226,14 @@ model AuditLog {
   userId        String?
   user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  action        String
-  entityType    String?
-  entityId      String?
-  metadata      Json?
-  ipAddress     String?
-  userAgent     String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
 
-  createdAt     DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   @@index([institutionId])
   @@index([userId])
@@ -252,19 +268,19 @@ model AuditLog {
 /// campus) but modeled from the start so multi-campus institutions
 /// don't require a schema change later.
 model Campus {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
-  name          String
-  code          String
-  address       String?
-  isActive      Boolean  @default(true)
+  name     String
+  code     String
+  address  String?
+  isActive Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  departments   Department[]
+  departments Department[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -272,21 +288,21 @@ model Campus {
 }
 
 model Department {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   campusId      String?
   campus        Campus?     @relation(fields: [campusId], references: [id], onDelete: SetNull)
 
-  name          String
-  code          String
-  isActive      Boolean  @default(true)
+  name     String
+  code     String
+  isActive Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  programs      Program[]
-  courses       Course[]
+  programs           Program[]
+  courses            Course[]
   departmentAccesses DepartmentAccess[]
 
   @@unique([institutionId, code])
@@ -296,7 +312,7 @@ model Department {
 }
 
 model Program {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   departmentId  String
@@ -308,12 +324,12 @@ model Program {
   /// institution uses the same program levels.
   level         String
   durationYears Int
-  isActive      Boolean  @default(true)
+  isActive      Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  semesters     Semester[]
+  semesters Semester[]
 
   studentEnrollments StudentEnrollment[]
 
@@ -326,19 +342,19 @@ model Program {
 /// A concrete academic year, e.g. "2025-2026". Never deleted when a
 /// new year starts — preserves academic history.
 model AcademicYear {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
-  name          String
-  startDate     DateTime
-  endDate       DateTime
-  isCurrent     Boolean  @default(false)
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  semesters     Semester[]
+  semesters Semester[]
 
   studentEnrollments StudentEnrollment[]
 
@@ -350,7 +366,7 @@ model AcademicYear {
 /// A program's Nth semester, occurring in a specific academic year.
 /// e.g. "B.Tech CSE, Semester 3, 2025-2026".
 model Semester {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   institutionId  String
   institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   programId      String
@@ -358,14 +374,14 @@ model Semester {
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  number         Int
-  name           String
-  startDate      DateTime?
-  endDate        DateTime?
-  isActive       Boolean  @default(true)
+  number    Int
+  name      String
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean   @default(true)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   sections        Section[]
   courseOfferings CourseOffering[]
@@ -380,18 +396,18 @@ model Semester {
 /// A group of students within a semester, e.g. "Section A".
 /// Student membership is added in Phase 3.
 model Section {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   semesterId    String
   semester      Semester    @relation(fields: [semesterId], references: [id], onDelete: Cascade)
 
-  name          String
-  capacity      Int?
-  isActive      Boolean  @default(true)
+  name     String
+  capacity Int?
+  isActive Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   courseOfferings CourseOffering[]
 
@@ -407,20 +423,20 @@ model Section {
 /// Systems". Not tied to any one semester — CourseOffering is what
 /// schedules it into a specific Semester+Section.
 model Course {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   departmentId  String
   department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
-  code          String
-  name          String
-  credits       Int
-  description   String?
-  isActive      Boolean  @default(true)
+  code        String
+  name        String
+  credits     Int
+  description String?
+  isActive    Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   courseOfferings CourseOffering[]
 
@@ -435,7 +451,7 @@ model Course {
 /// multiple semesters produces multiple rows here — history is
 /// never overwritten.
 model CourseOffering {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   courseId      String
@@ -447,14 +463,16 @@ model CourseOffering {
   facultyId     String?
   faculty       User?       @relation("CourseOfferingFaculty", fields: [facultyId], references: [id], onDelete: SetNull)
 
-  isActive      Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   attendanceSessions AttendanceSession[]
   assignments        Assignment[]
   internalMarks      InternalMark[]
+  timetableEntries   TimetableEntry[]
+  exams              Exam[]
 
   @@unique([courseId, semesterId, sectionId])
   @@index([institutionId])
@@ -491,12 +509,12 @@ model StudentEnrollment {
   sectionId      String?
   section        Section?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
-  rollNumber     String?
-  status         String       @default("ACTIVE") // ACTIVE | COMPLETED | DROPPED | TRANSFERRED
+  rollNumber String?
+  status     String  @default("ACTIVE") // ACTIVE | COMPLETED | DROPPED | TRANSFERRED
 
-  enrolledAt     DateTime     @default(now())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  enrolledAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([userId, academicYearId])
   @@index([institutionId])
@@ -518,7 +536,7 @@ model StudentEnrollment {
 /// re-opening an existing session's date returns the same row
 /// rather than creating a duplicate.
 model AttendanceSession {
-  id               String   @id @default(uuid())
+  id               String         @id @default(uuid())
   institutionId    String
   institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   courseOfferingId String
@@ -526,12 +544,12 @@ model AttendanceSession {
   facultyId        String
   faculty          User           @relation("AttendanceSessionFaculty", fields: [facultyId], references: [id], onDelete: Cascade)
 
-  sessionDate      DateTime @db.Date
-  isSubmitted      Boolean  @default(false)
-  submittedAt      DateTime?
+  sessionDate DateTime  @db.Date
+  isSubmitted Boolean   @default(false)
+  submittedAt DateTime?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   records AttendanceRecord[]
 
@@ -547,7 +565,7 @@ model AttendanceSession {
 /// means the faculty has finished a first pass, not that the
 /// record is frozen.
 model AttendanceRecord {
-  id                  String   @id @default(uuid())
+  id                  String            @id @default(uuid())
   attendanceSessionId String
   attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
   studentId           String
@@ -570,7 +588,7 @@ model AttendanceRecord {
 /// assignments are visible to students — DRAFT lets a faculty member
 /// prepare one before students see it.
 model Assignment {
-  id               String   @id @default(uuid())
+  id               String         @id @default(uuid())
   institutionId    String
   institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   courseOfferingId String
@@ -637,7 +655,7 @@ model AssignmentSubmission {
 /// separate rows rather than overwriting a single "marks" field, so
 /// a course's full internal-assessment history is preserved.
 model InternalMark {
-  id               String   @id @default(uuid())
+  id               String         @id @default(uuid())
   institutionId    String
   institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   courseOfferingId String
@@ -681,14 +699,14 @@ model DepartmentAccess {
 }
 
 model Skill {
-  id            String      @id @default(uuid())
+  id            String         @id @default(uuid())
   institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   name          String
   category      String?
-  isActive      Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   studentSkills StudentSkill[]
   roleSkills    RoleSkill[]
 
@@ -698,14 +716,14 @@ model Skill {
 }
 
 model TargetRole {
-  id            String      @id @default(uuid())
+  id            String        @id @default(uuid())
   institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution   Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   name          String
   description   String?
-  isActive      Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   roleSkills    RoleSkill[]
   careerPaths   CareerPath[]
   opportunities Opportunity[]
@@ -730,14 +748,14 @@ model RoleSkill {
 
 model StudentSkill {
   studentId     String
-  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   skillId       String
-  skill         Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skill         Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  proficiency   Int      @default(0) // transparent 0-100 rubric
+  proficiency   Int         @default(0) // transparent 0-100 rubric
   evidence      String?
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime    @updatedAt
 
   @@id([studentId, skillId])
   @@index([institutionId])
@@ -746,14 +764,14 @@ model StudentSkill {
 }
 
 model CareerPath {
-  id           String      @id @default(uuid())
+  id           String     @id @default(uuid())
   studentId    String
-  student      User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   targetRoleId String
-  targetRole   TargetRole  @relation(fields: [targetRoleId], references: [id], onDelete: Cascade)
-  isPrimary    Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  targetRole   TargetRole @relation(fields: [targetRoleId], references: [id], onDelete: Cascade)
+  isPrimary    Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@unique([studentId, targetRoleId])
   @@index([targetRoleId])
@@ -761,17 +779,17 @@ model CareerPath {
 }
 
 model Opportunity {
-  id            String       @id @default(uuid())
+  id            String        @id @default(uuid())
   institutionId String
-  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution   Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   targetRoleId  String?
-  targetRole    TargetRole?  @relation(fields: [targetRoleId], references: [id], onDelete: SetNull)
+  targetRole    TargetRole?   @relation(fields: [targetRoleId], references: [id], onDelete: SetNull)
   title         String
   organization  String
   description   String?
   deadline      DateTime?
-  isActive      Boolean      @default(true)
-  createdAt     DateTime     @default(now())
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
   applications  Application[]
 
   @@index([institutionId])
@@ -794,4 +812,162 @@ model Application {
   @@index([institutionId])
   @@index([opportunityId])
   @@map("applications")
+}
+
+// ==========================================================
+// ERP OPERATIONS
+// ==========================================================
+
+model ParentStudentLink {
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  parentId      String
+  parent        User        @relation("ParentLinks", fields: [parentId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation("ChildLinks", fields: [studentId], references: [id], onDelete: Cascade)
+  relationship  String?
+  createdAt     DateTime    @default(now())
+
+  @@id([parentId, studentId])
+  @@index([institutionId, studentId])
+  @@map("parent_student_links")
+}
+
+model TimetableEntry {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  dayOfWeek        Int
+  startTime        String
+  endTime          String
+  room             String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([courseOfferingId, dayOfWeek, startTime])
+  @@index([institutionId, dayOfWeek])
+  @@map("timetable_entries")
+}
+
+model Exam {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  title            String
+  examDate         DateTime
+  maxMarks         Float
+  createdById      String
+  results          ExamResult[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([institutionId, examDate])
+  @@index([courseOfferingId])
+  @@map("exams")
+}
+
+model ExamResult {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  examId        String
+  exam          Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  marks         Float
+  remarks       String?
+  enteredById   String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([examId, studentId])
+  @@index([institutionId, studentId])
+  @@map("exam_results")
+}
+
+model FeeInvoice {
+  id            String       @id @default(uuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title         String
+  amount        Float
+  dueDate       DateTime?
+  status        String       @default("PENDING")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  payments      FeePayment[]
+
+  @@index([institutionId, studentId, status])
+  @@map("fee_invoices")
+}
+
+model FeePayment {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  invoiceId     String
+  invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount        Float
+  reference     String?
+  paidAt        DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  User          User?       @relation(fields: [userId], references: [id])
+  userId        String?
+
+  @@index([institutionId, invoiceId])
+  @@map("fee_payments")
+}
+
+model Notice {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title         String
+  body          String
+  audience      String      @default("ALL")
+  departmentId  String?
+  publishedAt   DateTime    @default(now())
+  expiresAt     DateTime?
+  createdById   String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([institutionId, publishedAt])
+  @@map("notices")
+}
+
+model Document {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  ownerId       String
+  owner         User        @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title         String
+  url           String
+  type          String
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, ownerId])
+  @@map("documents")
+}
+
+model Notification {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  body          String
+  readAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, userId, readAt])
+  @@map("notifications")
 }

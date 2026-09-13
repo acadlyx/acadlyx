@@ -1,0 +1,14 @@
+import { Router } from "express";
+import * as controller from "../controllers/erp.controller";
+import { authenticate } from "../middleware/authenticate";
+const router = Router();
+router.use(authenticate);
+router.get("/me/workspace", controller.workspace);
+router.post("/timetable", controller.timetable);
+router.post("/notices", controller.notice);
+router.post("/exams", controller.exam);
+router.put("/exam-results", controller.result);
+router.post("/fee-invoices", controller.invoice);
+router.post("/fee-invoices/:id/payments", controller.payment);
+router.post("/parent-links", controller.parentLink);
+export default router;

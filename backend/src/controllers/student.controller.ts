@@ -2,11 +2,11 @@ import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
 import * as assignmentService from "../services/assignment.service";
 import * as attendanceStatsService from "../services/attendanceStats.service";
-import * as demo from "../services/demo/studentDashboard.demo";
 import * as marksService from "../services/internalMark.service";
 import * as studentPortalService from "../services/studentPortal.service";
 import * as intelligenceService from "../services/intelligence.service";
 import * as careerIntelligenceService from "../services/careerIntelligence.service";
+import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 
@@ -112,18 +112,16 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       )
     : [];
 
-  const realCourses = courseOfferings.map((o) => ({
-    code: o.course.code,
-    name: o.course.name,
-  }));
-
-  const [institution, attendanceSummary, upcomingAssignments, marksAveragePercent, intelligence] =
+  const [institution, attendanceSummary, upcomingAssignments, marksAveragePercent, intelligence, timetable, notices, exams] =
     await Promise.all([
       studentPortalService.getInstitutionBranding(institutionId),
       attendanceStatsService.getStudentAttendanceSummary(institutionId, user.id),
       assignmentService.getMyUpcomingAssignments(institutionId, user.id, 5),
       marksService.getMyMarksAveragePercent(institutionId, user.id),
       intelligenceService.getStudentIntelligence(institutionId, user.id),
+      prisma.timetableEntry.findMany({ where: { institutionId, dayOfWeek: new Date().getDay(), courseOffering: { sectionId: enrollment.sectionId || "" } }, include: { courseOffering: { include: { course: true } } }, orderBy: { startTime: "asc" } }),
+      prisma.notice.findMany({ where: { institutionId, publishedAt: { lte: new Date() }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }], audience: { in: ["ALL", "STUDENT"] } }, orderBy: { publishedAt: "desc" }, take: 5 }),
+      prisma.exam.findMany({ where: { institutionId, courseOffering: { sectionId: enrollment.sectionId || "" }, examDate: { gte: new Date() } }, orderBy: { examDate: "asc" }, take: 5 }),
     ]);
 
   const assignmentsCompletionPercent =
@@ -176,10 +174,9 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
         status: a.submission ? "submitted" : new Date() > a.dueDate ? "overdue" : "pending",
       })),
 
-      // --- demo (see src/services/demo/studentDashboard.demo.ts) ---
-      todaysClasses: demo.getDemoTodaysClasses(realCourses),
-      announcements: demo.getDemoAnnouncements(),
-      upcomingEvents: demo.getDemoUpcomingEvents(),
+      todaysClasses: timetable.map((entry) => ({ time: `${entry.startTime}–${entry.endTime}`, courseCode: entry.courseOffering.course.code, courseName: entry.courseOffering.course.name, location: entry.room || "Room TBA" })),
+      announcements: notices.map((notice) => ({ id: notice.id, title: notice.title, postedLabel: notice.publishedAt.toLocaleDateString() })),
+      upcomingEvents: exams.map((exam) => ({ id: exam.id, title: exam.title, whenLabel: exam.examDate.toLocaleDateString() })),
       academicHealth,
       academicRisk: intelligence?.risk ?? "LOW",
       recommendations: intelligence?.recommendations ?? [],

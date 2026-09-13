@@ -1,11 +1,10 @@
 import { TodayClassSlot } from "@/types/dashboard";
-import { StatusBadge } from "./StatusBadge";
 
 interface ClassScheduleProps {
   classes: TodayClassSlot[];
 }
 
-/** Today's class list. Shows a "placeholder" badge until Timetable (Phase 7) is real. */
+/** Today's database-backed class list. */
 export function ClassSchedule({ classes }: ClassScheduleProps) {
   if (classes.length === 0) {
     return <p className="text-sm text-slate-400">No classes scheduled today.</p>;
@@ -29,9 +28,6 @@ export function ClassSchedule({ classes }: ClassScheduleProps) {
               <p className="text-xs text-slate-400">{cls.location}</p>
             </div>
           </div>
-          {cls.isDemoSchedule && (
-            <StatusBadge tone="neutral">Placeholder time</StatusBadge>
-          )}
         </li>
       ))}
     </ul>

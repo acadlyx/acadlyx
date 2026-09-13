@@ -61,13 +61,11 @@ export interface CourseOfferingSummary {
   faculty: FacultySummary | null;
 }
 
-/** time/room are placeholders until Phase 7 (Timetable) ships. */
 export interface TodayClassSlot {
   time: string;
   courseCode: string;
   courseName: string;
   location: string;
-  isDemoSchedule: true;
 }
 
 export interface AssignmentItem {

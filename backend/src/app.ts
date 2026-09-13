@@ -23,6 +23,7 @@ import semesterRoutes from "./routes/semester.routes";
 import studentRoutes from "./routes/student.routes";
 import intelligenceRoutes from "./routes/intelligence.routes";
 import askRoutes from "./routes/ask.routes";
+import erpRoutes from "./routes/erp.routes";
 
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
@@ -102,6 +103,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
 
   app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
+  app.use(`${apiPrefix}/erp`, erpRoutes);
 
   app.use(notFound);
 
