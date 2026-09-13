@@ -494,7 +494,8 @@ async function getManagementWorkspace(
 
   const totalInvoiced =
     invoices.reduce(
-      (sum, invoice) => sum + Number(invoice.amount),
+      (sum, invoice) =>
+        sum + Number(invoice.amount),
       0
     );
 
@@ -539,9 +540,6 @@ export async function getMyWorkspace(
 
   /*
    * MANAGEMENT / DIRECTOR / INSTITUTION ADMIN / STAFF
-   *
-   * These users need institutional information rather than
-   * student-specific fee/result records.
    */
   if (
     hasAnyRole(actor, [
@@ -783,36 +781,49 @@ export async function getMyWorkspace(
         take: 20,
       }),
 
+      /*
+       * IMPORTANT:
+       * Prisma objects cannot contain two OR properties.
+       * Both logical conditions are therefore combined
+       * through AND, with one OR for expiry and one OR
+       * for department scope.
+       */
       prisma.notice.findMany({
         where: {
           institutionId,
           publishedAt: {
             lte: now,
           },
-          OR: [
-            {
-              expiresAt: null,
-            },
-            {
-              expiresAt: {
-                gt: now,
-              },
-            },
-          ],
           audience: {
             in: [
               "ALL",
               "HOD",
             ],
           },
-          OR: [
+          AND: [
             {
-              departmentId: null,
+              OR: [
+                {
+                  expiresAt: null,
+                },
+                {
+                  expiresAt: {
+                    gt: now,
+                  },
+                },
+              ],
             },
             {
-              departmentId: {
-                in: departmentIds,
-              },
+              OR: [
+                {
+                  departmentId: null,
+                },
+                {
+                  departmentId: {
+                    in: departmentIds,
+                  },
+                },
+              ],
             },
           ],
         },
@@ -1817,11 +1828,6 @@ export async function upsertExamResult(
     input.studentId
   );
 
-  /*
-   * Critical protection:
-   * the student must actually belong to the
-   * section for which this exam was created.
-   */
   const enrolled =
     await prisma.studentEnrollment.findFirst({
       where: {
