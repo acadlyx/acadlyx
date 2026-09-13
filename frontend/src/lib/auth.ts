@@ -35,6 +35,14 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+export async function getCurrentUser(): Promise<AuthUser> {
+  const response = await authedFetch<ApiEnvelope<AuthUser>>("/auth/me");
+  if (!Array.isArray(response.data.roles) || !Array.isArray(response.data.permissions)) {
+    throw new Error("Invalid authenticated user response");
+  }
+  return response.data;
+}
+
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }

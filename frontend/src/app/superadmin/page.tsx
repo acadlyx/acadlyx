@@ -7,6 +7,7 @@ import {
   authedFetch,
   clearTokens,
   getAccessToken,
+  getCurrentUser,
 } from "@/lib/auth";
 
 type Institution = {
@@ -254,6 +255,12 @@ export default function SuperAdminPage() {
 
     try {
       if (!getAccessToken()) {
+        router.replace("/login");
+        return;
+      }
+
+      const currentUser = await getCurrentUser();
+      if (!currentUser.roles.includes("SUPER_ADMIN")) {
         router.replace("/login");
         return;
       }

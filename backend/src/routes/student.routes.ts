@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as studentController from "../controllers/student.controller";
 import { authenticate } from "../middleware/authenticate";
+import { authorizeRoles } from "../middleware/authorize";
 
 /**
  * Self-service routes only ("my profile", "my dashboard") — same
@@ -14,6 +15,7 @@ import { authenticate } from "../middleware/authenticate";
 const router = Router();
 
 router.use(authenticate);
+router.use(authorizeRoles("STUDENT"));
 
 router.get("/me", studentController.me);
 router.get("/me/dashboard", studentController.dashboard);

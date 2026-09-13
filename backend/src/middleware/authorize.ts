@@ -33,3 +33,14 @@ export function authorize(...requiredPermissions: string[]) {
     next();
   };
 }
+
+/** Route-level role boundary for dedicated self-service workspaces. */
+export function authorizeRoles(...allowedRoles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) return next(new AppError("Authentication required", 401));
+    if (!req.user.roles.some((role) => allowedRoles.includes(role))) {
+      return next(new AppError("This workspace is not assigned to your role", 403));
+    }
+    next();
+  };
+}
