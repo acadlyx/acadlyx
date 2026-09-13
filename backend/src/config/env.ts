@@ -13,6 +13,9 @@ interface EnvConfig {
   jwtAccessExpiresIn: string;
   jwtRefreshExpiresInDays: number;
   bcryptSaltRounds: number;
+  cloudinaryCloudName: string | undefined;
+  cloudinaryApiKey: string | undefined;
+  cloudinaryApiSecret: string | undefined;
 }
 
 /**
@@ -31,6 +34,9 @@ export const env: EnvConfig = {
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   jwtRefreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 30,
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS) || 10,
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
 };
 
 export const isProduction = env.nodeEnv === "production";
