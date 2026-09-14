@@ -12,6 +12,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
+import { repairInstitutionRbac } from "./rbac";
 
 const prisma = new PrismaClient();
 
@@ -195,6 +196,7 @@ async function main() {
     },
   });
   console.log(`Institution ready: ${aimt.name} (${aimt.id})`);
+  await repairInstitutionRbac(prisma, aimt.id);
 
   // --- Permissions ---
   const permissionRecords = new Map<string, string>(); // key -> id
