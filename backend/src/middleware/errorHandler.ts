@@ -34,6 +34,7 @@ export function errorHandler(
   const message = err instanceof AppError ? err.message : "Internal server error";
 
   logger.error(`${req.method} ${req.originalUrl} -> ${statusCode}`, {
+    requestId: res.locals.requestId,
     message: err.message,
     stack: !isProduction ? err.stack : undefined,
   });
@@ -42,6 +43,7 @@ export function errorHandler(
     success: false,
     error: {
       message,
+      requestId: res.locals.requestId,
       ...(!isProduction && !(err instanceof AppError) ? { stack: err.stack } : {}),
     },
   });

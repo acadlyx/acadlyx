@@ -57,7 +57,6 @@ export interface AttendanceOverviewItem {
 export interface PendingCounts {
   attendanceSessions: number;
   assignmentsToReview: number;
-  lecturePlansPending: number;
 }
 
 export interface AtRiskStudent {

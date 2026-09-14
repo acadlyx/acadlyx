@@ -65,13 +65,7 @@ export async function getMyProfile(institutionId: string, userId: string) {
   return { user, enrollment };
 }
 
-/**
- * Real course offerings scheduled for the student's current section —
- * course code/name/credits and assigned faculty are all real. There is
- * no Timetable model yet (Phase 7), so this list has no day/time
- * attached; the dashboard controller pairs it with placeholder time
- * slots via the demo schedule service.
- */
+/** Real course offerings for the student's current section. */
 export async function getSectionCourseOfferings(
   institutionId: string,
   sectionId: string

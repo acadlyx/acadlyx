@@ -4,12 +4,11 @@ interface PendingListProps {
   pending: PendingCounts;
 }
 
-/** "N attendance sessions / N assignments to review / N lecture plan" summary. */
+/** Current faculty work requiring attention. */
 export function PendingList({ pending }: PendingListProps) {
   const rows = [
     { label: "attendance session", count: pending.attendanceSessions },
     { label: "assignment to review", count: pending.assignmentsToReview },
-    { label: "lecture plan", count: pending.lecturePlansPending },
   ].filter((r) => r.count > 0);
 
   if (rows.length === 0) {

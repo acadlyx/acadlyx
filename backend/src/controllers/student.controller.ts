@@ -82,12 +82,9 @@ function formatDueLabel(dueDate: Date): string {
 /**
  * GET /api/v1/students/me/dashboard
  * Combines real data — identity, program, section, semester, course
- * offerings, institution branding, attendance (dynamically
- * calculated), assignments + submission status, and internal marks
- * average — with demo data for what's still unbuilt: class
- * scheduling (Phase 7 Timetable), announcements, upcoming events,
- * and "engagement". See src/services/demo/studentDashboard.demo.ts
- * and docs/PHASE-5.md for the current real-vs-demo breakdown.
+ * offerings, institution branding, attendance, assignments, marks,
+ * timetable entries, institutional notices, upcoming exams, and
+ * rule-based academic/career intelligence from tenant-scoped data.
  */
 export const dashboard = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
@@ -112,28 +109,22 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       )
     : [];
 
-  const [institution, attendanceSummary, upcomingAssignments, marksAveragePercent, intelligence, timetable, notices, exams] =
+  const [institution, attendanceSummary, upcomingAssignments, intelligence, timetable, notices, exams] =
     await Promise.all([
       studentPortalService.getInstitutionBranding(institutionId),
       attendanceStatsService.getStudentAttendanceSummary(institutionId, user.id),
       assignmentService.getMyUpcomingAssignments(institutionId, user.id, 5),
-      marksService.getMyMarksAveragePercent(institutionId, user.id),
       intelligenceService.getStudentIntelligence(institutionId, user.id),
       prisma.timetableEntry.findMany({ where: { institutionId, dayOfWeek: new Date().getDay(), courseOffering: { sectionId: enrollment.sectionId || "" } }, include: { courseOffering: { include: { course: true } } }, orderBy: { startTime: "asc" } }),
       prisma.notice.findMany({ where: { institutionId, publishedAt: { lte: new Date() }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }], audience: { in: ["ALL", "STUDENT"] } }, orderBy: { publishedAt: "desc" }, take: 5 }),
       prisma.exam.findMany({ where: { institutionId, courseOffering: { sectionId: enrollment.sectionId || "" }, examDate: { gte: new Date() } }, orderBy: { examDate: "asc" }, take: 5 }),
     ]);
 
-  const assignmentsCompletionPercent =
-    await assignmentService.getMySubmissionCompletionPercent(institutionId, user.id);
+  if (!intelligence) {
+    throw new AppError("Student intelligence could not be calculated", 404);
+  }
 
-  const academicHealth = intelligence?.scores ?? {
-    attendance: attendanceSummary.overallPercentage,
-    assignments: assignmentsCompletionPercent,
-    internalMarks: marksAveragePercent,
-    engagement: 0,
-    academicHealth: 0,
-  };
+  const academicHealth = intelligence.scores;
   const career = await careerIntelligenceService.getCareerIntelligence(
     institutionId, user.id, academicHealth.academicHealth
   );
@@ -163,7 +154,6 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
         faculty: o.faculty,
       })),
 
-      // --- real (Phase 5) ---
       attendancePercentage: attendanceSummary.overallPercentage,
       subjectAttendance: attendanceSummary.subjects,
       assignments: upcomingAssignments.map((a) => ({
@@ -174,12 +164,12 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
         status: a.submission ? "submitted" : new Date() > a.dueDate ? "overdue" : "pending",
       })),
 
-      todaysClasses: timetable.map((entry) => ({ time: `${entry.startTime}–${entry.endTime}`, courseCode: entry.courseOffering.course.code, courseName: entry.courseOffering.course.name, location: entry.room || "Room TBA" })),
+      todaysClasses: timetable.map((entry) => ({ time: `${entry.startTime}–${entry.endTime}`, courseCode: entry.courseOffering.course.code, courseName: entry.courseOffering.course.name, location: entry.room || "Location not specified" })),
       announcements: notices.map((notice) => ({ id: notice.id, title: notice.title, postedLabel: notice.publishedAt.toLocaleDateString() })),
       upcomingEvents: exams.map((exam) => ({ id: exam.id, title: exam.title, whenLabel: exam.examDate.toLocaleDateString() })),
       academicHealth,
-      academicRisk: intelligence?.risk ?? "LOW",
-      recommendations: intelligence?.recommendations ?? [],
+      academicRisk: intelligence.risk,
+      recommendations: intelligence.recommendations,
       career,
     },
   });

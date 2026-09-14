@@ -9,6 +9,7 @@ export function notFound(req: Request, res: Response, _next: NextFunction): void
     success: false,
     error: {
       message: `Route not found: ${req.method} ${req.originalUrl}`,
+      requestId: res.locals.requestId,
     },
   });
 }

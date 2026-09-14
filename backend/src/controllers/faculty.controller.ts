@@ -28,11 +28,8 @@ export const myCourseOfferings = asyncHandler(async (req: Request, res: Response
  * GET /api/v1/faculty/me/dashboard
  * Combines real data — identity, assigned courses/sections, live
  * attendance overview, at-risk students, pending assignment reviews,
- * and assignment submission gaps (all computed from real database
- * rows as of Phase 5) — with demo data for what's still unbuilt:
- * class scheduling (Phase 7 Timetable) and lecture plans (no model
- * yet). See src/services/demo/facultyDashboard.demo.ts and
- * docs/PHASE-5.md.
+ * assignment submission gaps, and today's timetable — all computed
+ * from real, tenant-scoped database rows.
  */
 export const dashboard = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
@@ -82,7 +79,6 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       pending: {
         attendanceSessions: pendingAttendanceCount,
         assignmentsToReview: pendingReviewCount,
-        lecturePlansPending: 0,
       },
       smartInsights: {
         studentsBelowAttendanceThreshold: atRisk,

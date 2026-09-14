@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { env, isProduction } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
+import { requestContext } from "./middleware/requestContext";
 
 import academicYearRoutes from "./routes/academicYear.routes";
 import assignmentRoutes from "./routes/assignment.routes";
@@ -34,6 +35,7 @@ export function createApp(): Application {
   const app: Application = express();
 
   app.use(helmet());
+  app.use(requestContext);
 
   app.use(
     cors({

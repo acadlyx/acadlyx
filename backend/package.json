@@ -13,6 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:demo": "tsx prisma/seed.ts",
     "prisma:seed:admin": "tsx prisma/seedAdmin.ts",
     "prisma:rbac:repair": "tsx prisma/seedAdmin.ts"
   },
@@ -42,6 +43,6 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   },
-  "prisma": { "seed": "tsx prisma/seed.ts" },
+  "prisma": { "seed": "tsx prisma/seedAdmin.ts" },
   "engines": { "node": "20.x" }
 }

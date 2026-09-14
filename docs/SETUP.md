@@ -15,11 +15,11 @@ cp .env.example .env
 npm run dev
 ```
 
-Runs on **http://localhost:5000**.
+Runs on **http://localhost:5001** by default.
 
 Verify:
 ```bash
-curl http://localhost:5000/api/v1/health
+curl http://localhost:5001/api/v1/health
 ```
 Expected:
 ```json
@@ -39,8 +39,13 @@ them the server runs with insecure dev defaults and prints a warning.
 ```bash
 npm run prisma:generate     # generate the Prisma client
 npm run prisma:migrate      # create/apply the Phase 1 migration
-npm run prisma:seed         # create AIMT + demo users (see docs/PHASE-1.md)
+INITIAL_ADMIN_EMAIL=admin@example.edu INITIAL_ADMIN_PASSWORD='use-a-strong-secret' npm run prisma:seed
 ```
+
+`prisma:seed` is the safe production bootstrap: it repairs the RBAC catalog
+and creates or repairs the configured institution administrator without
+overwriting existing user passwords. Development-only sample data is opt-in:
+`SEED_DEMO_PASSWORD='local-only-secret' npm run prisma:seed:demo`.
 
 ## Frontend
 
@@ -55,13 +60,10 @@ Runs on **http://localhost:3000**. The home page (`/`) calls the backend
 health endpoint and shows "Backend connected" once both servers are
 running.
 
-### Student Portal (Phase 3+)
-1. Make sure the backend has been migrated and seeded (see above).
-2. Go to **http://localhost:3000/login**.
-3. Sign in as `student@aimt.acadlyx.com` with your backend's
-   `SEED_DEMO_PASSWORD`.
-4. You're redirected to **http://localhost:3000/student** — the
-   student dashboard.
+### Student Portal
+Create a student user and enrollment through the institution admin workflow,
+then sign in at **http://localhost:3000/login**. The application redirects the
+user to the dashboard permitted by their assigned role.
 
 ## Notes
 - Frontend and backend are fully independent — either can run without
