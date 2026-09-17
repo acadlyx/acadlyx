@@ -1,70 +1,113 @@
 import cors from "cors";
-import express, { Application } from "express";
+import express, {
+  Application,
+} from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 
-import { env, isProduction } from "./config/env";
-import { errorHandler } from "./middleware/errorHandler";
-import { notFound } from "./middleware/notFound";
-import { requestContext } from "./middleware/requestContext";
+import {
+  env,
+  isProduction,
+} from "./config/env";
+
+import {
+  errorHandler,
+} from "./middleware/errorHandler";
+
+import {
+  notFound,
+} from "./middleware/notFound";
+
+import {
+  requestContext,
+} from "./middleware/requestContext";
 
 import academicYearRoutes from "./routes/academicYear.routes";
+import askRoutes from "./routes/ask.routes";
 import assignmentRoutes from "./routes/assignment.routes";
 import attendanceSessionRoutes from "./routes/attendanceSession.routes";
 import authRoutes from "./routes/auth.routes";
 import courseRoutes from "./routes/course.routes";
 import courseOfferingRoutes from "./routes/courseOffering.routes";
 import departmentRoutes from "./routes/department.routes";
+import erpRoutes from "./routes/erp.routes";
 import facultyRoutes from "./routes/faculty.routes";
 import healthRoutes from "./routes/health.routes";
+import importRoutes from "./routes/import.routes";
+import institutionRoutes from "./routes/institution.routes";
+import intelligenceRoutes from "./routes/intelligence.routes";
 import internalMarkRoutes from "./routes/internalMark.routes";
 import programRoutes from "./routes/program.routes";
 import sectionRoutes from "./routes/section.routes";
 import semesterRoutes from "./routes/semester.routes";
-import studentRoutes from "./routes/student.routes";
-import intelligenceRoutes from "./routes/intelligence.routes";
-import askRoutes from "./routes/ask.routes";
-import erpRoutes from "./routes/erp.routes";
-import importRoutes from "./routes/import.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
-import institutionRoutes from "./routes/institution.routes";
+import studentRoutes from "./routes/student.routes";
 import userRoutes from "./routes/user.routes";
 
-export function createApp(): Application {
-  const app: Application = express();
+function isAllowedOrigin(
+  origin: string
+): boolean {
+  const normalized =
+    origin
+      .trim()
+      .replace(/\/+$/, "");
 
-  if (env.security.trustProxy) {
-    app.set("trust proxy", 1);
+  return env.corsOrigins.includes(
+    normalized
+  );
+}
+
+export function createApp(): Application {
+  const app: Application =
+    express();
+
+  if (isProduction) {
+    app.set(
+      "trust proxy",
+      1
+    );
   }
 
   app.disable("x-powered-by");
 
   app.use(
-    helmet({
-      crossOriginResourcePolicy: {
-        policy: "cross-origin",
-      },
-    })
+    helmet()
   );
 
-  app.use(requestContext);
+  app.use(
+    requestContext
+  );
 
   app.use(
     cors({
-      origin(origin, callback) {
+      origin(
+        origin,
+        callback
+      ) {
         /*
-         * Server-to-server requests and health checks may not
-         * contain an Origin header.
+         * Server-to-server requests,
+         * health checks, curl, etc.
+         * may not include Origin.
          */
         if (!origin) {
-          callback(null, true);
+          callback(
+            null,
+            true
+          );
+
           return;
         }
 
-        const normalizedOrigin = origin.replace(/\/+$/, "");
+        if (
+          isAllowedOrigin(
+            origin
+          )
+        ) {
+          callback(
+            null,
+            true
+          );
 
-        if (env.corsOrigins.includes(normalizedOrigin)) {
-          callback(null, true);
           return;
         }
 
@@ -113,33 +156,49 @@ export function createApp(): Application {
   );
 
   if (!isProduction) {
-    app.use(morgan("dev"));
+    app.use(
+      morgan("dev")
+    );
   }
 
-  app.get("/", (_req, res) => {
-    res.status(200).json({
-      success: true,
-      name: "ACADLYX",
-      message: "ACADLYX API is running",
-      version: env.apiVersion,
-      environment: env.nodeEnv,
-    });
-  });
+  app.get(
+    "/",
+    (_req, res) => {
+      res.status(200).json({
+        success: true,
+        name: "ACADLYX",
+        message:
+          "ACADLYX API is running",
+        version:
+          env.apiVersion,
+        environment:
+          env.nodeEnv,
+      });
+    }
+  );
 
-  const apiPrefix = `/api/${env.apiVersion}`;
+  const apiPrefix =
+    `/api/${env.apiVersion}`;
 
+  /*
+   * HEALTH
+   */
   app.use(
     `${apiPrefix}/health`,
     healthRoutes
   );
 
+  /*
+   * AUTHENTICATION
+   */
   app.use(
     `${apiPrefix}/auth`,
     authRoutes
   );
 
   /*
-   * PLATFORM / INSTITUTION ADMINISTRATION
+   * PLATFORM /
+   * INSTITUTION ADMINISTRATION
    */
   app.use(
     `${apiPrefix}/institutions`,
@@ -190,7 +249,8 @@ export function createApp(): Application {
   );
 
   /*
-   * PEOPLE
+   * PEOPLE /
+   * SELF-SERVICE
    */
   app.use(
     `${apiPrefix}/students`,
@@ -234,10 +294,11 @@ export function createApp(): Application {
   );
 
   /*
-   * LEGACY / AGGREGATED ERP ENDPOINTS
+   * AGGREGATED ERP ENDPOINTS
    *
-   * Kept for compatibility while the ERP functionality is
-   * progressively split into domain modules.
+   * Retained while ERP functions
+   * are progressively separated
+   * into domain modules.
    */
   app.use(
     `${apiPrefix}/erp`,
@@ -245,7 +306,7 @@ export function createApp(): Application {
   );
 
   /*
-   * DATA IMPORTS
+   * IMPORTS
    */
   app.use(
     `${apiPrefix}/imports`,
@@ -253,16 +314,20 @@ export function createApp(): Application {
   );
 
   /*
-   * PUBLIC / SITE CMS
+   * CMS
    */
   app.use(
     `${apiPrefix}/site-content`,
     siteContentRoutes
   );
 
-  app.use(notFound);
+  app.use(
+    notFound
+  );
 
-  app.use(errorHandler);
+  app.use(
+    errorHandler
+  );
 
   return app;
 }
