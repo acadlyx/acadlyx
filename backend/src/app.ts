@@ -23,60 +23,49 @@ import {
 } from "./middleware/requestContext";
 
 import academicYearRoutes from "./routes/academicYear.routes";
-import askRoutes from "./routes/ask.routes";
 import assignmentRoutes from "./routes/assignment.routes";
 import attendanceSessionRoutes from "./routes/attendanceSession.routes";
 import authRoutes from "./routes/auth.routes";
+import campusRoutes from "./routes/campus.routes";
 import courseRoutes from "./routes/course.routes";
 import courseOfferingRoutes from "./routes/courseOffering.routes";
 import departmentRoutes from "./routes/department.routes";
-import erpRoutes from "./routes/erp.routes";
 import facultyRoutes from "./routes/faculty.routes";
 import healthRoutes from "./routes/health.routes";
-import importRoutes from "./routes/import.routes";
-import institutionRoutes from "./routes/institution.routes";
-import intelligenceRoutes from "./routes/intelligence.routes";
 import internalMarkRoutes from "./routes/internalMark.routes";
 import programRoutes from "./routes/program.routes";
 import sectionRoutes from "./routes/section.routes";
 import semesterRoutes from "./routes/semester.routes";
-import siteContentRoutes from "./routes/siteContent.routes";
 import studentRoutes from "./routes/student.routes";
+import intelligenceRoutes from "./routes/intelligence.routes";
+import askRoutes from "./routes/ask.routes";
+import erpRoutes from "./routes/erp.routes";
+import importRoutes from "./routes/import.routes";
+import siteContentRoutes from "./routes/siteContent.routes";
+import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
-
-function isAllowedOrigin(
-  origin: string
-): boolean {
-  const normalized =
-    origin
-      .trim()
-      .replace(/\/+$/, "");
-
-  return env.corsOrigins.includes(
-    normalized
-  );
-}
 
 export function createApp(): Application {
   const app: Application =
     express();
 
-  if (isProduction) {
-    app.set(
-      "trust proxy",
-      1
-    );
+  if (env.security.trustProxy) {
+    app.set("trust proxy", 1);
   }
 
-  app.disable("x-powered-by");
-
-  app.use(
-    helmet()
+  app.disable(
+    "x-powered-by"
   );
 
   app.use(
-    requestContext
+    helmet({
+      crossOriginResourcePolicy: {
+        policy: "cross-origin",
+      },
+    })
   );
+
+  app.use(requestContext);
 
   app.use(
     cors({
@@ -84,30 +73,29 @@ export function createApp(): Application {
         origin,
         callback
       ) {
-        /*
-         * Server-to-server requests,
-         * health checks, curl, etc.
-         * may not include Origin.
-         */
         if (!origin) {
           callback(
             null,
             true
           );
-
           return;
         }
 
+        const normalizedOrigin =
+          origin.replace(
+            /\/+$/,
+            ""
+          );
+
         if (
-          isAllowedOrigin(
-            origin
+          env.corsOrigins.includes(
+            normalizedOrigin
           )
         ) {
           callback(
             null,
             true
           );
-
           return;
         }
 
@@ -180,25 +168,18 @@ export function createApp(): Application {
   const apiPrefix =
     `/api/${env.apiVersion}`;
 
-  /*
-   * HEALTH
-   */
   app.use(
     `${apiPrefix}/health`,
     healthRoutes
   );
 
-  /*
-   * AUTHENTICATION
-   */
   app.use(
     `${apiPrefix}/auth`,
     authRoutes
   );
 
   /*
-   * PLATFORM /
-   * INSTITUTION ADMINISTRATION
+   * PLATFORM / INSTITUTION ADMINISTRATION
    */
   app.use(
     `${apiPrefix}/institutions`,
@@ -213,6 +194,11 @@ export function createApp(): Application {
   /*
    * ACADEMIC STRUCTURE
    */
+  app.use(
+    `${apiPrefix}/campuses`,
+    campusRoutes
+  );
+
   app.use(
     `${apiPrefix}/departments`,
     departmentRoutes
@@ -249,8 +235,7 @@ export function createApp(): Application {
   );
 
   /*
-   * PEOPLE /
-   * SELF-SERVICE
+   * PEOPLE
    */
   app.use(
     `${apiPrefix}/students`,
@@ -294,11 +279,8 @@ export function createApp(): Application {
   );
 
   /*
-   * AGGREGATED ERP ENDPOINTS
-   *
-   * Retained while ERP functions
-   * are progressively separated
-   * into domain modules.
+   * LEGACY / AGGREGATED ERP
+   * endpoints retained for compatibility.
    */
   app.use(
     `${apiPrefix}/erp`,
@@ -306,7 +288,7 @@ export function createApp(): Application {
   );
 
   /*
-   * IMPORTS
+   * DATA IMPORTS
    */
   app.use(
     `${apiPrefix}/imports`,
@@ -314,20 +296,16 @@ export function createApp(): Application {
   );
 
   /*
-   * CMS
+   * PUBLIC / SITE CMS
    */
   app.use(
     `${apiPrefix}/site-content`,
     siteContentRoutes
   );
 
-  app.use(
-    notFound
-  );
+  app.use(notFound);
 
-  app.use(
-    errorHandler
-  );
+  app.use(errorHandler);
 
   return app;
 }
