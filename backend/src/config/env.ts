@@ -2,164 +2,130 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-function required(name: string): string {
-  const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-function optional(name: string, fallback: string): string {
-  const value = process.env[name]?.trim();
-
-  return value || fallback;
-}
-
-function numberEnv(name: string, fallback: number): number {
-  const value = process.env[name]?.trim();
-
-  if (!value) {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed)) {
-    throw new Error(
-      `Environment variable ${name} must be a valid number.`
-    );
-  }
-
-  return parsed;
-}
-
-function booleanEnv(name: string, fallback: boolean): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
-
-  if (!value) {
-    return fallback;
-  }
-
-  if (value === "true" || value === "1" || value === "yes") {
-    return true;
-  }
-
-  if (value === "false" || value === "0" || value === "no") {
-    return false;
-  }
-
-  throw new Error(
-    `Environment variable ${name} must be true/false.`
-  );
+interface EnvConfig {
+  nodeEnv: string;
+  port: number;
+  apiVersion: string;
+  corsOrigin: string;
+  corsOrigins: string[];
+  databaseUrl: string | undefined;
+  jwtAccessSecret: string;
+  jwtRefreshSecret: string;
+  jwtAccessExpiresIn: string;
+  jwtRefreshExpiresInDays: number;
+  bcryptSaltRounds: number;
+  cloudinaryCloudName: string | undefined;
+  cloudinaryApiKey: string | undefined;
+  cloudinaryApiSecret: string | undefined;
 }
 
 function normalizeOrigin(value: string): string {
-  return value.replace(/\/+$/, "");
+  return value.trim().replace(/\/+$/, "");
 }
 
-const nodeEnv = optional("NODE_ENV", "development");
+function parseCorsOrigins(value: string | undefined): string[] {
+  const raw = value || "http://localhost:3000";
 
-const isProduction = nodeEnv === "production";
+  const origins = raw
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
 
-const databaseUrl = required("DATABASE_URL");
-
-const jwtAccessSecret = required("JWT_ACCESS_SECRET");
-const jwtRefreshSecret = required("JWT_REFRESH_SECRET");
-
-if (isProduction) {
-  if (jwtAccessSecret.length < 32) {
-    throw new Error(
-      "JWT_ACCESS_SECRET must contain at least 32 characters in production."
-    );
-  }
-
-  if (jwtRefreshSecret.length < 32) {
-    throw new Error(
-      "JWT_REFRESH_SECRET must contain at least 32 characters in production."
-    );
-  }
+  return origins.length > 0
+    ? origins
+    : ["http://localhost:3000"];
 }
 
-const corsOriginRaw = optional(
-  "CORS_ORIGIN",
-  "http://localhost:3000"
+const corsOrigins = parseCorsOrigins(
+  process.env.CORS_ORIGIN
 );
 
-const corsOrigins = corsOriginRaw
-  .split(",")
-  .map(normalizeOrigin)
-  .filter(Boolean);
+/**
+ * Centralized, typed application environment.
+ *
+ * Keep these properties flat because the existing ACADLYX
+ * services already consume these names directly.
+ */
+export const env: EnvConfig = {
+  nodeEnv: process.env.NODE_ENV || "development",
 
-if (corsOrigins.length === 0) {
-  throw new Error("At least one CORS origin must be configured.");
-}
+  port: Number(process.env.PORT) || 5001,
 
-export const env = {
-  nodeEnv,
-
-  isProduction,
-
-  port: numberEnv("PORT", 5001),
-
-  apiVersion: optional("API_VERSION", "v1"),
-
-  databaseUrl,
+  apiVersion:
+    process.env.API_VERSION || "v1",
 
   corsOrigin: corsOrigins[0],
 
   corsOrigins,
 
-  jwt: {
-    accessSecret: jwtAccessSecret,
-    refreshSecret: jwtRefreshSecret,
+  databaseUrl:
+    process.env.DATABASE_URL,
 
-    accessExpiresIn: optional(
-      "JWT_ACCESS_EXPIRES_IN",
-      "15m"
-    ),
+  jwtAccessSecret:
+    process.env.JWT_ACCESS_SECRET ||
+    "insecure-dev-access-secret",
 
-    refreshExpiresIn: optional(
-      "JWT_REFRESH_EXPIRES_IN",
-      "30d"
-    ),
-  },
+  jwtRefreshSecret:
+    process.env.JWT_REFRESH_SECRET ||
+    "insecure-dev-refresh-secret",
 
-  cloudinary: {
-    cloudName: optional("CLOUDINARY_CLOUD_NAME", ""),
-    apiKey: optional("CLOUDINARY_API_KEY", ""),
-    apiSecret: optional("CLOUDINARY_API_SECRET", ""),
-  },
+  jwtAccessExpiresIn:
+    process.env.JWT_ACCESS_EXPIRES_IN ||
+    "15m",
 
-  upload: {
-    maxFileSizeMb: numberEnv("MAX_FILE_SIZE_MB", 10),
-  },
+  jwtRefreshExpiresInDays:
+    Number(
+      process.env.JWT_REFRESH_EXPIRES_IN_DAYS
+    ) || 30,
 
-  security: {
-    trustProxy: booleanEnv("TRUST_PROXY", isProduction),
+  bcryptSaltRounds:
+    Number(
+      process.env.BCRYPT_SALT_ROUNDS
+    ) || 10,
 
-    loginRateLimitWindowMs: numberEnv(
-      "LOGIN_RATE_LIMIT_WINDOW_MS",
-      15 * 60 * 1000
-    ),
+  cloudinaryCloudName:
+    process.env.CLOUDINARY_CLOUD_NAME,
 
-    loginRateLimitMax: numberEnv(
-      "LOGIN_RATE_LIMIT_MAX",
-      10
-    ),
-  },
+  cloudinaryApiKey:
+    process.env.CLOUDINARY_API_KEY,
 
-  app: {
-    name: optional("APP_NAME", "ACADLYX"),
-    frontendUrl: normalizeOrigin(
-      optional(
-        "FRONTEND_URL",
-        "http://localhost:3000"
-      )
-    ),
-  },
+  cloudinaryApiSecret:
+    process.env.CLOUDINARY_API_SECRET,
 };
 
-export { isProduction };
+export const isProduction =
+  env.nodeEnv === "production";
+
+/**
+ * Production must never silently start with the
+ * development fallback JWT secrets.
+ */
+export function assertAuthEnv(): void {
+  const usingDefaults =
+    !process.env.JWT_ACCESS_SECRET ||
+    !process.env.JWT_REFRESH_SECRET;
+
+  if (isProduction && usingDefaults) {
+    throw new Error(
+      "JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set in production."
+    );
+  }
+
+  if (isProduction) {
+    if (
+      env.jwtAccessSecret.length < 32 ||
+      env.jwtRefreshSecret.length < 32
+    ) {
+      throw new Error(
+        "JWT access and refresh secrets must each be at least 32 characters in production."
+      );
+    }
+  }
+
+  if (!isProduction && usingDefaults) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[WARN] JWT_ACCESS_SECRET/JWT_REFRESH_SECRET not set — using insecure defaults for local development only."
+    );
+  }
+}
