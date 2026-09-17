@@ -76,7 +76,8 @@ export const PERMISSIONS = [
   {
     key: "assignments.create",
     module: "assignments",
-    description: "Create assignments",
+    description:
+      "Create assignments",
   },
   {
     key: "assignments.update",
@@ -131,7 +132,8 @@ export const PERMISSIONS = [
   {
     key: "reports.read",
     module: "reports",
-    description: "View reports",
+    description:
+      "View reports",
   },
   {
     key: "intelligence.read",
@@ -156,17 +158,20 @@ export const PERMISSIONS = [
   {
     key: "campuses.read",
     module: "academics",
-    description: "View campuses",
+    description:
+      "View campuses",
   },
   {
     key: "campuses.create",
     module: "academics",
-    description: "Create campuses",
+    description:
+      "Create campuses",
   },
   {
     key: "campuses.update",
     module: "academics",
-    description: "Update campuses",
+    description:
+      "Update campuses",
   },
   {
     key: "campuses.delete",
@@ -209,17 +214,20 @@ export const PERMISSIONS = [
   {
     key: "programs.read",
     module: "academics",
-    description: "View programs",
+    description:
+      "View programs",
   },
   {
     key: "programs.create",
     module: "academics",
-    description: "Create programs",
+    description:
+      "Create programs",
   },
   {
     key: "programs.update",
     module: "academics",
-    description: "Update programs",
+    description:
+      "Update programs",
   },
   {
     key: "programs.delete",
@@ -284,17 +292,20 @@ export const PERMISSIONS = [
   {
     key: "sections.read",
     module: "academics",
-    description: "View sections",
+    description:
+      "View sections",
   },
   {
     key: "sections.create",
     module: "academics",
-    description: "Create sections",
+    description:
+      "Create sections",
   },
   {
     key: "sections.update",
     module: "academics",
-    description: "Update sections",
+    description:
+      "Update sections",
   },
   {
     key: "sections.delete",
@@ -309,17 +320,20 @@ export const PERMISSIONS = [
   {
     key: "courses.read",
     module: "academics",
-    description: "View courses",
+    description:
+      "View courses",
   },
   {
     key: "courses.create",
     module: "academics",
-    description: "Create courses",
+    description:
+      "Create courses",
   },
   {
     key: "courses.update",
     module: "academics",
-    description: "Update courses",
+    description:
+      "Update courses",
   },
   {
     key: "courses.delete",
@@ -394,6 +408,9 @@ export const ROLE_PERMISSIONS: Record<
 > = {
   /*
    * PLATFORM ADMINISTRATOR
+   *
+   * SUPER_ADMIN receives the complete
+   * permission catalog.
    */
   SUPER_ADMIN: [
     ...ALL_PERMISSIONS,
@@ -402,8 +419,8 @@ export const ROLE_PERMISSIONS: Record<
   /*
    * INSTITUTION ADMINISTRATOR
    *
-   * Receives every tenant permission but not
-   * institutions.manage.
+   * Receives every institutional permission
+   * except platform-level institution management.
    */
   INSTITUTION_ADMIN:
     ALL_PERMISSIONS.filter(
@@ -428,9 +445,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
     "intelligence.read",
 
-    "site.manage",
-    "imports.manage",
-
     ...ACADEMIC_READ,
   ],
 
@@ -450,19 +464,18 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
     "intelligence.read",
 
-    "site.manage",
-    "imports.manage",
-
     ...ACADEMIC_READ,
   ],
 
   /*
    * HOD
    *
-   * Department boundaries still need to be
-   * enforced inside services using DepartmentAccess.
+   * Department boundaries must additionally
+   * be enforced by DepartmentAccess and
+   * service-level tenant/department checks.
    */
   HOD: [
+    "users.read",
     "students.read",
 
     "attendance.read",
@@ -484,4 +497,57 @@ export const ROLE_PERMISSIONS: Record<
   /*
    * FACULTY
    */
- 
+  FACULTY: [
+    "students.read",
+
+    "attendance.read",
+    "attendance.mark",
+
+    "assignments.read",
+    "assignments.create",
+    "assignments.update",
+    "assignments.review",
+
+    "marks.read",
+    "marks.enter",
+
+    ...ACADEMIC_READ,
+  ],
+
+  /*
+   * STAFF
+   */
+  STAFF: [
+    "students.read",
+    "users.read",
+
+    ...ACADEMIC_READ,
+  ],
+
+  /*
+   * STUDENT
+   */
+  STUDENT: [
+    "attendance.read",
+
+    "assignments.read",
+    "assignments.submit",
+
+    "marks.read",
+
+    ...ACADEMIC_READ,
+  ],
+
+  /*
+   * PARENT
+   */
+  PARENT: [
+    "attendance.read",
+
+    "assignments.read",
+
+    "marks.read",
+
+    ...ACADEMIC_READ,
+  ],
+};
