@@ -1,10 +1,18 @@
-import { Request } from "express";
+import {
+  Request,
+} from "express";
 
-import { AppError } from "../middleware/errorHandler";
-import { AuthenticatedUser } from "../types/auth";
+import {
+  AppError,
+} from "../middleware/errorHandler";
+
+import {
+  AuthenticatedUser,
+} from "../types/auth";
 
 /**
- * Ensures authentication context is available.
+ * Returns the authenticated
+ * request context.
  */
 export function requireAuthenticatedUser(
   req: Request
@@ -20,19 +28,24 @@ export function requireAuthenticatedUser(
 }
 
 /**
- * Returns the tenant ID from the signed authenticated
- * user context.
+ * Every tenant-scoped operation must
+ * derive institutionId from the
+ * authenticated request context.
  *
- * Tenant-scoped APIs must use this function rather than
- * accepting institutionId from request bodies or query strings.
+ * Never trust institutionId supplied
+ * by browser/client input.
  */
 export function requireInstitution(
   req: Request
 ): string {
   const user =
-    requireAuthenticatedUser(req);
+    requireAuthenticatedUser(
+      req
+    );
 
-  if (!user.institutionId) {
+  if (
+    !user.institutionId
+  ) {
     throw new AppError(
       "This action requires a user scoped to an institution",
       403
@@ -43,16 +56,20 @@ export function requireInstitution(
 }
 
 /**
- * Restricts a platform operation to SUPER_ADMIN.
+ * Platform-level operations only.
  */
 export function requirePlatformAdmin(
   req: Request
 ): AuthenticatedUser {
   const user =
-    requireAuthenticatedUser(req);
+    requireAuthenticatedUser(
+      req
+    );
 
   if (
-    !user.roles.includes("SUPER_ADMIN")
+    !user.roles.includes(
+      "SUPER_ADMIN"
+    )
   ) {
     throw new AppError(
       "Platform administrator access is required",
@@ -64,33 +81,33 @@ export function requirePlatformAdmin(
 }
 
 /**
- * Useful for operations where an explicit institution
- * resource is being accessed.
- *
- * SUPER_ADMIN may cross institution boundaries for
- * platform administration.
- *
- * Normal tenant users may only access their own institution.
+ * Reusable protection for entities
+ * where institution ownership must
+ * be checked manually.
  */
-export function assertInstitutionAccess(
-  req: Request,
-  institutionId: string
+export function assertSameInstitution(
+  user: AuthenticatedUser,
+  recordInstitutionId: string
 ): void {
-  const user =
-    requireAuthenticatedUser(req);
-
+  /*
+   * Platform administrator may
+   * inspect platform-managed data.
+   */
   if (
-    user.roles.includes("SUPER_ADMIN")
+    user.roles.includes(
+      "SUPER_ADMIN"
+    )
   ) {
     return;
   }
 
   if (
     !user.institutionId ||
-    user.institutionId !== institutionId
+    user.institutionId !==
+      recordInstitutionId
   ) {
     throw new AppError(
-      "You do not have access to this institution",
+      "Cross-institution access is not permitted",
       403
     );
   }
