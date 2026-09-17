@@ -31,6 +31,7 @@ model Institution {
   updatedAt      DateTime @updatedAt
 
   users     User[]
+  studentProfiles StudentProfile[]
   roles     Role[]
   auditLogs AuditLog[]
 
@@ -95,6 +96,7 @@ model User {
   auditLogs               AuditLog[]
   facultyCourseOfferings  CourseOffering[]       @relation("CourseOfferingFaculty")
   studentEnrollments      StudentEnrollment[]
+  studentProfile           StudentProfile?
   attendanceSessionsTaken AttendanceSession[]    @relation("AttendanceSessionFaculty")
   attendanceRecordsOwned  AttendanceRecord[]     @relation("AttendanceRecordStudent")
   assignmentsCreated      Assignment[]           @relation("AssignmentCreatedBy")
@@ -386,6 +388,7 @@ model Semester {
 
   sections        Section[]
   courseOfferings CourseOffering[]
+  studentEnrollments StudentEnrollment[]
 
   @@unique([programId, academicYearId, number])
   @@index([institutionId])
@@ -485,6 +488,45 @@ model CourseOffering {
 }
 
 // ==========================================================
+// STUDENT MASTER (Phase 5)
+// ==========================================================
+
+/// Institution-scoped master record for a student. Authentication
+/// remains on User; academic identity and admission data live here.
+model StudentProfile {
+  id                   String      @id @default(uuid())
+  institutionId        String
+  institution          Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId               String      @unique
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  admissionNumber      String
+  dateOfBirth          DateTime?
+  gender               String?
+  bloodGroup           String?
+  nationality          String?
+  address              String?
+  city                 String?
+  state                String?
+  postalCode           String?
+  guardianName         String?
+  guardianPhone        String?
+  guardianEmail        String?
+  emergencyContactName String?
+  emergencyContactPhone String?
+  admissionDate        DateTime?
+  status               String      @default("ACTIVE") // ACTIVE | INACTIVE | GRADUATED | WITHDRAWN | TRANSFERRED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([institutionId, admissionNumber])
+  @@index([institutionId, status])
+  @@index([institutionId, userId])
+  @@map("student_profiles")
+}
+
+// ==========================================================
 // STUDENT ENROLLMENT (Phase 3)
 // ==========================================================
 
@@ -507,6 +549,8 @@ model StudentEnrollment {
   program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  semesterId     String?
+  semester       Semester?     @relation(fields: [semesterId], references: [id], onDelete: SetNull)
   sectionId      String?
   section        Section?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
