@@ -46,16 +46,19 @@ import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
 
 export function createApp(): Application {
-  const app: Application =
-    express();
+  const app: Application = express();
 
-  if (env.security.trustProxy) {
+  /*
+   * Render runs behind a reverse proxy.
+   *
+   * The existing EnvConfig does not expose a security.trustProxy
+   * property, so use the production environment directly here.
+   */
+  if (isProduction) {
     app.set("trust proxy", 1);
   }
 
-  app.disable(
-    "x-powered-by"
-  );
+  app.disable("x-powered-by");
 
   app.use(
     helmet({
@@ -69,33 +72,38 @@ export function createApp(): Application {
 
   app.use(
     cors({
-      origin(
-        origin,
-        callback
-      ) {
+      origin(origin, callback) {
+        /*
+         * Requests without an Origin header include server-to-server
+         * requests and health checks. These are allowed.
+         */
         if (!origin) {
-          callback(
-            null,
-            true
-          );
+          callback(null, true);
           return;
         }
 
-        const normalizedOrigin =
-          origin.replace(
-            /\/+$/,
-            ""
-          );
+        /*
+         * Normalize trailing slashes so:
+         *
+         * https://acadlyx-orcin.vercel.app
+         *
+         * and
+         *
+         * https://acadlyx-orcin.vercel.app/
+         *
+         * are treated as the same origin.
+         */
+        const normalizedOrigin = origin.replace(
+          /\/+$/,
+          ""
+        );
 
         if (
           env.corsOrigins.includes(
             normalizedOrigin
           )
         ) {
-          callback(
-            null,
-            true
-          );
+          callback(null, true);
           return;
         }
 
@@ -149,6 +157,9 @@ export function createApp(): Application {
     );
   }
 
+  /*
+   * API root.
+   */
   app.get(
     "/",
     (_req, res) => {
@@ -168,11 +179,17 @@ export function createApp(): Application {
   const apiPrefix =
     `/api/${env.apiVersion}`;
 
+  /*
+   * HEALTH
+   */
   app.use(
     `${apiPrefix}/health`,
     healthRoutes
   );
 
+  /*
+   * AUTHENTICATION
+   */
   app.use(
     `${apiPrefix}/auth`,
     authRoutes
@@ -280,7 +297,9 @@ export function createApp(): Application {
 
   /*
    * LEGACY / AGGREGATED ERP
-   * endpoints retained for compatibility.
+   *
+   * Kept for compatibility while individual ERP domains
+   * are progressively implemented.
    */
   app.use(
     `${apiPrefix}/erp`,
@@ -303,8 +322,14 @@ export function createApp(): Application {
     siteContentRoutes
   );
 
+  /*
+   * 404 HANDLER
+   */
   app.use(notFound);
 
+  /*
+   * CENTRAL ERROR HANDLER
+   */
   app.use(errorHandler);
 
   return app;
