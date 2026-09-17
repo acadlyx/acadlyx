@@ -1,137 +1,150 @@
-import { Request, Response, NextFunction } from "express";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
 import { AppError } from "./errorHandler";
 
-type Permission =
-  | string
-  | string[];
-
-function getUser(req: Request) {
-  const user = req.user;
-
-  if (!user) {
-    throw new AppError(
-      "Authentication required.",
-      401,
-      "AUTHENTICATION_REQUIRED"
-    );
-  }
-
-  return user;
-}
-
-function hasPermission(
-  permissions: string[] | undefined,
-  required: string
-): boolean {
-  if (!permissions) {
-    return false;
-  }
-
-  return (
-    permissions.includes("*") ||
-    permissions.includes(required)
-  );
-}
-
+/**
+ * Permission-based authorization.
+ *
+ * Requires ALL permissions passed to authorize().
+ *
+ * Roles themselves are permission bundles. Business APIs
+ * should normally authorize permissions instead of hard-coding
+ * role names.
+ */
 export function authorize(
-  required: Permission
+  ...requiredPermissions: string[]
 ) {
   return (
     req: Request,
     _res: Response,
     next: NextFunction
-  ) => {
-    try {
-      const user = getUser(req);
+  ): void => {
+    if (!req.user) {
+      next(
+        new AppError(
+          "Authentication required",
+          401
+        )
+      );
 
-      const requiredPermissions = Array.isArray(
-        required
-      )
-        ? required
-        : [required];
-
-      const userPermissions =
-        user.permissions ?? [];
-
-      const authorized =
-        requiredPermissions.some((permission) =>
-          hasPermission(
-            userPermissions,
-            permission
-          )
-        );
-
-      /*
-       * SUPER_ADMIN is a platform-level role.
-       *
-       * It is intentionally handled separately from
-       * institutional permissions.
-       */
-      if (user.role === "SUPER_ADMIN") {
-        next();
-        return;
-      }
-
-      if (!authorized) {
-        throw new AppError(
-          "You do not have permission to perform this action.",
-          403,
-          "PERMISSION_DENIED"
-        );
-      }
-
-      next();
-    } catch (error) {
-      next(error);
+      return;
     }
-  };
-}
 
-export function authorizeAny(
-  permissions: string[]
-) {
-  return authorize(permissions);
-}
-
-export function authorizeAll(
-  permissions: string[]
-) {
-  return (
-    req: Request,
-    _res: Response,
-    next: NextFunction
-  ) => {
-    try {
-      const user = getUser(req);
-
-      if (user.role === "SUPER_ADMIN") {
-        next();
-        return;
-      }
-
-      const userPermissions =
-        user.permissions ?? [];
-
-      const authorized = permissions.every(
+    const missing =
+      requiredPermissions.filter(
         (permission) =>
-          hasPermission(
-            userPermissions,
+          !req.user!.permissions.includes(
             permission
           )
       );
 
-      if (!authorized) {
-        throw new AppError(
-          "You do not have all required permissions.",
-          403,
-          "PERMISSION_DENIED"
-        );
-      }
+    if (missing.length > 0) {
+      next(
+        new AppError(
+          `Missing required permission(s): ${missing.join(
+            ", "
+          )}`,
+          403
+        )
+      );
 
-      next();
-    } catch (error) {
-      next(error);
+      return;
     }
+
+    next();
+  };
+}
+
+/**
+ * Requires at least ONE of the supplied permissions.
+ */
+export function authorizeAny(
+  ...allowedPermissions: string[]
+) {
+  return (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): void => {
+    if (!req.user) {
+      next(
+        new AppError(
+          "Authentication required",
+          401
+        )
+      );
+
+      return;
+    }
+
+    const allowed =
+      allowedPermissions.some(
+        (permission) =>
+          req.user!.permissions.includes(
+            permission
+          )
+      );
+
+    if (!allowed) {
+      next(
+        new AppError(
+          `Requires one of these permissions: ${allowedPermissions.join(
+            ", "
+          )}`,
+          403
+        )
+      );
+
+      return;
+    }
+
+    next();
+  };
+}
+
+/**
+ * Used only when a workspace itself belongs to
+ * particular system roles.
+ */
+export function authorizeRoles(
+  ...allowedRoles: string[]
+) {
+  return (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ): void => {
+    if (!req.user) {
+      next(
+        new AppError(
+          "Authentication required",
+          401
+        )
+      );
+
+      return;
+    }
+
+    const hasRole =
+      req.user.roles.some((role) =>
+        allowedRoles.includes(role)
+      );
+
+    if (!hasRole) {
+      next(
+        new AppError(
+          "This workspace is not assigned to your role",
+          403
+        )
+      );
+
+      return;
+    }
+
+    next();
   };
 }
