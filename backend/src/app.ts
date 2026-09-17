@@ -27,26 +27,90 @@ import askRoutes from "./routes/ask.routes";
 import erpRoutes from "./routes/erp.routes";
 import importRoutes from "./routes/import.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
-
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
 
 export function createApp(): Application {
   const app: Application = express();
 
-  app.use(helmet());
+  if (env.security.trustProxy) {
+    app.set("trust proxy", 1);
+  }
+
+  app.disable("x-powered-by");
+
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: {
+        policy: "cross-origin",
+      },
+    })
+  );
+
   app.use(requestContext);
 
   app.use(
     cors({
-      origin: env.corsOrigin,
+      origin(origin, callback) {
+        /*
+         * Server-to-server requests and health checks may not
+         * contain an Origin header.
+         */
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        const normalizedOrigin = origin.replace(/\/+$/, "");
+
+        if (env.corsOrigins.includes(normalizedOrigin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(
+          new Error(
+            `CORS origin not allowed: ${origin}`
+          )
+        );
+      },
+
       credentials: true,
-      exposedHeaders: ["X-Request-ID"],
+
+      methods: [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+      ],
+
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Request-ID",
+      ],
+
+      exposedHeaders: [
+        "X-Request-ID",
+      ],
     })
   );
 
-  app.use(express.json({ limit: "2mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+  app.use(
+    express.json({
+      limit: "2mb",
+    })
+  );
+
+  app.use(
+    express.urlencoded({
+      extended: true,
+      limit: "2mb",
+    })
+  );
 
   if (!isProduction) {
     app.use(morgan("dev"));
@@ -55,6 +119,7 @@ export function createApp(): Application {
   app.get("/", (_req, res) => {
     res.status(200).json({
       success: true,
+      name: "ACADLYX",
       message: "ACADLYX API is running",
       version: env.apiVersion,
       environment: env.nodeEnv,
@@ -63,32 +128,79 @@ export function createApp(): Application {
 
   const apiPrefix = `/api/${env.apiVersion}`;
 
-  app.use(`${apiPrefix}/health`, healthRoutes);
+  app.use(
+    `${apiPrefix}/health`,
+    healthRoutes
+  );
 
-  app.use(`${apiPrefix}/auth`, authRoutes);
+  app.use(
+    `${apiPrefix}/auth`,
+    authRoutes
+  );
 
   /*
-   * PLATFORM ADMINISTRATION
+   * PLATFORM / INSTITUTION ADMINISTRATION
    */
-  app.use(`${apiPrefix}/institutions`, institutionRoutes);
-  app.use(`${apiPrefix}/users`, userRoutes);
+  app.use(
+    `${apiPrefix}/institutions`,
+    institutionRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/users`,
+    userRoutes
+  );
 
   /*
    * ACADEMIC STRUCTURE
    */
-  app.use(`${apiPrefix}/departments`, departmentRoutes);
-  app.use(`${apiPrefix}/programs`, programRoutes);
-  app.use(`${apiPrefix}/academic-years`, academicYearRoutes);
-  app.use(`${apiPrefix}/semesters`, semesterRoutes);
-  app.use(`${apiPrefix}/sections`, sectionRoutes);
-  app.use(`${apiPrefix}/courses`, courseRoutes);
-  app.use(`${apiPrefix}/course-offerings`, courseOfferingRoutes);
+  app.use(
+    `${apiPrefix}/departments`,
+    departmentRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/programs`,
+    programRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/academic-years`,
+    academicYearRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/semesters`,
+    semesterRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/sections`,
+    sectionRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/courses`,
+    courseRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/course-offerings`,
+    courseOfferingRoutes
+  );
 
   /*
-   * PEOPLE / STUDENT SELF SERVICE
+   * PEOPLE
    */
-  app.use(`${apiPrefix}/students`, studentRoutes);
-  app.use(`${apiPrefix}/faculty`, facultyRoutes);
+  app.use(
+    `${apiPrefix}/students`,
+    studentRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/faculty`,
+    facultyRoutes
+  );
 
   /*
    * ACADEMIC OPERATIONS
@@ -98,19 +210,55 @@ export function createApp(): Application {
     attendanceSessionRoutes
   );
 
-  app.use(`${apiPrefix}/assignments`, assignmentRoutes);
+  app.use(
+    `${apiPrefix}/assignments`,
+    assignmentRoutes
+  );
 
-  app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
+  app.use(
+    `${apiPrefix}/internal-marks`,
+    internalMarkRoutes
+  );
 
   /*
    * INTELLIGENCE
    */
-  app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
+  app.use(
+    `${apiPrefix}/intelligence`,
+    intelligenceRoutes
+  );
 
-  app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
-  app.use(`${apiPrefix}/erp`, erpRoutes);
-  app.use(`${apiPrefix}/imports`, importRoutes);
-  app.use(`${apiPrefix}/site-content`, siteContentRoutes);
+  app.use(
+    `${apiPrefix}/ask-acadlyx`,
+    askRoutes
+  );
+
+  /*
+   * LEGACY / AGGREGATED ERP ENDPOINTS
+   *
+   * Kept for compatibility while the ERP functionality is
+   * progressively split into domain modules.
+   */
+  app.use(
+    `${apiPrefix}/erp`,
+    erpRoutes
+  );
+
+  /*
+   * DATA IMPORTS
+   */
+  app.use(
+    `${apiPrefix}/imports`,
+    importRoutes
+  );
+
+  /*
+   * PUBLIC / SITE CMS
+   */
+  app.use(
+    `${apiPrefix}/site-content`,
+    siteContentRoutes
+  );
 
   app.use(notFound);
 
