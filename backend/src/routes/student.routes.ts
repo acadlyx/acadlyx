@@ -1,26 +1,107 @@
 import { Router } from "express";
-import * as studentController from "../controllers/student.controller";
-import { authenticate } from "../middleware/authenticate";
-import { authorizeRoles } from "../middleware/authorize";
 
-/**
- * Self-service routes only ("my profile", "my dashboard") — same
- * pattern as /auth/me. No RBAC permission is required beyond being
- * authenticated: a student should always be able to see their own
- * data. Admin-facing student management (listing/creating students
- * across an institution) is a separate concern for a later phase and
- * would use the existing students.read/create/update permissions
- * already reserved in the Phase 1 permission catalog.
- */
+import * as studentController from "../controllers/student.controller";
+import * as studentAdminController from "../controllers/studentAdmin.controller";
+
+import { authenticate } from "../middleware/authenticate";
+import {
+  authorize,
+  authorizeRoles,
+} from "../middleware/authorize";
+import {
+  validateBody,
+  validateQuery,
+} from "../middleware/validate";
+import {
+  createStudentSchema,
+  enrollStudentSchema,
+  listStudentsQuerySchema,
+  updateStudentSchema,
+} from "../validators/studentAdmin.validators";
+
 const router = Router();
 
 router.use(authenticate);
-router.use(authorizeRoles("STUDENT"));
 
-router.get("/me", studentController.me);
-router.get("/me/dashboard", studentController.dashboard);
-router.get("/me/attendance", studentController.attendance);
-router.get("/me/marks", studentController.marks);
-router.get("/me/assignments", studentController.assignments);
+/*
+ * Self-service routes must stay above /:id so "me" is never
+ * interpreted as a user id. These routes are restricted to
+ * actual student accounts.
+ */
+router.get(
+  "/me",
+  authorizeRoles("STUDENT"),
+  studentController.me
+);
+
+router.get(
+  "/me/dashboard",
+  authorizeRoles("STUDENT"),
+  studentController.dashboard
+);
+
+router.get(
+  "/me/attendance",
+  authorizeRoles("STUDENT"),
+  studentController.attendance
+);
+
+router.get(
+  "/me/marks",
+  authorizeRoles("STUDENT"),
+  studentController.marks
+);
+
+router.get(
+  "/me/assignments",
+  authorizeRoles("STUDENT"),
+  studentController.assignments
+);
+
+/*
+ * Institution student master / enrollment management.
+ *
+ * Tenant identity is derived from the authenticated JWT by
+ * requireInstitution(). The browser never supplies institutionId.
+ */
+router.get(
+  "/",
+  authorize("students.read"),
+  validateQuery(listStudentsQuerySchema),
+  studentAdminController.list
+);
+
+router.get(
+  "/:id/enrollments",
+  authorize("students.read"),
+  studentAdminController.enrollments
+);
+
+router.get(
+  "/:id",
+  authorize("students.read"),
+  studentAdminController.getById
+);
+
+router.post(
+  "/",
+  authorize("students.create"),
+  validateBody(createStudentSchema),
+  studentAdminController.create
+);
+
+router.patch(
+  "/:id",
+  authorize("students.update"),
+  validateBody(updateStudentSchema),
+  studentAdminController.update
+);
+
+router.post(
+  "/:id/enrollments",
+  authorize("students.create", "students.update"),
+  validateBody(enrollStudentSchema),
+  studentAdminController.enroll
+);
 
 export default router;
