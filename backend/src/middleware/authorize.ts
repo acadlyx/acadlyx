@@ -1,46 +1,137 @@
-import { NextFunction, Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
+
 import { AppError } from "./errorHandler";
 
-/**
- * Permission-based RBAC middleware. Roles are just named bundles of
- * permissions — route handlers should check permissions, never role
- * names, so institutions can define their own roles later without
- * any controller code changing.
- *
- * Must run after `authenticate`. Requires ALL listed permissions.
- */
-export function authorize(...requiredPermissions: string[]) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      next(new AppError("Authentication required", 401));
-      return;
-    }
+type Permission =
+  | string
+  | string[];
 
-    const missing = requiredPermissions.filter(
-      (perm) => !req.user!.permissions.includes(perm)
+function getUser(req: Request) {
+  const user = req.user;
+
+  if (!user) {
+    throw new AppError(
+      "Authentication required.",
+      401,
+      "AUTHENTICATION_REQUIRED"
     );
+  }
 
-    if (missing.length > 0) {
-      next(
-        new AppError(
-          `Missing required permission(s): ${missing.join(", ")}`,
-          403
-        )
-      );
-      return;
+  return user;
+}
+
+function hasPermission(
+  permissions: string[] | undefined,
+  required: string
+): boolean {
+  if (!permissions) {
+    return false;
+  }
+
+  return (
+    permissions.includes("*") ||
+    permissions.includes(required)
+  );
+}
+
+export function authorize(
+  required: Permission
+) {
+  return (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const user = getUser(req);
+
+      const requiredPermissions = Array.isArray(
+        required
+      )
+        ? required
+        : [required];
+
+      const userPermissions =
+        user.permissions ?? [];
+
+      const authorized =
+        requiredPermissions.some((permission) =>
+          hasPermission(
+            userPermissions,
+            permission
+          )
+        );
+
+      /*
+       * SUPER_ADMIN is a platform-level role.
+       *
+       * It is intentionally handled separately from
+       * institutional permissions.
+       */
+      if (user.role === "SUPER_ADMIN") {
+        next();
+        return;
+      }
+
+      if (!authorized) {
+        throw new AppError(
+          "You do not have permission to perform this action.",
+          403,
+          "PERMISSION_DENIED"
+        );
+      }
+
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    next();
   };
 }
 
-/** Route-level role boundary for dedicated self-service workspaces. */
-export function authorizeRoles(...allowedRoles: string[]) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) return next(new AppError("Authentication required", 401));
-    if (!req.user.roles.some((role) => allowedRoles.includes(role))) {
-      return next(new AppError("This workspace is not assigned to your role", 403));
+export function authorizeAny(
+  permissions: string[]
+) {
+  return authorize(permissions);
+}
+
+export function authorizeAll(
+  permissions: string[]
+) {
+  return (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const user = getUser(req);
+
+      if (user.role === "SUPER_ADMIN") {
+        next();
+        return;
+      }
+
+      const userPermissions =
+        user.permissions ?? [];
+
+      const authorized = permissions.every(
+        (permission) =>
+          hasPermission(
+            userPermissions,
+            permission
+          )
+      );
+
+      if (!authorized) {
+        throw new AppError(
+          "You do not have all required permissions.",
+          403,
+          "PERMISSION_DENIED"
+        );
+      }
+
+      next();
+    } catch (error) {
+      next(error);
     }
-    next();
   };
 }
