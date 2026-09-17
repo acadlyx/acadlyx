@@ -35,6 +35,7 @@ type RecordItem = Record<string, unknown> & {
   code?: string;
   title?: string;
   isActive?: boolean;
+  isCurrent?: boolean;
 };
 
 type ListResponse<T> = {
@@ -42,6 +43,9 @@ type ListResponse<T> = {
   data?: T[];
   meta?: {
     total?: number;
+    page?: number;
+    pageSize?: number;
+    totalPages?: number;
   };
 };
 
@@ -58,6 +62,7 @@ type ModuleKey =
   | "users"
   | "students"
   | "faculty"
+  | "campuses"
   | "departments"
   | "programs"
   | "academic-years"
@@ -93,7 +98,8 @@ const modules: ModuleDefinition[] = [
   {
     key: "students",
     label: "Students",
-    endpoint: "/users?role=STUDENT&page=1&pageSize=100",
+    endpoint:
+      "/users?role=STUDENT&page=1&pageSize=100",
     description:
       "Student accounts and institutional identities.",
     canCreate: true,
@@ -101,9 +107,18 @@ const modules: ModuleDefinition[] = [
   {
     key: "faculty",
     label: "Faculty",
-    endpoint: "/users?role=FACULTY&page=1&pageSize=100",
+    endpoint:
+      "/users?role=FACULTY&page=1&pageSize=100",
     description:
       "Faculty accounts and teaching staff.",
+    canCreate: true,
+  },
+  {
+    key: "campuses",
+    label: "Campuses",
+    endpoint: "/campuses",
+    description:
+      "Physical campuses and their academic locations.",
     canCreate: true,
   },
   {
@@ -127,7 +142,7 @@ const modules: ModuleDefinition[] = [
     label: "Academic Years",
     endpoint: "/academic-years",
     description:
-      "Academic calendars and current academic year.",
+      "Academic years and the active academic cycle.",
     canCreate: true,
   },
   {
@@ -143,7 +158,7 @@ const modules: ModuleDefinition[] = [
     label: "Sections",
     endpoint: "/sections",
     description:
-      "Student sections within semesters.",
+      "Student sections within academic semesters.",
     canCreate: true,
   },
   {
@@ -159,7 +174,7 @@ const modules: ModuleDefinition[] = [
     label: "Course Offerings",
     endpoint: "/course-offerings",
     description:
-      "Assign courses to semesters, sections and faculty.",
+      "Connect courses, semesters, sections and faculty.",
     canCreate: true,
   },
 ];
@@ -176,7 +191,7 @@ const roleOptions = [
 ];
 
 function inputClass() {
-  return "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100";
+  return "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
 }
 
 function labelClass() {
@@ -200,21 +215,77 @@ function normalizeList<T>(
     : [];
 }
 
+function formatDateInput(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(
+    String(value)
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10);
+  }
+
+  return date
+    .toISOString()
+    .slice(0, 10);
+}
+
+function optionLabel(item: RecordItem) {
+  const name =
+    item.name ||
+    item.title ||
+    "";
+
+  const code =
+    item.code ||
+    "";
+
+  if (code && name) {
+    return `${code} — ${name}`;
+  }
+
+  return String(
+    name ||
+      code ||
+      item.id
+  );
+}
+
 export function AdminPortal() {
   const router = useRouter();
 
-  const [activeModule, setActiveModule] =
-    useState<ModuleKey>("overview");
+  const [
+    activeModule,
+    setActiveModule,
+  ] =
+    useState<ModuleKey>(
+      "overview"
+    );
 
   const [user, setUser] =
-    useState<Awaited<
-      ReturnType<typeof getCurrentUser>
-    > | null>(null);
+    useState<
+      Awaited<
+        ReturnType<
+          typeof getCurrentUser
+        >
+      > | null
+    >(null);
 
-  const [records, setRecords] =
-    useState<RecordItem[]>([]);
+  const [
+    records,
+    setRecords,
+  ] =
+    useState<RecordItem[]>(
+      []
+    );
 
-  const [users, setUsers] =
+  const [
+    users,
+    setUsers,
+  ] =
     useState<User[]>([]);
 
   const [loading, setLoading] =
@@ -226,59 +297,112 @@ export function AdminPortal() {
   const [error, setError] =
     useState("");
 
-  const [success, setSuccess] =
-    useState("");
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
 
   const [search, setSearch] =
     useState("");
 
-  const [editing, setEditing] =
-    useState<RecordItem | null>(null);
+  const [
+    editing,
+    setEditing,
+  ] =
+    useState<RecordItem | null>(
+      null
+    );
 
-  const [showCreate, setShowCreate] =
-    useState(false);
+  const [
+    showCreate,
+    setShowCreate,
+  ] = useState(false);
 
-  const [showUserCreate, setShowUserCreate] =
-    useState(false);
+  const [
+    showUserCreate,
+    setShowUserCreate,
+  ] = useState(false);
 
-  const [stats, setStats] = useState({
+  const [
+    form,
+    setForm,
+  ] =
+    useState<
+      Record<string, string>
+    >({});
+
+  const [
+    userForm,
+    setUserForm,
+  ] = useState({
+    email: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    password: "",
+    role: "STUDENT",
+  });
+
+  const [
+    lookups,
+    setLookups,
+  ] = useState({
+    campuses:
+      [] as RecordItem[],
+    departments:
+      [] as RecordItem[],
+    programs:
+      [] as RecordItem[],
+    academicYears:
+      [] as RecordItem[],
+    semesters:
+      [] as RecordItem[],
+    sections:
+      [] as RecordItem[],
+    courses:
+      [] as RecordItem[],
+    faculty:
+      [] as User[],
+  });
+
+  const [
+    stats,
+    setStats,
+  ] = useState({
     users: 0,
     students: 0,
     faculty: 0,
+    campuses: 0,
     departments: 0,
     programs: 0,
+    academicYears: 0,
+    semesters: 0,
     courses: 0,
     sections: 0,
     offerings: 0,
   });
 
-  const [userForm, setUserForm] =
-    useState({
-      email: "",
-      firstName: "",
-      lastName: "",
-      phone: "",
-      password: "",
-      role: "STUDENT",
-    });
-
-  const [form, setForm] =
-    useState<Record<string, string>>({});
-
-  const currentModule = useMemo(
-    () =>
-      modules.find(
-        (module) =>
-          module.key === activeModule
-      ) || modules[0],
-    [activeModule]
-  );
+  const currentModule =
+    useMemo(
+      () =>
+        modules.find(
+          (module) =>
+            module.key ===
+            activeModule
+        ) ||
+        modules[0],
+      [activeModule]
+    );
 
   useEffect(() => {
     async function initialize() {
       try {
-        if (!isAuthenticated()) {
-          router.replace("/login");
+        if (
+          !isAuthenticated()
+        ) {
+          router.replace(
+            "/login"
+          );
           return;
         }
 
@@ -290,22 +414,20 @@ export function AdminPortal() {
             "INSTITUTION_ADMIN"
           )
         ) {
-          router.replace("/login");
+          router.replace(
+            "/login"
+          );
           return;
         }
 
         setUser(currentUser);
-        await loadOverview();
+
+        await Promise.all([
+          loadOverview(),
+          loadLookups(),
+        ]);
       } catch (err) {
-        if (err instanceof AuthRequiredError) {
-          router.replace("/login");
-        } else {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to initialize admin portal."
-          );
-        }
+        handleError(err);
       }
     }
 
@@ -314,12 +436,15 @@ export function AdminPortal() {
 
   useEffect(() => {
     if (
-      activeModule !== "overview" &&
+      activeModule !==
+        "overview" &&
       currentModule.endpoint
     ) {
       void loadModule();
     }
-  }, [activeModule]);
+  }, [
+    activeModule,
+  ]);
 
   async function loadOverview() {
     setLoading(true);
@@ -328,8 +453,11 @@ export function AdminPortal() {
     try {
       const [
         userResponse,
+        campusResponse,
         departmentResponse,
         programResponse,
+        yearResponse,
+        semesterResponse,
         courseResponse,
         sectionResponse,
         offeringResponse,
@@ -337,64 +465,145 @@ export function AdminPortal() {
         authedFetch<UserListResponse>(
           "/users?page=1&pageSize=100"
         ),
-        authedFetch<ListResponse<RecordItem>>(
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/campuses?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
           "/departments?page=1&pageSize=100"
         ),
-        authedFetch<ListResponse<RecordItem>>(
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
           "/programs?page=1&pageSize=100"
         ),
-        authedFetch<ListResponse<RecordItem>>(
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/academic-years?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/semesters?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
           "/courses?page=1&pageSize=100"
         ),
-        authedFetch<ListResponse<RecordItem>>(
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
           "/sections?page=1&pageSize=100"
         ),
-        authedFetch<ListResponse<RecordItem>>(
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
           "/course-offerings?page=1&pageSize=100"
         ),
       ]);
 
       const loadedUsers =
-        userResponse.data?.items || [];
+        userResponse.data?.items ||
+        [];
 
-      setUsers(loadedUsers);
+      const campuses =
+        normalizeList(
+          campusResponse
+        );
+
+      const departments =
+        normalizeList(
+          departmentResponse
+        );
+
+      const programs =
+        normalizeList(
+          programResponse
+        );
+
+      const academicYears =
+        normalizeList(
+          yearResponse
+        );
+
+      const semesters =
+        normalizeList(
+          semesterResponse
+        );
+
+      const courses =
+        normalizeList(
+          courseResponse
+        );
+
+      const sections =
+        normalizeList(
+          sectionResponse
+        );
+
+      const offerings =
+        normalizeList(
+          offeringResponse
+        );
+
+      setUsers(
+        loadedUsers
+      );
 
       setStats({
         users:
-          userResponse.data?.total ||
+          userResponse.data
+            ?.total ||
           loadedUsers.length,
-        students: loadedUsers.filter((item) =>
-          item.roles?.some(
-            (role) =>
-              role.name === "STUDENT"
-          )
-        ).length,
-        faculty: loadedUsers.filter((item) =>
-          item.roles?.some(
-            (role) =>
-              role.name === "FACULTY"
-          )
-        ).length,
+
+        students:
+          loadedUsers.filter(
+            (item) =>
+              item.roles?.some(
+                (role) =>
+                  role.name ===
+                  "STUDENT"
+              )
+          ).length,
+
+        faculty:
+          loadedUsers.filter(
+            (item) =>
+              item.roles?.some(
+                (role) =>
+                  role.name ===
+                  "FACULTY"
+              )
+          ).length,
+
+        campuses:
+          campuses.length,
+
         departments:
-          normalizeList(
-            departmentResponse
-          ).length,
+          departments.length,
+
         programs:
-          normalizeList(
-            programResponse
-          ).length,
+          programs.length,
+
+        academicYears:
+          academicYears.length,
+
+        semesters:
+          semesters.length,
+
         courses:
-          normalizeList(
-            courseResponse
-          ).length,
+          courses.length,
+
         sections:
-          normalizeList(
-            sectionResponse
-          ).length,
+          sections.length,
+
         offerings:
-          normalizeList(
-            offeringResponse
-          ).length,
+          offerings.length,
       });
     } catch (err) {
       handleError(err);
@@ -403,10 +612,108 @@ export function AdminPortal() {
     }
   }
 
+  async function loadLookups() {
+    try {
+      const [
+        campusResponse,
+        departmentResponse,
+        programResponse,
+        yearResponse,
+        semesterResponse,
+        sectionResponse,
+        courseResponse,
+        facultyResponse,
+      ] = await Promise.all([
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/campuses?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/departments?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/programs?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/academic-years?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/semesters?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/sections?page=1&pageSize=100"
+        ),
+        authedFetch<
+          ListResponse<RecordItem>
+        >(
+          "/courses?page=1&pageSize=100"
+        ),
+        authedFetch<UserListResponse>(
+          "/users?role=FACULTY&page=1&pageSize=100"
+        ),
+      ]);
+
+      setLookups({
+        campuses:
+          normalizeList(
+            campusResponse
+          ),
+
+        departments:
+          normalizeList(
+            departmentResponse
+          ),
+
+        programs:
+          normalizeList(
+            programResponse
+          ),
+
+        academicYears:
+          normalizeList(
+            yearResponse
+          ),
+
+        semesters:
+          normalizeList(
+            semesterResponse
+          ),
+
+        sections:
+          normalizeList(
+            sectionResponse
+          ),
+
+        courses:
+          normalizeList(
+            courseResponse
+          ),
+
+        faculty:
+          facultyResponse.data
+            ?.items || [],
+      });
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
   async function loadModule() {
     if (
       !currentModule.endpoint ||
-      activeModule === "overview"
+      activeModule ===
+        "overview"
     ) {
       return;
     }
@@ -417,9 +724,12 @@ export function AdminPortal() {
 
     try {
       if (
-        activeModule === "users" ||
-        activeModule === "students" ||
-        activeModule === "faculty"
+        activeModule ===
+          "users" ||
+        activeModule ===
+          "students" ||
+        activeModule ===
+          "faculty"
       ) {
         const response =
           await authedFetch<UserListResponse>(
@@ -427,23 +737,32 @@ export function AdminPortal() {
           );
 
         setUsers(
-          response.data?.items || []
+          response.data?.items ||
+            []
         );
+
         setRecords([]);
       } else {
+        const separator =
+          currentModule.endpoint.includes(
+            "?"
+          )
+            ? "&"
+            : "?";
+
         const response =
           await authedFetch<
             ListResponse<RecordItem>
           >(
-            currentModule.endpoint +
-              (currentModule.endpoint.includes("?")
-                ? "&page=1&pageSize=100"
-                : "?page=1&pageSize=100")
+            `${currentModule.endpoint}${separator}page=1&pageSize=100`
           );
 
         setRecords(
-          normalizeList(response)
+          normalizeList(
+            response
+          )
         );
+
         setUsers([]);
       }
     } catch (err) {
@@ -453,11 +772,16 @@ export function AdminPortal() {
     }
   }
 
-  function handleError(err: unknown) {
+  function handleError(
+    err: unknown
+  ) {
     if (
-      err instanceof AuthRequiredError
+      err instanceof
+      AuthRequiredError
     ) {
-      router.replace("/login");
+      router.replace(
+        "/login"
+      );
       return;
     }
 
@@ -473,7 +797,9 @@ export function AdminPortal() {
     setSuccess("");
   }
 
-  function openModule(key: ModuleKey) {
+  function openModule(
+    key: ModuleKey
+  ) {
     clearMessages();
     setEditing(null);
     setShowCreate(false);
@@ -486,11 +812,17 @@ export function AdminPortal() {
   function startCreate() {
     clearMessages();
     setEditing(null);
-    setForm({});
+    setForm(
+      defaultFormForModule(
+        activeModule
+      )
+    );
     setShowCreate(true);
   }
 
-  function startEdit(item: RecordItem) {
+  function startEdit(
+    item: RecordItem
+  ) {
     clearMessages();
     setEditing(item);
     setShowCreate(true);
@@ -516,12 +848,128 @@ export function AdminPortal() {
         if (
           value !== null &&
           value !== undefined &&
-          typeof value !== "object"
+          typeof value !==
+            "object"
         ) {
-          next[key] = String(value);
+          next[key] =
+            key.endsWith(
+              "Date"
+            )
+              ? formatDateInput(
+                  value
+                )
+              : String(value);
         }
       }
     );
+
+    if (
+      activeModule ===
+        "departments" &&
+      item.campusId
+    ) {
+      next.campusId =
+        String(
+          item.campusId
+        );
+    }
+
+    if (
+      activeModule ===
+        "programs" &&
+      item.departmentId
+    ) {
+      next.departmentId =
+        String(
+          item.departmentId
+        );
+    }
+
+    if (
+      activeModule ===
+      "semesters"
+    ) {
+      if (
+        item.programId
+      ) {
+        next.programId =
+          String(
+            item.programId
+          );
+      }
+
+      if (
+        item.academicYearId
+      ) {
+        next.academicYearId =
+          String(
+            item.academicYearId
+          );
+      }
+    }
+
+    if (
+      activeModule ===
+        "sections" &&
+      item.semesterId
+    ) {
+      next.semesterId =
+        String(
+          item.semesterId
+        );
+    }
+
+    if (
+      activeModule ===
+        "courses" &&
+      item.departmentId
+    ) {
+      next.departmentId =
+        String(
+          item.departmentId
+        );
+    }
+
+    if (
+      activeModule ===
+      "course-offerings"
+    ) {
+      if (
+        item.courseId
+      ) {
+        next.courseId =
+          String(
+            item.courseId
+          );
+      }
+
+      if (
+        item.semesterId
+      ) {
+        next.semesterId =
+          String(
+            item.semesterId
+          );
+      }
+
+      if (
+        item.sectionId
+      ) {
+        next.sectionId =
+          String(
+            item.sectionId
+          );
+      }
+
+      if (
+        item.facultyId
+      ) {
+        next.facultyId =
+          String(
+            item.facultyId
+          );
+      }
+    }
 
     setForm(next);
   }
@@ -530,19 +978,12 @@ export function AdminPortal() {
     key: string,
     value: string
   ) {
-    setForm((previous) => ({
-      ...previous,
-      [key]: value,
-    }));
-  }
-
-  function numberValue(
-    value: string
-  ) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed)
-      ? parsed
-      : 0;
+    setForm(
+      (previous) => ({
+        ...previous,
+        [key]: value,
+      })
+    );
   }
 
   function buildPayload() {
@@ -553,7 +994,9 @@ export function AdminPortal() {
 
     Object.entries(form).forEach(
       ([key, value]) => {
-        if (value === "") {
+        if (
+          value === ""
+        ) {
           return;
         }
 
@@ -565,8 +1008,18 @@ export function AdminPortal() {
             "capacity",
           ].includes(key)
         ) {
-          payload[key] =
-            numberValue(value);
+          const parsed =
+            Number(value);
+
+          if (
+            Number.isFinite(
+              parsed
+            )
+          ) {
+            payload[key] =
+              parsed;
+          }
+
           return;
         }
 
@@ -576,11 +1029,15 @@ export function AdminPortal() {
             "isActive",
           ].includes(key)
         ) {
-          payload[key] = value === "true";
+          payload[key] =
+            value ===
+            "true";
+
           return;
         }
 
-        payload[key] = value;
+        payload[key] =
+          value;
       }
     );
 
@@ -592,7 +1049,9 @@ export function AdminPortal() {
   ) {
     event.preventDefault();
 
-    if (!currentModule.endpoint) {
+    if (
+      !currentModule.endpoint
+    ) {
       return;
     }
 
@@ -600,30 +1059,32 @@ export function AdminPortal() {
     clearMessages();
 
     try {
-      const payload =
-        buildPayload();
-
       const endpoint =
         editing
           ? `${currentModule.endpoint}/${editing.id}`
           : currentModule.endpoint;
 
-      await authedFetch(endpoint, {
-        method: editing
-          ? "PATCH"
-          : "POST",
-        body: JSON.stringify(payload),
-      });
+      await authedFetch(
+        endpoint,
+        {
+          method:
+            editing
+              ? "PATCH"
+              : "POST",
+          body:
+            JSON.stringify(
+              buildPayload()
+            ),
+        }
+      );
 
       setSuccess(
         editing
-          ? `${currentModule.label.slice(
-              0,
-              -1
+          ? `${singularLabel(
+              currentModule.label
             )} updated successfully.`
-          : `${currentModule.label.slice(
-              0,
-              -1
+          : `${singularLabel(
+              currentModule.label
             )} created successfully.`
       );
 
@@ -631,8 +1092,11 @@ export function AdminPortal() {
       setShowCreate(false);
       setForm({});
 
-      await loadModule();
-      await loadOverview();
+      await Promise.all([
+        loadModule(),
+        loadOverview(),
+        loadLookups(),
+      ]);
     } catch (err) {
       handleError(err);
     } finally {
@@ -643,18 +1107,19 @@ export function AdminPortal() {
   async function deactivate(
     item: RecordItem
   ) {
-    if (!currentModule.endpoint) {
+    if (
+      !currentModule.endpoint
+    ) {
       return;
     }
 
-    const confirmed =
-      window.confirm(
+    if (
+      !window.confirm(
         `Deactivate "${getRecordName(
           item
         )}"?`
-      );
-
-    if (!confirmed) {
+      )
+    ) {
       return;
     }
 
@@ -673,8 +1138,11 @@ export function AdminPortal() {
         "Record deactivated successfully."
       );
 
-      await loadModule();
-      await loadOverview();
+      await Promise.all([
+        loadModule(),
+        loadOverview(),
+        loadLookups(),
+      ]);
     } catch (err) {
       handleError(err);
     } finally {
@@ -691,27 +1159,31 @@ export function AdminPortal() {
     clearMessages();
 
     try {
-      await authedFetch("/users", {
-        method: "POST",
-        body: JSON.stringify({
-          email:
-            userForm.email.trim(),
-          firstName:
-            userForm.firstName.trim(),
-          lastName:
-            userForm.lastName.trim(),
-          phone:
-            userForm.phone.trim(),
-          password:
-            userForm.password,
-          role:
-            userForm.role,
-        }),
-      });
+      await authedFetch(
+        "/users",
+        {
+          method: "POST",
+          body:
+            JSON.stringify({
+              email:
+                userForm.email.trim(),
+              firstName:
+                userForm.firstName.trim(),
+              lastName:
+                userForm.lastName.trim(),
+              phone:
+                userForm.phone.trim(),
+              password:
+                userForm.password,
+              role:
+                userForm.role,
+            }),
+        }
+      );
 
       setSuccess(
         `${userForm.role.replace(
-          "_",
+          /_/g,
           " "
         )} account created successfully.`
       );
@@ -725,10 +1197,15 @@ export function AdminPortal() {
         role: "STUDENT",
       });
 
-      setShowUserCreate(false);
+      setShowUserCreate(
+        false
+      );
 
-      await loadModule();
-      await loadOverview();
+      await Promise.all([
+        loadModule(),
+        loadOverview(),
+        loadLookups(),
+      ]);
     } catch (err) {
       handleError(err);
     } finally {
@@ -747,9 +1224,11 @@ export function AdminPortal() {
         `/users/${item.id}/status`,
         {
           method: "PATCH",
-          body: JSON.stringify({
-            isActive: !item.isActive,
-          }),
+          body:
+            JSON.stringify({
+              isActive:
+                !item.isActive,
+            }),
         }
       );
 
@@ -759,8 +1238,11 @@ export function AdminPortal() {
           : "User activated."
       );
 
-      await loadModule();
-      await loadOverview();
+      await Promise.all([
+        loadModule(),
+        loadOverview(),
+        loadLookups(),
+      ]);
     } catch (err) {
       handleError(err);
     } finally {
@@ -769,42 +1251,56 @@ export function AdminPortal() {
   }
 
   const filteredRecords =
-    records.filter((item) => {
-      if (!search.trim()) {
-        return true;
+    records.filter(
+      (item) => {
+        if (
+          !search.trim()
+        ) {
+          return true;
+        }
+
+        const text =
+          `${item.name || ""} ${
+            item.code || ""
+          } ${
+            item.title || ""
+          } ${item.id}`.toLowerCase();
+
+        return text.includes(
+          search.toLowerCase()
+        );
       }
-
-      const text =
-        `${item.name || ""} ${
-          item.code || ""
-        } ${item.title || ""} ${
-          item.id
-        }`.toLowerCase();
-
-      return text.includes(
-        search.toLowerCase()
-      );
-    });
+    );
 
   const filteredUsers =
-    users.filter((item) => {
-      if (!search.trim()) {
-        return true;
+    users.filter(
+      (item) => {
+        if (
+          !search.trim()
+        ) {
+          return true;
+        }
+
+        const text =
+          `${item.firstName} ${
+            item.lastName
+          } ${
+            item.email
+          } ${
+            item.roles
+              ?.map(
+                (role) =>
+                  role.name
+              )
+              .join(" ") ||
+            ""
+          }`.toLowerCase();
+
+        return text.includes(
+          search.toLowerCase()
+        );
       }
-
-      const text =
-        `${item.firstName} ${
-          item.lastName
-        } ${item.email} ${
-          item.roles
-            ?.map((role) => role.name)
-            .join(" ") || ""
-        }`.toLowerCase();
-
-      return text.includes(
-        search.toLowerCase()
-      );
-    });
+    );
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -821,24 +1317,32 @@ export function AdminPortal() {
 
             {user && (
               <p className="mt-0.5 text-xs text-slate-500">
-                {user.firstName}{" "}
-                {user.lastName} ·{" "}
-                Institution Admin
+                {
+                  user.firstName
+                }{" "}
+                {
+                  user.lastName
+                }{" "}
+                · Institution
+                Admin
               </p>
             )}
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                void loadOverview();
-                if (
-                  activeModule !==
-                  "overview"
-                ) {
-                  void loadModule();
-                }
-              }}
+              onClick={() =>
+                void Promise.all(
+                  [
+                    loadOverview(),
+                    loadLookups(),
+                    activeModule !==
+                    "overview"
+                      ? loadModule()
+                      : Promise.resolve(),
+                  ]
+                )
+              }
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Refresh
@@ -861,45 +1365,69 @@ export function AdminPortal() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1500px] gap-5 p-5 lg:grid-cols-[245px_1fr]">
+      <div className="mx-auto grid max-w-[1500px] gap-5 p-5 lg:grid-cols-[250px_1fr]">
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-2 lg:sticky lg:top-[90px]">
-          <p className="px-3 pb-2 pt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-            Administration
-          </p>
+          <div className="px-3 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              Workspace
+            </p>
+          </div>
 
           <nav className="space-y-1">
-            {modules.map((module) => (
-              <button
-                key={module.key}
-                onClick={() =>
-                  openModule(
+            {modules.map(
+              (module) => (
+                <button
+                  key={
                     module.key
-                  )
-                }
-                className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-                  activeModule ===
-                  module.key
-                    ? "bg-slate-950 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {module.label}
-              </button>
-            ))}
+                  }
+                  onClick={() =>
+                    openModule(
+                      module.key
+                    )
+                  }
+                  className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                    activeModule ===
+                    module.key
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  }`}
+                >
+                  {
+                    module.label
+                  }
+                </button>
+              )
+            )}
           </nav>
+
+          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+            Academic relationships
+            use live institutional
+            selectors. Database
+            IDs do not need to be
+            entered manually.
+          </div>
         </aside>
 
         <section className="min-w-0">
           {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
+            <Alert
+              tone="error"
+              text={error}
+              onClose={() =>
+                setError("")
+              }
+            />
           )}
 
           {success && (
-            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {success}
-            </div>
+            <Alert
+              tone="success"
+              text={success}
+              onClose={() =>
+                setSuccess("")
+              }
+            />
           )}
 
           {activeModule ===
@@ -911,14 +1439,16 @@ export function AdminPortal() {
             />
           ) : (
             <div>
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Administration
                   </p>
 
                   <h2 className="mt-1 text-2xl font-bold text-slate-950">
-                    {currentModule.label}
+                    {
+                      currentModule.label
+                    }
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
@@ -930,12 +1460,13 @@ export function AdminPortal() {
 
                 <div className="flex gap-2">
                   {currentModule.canCreate &&
-                    activeModule !==
-                      "users" &&
-                    activeModule !==
-                      "students" &&
-                    activeModule !==
-                      "faculty" && (
+                    ![
+                      "users",
+                      "students",
+                      "faculty",
+                    ].includes(
+                      activeModule
+                    ) && (
                       <button
                         onClick={
                           startCreate
@@ -943,24 +1474,26 @@ export function AdminPortal() {
                         className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                       >
                         + Add{" "}
-                        {
+                        {singularLabel(
                           currentModule.label
-                        }
+                        )}
                       </button>
                     )}
 
-                  {(activeModule ===
-                    "users" ||
-                    activeModule ===
-                      "students" ||
-                    activeModule ===
-                      "faculty") && (
+                  {[
+                    "users",
+                    "students",
+                    "faculty",
+                  ].includes(
+                    activeModule
+                  ) && (
                     <button
-                      onClick={() =>
+                      onClick={() => {
+                        clearMessages();
                         setShowUserCreate(
                           true
-                        )
-                      }
+                        );
+                      }}
                       className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                       + Create User
@@ -969,12 +1502,13 @@ export function AdminPortal() {
                 </div>
               </div>
 
-              {(activeModule ===
-                "users" ||
-                activeModule ===
-                  "students" ||
-                activeModule ===
-                  "faculty") && (
+              {[
+                "users",
+                "students",
+                "faculty",
+              ].includes(
+                activeModule
+              ) ? (
                 <UserTable
                   users={
                     filteredUsers
@@ -983,36 +1517,37 @@ export function AdminPortal() {
                   setSearch={
                     setSearch
                   }
-                  loading={loading}
+                  loading={
+                    loading
+                  }
                   onToggle={
                     toggleUser
                   }
                 />
+              ) : (
+                <RecordTable
+                  records={
+                    filteredRecords
+                  }
+                  search={search}
+                  setSearch={
+                    setSearch
+                  }
+                  loading={
+                    loading
+                  }
+                  onEdit={
+                    startEdit
+                  }
+                  onDeactivate={
+                    deactivate
+                  }
+                  allowDeactivate={
+                    activeModule !==
+                    "academic-years"
+                  }
+                />
               )}
-
-              {activeModule !==
-                "users" &&
-                activeModule !==
-                  "students" &&
-                activeModule !==
-                  "faculty" && (
-                  <RecordTable
-                    records={
-                      filteredRecords
-                    }
-                    search={search}
-                    setSearch={
-                      setSearch
-                    }
-                    loading={loading}
-                    onEdit={
-                      startEdit
-                    }
-                    onDeactivate={
-                      deactivate
-                    }
-                  />
-                )}
             </div>
           )}
 
@@ -1026,8 +1561,10 @@ export function AdminPortal() {
               }
             >
               <form
-                onSubmit={createUser}
-                className="space-y-4"
+                onSubmit={
+                  createUser
+                }
+                className="space-y-5"
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field
@@ -1039,12 +1576,17 @@ export function AdminPortal() {
                       value={
                         userForm.firstName
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             firstName:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1064,12 +1606,17 @@ export function AdminPortal() {
                       value={
                         userForm.lastName
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             lastName:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1090,12 +1637,17 @@ export function AdminPortal() {
                       value={
                         userForm.email
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             email:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1111,12 +1663,17 @@ export function AdminPortal() {
                       value={
                         userForm.phone
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             phone:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1138,12 +1695,17 @@ export function AdminPortal() {
                       value={
                         userForm.password
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             password:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1162,12 +1724,17 @@ export function AdminPortal() {
                       value={
                         userForm.role
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         setUserForm(
-                          (previous) => ({
+                          (
+                            previous
+                          ) => ({
                             ...previous,
                             role:
-                              event.target
+                              event
+                                .target
                                 .value,
                           })
                         )
@@ -1179,8 +1746,12 @@ export function AdminPortal() {
                       {roleOptions.map(
                         (role) => (
                           <option
-                            key={role}
-                            value={role}
+                            key={
+                              role
+                            }
+                            value={
+                              role
+                            }
                           >
                             {role.replace(
                               /_/g,
@@ -1191,6 +1762,17 @@ export function AdminPortal() {
                       )}
                     </select>
                   </Field>
+                </div>
+
+                <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                  User creation
+                  establishes the
+                  institutional
+                  account. Student
+                  academic enrollment
+                  will be handled by
+                  the dedicated
+                  Student module.
                 </div>
 
                 <ModalActions
@@ -1207,18 +1789,25 @@ export function AdminPortal() {
           )}
 
           {showCreate &&
-            currentModule.endpoint && (
+            currentModule.endpoint &&
+            ![
+              "users",
+              "students",
+              "faculty",
+            ].includes(
+              activeModule
+            ) && (
               <Modal
-                title={
-                  editing
-                    ? `Edit ${currentModule.label}`
-                    : `Add ${currentModule.label}`
-                }
+                title={`${editing ? "Edit" : "Add"} ${singularLabel(
+                  currentModule.label
+                )}`}
                 onClose={() => {
                   setShowCreate(
                     false
                   );
-                  setEditing(null);
+                  setEditing(
+                    null
+                  );
                 }}
               >
                 <RecordForm
@@ -1226,7 +1815,9 @@ export function AdminPortal() {
                     currentModule.key
                   }
                   form={form}
-                  setField={setField}
+                  setField={
+                    setField
+                  }
                   onSubmit={
                     saveRecord
                   }
@@ -1234,12 +1825,17 @@ export function AdminPortal() {
                     setShowCreate(
                       false
                     );
-                    setEditing(null);
+                    setEditing(
+                      null
+                    );
                   }}
                   saving={saving}
                   editing={Boolean(
                     editing
                   )}
+                  lookups={
+                    lookups
+                  }
                 />
               </Modal>
             )}
@@ -1247,6 +1843,71 @@ export function AdminPortal() {
       </div>
     </main>
   );
+}
+
+function singularLabel(
+  label: string
+) {
+  const map: Record<
+    string,
+    string
+  > = {
+    Campuses: "Campus",
+    Departments:
+      "Department",
+    Programs: "Program",
+    "Academic Years":
+      "Academic Year",
+    Semesters: "Semester",
+    Sections: "Section",
+    Courses: "Course",
+    "Course Offerings":
+      "Course Offering",
+  };
+
+  return (
+    map[label] ||
+    label.replace(
+      /s$/,
+      ""
+    )
+  );
+}
+
+function defaultFormForModule(
+  module: ModuleKey
+): Record<string, string> {
+  switch (module) {
+    case "campuses":
+      return {};
+
+    case "departments":
+      return {};
+
+    case "programs":
+      return {};
+
+    case "academic-years":
+      return {
+        isCurrent:
+          "false",
+      };
+
+    case "semesters":
+      return {};
+
+    case "sections":
+      return {};
+
+    case "courses":
+      return {};
+
+    case "course-offerings":
+      return {};
+
+    default:
+      return {};
+  }
 }
 
 function Overview({
@@ -1258,58 +1919,85 @@ function Overview({
     users: number;
     students: number;
     faculty: number;
+    campuses: number;
     departments: number;
     programs: number;
+    academicYears: number;
+    semesters: number;
     courses: number;
     sections: number;
     offerings: number;
   };
+
   loading: boolean;
+
   onOpen: (
     module: ModuleKey
   ) => void;
 }) {
-  const cards = [
+  const cards: {
+    label: string;
+    value: number;
+    module: ModuleKey;
+  }[] = [
     {
       label: "Total Users",
       value: stats.users,
-      module: "users" as ModuleKey,
+      module: "users",
     },
     {
       label: "Students",
       value: stats.students,
-      module: "students" as ModuleKey,
+      module: "students",
     },
     {
       label: "Faculty",
       value: stats.faculty,
-      module: "faculty" as ModuleKey,
+      module: "faculty",
+    },
+    {
+      label: "Campuses",
+      value: stats.campuses,
+      module: "campuses",
     },
     {
       label: "Departments",
       value: stats.departments,
-      module: "departments" as ModuleKey,
+      module: "departments",
     },
     {
       label: "Programs",
       value: stats.programs,
-      module: "programs" as ModuleKey,
+      module: "programs",
+    },
+    {
+      label: "Academic Years",
+      value: stats.academicYears,
+      module:
+        "academic-years",
+    },
+    {
+      label: "Semesters",
+      value: stats.semesters,
+      module:
+        "semesters",
     },
     {
       label: "Courses",
       value: stats.courses,
-      module: "courses" as ModuleKey,
+      module: "courses",
     },
     {
       label: "Sections",
       value: stats.sections,
-      module: "sections" as ModuleKey,
+      module: "sections",
     },
     {
-      label: "Course Offerings",
+      label:
+        "Course Offerings",
       value: stats.offerings,
       module:
-        "course-offerings" as ModuleKey,
+        "course-offerings",
     },
   ];
 
@@ -1321,56 +2009,71 @@ function Overview({
         </p>
 
         <h2 className="mt-1 text-2xl font-bold text-slate-950">
-          Administration Dashboard
+          Administration
+          Dashboard
         </h2>
 
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          Manage the institution's
-          people, academic structure
-          and teaching configuration
-          from one place.
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+          Configure the institution
+          from its physical
+          campuses through
+          departments, programs,
+          academic years,
+          semesters, sections,
+          courses and teaching
+          assignments.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <button
-            key={card.label}
-            onClick={() =>
-              onOpen(card.module)
-            }
-            className="rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
-          >
-            <p className="text-sm font-medium text-slate-500">
-              {card.label}
-            </p>
+        {cards.map(
+          (card) => (
+            <button
+              key={
+                card.label
+              }
+              onClick={() =>
+                onOpen(
+                  card.module
+                )
+              }
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
+            >
+              <p className="text-sm font-medium text-slate-500">
+                {
+                  card.label
+                }
+              </p>
 
-            <p className="mt-3 text-3xl font-bold text-slate-950">
-              {loading
-                ? "—"
-                : card.value}
-            </p>
+              <p className="mt-3 text-3xl font-bold text-slate-950">
+                {loading
+                  ? "—"
+                  : card.value}
+              </p>
 
-            <p className="mt-3 text-xs font-medium text-slate-400">
-              Open module →
-            </p>
-          </button>
-        ))}
+              <p className="mt-3 text-xs font-medium text-slate-400">
+                Open module →
+              </p>
+            </button>
+          )
+        )}
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <QuickCard
-          title="People"
-          description="Create student, faculty, staff and administrative accounts."
-          button="Manage Users"
+          title="Physical structure"
+          description="Create campuses and attach departments to the correct campus."
+          button="Manage Campuses"
           onClick={() =>
-            onOpen("users")
+            onOpen(
+              "campuses"
+            )
           }
         />
 
         <QuickCard
-          title="Academic Structure"
-          description="Build departments, programs, years, semesters, sections and courses."
+          title="Academic structure"
+          description="Build departments, programs, academic years, semesters, sections and courses using relationship-aware forms."
           button="Manage Departments"
           onClick={() =>
             onOpen(
@@ -1380,8 +2083,8 @@ function Overview({
         />
 
         <QuickCard
-          title="Teaching Setup"
-          description="Connect courses, sections and faculty through course offerings."
+          title="Teaching setup"
+          description="Assign courses to sections and faculty without entering database IDs manually."
           button="Manage Offerings"
           onClick={() =>
             onOpen(
@@ -1449,111 +2152,132 @@ function UserTable({
           value={search}
           onChange={(event) =>
             setSearch(
-              event.target.value
+              event.target
+                .value
             )
           }
-          placeholder="Search by name, email or role..."
-          className={inputClass()}
+          placeholder="Search name, email or role…"
+          className={
+            inputClass()
+          }
         />
       </div>
 
       {loading ? (
         <Loading />
-      ) : users.length === 0 ? (
+      ) : users.length ===
+        0 ? (
         <EmptyState text="No users found." />
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">
                   User
                 </th>
+
                 <th className="px-4 py-3">
                   Role
                 </th>
+
+                <th className="px-4 py-3">
+                  Phone
+                </th>
+
                 <th className="px-4 py-3">
                   Status
                 </th>
+
                 <th className="px-4 py-3 text-right">
                   Action
                 </th>
               </tr>
             </thead>
 
-            <tbody>
-              {users.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-t border-slate-100"
-                >
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-slate-900">
+            <tbody className="divide-y divide-slate-100">
+              {users.map(
+                (item) => (
+                  <tr
+                    key={
+                      item.id
+                    }
+                    className="hover:bg-slate-50"
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-slate-900">
+                        {
+                          item.firstName
+                        }{" "}
+                        {
+                          item.lastName
+                        }
+                      </p>
+
+                      <p className="text-xs text-slate-400">
+                        {
+                          item.email
+                        }
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {item.roles?.map(
+                          (
+                            role
+                          ) => (
+                            <span
+                              key={
+                                role.id
+                              }
+                              className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600"
+                            >
+                              {role.name.replace(
+                                /_/g,
+                                " "
+                              )}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-500">
                       {
-                        item.firstName
-                      }{" "}
-                      {
-                        item.lastName
+                        item.phone ||
+                        "—"
                       }
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {item.email}
-                    </p>
-                  </td>
+                    </td>
 
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {(
-                        item.roles ||
-                        []
-                      ).map(
-                        (role) => (
-                          <span
-                            key={
-                              role.id
-                            }
-                            className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600"
-                          >
-                            {role.name.replace(
-                              /_/g,
-                              " "
-                            )}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge
+                        active={
+                          item.isActive
+                        }
+                      />
+                    </td>
 
-                  <td className="px-4 py-4">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                        item.isActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {item.isActive
-                        ? "Active"
-                        : "Inactive"}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-4 text-right">
-                    <button
-                      onClick={() =>
-                        onToggle(
-                          item
-                        )
-                      }
-                      className="text-xs font-semibold text-slate-700 underline underline-offset-4"
-                    >
-                      {item.isActive
-                        ? "Deactivate"
-                        : "Activate"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        disabled={
+                          loading
+                        }
+                        onClick={() =>
+                          onToggle(
+                            item
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
+                      >
+                        {item.isActive
+                          ? "Deactivate"
+                          : "Activate"}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>
@@ -1569,6 +2293,7 @@ function RecordTable({
   loading,
   onEdit,
   onDeactivate,
+  allowDeactivate,
 }: {
   records: RecordItem[];
   search: string;
@@ -1582,6 +2307,7 @@ function RecordTable({
   onDeactivate: (
     item: RecordItem
   ) => void;
+  allowDeactivate: boolean;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -1590,96 +2316,132 @@ function RecordTable({
           value={search}
           onChange={(event) =>
             setSearch(
-              event.target.value
+              event.target
+                .value
             )
           }
-          placeholder="Search records..."
-          className={inputClass()}
+          placeholder="Search records…"
+          className={
+            inputClass()
+          }
         />
       </div>
 
       {loading ? (
         <Loading />
-      ) : records.length === 0 ? (
-        <EmptyState text="No records found." />
+      ) : records.length ===
+        0 ? (
+        <EmptyState text="No records found. Create the first record for this module." />
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">
                   Record
                 </th>
+
                 <th className="px-4 py-3">
-                  Code / ID
+                  Details
                 </th>
+
                 <th className="px-4 py-3">
                   Status
                 </th>
+
                 <th className="px-4 py-3 text-right">
                   Actions
                 </th>
               </tr>
             </thead>
 
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {records.map(
                 (item) => (
                   <tr
-                    key={item.id}
-                    className="border-t border-slate-100"
+                    key={
+                      item.id
+                    }
+                    className="hover:bg-slate-50"
                   >
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3">
                       <p className="font-semibold text-slate-900">
                         {getRecordName(
                           item
                         )}
                       </p>
-                    </td>
 
-                    <td className="px-4 py-4 text-xs text-slate-500">
-                      {item.code
-                        ? String(
-                            item.code
-                          )
-                        : item.id}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {item.isActive ===
-                      false ? (
-                        <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
-                          Inactive
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-                          Active
-                        </span>
+                      {item.code && (
+                        <p className="text-xs text-slate-400">
+                          {
+                            String(
+                              item.code
+                            )
+                          }
+                        </p>
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() =>
-                          onEdit(
-                            item
-                          )
+                    <td className="max-w-[520px] px-4 py-3 text-xs leading-5 text-slate-500">
+                      <RecordDetails
+                        item={
+                          item
                         }
-                        className="mr-4 text-xs font-semibold text-slate-700 underline underline-offset-4"
-                      >
-                        Edit
-                      </button>
+                      />
+                    </td>
 
-                      <button
-                        onClick={() =>
-                          onDeactivate(
-                            item
-                          )
-                        }
-                        className="text-xs font-semibold text-red-600 underline underline-offset-4"
-                      >
-                        Deactivate
-                      </button>
+                    <td className="px-4 py-3">
+                      {typeof item.isCurrent ===
+                      "boolean" ? (
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            item.isCurrent
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {item.isCurrent
+                            ? "Current"
+                            : "Not current"}
+                        </span>
+                      ) : (
+                        <StatusBadge
+                          active={
+                            item.isActive !==
+                            false
+                          }
+                        />
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() =>
+                            onEdit(
+                              item
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white"
+                        >
+                          Edit
+                        </button>
+
+                        {allowDeactivate &&
+                          item.isActive !==
+                            false && (
+                            <button
+                              onClick={() =>
+                                onDeactivate(
+                                  item
+                                )
+                              }
+                              className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                            >
+                              Deactivate
+                            </button>
+                          )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1692,6 +2454,173 @@ function RecordTable({
   );
 }
 
+function RecordDetails({
+  item,
+}: {
+  item: RecordItem;
+}) {
+  const details: string[] =
+    [];
+
+  const department =
+    item.department as
+      | RecordItem
+      | undefined;
+
+  const campus =
+    item.campus as
+      | RecordItem
+      | undefined;
+
+  const program =
+    item.program as
+      | RecordItem
+      | undefined;
+
+  const academicYear =
+    item.academicYear as
+      | RecordItem
+      | undefined;
+
+  const course =
+    item.course as
+      | RecordItem
+      | undefined;
+
+  const section =
+    item.section as
+      | RecordItem
+      | undefined;
+
+  const faculty =
+    item.faculty as
+      | User
+      | undefined;
+
+  if (campus?.name) {
+    details.push(
+      `Campus: ${String(
+        campus.name
+      )}`
+    );
+  }
+
+  if (department?.name) {
+    details.push(
+      `Department: ${String(
+        department.name
+      )}`
+    );
+  }
+
+  if (program?.name) {
+    details.push(
+      `Program: ${String(
+        program.name
+      )}`
+    );
+  }
+
+  if (academicYear?.name) {
+    details.push(
+      `Academic year: ${String(
+        academicYear.name
+      )}`
+    );
+  }
+
+  if (course?.name) {
+    details.push(
+      `Course: ${String(
+        course.name
+      )}`
+    );
+  }
+
+  if (section?.name) {
+    details.push(
+      `Section: ${String(
+        section.name
+      )}`
+    );
+  }
+
+  if (faculty?.firstName) {
+    details.push(
+      `Faculty: ${faculty.firstName} ${faculty.lastName}`
+    );
+  }
+
+  if (item.level) {
+    details.push(
+      `Level: ${String(
+        item.level
+      )}`
+    );
+  }
+
+  if (item.durationYears) {
+    details.push(
+      `Duration: ${String(
+        item.durationYears
+      )} years`
+    );
+  }
+
+  if (item.number) {
+    details.push(
+      `Semester: ${String(
+        item.number
+      )}`
+    );
+  }
+
+  if (item.credits) {
+    details.push(
+      `Credits: ${String(
+        item.credits
+      )}`
+    );
+  }
+
+  if (item.capacity) {
+    details.push(
+      `Capacity: ${String(
+        item.capacity
+      )}`
+    );
+  }
+
+  if (item.address) {
+    details.push(
+      String(
+        item.address
+      )
+    );
+  }
+
+  return (
+    <span>
+      {details.length
+        ? details.join(
+            " · "
+          )
+        : "No additional details"}
+    </span>
+  );
+}
+
+type Lookups = {
+  campuses: RecordItem[];
+  departments: RecordItem[];
+  programs: RecordItem[];
+  academicYears: RecordItem[];
+  semesters: RecordItem[];
+  sections: RecordItem[];
+  courses: RecordItem[];
+  faculty: User[];
+};
+
 function RecordForm({
   module,
   form,
@@ -1700,9 +2629,13 @@ function RecordForm({
   onCancel,
   saving,
   editing,
+  lookups,
 }: {
   module: ModuleKey;
-  form: Record<string, string>;
+  form: Record<
+    string,
+    string
+  >;
   setField: (
     key: string,
     value: string
@@ -1713,9 +2646,75 @@ function RecordForm({
   onCancel: () => void;
   saving: boolean;
   editing: boolean;
+  lookups: Lookups;
 }) {
+  const semesterOptions =
+    lookups.semesters.filter(
+      (item) => {
+        const programId =
+          form.programId;
+
+        const academicYearId =
+          form.academicYearId;
+
+        return (
+          (!programId ||
+            String(
+              item.programId
+            ) ===
+              programId) &&
+          (!academicYearId ||
+            String(
+              item.academicYearId
+            ) ===
+              academicYearId)
+        );
+      }
+    );
+
+  const sectionOptions =
+    lookups.sections.filter(
+      (item) =>
+        !form.semesterId ||
+        String(
+          item.semesterId
+        ) ===
+          form.semesterId
+    );
+
+  const programOptions =
+    lookups.programs.filter(
+      (item) =>
+        !form.departmentId ||
+        String(
+          item.departmentId
+        ) ===
+          form.departmentId
+    );
+
+  const courseOptions =
+    lookups.courses.filter(
+      (item) =>
+        !form.departmentId ||
+        String(
+          item.departmentId
+        ) ===
+          form.departmentId
+    );
+
+  const facultyOptions: RecordItem[] =
+    lookups.faculty.map(
+      (item) => ({
+        id: item.id,
+        name: `${item.firstName} ${item.lastName}`,
+        code: item.email,
+      })
+    );
+
   const fields =
-    getFieldsForModule(module);
+    getFieldsForModule(
+      module
+    );
 
   return (
     <form
@@ -1723,97 +2722,176 @@ function RecordForm({
       className="space-y-5"
     >
       <div className="grid gap-4 md:grid-cols-2">
-        {fields.map((field) => (
-          <Field
-            key={field.key}
-            label={field.label}
-            required={field.required}
-          >
-            {field.type ===
-            "select" ? (
-              <select
+        {fields.map(
+          (field) => {
+            const options =
+              field.optionSource ===
+              "campuses"
+                ? lookups.campuses
+                : field.optionSource ===
+                  "departments"
+                ? lookups.departments
+                : field.optionSource ===
+                  "programs"
+                ? programOptions
+                : field.optionSource ===
+                  "academicYears"
+                ? lookups.academicYears
+                : field.optionSource ===
+                  "semesters"
+                ? semesterOptions
+                : field.optionSource ===
+                  "sections"
+                ? sectionOptions
+                : field.optionSource ===
+                  "courses"
+                ? courseOptions
+                : field.optionSource ===
+                  "faculty"
+                ? facultyOptions
+                : undefined;
+
+            return (
+              <Field
+                key={
+                  field.key
+                }
+                label={
+                  field.label
+                }
                 required={
                   field.required
                 }
-                value={
-                  form[field.key] ||
-                  field.defaultValue ||
-                  ""
-                }
-                onChange={(event) =>
-                  setField(
-                    field.key,
-                    event.target
-                      .value
-                  )
-                }
-                className={
-                  inputClass()
+                help={
+                  field.help
                 }
               >
-                <option value="">
-                  Select{" "}
-                  {field.label}
-                </option>
-
-                {field.options?.map(
-                  (option) => (
-                    <option
-                      key={
-                        option.value
-                      }
-                      value={
-                        option.value
-                      }
-                    >
-                      {option.label}
-                    </option>
-                  )
-                )}
-              </select>
-            ) : (
-              <input
-                required={
-                  field.required
-                }
-                type={
-                  field.type || "text"
-                }
-                min={
-                  field.min !==
-                  undefined
-                    ? String(
-                        field.min
+                {field.type ===
+                "select" ? (
+                  <select
+                    required={
+                      field.required
+                    }
+                    value={
+                      form[
+                        field.key
+                      ] ||
+                      ""
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setField(
+                        field.key,
+                        event
+                          .target
+                          .value
                       )
-                    : undefined
-                }
-                value={
-                  form[field.key] ||
-                  ""
-                }
-                onChange={(event) =>
-                  setField(
-                    field.key,
-                    event.target
-                      .value
-                  )
-                }
-                placeholder={
-                  field.placeholder
-                }
-                className={
-                  inputClass()
-                }
-              />
-            )}
-          </Field>
-        ))}
+                    }
+                    className={
+                      inputClass()
+                    }
+                    disabled={
+                      field.disabled
+                    }
+                  >
+                    {field.placeholderOption && (
+                      <option value="">
+                        {
+                          field.placeholderOption
+                        }
+                      </option>
+                    )}
+
+                    {options?.map(
+                      (
+                        option
+                      ) => (
+                        <option
+                          key={
+                            option.id
+                          }
+                          value={
+                            option.id
+                          }
+                        >
+                          {optionLabel(
+                            option
+                          )}
+                        </option>
+                      )
+                    )}
+
+                    {field.staticOptions?.map(
+                      (
+                        option
+                      ) => (
+                        <option
+                          key={
+                            option.value
+                          }
+                          value={
+                            option.value
+                          }
+                        >
+                          {
+                            option.label
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    required={
+                      field.required
+                    }
+                    type={
+                      field.type ||
+                      "text"
+                    }
+                    min={
+                      field.min !==
+                      undefined
+                        ? String(
+                            field.min
+                          )
+                        : undefined
+                    }
+                    value={
+                      form[
+                        field.key
+                      ] ||
+                      ""
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setField(
+                        field.key,
+                        event
+                          .target
+                          .value
+                      )
+                    }
+                    placeholder={
+                      field.placeholder
+                    }
+                    className={
+                      inputClass()
+                    }
+                  />
+                )}
+              </Field>
+            );
+          }
+        )}
       </div>
 
       <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
         {editing
-          ? "Changes are validated by the backend before being saved."
-          : "The record will be created inside your institution. Tenant boundaries are enforced by the backend."}
+          ? "Changes are validated by the backend and remain inside your institution."
+          : "Relationships are selected from live institutional records. The backend enforces tenant boundaries again before saving."}
       </div>
 
       <ModalActions
@@ -1836,8 +2914,11 @@ type FormField = {
   type?: string;
   placeholder?: string;
   min?: number;
-  defaultValue?: string;
-  options?: {
+  optionSource?: keyof Lookups;
+  placeholderOption?: string;
+  disabled?: boolean;
+  help?: string;
+  staticOptions?: {
     value: string;
     label: string;
   }[];
@@ -1847,55 +2928,145 @@ function getFieldsForModule(
   module: ModuleKey
 ): FormField[] {
   switch (module) {
+    case "campuses":
+      return [
+        {
+          key: "name",
+          label: "Campus name",
+          required: true,
+          placeholder:
+            "Main Campus",
+        },
+        {
+          key: "code",
+          label: "Campus code",
+          required: true,
+          placeholder:
+            "MAIN",
+        },
+        {
+          key: "address",
+          label: "Address",
+          placeholder:
+            "Campus address",
+        },
+        {
+          key: "isActive",
+          label: "Status",
+          type: "select",
+          staticOptions: [
+            {
+              value:
+                "true",
+              label:
+                "Active",
+            },
+            {
+              value:
+                "false",
+              label:
+                "Inactive",
+            },
+          ],
+        },
+      ];
+
     case "departments":
       return [
         {
           key: "name",
-          label: "Department name",
+          label:
+            "Department name",
           required: true,
+          placeholder:
+            "Computer Science & Engineering",
         },
         {
           key: "code",
-          label: "Department code",
+          label:
+            "Department code",
           required: true,
+          placeholder:
+            "CSE",
         },
         {
           key: "campusId",
-          label: "Campus ID",
-          placeholder:
-            "Optional campus UUID",
+          label: "Campus",
+          optionSource:
+            "campuses",
+          type: "select",
+          placeholderOption:
+            "Select campus (optional)",
         },
       ];
 
     case "programs":
       return [
         {
-          key: "departmentId",
-          label: "Department ID",
+          key:
+            "departmentId",
+          label:
+            "Department",
           required: true,
-          placeholder:
-            "Department UUID",
+          optionSource:
+            "departments",
+          type: "select",
+          placeholderOption:
+            "Select department",
         },
         {
           key: "name",
-          label: "Program name",
+          label:
+            "Program name",
           required: true,
+          placeholder:
+            "B.Tech Computer Science & Engineering",
         },
         {
           key: "code",
-          label: "Program code",
+          label:
+            "Program code",
           required: true,
+          placeholder:
+            "BTECH-CSE",
         },
         {
           key: "level",
           label: "Level",
           required: true,
-          placeholder:
-            "UG / PG / Diploma",
+          type: "select",
+          staticOptions: [
+            {
+              value:
+                "UG",
+              label:
+                "Undergraduate (UG)",
+            },
+            {
+              value:
+                "PG",
+              label:
+                "Postgraduate (PG)",
+            },
+            {
+              value:
+                "DIPLOMA",
+              label:
+                "Diploma",
+            },
+            {
+              value:
+                "CERTIFICATE",
+              label:
+                "Certificate",
+            },
+          ],
         },
         {
-          key: "durationYears",
-          label: "Duration in years",
+          key:
+            "durationYears",
+          label:
+            "Duration in years",
           required: true,
           type: "number",
           min: 1,
@@ -1906,34 +3077,43 @@ function getFieldsForModule(
       return [
         {
           key: "name",
-          label: "Academic year",
+          label:
+            "Academic year",
           required: true,
           placeholder:
             "2026-27",
         },
         {
-          key: "startDate",
-          label: "Start date",
+          key:
+            "startDate",
+          label:
+            "Start date",
           required: true,
           type: "date",
         },
         {
-          key: "endDate",
-          label: "End date",
+          key:
+            "endDate",
+          label:
+            "End date",
           required: true,
           type: "date",
         },
         {
-          key: "isCurrent",
-          label: "Current",
+          key:
+            "isCurrent",
+          label:
+            "Current academic year",
           type: "select",
-          options: [
+          staticOptions: [
             {
-              value: "true",
+              value:
+                "true",
               label: "Yes",
             },
             {
-              value: "false",
+              value:
+                "false",
               label: "No",
             },
           ],
@@ -1943,37 +3123,56 @@ function getFieldsForModule(
     case "semesters":
       return [
         {
-          key: "programId",
-          label: "Program ID",
+          key:
+            "programId",
+          label: "Program",
           required: true,
+          optionSource:
+            "programs",
+          type: "select",
+          placeholderOption:
+            "Select program",
         },
         {
-          key: "academicYearId",
-          label: "Academic year ID",
+          key:
+            "academicYearId",
+          label:
+            "Academic year",
           required: true,
+          optionSource:
+            "academicYears",
+          type: "select",
+          placeholderOption:
+            "Select academic year",
         },
         {
           key: "number",
-          label: "Semester number",
+          label:
+            "Semester number",
           required: true,
           type: "number",
           min: 1,
         },
         {
           key: "name",
-          label: "Semester name",
+          label:
+            "Semester name",
           required: true,
           placeholder:
             "Semester 1",
         },
         {
-          key: "startDate",
-          label: "Start date",
+          key:
+            "startDate",
+          label:
+            "Start date",
           type: "date",
         },
         {
-          key: "endDate",
-          label: "End date",
+          key:
+            "endDate",
+          label:
+            "End date",
           type: "date",
         },
       ];
@@ -1981,41 +3180,66 @@ function getFieldsForModule(
     case "sections":
       return [
         {
-          key: "semesterId",
-          label: "Semester ID",
+          key:
+            "semesterId",
+          label:
+            "Semester",
           required: true,
+          optionSource:
+            "semesters",
+          type: "select",
+          placeholderOption:
+            "Select semester",
         },
         {
           key: "name",
-          label: "Section name",
+          label:
+            "Section name",
           required: true,
           placeholder:
             "A",
         },
         {
-          key: "capacity",
-          label: "Capacity",
+          key:
+            "capacity",
+          label:
+            "Capacity",
           type: "number",
           min: 1,
+          placeholder:
+            "60",
         },
       ];
 
     case "courses":
       return [
         {
-          key: "departmentId",
-          label: "Department ID",
+          key:
+            "departmentId",
+          label:
+            "Department",
           required: true,
+          optionSource:
+            "departments",
+          type: "select",
+          placeholderOption:
+            "Select department",
         },
         {
           key: "code",
-          label: "Course code",
+          label:
+            "Course code",
           required: true,
+          placeholder:
+            "CS301",
         },
         {
           key: "name",
-          label: "Course name",
+          label:
+            "Course name",
           required: true,
+          placeholder:
+            "Data Structures",
         },
         {
           key: "credits",
@@ -2025,33 +3249,62 @@ function getFieldsForModule(
           min: 1,
         },
         {
-          key: "description",
-          label: "Description",
+          key:
+            "description",
+          label:
+            "Description",
+          placeholder:
+            "Course description",
         },
       ];
 
     case "course-offerings":
       return [
         {
-          key: "courseId",
-          label: "Course ID",
+          key:
+            "courseId",
+          label: "Course",
           required: true,
+          optionSource:
+            "courses",
+          type: "select",
+          placeholderOption:
+            "Select course",
         },
         {
-          key: "semesterId",
-          label: "Semester ID",
+          key:
+            "semesterId",
+          label:
+            "Semester",
           required: true,
+          optionSource:
+            "semesters",
+          type: "select",
+          placeholderOption:
+            "Select semester",
         },
         {
-          key: "sectionId",
-          label: "Section ID",
+          key:
+            "sectionId",
+          label:
+            "Section",
           required: true,
+          optionSource:
+            "sections",
+          type: "select",
+          placeholderOption:
+            "Select section",
         },
         {
-          key: "facultyId",
-          label: "Faculty ID",
-          placeholder:
-            "Optional faculty UUID",
+          key:
+            "facultyId",
+          label:
+            "Faculty",
+          optionSource:
+            "faculty",
+          type: "select",
+          placeholderOption:
+            "Select faculty (optional)",
         },
       ];
 
@@ -2064,15 +3317,22 @@ function Field({
   label,
   required,
   children,
+  help,
 }: {
   label: string;
   required?: boolean;
   children: React.ReactNode;
+  help?: string;
 }) {
   return (
     <div>
-      <label className={labelClass()}>
+      <label
+        className={
+          labelClass()
+        }
+      >
         {label}
+
         {required && (
           <span className="ml-1 text-red-500">
             *
@@ -2081,6 +3341,12 @@ function Field({
       </label>
 
       {children}
+
+      {help && (
+        <p className="mt-1 text-[11px] leading-4 text-slate-400">
+          {help}
+        </p>
+      )}
     </div>
   );
 }
@@ -2096,8 +3362,8 @@ function Modal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
           <h3 className="font-semibold text-slate-950">
             {title}
           </h3>
@@ -2144,10 +3410,66 @@ function ModalActions({
         className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
         {saving
-          ? "Saving..."
+          ? "Saving…"
           : submitLabel}
       </button>
     </div>
+  );
+}
+
+function Alert({
+  tone,
+  text,
+  onClose,
+}: {
+  tone:
+    | "error"
+    | "success";
+  text: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className={`mb-4 flex items-start justify-between gap-4 rounded-xl border p-3 text-sm ${
+        tone ===
+        "error"
+          ? "border-red-100 bg-red-50 text-red-700"
+          : "border-emerald-100 bg-emerald-50 text-emerald-700"
+      }`}
+    >
+      <span>
+        {text}
+      </span>
+
+      <button
+        onClick={
+          onClose
+        }
+        className="font-bold opacity-60 hover:opacity-100"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function StatusBadge({
+  active,
+}: {
+  active: boolean;
+}) {
+  return (
+    <span
+      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+        active
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-500"
+      }`}
+    >
+      {active
+        ? "Active"
+        : "Inactive"}
+    </span>
   );
 }
 
@@ -2170,5 +3492,3 @@ function EmptyState({
     </div>
   );
 }
-
-
