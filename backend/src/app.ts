@@ -40,6 +40,7 @@ import studentRoutes from "./routes/student.routes";
 import intelligenceRoutes from "./routes/intelligence.routes";
 import askRoutes from "./routes/ask.routes";
 import erpRoutes from "./routes/erp.routes";
+import exportRoutes from "./routes/export.routes";
 import importRoutes from "./routes/import.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
 import institutionRoutes from "./routes/institution.routes";
@@ -312,6 +313,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/imports`,
     importRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/exports`,
+    exportRoutes
   );
 
   /*
