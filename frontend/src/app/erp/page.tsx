@@ -10,6 +10,7 @@ getCurrentUser,
 import {
 ErpDocument,
 ErpOffering,
+ErpWorkspace,
 ErpUser,
 FeeHead,
 FeeStructure,
@@ -225,7 +226,7 @@ const [roles, setRoles] =
 useState<string[]>([]);
 
 const [workspace, setWorkspace] =
-useState<Record<string, unknown> | null>(
+useState<ErpWorkspace | null>(
 null
 );
 
@@ -361,12 +362,7 @@ try {
     workspaceResult.status ===
     "fulfilled"
   ) {
-    setWorkspace(
-      workspaceResult.value as Record<
-        string,
-        unknown
-      >
-    );
+    setWorkspace(workspaceResult.value);
   }
 
   if (
@@ -796,7 +792,7 @@ notifications,
 feeStructures,
 documents,
 }: {
-workspace: Record<string, unknown> | null;
+workspace: ErpWorkspace | null;
 offerings: ErpOffering[];
 notifications: {
 unread: number;

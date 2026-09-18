@@ -157,21 +157,11 @@ return response.data;
 return response.data.items || [];
 }
 
-export async function listOfferings(): Promise<
-ErpOffering[]
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<
-> | ErpOffering[]
-> | {
-> items: ErpOffering[];
-> }
-> >
-> >(
-> "/course-offerings?page=1&pageSize=200"
-> );
+export async function listOfferings(): Promise<ErpOffering[]> {
+const response =
+await authedFetch<ApiEnvelope<ErpOffering[] | { items: ErpOffering[] }>>(
+"/course-offerings?page=1&pageSize=200"
+);
 
 if (Array.isArray(response.data)) {
 return response.data;
@@ -180,98 +170,54 @@ return response.data;
 return response.data.items || [];
 }
 
-export async function listDepartments(): Promise<
-Array<{
+export async function listDepartments(): Promise<Array<{
 id: string;
 name: string;
 code?: string;
-}>
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<
-> Array<{
-> id: string;
-> name: string;
-> code?: string;
-> }>
-> >
-> >(
-> "/departments?page=1&pageSize=200"
-> );
+}>> {
+const response =
+await authedFetch<ApiEnvelope<Array<{ id: string; name: string; code?: string }>>>(
+"/departments?page=1&pageSize=200"
+);
 
 return response.data;
 }
 
-export async function listAcademicYears(): Promise<
-Array<{
+export async function listAcademicYears(): Promise<Array<{
 id: string;
 name: string;
 isCurrent?: boolean;
-}>
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<
-> Array<{
-> id: string;
-> name: string;
-> isCurrent?: boolean;
-> }>
-> >
-> >(
-> "/academic-years?page=1&pageSize=200"
-> );
+}>> {
+const response =
+await authedFetch<ApiEnvelope<Array<{ id: string; name: string; isCurrent?: boolean }>>>(
+"/academic-years?page=1&pageSize=200"
+);
 
 return response.data;
 }
 
-export async function listPrograms(): Promise<
-Array<{
+export async function listPrograms(): Promise<Array<{
 id: string;
 name: string;
 code?: string;
-}>
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<
-> Array<{
-> id: string;
-> name: string;
-> code?: string;
-> }>
-> >
-> >(
-> "/programs?page=1&pageSize=200"
-> );
+}>> {
+const response =
+await authedFetch<ApiEnvelope<Array<{ id: string; name: string; code?: string }>>>(
+"/programs?page=1&pageSize=200"
+);
 
 return response.data;
 }
 
-export async function listSemesters(): Promise<
-Array<{
+export async function listSemesters(): Promise<Array<{
 id: string;
 name: string;
 number?: number;
-}>
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<
-> Array<{
-> id: string;
-> name: string;
-> number?: number;
-> }>
-> >
-> >(
-> "/semesters?page=1&pageSize=200"
-> );
+}>> {
+const response =
+await authedFetch<ApiEnvelope<Array<{ id: string; name: string; number?: number }>>>(
+"/semesters?page=1&pageSize=200"
+);
 
 return response.data;
 }
@@ -577,14 +523,8 @@ method: "POST",
 return response.data;
 }
 
-export async function getMyDocuments(): Promise<
-ErpDocument[]
-
-> {
-> const response =
-> await authedFetch<
-> ApiEnvelope<ErpDocument[]>
-> >("/portal/documents/me");
+export async function getMyDocuments(): Promise<ErpDocument[]> {
+const response = await authedFetch<ApiEnvelope<ErpDocument[]>>("/portal/documents/me");
 
 return response.data;
 }
@@ -622,10 +562,7 @@ return response.data;
 export async function deleteDocument(
 id: string
 ) {
-return authedFetch<
-ApiEnvelope<{ deleted: boolean }>
-
-> (`/portal/documents/${id}`, {
-> method: "DELETE",
-> });
-> }
+return authedFetch<ApiEnvelope<{ deleted: boolean }>>(`/portal/documents/${id}`, {
+method: "DELETE",
+});
+}
