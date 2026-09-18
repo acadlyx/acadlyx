@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import StudentManagement from "@/components/dashboard/StudentManagement";
 import CourseOfferingRoster from "@/components/dashboard/CourseOfferingRoster";
+import DataTransferActions from "@/components/dashboard/DataTransferActions";
 import {
   AuthRequiredError,
   authedFetch,
@@ -1463,7 +1464,10 @@ export function AdminPortal() {
                   </p>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings"] as string[]).includes(activeModule) && (
+                    <DataTransferActions type={activeModule as any} compact />
+                  )}
                   {currentModule.canCreate &&
                     ![
                       "users",
