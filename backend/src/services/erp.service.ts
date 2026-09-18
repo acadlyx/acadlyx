@@ -2163,3 +2163,1197 @@ export async function linkParent(
 
   return link;
 }
+
+
+/* ============================================================
+ * ERP MANAGEMENT READ / UPDATE / DELETE OPERATIONS
+ * These functions intentionally use the existing Prisma schema
+ * and add no new database requirements.
+ * ============================================================ */
+
+async function getHodDepartmentIds(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<string[]> {
+  if (!actor.roles.includes("HOD")) {
+    return [];
+  }
+
+  const rows = await prisma.departmentAccess.findMany({
+    where: {
+      userId: actor.id,
+      department: {
+        institutionId,
+      },
+    },
+    select: {
+      departmentId: true,
+    },
+  });
+
+  return rows.map((row) => row.departmentId);
+}
+
+export async function listTimetableEntries(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  filters: {
+    dayOfWeek?: number;
+    courseOfferingId?: string;
+  } = {}
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "HOD",
+    "STAFF",
+    "FACULTY",
+  ]);
+
+  const hodDepartmentIds = await getHodDepartmentIds(
+    institutionId,
+    actor
+  );
+
+  return prisma.timetableEntry.findMany({
+    where: {
+      institutionId,
+      ...(filters.dayOfWeek !== undefined
+        ? { dayOfWeek: filters.dayOfWeek }
+        : {}),
+      ...(filters.courseOfferingId
+        ? { courseOfferingId: filters.courseOfferingId }
+        : {}),
+      ...(actor.roles.includes("HOD")
+        ? {
+            courseOffering: {
+              course: {
+                departmentId: {
+                  in: hodDepartmentIds,
+                },
+              },
+            },
+          }
+        : {}),
+      ...(actor.roles.includes("FACULTY")
+        ? {
+            courseOffering: {
+              facultyId: actor.id,
+            },
+          }
+        : {}),
+    },
+    include: {
+      courseOffering: {
+        include: {
+          course: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              departmentId: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          faculty: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          semester: {
+            select: {
+              id: true,
+              name: true,
+              number: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [
+      { dayOfWeek: "asc" },
+      { startTime: "asc" },
+    ],
+  });
+}
+
+export async function updateTimetableEntry(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: {
+    courseOfferingId?: string;
+    dayOfWeek?: number;
+    startTime?: string;
+    endTime?: string;
+    room?: string | null;
+  }
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "HOD",
+    "STAFF",
+  ]);
+
+  const existing = await prisma.timetableEntry.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      courseOffering: true,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Timetable entry not found", 404);
+  }
+
+  const courseOfferingId =
+    input.courseOfferingId ?? existing.courseOfferingId;
+  const dayOfWeek =
+    input.dayOfWeek ?? existing.dayOfWeek;
+  const startTime =
+    input.startTime ?? existing.startTime;
+  const endTime =
+    input.endTime ?? existing.endTime;
+  const room =
+    input.room === undefined ? existing.room : input.room;
+
+  if (dayOfWeek < 0 || dayOfWeek > 6) {
+    throw new AppError(
+      "dayOfWeek must be between 0 and 6",
+      400
+    );
+  }
+
+  if (endTime <= startTime) {
+    throw new AppError(
+      "endTime must be after startTime",
+      400
+    );
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    courseOfferingId
+  );
+
+  const offering = await prisma.courseOffering.findFirst({
+    where: {
+      id: courseOfferingId,
+      institutionId,
+      isActive: true,
+    },
+  });
+
+  if (!offering) {
+    throw new AppError(
+      "Course offering not found in this institution",
+      404
+    );
+  }
+
+  const sameDayEntries =
+    await prisma.timetableEntry.findMany({
+      where: {
+        institutionId,
+        dayOfWeek,
+        NOT: {
+          id,
+        },
+      },
+      include: {
+        courseOffering: {
+          select: {
+            facultyId: true,
+            sectionId: true,
+          },
+        },
+      },
+    });
+
+  const conflict = sameDayEntries.find((entry) => {
+    const overlaps =
+      startTime < entry.endTime &&
+      entry.startTime < endTime;
+
+    if (!overlaps) {
+      return false;
+    }
+
+    const roomConflict = Boolean(
+      room &&
+        entry.room &&
+        entry.room.trim().toLowerCase() ===
+          room.trim().toLowerCase()
+    );
+
+    return (
+      entry.courseOffering.sectionId === offering.sectionId ||
+      Boolean(
+        offering.facultyId &&
+          entry.courseOffering.facultyId === offering.facultyId
+      ) ||
+      roomConflict
+    );
+  });
+
+  if (conflict) {
+    throw new AppError(
+      "Timetable conflicts with an existing section, faculty, or room allocation",
+      409
+    );
+  }
+
+  const row = await prisma.timetableEntry.update({
+    where: { id },
+    data: {
+      courseOfferingId,
+      dayOfWeek,
+      startTime,
+      endTime,
+      room: room || null,
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "timetable.update",
+    entityType: "TimetableEntry",
+    entityId: row.id,
+  });
+
+  return row;
+}
+
+export async function deleteTimetableEntry(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "HOD",
+    "STAFF",
+  ]);
+
+  const existing = await prisma.timetableEntry.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    select: {
+      id: true,
+      courseOfferingId: true,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Timetable entry not found", 404);
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    existing.courseOfferingId
+  );
+
+  await prisma.timetableEntry.delete({
+    where: { id },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "timetable.delete",
+    entityType: "TimetableEntry",
+    entityId: id,
+  });
+
+  return { id, deleted: true };
+}
+
+export async function listNotices(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  includeExpired = true
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "HOD",
+    "STAFF",
+  ]);
+
+  const now = new Date();
+  const hodDepartmentIds = await getHodDepartmentIds(
+    institutionId,
+    actor
+  );
+
+  return prisma.notice.findMany({
+    where: {
+      institutionId,
+      ...(includeExpired
+        ? {}
+        : {
+            OR: [
+              { expiresAt: null },
+              { expiresAt: { gt: now } },
+            ],
+          }),
+      ...(actor.roles.includes("HOD")
+        ? {
+            OR: [
+              { departmentId: null },
+              {
+                departmentId: {
+                  in: hodDepartmentIds,
+                },
+              },
+            ],
+          }
+        : {}),
+    },
+    orderBy: {
+      publishedAt: "desc",
+    },
+  });
+}
+
+export async function updateNotice(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: {
+    title?: string;
+    body?: string;
+    audience?: string;
+    departmentId?: string | null;
+    expiresAt?: Date | null;
+  }
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "HOD",
+    "STAFF",
+  ]);
+
+  const existing = await prisma.notice.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Notice not found", 404);
+  }
+
+  const departmentId =
+    input.departmentId === undefined
+      ? existing.departmentId
+      : input.departmentId;
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    undefined,
+    departmentId || undefined
+  );
+
+  if (departmentId) {
+    const department = await prisma.department.findFirst({
+      where: {
+        id: departmentId,
+        institutionId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!department) {
+      throw new AppError(
+        "Department not found in this institution",
+        404
+      );
+    }
+  }
+
+  const row = await prisma.notice.update({
+    where: { id },
+    data: {
+      ...(input.title !== undefined
+        ? { title: input.title.trim() }
+        : {}),
+      ...(input.body !== undefined
+        ? { body: input.body.trim() }
+        : {}),
+      ...(input.audience !== undefined
+        ? { audience: input.audience }
+        : {}),
+      ...(input.departmentId !== undefined
+        ? { departmentId: input.departmentId }
+        : {}),
+      ...(input.expiresAt !== undefined
+        ? { expiresAt: input.expiresAt }
+        : {}),
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "notice.update",
+    entityType: "Notice",
+    entityId: row.id,
+  });
+
+  return row;
+}
+
+export async function deleteNotice(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "HOD",
+    "STAFF",
+  ]);
+
+  const existing = await prisma.notice.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Notice not found", 404);
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    undefined,
+    existing.departmentId || undefined
+  );
+
+  await prisma.notice.delete({
+    where: { id },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "notice.delete",
+    entityType: "Notice",
+    entityId: id,
+  });
+
+  return { id, deleted: true };
+}
+
+export async function listExams(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  courseOfferingId?: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "HOD",
+    "STAFF",
+    "FACULTY",
+  ]);
+
+  const hodDepartmentIds = await getHodDepartmentIds(
+    institutionId,
+    actor
+  );
+
+  return prisma.exam.findMany({
+    where: {
+      institutionId,
+      ...(courseOfferingId
+        ? { courseOfferingId }
+        : {}),
+      ...(actor.roles.includes("HOD")
+        ? {
+            courseOffering: {
+              course: {
+                departmentId: {
+                  in: hodDepartmentIds,
+                },
+              },
+            },
+          }
+        : {}),
+      ...(actor.roles.includes("FACULTY")
+        ? {
+            courseOffering: {
+              facultyId: actor.id,
+            },
+          }
+        : {}),
+    },
+    include: {
+      courseOffering: {
+        include: {
+          course: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              departmentId: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          faculty: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          results: true,
+        },
+      },
+    },
+    orderBy: {
+      examDate: "desc",
+    },
+  });
+}
+
+export async function getExamDetails(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  const exam = await prisma.exam.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      courseOffering: {
+        include: {
+          course: true,
+          section: true,
+          faculty: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+      results: {
+        include: {
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          student: {
+            firstName: "asc",
+          },
+        },
+      },
+    },
+  });
+
+  if (!exam) {
+    throw new AppError("Exam not found", 404);
+  }
+
+  if (
+    actor.roles.includes("FACULTY") &&
+    exam.courseOffering.facultyId !== actor.id
+  ) {
+    throw new AppError(
+      "You are not assigned to this course offering",
+      403
+    );
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    exam.courseOfferingId
+  );
+
+  if (
+    !hasAnyRole(actor, [
+      "INSTITUTION_ADMIN",
+      "DIRECTOR",
+      "MANAGEMENT",
+      "HOD",
+      "STAFF",
+      "FACULTY",
+    ])
+  ) {
+    throw new AppError(
+      "Not authorized for this ERP operation",
+      403
+    );
+  }
+
+  return exam;
+}
+
+export async function updateExam(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: {
+    title?: string;
+    examDate?: Date;
+    maxMarks?: number;
+  }
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "HOD",
+    "FACULTY",
+  ]);
+
+  const existing = await prisma.exam.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      courseOffering: true,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Exam not found", 404);
+  }
+
+  if (
+    actor.roles.includes("FACULTY") &&
+    existing.courseOffering.facultyId !== actor.id
+  ) {
+    throw new AppError(
+      "You are not assigned to this course offering",
+      403
+    );
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    existing.courseOfferingId
+  );
+
+  if (
+    input.maxMarks !== undefined &&
+    input.maxMarks <= 0
+  ) {
+    throw new AppError(
+      "maxMarks must be greater than zero",
+      400
+    );
+  }
+
+  if (input.maxMarks !== undefined) {
+    const invalidResult = await prisma.examResult.findFirst({
+      where: {
+        examId: id,
+        marks: {
+          gt: input.maxMarks,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (invalidResult) {
+      throw new AppError(
+        "maxMarks cannot be lower than marks already entered",
+        409
+      );
+    }
+  }
+
+  const row = await prisma.exam.update({
+    where: { id },
+    data: {
+      ...(input.title !== undefined
+        ? { title: input.title.trim() }
+        : {}),
+      ...(input.examDate !== undefined
+        ? { examDate: input.examDate }
+        : {}),
+      ...(input.maxMarks !== undefined
+        ? { maxMarks: input.maxMarks }
+        : {}),
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "exam.update",
+    entityType: "Exam",
+    entityId: row.id,
+  });
+
+  return row;
+}
+
+export async function deleteExam(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "HOD",
+    "FACULTY",
+  ]);
+
+  const existing = await prisma.exam.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      courseOffering: true,
+      _count: {
+        select: {
+          results: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    throw new AppError("Exam not found", 404);
+  }
+
+  if (
+    actor.roles.includes("FACULTY") &&
+    existing.courseOffering.facultyId !== actor.id
+  ) {
+    throw new AppError(
+      "You are not assigned to this course offering",
+      403
+    );
+  }
+
+  await assertDepartmentScope(
+    institutionId,
+    actor,
+    existing.courseOfferingId
+  );
+
+  if (existing._count.results > 0) {
+    throw new AppError(
+      "Cannot delete an exam after results have been entered",
+      409
+    );
+  }
+
+  await prisma.exam.delete({
+    where: { id },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "exam.delete",
+    entityType: "Exam",
+    entityId: id,
+  });
+
+  return { id, deleted: true };
+}
+
+export async function listFeeInvoices(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  filters: {
+    studentId?: string;
+    status?: string;
+  } = {}
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "STAFF",
+  ]);
+
+  return prisma.feeInvoice.findMany({
+    where: {
+      institutionId,
+      ...(filters.studentId
+        ? { studentId: filters.studentId }
+        : {}),
+      ...(filters.status
+        ? { status: filters.status }
+        : {}),
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      payments: {
+        orderBy: {
+          paidAt: "desc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+export async function getFeeInvoice(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  const invoice = await prisma.feeInvoice.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      payments: {
+        orderBy: {
+          paidAt: "desc",
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", 404);
+  }
+
+  await assertStudentScope(
+    institutionId,
+    actor,
+    invoice.studentId
+  );
+
+  if (
+    actor.id !== invoice.studentId &&
+    !actor.roles.some((role) =>
+      [
+        "INSTITUTION_ADMIN",
+        "DIRECTOR",
+        "MANAGEMENT",
+        "STAFF",
+        "PARENT",
+      ].includes(role)
+    )
+  ) {
+    throw new AppError(
+      "Not authorized to view this invoice",
+      403
+    );
+  }
+
+  const paid = invoice.payments.reduce(
+    (sum, payment) => sum + Number(payment.amount),
+    0
+  );
+
+  return {
+    ...invoice,
+    paid,
+    balance: Math.max(
+      0,
+      Number(invoice.amount) - paid
+    ),
+  };
+}
+
+export async function updateFeeInvoice(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: {
+    title?: string;
+    amount?: number;
+    dueDate?: Date | null;
+  }
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "STAFF",
+  ]);
+
+  const invoice = await prisma.feeInvoice.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      payments: {
+        select: {
+          amount: true,
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", 404);
+  }
+
+  const paid = invoice.payments.reduce(
+    (sum, payment) => sum + Number(payment.amount),
+    0
+  );
+
+  if (
+    input.amount !== undefined &&
+    input.amount < paid
+  ) {
+    throw new AppError(
+      "Invoice amount cannot be lower than payments already recorded",
+      409
+    );
+  }
+
+  const nextAmount =
+    input.amount ?? Number(invoice.amount);
+
+  const row = await prisma.feeInvoice.update({
+    where: { id },
+    data: {
+      ...(input.title !== undefined
+        ? { title: input.title.trim() }
+        : {}),
+      ...(input.amount !== undefined
+        ? { amount: input.amount }
+        : {}),
+      ...(input.dueDate !== undefined
+        ? { dueDate: input.dueDate }
+        : {}),
+      status:
+        paid <= 0
+          ? "PENDING"
+          : paid >= nextAmount
+            ? "PAID"
+            : "PARTIAL",
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "fee-invoice.update",
+    entityType: "FeeInvoice",
+    entityId: row.id,
+  });
+
+  return row;
+}
+
+export async function deleteFeeInvoice(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "STAFF",
+  ]);
+
+  const invoice = await prisma.feeInvoice.findFirst({
+    where: {
+      id,
+      institutionId,
+    },
+    include: {
+      _count: {
+        select: {
+          payments: true,
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new AppError("Invoice not found", 404);
+  }
+
+  if (invoice._count.payments > 0) {
+    throw new AppError(
+      "Cannot delete an invoice after a payment has been recorded",
+      409
+    );
+  }
+
+  await prisma.feeInvoice.delete({
+    where: { id },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "fee-invoice.delete",
+    entityType: "FeeInvoice",
+    entityId: id,
+  });
+
+  return { id, deleted: true };
+}
+
+export async function listParentLinks(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId?: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "STAFF",
+  ]);
+
+  return prisma.parentStudentLink.findMany({
+    where: {
+      institutionId,
+      ...(studentId
+        ? { studentId }
+        : {}),
+    },
+    include: {
+      parent: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          profile: {
+            select: {
+              admissionNumber: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+export async function deleteParentLink(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  parentId: string,
+  studentId: string
+) {
+  assertRole(actor, [
+    "INSTITUTION_ADMIN",
+    "STAFF",
+  ]);
+
+  const existing = await prisma.parentStudentLink.findFirst({
+    where: {
+      institutionId,
+      parentId,
+      studentId,
+    },
+  });
+
+  if (!existing) {
+    throw new AppError(
+      "Parent-student link not found",
+      404
+    );
+  }
+
+  await prisma.parentStudentLink.delete({
+    where: {
+      parentId_studentId: {
+        parentId,
+        studentId,
+      },
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "parent-link.delete",
+    entityType: "ParentStudentLink",
+    entityId: `${parentId}:${studentId}`,
+  });
+
+  return {
+    parentId,
+    studentId,
+    deleted: true,
+  };
+}
