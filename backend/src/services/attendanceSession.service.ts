@@ -11,21 +11,17 @@ import {
 
 const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
 
-/**
- * A permission like `attendance.mark` says a role CAN mark
- * attendance somewhere — it doesn't say where. Ownership is
- * enforced here, separately: a FACULTY user may only manage
- * sessions for course offerings they are actually assigned to;
- * institution/platform admins may manage any session in their
- * institution (e.g. covering for an absent faculty member).
- */
+function isAdmin(user: AuthenticatedUser): boolean {
+  return user.roles.some((role) => ADMIN_ROLES.includes(role));
+}
+
 function assertCanManageOffering(
   user: AuthenticatedUser,
   facultyId: string | null
 ): void {
-  const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r));
-  if (isAdmin) return;
-  if (facultyId && facultyId === user.id) return;
+  if (isAdmin(user)) return;
+  if (facultyId === user.id) return;
+
   throw new AppError(
     "You are not the assigned faculty for this course offering",
     403
@@ -37,18 +33,24 @@ async function loadCourseOfferingForInstitution(
   courseOfferingId: string
 ) {
   const offering = await prisma.courseOffering.findFirst({
-    where: { id: courseOfferingId, institutionId },
+    where: {
+      id: courseOfferingId,
+      institutionId,
+      isActive: true,
+    },
     include: {
       course: { select: { id: true, code: true, name: true } },
       section: { select: { id: true, name: true } },
     },
   });
+
   if (!offering) {
     throw new AppError(
-      "courseOfferingId does not belong to this institution",
-      400
+      "Course offering was not found, is inactive, or does not belong to this institution",
+      404
     );
   }
+
   return offering;
 }
 
@@ -74,28 +76,24 @@ type SessionWithIncludes = Prisma.AttendanceSessionGetPayload<{
   include: typeof sessionInclude;
 }>;
 
-/** Combines a session's saved records with the full section roster,
- *  so students with no record yet still appear (status: null). */
-async function withRoster(institutionId: string, session: SessionWithIncludes) {
+async function withRoster(
+  institutionId: string,
+  session: SessionWithIncludes
+) {
   const roster = await getRoster(institutionId, session.courseOfferingId);
-  const recordByStudent = new Map<string, string>(
-    session.records.map((r) => [r.studentId, r.status])
+  const recordByStudent = new Map(
+    session.records.map((record) => [record.studentId, record.status])
   );
 
   return {
     ...session,
-    roster: roster.map((r) => ({
-      ...r,
-      status: recordByStudent.get(r.studentId) ?? null,
+    roster: roster.map((student) => ({
+      ...student,
+      status: recordByStudent.get(student.studentId) ?? null,
     })),
   };
 }
 
-/**
- * Get-or-create: opening the same courseOffering+date twice returns
- * the same session instead of erroring, so a faculty member
- * navigating back into "today's" attendance never hits a conflict.
- */
 export async function getOrCreateSession(
   institutionId: string,
   user: AuthenticatedUser,
@@ -105,10 +103,12 @@ export async function getOrCreateSession(
     institutionId,
     input.courseOfferingId
   );
+
   assertCanManageOffering(user, offering.facultyId);
 
   const existing = await prisma.attendanceSession.findFirst({
     where: {
+      institutionId,
       courseOfferingId: input.courseOfferingId,
       sessionDate: input.sessionDate,
     },
@@ -121,7 +121,10 @@ export async function getOrCreateSession(
       data: {
         institutionId,
         courseOfferingId: input.courseOfferingId,
-        facultyId: user.id,
+        // Keep ownership tied to the actual course assignment.
+        // If an admin opens a session for an unassigned offering,
+        // the admin becomes the session owner.
+        facultyId: offering.facultyId ?? user.id,
         sessionDate: input.sessionDate,
       },
       include: sessionInclude,
@@ -139,19 +142,21 @@ export async function getSessionById(
     where: { id, institutionId },
     include: sessionInclude,
   });
+
   if (!session) {
     throw new AppError("Attendance session not found", 404);
   }
+
   assertCanManageOffering(user, session.courseOffering.facultyId);
+
   return withRoster(institutionId, session);
 }
 
 /**
- * Bulk upsert (covers both "Present All" bulk actions and single-
- * student corrections — the caller just sends however many records
- * changed). Every studentId is validated against the section's real
- * roster so a faculty member can't mark attendance for a student who
- * isn't enrolled in that section.
+ * Attendance is intentionally idempotent. Sending a subset of records
+ * updates only those students; sending the full roster performs a
+ * complete save. Submission is a workflow state, not a permanent lock,
+ * so authorised faculty/admins can correct a mistake later.
  */
 export async function upsertRecords(
   institutionId: string,
@@ -162,39 +167,66 @@ export async function upsertRecords(
   const session = await prisma.attendanceSession.findFirst({
     where: { id: sessionId, institutionId },
     include: {
-      courseOffering: { select: { facultyId: true, sectionId: true } },
+      courseOffering: {
+        select: {
+          id: true,
+          facultyId: true,
+        },
+      },
     },
   });
+
   if (!session) {
     throw new AppError("Attendance session not found", 404);
   }
+
   assertCanManageOffering(user, session.courseOffering.facultyId);
 
-  const roster = await getRoster(institutionId, session.courseOffering.sectionId);
-  const rosterIds = new Set(roster.map((r) => r.studentId));
+  const roster = await getRoster(
+    institutionId,
+    session.courseOffering.id
+  );
+  const rosterIds = new Set(roster.map((student) => student.studentId));
 
-  const invalid = input.records.filter((r) => !rosterIds.has(r.studentId));
+  const uniqueStudentIds = new Set<string>();
+  for (const record of input.records) {
+    if (uniqueStudentIds.has(record.studentId)) {
+      throw new AppError(
+        "A student cannot appear more than once in the same attendance save",
+        400
+      );
+    }
+    uniqueStudentIds.add(record.studentId);
+  }
+
+  const invalid = input.records.filter(
+    (record) => !rosterIds.has(record.studentId)
+  );
+
   if (invalid.length > 0) {
     throw new AppError(
-      `${invalid.length} student(s) in this submission are not enrolled in this section`,
+      `${invalid.length} student(s) are not enrolled in this course offering`,
       400
     );
   }
 
   await prisma.$transaction(
-    input.records.map((r) =>
+    input.records.map((record) =>
       prisma.attendanceRecord.upsert({
         where: {
           attendanceSessionId_studentId: {
             attendanceSessionId: sessionId,
-            studentId: r.studentId,
+            studentId: record.studentId,
           },
         },
-        update: { status: r.status, markedAt: new Date() },
+        update: {
+          status: record.status,
+          markedAt: new Date(),
+        },
         create: {
           attendanceSessionId: sessionId,
-          studentId: r.studentId,
-          status: r.status,
+          studentId: record.studentId,
+          status: record.status,
         },
       })
     )
@@ -203,7 +235,10 @@ export async function upsertRecords(
   if (input.submit) {
     await prisma.attendanceSession.update({
       where: { id: sessionId },
-      data: { isSubmitted: true, submittedAt: new Date() },
+      data: {
+        isSubmitted: true,
+        submittedAt: new Date(),
+      },
     });
   }
 
@@ -218,13 +253,20 @@ export interface ListFilters extends PaginationParams {
   isSubmitted?: boolean;
 }
 
-export async function listSessions(institutionId: string, filters: ListFilters) {
+export async function listSessions(
+  institutionId: string,
+  user: AuthenticatedUser,
+  filters: ListFilters
+) {
+  const scopedFacultyId =
+    !isAdmin(user) && !filters.facultyId ? user.id : filters.facultyId;
+
   const where = {
     institutionId,
     ...(filters.courseOfferingId
       ? { courseOfferingId: filters.courseOfferingId }
       : {}),
-    ...(filters.facultyId ? { facultyId: filters.facultyId } : {}),
+    ...(scopedFacultyId ? { facultyId: scopedFacultyId } : {}),
     ...(filters.isSubmitted !== undefined
       ? { isSubmitted: filters.isSubmitted }
       : {}),
@@ -243,7 +285,7 @@ export async function listSessions(institutionId: string, filters: ListFilters) 
       where,
       skip: filters.skip,
       take: filters.take,
-      orderBy: { sessionDate: "desc" },
+      orderBy: [{ sessionDate: "desc" }, { createdAt: "desc" }],
       include: sessionInclude,
     }),
     prisma.attendanceSession.count({ where }),
