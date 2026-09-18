@@ -50,7 +50,6 @@ async function loadSemesterForInstitution(
       academicYearId: true,
       isActive: true,
       program: { select: { departmentId: true, isActive: true } },
-      academicYear: { select: { isCurrent: true } },
     },
   });
 
@@ -232,22 +231,33 @@ export async function getRoster(
   const offering = await getCourseOfferingById(institutionId, id);
   assertOwnsCourseOffering(user, offering.facultyId);
 
+  const semester = await prisma.semester.findFirst({
+    where: {
+      id: offering.semesterId,
+      institutionId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      programId: true,
+      academicYearId: true,
+    },
+  });
+
+  if (!semester) {
+    throw new AppError("The offering's semester is no longer active", 409);
+  }
+
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       institutionId,
-      programId: offering.semester.program.id,
-      academicYearId: offering.semester.academicYear.id,
-      semesterId: offering.semester.id,
+      programId: semester.programId,
+      academicYearId: semester.academicYearId,
+      semesterId: semester.id,
       sectionId: offering.sectionId,
       status: "ACTIVE",
       user: {
         isActive: true,
-        studentProfile: {
-          is: {
-            institutionId,
-            status: "ACTIVE",
-          },
-        },
       },
     },
     include: {
@@ -256,15 +266,14 @@ export async function getRoster(
           id: true,
           firstName: true,
           lastName: true,
-          studentProfile: {
-            select: {
-              admissionNumber: true,
-            },
-          },
         },
       },
     },
-    orderBy: [{ user: { firstName: "asc" } }, { user: { lastName: "asc" } }],
+    orderBy: [
+      { user: { firstName: "asc" } },
+      { user: { lastName: "asc" } },
+      { rollNumber: "asc" },
+    ],
   });
 
   return enrollments.map((e) => ({
@@ -272,7 +281,6 @@ export async function getRoster(
     firstName: e.user.firstName,
     lastName: e.user.lastName,
     rollNumber: e.rollNumber,
-    admissionNumber: e.user.studentProfile?.admissionNumber ?? null,
   }));
 }
 
@@ -315,14 +323,7 @@ export async function updateCourseOffering(
   id: string,
   input: UpdateCourseOfferingInput
 ) {
-  const existing = await getCourseOfferingById(institutionId, id);
-
-  await assertOfferingAcademicIntegrity(
-    institutionId,
-    existing.course.id,
-    existing.semester.id,
-    existing.section.id
-  );
+  await getCourseOfferingById(institutionId, id);
 
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
