@@ -15,35 +15,74 @@ import {
 async function ensurePermissionCatalog(
   tx: Prisma.TransactionClient
 ): Promise<Map<string, string>> {
-  const permissionRecords = new Map<string, string>();
+  /*
+   * The permission catalog is global.
+   *
+   * Do not perform dozens of sequential upserts here. Institution
+   * creation runs inside a transaction and Supabase's pooler can
+   * otherwise hit Prisma's default transaction timeout.
+   *
+   * The production bootstrap already repairs the catalog, so this
+   * function only creates missing permissions and then reads the
+   * complete catalog in one query.
+   */
 
-  for (const permission of PERMISSIONS) {
-    const record = await tx.permission.upsert({
-      where: {
-        key: permission.key,
+  const existing = await tx.permission.findMany({
+    where: {
+      key: {
+        in: PERMISSIONS.map((permission) => permission.key),
       },
-      update: {
+    },
+    select: {
+      id: true,
+      key: true,
+    },
+  });
+
+  const existingKeys = new Set(
+    existing.map((permission) => permission.key)
+  );
+
+  const missing = PERMISSIONS.filter(
+    (permission) => !existingKeys.has(permission.key)
+  );
+
+  if (missing.length > 0) {
+    await tx.permission.createMany({
+      data: missing.map((permission) => ({
+        key: permission.key,
         module: permission.module,
         description: permission.description,
-      },
-      create: {
-        key: permission.key,
-        module: permission.module,
-        description: permission.description,
-      },
+      })),
+      skipDuplicates: true,
     });
-
-    permissionRecords.set(record.key, record.id);
   }
 
-  return permissionRecords;
+  const records = await tx.permission.findMany({
+    where: {
+      key: {
+        in: PERMISSIONS.map((permission) => permission.key),
+      },
+    },
+    select: {
+      id: true,
+      key: true,
+    },
+  });
+
+  return new Map(
+    records.map((permission) => [
+      permission.key,
+      permission.id,
+    ])
+  );
 }
 
 /**
  * Creates/repairs all standard institution roles.
  *
- * SUPER_ADMIN is intentionally excluded because it is a platform-level
- * role with institutionId = null.
+ * SUPER_ADMIN is intentionally excluded because it is a
+ * platform-level role with institutionId = null.
  */
 export async function ensureInstitutionSystemRoles(
   tx: Prisma.TransactionClient,
@@ -62,6 +101,10 @@ export async function ensureInstitutionSystemRoles(
         institutionId,
         name: roleName,
       },
+      select: {
+        id: true,
+        isSystem: true,
+      },
     });
 
     if (!role) {
@@ -72,6 +115,10 @@ export async function ensureInstitutionSystemRoles(
           isSystem: true,
           description: `${roleName.replace(/_/g, " ")} role`,
         },
+        select: {
+          id: true,
+          isSystem: true,
+        },
       });
     } else if (!role.isSystem) {
       role = await tx.role.update({
@@ -79,6 +126,10 @@ export async function ensureInstitutionSystemRoles(
           id: role.id,
         },
         data: {
+          isSystem: true,
+        },
+        select: {
+          id: true,
           isSystem: true,
         },
       });
@@ -92,19 +143,29 @@ export async function ensureInstitutionSystemRoles(
       .map((key) => permissionRecords.get(key))
       .filter((id): id is string => Boolean(id));
 
-    await tx.rolePermission.deleteMany({
-      where: {
-        roleId: role.id,
-        ...(desiredPermissionIds.length > 0
-          ? {
-              permissionId: {
-                notIn: desiredPermissionIds,
-              },
-            }
-          : {}),
-      },
-    });
+    /*
+     * Remove permissions no longer belonging to the system role.
+     */
+    if (desiredPermissionIds.length > 0) {
+      await tx.rolePermission.deleteMany({
+        where: {
+          roleId: role.id,
+          permissionId: {
+            notIn: desiredPermissionIds,
+          },
+        },
+      });
+    } else {
+      await tx.rolePermission.deleteMany({
+        where: {
+          roleId: role.id,
+        },
+      });
+    }
 
+    /*
+     * Re-create the desired links idempotently.
+     */
     if (desiredPermissionIds.length > 0) {
       await tx.rolePermission.createMany({
         data: desiredPermissionIds.map((permissionId) => ({
@@ -167,7 +228,6 @@ export async function listInstitutions(params: {
         },
       },
     }),
-
     prisma.institution.count({
       where,
     }),
@@ -226,12 +286,70 @@ export async function getInstitutionById(id: string) {
   return institution;
 }
 
+function mapInstitutionCreateError(
+  error: unknown
+): never {
+  if (error instanceof AppError) {
+    throw error;
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(", ")
+        : String(error.meta?.target ?? "");
+
+      if (target.includes("slug")) {
+        throw new AppError(
+          "An institution with this slug already exists",
+          409
+        );
+      }
+
+      if (target.includes("email")) {
+        throw new AppError(
+          "A user with the institution administrator email already exists",
+          409
+        );
+      }
+
+      throw new AppError(
+        "A record with the same unique value already exists",
+        409
+      );
+    }
+
+    if (error.code === "P2028") {
+      throw new AppError(
+        "Institution creation timed out while initializing roles and permissions. Please try again.",
+        503
+      );
+    }
+
+    if (error.code === "P2003") {
+      throw new AppError(
+        "Institution creation failed because a required related record is missing.",
+        409
+      );
+    }
+  }
+
+  throw error;
+}
+
 export async function createInstitution(
   input: CreateInstitutionInput
 ) {
+  const normalizedSlug = input.slug.trim().toLowerCase();
+  const normalizedEmail =
+    input.admin.email.trim().toLowerCase();
+
   const existingSlug = await prisma.institution.findUnique({
     where: {
-      slug: input.slug,
+      slug: normalizedSlug,
+    },
+    select: {
+      id: true,
     },
   });
 
@@ -244,7 +362,10 @@ export async function createInstitution(
 
   const existingEmail = await prisma.user.findUnique({
     where: {
-      email: input.admin.email.toLowerCase(),
+      email: normalizedEmail,
+    },
+    select: {
+      id: true,
     },
   });
 
@@ -259,69 +380,104 @@ export async function createInstitution(
     input.admin.password
   );
 
-  return prisma.$transaction(async (tx) => {
-    const createdInstitution =
-      await tx.institution.create({
-        data: {
-          name: input.name,
-          slug: input.slug,
-          logoUrl: input.logoUrl || null,
-          primaryColor: input.primaryColor || null,
-          secondaryColor: input.secondaryColor || null,
-          isActive: true,
-        },
-      });
+  try {
+    /*
+     * Explicitly extend the transaction timeout.
+     *
+     * This is important for Supabase pooled PostgreSQL because
+     * institution creation initializes the institution-scoped
+     * system roles and their permissions.
+     */
+    return await prisma.$transaction(
+      async (tx) => {
+        const createdInstitution =
+          await tx.institution.create({
+            data: {
+              name: input.name.trim(),
+              slug: normalizedSlug,
+              logoUrl: input.logoUrl?.trim()
+                ? input.logoUrl.trim()
+                : null,
+              primaryColor:
+                input.primaryColor?.trim()
+                  ? input.primaryColor.trim()
+                  : null,
+              secondaryColor:
+                input.secondaryColor?.trim()
+                  ? input.secondaryColor.trim()
+                  : null,
+              isActive: true,
+            },
+          });
 
-    const roles = await ensureInstitutionSystemRoles(
-      tx,
-      createdInstitution.id
-    );
+        const roles =
+          await ensureInstitutionSystemRoles(
+            tx,
+            createdInstitution.id
+          );
 
-    const adminRoleId =
-      roles.get("INSTITUTION_ADMIN");
+        const adminRoleId =
+          roles.get("INSTITUTION_ADMIN");
 
-    if (!adminRoleId) {
-      throw new AppError(
-        "Failed to initialize institution administrator role",
-        500
-      );
-    }
+        if (!adminRoleId) {
+          throw new AppError(
+            "Failed to initialize institution administrator role",
+            500
+          );
+        }
 
-    const adminUser = await tx.user.create({
-      data: {
-        institutionId: createdInstitution.id,
-        email: input.admin.email.toLowerCase(),
-        passwordHash,
-        firstName: input.admin.firstName,
-        lastName: input.admin.lastName,
-        phone: input.admin.phone || null,
-        isActive: true,
-      },
-    });
-
-    await tx.userRole.create({
-      data: {
-        userId: adminUser.id,
-        roleId: adminRoleId,
-      },
-    });
-
-    return tx.institution.findUniqueOrThrow({
-      where: {
-        id: createdInstitution.id,
-      },
-      include: {
-        _count: {
-          select: {
-            users: true,
-            departments: true,
-            programs: true,
-            studentEnrollments: true,
+        const adminUser = await tx.user.create({
+          data: {
+            institutionId:
+              createdInstitution.id,
+            email: normalizedEmail,
+            passwordHash,
+            firstName:
+              input.admin.firstName.trim(),
+            lastName:
+              input.admin.lastName.trim(),
+            phone:
+              input.admin.phone?.trim()
+                ? input.admin.phone.trim()
+                : null,
+            isActive: true,
           },
-        },
+          select: {
+            id: true,
+          },
+        });
+
+        await tx.userRole.create({
+          data: {
+            userId: adminUser.id,
+            roleId: adminRoleId,
+          },
+        });
+
+        return tx.institution.findUniqueOrThrow({
+          where: {
+            id: createdInstitution.id,
+          },
+          include: {
+            _count: {
+              select: {
+                users: true,
+                departments: true,
+                programs: true,
+                studentEnrollments: true,
+              },
+            },
+          },
+        });
       },
-    });
-  });
+      {
+        maxWait: 10000,
+        timeout: 30000,
+      }
+    );
+  } catch (error) {
+    return mapInstitutionCreateError(error);
+  }
 }
 
 export async function updateInstitution(
@@ -332,20 +488,35 @@ export async function updateInstitution(
     where: {
       id,
     },
+    select: {
+      id: true,
+      slug: true,
+    },
   });
 
   if (!existing) {
-    throw new AppError("Institution not found", 404);
+    throw new AppError(
+      "Institution not found",
+      404
+    );
   }
 
+  const normalizedSlug =
+    input.slug !== undefined
+      ? input.slug.trim().toLowerCase()
+      : undefined;
+
   if (
-    input.slug &&
-    input.slug !== existing.slug
+    normalizedSlug &&
+    normalizedSlug !== existing.slug
   ) {
     const duplicate =
       await prisma.institution.findUnique({
         where: {
-          slug: input.slug,
+          slug: normalizedSlug,
+        },
+        select: {
+          id: true,
         },
       });
 
@@ -363,30 +534,40 @@ export async function updateInstitution(
     },
     data: {
       ...(input.name !== undefined
-        ? { name: input.name }
+        ? {
+            name: input.name.trim(),
+          }
         : {}),
 
-      ...(input.slug !== undefined
-        ? { slug: input.slug }
+      ...(normalizedSlug !== undefined
+        ? {
+            slug: normalizedSlug,
+          }
         : {}),
 
       ...(input.logoUrl !== undefined
         ? {
-            logoUrl: input.logoUrl || null,
+            logoUrl: input.logoUrl.trim()
+              ? input.logoUrl.trim()
+              : null,
           }
         : {}),
 
       ...(input.primaryColor !== undefined
         ? {
             primaryColor:
-              input.primaryColor || null,
+              input.primaryColor.trim()
+                ? input.primaryColor.trim()
+                : null,
           }
         : {}),
 
       ...(input.secondaryColor !== undefined
         ? {
             secondaryColor:
-              input.secondaryColor || null,
+              input.secondaryColor.trim()
+                ? input.secondaryColor.trim()
+                : null,
           }
         : {}),
 
@@ -407,6 +588,9 @@ export async function setInstitutionActive(
     await prisma.institution.findUnique({
       where: {
         id,
+      },
+      select: {
+        id: true,
       },
     });
 
