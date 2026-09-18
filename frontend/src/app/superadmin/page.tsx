@@ -755,17 +755,15 @@ async function toggleUser(user: PlatformUser) {
                           </td>
 
                           <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                toggleInstitution(institution)
-                              }
-                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              {institution.isActive
-                                ? "Deactivate"
-                                : "Activate"}
-                            </button>
+                            {user.id === getAccessToken() ? null : (
+  <button
+    type="button"
+    onClick={() => toggleUser(user)}
+    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+  >
+    {user.isActive ? "Deactivate" : "Activate"}
+  </button>
+)}
                           </td>
                         </tr>
                       ))}
