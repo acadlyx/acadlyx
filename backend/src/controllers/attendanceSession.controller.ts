@@ -16,27 +16,45 @@ function requireUser(req: Request) {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const user = requireUser(req);
   const pagination = parsePagination(req);
+
   const courseOfferingId =
     (req.query.courseOfferingId as string | undefined) || undefined;
-  const facultyId = (req.query.facultyId as string | undefined) || undefined;
+  const facultyId =
+    (req.query.facultyId as string | undefined) || undefined;
+
   const dateFrom = req.query.dateFrom
     ? new Date(String(req.query.dateFrom))
     : undefined;
-  const dateTo = req.query.dateTo ? new Date(String(req.query.dateTo)) : undefined;
+  const dateTo = req.query.dateTo
+    ? new Date(String(req.query.dateTo))
+    : undefined;
+
+  if (dateFrom && Number.isNaN(dateFrom.getTime())) {
+    throw new AppError("Invalid dateFrom", 400);
+  }
+  if (dateTo && Number.isNaN(dateTo.getTime())) {
+    throw new AppError("Invalid dateTo", 400);
+  }
+
   const isSubmitted =
     req.query.isSubmitted === undefined
       ? undefined
       : req.query.isSubmitted === "true";
 
-  const { items, total } = await attendanceService.listSessions(institutionId, {
-    ...pagination,
-    courseOfferingId,
-    facultyId,
-    dateFrom,
-    dateTo,
-    isSubmitted,
-  });
+  const { items, total } = await attendanceService.listSessions(
+    institutionId,
+    user,
+    {
+      ...pagination,
+      courseOfferingId,
+      facultyId,
+      dateFrom,
+      dateTo,
+      isSubmitted,
+    }
+  );
 
   res.status(200).json({
     success: true,
@@ -48,33 +66,39 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 export const getById = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
   const user = requireUser(req);
+
   const session = await attendanceService.getSessionById(
     institutionId,
     user,
     req.params.id
   );
+
   res.status(200).json({ success: true, data: session });
 });
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
   const user = requireUser(req);
+
   const session = await attendanceService.getOrCreateSession(
     institutionId,
     user,
     req.body as CreateSessionInput
   );
+
   res.status(201).json({ success: true, data: session });
 });
 
 export const updateRecords = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
   const user = requireUser(req);
+
   const session = await attendanceService.upsertRecords(
     institutionId,
     user,
     req.params.id,
     req.body as UpdateRecordsInput
   );
+
   res.status(200).json({ success: true, data: session });
 });
