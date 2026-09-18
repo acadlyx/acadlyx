@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
+import { recordAuditLog } from "./audit.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -210,6 +211,8 @@ export async function upsertRecords(
     );
   }
 
+  const wasSubmitted = session.isSubmitted;
+
   await prisma.$transaction(
     input.records.map((record) =>
       prisma.attendanceRecord.upsert({
@@ -242,6 +245,15 @@ export async function upsertRecords(
     });
   }
 
+  await recordAuditLog({
+    institutionId,
+    userId: user.id,
+    action: wasSubmitted ? "attendance.correct" : input.submit ? "attendance.submit" : "attendance.draft_update",
+    entityType: "AttendanceSession",
+    entityId: sessionId,
+    metadata: { recordCount: input.records.length },
+  });
+
   return getSessionById(institutionId, user, sessionId);
 }
 
@@ -258,15 +270,12 @@ export async function listSessions(
   user: AuthenticatedUser,
   filters: ListFilters
 ) {
-  const scopedFacultyId =
-    !isAdmin(user) && !filters.facultyId ? user.id : filters.facultyId;
-
-  const where = {
+  const where: Prisma.AttendanceSessionWhereInput = {
     institutionId,
     ...(filters.courseOfferingId
       ? { courseOfferingId: filters.courseOfferingId }
       : {}),
-    ...(scopedFacultyId ? { facultyId: scopedFacultyId } : {}),
+    ...(filters.facultyId ? { facultyId: filters.facultyId } : {}),
     ...(filters.isSubmitted !== undefined
       ? { isSubmitted: filters.isSubmitted }
       : {}),
@@ -279,6 +288,26 @@ export async function listSessions(
         }
       : {}),
   };
+
+  const institutionWideRoles = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"];
+  if (user.roles.some((role) => institutionWideRoles.includes(role))) {
+    // Institution-wide reporting scope.
+  } else if (user.roles.includes("FACULTY")) {
+    if (filters.facultyId && filters.facultyId !== user.id) {
+      throw new AppError("Faculty may only view their own attendance sessions", 403);
+    }
+    where.facultyId = user.id;
+  } else if (user.roles.includes("HOD")) {
+    const departmentAccess = await prisma.departmentAccess.findMany({
+      where: { userId: user.id, department: { institutionId } },
+      select: { departmentId: true },
+    });
+    where.courseOffering = {
+      course: { departmentId: { in: departmentAccess.map((item) => item.departmentId) } },
+    };
+  } else {
+    throw new AppError("Attendance history is not available for this role", 403);
+  }
 
   const [items, total] = await Promise.all([
     prisma.attendanceSession.findMany({

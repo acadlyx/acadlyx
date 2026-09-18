@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
@@ -8,6 +9,7 @@ import {
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRosterIds } from "../utils/academicRoster";
 import { EnterMarksInput } from "../validators/internalMark.validators";
+import { recordAuditLog } from "./audit.service";
 
 
 /**
@@ -65,6 +67,15 @@ export async function enterMarks(
     )
   );
 
+  await recordAuditLog({
+    institutionId,
+    userId: user.id,
+    action: "marks.upsert",
+    entityType: "InternalMark",
+    entityId: input.courseOfferingId,
+    metadata: { component: input.component, recordCount: input.records.length },
+  });
+
   return prisma.internalMark.findMany({
     where: { courseOfferingId: input.courseOfferingId, component: input.component },
     include: { student: { select: { id: true, firstName: true, lastName: true } } },
@@ -82,17 +93,29 @@ export async function listMarks(
   user: AuthenticatedUser,
   filters: ListFilters
 ) {
-  if (filters.courseOfferingId) {
-    const offering = await loadCourseOfferingOrThrow(institutionId, filters.courseOfferingId);
-    assertOwnsCourseOffering(user, offering.facultyId);
-  }
-
-  const where = {
+  const institutionWideReaders = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"];
+  const where: Prisma.InternalMarkWhereInput = {
     institutionId,
     ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
     ...(filters.studentId ? { studentId: filters.studentId } : {}),
     ...(filters.component ? { component: filters.component } : {}),
   };
+
+  if (user.roles.some((role) => institutionWideReaders.includes(role))) {
+    // Institution-wide read is intentionally available only to executive roles.
+  } else if (user.roles.includes("FACULTY")) {
+    where.courseOffering = { facultyId: user.id };
+  } else if (user.roles.includes("HOD")) {
+    const departments = await prisma.departmentAccess.findMany({
+      where: { userId: user.id, department: { institutionId } },
+      select: { departmentId: true },
+    });
+    where.courseOffering = {
+      course: { departmentId: { in: departments.map((department) => department.departmentId) } },
+    };
+  } else {
+    throw new AppError("Marks list is not available for this role", 403);
+  }
 
   const [items, total] = await Promise.all([
     prisma.internalMark.findMany({

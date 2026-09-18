@@ -113,6 +113,36 @@ export const PERMISSIONS = [
     description:
       "Enter academic marks",
   },
+  {
+    key: "timetable.manage",
+    module: "timetable",
+    description: "Create and update institutional timetables",
+  },
+  {
+    key: "notices.manage",
+    module: "notices",
+    description: "Publish institutional notices",
+  },
+  {
+    key: "exams.manage",
+    module: "exams",
+    description: "Create exams and enter exam results",
+  },
+  {
+    key: "fees.manage",
+    module: "fees",
+    description: "Create and manage fee invoices",
+  },
+  {
+    key: "fees.pay",
+    module: "fees",
+    description: "Record an authorized fee payment",
+  },
+  {
+    key: "parent-links.manage",
+    module: "parents",
+    description: "Manage parent-to-student relationships",
+  },
 
   /*
    * SITE / IMPORTS / REPORTING
@@ -444,6 +474,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "reports.read",
     "intelligence.read",
+    "notices.manage",
 
     ...ACADEMIC_READ,
   ],
@@ -463,6 +494,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "reports.read",
     "intelligence.read",
+    "notices.manage",
 
     ...ACADEMIC_READ,
   ],
@@ -492,6 +524,9 @@ export const ROLE_PERMISSIONS: Record<
 
     "sections.update",
     "course-offerings.update",
+    "timetable.manage",
+    "notices.manage",
+    "exams.manage",
   ],
 
   /*
@@ -510,6 +545,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "marks.read",
     "marks.enter",
+    "exams.manage",
 
     ...ACADEMIC_READ,
   ],
@@ -520,6 +556,11 @@ export const ROLE_PERMISSIONS: Record<
   STAFF: [
     "students.read",
     "users.read",
+    "timetable.manage",
+    "notices.manage",
+    "fees.manage",
+    "fees.pay",
+    "parent-links.manage",
 
     ...ACADEMIC_READ,
   ],
@@ -534,6 +575,7 @@ export const ROLE_PERMISSIONS: Record<
     "assignments.submit",
 
     "marks.read",
+    "fees.pay",
 
     ...ACADEMIC_READ,
   ],
@@ -547,6 +589,7 @@ export const ROLE_PERMISSIONS: Record<
     "assignments.read",
 
     "marks.read",
+    "fees.pay",
 
     ...ACADEMIC_READ,
   ],

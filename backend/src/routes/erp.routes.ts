@@ -2,6 +2,16 @@ import { Router } from "express";
 import * as controller from "../controllers/erp.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
+import { validateBody } from "../middleware/validate";
+import {
+  createExamSchema,
+  createInvoiceSchema,
+  createNoticeSchema,
+  createParentLinkSchema,
+  createTimetableEntrySchema,
+  recordPaymentSchema,
+  upsertExamResultSchema,
+} from "../validators/erp.validators";
 
 const router = Router();
 
@@ -26,7 +36,8 @@ router.get(
  */
 router.post(
   "/timetable",
-  authorize("sections.update", "course-offerings.update"),
+  authorize("timetable.manage"),
+  validateBody(createTimetableEntrySchema),
   controller.timetable
 );
 
@@ -35,7 +46,8 @@ router.post(
  */
 router.post(
   "/notices",
-  authorize("reports.read"),
+  authorize("notices.manage"),
+  validateBody(createNoticeSchema),
   controller.notice
 );
 
@@ -44,7 +56,8 @@ router.post(
  */
 router.post(
   "/exams",
-  authorize("marks.enter"),
+  authorize("exams.manage"),
+  validateBody(createExamSchema),
   controller.exam
 );
 
@@ -53,7 +66,8 @@ router.post(
  */
 router.put(
   "/exam-results",
-  authorize("marks.enter"),
+  authorize("exams.manage"),
+  validateBody(upsertExamResultSchema),
   controller.result
 );
 
@@ -62,7 +76,8 @@ router.put(
  */
 router.post(
   "/fee-invoices",
-  authorize("students.update"),
+  authorize("fees.manage"),
+  validateBody(createInvoiceSchema),
   controller.invoice
 );
 
@@ -76,7 +91,8 @@ router.post(
  */
 router.post(
   "/fee-invoices/:id/payments",
-  authorize("students.read"),
+  authorize("fees.pay"),
+  validateBody(recordPaymentSchema),
   controller.payment
 );
 
@@ -85,7 +101,8 @@ router.post(
  */
 router.post(
   "/parent-links",
-  authorize("students.update"),
+  authorize("parent-links.manage"),
+  validateBody(createParentLinkSchema),
   controller.parentLink
 );
 

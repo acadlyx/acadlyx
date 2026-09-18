@@ -10,7 +10,7 @@ const riskFromScore = (score: number): RiskLevel =>
 export async function getStudentIntelligence(institutionId: string, studentId: string) {
   const [student, attendance, assignments, marks, skills] = await Promise.all([
     prisma.user.findFirst({ where: { id: studentId, institutionId }, select: { id: true, firstName: true, lastName: true } }),
-    prisma.attendanceRecord.findMany({ where: { studentId, attendanceSession: { institutionId } }, select: { status: true, attendanceSession: { select: { courseOffering: { select: { course: { select: { code: true, name: true } } } } } } } }),
+    prisma.attendanceRecord.findMany({ where: { studentId, attendanceSession: { institutionId, isSubmitted: true } }, select: { status: true, attendanceSession: { select: { courseOffering: { select: { course: { select: { code: true, name: true } } } } } } } }),
     prisma.assignment.findMany({ where: { institutionId, status: "PUBLISHED", courseOffering: { section: { studentEnrollments: { some: { userId: studentId } } } } }, select: { id: true, title: true, dueDate: true, courseOffering: { select: { course: { select: { code: true } } } }, submissions: { where: { studentId }, select: { id: true } } } }),
     prisma.internalMark.aggregate({ where: { institutionId, studentId }, _avg: { marksObtained: true, maxMarks: true } }),
     prisma.studentSkill.count({ where: { institutionId, studentId, proficiency: { gte: 60 } } }),

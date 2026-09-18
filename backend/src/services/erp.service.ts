@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
@@ -1529,6 +1530,13 @@ export async function createTimetableEntry(
     );
   }
 
+  if (input.endTime <= input.startTime) {
+    throw new AppError(
+      "endTime must be after startTime",
+      400
+    );
+  }
+
   await assertDepartmentScope(
     institutionId,
     actor,
@@ -1548,6 +1556,45 @@ export async function createTimetableEntry(
     throw new AppError(
       "Course offering not found in this institution",
       404
+    );
+  }
+
+  const sameDayEntries =
+    await prisma.timetableEntry.findMany({
+      where: {
+        institutionId,
+        dayOfWeek: input.dayOfWeek,
+      },
+      include: {
+        courseOffering: {
+          select: {
+            facultyId: true,
+            sectionId: true,
+          },
+        },
+      },
+    });
+
+  const overlaps = (entry: { startTime: string; endTime: string }) =>
+    input.startTime < entry.endTime && entry.startTime < input.endTime;
+
+  const conflict = sameDayEntries.find((entry) => {
+    // The row with the same composite key is the upsert target itself.
+    if (entry.courseOfferingId === input.courseOfferingId && entry.startTime === input.startTime) {
+      return false;
+    }
+    if (!overlaps(entry)) return false;
+    return (
+      entry.courseOffering.sectionId === offering.sectionId ||
+      (offering.facultyId && entry.courseOffering.facultyId === offering.facultyId) ||
+      Boolean(input.room && entry.room && entry.room.trim().toLowerCase() === input.room.trim().toLowerCase())
+    );
+  });
+
+  if (conflict) {
+    throw new AppError(
+      "Timetable conflicts with an existing section, faculty, or room allocation",
+      409
     );
   }
 
@@ -2000,63 +2047,49 @@ export async function recordPayment(
     );
   }
 
-  const existing =
-    await prisma.feePayment.aggregate({
-      where: {
-        invoiceId,
-      },
-      _sum: {
-        amount: true,
-      },
-    });
+  let payment;
+  try {
+    payment = await prisma.$transaction(async (tx) => {
+      const currentInvoice = await tx.feeInvoice.findFirst({
+        where: { id: invoiceId, institutionId },
+      });
+      if (!currentInvoice) throw new AppError("Invoice not found", 404);
 
-  const alreadyPaid =
-    Number(existing._sum.amount || 0);
+      const existing = await tx.feePayment.aggregate({
+        where: { invoiceId },
+        _sum: { amount: true },
+      });
+      const alreadyPaid = Number(existing._sum.amount || 0);
+      if (alreadyPaid + amount > Number(currentInvoice.amount)) {
+        throw new AppError("Payment exceeds the outstanding invoice balance", 400);
+      }
 
-  if (
-    alreadyPaid + amount >
-    Number(invoice.amount)
-  ) {
-    throw new AppError(
-      "Payment exceeds the outstanding invoice balance",
-      400
-    );
+      const created = await tx.feePayment.create({
+        data: {
+          institutionId,
+          invoiceId,
+          amount,
+          reference: reference || null,
+          userId: actor.id,
+        },
+      });
+
+      const totalPaid = alreadyPaid + amount;
+      await tx.feeInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: totalPaid >= Number(currentInvoice.amount) ? "PAID" : "PARTIAL",
+        },
+      });
+
+      return created;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new AppError("Payment could not be recorded because the invoice changed; retry the request", 409);
+    }
+    throw error;
   }
-
-  const payment =
-    await prisma.feePayment.create({
-      data: {
-        institutionId,
-        invoiceId,
-        amount,
-        reference:
-          reference || null,
-        userId: actor.id,
-      },
-    });
-
-  const paid =
-    await prisma.feePayment.aggregate({
-      where: {
-        invoiceId,
-      },
-      _sum: {
-        amount: true,
-      },
-    });
-
-  await prisma.feeInvoice.update({
-    where: {
-      id: invoiceId,
-    },
-    data: {
-      status:
-        Number(paid._sum.amount || 0) >=
-        Number(invoice.amount)
-          ? "PAID"
-          : "PARTIAL",
-    },
-  });
 
   await recordAuditLog({
     institutionId,
