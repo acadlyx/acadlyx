@@ -1,4 +1,4 @@
--- M2: Student master and explicit semester enrollment
+-- Student master and explicit semester enrollment
 CREATE TABLE "student_profiles" (
   "id" TEXT NOT NULL,
   "institutionId" TEXT NOT NULL,
