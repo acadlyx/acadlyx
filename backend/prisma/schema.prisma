@@ -96,7 +96,7 @@ model User {
   auditLogs               AuditLog[]
   facultyCourseOfferings  CourseOffering[]       @relation("CourseOfferingFaculty")
   studentEnrollments      StudentEnrollment[]
-  studentProfile           StudentProfile?
+  profile                   StudentProfile?
   attendanceSessionsTaken AttendanceSession[]    @relation("AttendanceSessionFaculty")
   attendanceRecordsOwned  AttendanceRecord[]     @relation("AttendanceRecordStudent")
   assignmentsCreated      Assignment[]           @relation("AssignmentCreatedBy")
