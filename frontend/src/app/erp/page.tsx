@@ -796,11 +796,7 @@ notifications,
 feeStructures,
 documents,
 }: {
-workspace: Record<
-string,
-unknown
-
-| null;
+workspace: Record<string, unknown> | null;
 offerings: ErpOffering[];
 notifications: {
 unread: number;
@@ -2596,7 +2592,7 @@ onReadAll: () => void;
 }) {
 return (
 <Section
-title={Notifications · ${notifications.unread} unread}
+title={`Notifications · ${notifications.unread} unread`}
 >
 <div className="mb-4 flex gap-2">
 <button disabled={busy} onClick={onReadAll} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" >
