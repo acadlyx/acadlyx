@@ -8,6 +8,7 @@ import { AuthRequiredError, AuthUser, getCurrentUser, logout } from "@/lib/auth"
 
 const navigation = [
   ["Home", ""],
+  ["Operations", "/erp"],
   ["Insights", "/intelligence"],
   ["People", "/admin"],
   ["Academics", "/admin"],
