@@ -1,18 +1,12 @@
 import { prisma } from "../lib/prisma";
 
-/**
- * Dynamic attendance calculation — nothing here is stored; every
- * percentage is computed on read from real AttendanceRecord rows.
- * Shared by the student self-service views (this phase) and
- * whatever HOD/management rollups come later — the aggregation
- * logic lives in exactly one place.
- */
-
 export interface SubjectAttendance {
   courseOfferingId: string;
   courseCode: string;
   courseName: string;
   present: number;
+  late: number;
+  absent: number;
   total: number;
   percentage: number;
 }
@@ -21,6 +15,8 @@ export interface StudentAttendanceSummary {
   overallPercentage: number;
   totalSessions: number;
   totalPresent: number;
+  totalLate: number;
+  totalAbsent: number;
   subjects: SubjectAttendance[];
 }
 
@@ -31,7 +27,10 @@ export async function getStudentAttendanceSummary(
   const records = await prisma.attendanceRecord.findMany({
     where: {
       studentId,
-      attendanceSession: { institutionId },
+      attendanceSession: {
+        institutionId,
+        isSubmitted: true,
+      },
     },
     select: {
       status: true,
@@ -40,7 +39,12 @@ export async function getStudentAttendanceSummary(
           courseOffering: {
             select: {
               id: true,
-              course: { select: { code: true, name: true } },
+              course: {
+                select: {
+                  code: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -50,41 +54,66 @@ export async function getStudentAttendanceSummary(
 
   const bySubject = new Map<
     string,
-    { courseCode: string; courseName: string; present: number; total: number }
+    {
+      courseCode: string;
+      courseName: string;
+      present: number;
+      late: number;
+      absent: number;
+    }
   >();
 
-  for (const r of records) {
-    const offering = r.attendanceSession.courseOffering;
+  for (const record of records) {
+    const offering = record.attendanceSession.courseOffering;
     const entry = bySubject.get(offering.id) ?? {
       courseCode: offering.course.code,
       courseName: offering.course.name,
       present: 0,
-      total: 0,
+      late: 0,
+      absent: 0,
     };
-    entry.total += 1;
-    if (r.status === "PRESENT") entry.present += 1;
+
+    if (record.status === "PRESENT") entry.present += 1;
+    else if (record.status === "LATE") entry.late += 1;
+    else entry.absent += 1;
+
     bySubject.set(offering.id, entry);
   }
 
   const subjects: SubjectAttendance[] = Array.from(bySubject.entries()).map(
-    ([courseOfferingId, v]) => ({
-      courseOfferingId,
-      courseCode: v.courseCode,
-      courseName: v.courseName,
-      present: v.present,
-      total: v.total,
-      percentage: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0,
-    })
+    ([courseOfferingId, value]) => {
+      const total = value.present + value.late + value.absent;
+
+      return {
+        courseOfferingId,
+        courseCode: value.courseCode,
+        courseName: value.courseName,
+        present: value.present,
+        late: value.late,
+        absent: value.absent,
+        total,
+        // Late is not counted as fully present.
+        percentage: total > 0 ? Math.round((value.present / total) * 100) : 0,
+      };
+    }
   );
 
-  const totalPresent = subjects.reduce((sum, s) => sum + s.present, 0);
-  const totalSessions = subjects.reduce((sum, s) => sum + s.total, 0);
+  const totalPresent = subjects.reduce((sum, item) => sum + item.present, 0);
+  const totalLate = subjects.reduce((sum, item) => sum + item.late, 0);
+  const totalAbsent = subjects.reduce((sum, item) => sum + item.absent, 0);
+  const totalSessions = totalPresent + totalLate + totalAbsent;
 
   return {
     overallPercentage:
-      totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) : 0,
+      totalSessions > 0
+        ? Math.round((totalPresent / totalSessions) * 100)
+        : 0,
     totalSessions,
     totalPresent,
-    subjects: subjects.sort((a, b) => a.courseCode.localeCompare(b.courseCode)),
+    totalLate,
+    totalAbsent,
+    subjects: subjects.sort((a, b) =>
+      a.courseCode.localeCompare(b.courseCode)
+    ),
   };
 }
