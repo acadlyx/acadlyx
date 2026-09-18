@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import StudentManagement from "@/components/dashboard/StudentManagement";
+import CourseOfferingRoster from "@/components/dashboard/CourseOfferingRoster";
 import {
   AuthRequiredError,
   authedFetch,
@@ -343,6 +344,8 @@ export function AdminPortal() {
     password: "",
     role: "STUDENT",
   });
+
+  const [selectedOffering, setSelectedOffering] = useState<RecordItem | null>(null);
 
   const [
     lookups,
@@ -1524,9 +1527,18 @@ export function AdminPortal() {
                   onEdit={startEdit}
                   onDeactivate={deactivate}
                   allowDeactivate={activeModule !== "academic-years"}
+                  showRoster={activeModule === "course-offerings"}
+                  onRoster={setSelectedOffering}
                 />
               )}
             </div>
+          )}
+
+          {selectedOffering && activeModule === "course-offerings" && (
+            <CourseOfferingRoster
+              offering={selectedOffering}
+              onClose={() => setSelectedOffering(null)}
+            />
           )}
 
           {showUserCreate && (
@@ -2272,6 +2284,8 @@ function RecordTable({
   onEdit,
   onDeactivate,
   allowDeactivate,
+  showRoster,
+  onRoster,
 }: {
   records: RecordItem[];
   search: string;
@@ -2286,6 +2300,8 @@ function RecordTable({
     item: RecordItem
   ) => void;
   allowDeactivate: boolean;
+  showRoster?: boolean;
+  onRoster?: (item: RecordItem) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -2394,6 +2410,15 @@ function RecordTable({
 
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-2">
+                        {showRoster && onRoster && (
+                          <button
+                            onClick={() => onRoster(item)}
+                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Roster
+                          </button>
+                        )}
+
                         <button
                           onClick={() =>
                             onEdit(
