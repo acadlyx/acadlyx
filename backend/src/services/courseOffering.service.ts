@@ -243,8 +243,10 @@ export async function getRoster(
       user: {
         isActive: true,
         studentProfile: {
-          institutionId,
-          status: "ACTIVE",
+          is: {
+            institutionId,
+            status: "ACTIVE",
+          },
         },
       },
     },
@@ -315,37 +317,15 @@ export async function updateCourseOffering(
 ) {
   const existing = await getCourseOfferingById(institutionId, id);
 
-  const courseId = input.courseId ?? existing.course.id;
-  const semesterId = input.semesterId ?? existing.semester.id;
-  const sectionId = input.sectionId ?? existing.section.id;
-
   await assertOfferingAcademicIntegrity(
     institutionId,
-    courseId,
-    semesterId,
-    sectionId
+    existing.course.id,
+    existing.semester.id,
+    existing.section.id
   );
 
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
-  }
-
-  const duplicate = await prisma.courseOffering.findFirst({
-    where: {
-      institutionId,
-      courseId,
-      semesterId,
-      sectionId,
-      NOT: { id },
-    },
-    select: { id: true },
-  });
-
-  if (duplicate) {
-    throw new AppError(
-      "This course is already offered in this semester/section",
-      409
-    );
   }
 
   return prisma.courseOffering.update({
