@@ -6,15 +6,9 @@ import {
   loadCourseOfferingOrThrow,
 } from "../utils/courseOfferingAccess";
 import { PaginationParams } from "../utils/pagination";
+import { getCourseOfferingRosterIds } from "../utils/academicRoster";
 import { EnterMarksInput } from "../validators/internalMark.validators";
 
-async function getRosterIds(institutionId: string, sectionId: string) {
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: { institutionId, sectionId, status: "ACTIVE" },
-    select: { userId: true },
-  });
-  return new Set(enrollments.map((e) => e.userId));
-}
 
 /**
  * Bulk enter/update one graded component for however many students
@@ -30,7 +24,7 @@ export async function enterMarks(
   const offering = await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
   assertOwnsCourseOffering(user, offering.facultyId);
 
-  const rosterIds = await getRosterIds(institutionId, offering.sectionId);
+  const rosterIds = await getCourseOfferingRosterIds(institutionId, offering.id);
   const invalidStudents = input.records.filter((r) => !rosterIds.has(r.studentId));
   if (invalidStudents.length > 0) {
     throw new AppError(
