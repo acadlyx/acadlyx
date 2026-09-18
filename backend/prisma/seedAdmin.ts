@@ -1,26 +1,34 @@
 /**
- * Production-safe, idempotent RBAC/bootstrap repair.
+ * Production-safe, idempotent ACADLYX platform bootstrap.
  *
- * This script intentionally does NOT wrap the entire bootstrap in one
- * long-running interactive transaction.
- *
- * Why:
- * - Production databases may use pooled connections.
- * - Supabase transaction poolers can invalidate long-running interactive
- *   transactions.
- * - RBAC repair is naturally idempotent.
- * - Each permission/role operation can safely be committed independently.
+ * This script is intentionally LIMITED to the platform SUPER_ADMIN.
  *
  * Responsibilities:
  * - installs/repairs the complete permission catalog
- * - repairs SUPER_ADMIN permissions
- * - creates/repairs all standard institution roles
- * - creates/repairs the configured institution administrator
- * - repairs known demo-account role bindings when those accounts already exist
+ * - repairs the platform SUPER_ADMIN role
+ * - creates or repairs the configured SUPER_ADMIN account
+ * - ensures the SUPER_ADMIN is platform-level (institutionId = null)
  *
- * IMPORTANT:
- * institutions.manage is platform-only.
- * It is never granted to INSTITUTION_ADMIN or another institution role.
+ * It intentionally DOES NOT:
+ * - create an institution
+ * - create an INSTITUTION_ADMIN
+ * - create students
+ * - create faculty
+ * - create management/HOD/staff/student/parent demo users
+ * - create academic demo data
+ *
+ * Institution creation and Institution Admin creation are handled
+ * through the normal SUPER_ADMIN institution-management workflow.
+ *
+ * Required environment variables:
+ *
+ *   SUPER_ADMIN_EMAIL
+ *   SUPER_ADMIN_PASSWORD
+ *
+ * Optional:
+ *
+ *   SUPER_ADMIN_FIRST_NAME
+ *   SUPER_ADMIN_LAST_NAME
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -28,15 +36,14 @@ import { hashPassword } from "../src/utils/password";
 import {
   PERMISSIONS,
   ROLE_PERMISSIONS,
-  SYSTEM_ROLE_NAMES,
 } from "../src/config/rbac";
 
 const prisma = new PrismaClient();
 
 function required(
   name:
-    | "INITIAL_ADMIN_EMAIL"
-    | "INITIAL_ADMIN_PASSWORD"
+    | "SUPER_ADMIN_EMAIL"
+    | "SUPER_ADMIN_PASSWORD"
 ): string {
   const value = process.env[name]?.trim();
 
@@ -50,7 +57,11 @@ function required(
 /**
  * Repair the complete permission catalog.
  *
- * Deliberately runs outside a long interactive transaction.
+ * Each operation is committed independently rather than using
+ * one long-running interactive transaction.
+ *
+ * This is intentional for compatibility with pooled production
+ * database connections.
  */
 async function ensurePermissionCatalog(): Promise<
   Map<string, string>
@@ -87,10 +98,12 @@ async function ensurePermissionCatalog(): Promise<
 }
 
 /**
- * Synchronize a role's permissions.
+ * Synchronize one role's permission bindings.
  *
- * Existing permissions not belonging to the current RBAC matrix
- * are removed. Desired permissions are inserted idempotently.
+ * Any permissions not present in the current RBAC matrix
+ * are removed.
+ *
+ * Desired permissions are then inserted idempotently.
  */
 async function syncRolePermissions(
   roleId: string,
@@ -98,12 +111,17 @@ async function syncRolePermissions(
   permissionKeys: string[]
 ): Promise<void> {
   const desiredIds = permissionKeys
-    .map((key) => permissionIds.get(key))
+    .map((key) =>
+      permissionIds.get(key)
+    )
     .filter(
       (id): id is string =>
         Boolean(id)
     );
 
+  /*
+   * Remove stale permissions.
+   */
   await prisma.rolePermission.deleteMany({
     where: {
       roleId,
@@ -117,10 +135,16 @@ async function syncRolePermissions(
     },
   });
 
+  /*
+   * Nothing more to add.
+   */
   if (desiredIds.length === 0) {
     return;
   }
 
+  /*
+   * Add desired permissions.
+   */
   await prisma.rolePermission.createMany({
     data: desiredIds.map(
       (permissionId) => ({
@@ -133,50 +157,58 @@ async function syncRolePermissions(
 }
 
 /**
- * Create or repair a system role.
+ * Create or repair the platform SUPER_ADMIN role.
+ *
+ * Platform roles have institutionId = null.
  */
-async function ensureRole(
-  institutionId: string | null,
-  roleName: string,
+async function ensureSuperAdminRole(
   permissionIds: Map<string, string>
 ) {
   let role =
     await prisma.role.findFirst({
       where: {
-        institutionId,
-        name: roleName,
+        institutionId: null,
+        name: "SUPER_ADMIN",
       },
     });
 
   if (!role) {
     role = await prisma.role.create({
       data: {
-        institutionId,
-        name: roleName,
+        institutionId: null,
+        name: "SUPER_ADMIN",
         isSystem: true,
-        description: `${roleName.replace(
-          /_/g,
-          " "
-        )} role`,
+        description:
+          "Platform-level SUPER_ADMIN role",
       },
     });
-  } else if (!role.isSystem) {
-    role =
-      await prisma.role.update({
-        where: {
-          id: role.id,
-        },
-        data: {
-          isSystem: true,
-        },
-      });
+  } else {
+    /*
+     * Repair the role if it was previously created
+     * without the system flag.
+     */
+    if (!role.isSystem) {
+      role =
+        await prisma.role.update({
+          where: {
+            id: role.id,
+          },
+          data: {
+            isSystem: true,
+          },
+        });
+    }
   }
 
+  /*
+   * SUPER_ADMIN receives every permission in the
+   * current RBAC permission catalog.
+   */
   await syncRolePermissions(
     role.id,
     permissionIds,
     ROLE_PERMISSIONS[
-      roleName
+      "SUPER_ADMIN"
     ] ?? []
   );
 
@@ -184,40 +216,11 @@ async function ensureRole(
 }
 
 /**
- * Ensure all standard institution roles exist.
- */
-async function ensureInstitutionRoles(
-  institutionId: string,
-  permissionIds: Map<string, string>
-): Promise<Map<string, string>> {
-  const roles =
-    new Map<string, string>();
-
-  for (const roleName of SYSTEM_ROLE_NAMES) {
-    if (roleName === "SUPER_ADMIN") {
-      continue;
-    }
-
-    const role = await ensureRole(
-      institutionId,
-      roleName,
-      permissionIds
-    );
-
-    roles.set(
-      roleName,
-      role.id
-    );
-  }
-
-  return roles;
-}
-
-/**
- * Repair an existing user's role binding.
+ * Make a user have exactly one role.
  *
- * This intentionally removes all previous role bindings and assigns
- * exactly the requested system role.
+ * For the bootstrap account this guarantees that the
+ * configured account is actually SUPER_ADMIN and does
+ * not retain accidental institution-level role bindings.
  */
 async function setSingleRole(
   userId: string,
@@ -238,147 +241,23 @@ async function setSingleRole(
 }
 
 /**
- * Repair an existing demo account only.
+ * Create or repair the configured platform SUPER_ADMIN.
  *
- * Demo users are NOT created by this production bootstrap.
+ * IMPORTANT:
+ * - The account must remain platform-level.
+ * - An existing institution user with the same email
+ *   is never automatically moved to the platform.
+ * - Password is synchronized from SUPER_ADMIN_PASSWORD
+ *   so rotating the Render secret also rotates the
+ *   bootstrap password on the next deployment.
  */
-async function repairExistingDemoUser(
+async function ensureSuperAdmin(
   email: string,
-  institutionId: string,
+  password: string,
+  firstName: string,
+  lastName: string,
   roleId: string
 ): Promise<void> {
-  const user =
-    await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
-
-  if (!user) {
-    return;
-  }
-
-  if (
-    user.institutionId !==
-    institutionId
-  ) {
-    return;
-  }
-
-  await setSingleRole(
-    user.id,
-    roleId
-  );
-}
-
-/**
- * Main production bootstrap.
- */
-async function main() {
-  const email =
-    required(
-      "INITIAL_ADMIN_EMAIL"
-    ).toLowerCase();
-
-  const password =
-    required(
-      "INITIAL_ADMIN_PASSWORD"
-    );
-
-  const firstName =
-    process.env
-      .INITIAL_ADMIN_FIRST_NAME
-      ?.trim() ||
-    "Institution";
-
-  const lastName =
-    process.env
-      .INITIAL_ADMIN_LAST_NAME
-      ?.trim() ||
-    "Administrator";
-
-  console.log(
-    "Repairing ACADLYX RBAC and production bootstrap..."
-  );
-
-  /*
-   * 1. Permission catalog
-   *
-   * Each upsert is committed independently.
-   */
-  const permissionIds =
-    await ensurePermissionCatalog();
-
-  console.log(
-    `Permission catalog repaired: ${permissionIds.size} permissions.`
-  );
-
-  /*
-   * 2. Platform SUPER_ADMIN role
-   */
-  const superAdminRole =
-    await ensureRole(
-      null,
-      "SUPER_ADMIN",
-      permissionIds
-    );
-
-  console.log(
-    "SUPER_ADMIN role repaired."
-  );
-
-  /*
-   * 3. Ensure the bootstrap institution exists.
-   *
-   * This preserves the existing ACADLYX/AIMT bootstrap
-   * behavior used by the current production deployment.
-   */
-  const aimt =
-    await prisma.institution.upsert({
-      where: {
-        slug: "aimt",
-      },
-      update: {},
-      create: {
-        name: "Accurate Institute of Management & Technology",
-        slug: "aimt",
-        isActive: true,
-      },
-    });
-
-  console.log(
-    `Bootstrap institution ready: ${aimt.name}`
-  );
-
-  /*
-   * 4. Repair all institution system roles.
-   */
-  const roles =
-    await ensureInstitutionRoles(
-      aimt.id,
-      permissionIds
-    );
-
-  console.log(
-    `Institution roles repaired: ${Array.from(
-      roles.keys()
-    ).join(", ")}`
-  );
-
-  /*
-   * 5. Initial institution administrator.
-   */
-  const adminRoleId =
-    roles.get(
-      "INSTITUTION_ADMIN"
-    );
-
-  if (!adminRoleId) {
-    throw new Error(
-      "INSTITUTION_ADMIN role could not be initialized."
-    );
-  }
-
   const existing =
     await prisma.user.findUnique({
       where: {
@@ -388,133 +267,149 @@ async function main() {
 
   if (
     existing &&
-    existing.institutionId !==
-      aimt.id
+    existing.institutionId !== null
   ) {
     throw new Error(
-      "Initial admin email already belongs to a different institution and will not be moved automatically."
+      `SUPER_ADMIN_EMAIL "${email}" already belongs to an institution user. ` +
+        "The production bootstrap will not move an institution user into the platform. " +
+        "Use a dedicated platform Super Admin email."
     );
   }
+
+  const passwordHash =
+    await hashPassword(password);
 
   let user;
 
   if (existing) {
+    /*
+     * Existing platform account:
+     * - repair name
+     * - ensure active
+     * - synchronize password
+     * - preserve platform institutionId = null
+     */
     user =
       await prisma.user.update({
         where: {
           id: existing.id,
         },
         data: {
+          institutionId: null,
+          passwordHash,
           firstName,
           lastName,
           isActive: true,
         },
       });
   } else {
+    /*
+     * First-time platform Super Admin.
+     */
     user =
       await prisma.user.create({
         data: {
+          institutionId: null,
           email,
-          passwordHash:
-            await hashPassword(
-              password
-            ),
+          passwordHash,
           firstName,
           lastName,
-          institutionId:
-            aimt.id,
           isActive: true,
         },
       });
   }
 
   /*
-   * The configured bootstrap account must be exactly
-   * INSTITUTION_ADMIN.
+   * The bootstrap account must have exactly
+   * the platform SUPER_ADMIN role.
    */
   await setSingleRole(
     user.id,
-    adminRoleId
+    roleId
   );
 
   console.log(
-    `Initial institution admin ready: ${email}`
+    `Platform SUPER_ADMIN ready: ${email}`
+  );
+}
+
+/**
+ * Main production bootstrap.
+ */
+async function main() {
+  const email =
+    required(
+      "SUPER_ADMIN_EMAIL"
+    ).toLowerCase();
+
+  const password =
+    required(
+      "SUPER_ADMIN_PASSWORD"
+    );
+
+  const firstName =
+    process.env
+      .SUPER_ADMIN_FIRST_NAME
+      ?.trim() ||
+    "Platform";
+
+  const lastName =
+    process.env
+      .SUPER_ADMIN_LAST_NAME
+      ?.trim() ||
+    "Administrator";
+
+  console.log(
+    "Starting ACADLYX production SUPER_ADMIN bootstrap..."
   );
 
   /*
-   * 6. Repair existing demo users.
+   * 1. Repair permission catalog.
+   */
+  const permissionIds =
+    await ensurePermissionCatalog();
+
+  console.log(
+    `Permission catalog repaired: ${permissionIds.size} permissions.`
+  );
+
+  /*
+   * 2. Repair platform SUPER_ADMIN role.
+   */
+  const superAdminRole =
+    await ensureSuperAdminRole(
+      permissionIds
+    );
+
+  console.log(
+    "Platform SUPER_ADMIN role repaired."
+  );
+
+  /*
+   * 3. Create or repair the configured
+   *    platform SUPER_ADMIN account.
+   */
+  await ensureSuperAdmin(
+    email,
+    password,
+    firstName,
+    lastName,
+    superAdminRole.id
+  );
+
+  /*
+   * 4. Explicitly confirm that no institution bootstrap
+   *    is performed by this script.
    *
-   * These accounts are NOT created here.
+   * Institutions and their administrators are created
+   * through the platform administration workflow.
    */
-  const demoAccounts = [
-    [
-      "management@aimt.acadlyx.com",
-      "MANAGEMENT",
-    ],
-    [
-      "hod@aimt.acadlyx.com",
-      "HOD",
-    ],
-    [
-      "faculty@aimt.acadlyx.com",
-      "FACULTY",
-    ],
-    [
-      "student@aimt.acadlyx.com",
-      "STUDENT",
-    ],
-    [
-      "parent@aimt.acadlyx.com",
-      "PARENT",
-    ],
-  ] as const;
-
-  for (const [
-    demoEmail,
-    roleName,
-  ] of demoAccounts) {
-    const roleId =
-      roles.get(roleName);
-
-    if (!roleId) {
-      continue;
-    }
-
-    await repairExistingDemoUser(
-      demoEmail,
-      aimt.id,
-      roleId
-    );
-  }
-
-  /*
-   * 7. Repair existing platform demo account.
-   */
-  const platformDemo =
-    await prisma.user.findUnique({
-      where: {
-        email:
-          "superadmin@acadlyx.com",
-      },
-    });
-
-  if (
-    platformDemo &&
-    platformDemo.institutionId ===
-      null
-  ) {
-    await setSingleRole(
-      platformDemo.id,
-      superAdminRole.id
-    );
-
-    console.log(
-      "Platform demo SUPER_ADMIN role repaired."
-    );
-  }
+  console.log(
+    "No institution or INSTITUTION_ADMIN was created by this bootstrap."
+  );
 
   console.log(
-    "ACADLYX RBAC and production bootstrap completed successfully."
+    "ACADLYX production SUPER_ADMIN bootstrap completed successfully."
   );
 }
 
