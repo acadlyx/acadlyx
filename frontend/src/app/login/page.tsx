@@ -54,7 +54,7 @@ function getDashboardRoute(roles: string[]): string {
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("student@aimt.acadlyx.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -87,12 +87,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-3">
-            <Image src="/branding/aimt-logo.png" alt="AIMT" width={56} height={56} className="h-14 w-14 object-contain" priority />
-            <div className="h-10 w-px bg-slate-200" />
             <Image src="/branding/acadlyx-logo.png" alt="ACADLYX" width={48} height={48} className="h-12 w-12 rounded-xl object-contain" priority />
           </div>
 
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">AIMT × ACADLYX</h1>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">Welcome to ACADLYX</h1>
 
           <p className="mt-1 text-sm text-slate-500">
             Education ERP & Institutional Intelligence

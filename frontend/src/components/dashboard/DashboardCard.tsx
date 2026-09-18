@@ -20,7 +20,7 @@ export function DashboardCard({
 }: DashboardCardProps) {
   return (
     <div
-      className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${className}`}
+      className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${className}`}
     >
       {(title || action) && (
         <div className="mb-4 flex items-center justify-between">
