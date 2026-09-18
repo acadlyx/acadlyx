@@ -13,6 +13,7 @@ type Lookup = {
   semesterId?: string;
   capacity?: number | null;
   isActive?: boolean;
+  isCurrent?: boolean;
 };
 
 type Student = {
