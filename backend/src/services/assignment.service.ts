@@ -202,10 +202,11 @@ export async function submitAssignment(
     throw new AppError("This assignment is not open for submission", 400);
   }
 
-  const sectionIds = await getStudentSectionIds(institutionId, user.id);
-  if (!sectionIds.includes(assignment.courseOffering.sectionId)) {
-    throw new AppError("You are not enrolled in this assignment's section", 403);
-  }
+  await assertStudentEnrolledInCourseOffering(
+    institutionId,
+    user.id,
+    assignment.courseOfferingId
+  );
 
   const isLate = new Date() > assignment.dueDate;
 
