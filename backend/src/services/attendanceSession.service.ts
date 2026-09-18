@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
+import { getCourseOfferingRoster, getCourseOfferingRosterIds } from "../utils/academicRoster";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -51,20 +52,8 @@ async function loadCourseOfferingForInstitution(
   return offering;
 }
 
-async function getRoster(institutionId: string, sectionId: string) {
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: { institutionId, sectionId, status: "ACTIVE" },
-    include: {
-      user: { select: { id: true, firstName: true, lastName: true } },
-    },
-    orderBy: { user: { firstName: "asc" } },
-  });
-  return enrollments.map((e) => ({
-    studentId: e.userId,
-    firstName: e.user.firstName,
-    lastName: e.user.lastName,
-    rollNumber: e.rollNumber,
-  }));
+async function getRoster(institutionId: string, courseOfferingId: string) {
+  return getCourseOfferingRoster(institutionId, courseOfferingId);
 }
 
 const sessionInclude = {
@@ -88,7 +77,7 @@ type SessionWithIncludes = Prisma.AttendanceSessionGetPayload<{
 /** Combines a session's saved records with the full section roster,
  *  so students with no record yet still appear (status: null). */
 async function withRoster(institutionId: string, session: SessionWithIncludes) {
-  const roster = await getRoster(institutionId, session.courseOffering.section.id);
+  const roster = await getRoster(institutionId, session.courseOfferingId);
   const recordByStudent = new Map<string, string>(
     session.records.map((r) => [r.studentId, r.status])
   );
