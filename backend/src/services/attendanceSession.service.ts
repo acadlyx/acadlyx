@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
-import { getCourseOfferingRoster, getCourseOfferingRosterIds } from "../utils/academicRoster";
+import { getCourseOfferingRoster } from "../utils/academicRoster";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
