@@ -17,32 +17,129 @@ export interface ListFilters extends PaginationParams {
   isActive?: boolean;
 }
 
-async function assertCourseInInstitution(institutionId: string, courseId: string) {
+async function loadCourseForInstitution(institutionId: string, courseId: string) {
   const course = await prisma.course.findFirst({
     where: { id: courseId, institutionId },
+    select: {
+      id: true,
+      departmentId: true,
+      isActive: true,
+    },
   });
+
   if (!course) {
     throw new AppError("courseId does not belong to this institution", 400);
   }
+
+  if (!course.isActive) {
+    throw new AppError("Cannot create an offering for an inactive course", 400);
+  }
+
+  return course;
 }
 
-async function assertSectionMatchesSemester(
+async function loadSemesterForInstitution(
   institutionId: string,
-  sectionId: string,
   semesterId: string
+) {
+  const semester = await prisma.semester.findFirst({
+    where: { id: semesterId, institutionId },
+    select: {
+      id: true,
+      programId: true,
+      academicYearId: true,
+      isActive: true,
+      program: { select: { departmentId: true, isActive: true } },
+      academicYear: { select: { isCurrent: true } },
+    },
+  });
+
+  if (!semester) {
+    throw new AppError("semesterId does not belong to this institution", 400);
+  }
+
+  if (!semester.isActive) {
+    throw new AppError("Cannot create an offering for an inactive semester", 400);
+  }
+
+  if (!semester.program.isActive) {
+    throw new AppError("Cannot create an offering for an inactive program", 400);
+  }
+
+  return semester;
+}
+
+async function loadSectionForInstitution(
+  institutionId: string,
+  sectionId: string
 ) {
   const section = await prisma.section.findFirst({
     where: { id: sectionId, institutionId },
+    select: {
+      id: true,
+      semesterId: true,
+      isActive: true,
+      semester: {
+        select: {
+          programId: true,
+          academicYearId: true,
+        },
+      },
+    },
   });
+
   if (!section) {
     throw new AppError("sectionId does not belong to this institution", 400);
   }
-  if (section.semesterId !== semesterId) {
+
+  if (!section.isActive) {
+    throw new AppError("Cannot create an offering for an inactive section", 400);
+  }
+
+  return section;
+}
+
+async function assertOfferingAcademicIntegrity(
+  institutionId: string,
+  courseId: string,
+  semesterId: string,
+  sectionId: string
+) {
+  const [course, semester, section] = await Promise.all([
+    loadCourseForInstitution(institutionId, courseId),
+    loadSemesterForInstitution(institutionId, semesterId),
+    loadSectionForInstitution(institutionId, sectionId),
+  ]);
+
+  if (section.semesterId !== semester.id) {
     throw new AppError(
       "sectionId does not belong to the specified semesterId",
       400
     );
   }
+
+  if (section.semester.programId !== semester.programId) {
+    throw new AppError(
+      "sectionId belongs to a different program than the specified semester",
+      400
+    );
+  }
+
+  if (section.semester.academicYearId !== semester.academicYearId) {
+    throw new AppError(
+      "sectionId belongs to a different academic year than the specified semester",
+      400
+    );
+  }
+
+  if (course.departmentId !== semester.program.departmentId) {
+    throw new AppError(
+      "course department does not match the semester's program department",
+      400
+    );
+  }
+
+  return { course, semester, section };
 }
 
 /** Faculty must be an active user of this institution holding the FACULTY role. */
@@ -153,11 +250,11 @@ export async function createCourseOffering(
   institutionId: string,
   input: CreateCourseOfferingInput
 ) {
-  await assertCourseInInstitution(institutionId, input.courseId);
-  await assertSectionMatchesSemester(
+  await assertOfferingAcademicIntegrity(
     institutionId,
-    input.sectionId,
-    input.semesterId
+    input.courseId,
+    input.semesterId,
+    input.sectionId
   );
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
