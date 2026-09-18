@@ -7,6 +7,7 @@ import {
   loadCourseOfferingOrThrow,
 } from "../utils/courseOfferingAccess";
 import { PaginationParams } from "../utils/pagination";
+import { getCourseOfferingRoster, getStudentCourseOfferingIds, assertStudentEnrolledInCourseOffering } from "../utils/academicRoster";
 import {
   CreateAssignmentInput,
   ReviewSubmissionInput,
@@ -27,20 +28,6 @@ const assignmentInclude = {
     },
   },
 } satisfies Prisma.AssignmentInclude;
-
-/** The section ids a student is currently (ACTIVE) enrolled in. */
-async function getStudentSectionIds(
-  institutionId: string,
-  studentId: string
-): Promise<string[]> {
-  const enrollments = await prisma.studentEnrollment.findMany({
-    where: { institutionId, userId: studentId, status: "ACTIVE", sectionId: { not: null } },
-    select: { sectionId: true },
-  });
-  return enrollments
-    .map((e) => e.sectionId)
-    .filter((id): id is string => id !== null);
-}
 
 export interface ListFilters extends PaginationParams {
   search?: string;
@@ -74,11 +61,14 @@ export async function listAssignments(
   } else if (isFaculty(user)) {
     where = { ...where, courseOffering: { facultyId: user.id } };
   } else {
-    const sectionIds = await getStudentSectionIds(institutionId, user.id);
+    const enrolledOfferingIds = await getStudentCourseOfferingIds(
+      institutionId,
+      user.id
+    );
     where = {
       ...where,
       status: "PUBLISHED",
-      courseOffering: { sectionId: { in: sectionIds } },
+      courseOfferingId: { in: enrolledOfferingIds },
     };
   }
 
@@ -121,13 +111,15 @@ export async function getAssignmentById(
   }
 
   // Student/parent: only if published and enrolled in that section.
-  const sectionIds = await getStudentSectionIds(institutionId, user.id);
-  if (
-    assignment.status !== "PUBLISHED" ||
-    !sectionIds.includes(assignment.courseOffering.sectionId)
-  ) {
+  if (assignment.status !== "PUBLISHED") {
     throw new AppError("Assignment not found", 404);
   }
+
+  await assertStudentEnrolledInCourseOffering(
+    institutionId,
+    user.id,
+    assignment.courseOfferingId
+  );
 
   const mySubmission = await prisma.assignmentSubmission.findUnique({
     where: { assignmentId_studentId: { assignmentId: id, studentId: user.id } },
@@ -180,27 +172,19 @@ export async function getSubmissionsForAssignment(
   assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
 
   const [roster, submissions] = await Promise.all([
-    prisma.studentEnrollment.findMany({
-      where: {
-        institutionId,
-        sectionId: assignment.courseOffering.sectionId,
-        status: "ACTIVE",
-      },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
-      orderBy: { user: { firstName: "asc" } },
-    }),
+    getCourseOfferingRoster(institutionId, assignment.courseOfferingId),
     prisma.assignmentSubmission.findMany({ where: { assignmentId } }),
   ]);
 
   const byStudent = new Map(submissions.map((s) => [s.studentId, s]));
 
-  return roster.map((enrollment) => {
-    const submission = byStudent.get(enrollment.userId) ?? null;
+  return roster.map((student) => {
+    const submission = byStudent.get(student.studentId) ?? null;
     return {
-      studentId: enrollment.userId,
-      firstName: enrollment.user.firstName,
-      lastName: enrollment.user.lastName,
-      rollNumber: enrollment.rollNumber,
+      studentId: student.studentId,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      rollNumber: student.rollNumber,
       submission,
     };
   });
@@ -289,14 +273,17 @@ export async function getMyUpcomingAssignments(
   studentId: string,
   limit = 5
 ) {
-  const sectionIds = await getStudentSectionIds(institutionId, studentId);
-  if (sectionIds.length === 0) return [];
+  const enrolledOfferingIds = await getStudentCourseOfferingIds(
+    institutionId,
+    studentId
+  );
+  if (enrolledOfferingIds.length === 0) return [];
 
   const assignments = await prisma.assignment.findMany({
     where: {
       institutionId,
       status: "PUBLISHED",
-      courseOffering: { sectionId: { in: sectionIds } },
+      courseOfferingId: { in: enrolledOfferingIds },
     },
     include: assignmentInclude,
     orderBy: { dueDate: "asc" },
@@ -322,14 +309,17 @@ export async function getMySubmissionCompletionPercent(
   institutionId: string,
   studentId: string
 ): Promise<number> {
-  const sectionIds = await getStudentSectionIds(institutionId, studentId);
-  if (sectionIds.length === 0) return 0;
+  const enrolledOfferingIds = await getStudentCourseOfferingIds(
+    institutionId,
+    studentId
+  );
+  if (enrolledOfferingIds.length === 0) return 0;
 
   const assignments = await prisma.assignment.findMany({
     where: {
       institutionId,
       status: "PUBLISHED",
-      courseOffering: { sectionId: { in: sectionIds } },
+      courseOfferingId: { in: enrolledOfferingIds },
     },
     select: { id: true },
   });
