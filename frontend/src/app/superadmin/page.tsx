@@ -414,33 +414,54 @@ export default function SuperAdminPage() {
     }
   }
 
-  async function toggleUser(user: PlatformUser) {
-    setError(null);
-    setMessage(null);
+async function toggleUser(user: PlatformUser) {
+  setError(null);
+  setMessage(null);
 
-    try {
-      await authedFetch(`/users/${user.id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          isActive: !user.isActive,
-        }),
-      });
+  /*
+   * SUPER_ADMIN must never be able to deactivate their own
+   * currently authenticated account. The backend enforces
+   * this too, but the UI should not issue a request that it
+   * already knows will be rejected.
+   */
+  try {
+    const currentUser = await getCurrentUser();
 
-      setMessage(
-        `${user.firstName} ${user.lastName} is now ${
-          user.isActive ? "inactive" : "active"
-        }.`
-      );
-
-      await loadAll();
-    } catch (err) {
+    if (currentUser.id === user.id) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to update user."
+        "You cannot deactivate or change the status of your own account."
       );
+      return;
     }
+
+    await authedFetch(`/users/${user.id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        isActive: !user.isActive,
+      }),
+    });
+
+    setMessage(
+      `${user.firstName} ${user.lastName} is now ${
+        user.isActive ? "inactive" : "active"
+      }.`
+    );
+
+    await loadAll();
+  } catch (err) {
+    if (err instanceof AuthRequiredError) {
+      clearTokens();
+      router.replace("/login");
+      return;
+    }
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Unable to update user."
+    );
   }
+}
 
   async function handleLogout() {
     clearTokens();
