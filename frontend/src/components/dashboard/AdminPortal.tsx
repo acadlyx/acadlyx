@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import StudentManagement from "@/components/dashboard/StudentManagement";
 import {
   AuthRequiredError,
   authedFetch,
@@ -438,6 +439,7 @@ export function AdminPortal() {
     if (
       activeModule !==
         "overview" &&
+      activeModule !== "students" &&
       currentModule.endpoint
     ) {
       void loadModule();
@@ -1336,8 +1338,8 @@ export function AdminPortal() {
                   [
                     loadOverview(),
                     loadLookups(),
-                    activeModule !==
-                    "overview"
+                    activeModule !== "overview" &&
+                    activeModule !== "students"
                       ? loadModule()
                       : Promise.resolve(),
                   ]
@@ -1480,13 +1482,7 @@ export function AdminPortal() {
                       </button>
                     )}
 
-                  {[
-                    "users",
-                    "students",
-                    "faculty",
-                  ].includes(
-                    activeModule
-                  ) && (
+                  {["users", "faculty"].includes(activeModule) && (
                     <button
                       onClick={() => {
                         clearMessages();
@@ -1502,50 +1498,32 @@ export function AdminPortal() {
                 </div>
               </div>
 
-              {[
-                "users",
-                "students",
-                "faculty",
-              ].includes(
-                activeModule
-              ) ? (
+              {activeModule === "students" ? (
+                <StudentManagement
+                  onChanged={async () => {
+                    await Promise.all([
+                      loadOverview(),
+                      loadLookups(),
+                    ]);
+                  }}
+                />
+              ) : ["users", "faculty"].includes(activeModule) ? (
                 <UserTable
-                  users={
-                    filteredUsers
-                  }
+                  users={filteredUsers}
                   search={search}
-                  setSearch={
-                    setSearch
-                  }
-                  loading={
-                    loading
-                  }
-                  onToggle={
-                    toggleUser
-                  }
+                  setSearch={setSearch}
+                  loading={loading}
+                  onToggle={toggleUser}
                 />
               ) : (
                 <RecordTable
-                  records={
-                    filteredRecords
-                  }
+                  records={filteredRecords}
                   search={search}
-                  setSearch={
-                    setSearch
-                  }
-                  loading={
-                    loading
-                  }
-                  onEdit={
-                    startEdit
-                  }
-                  onDeactivate={
-                    deactivate
-                  }
-                  allowDeactivate={
-                    activeModule !==
-                    "academic-years"
-                  }
+                  setSearch={setSearch}
+                  loading={loading}
+                  onEdit={startEdit}
+                  onDeactivate={deactivate}
+                  allowDeactivate={activeModule !== "academic-years"}
                 />
               )}
             </div>
