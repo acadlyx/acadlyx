@@ -233,9 +233,36 @@ export async function getRoster(
   assertOwnsCourseOffering(user, offering.facultyId);
 
   const enrollments = await prisma.studentEnrollment.findMany({
-    where: { institutionId, sectionId: offering.sectionId, status: "ACTIVE" },
-    include: { user: { select: { id: true, firstName: true, lastName: true } } },
-    orderBy: { user: { firstName: "asc" } },
+    where: {
+      institutionId,
+      programId: offering.semester.program.id,
+      academicYearId: offering.semester.academicYear.id,
+      semesterId: offering.semester.id,
+      sectionId: offering.sectionId,
+      status: "ACTIVE",
+      user: {
+        isActive: true,
+        studentProfile: {
+          institutionId,
+          status: "ACTIVE",
+        },
+      },
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          studentProfile: {
+            select: {
+              admissionNumber: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ user: { firstName: "asc" } }, { user: { lastName: "asc" } }],
   });
 
   return enrollments.map((e) => ({
@@ -243,6 +270,7 @@ export async function getRoster(
     firstName: e.user.firstName,
     lastName: e.user.lastName,
     rollNumber: e.rollNumber,
+    admissionNumber: e.user.studentProfile?.admissionNumber ?? null,
   }));
 }
 
@@ -285,10 +313,39 @@ export async function updateCourseOffering(
   id: string,
   input: UpdateCourseOfferingInput
 ) {
-  await getCourseOfferingById(institutionId, id);
+  const existing = await getCourseOfferingById(institutionId, id);
+
+  const courseId = input.courseId ?? existing.course.id;
+  const semesterId = input.semesterId ?? existing.semester.id;
+  const sectionId = input.sectionId ?? existing.section.id;
+
+  await assertOfferingAcademicIntegrity(
+    institutionId,
+    courseId,
+    semesterId,
+    sectionId
+  );
 
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
+  }
+
+  const duplicate = await prisma.courseOffering.findFirst({
+    where: {
+      institutionId,
+      courseId,
+      semesterId,
+      sectionId,
+      NOT: { id },
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    throw new AppError(
+      "This course is already offered in this semester/section",
+      409
+    );
   }
 
   return prisma.courseOffering.update({
