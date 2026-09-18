@@ -135,6 +135,72 @@ export default function FacultyDashboardPage() {
         </div>
 
         <div className="mt-8">
+          <SectionHeader
+            title="My Classes"
+            subtitle="Your assigned course offerings"
+          />
+          {data.assignedCourseOfferings.length === 0 ? (
+            <DashboardCard>
+              <div className="py-6 text-center">
+                <p className="text-sm font-medium text-slate-700">No classes assigned</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Your institution administrator or HOD needs to assign you to a course offering.
+                </p>
+              </div>
+            </DashboardCard>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {data.assignedCourseOfferings.map((offering) => (
+                <DashboardCard key={offering.id}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {offering.course.code}
+                      </p>
+                      <h2 className="mt-1 truncate text-base font-semibold text-slate-900">
+                        {offering.course.name}
+                      </h2>
+                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                        <p>
+                          Section {offering.section.name} · Semester {offering.semester.number}
+                        </p>
+                        <p>
+                          {offering.semester.program.code} · {offering.semester.academicYear.name}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                      {offering.semester.academicYear.isCurrent ? "Current" : "Assigned"}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/faculty/attendance/${offering.id}`}
+                      className="rounded-lg border border-slate-200 px-2 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Attendance
+                    </Link>
+                    <Link
+                      href={`/faculty/marks/${offering.id}`}
+                      className="rounded-lg border border-slate-200 px-2 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Marks
+                    </Link>
+                    <Link
+                      href={`/faculty/assignments?courseOfferingId=${offering.id}`}
+                      className="rounded-lg border border-slate-200 px-2 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Assignments
+                    </Link>
+                  </div>
+                </DashboardCard>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8">
           <SectionHeader title="At-Risk Students" subtitle="Below 75% attendance across your sections" />
           <DashboardCard>
             <AnnouncementList
