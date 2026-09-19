@@ -127,8 +127,7 @@ export async function updateCourse(
   if (input.isActive === true) {
     await assertDepartmentInInstitution(
       institutionId,
-      input.departmentId ?? current.departmentId,
-      true
+      input.departmentId ?? current.departmentId
     );
   }
 
