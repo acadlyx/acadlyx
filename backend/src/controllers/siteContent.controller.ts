@@ -6,6 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 import { env } from "../config/env";
 import { AppError } from "../middleware/errorHandler";
+import { assertSafeImageUpload } from "../utils/imageUpload";
 
 export const publicContent = asyncHandler(async (req: Request, res) => {
   const institutionId = typeof req.query.institutionId === "string" ? req.query.institutionId : undefined;
@@ -19,6 +20,7 @@ export const update = asyncHandler(async (req, res) => { res.json({ success: tru
 export const upload = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user?.roles.some((r) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "CMS"].includes(r))) throw new AppError("You are not allowed to upload website media", 403);
   if (!req.file) throw new AppError("Image file is required", 400);
+  assertSafeImageUpload(req.file);
   if (!env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) throw new AppError("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.", 503);
   cloudinary.config({ cloud_name: env.cloudinaryCloudName, api_key: env.cloudinaryApiKey, api_secret: env.cloudinaryApiSecret });
   const result = await new Promise<any>((resolve, reject) => { const stream = cloudinary.uploader.upload_stream({ folder: "acadlyx/site" }, (error, value) => error ? reject(error) : resolve(value)); stream.end(req.file!.buffer); });

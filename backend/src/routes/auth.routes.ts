@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as authController from "../controllers/auth.controller";
 import { authenticate } from "../middleware/authenticate";
+import { loginRateLimit, tokenRateLimit } from "../middleware/rateLimit";
 import { validateBody } from "../middleware/validate";
 import {
   loginSchema,
@@ -12,8 +13,8 @@ import {
 
 const router = Router();
 
-router.post("/login", validateBody(loginSchema), authController.login);
-router.post("/refresh", validateBody(refreshSchema), authController.refresh);
+router.post("/login", loginRateLimit, validateBody(loginSchema), authController.login);
+router.post("/refresh", tokenRateLimit, validateBody(refreshSchema), authController.refresh);
 router.post("/logout", validateBody(logoutSchema), authController.logout);
 router.get("/recovery-institutions", authController.recoveryInstitutions);
 router.get("/me", authenticate, authController.me);

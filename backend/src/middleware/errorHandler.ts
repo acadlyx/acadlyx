@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { MulterError } from "multer";
 import { isProduction } from "../config/env";
 import { logger } from "../utils/logger";
 
@@ -30,8 +31,22 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
-  const message = err instanceof AppError ? err.message : "Internal server error";
+  const statusCode =
+    err instanceof AppError
+      ? err.statusCode
+      : err instanceof MulterError && err.code === "LIMIT_FILE_SIZE"
+        ? 413
+        : err instanceof MulterError
+          ? 400
+          : 500;
+  const message =
+    err instanceof AppError
+      ? err.message
+      : err instanceof MulterError && err.code === "LIMIT_FILE_SIZE"
+        ? "Uploaded file exceeds the permitted size"
+        : err instanceof MulterError
+          ? "Invalid file upload"
+          : "Internal server error";
 
   logger.error(`${req.method} ${req.originalUrl} -> ${statusCode}`, {
     requestId: res.locals.requestId,

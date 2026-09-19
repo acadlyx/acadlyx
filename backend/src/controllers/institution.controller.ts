@@ -10,6 +10,7 @@ import {
 } from "../validators/institution.validators";
 import * as entitlementService from "../services/entitlement.service";
 import { env } from "../config/env";
+import { assertSafeImageUpload } from "../utils/imageUpload";
 
 function requireSuperAdmin(req: Request): void {
   if (!req.user?.roles.includes("SUPER_ADMIN")) {
@@ -133,7 +134,7 @@ export const updateEntitlements = asyncHandler(async (req: Request, res: Respons
 export const uploadLogo = asyncHandler(async (req: Request, res: Response) => {
   requireSuperAdmin(req);
   if (!req.file) throw new AppError("Logo image is required", 400);
-  if (!req.file.mimetype.startsWith("image/")) throw new AppError("Logo must be an image", 400);
+  assertSafeImageUpload(req.file);
   if (!env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) {
     throw new AppError("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.", 503);
   }
