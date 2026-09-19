@@ -95,6 +95,7 @@ async function assertNumberAvailable(
 ) {
   const existing = await prisma.semester.findFirst({
     where: {
+      institutionId,
       programId,
       academicYearId,
       number,
@@ -116,6 +117,7 @@ export async function createSemester(
   await assertProgramInInstitution(institutionId, input.programId);
   await assertAcademicYearInInstitution(institutionId, input.academicYearId);
   await assertNumberAvailable(
+    institutionId,
     input.programId,
     input.academicYearId,
     input.number
@@ -136,6 +138,7 @@ export async function updateSemester(
 
   if (input.number !== undefined) {
     await assertNumberAvailable(
+      institutionId,
       current.programId,
       current.academicYearId,
       input.number,
