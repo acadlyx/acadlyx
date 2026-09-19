@@ -54,9 +54,12 @@ type ListResponse<T> = {
 
 type UserListResponse = {
   success?: boolean;
-  data?: {
-    items: User[];
-    total: number;
+  data?: User[];
+  meta?: {
+    total?: number;
+    page?: number;
+    pageSize?: number;
+    totalPages?: number;
   };
 };
 
@@ -327,6 +330,21 @@ export function AdminPortal() {
   ] = useState(false);
 
   const [
+    editingUser,
+    setEditingUser,
+  ] = useState<User | null>(null);
+
+  const [
+    userEditForm,
+    setUserEditForm,
+  ] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    role: "",
+  });
+
+  const [
     form,
     setForm,
   ] =
@@ -467,6 +485,8 @@ export function AdminPortal() {
         courseResponse,
         sectionResponse,
         offeringResponse,
+        studentCountResponse,
+        facultyCountResponse,
       ] = await Promise.all([
         authedFetch<UserListResponse>(
           "/users?page=1&pageSize=100"
@@ -511,10 +531,16 @@ export function AdminPortal() {
         >(
           "/course-offerings?page=1&pageSize=100"
         ),
+        authedFetch<UserListResponse>(
+          "/users?role=STUDENT&page=1&pageSize=1"
+        ),
+        authedFetch<UserListResponse>(
+          "/users?role=FACULTY&page=1&pageSize=1"
+        ),
       ]);
 
       const loadedUsers =
-        userResponse.data?.items ||
+        userResponse.data ||
         [];
 
       const campuses =
@@ -563,29 +589,16 @@ export function AdminPortal() {
 
       setStats({
         users:
-          userResponse.data
-            ?.total ||
+          userResponse.meta?.total ??
           loadedUsers.length,
 
         students:
-          loadedUsers.filter(
-            (item) =>
-              item.roles?.some(
-                (role) =>
-                  role.name ===
-                  "STUDENT"
-              )
-          ).length,
+          studentCountResponse.meta?.total ??
+          0,
 
         faculty:
-          loadedUsers.filter(
-            (item) =>
-              item.roles?.some(
-                (role) =>
-                  role.name ===
-                  "FACULTY"
-              )
-          ).length,
+          facultyCountResponse.meta?.total ??
+          0,
 
         campuses:
           campuses.length,
@@ -707,8 +720,7 @@ export function AdminPortal() {
           ),
 
         faculty:
-          facultyResponse.data
-            ?.items || [],
+          facultyResponse.data || [],
       });
     } catch (err) {
       handleError(err);
@@ -743,7 +755,7 @@ export function AdminPortal() {
           );
 
         setUsers(
-          response.data?.items ||
+          response.data ||
             []
         );
 
@@ -810,6 +822,7 @@ export function AdminPortal() {
     setEditing(null);
     setShowCreate(false);
     setShowUserCreate(false);
+    setEditingUser(null);
     setForm({});
     setSearch("");
     setActiveModule(key);
@@ -1219,6 +1232,50 @@ export function AdminPortal() {
     }
   }
 
+  function startEditUser(item: User) {
+    clearMessages();
+    setEditingUser(item);
+    setUserEditForm({
+      firstName: item.firstName,
+      lastName: item.lastName,
+      phone: item.phone || "",
+      role: item.roles?.[0]?.name || "",
+    });
+  }
+
+  async function updateUser(event: FormEvent) {
+    event.preventDefault();
+    if (!editingUser) return;
+
+    setSaving(true);
+    clearMessages();
+
+    try {
+      await authedFetch(`/users/${editingUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName: userEditForm.firstName.trim(),
+          lastName: userEditForm.lastName.trim(),
+          phone: userEditForm.phone.trim(),
+          role: userEditForm.role,
+        }),
+      });
+
+      setSuccess("User updated successfully.");
+      setEditingUser(null);
+
+      await Promise.all([
+        loadModule(),
+        loadOverview(),
+        loadLookups(),
+      ]);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function toggleUser(
     item: User
   ) {
@@ -1521,6 +1578,7 @@ export function AdminPortal() {
                   setSearch={setSearch}
                   loading={loading}
                   onToggle={toggleUser}
+                  onEdit={startEditUser}
                 />
               ) : (
                 <RecordTable
@@ -1543,6 +1601,91 @@ export function AdminPortal() {
               offering={selectedOffering}
               onClose={() => setSelectedOffering(null)}
             />
+          )}
+
+          {editingUser && (
+            <Modal
+              title="Edit User"
+              onClose={() => setEditingUser(null)}
+            >
+              <form onSubmit={updateUser} className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="First name" required>
+                    <input
+                      required
+                      value={userEditForm.firstName}
+                      onChange={(event) =>
+                        setUserEditForm((previous) => ({
+                          ...previous,
+                          firstName: event.target.value,
+                        }))
+                      }
+                      className={inputClass()}
+                    />
+                  </Field>
+                  <Field label="Last name" required>
+                    <input
+                      required
+                      value={userEditForm.lastName}
+                      onChange={(event) =>
+                        setUserEditForm((previous) => ({
+                          ...previous,
+                          lastName: event.target.value,
+                        }))
+                      }
+                      className={inputClass()}
+                    />
+                  </Field>
+                  <Field label="Phone">
+                    <input
+                      value={userEditForm.phone}
+                      onChange={(event) =>
+                        setUserEditForm((previous) => ({
+                          ...previous,
+                          phone: event.target.value,
+                        }))
+                      }
+                      className={inputClass()}
+                    />
+                  </Field>
+                  <Field label="Role" required>
+                    <select
+                      required
+                      value={userEditForm.role}
+                      onChange={(event) =>
+                        setUserEditForm((previous) => ({
+                          ...previous,
+                          role: event.target.value,
+                        }))
+                      }
+                      className={inputClass()}
+                    >
+                      {roleOptions.map((role) => (
+                        <option key={role} value={role}>
+                          {role.replace(/_/g, " ")}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingUser(null)}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            </Modal>
           )}
 
           {showUserCreate && (
@@ -2128,6 +2271,7 @@ function UserTable({
   setSearch,
   loading,
   onToggle,
+  onEdit,
 }: {
   users: User[];
   search: string;
@@ -2136,6 +2280,9 @@ function UserTable({
   ) => void;
   loading: boolean;
   onToggle: (
+    user: User
+  ) => void;
+  onEdit: (
     user: User
   ) => void;
 }) {
@@ -2253,21 +2400,22 @@ function UserTable({
                     </td>
 
                     <td className="px-4 py-3 text-right">
-                      <button
-                        disabled={
-                          loading
-                        }
-                        onClick={() =>
-                          onToggle(
-                            item
-                          )
-                        }
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
-                      >
-                        {item.isActive
-                          ? "Deactivate"
-                          : "Activate"}
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          disabled={loading}
+                          onClick={() => onEdit(item)}
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          disabled={loading}
+                          onClick={() => onToggle(item)}
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
+                        >
+                          {item.isActive ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
