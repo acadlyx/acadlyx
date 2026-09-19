@@ -41,12 +41,6 @@ async function findOrCreateRole(tx: Prisma.TransactionClient, institutionId: str
   return role;
 }
 
-async function resolveRole(tx: Prisma.TransactionClient, institutionId: string, value: string) {
-  const roleName = text(value).toUpperCase();
-  if (!roleName) throw new AppError("role is required for users import", 400);
-  return findOrCreateRole(tx, institutionId, roleName);
-}
-
 async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string) {
   const email = text(row.email).toLowerCase();
   if (!email) throw new AppError("Every user row needs an email", 400);
