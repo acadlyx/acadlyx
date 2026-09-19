@@ -105,7 +105,7 @@ export async function createProgram(
   });
   if (existing) {
     throw new AppError(
-      `A program with code "${nextCode}" already exists`,
+      `A program with code "${code}" already exists`,
       409
     );
   }
