@@ -601,27 +601,35 @@ export function AdminPortal() {
           0,
 
         campuses:
+          campusResponse.meta?.total ??
           campuses.length,
 
         departments:
+          departmentResponse.meta?.total ??
           departments.length,
 
         programs:
+          programResponse.meta?.total ??
           programs.length,
 
         academicYears:
+          yearResponse.meta?.total ??
           academicYears.length,
 
         semesters:
+          semesterResponse.meta?.total ??
           semesters.length,
 
         courses:
+          courseResponse.meta?.total ??
           courses.length,
 
         sections:
+          sectionResponse.meta?.total ??
           sections.length,
 
         offerings:
+          offeringResponse.meta?.total ??
           offerings.length,
       });
     } catch (err) {
