@@ -78,14 +78,25 @@ export async function createCourse(
 ) {
   await assertDepartmentInInstitution(institutionId, input.departmentId);
 
+  const code = input.code.trim().toUpperCase();
+  const name = input.name.trim();
+
   const existing = await prisma.course.findFirst({
-    where: { institutionId, code: input.code },
+    where: { institutionId, code },
   });
   if (existing) {
-    throw new AppError(`A course with code "${input.code}" already exists`, 409);
+    throw new AppError(`A course with code "${code}" already exists`, 409);
   }
 
-  return prisma.course.create({ data: { institutionId, ...input }, include });
+  return prisma.course.create({
+    data: {
+      institutionId,
+      ...input,
+      code,
+      name,
+    },
+    include,
+  });
 }
 
 export async function updateCourse(
@@ -93,25 +104,47 @@ export async function updateCourse(
   id: string,
   input: UpdateCourseInput
 ) {
-  await getCourseById(institutionId, id);
+  const current = await getCourseById(institutionId, id);
 
   if (input.departmentId) {
     await assertDepartmentInInstitution(institutionId, input.departmentId);
   }
 
-  if (input.code) {
+  const nextCode = input.code?.trim().toUpperCase();
+
+  if (nextCode) {
     const codeTaken = await prisma.course.findFirst({
-      where: { institutionId, code: input.code, NOT: { id } },
+      where: { institutionId, code: nextCode, NOT: { id } },
     });
     if (codeTaken) {
       throw new AppError(
-        `A course with code "${input.code}" already exists`,
+        `A course with code "${nextCode}" already exists`,
         409
       );
     }
   }
 
-  return prisma.course.update({ where: { id }, data: input, include });
+  if (input.isActive === true) {
+    await assertDepartmentInInstitution(
+      institutionId,
+      input.departmentId ?? current.departmentId,
+      true
+    );
+  }
+
+  return prisma.course.update({
+    where: { id },
+    data: {
+      ...(input.departmentId !== undefined
+        ? { departmentId: input.departmentId }
+        : {}),
+      ...(nextCode !== undefined ? { code: nextCode } : {}),
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(input.credits !== undefined ? { credits: input.credits } : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+    },
+    include,
+  });
 }
 
 /** Soft delete — preserves history for any CourseOffering referencing this course. */
