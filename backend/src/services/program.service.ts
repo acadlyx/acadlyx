@@ -15,23 +15,39 @@ export interface ListFilters extends PaginationParams {
 
 async function assertDepartmentInInstitution(
   institutionId: string,
-  departmentId: string
+  departmentId: string,
+  requireActive = false
 ) {
   const department = await prisma.department.findFirst({
     where: { id: departmentId, institutionId },
+    select: { id: true, isActive: true },
   });
+
   if (!department) {
     throw new AppError(
       "departmentId does not belong to this institution",
       400
     );
   }
+
+  if (requireActive && !department.isActive) {
+    throw new AppError(
+      "Cannot use an inactive department",
+      400
+    );
+  }
+
+  return department;
 }
 
 export async function listPrograms(
   institutionId: string,
   filters: ListFilters
 ) {
+  if (filters.departmentId) {
+    await assertDepartmentInInstitution(institutionId, filters.departmentId);
+  }
+
   const where: Prisma.ProgramWhereInput = {
     institutionId,
     ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
@@ -75,20 +91,32 @@ export async function createProgram(
   institutionId: string,
   input: CreateProgramInput
 ) {
-  await assertDepartmentInInstitution(institutionId, input.departmentId);
+  await assertDepartmentInInstitution(
+    institutionId,
+    input.departmentId,
+    true
+  );
+
+  const code = input.code.trim().toUpperCase();
+  const name = input.name.trim();
 
   const existing = await prisma.program.findFirst({
-    where: { institutionId, code: input.code },
+    where: { institutionId, code },
   });
   if (existing) {
     throw new AppError(
-      `A program with code "${input.code}" already exists`,
+      `A program with code "${code}" already exists`,
       409
     );
   }
 
   return prisma.program.create({
-    data: { institutionId, ...input },
+    data: {
+      institutionId,
+      ...input,
+      name,
+      code,
+    },
   });
 }
 
@@ -97,25 +125,53 @@ export async function updateProgram(
   id: string,
   input: UpdateProgramInput
 ) {
-  await getProgramById(institutionId, id);
+  const current = await getProgramById(institutionId, id);
 
   if (input.departmentId) {
-    await assertDepartmentInInstitution(institutionId, input.departmentId);
+    await assertDepartmentInInstitution(
+      institutionId,
+      input.departmentId,
+      input.isActive !== false
+    );
   }
 
-  if (input.code) {
+  const nextCode = input.code?.trim().toUpperCase();
+
+  if (nextCode) {
     const codeTaken = await prisma.program.findFirst({
-      where: { institutionId, code: input.code, NOT: { id } },
+      where: { institutionId, code: nextCode, NOT: { id } },
     });
     if (codeTaken) {
       throw new AppError(
-        `A program with code "${input.code}" already exists`,
+        `A program with code "${code}" already exists`,
         409
       );
     }
   }
 
-  return prisma.program.update({ where: { id }, data: input });
+  if (input.isActive === true) {
+    await assertDepartmentInInstitution(
+      institutionId,
+      input.departmentId ?? current.departmentId,
+      true
+    );
+  }
+
+  return prisma.program.update({
+    where: { id },
+    data: {
+      ...(input.departmentId !== undefined
+        ? { departmentId: input.departmentId }
+        : {}),
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(nextCode !== undefined ? { code: nextCode } : {}),
+      ...(input.level !== undefined ? { level: input.level.trim() } : {}),
+      ...(input.durationYears !== undefined
+        ? { durationYears: input.durationYears }
+        : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+    },
+  });
 }
 
 export async function deactivateProgram(institutionId: string, id: string) {
