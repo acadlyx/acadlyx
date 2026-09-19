@@ -879,7 +879,7 @@ export async function setUserActive(
 export function getSystemRolePermissionKeys(
   roleName: string
 ): string[] {
-  return [
-    ...(ROLE_PERMISSIONS[roleName] ?? []),
-  ];
+  if (!SYSTEM_ROLE_SET.has(roleName)) return [];
+  const role = roleName as keyof typeof ROLE_PERMISSIONS;
+  return [...(ROLE_PERMISSIONS[role] ?? [])];
 }
