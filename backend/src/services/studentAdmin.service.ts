@@ -253,6 +253,69 @@ async function ensureStudentRole(
   return roleId;
 }
 
+
+async function getStudentAccessScope(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<Prisma.UserWhereInput> {
+  const unrestricted = [
+    "SUPER_ADMIN",
+    "INSTITUTION_ADMIN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "STAFF",
+  ];
+
+  if (actor.roles.some((role) => unrestricted.includes(role))) return {};
+
+  if (actor.roles.includes("HOD")) {
+    const accesses = await prisma.departmentAccess.findMany({
+      where: { userId: actor.id, department: { institutionId } },
+      select: { departmentId: true },
+    });
+    const departmentIds = accesses.map((item) => item.departmentId);
+    if (!departmentIds.length) return { id: "00000000-0000-0000-0000-000000000000" };
+    return {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          program: { departmentId: { in: departmentIds } },
+        },
+      },
+    };
+  }
+
+  if (actor.roles.includes("FACULTY")) {
+    const offerings = await prisma.courseOffering.findMany({
+      where: { institutionId, facultyId: actor.id, isActive: true },
+      select: { sectionId: true, semesterId: true },
+    });
+    const pairs = offerings.map((offering) => ({
+      sectionId: offering.sectionId,
+      semesterId: offering.semesterId,
+    }));
+    if (!pairs.length) return { id: "00000000-0000-0000-0000-000000000000" };
+    return { studentEnrollments: { some: { institutionId, OR: pairs } } };
+  }
+
+  if (actor.roles.includes("STUDENT")) return { id: actor.id };
+
+  throw new AppError("Student access is not available for this role", 403);
+}
+
+async function assertStudentReadAccess(
+  institutionId: string,
+  userId: string,
+  actor: AuthenticatedUser
+) {
+  const scope = await getStudentAccessScope(institutionId, actor);
+  const allowed = await prisma.user.findFirst({
+    where: { id: userId, institutionId, ...scope },
+    select: { id: true },
+  });
+  if (!allowed) throw new AppError("You are not authorized to access this student", 403);
+}
+
 function serializeStudent(student: any) {
   const {
     passwordHash: _passwordHash,
@@ -274,6 +337,7 @@ function serializeStudent(student: any) {
 
 export async function listStudents(
   institutionId: string,
+  actor: AuthenticatedUser,
   params: {
     page: number;
     pageSize: number;
@@ -286,9 +350,11 @@ export async function listStudents(
   }
 ) {
   const search = params.search?.trim();
+  const scope = await getStudentAccessScope(institutionId, actor);
 
   const where: Prisma.UserWhereInput = {
     institutionId,
+    ...scope,
 
     userRoles: {
       some: {
@@ -408,8 +474,10 @@ export async function listStudents(
 
 export async function getStudent(
   institutionId: string,
-  userId: string
+  userId: string,
+  actor?: AuthenticatedUser
 ) {
+  if (actor) await assertStudentReadAccess(institutionId, userId, actor);
   return serializeStudent(
     await getStudentOrThrow(
       institutionId,
@@ -640,7 +708,8 @@ export async function createStudent(
 
   return getStudent(
     institutionId,
-    created.id
+    created.id,
+    actor
   );
 }
 
@@ -650,6 +719,7 @@ export async function updateStudent(
   input: UpdateStudentInput,
   actor: AuthenticatedUser
 ) {
+  await assertStudentReadAccess(institutionId, userId, actor);
   const existing =
     await getStudentOrThrow(
       institutionId,
@@ -952,6 +1022,7 @@ export async function enrollStudent(
   input: EnrollStudentInput,
   actor: AuthenticatedUser
 ) {
+  await assertStudentReadAccess(institutionId, userId, actor);
   await getStudentOrThrow(
     institutionId,
     userId
@@ -1096,8 +1167,10 @@ export async function enrollStudent(
 
 export async function listStudentEnrollments(
   institutionId: string,
-  userId: string
+  userId: string,
+  actor: AuthenticatedUser
 ) {
+  await assertStudentReadAccess(institutionId, userId, actor);
   await getStudentOrThrow(
     institutionId,
     userId
