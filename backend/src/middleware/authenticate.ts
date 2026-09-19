@@ -37,6 +37,17 @@ function resolveInstitutionContext(
       );
     }
 
+    const hasInstitutionScopedRole = roleBindings.some(
+      ({ role }) => role.name !== "SUPER_ADMIN" && role.institutionId !== null
+    );
+
+    if (hasInstitutionScopedRole) {
+      throw new AppError(
+        "SUPER_ADMIN cannot also be bound to an institution-scoped role",
+        403
+      );
+    }
+
     return null;
   }
 
@@ -197,13 +208,26 @@ export async function authenticate(
       user.institutionId === null &&
       effectiveInstitutionId !== null
     ) {
+      const isInstitutionAdmin = user.userRoles.some(
+        ({ role }) => role.name === "INSTITUTION_ADMIN"
+      );
+
+      if (!isInstitutionAdmin) {
+        next(
+          new AppError(
+            "This institution-scoped account has no valid tenant identity",
+            403
+          )
+        );
+        return;
+      }
+
       await prisma.user.update({
         where: {
           id: user.id,
         },
         data: {
-          institutionId:
-            effectiveInstitutionId,
+          institutionId: effectiveInstitutionId,
         },
       });
     }
