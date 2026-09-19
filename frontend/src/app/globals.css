@@ -3,17 +3,52 @@
 @tailwind utilities;
 
 :root {
-  /* Institution branding tokens (Phase 0 defaults = ACADLYX defaults).
-     Later phases can override these per-institution at runtime. */
   --acadlyx-primary: #0f172a;
   --acadlyx-secondary: #64748b;
+  --acadlyx-sky: #0ea5e9;
+  --acadlyx-violet: #7c3aed;
+  --acadlyx-surface: #ffffff;
+  --acadlyx-background: #f4f7fb;
+}
+
+html {
+  min-height: 100%;
+  background: var(--acadlyx-background);
 }
 
 body {
+  min-height: 100vh;
   color: var(--acadlyx-primary);
+  background: var(--acadlyx-background);
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
-  background: #a5f3fc;
+  background: #bae6fd;
   color: #0f172a;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
