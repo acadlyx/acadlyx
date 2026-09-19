@@ -57,25 +57,43 @@ export async function createAcademicYear(
   institutionId: string,
   input: CreateAcademicYearInput
 ) {
+  const name = input.name.trim();
+
+  if (input.endDate && input.startDate >= input.endDate) {
+    throw new AppError(
+      "Academic year end date must be after its start date",
+      400
+    );
+  }
+
   const existing = await prisma.academicYear.findFirst({
-    where: { institutionId, name: input.name },
+    where: { institutionId, name },
   });
   if (existing) {
     throw new AppError(
-      `An academic year named "${input.name}" already exists`,
+      `An academic year named "${name}" already exists`,
       409
     );
   }
 
-  const year = await prisma.academicYear.create({
-    data: { institutionId, ...input },
+  return prisma.$transaction(async (tx) => {
+    const year = await tx.academicYear.create({
+      data: { institutionId, ...input, name },
+    });
+
+    if (input.isCurrent) {
+      await tx.academicYear.updateMany({
+        where: {
+          institutionId,
+          isCurrent: true,
+          NOT: { id: year.id },
+        },
+        data: { isCurrent: false },
+      });
+    }
+
+    return year;
   });
-
-  if (input.isCurrent) {
-    await clearOtherCurrentYears(institutionId, year.id);
-  }
-
-  return year;
 }
 
 export async function updateAcademicYear(
@@ -85,23 +103,47 @@ export async function updateAcademicYear(
 ) {
   await getAcademicYearById(institutionId, id);
 
+  if (input.startDate && input.endDate && input.startDate >= input.endDate) {
+    throw new AppError(
+      "Academic year end date must be after its start date",
+      400
+    );
+  }
+
   if (input.name) {
     const nameTaken = await prisma.academicYear.findFirst({
       where: { institutionId, name: input.name, NOT: { id } },
     });
     if (nameTaken) {
       throw new AppError(
-        `An academic year named "${input.name}" already exists`,
+        `An academic year named "${name}" already exists`,
         409
       );
     }
   }
 
-  const year = await prisma.academicYear.update({ where: { id }, data: input });
+  return prisma.$transaction(async (tx) => {
+    const year = await tx.academicYear.update({
+      where: { id },
+      data: {
+        ...input,
+        ...(input.name !== undefined
+          ? { name: input.name.trim() }
+          : {}),
+      },
+    });
 
-  if (input.isCurrent) {
-    await clearOtherCurrentYears(institutionId, id);
-  }
+    if (input.isCurrent) {
+      await tx.academicYear.updateMany({
+        where: {
+          institutionId,
+          isCurrent: true,
+          NOT: { id },
+        },
+        data: { isCurrent: false },
+      });
+    }
 
-  return year;
+    return year;
+  });
 }
