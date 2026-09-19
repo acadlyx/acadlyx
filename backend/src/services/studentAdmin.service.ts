@@ -605,10 +605,13 @@ export async function createStudent(
                 input.rollNumber
               ),
             status:
-              input.status ===
-              "ACTIVE"
+              input.status === "ACTIVE"
                 ? "ACTIVE"
-                : "DROPPED",
+                : input.status === "GRADUATED"
+                  ? "COMPLETED"
+                  : input.status === "TRANSFERRED"
+                    ? "TRANSFERRED"
+                    : "DROPPED",
           },
         });
 
