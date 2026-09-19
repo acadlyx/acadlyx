@@ -105,7 +105,7 @@ export async function createProgram(
   });
   if (existing) {
     throw new AppError(
-      `A program with code "${code}" already exists`,
+      `A program with code "${nextCode}" already exists`,
       409
     );
   }
@@ -143,7 +143,7 @@ export async function updateProgram(
     });
     if (codeTaken) {
       throw new AppError(
-        `A program with code "${code}" already exists`,
+        `A program with code "${nextCode}" already exists`,
         409
       );
     }
