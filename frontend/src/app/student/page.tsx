@@ -11,6 +11,7 @@ import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { ProgressCard } from "@/components/dashboard/ProgressCard";
 import { RecommendationCard } from "@/components/dashboard/RecommendationCard";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
 import { AuthRequiredError, isAuthenticated, logout } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
@@ -86,7 +87,7 @@ export default function StudentDashboardPage() {
   const { institution, student, program, section, todaysClasses, assignments, announcements, upcomingEvents, academicHealth, academicRisk, recommendations, attendancePercentage, career } = data;
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
+    <DashboardShell title="Student Workspace" subtitle="Your classes, progress and next actions" allowedRoles={["STUDENT"]}><div className="min-h-full rounded-3xl bg-slate-50 pb-16 shadow-sm ring-1 ring-slate-200/70">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
@@ -202,6 +203,6 @@ export default function StudentDashboardPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div></DashboardShell>
   );
 }

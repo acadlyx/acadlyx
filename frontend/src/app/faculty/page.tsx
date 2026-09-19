@@ -7,6 +7,7 @@ import { AnnouncementList } from "@/components/dashboard/AnnouncementList";
 import { ClassSchedule } from "@/components/dashboard/ClassSchedule";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AttendanceOverviewList } from "@/components/faculty/AttendanceOverviewList";
 import { PendingList } from "@/components/faculty/PendingList";
 import { SmartInsightsList } from "@/components/faculty/SmartInsightsList";
@@ -75,7 +76,7 @@ export default function FacultyDashboardPage() {
   const { faculty, todaysClassCount, todaysClasses, attendanceOverview, pending, smartInsights } = data;
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
+    <DashboardShell title="Faculty Workspace" subtitle="Teaching, attendance and learner progress" allowedRoles={["FACULTY"]}><div className="min-h-full rounded-3xl bg-slate-50 pb-16 shadow-sm ring-1 ring-slate-200/70">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
@@ -214,6 +215,6 @@ export default function FacultyDashboardPage() {
           </DashboardCard>
         </div>
       </div>
-    </main>
+    </div></DashboardShell>
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { InstitutionLogo } from "@/components/branding/InstitutionLogo";
 import {
   AuthRequiredError,
@@ -170,7 +171,7 @@ export default function ParentDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
+    <DashboardShell title="Parent Workspace" subtitle="Your child’s academic progress" allowedRoles={["PARENT"]}><div className="min-h-full rounded-3xl bg-slate-50 pb-16 shadow-sm ring-1 ring-slate-200/70">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
@@ -511,6 +512,6 @@ export default function ParentDashboardPage() {
           </div>
         </section>
       </div>
-    </main>
+    </div></DashboardShell>
   );
 }

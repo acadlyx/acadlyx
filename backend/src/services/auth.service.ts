@@ -8,7 +8,7 @@ import {
   refreshTokenExpiryDate,
   signAccessToken,
 } from "../utils/jwt";
-import { comparePassword } from "../utils/password";
+import { comparePassword, hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 
 export interface RequestMeta {
@@ -295,4 +295,31 @@ export async function getCurrentUser(
 
   const { roles, permissions } = await loadRolesAndPermissions(user.id);
   return toSafeUser(user, roles, permissions);
+}
+
+export async function getMyAccount(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, institutionId: true, email: true, firstName: true, lastName: true, phone: true, lastLoginAt: true, createdAt: true, institution: { select: { name: true, logoUrl: true } } } });
+  if (!user) throw new AppError("User not found", 404);
+  return user;
+}
+
+export async function updateMyProfile(userId: string, input: { firstName?: string; lastName?: string; phone?: string | null }) {
+  const updated = await prisma.user.update({ where: { id: userId }, data: { ...(input.firstName !== undefined ? { firstName: input.firstName.trim() } : {}), ...(input.lastName !== undefined ? { lastName: input.lastName.trim() } : {}), ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}) }, select: { id: true, email: true, firstName: true, lastName: true, phone: true } });
+  await recordAuditLog({ userId, action: "account.profile_updated", entityType: "User", entityId: userId });
+  return updated;
+}
+
+export async function changeMyPassword(userId: string, currentPassword: string, newPassword: string, meta: RequestMeta) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !(await comparePassword(currentPassword, user.passwordHash))) throw new AppError("Current password is incorrect", 400);
+  if (await comparePassword(newPassword, user.passwordHash)) throw new AppError("Choose a password that has not been used as your current password", 400);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(newPassword) } }),
+    prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
+  await recordAuditLog({ institutionId: user.institutionId, userId, action: "account.password_changed", ipAddress: meta.ipAddress, userAgent: meta.userAgent });
+}
+
+export async function listRecoveryInstitutions() {
+  return prisma.institution.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, slug: true, adminOfficeEmail: true } });
 }

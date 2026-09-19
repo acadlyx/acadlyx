@@ -63,3 +63,20 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
     data: user,
   });
 });
+
+export const account = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new AppError("Authentication required", 401);
+  res.json({ success: true, data: await authService.getMyAccount(req.user.id) });
+});
+export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new AppError("Authentication required", 401);
+  res.json({ success: true, data: await authService.updateMyProfile(req.user.id, req.body) });
+});
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new AppError("Authentication required", 401);
+  await authService.changeMyPassword(req.user.id, req.body.currentPassword, req.body.newPassword, requestMeta(req));
+  res.json({ success: true, data: { message: "Password changed. Please sign in again." } });
+});
+export const recoveryInstitutions = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ success: true, data: await authService.listRecoveryInstitutions() });
+});

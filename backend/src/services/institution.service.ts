@@ -407,6 +407,9 @@ export async function createInstitution(
                 input.secondaryColor?.trim()
                   ? input.secondaryColor.trim()
                   : null,
+              adminOfficeEmail: input.adminOfficeEmail?.trim()
+                ? input.adminOfficeEmail.trim().toLowerCase()
+                : normalizedEmail,
               isActive: true,
             },
           });
@@ -572,6 +575,9 @@ export async function updateInstitution(
                 ? input.secondaryColor.trim()
                 : null,
           }
+        : {}),
+      ...(input.adminOfficeEmail !== undefined
+        ? { adminOfficeEmail: input.adminOfficeEmail.trim() ? input.adminOfficeEmail.trim().toLowerCase() : null }
         : {}),
 
       ...(input.isActive !== undefined

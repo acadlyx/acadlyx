@@ -24,6 +24,7 @@ export const createInstitutionSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "Secondary color must be a hex color")
     .optional()
     .or(z.literal("")),
+  adminOfficeEmail: z.string().trim().email().optional().or(z.literal("")),
 
   admin: z.object({
     firstName: z.string().trim().min(2).max(100),
@@ -59,6 +60,7 @@ export const updateInstitutionSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, "Secondary color must be a hex color")
     .optional()
     .or(z.literal("")),
+  adminOfficeEmail: z.string().trim().email().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 

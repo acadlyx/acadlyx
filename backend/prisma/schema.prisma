@@ -26,6 +26,7 @@ model Institution {
   logoUrl        String?
   primaryColor   String?
   secondaryColor String?
+  adminOfficeEmail String?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
