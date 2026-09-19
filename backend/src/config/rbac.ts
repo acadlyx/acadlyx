@@ -1,15 +1,20 @@
 /**
- * ACADLYX system permission catalog and default role matrix.
+ * ACADLYX — Central RBAC configuration
  *
- * This file is the source of truth for built-in permissions.
- * Route authorization is still enforced independently through
- * middleware.
+ * This file is the single source of truth for:
+ * - Built-in system roles
+ * - Grantable permissions
+ * - Default role → permission mappings
+ *
+ * IMPORTANT:
+ * - Permissions are capabilities, not routes.
+ * - Backend middleware/services must enforce authorization.
+ * - Frontend visibility must never be treated as security.
+ * - Tenant/institution scope must come from the authenticated user,
+ *   never from arbitrary client input.
  */
 
 export const PERMISSIONS = [
-  /*
-   * USERS
-   */
   {
     key: "users.read",
     module: "users",
@@ -28,13 +33,9 @@ export const PERMISSIONS = [
   {
     key: "users.delete",
     module: "users",
-    description:
-      "Delete or deactivate users",
+    description: "Delete or deactivate users",
   },
 
-  /*
-   * STUDENTS
-   */
   {
     key: "students.read",
     module: "students",
@@ -51,9 +52,6 @@ export const PERMISSIONS = [
     description: "Update students",
   },
 
-  /*
-   * ATTENDANCE
-   */
   {
     key: "attendance.read",
     module: "attendance",
@@ -65,9 +63,6 @@ export const PERMISSIONS = [
     description: "Mark attendance",
   },
 
-  /*
-   * ASSIGNMENTS
-   */
   {
     key: "assignments.read",
     module: "assignments",
@@ -76,330 +71,206 @@ export const PERMISSIONS = [
   {
     key: "assignments.create",
     module: "assignments",
-    description:
-      "Create assignments",
+    description: "Create assignments",
   },
   {
     key: "assignments.update",
     module: "assignments",
-    description:
-      "Edit or publish assignments",
+    description: "Edit or publish assignments",
   },
   {
     key: "assignments.review",
     module: "assignments",
-    description:
-      "Review or grade assignments",
+    description: "Review or grade assignments",
   },
   {
     key: "assignments.submit",
     module: "assignments",
-    description:
-      "Submit assignment work",
+    description: "Submit assignment work",
   },
 
-  /*
-   * MARKS
-   */
   {
     key: "marks.read",
     module: "marks",
-    description:
-      "View academic marks",
+    description: "View academic marks",
   },
   {
     key: "marks.enter",
     module: "marks",
-    description:
-      "Enter academic marks",
-  },
-  {
-    key: "timetable.manage",
-    module: "timetable",
-    description: "Create and update institutional timetables",
-  },
-  {
-    key: "notices.manage",
-    module: "notices",
-    description: "Publish institutional notices",
-  },
-  {
-    key: "exams.manage",
-    module: "exams",
-    description: "Create exams and enter exam results",
-  },
-  {
-    key: "fees.manage",
-    module: "fees",
-    description: "Create and manage fee invoices",
-  },
-  {
-    key: "fees.pay",
-    module: "fees",
-    description: "Record an authorized fee payment",
-  },
-  {
-    key: "parent-links.manage",
-    module: "parents",
-    description: "Manage parent-to-student relationships",
+    description: "Enter academic marks",
   },
 
-  /*
-   * SITE / IMPORTS / REPORTING
-   */
   {
     key: "site.manage",
     module: "site",
-    description:
-      "Manage the public institutional website",
+    description: "Manage the public institutional website",
   },
   {
     key: "imports.manage",
     module: "imports",
-    description:
-      "Import institutional data from spreadsheets",
+    description: "Import institutional data from spreadsheets",
   },
   {
     key: "reports.read",
     module: "reports",
-    description:
-      "View reports",
+    description: "View reports",
   },
   {
     key: "intelligence.read",
     module: "intelligence",
-    description:
-      "View institutional intelligence",
+    description: "View institutional intelligence",
   },
 
-  /*
-   * PLATFORM
-   */
   {
     key: "institutions.manage",
     module: "institutions",
-    description:
-      "Manage institutions at platform level",
+    description: "Manage institutions at platform level",
   },
 
-  /*
-   * CAMPUSES
-   */
-  {
-    key: "campuses.read",
-    module: "academics",
-    description:
-      "View campuses",
-  },
-  {
-    key: "campuses.create",
-    module: "academics",
-    description:
-      "Create campuses",
-  },
-  {
-    key: "campuses.update",
-    module: "academics",
-    description:
-      "Update campuses",
-  },
-  {
-    key: "campuses.delete",
-    module: "academics",
-    description:
-      "Deactivate campuses",
-  },
-
-  /*
-   * DEPARTMENTS
-   */
   {
     key: "departments.read",
     module: "academics",
-    description:
-      "View departments",
+    description: "View departments",
   },
   {
     key: "departments.create",
     module: "academics",
-    description:
-      "Create departments",
+    description: "Create departments",
   },
   {
     key: "departments.update",
     module: "academics",
-    description:
-      "Update departments",
+    description: "Update departments",
   },
   {
     key: "departments.delete",
     module: "academics",
-    description:
-      "Deactivate departments",
+    description: "Deactivate departments",
   },
 
-  /*
-   * PROGRAMS
-   */
   {
     key: "programs.read",
     module: "academics",
-    description:
-      "View programs",
+    description: "View programs",
   },
   {
     key: "programs.create",
     module: "academics",
-    description:
-      "Create programs",
+    description: "Create programs",
   },
   {
     key: "programs.update",
     module: "academics",
-    description:
-      "Update programs",
+    description: "Update programs",
   },
   {
     key: "programs.delete",
     module: "academics",
-    description:
-      "Deactivate programs",
+    description: "Deactivate programs",
   },
 
-  /*
-   * ACADEMIC YEARS
-   */
   {
     key: "academic-years.read",
     module: "academics",
-    description:
-      "View academic years",
+    description: "View academic years",
   },
   {
     key: "academic-years.create",
     module: "academics",
-    description:
-      "Create academic years",
+    description: "Create academic years",
   },
   {
     key: "academic-years.update",
     module: "academics",
-    description:
-      "Update academic years",
+    description: "Update academic years",
   },
 
-  /*
-   * SEMESTERS
-   */
   {
     key: "semesters.read",
     module: "academics",
-    description:
-      "View semesters",
+    description: "View semesters",
   },
   {
     key: "semesters.create",
     module: "academics",
-    description:
-      "Create semesters",
+    description: "Create semesters",
   },
   {
     key: "semesters.update",
     module: "academics",
-    description:
-      "Update semesters",
+    description: "Update semesters",
   },
   {
     key: "semesters.delete",
     module: "academics",
-    description:
-      "Deactivate semesters",
+    description: "Deactivate semesters",
   },
 
-  /*
-   * SECTIONS
-   */
   {
     key: "sections.read",
     module: "academics",
-    description:
-      "View sections",
+    description: "View sections",
   },
   {
     key: "sections.create",
     module: "academics",
-    description:
-      "Create sections",
+    description: "Create sections",
   },
   {
     key: "sections.update",
     module: "academics",
-    description:
-      "Update sections",
+    description: "Update sections",
   },
   {
     key: "sections.delete",
     module: "academics",
-    description:
-      "Deactivate sections",
+    description: "Deactivate sections",
   },
 
-  /*
-   * COURSES
-   */
   {
     key: "courses.read",
     module: "academics",
-    description:
-      "View courses",
+    description: "View courses",
   },
   {
     key: "courses.create",
     module: "academics",
-    description:
-      "Create courses",
+    description: "Create courses",
   },
   {
     key: "courses.update",
     module: "academics",
-    description:
-      "Update courses",
+    description: "Update courses",
   },
   {
     key: "courses.delete",
     module: "academics",
-    description:
-      "Deactivate courses",
+    description: "Deactivate courses",
   },
 
-  /*
-   * COURSE OFFERINGS
-   */
   {
     key: "course-offerings.read",
     module: "academics",
-    description:
-      "View course offerings",
+    description: "View course offerings",
   },
   {
     key: "course-offerings.create",
     module: "academics",
-    description:
-      "Create course offerings",
+    description: "Create course offerings",
   },
   {
     key: "course-offerings.update",
     module: "academics",
-    description:
-      "Update course offerings",
+    description: "Update course offerings",
   },
   {
     key: "course-offerings.delete",
     module: "academics",
-    description:
-      "Close or deactivate course offerings",
+    description: "Close or deactivate course offerings",
   },
 ] as const;
+
+export type PermissionKey = (typeof PERMISSIONS)[number]["key"];
 
 export const SYSTEM_ROLE_NAMES = [
   "SUPER_ADMIN",
@@ -411,14 +282,11 @@ export const SYSTEM_ROLE_NAMES = [
   "STAFF",
   "STUDENT",
   "PARENT",
-  "CMS",
 ] as const;
 
-/**
- * Common academic read permissions.
- */
-const ACADEMIC_READ = [
-  "campuses.read",
+export type SystemRoleName = (typeof SYSTEM_ROLE_NAMES)[number];
+
+const ACADEMIC_READ: PermissionKey[] = [
   "departments.read",
   "programs.read",
   "academic-years.read",
@@ -428,173 +296,208 @@ const ACADEMIC_READ = [
   "course-offerings.read",
 ];
 
-const ALL_PERMISSIONS =
-  PERMISSIONS.map(
-    (permission) => permission.key
-  );
+const ALL_PERMISSIONS: PermissionKey[] = PERMISSIONS.map(
+  (permission) => permission.key
+);
 
-export const ROLE_PERMISSIONS: Record<
-  string,
-  string[]
-> = {
-  /*
-   * PLATFORM ADMINISTRATOR
-   *
-   * SUPER_ADMIN receives the complete
-   * permission catalog.
-   */
-  SUPER_ADMIN: [
-    ...ALL_PERMISSIONS,
-  ],
+/**
+ * Default permissions for every built-in role.
+ *
+ * SUPER_ADMIN:
+ *   Platform-level administrator.
+ *
+ * INSTITUTION_ADMIN:
+ *   Full institutional administration without platform-level
+ *   institution management.
+ *
+ * DIRECTOR / MANAGEMENT:
+ *   Institution-wide operational visibility and intelligence.
+ *
+ * HOD:
+ *   Department-oriented academic/operational access.
+ *
+ * FACULTY:
+ *   Teaching, attendance, assignments and assessment.
+ *
+ * STAFF:
+ *   Basic administrative/read access.
+ *
+ * STUDENT:
+ *   Self-service academic access.
+ *
+ * PARENT:
+ *   Read-only visibility into linked student information.
+ *
+ * IMPORTANT:
+ * Permission checks alone do not establish data ownership.
+ * Services must additionally enforce tenant, department,
+ * student, parent-child and other resource-level boundaries.
+ */
+export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
+  SUPER_ADMIN: [...ALL_PERMISSIONS],
 
-  /*
-   * INSTITUTION ADMINISTRATOR
-   *
-   * Receives every institutional permission
-   * except platform-level institution management.
-   */
-  INSTITUTION_ADMIN:
-    ALL_PERMISSIONS.filter(
-      (permission) =>
-        permission !==
-        "institutions.manage"
-    ),
+  INSTITUTION_ADMIN: ALL_PERMISSIONS.filter(
+    (permission) => permission !== "institutions.manage"
+  ),
 
-  /*
-   * DIRECTOR
-   */
   DIRECTOR: [
     "users.read",
     "students.read",
-
     "attendance.read",
-
     "assignments.read",
-
     "marks.read",
-
     "reports.read",
     "intelligence.read",
-    "notices.manage",
-
+    "site.manage",
+    "imports.manage",
     ...ACADEMIC_READ,
   ],
 
-  /*
-   * MANAGEMENT
-   */
   MANAGEMENT: [
     "users.read",
     "students.read",
-
     "attendance.read",
-
     "assignments.read",
-
     "marks.read",
-
     "reports.read",
     "intelligence.read",
-    "notices.manage",
-
+    "site.manage",
+    "imports.manage",
     ...ACADEMIC_READ,
   ],
 
-  /*
-   * HOD
-   *
-   * Department boundaries must additionally
-   * be enforced by DepartmentAccess and
-   * service-level tenant/department checks.
-   */
   HOD: [
-    "users.read",
     "students.read",
-
     "attendance.read",
-
     "assignments.read",
     "assignments.review",
-
     "marks.read",
-
     "reports.read",
     "intelligence.read",
-
     ...ACADEMIC_READ,
-
     "sections.update",
     "course-offerings.update",
-    "timetable.manage",
-    "notices.manage",
-    "exams.manage",
   ],
 
-  /*
-   * FACULTY
-   */
   FACULTY: [
     "students.read",
-
     "attendance.read",
     "attendance.mark",
-
     "assignments.read",
     "assignments.create",
     "assignments.update",
     "assignments.review",
-
     "marks.read",
     "marks.enter",
-    "exams.manage",
-
     ...ACADEMIC_READ,
   ],
 
-  /*
-   * STAFF
-   */
   STAFF: [
-    "students.read",
     "users.read",
-    "timetable.manage",
-    "notices.manage",
-    "fees.manage",
-    "fees.pay",
-    "parent-links.manage",
-
+    "students.read",
     ...ACADEMIC_READ,
   ],
 
-  /*
-   * STUDENT
-   */
   STUDENT: [
     "attendance.read",
-
     "assignments.read",
     "assignments.submit",
-
     "marks.read",
-    "fees.pay",
-
     ...ACADEMIC_READ,
   ],
 
-  /*
-   * PARENT
-   */
   PARENT: [
     "attendance.read",
-
     "assignments.read",
-
     "marks.read",
-    "fees.pay",
-
     ...ACADEMIC_READ,
   ],
-
-  /* Content staff are isolated to the tenant CMS feature and have no ERP data privileges. */
-  CMS: ["site.manage"],
 };
+
+/**
+ * Returns true when a role is a recognized ACADLYX system role.
+ */
+export function isSystemRole(value: string): value is SystemRoleName {
+  return (SYSTEM_ROLE_NAMES as readonly string[]).includes(value);
+}
+
+/**
+ * Returns the default permissions for a system role.
+ *
+ * A defensive copy is returned so callers cannot accidentally mutate
+ * the central RBAC matrix.
+ */
+export function getRolePermissions(
+  role: string
+): PermissionKey[] {
+  if (!isSystemRole(role)) {
+    return [];
+  }
+
+  return [...ROLE_PERMISSIONS[role]];
+}
+
+/**
+ * Checks whether a role has a specific permission.
+ */
+export function roleHasPermission(
+  role: string,
+  permission: string
+): permission is PermissionKey {
+  if (!isSystemRole(role)) {
+    return false;
+  }
+
+  return ROLE_PERMISSIONS[role].includes(permission as PermissionKey);
+}
+
+/**
+ * Checks whether any of the supplied roles grants a permission.
+ *
+ * This is useful for users who have multiple roles.
+ */
+export function rolesHavePermission(
+  roles: readonly string[],
+  permission: string
+): boolean {
+  return roles.some((role) => roleHasPermission(role, permission));
+}
+
+/**
+ * Resolves the effective permission set for a multi-role user.
+ *
+ * The result is deduplicated.
+ */
+export function getEffectivePermissions(
+  roles: readonly string[]
+): PermissionKey[] {
+  const permissions = new Set<PermissionKey>();
+
+  for (const role of roles) {
+    for (const permission of getRolePermissions(role)) {
+      permissions.add(permission);
+    }
+  }
+
+  return [...permissions];
+}
+
+/**
+ * Platform-level permissions.
+ *
+ * These must never be granted merely because a user has an
+ * institution-level administrative role.
+ */
+export const PLATFORM_ONLY_PERMISSIONS: PermissionKey[] = [
+  "institutions.manage",
+];
+
+/**
+ * Returns true when a permission is platform-only.
+ */
+export function isPlatformPermission(
+  permission: string
+): permission is PermissionKey {
+  return PLATFORM_ONLY_PERMISSIONS.includes(permission as PermissionKey);
+}
+
