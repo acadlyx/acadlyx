@@ -88,6 +88,7 @@ export async function getSemesterById(institutionId: string, id: string) {
 }
 
 async function assertNumberAvailable(
+  institutionId: string,
   programId: string,
   academicYearId: string,
   number: number,
