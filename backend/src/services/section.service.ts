@@ -83,7 +83,11 @@ export async function createSection(
   await assertSemesterInInstitution(institutionId, input.semesterId);
 
   const existing = await prisma.section.findFirst({
-    where: { semesterId: input.semesterId, name: input.name },
+    where: {
+      institutionId,
+      semesterId: input.semesterId,
+      name: input.name,
+    },
   });
   if (existing) {
     throw new AppError(
@@ -107,7 +111,12 @@ export async function updateSection(
 
   if (input.name) {
     const nameTaken = await prisma.section.findFirst({
-      where: { semesterId: current.semesterId, name: input.name, NOT: { id } },
+      where: {
+        institutionId,
+        semesterId: current.semesterId,
+        name: input.name,
+        NOT: { id },
+      },
     });
     if (nameTaken) {
       throw new AppError(
