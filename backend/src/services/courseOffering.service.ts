@@ -300,6 +300,7 @@ export async function createCourseOffering(
 
   const existing = await prisma.courseOffering.findFirst({
     where: {
+      institutionId,
       courseId: input.courseId,
       semesterId: input.semesterId,
       sectionId: input.sectionId,
@@ -323,10 +324,19 @@ export async function updateCourseOffering(
   id: string,
   input: UpdateCourseOfferingInput
 ) {
-  await getCourseOfferingById(institutionId, id);
+  const current = await getCourseOfferingById(institutionId, id);
 
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
+  }
+
+  if (input.isActive === true && !current.isActive) {
+    await assertOfferingAcademicIntegrity(
+      institutionId,
+      current.courseId,
+      current.semesterId,
+      current.sectionId
+    );
   }
 
   return prisma.courseOffering.update({
