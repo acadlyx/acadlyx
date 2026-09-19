@@ -72,6 +72,19 @@ async function resolveEffectiveInstitution(
       );
     }
 
+    const hasInstitutionScopedRole = userRoles.some(
+      (binding) =>
+        binding.role.name !== "SUPER_ADMIN" &&
+        binding.role.institutionId !== null
+    );
+
+    if (hasInstitutionScopedRole) {
+      throw new AppError(
+        "SUPER_ADMIN cannot also be bound to an institution-scoped role",
+        403
+      );
+    }
+
     return null;
   }
 
