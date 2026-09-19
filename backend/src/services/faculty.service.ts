@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
 
 /**
  * REAL data access for the faculty portal. Everything here comes
@@ -22,10 +23,42 @@ const offeringInclude = {
   },
 } as const;
 
+/**
+ * Resolve the faculty identity strictly inside the authenticated tenant.
+ * Faculty portal methods must never operate on an arbitrary user id.
+ */
+async function assertFacultyInInstitution(
+  institutionId: string,
+  facultyId: string
+): Promise<void> {
+  const faculty = await prisma.user.findFirst({
+    where: {
+      id: facultyId,
+      institutionId,
+      isActive: true,
+      userRoles: {
+        some: {
+          role: { name: "FACULTY" },
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!faculty) {
+    throw new AppError(
+      "Faculty user is not active in this institution",
+      403
+    );
+  }
+}
+
 export async function getMyCourseOfferings(
   institutionId: string,
   facultyId: string
 ) {
+  await assertFacultyInInstitution(institutionId, facultyId);
+
   return prisma.courseOffering.findMany({
     where: { institutionId, facultyId, isActive: true },
     include: offeringInclude,
@@ -104,6 +137,8 @@ export async function getAtRiskStudents(
   facultyId: string,
   thresholdPercent = 75
 ) {
+  await assertFacultyInInstitution(institutionId, facultyId);
+
   const offerings = await prisma.courseOffering.findMany({
     where: { institutionId, facultyId, isActive: true },
     select: { id: true },
@@ -155,6 +190,8 @@ export async function getPendingAttendanceCount(
   facultyId: string,
   date: Date = new Date()
 ): Promise<number> {
+  await assertFacultyInInstitution(institutionId, facultyId);
+
   const overview = await getAttendanceOverview(institutionId, facultyId, date);
   return overview.filter((o) => !o.isSubmitted).length;
 }
@@ -164,6 +201,8 @@ export async function getPendingAssignmentReviewCount(
   institutionId: string,
   facultyId: string
 ): Promise<number> {
+  await assertFacultyInInstitution(institutionId, facultyId);
+
   return prisma.assignmentSubmission.count({
     where: {
       institutionId,
@@ -184,6 +223,8 @@ export async function getAssignmentSubmissionGaps(
   facultyId: string,
   limit = 5
 ) {
+  await assertFacultyInInstitution(institutionId, facultyId);
+
   const assignments = await prisma.assignment.findMany({
     where: {
       institutionId,
