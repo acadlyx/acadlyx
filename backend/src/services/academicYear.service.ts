@@ -64,7 +64,7 @@ export async function createAcademicYear(
   });
   if (existing) {
     throw new AppError(
-      `An academic year named "${name}" already exists`,
+      `An academic year named "${input.name}" already exists`,
       409
     );
   }
@@ -109,7 +109,7 @@ export async function updateAcademicYear(
     });
     if (nameTaken) {
       throw new AppError(
-        `An academic year named "${name}" already exists`,
+        `An academic year named "${input.name}" already exists`,
         409
       );
     }
