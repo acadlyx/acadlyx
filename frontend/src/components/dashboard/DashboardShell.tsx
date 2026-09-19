@@ -21,10 +21,11 @@ type NavItem = {
 const roleNavigation: Record<string, NavItem[]> = {
   STUDENT: [
     { label: "Dashboard", href: "/student", icon: "⌂" },
+    { label: "Timetable", href: "/student/timetable", icon: "▦" },
+    { label: "Academic dates", href: "/student/calendar", icon: "◫" },
     { label: "Attendance", href: "/student/attendance", icon: "◷" },
     { label: "Assignments", href: "/student/assignments", icon: "✓" },
     { label: "Marks", href: "/student/marks", icon: "◈" },
-    { label: "Placements", href: "/placements", icon: "↗" },
   ],
 
   FACULTY: [

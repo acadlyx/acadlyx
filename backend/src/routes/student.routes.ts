@@ -60,6 +60,12 @@ router.get(
   studentController.assignments
 );
 
+router.get(
+  "/me/timetable",
+  authorizeRoles("STUDENT"),
+  studentController.timetable
+);
+
 /*
  * Institution student master / enrollment management.
  *

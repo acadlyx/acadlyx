@@ -65,6 +65,59 @@ export const assignments = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json({ success: true, data: items });
 });
 
+/** GET /api/v1/students/me/timetable — the authenticated student's weekly schedule. */
+export const timetable = asyncHandler(async (req: Request, res: Response) => {
+  const institutionId = requireInstitution(req);
+  const user = requireUser(req);
+  const { enrollment } = await studentPortalService.getMyProfile(
+    institutionId,
+    user.id
+  );
+
+  if (!enrollment?.sectionId) {
+    res.status(200).json({ success: true, data: [] });
+    return;
+  }
+
+  const entries = await prisma.timetableEntry.findMany({
+    where: {
+      institutionId,
+      courseOffering: {
+        sectionId: enrollment.sectionId,
+        isActive: true,
+      },
+    },
+    include: {
+      courseOffering: {
+        include: {
+          course: {
+            select: { code: true, name: true },
+          },
+          faculty: {
+            select: { firstName: true, lastName: true },
+          },
+        },
+      },
+    },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+
+  res.status(200).json({
+    success: true,
+    data: entries.map((entry) => ({
+      id: entry.id,
+      dayOfWeek: entry.dayOfWeek,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      room: entry.room,
+      course: entry.courseOffering.course,
+      faculty: entry.courseOffering.faculty
+        ? `${entry.courseOffering.faculty.firstName} ${entry.courseOffering.faculty.lastName}`.trim()
+        : null,
+    })),
+  });
+});
+
 function formatDueLabel(dueDate: Date): string {
   const now = new Date();
   const diffMs = dueDate.getTime() - now.getTime();
