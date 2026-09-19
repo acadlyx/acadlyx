@@ -612,6 +612,65 @@ export async function updateUser(
     );
   }
 
+  // STUDENT accounts have mandatory StudentProfile + StudentEnrollment
+  // records created by the student-admin workflow. Generic user editing
+  // must never convert a student into another role (or another user into
+  // STUDENT) because that would leave the account in an inconsistent state.
+  if (
+    input.role &&
+    currentRole?.name === "STUDENT" &&
+    input.role !== "STUDENT"
+  ) {
+    throw new AppError(
+      "Student roles must be managed through the student administration workflow",
+      400
+    );
+  }
+
+  if (
+    input.role === "STUDENT" &&
+    currentRole?.name !== "STUDENT"
+  ) {
+    throw new AppError(
+      "Create a student through the student administration workflow",
+      400
+    );
+  }
+
+  // A role change away from INSTITUTION_ADMIN has the same safety
+  // requirement as deactivation: the institution must retain an active
+  // administrator.
+  if (
+    input.role &&
+    input.role !== "INSTITUTION_ADMIN" &&
+    currentRole?.name === "INSTITUTION_ADMIN"
+  ) {
+    const activeAdmins =
+      await prisma.user.count({
+        where: {
+          institutionId: existing.institutionId,
+          isActive: true,
+          userRoles: {
+            some: {
+              role: {
+                name: "INSTITUTION_ADMIN",
+              },
+            },
+          },
+          id: {
+            not: existing.id,
+          },
+        },
+      });
+
+    if (activeAdmins === 0) {
+      throw new AppError(
+        "The institution must retain at least one active institution administrator",
+        400
+      );
+    }
+  }
+
   if (
     input.isActive === false &&
     currentRole?.name ===
