@@ -411,6 +411,7 @@ export const SYSTEM_ROLE_NAMES = [
   "STAFF",
   "STUDENT",
   "PARENT",
+  "CMS",
 ] as const;
 
 /**
@@ -593,4 +594,7 @@ export const ROLE_PERMISSIONS: Record<
 
     ...ACADEMIC_READ,
   ],
+
+  /* Content staff are isolated to the tenant CMS feature and have no ERP data privileges. */
+  CMS: ["site.manage"],
 };

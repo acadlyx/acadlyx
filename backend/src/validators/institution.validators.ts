@@ -69,6 +69,21 @@ export const listInstitutionsQuerySchema = z.object({
   isActive: z.enum(["true", "false"]).optional(),
 });
 
+const optionalLimit = z.number().int().nonnegative().nullable().optional();
+export const updateTenantEntitlementsSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+  plan: z.string().trim().min(1).max(80).optional(),
+  status: z.enum(["TRIAL", "ACTIVE", "EXPIRED", "SUSPENDED", "CANCELLED"]).optional(),
+  trialEndsAt: z.coerce.date().nullable().optional(),
+  expiresAt: z.coerce.date().nullable().optional(),
+  renewsAt: z.coerce.date().nullable().optional(),
+  studentLimit: optionalLimit, userLimit: optionalLimit, facultyLimit: optionalLimit, storageLimitMb: optionalLimit,
+  features: z.array(z.object({
+    featureKey: z.enum(["students", "faculty", "attendance", "timetable", "exams", "results", "assignments", "fees", "payments", "parent_portal", "notices", "notifications", "reports", "import_export", "cms", "documents", "analytics", "intelligence", "placements"]),
+    isEnabled: z.boolean(), limitValue: optionalLimit, override: z.record(z.unknown()).nullable().optional(),
+  })).max(32).optional(),
+});
+
 export type CreateInstitutionInput = z.infer<
   typeof createInstitutionSchema
 >;

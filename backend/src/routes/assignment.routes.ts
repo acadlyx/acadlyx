@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as assignmentController from "../controllers/assignment.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
   createAssignmentSchema,
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("assignments"));
 
 router.get(
   "/",

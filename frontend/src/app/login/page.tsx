@@ -44,6 +44,10 @@ function getDashboardRoute(roles: string[]): string {
     return "/staff";
   }
 
+  if (roles.includes("CMS")) {
+    return "/site-content";
+  }
+
   if (roles.includes("STUDENT")) {
     return "/student";
   }

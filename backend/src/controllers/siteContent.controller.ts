@@ -17,7 +17,7 @@ export const publicContent = asyncHandler(async (req: Request, res) => {
 export const get = asyncHandler(async (req, res) => { res.json({ success: true, data: await site.getSiteContent(requireInstitution(req)) }); });
 export const update = asyncHandler(async (req, res) => { res.json({ success: true, data: await site.updateSiteContent(requireInstitution(req), req.user!, req.body) }); });
 export const upload = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.user?.roles.some((r) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"].includes(r))) throw new AppError("You are not allowed to upload website media", 403);
+  if (!req.user?.roles.some((r) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "CMS"].includes(r))) throw new AppError("You are not allowed to upload website media", 403);
   if (!req.file) throw new AppError("Image file is required", 400);
   if (!env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) throw new AppError("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.", 503);
   cloudinary.config({ cloud_name: env.cloudinaryCloudName, api_key: env.cloudinaryApiKey, api_secret: env.cloudinaryApiSecret });

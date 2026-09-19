@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as marksController from "../controllers/internalMark.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
   enterMarksSchema,
@@ -11,6 +12,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("results"));
 
 router.get(
   "/",

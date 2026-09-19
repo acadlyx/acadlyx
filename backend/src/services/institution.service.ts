@@ -11,6 +11,7 @@ import {
   CreateInstitutionInput,
   UpdateInstitutionInput,
 } from "../validators/institution.validators";
+import { provisionTenantEntitlements } from "./entitlement.service";
 
 async function ensurePermissionCatalog(
   tx: Prisma.TransactionClient
@@ -415,6 +416,8 @@ export async function createInstitution(
             tx,
             createdInstitution.id
           );
+
+        await provisionTenantEntitlements(tx, createdInstitution.id);
 
         const adminRoleId =
           roles.get("INSTITUTION_ADMIN");

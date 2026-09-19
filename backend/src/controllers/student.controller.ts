@@ -95,11 +95,20 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     user.id
   );
 
+  // A valid student account may be awaiting enrollment.  The dashboard is a
+  // workspace, not an enrollment validator: return a safe empty state rather
+  // than turning optional academic data into a failed login destination.
   if (!enrollment) {
-    throw new AppError(
-      "No student enrollment found for this user. This account may not be a student, or has not been enrolled for any academic year yet.",
-      404
-    );
+    const institution = await studentPortalService.getInstitutionBranding(institutionId);
+    return res.status(200).json({ success: true, data: {
+      institution,
+      student: { firstName: profileUser.firstName, lastName: profileUser.lastName, email: profileUser.email, rollNumber: null },
+      program: null, academicYear: null, section: null, courseOfferings: [], attendancePercentage: 0, subjectAttendance: [],
+      assignments: [], todaysClasses: [], announcements: [], upcomingEvents: [],
+      academicHealth: { attendance: 0, assignments: 0, internalMarks: 0, engagement: 0, academicHealth: 0 },
+      academicRisk: "LOW", recommendations: ["Your academic enrollment is being set up. Please contact your institution if this persists."],
+      career: null,
+    } });
   }
 
   const courseOfferings = enrollment.sectionId
@@ -120,11 +129,14 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       prisma.exam.findMany({ where: { institutionId, courseOffering: { sectionId: enrollment.sectionId || "" }, examDate: { gte: new Date() } }, orderBy: { examDate: "asc" }, take: 5 }),
     ]);
 
-  if (!intelligence) {
-    throw new AppError("Student intelligence could not be calculated", 404);
-  }
-
-  const academicHealth = intelligence.scores;
+  // Intelligence is derived from optional records. It must never make the
+  // primary student workspace unavailable.
+  const intelligenceData = intelligence ?? {
+    scores: { attendance: attendanceSummary.overallPercentage, assignments: 100, internalMarks: 0, engagement: 0, academicHealth: 0 },
+    risk: "LOW" as const,
+    recommendations: [] as string[],
+  };
+  const academicHealth = intelligenceData.scores;
   const career = await careerIntelligenceService.getCareerIntelligence(
     institutionId, user.id, academicHealth.academicHealth
   );
@@ -168,8 +180,8 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
       announcements: notices.map((notice) => ({ id: notice.id, title: notice.title, postedLabel: notice.publishedAt.toLocaleDateString() })),
       upcomingEvents: exams.map((exam) => ({ id: exam.id, title: exam.title, whenLabel: exam.examDate.toLocaleDateString() })),
       academicHealth,
-      academicRisk: intelligence.risk,
-      recommendations: intelligence.recommendations,
+      academicRisk: intelligenceData.risk,
+      recommendations: intelligenceData.recommendations,
       career,
     },
   });

@@ -63,9 +63,55 @@ model Institution {
   notifications         Notification[]
   parentStudentLinks    ParentStudentLink[]
   siteContents          SiteContent[]
+  subscription          TenantSubscription?
+  featureEntitlements   TenantFeatureEntitlement[]
 
   @@index([isActive])
   @@map("institutions")
+}
+
+/// Tenant commercial state is deliberately separate from RBAC.  A user may
+/// have a permission but still cannot use a module that the tenant has not
+/// purchased or has been suspended from using.
+model TenantSubscription {
+  id             String      @id @default(uuid())
+  institutionId  String      @unique
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  plan           String      @default("STANDARD")
+  status         String      @default("ACTIVE") // TRIAL | ACTIVE | EXPIRED | SUSPENDED | CANCELLED
+  trialEndsAt    DateTime?
+  expiresAt      DateTime?
+  renewsAt       DateTime?
+  studentLimit   Int?
+  userLimit      Int?
+  facultyLimit   Int?
+  storageLimitMb Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  entitlements TenantFeatureEntitlement[]
+
+  @@index([status])
+  @@map("tenant_subscriptions")
+}
+
+/// One authoritative enabled/limit/override record per tenant feature.
+model TenantFeatureEntitlement {
+  id             String             @id @default(uuid())
+  institutionId  String
+  institution    Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   TenantSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  featureKey     String
+  isEnabled      Boolean            @default(true)
+  limitValue     Int?
+  override       Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([institutionId, featureKey])
+  @@index([subscriptionId])
+  @@map("tenant_feature_entitlements")
 }
 
 // ==========================================================

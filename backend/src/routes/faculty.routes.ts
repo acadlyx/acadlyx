@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as facultyController from "../controllers/faculty.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize, authorizeRoles } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 
 /**
  * Self-service routes only ("my course offerings", "my dashboard") —
@@ -13,6 +14,7 @@ import { authorize, authorizeRoles } from "../middleware/authorize";
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("faculty"));
 router.use(authorizeRoles("FACULTY"));
 
 router.get(

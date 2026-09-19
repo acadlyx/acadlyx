@@ -62,11 +62,15 @@ export async function authenticate(
     if (user.institutionId) {
       const institution = await prisma.institution.findUnique({
         where: { id: user.institutionId },
-        select: { isActive: true },
+        select: { isActive: true, subscription: { select: { status: true, expiresAt: true } } },
       });
 
       if (!institution?.isActive) {
         next(new AppError("This institution is not currently active", 403));
+        return;
+      }
+      if (institution.subscription && (["EXPIRED", "SUSPENDED", "CANCELLED"].includes(institution.subscription.status) || (institution.subscription.expiresAt && institution.subscription.expiresAt < new Date()))) {
+        next(new AppError("This tenant subscription is not active", 403));
         return;
       }
     }

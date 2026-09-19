@@ -4,6 +4,7 @@ import * as studentController from "../controllers/student.controller";
 import * as studentAdminController from "../controllers/studentAdmin.controller";
 
 import { authenticate } from "../middleware/authenticate";
+import { requireFeature } from "../middleware/requireFeature";
 import {
   authorize,
   authorizeRoles,
@@ -22,6 +23,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("students"));
 
 /*
  * Self-service routes must stay above /:id so "me" is never

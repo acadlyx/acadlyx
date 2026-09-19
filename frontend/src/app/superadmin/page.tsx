@@ -27,6 +27,8 @@ type Institution = {
   };
 };
 
+type TenantEntitlements = { id: string; plan: string; status: string; expiresAt: string | null; renewsAt: string | null; studentLimit: number | null; userLimit: number | null; facultyLimit: number | null; storageLimitMb: number | null; entitlements: { featureKey: string; isEnabled: boolean; limitValue: number | null }[]; usage: { users: number; students: number; faculty: number; storageMb: number | null } };
+
 type PlatformStats = {
   institutions: number;
   activeInstitutions: number;
@@ -226,6 +228,9 @@ export default function SuperAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<Institution | null>(null);
+  const [tenantEntitlements, setTenantEntitlements] = useState<TenantEntitlements | null>(null);
+  const [entitlementReason, setEntitlementReason] = useState("");
 
   const filteredInstitutions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -464,6 +469,23 @@ export default function SuperAdminPage() {
           : "Unable to update institution."
       );
     }
+  }
+
+  async function openEntitlements(institution: Institution) {
+    setSelectedTenant(institution); setTenantEntitlements(null); setEntitlementReason(""); setError(null);
+    try { const response = await authedFetch<{ success: true; data: TenantEntitlements }>(`/institutions/${institution.id}/entitlements`); setTenantEntitlements(response.data); }
+    catch (err) { setError(err instanceof Error ? err.message : "Unable to load tenant entitlements."); }
+  }
+
+  async function saveEntitlements() {
+    if (!selectedTenant || !tenantEntitlements) return;
+    if (entitlementReason.trim().length < 3) { setError("A reason is required for every entitlement change."); return; }
+    setSaving(true); setError(null);
+    try {
+      const response = await authedFetch<{ success: true; data: TenantEntitlements }>(`/institutions/${selectedTenant.id}/entitlements`, { method: "PUT", body: JSON.stringify({ reason: entitlementReason.trim(), plan: tenantEntitlements.plan, status: tenantEntitlements.status, studentLimit: tenantEntitlements.studentLimit, userLimit: tenantEntitlements.userLimit, facultyLimit: tenantEntitlements.facultyLimit, storageLimitMb: tenantEntitlements.storageLimitMb, features: tenantEntitlements.entitlements }) });
+      setTenantEntitlements(response.data); setMessage(`Subscription and features updated for ${selectedTenant.name}.`);
+    } catch (err) { setError(err instanceof Error ? err.message : "Unable to update tenant entitlements."); }
+    finally { setSaving(false); }
   }
 
   async function toggleUser(user: PlatformUser) {
@@ -844,6 +866,7 @@ export default function SuperAdminPage() {
                                   ? "Deactivate"
                                   : "Activate"}
                               </button>
+                              <button type="button" onClick={() => openEntitlements(institution)} className="ml-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">Subscription & features</button>
                             </td>
                           </tr>
                         )
@@ -864,6 +887,12 @@ export default function SuperAdminPage() {
                   </div>
                 )}
               </div>
+              {selectedTenant && (
+                <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-4"><div><h3 className="font-semibold text-slate-950">{selectedTenant.name} · Subscription & Features</h3><p className="mt-1 text-sm text-slate-500">Server-enforced entitlements. Changes are audited with the required reason.</p></div><button onClick={() => setSelectedTenant(null)} className="text-sm text-slate-500">Close</button></div>
+                  {!tenantEntitlements ? <p className="mt-4 text-sm text-slate-500">Loading tenant configuration…</p> : <><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="text-sm">Plan<input value={tenantEntitlements.plan} onChange={e=>setTenantEntitlements({...tenantEntitlements,plan:e.target.value})} className="mt-1 w-full rounded-lg border p-2" /></label><label className="text-sm">Status<select value={tenantEntitlements.status} onChange={e=>setTenantEntitlements({...tenantEntitlements,status:e.target.value})} className="mt-1 w-full rounded-lg border p-2"><option>TRIAL</option><option>ACTIVE</option><option>EXPIRED</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label className="text-sm">Students ({tenantEntitlements.usage.students} used)<input type="number" value={tenantEntitlements.studentLimit ?? ""} onChange={e=>setTenantEntitlements({...tenantEntitlements,studentLimit:e.target.value?Number(e.target.value):null})} className="mt-1 w-full rounded-lg border p-2" /></label><label className="text-sm">Users ({tenantEntitlements.usage.users} used)<input type="number" value={tenantEntitlements.userLimit ?? ""} onChange={e=>setTenantEntitlements({...tenantEntitlements,userLimit:e.target.value?Number(e.target.value):null})} className="mt-1 w-full rounded-lg border p-2" /></label></div><div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{tenantEntitlements.entitlements.map((feature,index)=><label key={feature.featureKey} className="flex items-center justify-between rounded-lg border p-3 text-sm"><span>{feature.featureKey.replace(/_/g," ")}</span><input type="checkbox" checked={feature.isEnabled} onChange={e=>{const entitlements=[...tenantEntitlements.entitlements];entitlements[index]={...feature,isEnabled:e.target.checked};setTenantEntitlements({...tenantEntitlements,entitlements})}} /></label>)}</div><label className="mt-5 block text-sm font-medium">Change reason<textarea value={entitlementReason} onChange={e=>setEntitlementReason(e.target.value)} className="mt-1 w-full rounded-lg border p-2" required /></label><button disabled={saving} onClick={saveEntitlements} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : "Save subscription & features"}</button></>}
+                </section>
+              )}
             </>
           )}
 
@@ -1326,6 +1355,7 @@ export default function SuperAdminPage() {
                       MANAGEMENT
                     </option>
                     <option value="HOD">HOD</option>
+                    <option value="CMS">CMS</option>
                     <option value="FACULTY">
                       FACULTY
                     </option>

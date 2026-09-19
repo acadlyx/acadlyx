@@ -101,7 +101,7 @@ export async function getSiteContent(institutionId: string): Promise<SiteContent
 }
 
 export async function updateSiteContent(institutionId: string, actor: AuthenticatedUser, content: unknown) {
-  if (!actor.roles.some((r) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"].includes(r))) {
+  if (!actor.roles.some((r) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "CMS"].includes(r))) {
     throw new AppError("You are not allowed to manage website content", 403);
   }
   const normalized = mergeDefaults(content);

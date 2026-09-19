@@ -198,7 +198,7 @@ export default function StudentDashboardPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <DashboardCard title="Target Role"><p className="text-sm font-semibold text-slate-800">{career?.targetRole?.name ?? "Choose a target role"}</p></DashboardCard>
             <DashboardCard title="Placement Readiness"><ProgressCard label="Deterministic readiness" value={career?.readiness ?? 0} /></DashboardCard>
-            <DashboardCard title="Skill Gaps"><ul className="space-y-1 text-sm text-slate-600">{career?.missingSkills.length ? career.missingSkills.slice(0, 3).map(s => <li key={s.name}>{s.name}: {s.currentLevel}% / {s.requiredLevel}%</li>) : <li>No target-role gaps recorded.</li>}</ul></DashboardCard>
+            <DashboardCard title="Skill Gaps"><ul className="space-y-1 text-sm text-slate-600">{career?.missingSkills?.length ? career.missingSkills.slice(0, 3).map(s => <li key={s.name}>{s.name}: {s.currentLevel}% / {s.requiredLevel}%</li>) : <li>No target-role gaps recorded.</li>}</ul></DashboardCard>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
+import { assertTenantQuota } from "./entitlement.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -422,6 +423,8 @@ export async function createStudent(
   input: CreateStudentInput,
   actor: AuthenticatedUser
 ) {
+  await assertTenantQuota(institutionId, "users");
+  await assertTenantQuota(institutionId, "students");
   const email = input.email.trim().toLowerCase();
   const admissionNumber =
     input.admissionNumber.trim().toUpperCase();

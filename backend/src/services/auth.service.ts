@@ -155,6 +155,10 @@ export async function login(
     if (!institution || !institution.isActive) {
       throw new AppError("This institution is not currently active", 403);
     }
+    const subscription = await prisma.tenantSubscription.findUnique({ where: { institutionId: user.institutionId } });
+    if (subscription && (["EXPIRED", "SUSPENDED", "CANCELLED"].includes(subscription.status) || (subscription.expiresAt && subscription.expiresAt < new Date()))) {
+      throw new AppError("This tenant subscription is not active", 403);
+    }
   }
 
   const passwordMatches = await comparePassword(password, user.passwordHash);

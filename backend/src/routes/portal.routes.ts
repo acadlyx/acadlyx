@@ -6,6 +6,7 @@ import {
   authorize,
   authorizeRoles,
 } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 import {
   validateBody,
   validateParams,
@@ -33,6 +34,7 @@ router.use(authenticate);
 
 router.get(
   "/parent/children",
+  requireFeature("parent_portal"),
   authorizeRoles(
     "PARENT",
     "SUPER_ADMIN",
@@ -47,6 +49,7 @@ router.get(
 
 router.get(
   "/parent/dashboard",
+  requireFeature("parent_portal"),
   authorizeRoles(
     "PARENT",
     "SUPER_ADMIN",
@@ -69,6 +72,7 @@ router.get(
  */
 router.get(
   "/students/:studentId",
+  requireFeature("parent_portal"),
   authorize(
     "students.read"
   ),
@@ -82,6 +86,7 @@ router.get(
 
 router.get(
   "/notifications",
+  requireFeature("notifications"),
   authorize(
     "attendance.read"
   ),
@@ -93,6 +98,7 @@ router.get(
 
 router.patch(
   "/notifications/:id",
+  requireFeature("notifications"),
   authorize(
     "attendance.read"
   ),
@@ -107,6 +113,7 @@ router.patch(
 
 router.post(
   "/notifications/read-all",
+  requireFeature("notifications"),
   authorize(
     "attendance.read"
   ),
@@ -115,6 +122,7 @@ router.post(
 
 router.post(
   "/notifications",
+  requireFeature("notifications"),
   authorize(
     "notices.manage"
   ),
@@ -126,6 +134,7 @@ router.post(
 
 router.post(
   "/notifications/bulk",
+  requireFeature("notifications"),
   authorize(
     "notices.manage"
   ),
@@ -141,6 +150,7 @@ router.post(
 
 router.get(
   "/documents/me",
+  requireFeature("documents"),
   authorize(
     "students.read"
   ),
@@ -149,6 +159,7 @@ router.get(
 
 router.get(
   "/documents/students/:studentId",
+  requireFeature("documents"),
   authorize(
     "students.read"
   ),
@@ -160,6 +171,7 @@ router.get(
 
 router.post(
   "/documents",
+  requireFeature("documents"),
   authorize(
     "students.update"
   ),
@@ -171,6 +183,7 @@ router.post(
 
 router.delete(
   "/documents/:id",
+  requireFeature("documents"),
   authorize(
     "students.update"
   ),

@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as attendanceController from "../controllers/attendanceSession.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
   createSessionSchema,
@@ -12,6 +13,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("attendance"));
 
 router.get(
   "/",

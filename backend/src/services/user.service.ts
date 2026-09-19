@@ -13,6 +13,7 @@ import {
   CreateUserInput,
   UpdateUserInput,
 } from "../validators/user.validators";
+import { assertTenantQuota } from "./entitlement.service";
 
 const SYSTEM_ROLE_SET = new Set<string>(
   SYSTEM_ROLE_NAMES
@@ -365,6 +366,9 @@ export async function createUser(
   }
 
   if (targetInstitutionId) {
+    await assertTenantQuota(targetInstitutionId, "users");
+    if (input.role === "FACULTY") await assertTenantQuota(targetInstitutionId, "faculty");
+    if (input.role === "STUDENT") await assertTenantQuota(targetInstitutionId, "students");
     const institution =
       await prisma.institution.findUnique({
         where: {
