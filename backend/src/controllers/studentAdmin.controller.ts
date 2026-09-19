@@ -27,11 +27,13 @@ function requireUser(req: Request) {
 export const list = asyncHandler(
   async (req: Request, res: Response) => {
     const institutionId = requireInstitution(req);
+    const actor = requireUser(req);
     const pagination = parsePagination(req);
 
     const result =
       await studentService.listStudents(
         institutionId,
+        actor,
         {
           page: pagination.page,
           pageSize: pagination.pageSize,
@@ -79,11 +81,13 @@ export const list = asyncHandler(
 export const getById = asyncHandler(
   async (req: Request, res: Response) => {
     const institutionId = requireInstitution(req);
+    const actor = requireUser(req);
 
     const student =
       await studentService.getStudent(
         institutionId,
-        req.params.id
+        req.params.id,
+        actor
       );
 
     res.status(200).json({
@@ -174,11 +178,13 @@ export const enroll = asyncHandler(
 export const enrollments = asyncHandler(
   async (req: Request, res: Response) => {
     const institutionId = requireInstitution(req);
+    const actor = requireUser(req);
 
     const items =
       await studentService.listStudentEnrollments(
         institutionId,
-        req.params.id
+        req.params.id,
+        actor
       );
 
     res.status(200).json({
