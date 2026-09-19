@@ -45,13 +45,6 @@ export async function getAcademicYearById(institutionId: string, id: string) {
   return year;
 }
 
-/** Only one academic year can be "current" per institution at a time. */
-async function clearOtherCurrentYears(institutionId: string, exceptId?: string) {
-  await prisma.academicYear.updateMany({
-    where: { institutionId, isCurrent: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
-    data: { isCurrent: false },
-  });
-}
 
 export async function createAcademicYear(
   institutionId: string,
