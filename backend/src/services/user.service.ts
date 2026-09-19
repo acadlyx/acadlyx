@@ -15,27 +15,64 @@ import {
 } from "../validators/user.validators";
 import { assertTenantQuota } from "./entitlement.service";
 
-const SYSTEM_ROLE_SET = new Set<string>(
-  SYSTEM_ROLE_NAMES
-);
+const SYSTEM_ROLE_SET = new Set<string>(SYSTEM_ROLE_NAMES);
 
-function isSuperAdmin(
-  actor: AuthenticatedUser
-): boolean {
+function isSuperAdmin(actor: AuthenticatedUser): boolean {
   return actor.roles.includes("SUPER_ADMIN");
 }
 
-function requireActorInstitution(
+/**
+ * Resolve the actor's institution safely.
+ *
+ * The authenticated token may contain institutionId, but older/stale
+ * tokens or login flows may not. In that case we resolve it from the
+ * database using the authenticated user's id.
+ *
+ * This prevents valid institution administrators from being treated as
+ * platform/unscoped users.
+ */
+async function requireActorInstitution(
   actor: AuthenticatedUser
-): string {
-  if (!actor.institutionId) {
+): Promise<string> {
+  if (actor.institutionId) {
+    return actor.institutionId;
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: {
+      id: actor.id,
+    },
+    select: {
+      institutionId: true,
+      isActive: true,
+      userRoles: {
+        select: {
+          role: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!dbUser) {
+    throw new AppError("Authenticated user was not found", 401);
+  }
+
+  if (!dbUser.isActive) {
+    throw new AppError("Your account is inactive", 403);
+  }
+
+  if (!dbUser.institutionId) {
     throw new AppError(
       "This action requires an institution-scoped user",
       403
     );
   }
 
-  return actor.institutionId;
+  return dbUser.institutionId;
 }
 
 async function getRoleForUser(
@@ -68,22 +105,19 @@ async function getRoleForUser(
   }
 
   if (institutionId) {
-    await prisma.$transaction(
-      async (tx) => {
-        await ensureInstitutionSystemRoles(
-          tx,
-          institutionId
-        );
-      }
-    );
+    await prisma.$transaction(async (tx) => {
+      await ensureInstitutionSystemRoles(
+        tx,
+        institutionId
+      );
+    });
 
-    const repairedRole =
-      await prisma.role.findFirst({
-        where: {
-          name: roleName,
-          institutionId,
-        },
-      });
+    const repairedRole = await prisma.role.findFirst({
+      where: {
+        name: roleName,
+        institutionId,
+      },
+    });
 
     if (repairedRole) {
       return repairedRole;
@@ -119,10 +153,7 @@ async function getScopedUserOrThrow(
   });
 
   if (!user) {
-    throw new AppError(
-      "User not found",
-      404
-    );
+    throw new AppError("User not found", 404);
   }
 
   return user;
@@ -139,15 +170,19 @@ export async function listUsers(params: {
 }) {
   const where: Prisma.UserWhereInput = {};
 
+  /*
+   * scopeInstitutionId is authoritative when supplied.
+   *
+   * This prevents an institution administrator from passing a different
+   * institutionId through the request and seeing another tenant.
+   */
   if (
     params.scopeInstitutionId !== null &&
     params.scopeInstitutionId !== undefined
   ) {
-    where.institutionId =
-      params.scopeInstitutionId;
+    where.institutionId = params.scopeInstitutionId;
   } else if (params.institutionId) {
-    where.institutionId =
-      params.institutionId;
+    where.institutionId = params.institutionId;
   }
 
   if (params.search) {
@@ -193,51 +228,50 @@ export async function listUsers(params: {
     };
   }
 
-  const [items, total] =
-    await prisma.$transaction([
-      prisma.user.findMany({
-        where,
-        orderBy: {
-          createdAt: "desc",
-        },
-        skip:
-          (params.page - 1) *
-          params.pageSize,
-        take: params.pageSize,
-        select: {
-          id: true,
-          institutionId: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          isActive: true,
-          lastLoginAt: true,
-          createdAt: true,
-          institution: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-            },
+  const [items, total] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip:
+        (params.page - 1) *
+        params.pageSize,
+      take: params.pageSize,
+      select: {
+        id: true,
+        institutionId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
           },
-          userRoles: {
-            select: {
-              role: {
-                select: {
-                  id: true,
-                  name: true,
-                },
+        },
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
               },
             },
           },
         },
-      }),
+      },
+    }),
 
-      prisma.user.count({
-        where,
-      }),
-    ]);
+    prisma.user.count({
+      where,
+    }),
+  ]);
 
   return {
     items: items.map((user) => ({
@@ -258,8 +292,7 @@ export async function getUserById(
   const user = await prisma.user.findFirst({
     where: {
       id,
-      ...(scopeInstitutionId !==
-        undefined &&
+      ...(scopeInstitutionId !== undefined &&
       scopeInstitutionId !== null
         ? {
             institutionId:
@@ -320,13 +353,17 @@ export async function createUser(
   input: CreateUserInput,
   actor: AuthenticatedUser
 ) {
-  // Institution administrators are tenant-scoped. Their institution is
-  // derived from the authenticated actor, never from the browser payload.
-  // This both fixes the create-user flow and prevents cross-institution
-  // assignment if a client tampers with institutionId.
+  /*
+   * SUPER_ADMIN can choose the target institution.
+   *
+   * Every institution-scoped role created by a tenant administrator is
+   * automatically attached to the administrator's own institution.
+   *
+   * The browser cannot override this.
+   */
   const targetInstitutionId = isSuperAdmin(actor)
     ? input.institutionId ?? null
-    : requireActorInstitution(actor);
+    : await requireActorInstitution(actor);
 
   if (isSuperAdmin(actor)) {
     if (
@@ -366,9 +403,25 @@ export async function createUser(
   }
 
   if (targetInstitutionId) {
-    await assertTenantQuota(targetInstitutionId, "users");
-    if (input.role === "FACULTY") await assertTenantQuota(targetInstitutionId, "faculty");
-    if (input.role === "STUDENT") await assertTenantQuota(targetInstitutionId, "students");
+    await assertTenantQuota(
+      targetInstitutionId,
+      "users"
+    );
+
+    if (input.role === "FACULTY") {
+      await assertTenantQuota(
+        targetInstitutionId,
+        "faculty"
+      );
+    }
+
+    if (input.role === "STUDENT") {
+      await assertTenantQuota(
+        targetInstitutionId,
+        "students"
+      );
+    }
+
     const institution =
       await prisma.institution.findUnique({
         where: {
@@ -418,9 +471,7 @@ export async function createUser(
   );
 
   const passwordHash =
-    await hashPassword(
-      input.password
-    );
+    await hashPassword(input.password);
 
   const user =
     await prisma.$transaction(
@@ -466,7 +517,10 @@ export async function createUser(
     },
   });
 
-  return getUserById(user.id);
+  return getUserById(
+    user.id,
+    user.institutionId
+  );
 }
 
 export async function updateUser(
@@ -474,10 +528,17 @@ export async function updateUser(
   input: UpdateUserInput,
   actor: AuthenticatedUser
 ) {
-  const scopeInstitutionId =
-    isSuperAdmin(actor)
-      ? null
-      : requireActorInstitution(actor);
+  /*
+   * Resolve the actor's actual institution from the database when the
+   * authentication payload is missing institutionId.
+   */
+  const actorInstitutionId = isSuperAdmin(actor)
+    ? null
+    : await requireActorInstitution(actor);
+
+  const scopeInstitutionId = isSuperAdmin(actor)
+    ? null
+    : actorInstitutionId;
 
   const existing =
     await getScopedUserOrThrow(
@@ -488,7 +549,7 @@ export async function updateUser(
   if (
     !isSuperAdmin(actor) &&
     existing.institutionId !==
-      actor.institutionId
+      actorInstitutionId
   ) {
     throw new AppError(
       "You cannot modify a user outside your institution",
@@ -652,8 +713,7 @@ export async function updateUser(
               revokedAt: null,
             },
             data: {
-              revokedAt:
-                new Date(),
+              revokedAt: new Date(),
             },
           });
         }
@@ -727,7 +787,10 @@ export async function updateUser(
     },
   });
 
-  return getUserById(id);
+  return getUserById(
+    id,
+    existing.institutionId
+  );
 }
 
 export async function setUserActive(
