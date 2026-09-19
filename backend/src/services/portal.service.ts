@@ -130,6 +130,42 @@ async function assertStudentSelfAccess(
   );
 }
 
+
+async function assertHodStudentAccess(
+  institutionId: string,
+  actorId: string,
+  studentId: string
+): Promise<void> {
+  const accesses = await prisma.departmentAccess.findMany({
+    where: { userId: actorId, department: { institutionId } },
+    select: { departmentId: true },
+  });
+  const departmentIds = accesses.map((item) => item.departmentId);
+
+  if (!departmentIds.length) {
+    throw new AppError(
+      "You are not authorized to access this student's information",
+      403
+    );
+  }
+
+  const allowed = await prisma.studentEnrollment.findFirst({
+    where: {
+      institutionId,
+      userId: studentId,
+      program: { departmentId: { in: departmentIds } },
+    },
+    select: { id: true },
+  });
+
+  if (!allowed) {
+    throw new AppError(
+      "You are not authorized to access this student's information",
+      403
+    );
+  }
+}
+
 async function assertStudentExists(
   institutionId: string,
   studentId: string
@@ -866,6 +902,12 @@ export async function getStudentPortal(
     );
   } else if (isStudent(actor)) {
     await assertStudentSelfAccess(
+      institutionId,
+      actor.id,
+      studentId
+    );
+  } else if (actor.roles.includes("HOD")) {
+    await assertHodStudentAccess(
       institutionId,
       actor.id,
       studentId
