@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
 AuthRequiredError,
@@ -49,6 +49,19 @@ type Tab =
 | "parents"
 | "notifications"
 | "documents";
+
+function isTab(value: string | null): value is Tab {
+return [
+"overview",
+"timetable",
+"notices",
+"exams",
+"fees",
+"parents",
+"notifications",
+"documents",
+].includes(value || "");
+}
 
 const tabs: Array<{
 id: Tab;
@@ -204,11 +217,19 @@ timeStyle: "short",
 );
 }
 
-export default function ERPPage() {
+function ERPPageContent() {
 const router = useRouter();
+const searchParams = useSearchParams();
+const requestedTab = searchParams.get("tab");
 
 const [tab, setTab] =
-useState<Tab>("overview");
+useState<Tab>(() => isTab(requestedTab) ? requestedTab : "overview");
+
+useEffect(() => {
+if (isTab(requestedTab)) {
+setTab(requestedTab);
+}
+}, [requestedTab]);
 
 const [loading, setLoading] =
 useState(true);
@@ -782,6 +803,14 @@ ACADLYX ERP
   </div>
 </DashboardShell>
 
+);
+}
+
+export default function ERPPage() {
+return (
+<Suspense fallback={<main className="min-h-screen bg-slate-50" />}>
+<ERPPageContent />
+</Suspense>
 );
 }
 

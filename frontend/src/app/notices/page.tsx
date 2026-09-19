@@ -1,13 +1,5 @@
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import Phase1ModulePage from "@/components/phase1/Phase1ModulePage";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <DashboardShell
-      title="Notice Board"
-      subtitle="ACADLYX Core ERP"
-    >
-      <Phase1ModulePage module="notices" />
-    </DashboardShell>
-  );
+  redirect("/erp?tab=notices");
 }
