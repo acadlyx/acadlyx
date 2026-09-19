@@ -365,6 +365,13 @@ export async function createUser(
     ? input.institutionId ?? null
     : await requireActorInstitution(actor);
 
+  if (input.role === "STUDENT") {
+    throw new AppError(
+      "Student accounts must be created through the student administration workflow so User + StudentProfile + StudentEnrollment are created atomically",
+      400
+    );
+  }
+
   if (isSuperAdmin(actor)) {
     if (
       input.role === "SUPER_ADMIN" &&
