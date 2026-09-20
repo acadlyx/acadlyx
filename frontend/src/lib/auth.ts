@@ -1,29 +1,28 @@
 import { apiUrl } from "./api";
 
 /**
- * Acadlyx authentication client
+ * Fast client-side authentication layer.
  *
- * Important security behavior:
- * - Access/refresh tokens are stored in sessionStorage, NOT localStorage.
- * - Every browser tab gets its own authentication storage.
- * - Legacy localStorage token values are removed.
- * - MFA tokens are only stored after successful verification.
- * - Authenticated requests automatically attempt one token refresh after 401.
- *
- * sessionStorage is intentionally used so separate tabs do not share the
- * active authenticated session.
+ * Goals:
+ * - Keep authentication isolated per browser tab.
+ * - Never make page rendering wait for /auth/me when a trusted tab-local
+ *   user snapshot is already available.
+ * - Revalidate the user in the background so stale sessions are detected.
+ * - Keep the access/refresh tokens out of localStorage.
+ * - Cache successful read-only API responses in the browser Cache API so
+ *   previously opened screens can render immediately while the database
+ *   catches up in the background.
  */
 
 const ACCESS_TOKEN_KEY = "acadlyx_access_token";
 const REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
-
-const LEGACY_ACCESS_TOKEN_KEY = "acadlyx_access_token";
-const LEGACY_REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
-
+const USER_CACHE_KEY = "acadlyx_current_user";
 const TAB_ID_KEY = "acadlyx_tab_id";
 const TAB_INITIALIZED_KEY = "acadlyx_tab_initialized";
-
 const TAB_CHANNEL_NAME = "acadlyx_auth_tab_isolation";
+const API_CACHE_NAME = "acadlyx-api-v1";
+const API_CACHE_TTL_MS = 5 * 60 * 1000;
+const API_CACHE_META_PREFIX = "acadlyx_api_cache_meta:";
 
 export interface AuthTokens {
   accessToken: string;
@@ -44,229 +43,200 @@ export interface AuthUser {
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
-  error?: {
-    message?: string;
-    code?: string;
-  };
+}
+
+interface CachedApiResponse {
+  body: unknown;
+  cachedAt: number;
 }
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
-/**
- * Generates a per-tab identifier.
- */
-function generateTabId(): string {
-  if (
-    typeof globalThis.crypto !== "undefined" &&
-    typeof globalThis.crypto.randomUUID === "function"
-  ) {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-/**
- * Ensures this browser tab has its own identifier.
- *
- * sessionStorage is intentionally used here because it is scoped to the
- * individual tab.
- */
-function ensureTabId(): string | null {
+function getOrCreateTabId(): string | null {
   if (!isBrowser()) return null;
 
   let tabId = window.sessionStorage.getItem(TAB_ID_KEY);
-
   if (!tabId) {
-    tabId = generateTabId();
+    tabId = `${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2)}`;
     window.sessionStorage.setItem(TAB_ID_KEY, tabId);
   }
-
   return tabId;
 }
 
-/**
- * Remove authentication tokens that may have been left behind by older
- * Acadlyx builds which used localStorage.
- *
- * We NEVER read authentication tokens from localStorage.
- */
-function removeLegacyLocalStorageTokens(): void {
+function clearAuthStorage(): void {
   if (!isBrowser()) return;
-
-  try {
-    window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
-    window.localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
-  } catch {
-    // Ignore storage access failures.
-  }
+  window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.sessionStorage.removeItem(USER_CACHE_KEY);
 }
 
-/**
- * Read an access token only from this tab's sessionStorage.
- */
-function getAccessTokenUnsafe(): string | null {
-  if (!isBrowser()) return null;
-
-  try {
-    return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read a refresh token only from this tab's sessionStorage.
- */
-function getRefreshTokenUnsafe(): string | null {
-  if (!isBrowser()) return null;
-
-  try {
-    return window.sessionStorage.getItem(REFRESH_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Clear only this tab's authentication state.
- */
-function clearSessionTokens(): void {
-  if (!isBrowser()) return;
-
-  try {
-    window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-  } catch {
-    // Ignore storage access failures.
-  }
-}
-
-/**
- * Best-effort protection against sessionStorage cloning.
- *
- * Browsers can initially clone sessionStorage when a new document is opened
- * from an existing document with window.opener.
- *
- * When that happens, the new document must not inherit the parent's active
- * authentication session.
- *
- * We deliberately do NOT use localStorage for authentication.
- */
 function protectAgainstClonedSession(): void {
   if (!isBrowser()) return;
 
-  removeLegacyLocalStorageTokens();
+  const initialized =
+    window.sessionStorage.getItem(TAB_INITIALIZED_KEY) === "1";
+  const hasOpener = Boolean(window.opener);
+  const copiedAccessToken = Boolean(
+    window.sessionStorage.getItem(ACCESS_TOKEN_KEY)
+  );
 
-  const initialized = window.sessionStorage.getItem(TAB_INITIALIZED_KEY);
-
-  /**
-   * A page opened from another document may inherit sessionStorage.
-   *
-   * If this is a fresh document with an opener and it already contains
-   * authentication data, clear that copied authentication state.
-   */
-  if (!initialized && window.opener && getAccessTokenUnsafe()) {
-    clearSessionTokens();
+  if (!initialized && hasOpener && copiedAccessToken) {
+    clearAuthStorage();
   }
 
-  ensureTabId();
-
-  try {
-    window.sessionStorage.setItem(TAB_INITIALIZED_KEY, "1");
-  } catch {
-    // Ignore storage failures.
-  }
+  getOrCreateTabId();
+  window.sessionStorage.setItem(TAB_INITIALIZED_KEY, "1");
 }
 
-/**
- * Run tab protection before accessing authentication state.
- */
-function ensureTabProtection(): void {
-  if (!isBrowser()) return;
-
+if (isBrowser()) {
   protectAgainstClonedSession();
+
+  try {
+    const channel = new BroadcastChannel(TAB_CHANNEL_NAME);
+    channel.addEventListener("message", (event) => {
+      const currentTabId = getOrCreateTabId();
+      if (!currentTabId) return;
+
+      if (
+        event.data?.type === "acadlyx-auth-cleared" &&
+        event.data?.tabId !== currentTabId
+      ) {
+        // Do not sign another tab out. The channel exists only so future
+        // authentication changes can be coordinated without sharing tokens.
+      }
+    });
+  } catch {
+    // BroadcastChannel is an optional optimization.
+  }
 }
 
 export function getAccessToken(): string | null {
   if (!isBrowser()) return null;
-
-  ensureTabProtection();
-
-  return getAccessTokenUnsafe();
+  protectAgainstClonedSession();
+  return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
 export function getRefreshToken(): string | null {
   if (!isBrowser()) return null;
-
-  ensureTabProtection();
-
-  return getRefreshTokenUnsafe();
+  protectAgainstClonedSession();
+  return window.sessionStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
 export function setTokens(tokens: AuthTokens): void {
   if (!isBrowser()) return;
-
-  ensureTabProtection();
-
-  try {
-    window.sessionStorage.setItem(
-      ACCESS_TOKEN_KEY,
-      tokens.accessToken
-    );
-
-    window.sessionStorage.setItem(
-      REFRESH_TOKEN_KEY,
-      tokens.refreshToken
-    );
-
-    removeLegacyLocalStorageTokens();
-  } catch {
-    throw new Error(
-      "Unable to securely store the authentication session in this browser."
-    );
-  }
+  protectAgainstClonedSession();
+  window.sessionStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+  window.sessionStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
 }
 
 export function clearTokens(): void {
   if (!isBrowser()) return;
 
-  try {
-    window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
+  clearAuthStorage();
 
-  removeLegacyLocalStorageTokens();
+  try {
+    const channel = new BroadcastChannel(TAB_CHANNEL_NAME);
+    channel.postMessage({
+      type: "acadlyx-auth-cleared",
+      tabId: getOrCreateTabId(),
+    });
+    channel.close();
+  } catch {
+    // Optional cross-tab notification only.
+  }
 }
 
 export function isAuthenticated(): boolean {
-  if (!isBrowser()) return false;
-
-  ensureTabProtection();
-
-  return getAccessTokenUnsafe() !== null;
+  return getAccessToken() !== null;
 }
 
-/**
- * Result of a sign-in attempt.
- *
- * Accounts requiring MFA return a challenge instead of authenticated
- * tokens. Tokens are not stored until MFA verification succeeds.
- */
-export type LoginResult =
-  | {
-      mfaRequired: false;
-      user: AuthUser;
+export function getCachedCurrentUser(): AuthUser | null {
+  if (!isBrowser()) return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(USER_CACHE_KEY);
+    if (!raw) return null;
+    const user = JSON.parse(raw) as AuthUser;
+
+    if (
+      !user ||
+      typeof user.id !== "string" ||
+      !Array.isArray(user.roles) ||
+      !Array.isArray(user.permissions)
+    ) {
+      window.sessionStorage.removeItem(USER_CACHE_KEY);
+      return null;
     }
-  | {
-      mfaRequired: true;
-      challengeToken: string;
-      expiresAt: string;
-    };
+
+    return user;
+  } catch {
+    window.sessionStorage.removeItem(USER_CACHE_KEY);
+    return null;
+  }
+}
+
+function cacheCurrentUser(user: AuthUser): void {
+  if (!isBrowser()) return;
+  try {
+    window.sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+  } catch {
+    // A full/disabled sessionStorage must never block authentication.
+  }
+}
+
+export async function getCurrentUser(options?: {
+  background?: boolean;
+}): Promise<AuthUser> {
+  const cached = getCachedCurrentUser();
+
+  if (options?.background && cached) {
+    void revalidateCurrentUser();
+    return cached;
+  }
+
+  const response = await authedFetch<ApiEnvelope<AuthUser>>("/auth/me", {
+    cacheMode: "no-store",
+  });
+
+  if (
+    !Array.isArray(response.data.roles) ||
+    !Array.isArray(response.data.permissions)
+  ) {
+    throw new Error("Invalid authenticated user response");
+  }
+
+  cacheCurrentUser(response.data);
+  return response.data;
+}
+
+async function revalidateCurrentUser(): Promise<void> {
+  try {
+    const response = await authedFetch<ApiEnvelope<AuthUser>>("/auth/me", {
+      cacheMode: "no-store",
+    });
+
+    if (
+      Array.isArray(response.data.roles) &&
+      Array.isArray(response.data.permissions)
+    ) {
+      cacheCurrentUser(response.data);
+    }
+  } catch (error) {
+    if (error instanceof AuthRequiredError && isBrowser()) {
+      clearTokens();
+      window.sessionStorage.removeItem(USER_CACHE_KEY);
+      window.dispatchEvent(new CustomEvent("acadlyx-auth-invalid"));
+    }
+  }
+}
+
+export type LoginResult =
+  | { mfaRequired: false; user: AuthUser }
+  | { mfaRequired: true; challengeToken: string; expiresAt: string };
 
 interface LoginPayload {
   mfaRequired?: boolean;
@@ -276,223 +246,122 @@ interface LoginPayload {
   tokens?: AuthTokens;
 }
 
-/**
- * Standard email/password login.
- */
 export async function login(
   email: string,
   password: string
 ): Promise<LoginResult> {
-  if (!isBrowser()) {
-    throw new Error("Login is only available in a browser.");
-  }
-
-  ensureTabProtection();
-
-  const response = await fetch(apiUrl("/auth/login"), {
+  const res = await fetch(apiUrl("/auth/login"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
 
-  const body = (await response
+  const body = (await res
     .json()
     .catch(() => null)) as ApiEnvelope<LoginPayload> | null;
 
-  if (!response.ok || !body) {
+  if (!res.ok || !body) {
     throw new Error(
-      body?.error?.message ||
-        "Login failed. Please check your credentials and try again."
+      (body as unknown as { error?: { message?: string } })?.error?.message ||
+        "Login failed"
     );
   }
 
-  const payload = body.data;
-
-  if (
-    payload.mfaRequired &&
-    payload.challengeToken
-  ) {
+  if (body.data.mfaRequired && body.data.challengeToken) {
     return {
       mfaRequired: true,
-      challengeToken: payload.challengeToken,
-      expiresAt: payload.expiresAt ?? "",
+      challengeToken: body.data.challengeToken,
+      expiresAt: body.data.expiresAt ?? "",
     };
   }
 
-  if (!payload.tokens || !payload.user) {
-    throw new Error("Login response was incomplete.");
+  if (!body.data.tokens || !body.data.user) {
+    throw new Error("Login response was incomplete");
   }
 
-  setTokens(payload.tokens);
+  setTokens(body.data.tokens);
+  cacheCurrentUser(body.data.user);
 
-  return {
-    mfaRequired: false,
-    user: payload.user,
-  };
+  return { mfaRequired: false, user: body.data.user };
 }
 
-/**
- * Complete an MFA login.
- *
- * This function is intentionally exported because the login page imports
- * completeMfaLogin directly.
- */
 export async function completeMfaLogin(
   challengeToken: string,
   code: string
 ): Promise<AuthUser> {
-  if (!isBrowser()) {
-    throw new Error("MFA verification is only available in a browser.");
-  }
+  const res = await fetch(apiUrl("/auth/mfa/verify"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challengeToken, code }),
+  });
 
-  ensureTabProtection();
+  const body = (await res.json().catch(() => null)) as ApiEnvelope<{
+    user: AuthUser;
+    tokens: AuthTokens;
+  }> | null;
 
-  const response = await fetch(
-    apiUrl("/auth/mfa/verify"),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        challengeToken,
-        code,
-      }),
-    }
-  );
-
-  const body = (await response
-    .json()
-    .catch(() => null)) as ApiEnvelope<{
-      user: AuthUser;
-      tokens: AuthTokens;
-    }> | null;
-
-  if (!response.ok || !body) {
+  if (!res.ok || !body) {
     throw new Error(
-      body?.error?.message ||
-        "Verification failed. Please check the code and try again."
+      (body as unknown as { error?: { message?: string } })?.error?.message ||
+        "Verification failed"
     );
-  }
-
-  if (!body.data?.tokens || !body.data?.user) {
-    throw new Error("MFA verification response was incomplete.");
   }
 
   setTokens(body.data.tokens);
-
+  cacheCurrentUser(body.data.user);
   return body.data.user;
 }
 
-/**
- * Get the currently authenticated user.
- */
-export async function getCurrentUser(): Promise<AuthUser> {
-  const response =
-    await authedFetch<ApiEnvelope<AuthUser>>(
-      "/auth/me"
-    );
+async function deleteApiCache(): Promise<void> {
+  if (!isBrowser() || !("caches" in window)) return;
 
-  if (
-    !response.data ||
-    !Array.isArray(response.data.roles) ||
-    !Array.isArray(response.data.permissions)
-  ) {
-    throw new Error(
-      "Invalid authenticated user response."
-    );
+  try {
+    await caches.delete(API_CACHE_NAME);
+  } catch {
+    // Cache cleanup is best-effort.
   }
-
-  return response.data;
 }
 
-/**
- * Logout.
- *
- * Tokens are removed locally BEFORE making the network request so that
- * even if the backend is unavailable, this browser tab is immediately
- * unauthenticated.
- */
 export async function logout(): Promise<void> {
-  if (!isBrowser()) return;
-
-  ensureTabProtection();
-
-  const refreshToken = getRefreshTokenUnsafe();
-
+  const refreshToken = getRefreshToken();
   clearTokens();
+  await deleteApiCache();
 
   if (!refreshToken) return;
 
   try {
-    await fetch(
-      apiUrl("/auth/logout"),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          refreshToken,
-        }),
-      }
-    );
+    await fetch(apiUrl("/auth/logout"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      keepalive: true,
+    });
   } catch {
-    // Local session is already cleared.
+    // Logout is best-effort after local credentials are removed.
   }
 }
 
-/**
- * Refresh the access token using the refresh token belonging ONLY to
- * this browser tab.
- */
 async function tryRefresh(): Promise<boolean> {
-  if (!isBrowser()) return false;
-
-  ensureTabProtection();
-
-  const refreshToken = getRefreshTokenUnsafe();
-
-  if (!refreshToken) {
-    return false;
-  }
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
 
   try {
-    const response = await fetch(
-      apiUrl("/auth/refresh"),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          refreshToken,
-        }),
-      }
-    );
+    const res = await fetch(apiUrl("/auth/refresh"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
 
-    const body = (await response
-      .json()
-      .catch(() => null)) as ApiEnvelope<{
-      tokens: AuthTokens;
-    }> | null;
-
-    if (!response.ok || !body?.data?.tokens) {
+    if (!res.ok) {
       clearTokens();
       return false;
     }
 
-    setTokens(body.data.tokens);
+    const body = (await res.json()) as ApiEnvelope<{
+      tokens: AuthTokens;
+    }>;
 
+    setTokens(body.data.tokens);
     return true;
   } catch {
     clearTokens();
@@ -500,10 +369,6 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
-/**
- * Error thrown when the browser no longer has a valid authenticated
- * session.
- */
 export class AuthRequiredError extends Error {
   constructor() {
     super("Authentication required");
@@ -511,134 +376,158 @@ export class AuthRequiredError extends Error {
   }
 }
 
-/**
- * Authenticated fetch wrapper.
- *
- * IMPORTANT:
- * This is intentionally generic:
- *
- *   authedFetch<MyResponse>("/some-endpoint")
- *
- * Existing pages rely on this generic response typing.
- *
- * On a 401:
- * 1. Refresh once.
- * 2. Retry the original request once.
- * 3. Throw AuthRequiredError if refresh fails.
- */
-export async function authedFetch<T = unknown>(
-  path: string,
-  init?: RequestInit
-): Promise<T> {
-  if (!isBrowser()) {
-    throw new AuthRequiredError();
-  }
-
-  ensureTabProtection();
-
-  const performFetch = async (
-    token: string
-  ): Promise<Response> => {
-    const headers = new Headers(init?.headers);
-
-    if (!headers.has("Content-Type")) {
-      headers.set(
-        "Content-Type",
-        "application/json"
-      );
-    }
-
-    headers.set(
-      "Authorization",
-      `Bearer ${token}`
-    );
-
-    return fetch(apiUrl(path), {
-      ...init,
-      headers,
-      credentials: "include",
-    });
-  };
-
-  let token = getAccessTokenUnsafe();
-
-  if (!token) {
-    throw new AuthRequiredError();
-  }
-
-  let response = await performFetch(token);
-
-  if (response.status === 401) {
-    const refreshed = await tryRefresh();
-
-    if (!refreshed) {
-      clearTokens();
-      throw new AuthRequiredError();
-    }
-
-    token = getAccessTokenUnsafe();
-
-    if (!token) {
-      throw new AuthRequiredError();
-    }
-
-    response = await performFetch(token);
-  }
-
-  if (response.status === 401) {
-    clearTokens();
-    throw new AuthRequiredError();
-  }
-
-  const text = await response.text();
-
-  let payload: unknown = null;
-
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = text;
-    }
-  }
-
-  if (!response.ok) {
-    const errorMessage =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof (payload as { error?: unknown }).error ===
-        "object" &&
-      (payload as { error?: { message?: unknown } })
-        .error?.message
-        ? String(
-            (
-              payload as {
-                error?: { message?: unknown };
-              }
-            ).error?.message
-          )
-        : typeof payload === "object" &&
-            payload !== null &&
-            "message" in payload
-          ? String(
-              (payload as { message?: unknown })
-                .message
-            )
-          : `Request failed with status ${response.status}`;
-
-    throw new Error(errorMessage);
-  }
-
-  return payload as T;
+function isReadRequest(init?: RequestInit): boolean {
+  return !init?.method || init.method.toUpperCase() === "GET";
 }
 
-/**
- * Remove any old localStorage authentication state immediately when this
- * module executes in the browser.
- *
- * This protects users upgrading from older Acadlyx versions.
- */
-if (isBrowser()) {
-  removeLegacyLocalStorageTokens();
+function getCacheKey(path: string, token: string): string {
+  // The access token is never written into the cache URL. A short stable
+  // fingerprint is enough to prevent cached responses being mixed between
+  // authenticated sessions.
+  let hash = 5381;
+  for (let index = 0; index < token.length; index += 1) {
+    hash = (hash * 33) ^ token.charCodeAt(index);
+  }
+  const fingerprint = (hash >>> 0).toString(36);
+  return `${apiUrl(path)}${path.includes("?") ? "&" : "?"}__acadlyx_cache=${fingerprint}`;
+}
+
+async function readCachedApi<T>(
+  path: string,
+  token: string
+): Promise<T | null> {
+  if (!isBrowser() || !("caches" in window)) return null;
+
+  try {
+    const cache = await caches.open(API_CACHE_NAME);
+    const key = getCacheKey(path, token);
+    const response = await cache.match(key);
+    if (!response) return null;
+
+    const meta = response.headers.get("x-acadlyx-cached-at");
+    const cachedAt = Number(meta || 0);
+    if (!cachedAt || Date.now() - cachedAt > API_CACHE_TTL_MS) {
+      await cache.delete(key);
+      return null;
+    }
+
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedApi<T>(
+  path: string,
+  token: string,
+  body: T
+): Promise<void> {
+  if (!isBrowser() || !("caches" in window)) return;
+
+  try {
+    const cache = await caches.open(API_CACHE_NAME);
+    const key = getCacheKey(path, token);
+    const response = new Response(JSON.stringify(body), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "x-acadlyx-cached-at": String(Date.now()),
+      },
+    });
+    await cache.put(key, response);
+  } catch {
+    // Cache is an optimization, never a source of request failure.
+  }
+}
+
+async function performAuthenticatedFetch(
+  path: string,
+  token: string,
+  init?: RequestInit
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  headers.set("Authorization", `Bearer ${token}`);
+
+  return fetch(apiUrl(path), {
+    ...init,
+    headers,
+  });
+}
+
+export async function authedFetch<T = unknown>(
+  path: string,
+  init?: RequestInit & { cacheMode?: "default" | "no-store" }
+): Promise<T> {
+  const token = getAccessToken();
+  if (!token) throw new AuthRequiredError();
+
+  const { cacheMode, ...requestInit } = init || {};
+  const shouldCache =
+    cacheMode !== "no-store" && isReadRequest(requestInit);
+
+  if (shouldCache) {
+    const cached = await readCachedApi<T>(path, token);
+
+    if (cached !== null) {
+      // Refresh the cache without making the current screen wait for the DB.
+      void (async () => {
+        try {
+          const freshResponse = await performAuthenticatedFetch(
+            path,
+            token,
+            requestInit
+          );
+
+          if (freshResponse.status === 401) return;
+          if (!freshResponse.ok) return;
+
+          const freshBody = (await freshResponse.json()) as T;
+          await writeCachedApi(path, token, freshBody);
+        } catch {
+          // Stale data remains usable until the next successful refresh.
+        }
+      })();
+
+      return cached;
+    }
+  }
+
+  let activeToken = token;
+  let res = await performAuthenticatedFetch(
+    path,
+    activeToken,
+    requestInit
+  );
+
+  if (res.status === 401) {
+    const refreshed = await tryRefresh();
+    if (!refreshed) throw new AuthRequiredError();
+
+    activeToken = getAccessToken() || "";
+    res = await performAuthenticatedFetch(
+      path,
+      activeToken,
+      requestInit
+    );
+  }
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
+    throw new Error(
+      body?.error?.message || `Request failed: ${res.status}`
+    );
+  }
+
+  const body = (await res.json()) as T;
+
+  if (shouldCache) {
+    void writeCachedApi(path, activeToken, body);
+  }
+
+  return body;
 }
