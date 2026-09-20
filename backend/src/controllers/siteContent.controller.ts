@@ -1,145 +1,127 @@
 import { Request, Response } from "express";
+import { v2 as cloudinary } from "cloudinary";
+import { prisma } from "../lib/prisma";
+import * as site from "../services/siteContent.service";
+import { asyncHandler } from "../utils/asyncHandler";
+import { requireInstitution } from "../utils/requireInstitution";
+import { env } from "../config/env";
 import { AppError } from "../middleware/errorHandler";
-import { asyncHandler } from "../middleware/asyncHandler";
-import { uploadBuffer } from "../utils/storage";
-import {
-  updateSiteContent,
-} from "../services/siteContent.service";
+import { assertSafeImageUpload } from "../utils/imageUpload";
 
-function assertCanManageSiteMedia(
-  req: Request
-): void {
+function assertCanManageSiteContent(req: Request): void {
   if (!req.user) {
-    throw new AppError(
-      "Authentication required",
-      401
-    );
+    throw new AppError("Authentication is required", 401);
   }
 
-  const isPlatformAdmin =
-    req.user.roles.includes("SUPER_ADMIN");
+  const isSuperAdmin = req.user.roles.includes("SUPER_ADMIN");
+  const hasSiteManagePermission = req.user.permissions.includes("site.manage");
 
-  const hasCmsPermission =
-    req.user.permissions.includes("site.manage");
-
-  if (!isPlatformAdmin && !hasCmsPermission) {
-    throw new AppError(
-      "You are not allowed to upload website media",
-      403
-    );
+  if (!isSuperAdmin && !hasSiteManagePermission) {
+    throw new AppError("You are not allowed to manage website content", 403);
   }
 }
 
-function getInstitutionId(
-  req: Request
-): string {
-  const requestedInstitutionId =
-    typeof req.body?.institutionId ===
-    "string"
-      ? req.body.institutionId.trim()
-      : "";
+export const publicContent = asyncHandler(async (req: Request, res: Response) => {
+  const institutionId =
+    typeof req.query.institutionId === "string"
+      ? req.query.institutionId
+      : undefined;
+
+  const institutionSlug =
+    typeof req.query.slug === "string" ? req.query.slug : undefined;
+
+  const institution = institutionId
+    ? await prisma.institution.findUnique({
+        where: { id: institutionId },
+        select: { id: true },
+      })
+    : institutionSlug
+      ? await prisma.institution.findUnique({
+          where: { slug: institutionSlug },
+          select: { id: true },
+        })
+      : null;
+
+  if (!institution) {
+    throw new AppError("institutionId or slug is required", 400);
+  }
+
+  res.json({
+    success: true,
+    data: await site.getPublicSiteContent(institution.id),
+  });
+});
+
+export const get = asyncHandler(async (req, res) => {
+  assertCanManageSiteContent(req);
+
+  const institutionId = requireInstitution(req);
+
+  res.json({
+    success: true,
+    data: await site.getSiteContent(institutionId, req.user!),
+  });
+});
+
+export const update = asyncHandler(async (req, res) => {
+  assertCanManageSiteContent(req);
+
+  const institutionId = requireInstitution(req);
+  const content = req.body?.content ?? req.body;
+
+  res.json({
+    success: true,
+    data: await site.updateSiteContent(institutionId, req.user!, content),
+  });
+});
+
+export const upload = asyncHandler(async (req: Request, res: Response) => {
+  assertCanManageSiteContent(req);
+
+  if (!req.file) {
+    throw new AppError("Image file is required", 400);
+  }
+
+  assertSafeImageUpload(req.file);
 
   if (
-    req.user?.roles.includes(
-      "SUPER_ADMIN"
-    ) &&
-    requestedInstitutionId
+    !env.cloudinaryCloudName ||
+    !env.cloudinaryApiKey ||
+    !env.cloudinaryApiSecret
   ) {
-    return requestedInstitutionId;
+    throw new AppError(
+      "Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.",
+      503,
+    );
   }
 
-  if (req.user?.institutionId) {
-    return req.user.institutionId;
-  }
+  cloudinary.config({
+    cloud_name: env.cloudinaryCloudName,
+    api_key: env.cloudinaryApiKey,
+    api_secret: env.cloudinaryApiSecret,
+  });
 
-  throw new AppError(
-    "Institution is required",
-    400
-  );
-}
+  const result = await new Promise<any>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "acadlyx/site" },
+      (error, value) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-export const upload = asyncHandler(
-  async (
-    req: Request,
-    res: Response
-  ) => {
-    assertCanManageSiteMedia(req);
-
-    const file = req.file;
-
-    if (!file) {
-      throw new AppError(
-        "No media file was uploaded",
-        400
-      );
-    }
-
-    const institutionId =
-      getInstitutionId(req);
-
-    if (
-      !req.user?.roles.includes(
-        "SUPER_ADMIN"
-      ) &&
-      req.user?.institutionId !==
-        institutionId
-    ) {
-      throw new AppError(
-        "You are not allowed to upload media for another institution",
-        403
-      );
-    }
-
-    const uploaded =
-      await uploadBuffer({
-        buffer: file.buffer,
-        originalName:
-          file.originalname,
-        mimeType: file.mimetype,
-      });
-
-    res.status(201).json({
-      success: true,
-      data: {
-        url: uploaded.url,
-        key: uploaded.key,
-        filename:
-          file.originalname,
-        mimeType:
-          file.mimetype,
-        size: file.size,
-        institutionId,
+        resolve(value);
       },
-    });
-  }
-);
+    );
 
-export const update = asyncHandler(
-  async (
-    req: Request,
-    res: Response
-  ) => {
-    if (!req.user) {
-      throw new AppError(
-        "Authentication required",
-        401
-      );
-    }
+    stream.end(req.file!.buffer);
+  });
 
-    const institutionId =
-      getInstitutionId(req);
-
-    const result =
-      await updateSiteContent(
-        institutionId,
-        req.user,
-        req.body?.content ??
-          req.body
-      );
-
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  }
-);
+  res.status(201).json({
+    success: true,
+    data: {
+      url: result.secure_url,
+      publicId: result.public_id,
+    },
+  });
+});
