@@ -59,8 +59,9 @@ function mergeDefaults(content: unknown) {
  * All other users must explicitly possess the dedicated `site.manage`
  * permission. The role name itself is intentionally not trusted here.
  *
- * This is important because roles such as INSTITUTION_ADMIN, DIRECTOR,
- * and MANAGEMENT must not automatically receive website CMS access.
+ * This prevents institutional roles such as INSTITUTION_ADMIN,
+ * DIRECTOR, and MANAGEMENT from automatically receiving website
+ * CMS access.
  */
 function assertCanManageSiteContent(
   actor: AuthenticatedUser
@@ -80,12 +81,49 @@ function assertCanManageSiteContent(
 }
 
 /**
- * Read the institution website content.
+ * Read published website content for the public website.
  *
- * Reading published website content is intentionally separate from
- * managing/publishing it. Public-facing consumers should use the
- * public site-content endpoint rather than this authenticated management
- * operation.
+ * This function intentionally does NOT require authentication.
+ *
+ * It only returns published website content for the requested
+ * institution. It does not expose CMS permissions, users, roles,
+ * or any administrative information.
+ */
+export async function getPublicSiteContent(
+  institutionId: string
+) {
+  const existing =
+    await prisma.siteContent.findUnique({
+      where: {
+        institutionId,
+      },
+      select: {
+        institutionId: true,
+        content: true,
+        version: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+    });
+
+  if (!existing) {
+    return {
+      institutionId,
+      content: DEFAULT_SITE_CONTENT,
+      version: 0,
+      publishedAt: null,
+      updatedAt: null,
+    };
+  }
+
+  return existing;
+}
+
+/**
+ * Read the institution website content for an authenticated
+ * CMS manager.
+ *
+ * This operation is protected by the dedicated CMS capability.
  */
 export async function getSiteContent(
   institutionId: string,
@@ -126,8 +164,8 @@ export async function getSiteContent(
 /**
  * Update and publish website content.
  *
- * Authorization is deliberately based on the dedicated CMS capability,
- * not on broad institutional roles.
+ * Authorization is deliberately based on the dedicated
+ * CMS capability rather than broad institutional roles.
  */
 export async function updateSiteContent(
   institutionId: string,
