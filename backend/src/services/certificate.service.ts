@@ -75,7 +75,7 @@ async function buildPayload(
     }),
     prisma.institution.findUnique({
       where: { id: institutionId },
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, slug: true },
     }),
     prisma.studentEnrollment.findFirst({
       where: { institutionId, userId: studentId },
@@ -415,9 +415,13 @@ export async function getCertificate(
 export async function verifyCertificate(certificateNumber: string) {
   const certificate = await prisma.certificate.findFirst({
     where: { certificateNumber, status: "ISSUED" },
-    include: {
+    select: {
+      certificateNumber: true,
+      certificateType: true,
+      issuedAt: true,
+      payload: true,
       student: { select: { firstName: true, lastName: true } },
-      institution: { select: { name: true, code: true } },
+      institution: { select: { name: true, slug: true } },
     },
   });
 
