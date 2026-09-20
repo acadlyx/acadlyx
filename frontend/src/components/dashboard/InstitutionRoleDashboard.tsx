@@ -314,12 +314,6 @@ function getActionItems(
       href: "/imports",
     },
     {
-      label: "Manage public website",
-      description:
-        "Open the institution CMS and website content.",
-      href: "/site-content",
-    },
-    {
       label: "Review placement readiness",
       description:
         "Open placement and career-readiness workflows.",
@@ -678,3 +672,4 @@ export function InstitutionRoleDashboard({
     </DashboardShell>
   );
 }
+
