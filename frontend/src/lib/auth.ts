@@ -73,11 +73,71 @@ export function isAuthenticated(): boolean {
   return getAccessToken() !== null;
 }
 
-export async function login(email: string, password: string): Promise<AuthUser> {
+/**
+ * Result of a sign-in attempt.
+ *
+ * An account with a second factor enrolled returns a challenge instead
+ * of tokens; the caller must then call completeMfaLogin. Nothing is
+ * stored in either case until real tokens arrive.
+ */
+export type LoginResult =
+  | { mfaRequired: false; user: AuthUser }
+  | { mfaRequired: true; challengeToken: string; expiresAt: string };
+
+interface LoginPayload {
+  mfaRequired?: boolean;
+  challengeToken?: string;
+  expiresAt?: string;
+  user?: AuthUser;
+  tokens?: AuthTokens;
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<LoginResult> {
   const res = await fetch(apiUrl("/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
+  });
+
+  const body = (await res
+    .json()
+    .catch(() => null)) as ApiEnvelope<LoginPayload> | null;
+
+  if (!res.ok || !body) {
+    throw new Error(
+      (body as unknown as { error?: { message?: string } })?.error?.message ||
+        "Login failed"
+    );
+  }
+
+  if (body.data.mfaRequired && body.data.challengeToken) {
+    return {
+      mfaRequired: true,
+      challengeToken: body.data.challengeToken,
+      expiresAt: body.data.expiresAt ?? "",
+    };
+  }
+
+  if (!body.data.tokens || !body.data.user) {
+    throw new Error("Login response was incomplete");
+  }
+
+  setTokens(body.data.tokens);
+  return { mfaRequired: false, user: body.data.user };
+}
+
+/** Second step of an MFA sign-in. */
+export async function completeMfaLogin(
+  challengeToken: string,
+  code: string
+): Promise<AuthUser> {
+  const res = await fetch(apiUrl("/auth/mfa/verify"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challengeToken, code }),
   });
 
   const body = (await res.json().catch(() => null)) as ApiEnvelope<{
@@ -88,7 +148,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   if (!res.ok || !body) {
     throw new Error(
       (body as unknown as { error?: { message?: string } })?.error?.message ||
-        "Login failed"
+        "Verification failed"
     );
   }
 

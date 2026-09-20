@@ -1,13 +1,10 @@
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import Phase1ModulePage from "@/components/phase1/Phase1ModulePage";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <DashboardShell
-      title="Forms & Documents"
-      subtitle="ACADLYX Core ERP"
-    >
-      <Phase1ModulePage module="forms" />
-    </DashboardShell>
-  );
+/**
+ * This route used to render a static demo module. The real workflow
+ * lives at /certificates, so the path now redirects there instead of
+ * presenting a second, disconnected surface.
+ */
+export default function Page(): never {
+  redirect("/certificates");
 }
