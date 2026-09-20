@@ -243,6 +243,39 @@ export function DashboardShell({
 
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
+  const navItems = useMemo(() => {
+    const roles =
+      user?.roles ||
+      allowedRoles ||
+      [];
+
+    const result: NavItem[] = [];
+    const seen = new Set<string>();
+
+    for (const role of rolePriority) {
+      if (!roles.includes(role)) continue;
+
+      for (const item of roleNavigation[role] || []) {
+        if (seen.has(item.href)) continue;
+
+        seen.add(item.href);
+        result.push(item);
+      }
+    }
+
+    for (const role of roles) {
+      for (const item of roleNavigation[role] || []) {
+        if (seen.has(item.href)) continue;
+
+        seen.add(item.href);
+        result.push(item);
+      }
+    }
+
+    return result;
+  }, [user?.roles, allowedRolesKey]);
+
+
   useEffect(() => {
     let mounted = true;
     const cachedUser = getCachedCurrentUser();
@@ -298,13 +331,6 @@ export function DashboardShell({
   }, [pathname]);
 
   useEffect(() => {
-    const handleInvalidAuth = () => router.replace("/login");
-    window.addEventListener("acadlyx-auth-invalid", handleInvalidAuth);
-    return () =>
-      window.removeEventListener("acadlyx-auth-invalid", handleInvalidAuth);
-  }, [router]);
-
-  useEffect(() => {
     // Next.js already prefetches visible <Link>s, but explicitly warming the
     // current role's routes makes sidebar navigation feel app-like even on
     // slower connections. This work is intentionally idle and non-blocking.
@@ -335,38 +361,6 @@ export function DashboardShell({
   const primaryRole = getPrimaryRole(
     user?.roles || allowedRoles || []
   );
-
-  const navItems = useMemo(() => {
-    const roles =
-      user?.roles ||
-      allowedRoles ||
-      [];
-
-    const result: NavItem[] = [];
-    const seen = new Set<string>();
-
-    for (const role of rolePriority) {
-      if (!roles.includes(role)) continue;
-
-      for (const item of roleNavigation[role] || []) {
-        if (seen.has(item.href)) continue;
-
-        seen.add(item.href);
-        result.push(item);
-      }
-    }
-
-    for (const role of roles) {
-      for (const item of roleNavigation[role] || []) {
-        if (seen.has(item.href)) continue;
-
-        seen.add(item.href);
-        result.push(item);
-      }
-    }
-
-    return result;
-  }, [user?.roles, allowedRolesKey]);
 
   async function signOut() {
     await logout();
