@@ -3,13 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import {
   AuthRequiredError,
@@ -24,478 +18,144 @@ type NavItem = {
   icon: string;
 };
 
-/*
- * IMPORTANT:
- *
- * Navigation is intentionally role-isolated.
- *
- * Do NOT merge menus from multiple roles.
- * The user's primary/effective dashboard role gets exactly
- * one navigation set.
- *
- * CMS is intentionally NOT included in institutional roles.
- * CMS access must be explicitly assigned to a CMS user.
- */
 const roleNavigation: Record<string, NavItem[]> = {
   STUDENT: [
-    {
-      label: "Dashboard",
-      href: "/student",
-      icon: "⌂",
-    },
-    {
-      label: "Timetable",
-      href: "/student/timetable",
-      icon: "▦",
-    },
-    {
-      label: "Academic dates",
-      href: "/student/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Attendance",
-      href: "/student/attendance",
-      icon: "◷",
-    },
-    {
-      label: "Assignments",
-      href: "/student/assignments",
-      icon: "✓",
-    },
-    {
-      label: "Marks",
-      href: "/student/marks",
-      icon: "◈",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Course material",
-      href: "/lms",
-      icon: "▤",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Course registration",
-      href: "/course-registration",
-      icon: "⊞",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
+    { label: "Dashboard", href: "/student", icon: "⌂" },
+    { label: "Timetable", href: "/student/timetable", icon: "▦" },
+    { label: "Academic dates", href: "/student/calendar", icon: "◫" },
+    { label: "Attendance", href: "/student/attendance", icon: "◷" },
+    { label: "Assignments", href: "/student/assignments", icon: "✓" },
+    { label: "Marks", href: "/student/marks", icon: "◈" },
+    { label: "Results", href: "/results", icon: "◉" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Course material", href: "/lms", icon: "▤" },
+    { label: "Fees", href: "/fees", icon: "₹" },
+    { label: "Course registration", href: "/course-registration", icon: "⊞" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Certificates", href: "/certificates", icon: "❖" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
   ],
 
   FACULTY: [
-    {
-      label: "Dashboard",
-      href: "/faculty",
-      icon: "⌂",
-    },
-    {
-      label: "Attendance",
-      href: "/faculty/attendance",
-      icon: "◷",
-    },
-    {
-      label: "Assignments",
-      href: "/faculty/assignments",
-      icon: "✓",
-    },
-    {
-      label: "Marks",
-      href: "/faculty/marks",
-      icon: "◈",
-    },
-    {
-      label: "Course material",
-      href: "/lms",
-      icon: "▤",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  HOD: [
-    {
-      label: "Dashboard",
-      href: "/hod",
-      icon: "⌂",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Leave approvals",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  MANAGEMENT: [
-    {
-      label: "Dashboard",
-      href: "/management",
-      icon: "⌂",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  DIRECTOR: [
-    {
-      label: "Dashboard",
-      href: "/director",
-      icon: "⌂",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  INSTITUTION_ADMIN: [
-    {
-      label: "Dashboard",
-      href: "/admin",
-      icon: "⌂",
-    },
-    {
-      label: "People & Users",
-      href: "/admin",
-      icon: "♙",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  STAFF: [
-    {
-      label: "Dashboard",
-      href: "/staff",
-      icon: "⌂",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
+    { label: "Dashboard", href: "/faculty", icon: "⌂" },
+    { label: "Attendance", href: "/faculty/attendance", icon: "◷" },
+    { label: "Assignments", href: "/faculty/assignments", icon: "✓" },
+    { label: "Marks", href: "/faculty/marks", icon: "◈" },
+    { label: "Results", href: "/results", icon: "◉" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Course material", href: "/lms", icon: "▤" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Maintenance", href: "/operations", icon: "⚒" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
   ],
 
   PARENT: [
-    {
-      label: "Dashboard",
-      href: "/parent",
-      icon: "⌂",
-    },
-    {
-      label: "My children",
-      href: "/parent/children",
-      icon: "♙",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
+    { label: "Dashboard", href: "/parent", icon: "⌂" },
+    { label: "My children", href: "/parent/children", icon: "♙" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
+  ],
+
+  HOD: [
+    { label: "Dashboard", href: "/hod", icon: "⌂" },
+    { label: "ERP Operations", href: "/erp", icon: "▦" },
+    { label: "Intelligence", href: "/intelligence", icon: "✦" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Course material", href: "/lms", icon: "▤" },
+    { label: "Operations", href: "/operations", icon: "⚒" },
+    { label: "Registrations", href: "/course-registration", icon: "⊞" },
+    { label: "Student movement", href: "/student-promotion", icon: "⇗" },
+    { label: "Leave approvals", href: "/leave-management", icon: "⏻" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+  ],
+
+  MANAGEMENT: [
+    { label: "Dashboard", href: "/management", icon: "⌂" },
+    { label: "ERP Operations", href: "/erp", icon: "▦" },
+    { label: "Intelligence", href: "/intelligence", icon: "✦" },
+    { label: "Data Import", href: "/imports", icon: "⇅" },
+    { label: "Admissions", href: "/admissions", icon: "✎" },
+    { label: "HR", href: "/hr", icon: "♙" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Registrations", href: "/course-registration", icon: "⊞" },
+    { label: "Student movement", href: "/student-promotion", icon: "⇗" },
+    { label: "Certificates", href: "/certificates", icon: "❖" },
+    { label: "Results", href: "/results", icon: "◉" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Fees", href: "/fees", icon: "₹" },
+    { label: "Operations", href: "/operations", icon: "⚒" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
+  ],
+
+  DIRECTOR: [
+    { label: "Dashboard", href: "/director", icon: "⌂" },
+    { label: "ERP Operations", href: "/erp", icon: "▦" },
+    { label: "Intelligence", href: "/intelligence", icon: "✦" },
+    { label: "Data Import", href: "/imports", icon: "⇅" },
+    { label: "Admissions", href: "/admissions", icon: "✎" },
+    { label: "HR", href: "/hr", icon: "♙" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Registrations", href: "/course-registration", icon: "⊞" },
+    { label: "Student movement", href: "/student-promotion", icon: "⇗" },
+    { label: "Certificates", href: "/certificates", icon: "❖" },
+    { label: "Results", href: "/results", icon: "◉" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Fees", href: "/fees", icon: "₹" },
+    { label: "Operations", href: "/operations", icon: "⚒" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
+  ],
+
+  STAFF: [
+    { label: "Dashboard", href: "/staff", icon: "⌂" },
+    { label: "ERP Operations", href: "/erp", icon: "▦" },
+    { label: "Data Import", href: "/imports", icon: "⇅" },
+    { label: "Admissions", href: "/admissions", icon: "✎" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Certificates", href: "/certificates", icon: "❖" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Fees", href: "/fees", icon: "₹" },
+    { label: "Operations", href: "/operations", icon: "⚒" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
+  ],
+
+  INSTITUTION_ADMIN: [
+    { label: "Dashboard", href: "/admin", icon: "⌂" },
+    { label: "People & Users", href: "/admin", icon: "♙" },
+    { label: "ERP Operations", href: "/erp", icon: "▦" },
+    { label: "Intelligence", href: "/intelligence", icon: "✦" },
+    { label: "Data Import", href: "/imports", icon: "⇅" },
+    { label: "Admissions", href: "/admissions", icon: "✎" },
+    { label: "HR", href: "/hr", icon: "♙" },
+    { label: "Leave", href: "/leave-management", icon: "⏻" },
+    { label: "Library", href: "/library", icon: "❏" },
+    { label: "Calendar", href: "/calendar", icon: "◫" },
+    { label: "Registrations", href: "/course-registration", icon: "⊞" },
+    { label: "Student movement", href: "/student-promotion", icon: "⇗" },
+    { label: "Certificates", href: "/certificates", icon: "❖" },
+    { label: "Results", href: "/results", icon: "◉" },
+    { label: "Examinations", href: "/examinations", icon: "✍" },
+    { label: "Fees", href: "/fees", icon: "₹" },
+    { label: "Operations", href: "/operations", icon: "⚒" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
   ],
 
   SUPER_ADMIN: [
-    {
-      label: "Dashboard",
-      href: "/superadmin",
-      icon: "⌂",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
+    { label: "Dashboard", href: "/superadmin", icon: "⌂" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
   ],
 
-  /*
-   * CMS is deliberately a separate workspace.
-   *
-   * It is NOT merged with INSTITUTION_ADMIN,
-   * DIRECTOR or MANAGEMENT.
-   */
   CMS: [
-    {
-      label: "Website CMS",
-      href: "/site-content",
-      icon: "◫",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
+    { label: "Website CMS", href: "/site-content", icon: "◫" },
+    { label: "Account security", href: "/account-security", icon: "⛨" },
   ],
 };
 
@@ -509,17 +169,9 @@ const roleLabels: Record<string, string> = {
   STAFF: "Staff",
   INSTITUTION_ADMIN: "Institution Admin",
   SUPER_ADMIN: "Super Admin",
-  CMS: "Website CMS",
+  CMS: "Website CMS Manager",
 };
 
-/*
- * This order determines the single dashboard workspace.
- *
- * IMPORTANT:
- * This is NOT used to merge menus.
- * It only determines which one dashboard should be active
- * when a user technically has multiple roles.
- */
 const rolePriority = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
@@ -533,7 +185,7 @@ const rolePriority = [
   "CMS",
 ];
 
-function getPrimaryRole(roles: string[]): string {
+function getPrimaryRole(roles: string[]) {
   return (
     rolePriority.find((role) => roles.includes(role)) ||
     roles[0] ||
@@ -541,58 +193,33 @@ function getPrimaryRole(roles: string[]): string {
   );
 }
 
-function getRoleHome(roles: string[]): string {
+function getRoleHome(roles: string[]) {
   const role = getPrimaryRole(roles);
 
   switch (role) {
     case "SUPER_ADMIN":
       return "/superadmin";
-
     case "INSTITUTION_ADMIN":
       return "/admin";
-
     case "DIRECTOR":
       return "/director";
-
     case "MANAGEMENT":
       return "/management";
-
     case "HOD":
       return "/hod";
-
     case "FACULTY":
       return "/faculty";
-
     case "STAFF":
       return "/staff";
-
     case "PARENT":
       return "/parent";
-
     case "STUDENT":
       return "/student";
-
     case "CMS":
       return "/site-content";
-
     default:
       return "/login";
   }
-}
-
-function getNavigationRole(
-  user: AuthUser | null,
-  allowedRoles?: string[],
-): string {
-  if (user?.roles?.length) {
-    return getPrimaryRole(user.roles);
-  }
-
-  if (allowedRoles?.length) {
-    return getPrimaryRole(allowedRoles);
-  }
-
-  return "";
 }
 
 export function DashboardShell({
@@ -615,12 +242,6 @@ export function DashboardShell({
 
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
-  /*
-   * Authenticate exactly once for this shell instance.
-   *
-   * Pages should not depend on the roleNavigation object
-   * for security. The backend remains authoritative.
-   */
   useEffect(() => {
     let mounted = true;
 
@@ -628,19 +249,15 @@ export function DashboardShell({
       .then((currentUser) => {
         if (!mounted) return;
 
-        /*
-         * If this page explicitly restricts roles, enforce
-         * that restriction before rendering the workspace.
-         */
         if (
           allowedRoles &&
           allowedRoles.length > 0 &&
           !currentUser.roles.some((role) =>
-            allowedRoles.includes(role),
+            allowedRoles.includes(role)
           )
         ) {
           router.replace(
-            getRoleHome(currentUser.roles),
+            getRoleHome(currentUser.roles)
           );
           return;
         }
@@ -660,17 +277,10 @@ export function DashboardShell({
     };
   }, [router, allowedRolesKey]);
 
-  /*
-   * Close mobile navigation whenever the route changes.
-   */
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  /*
-   * Prevent background scrolling while the mobile menu
-   * is open.
-   */
   useEffect(() => {
     if (!mobileOpen) return;
 
@@ -685,34 +295,48 @@ export function DashboardShell({
     };
   }, [mobileOpen]);
 
-  const primaryRole = getNavigationRole(
-    user,
-    allowedRoles,
+  const primaryRole = getPrimaryRole(
+    user?.roles || allowedRoles || []
   );
 
-  /*
-   * CRITICAL:
-   *
-   * Only ONE role's navigation is returned.
-   *
-   * The previous implementation iterated over every role
-   * and merged all menus together. That behaviour is removed.
-   */
   const navItems = useMemo(() => {
-    if (!primaryRole) return [];
+    const roles =
+      user?.roles ||
+      allowedRoles ||
+      [];
 
-    return roleNavigation[primaryRole] || [];
-  }, [primaryRole]);
+    const result: NavItem[] = [];
+    const seen = new Set<string>();
+
+    for (const role of rolePriority) {
+      if (!roles.includes(role)) continue;
+
+      for (const item of roleNavigation[role] || []) {
+        if (seen.has(item.href)) continue;
+
+        seen.add(item.href);
+        result.push(item);
+      }
+    }
+
+    for (const role of roles) {
+      for (const item of roleNavigation[role] || []) {
+        if (seen.has(item.href)) continue;
+
+        seen.add(item.href);
+        result.push(item);
+      }
+    }
+
+    return result;
+  }, [user?.roles, allowedRolesKey]);
 
   async function signOut() {
-    try {
-      await logout();
-    } finally {
-      router.replace("/login");
-    }
+    await logout();
+    router.replace("/login");
   }
 
-  function isActive(item: NavItem): boolean {
+  function isActive(item: NavItem) {
     if (item.href === "/student") {
       return (
         pathname === "/student" ||
@@ -727,35 +351,11 @@ export function DashboardShell({
       );
     }
 
-    if (item.href === "/parent") {
-      return (
-        pathname === "/parent" ||
-        pathname.startsWith("/parent/")
-      );
-    }
-
-    if (item.href === "/admin") {
-      return pathname === "/admin";
-    }
-
-    if (item.href === "/superadmin") {
-      return pathname === "/superadmin";
-    }
-
-    if (item.href === "/director") {
-      return pathname === "/director";
-    }
-
-    if (item.href === "/management") {
-      return pathname === "/management";
-    }
-
-    if (item.href === "/hod") {
-      return pathname === "/hod";
-    }
-
-    if (item.href === "/staff") {
-      return pathname === "/staff";
+    if (
+      item.href === "/admin" ||
+      item.href === "/superadmin"
+    ) {
+      return pathname === item.href;
     }
 
     return (
@@ -764,30 +364,15 @@ export function DashboardShell({
     );
   }
 
-  const roleLabel =
-    roleLabels[primaryRole] ||
-    primaryRole.replace(/_/g, " ") ||
-    "Workspace";
-
-  const roleHome = getRoleHome(
-    user?.roles || allowedRoles || [],
-  );
-
   return (
     <div className="min-h-screen bg-[#f3f6fb] text-slate-900">
-      {/* =====================================================
-          TOP HEADER
-      ====================================================== */}
+      {/* Top header */}
       <header className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
         <div className="flex h-full items-center gap-3 px-4 sm:px-6">
-          {/* Mobile navigation */}
+          {/* Mobile menu */}
           <button
             type="button"
-            aria-label={
-              mobileOpen
-                ? "Close navigation"
-                : "Open navigation"
-            }
+            aria-label="Open navigation"
             aria-expanded={mobileOpen}
             onClick={() =>
               setMobileOpen((value) => !value)
@@ -827,7 +412,9 @@ export function DashboardShell({
 
           {/* Brand */}
           <Link
-            href={roleHome}
+            href={getRoleHome(
+              user?.roles || allowedRoles || []
+            )}
             className="flex min-w-0 items-center gap-3"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950">
@@ -845,19 +432,17 @@ export function DashboardShell({
               <p className="truncate text-sm font-extrabold tracking-tight text-slate-950">
                 ACADLYX
               </p>
-
               <p className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
                 Institutional intelligence
               </p>
             </div>
           </Link>
 
-          {/* Page separator */}
+          {/* Current page */}
           <div className="ml-3 hidden min-w-0 md:block">
             <div className="h-6 w-px bg-slate-200" />
           </div>
 
-          {/* Current page */}
           <div className="hidden min-w-0 md:block">
             <p className="truncate text-sm font-bold text-slate-900">
               {title}
@@ -880,7 +465,11 @@ export function DashboardShell({
               </p>
 
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                {roleLabel}
+                {roleLabels[primaryRole] ||
+                  primaryRole.replace(
+                    /_/g,
+                    " "
+                  )}
               </p>
             </div>
 
@@ -897,9 +486,7 @@ export function DashboardShell({
         </div>
       </header>
 
-      {/* =====================================================
-          MOBILE OVERLAY
-      ====================================================== */}
+      {/* Mobile overlay */}
       {mobileOpen && (
         <button
           type="button"
@@ -909,9 +496,7 @@ export function DashboardShell({
         />
       )}
 
-      {/* =====================================================
-          SIDEBAR
-      ====================================================== */}
+      {/* Sidebar */}
       <aside
         className={[
           "fixed bottom-0 left-0 top-[72px] z-40",
@@ -930,21 +515,16 @@ export function DashboardShell({
         <div className="flex h-full flex-col overflow-y-auto p-3">
           {/* Workspace identity */}
           <div
-            className={[
-              "mb-5 rounded-2xl border",
-              "border-slate-100",
-              "bg-gradient-to-br from-sky-50 via-white to-violet-50",
-              "p-3",
-              collapsed ? "lg:p-2" : "",
-            ].join(" ")}
+            className={`mb-5 rounded-2xl border border-slate-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 p-3 ${
+              collapsed ? "lg:p-2" : ""
+            }`}
           >
             <div
-              className={[
-                "flex items-center gap-3",
+              className={`flex items-center gap-3 ${
                 collapsed
                   ? "lg:justify-center"
-                  : "",
-              ].join(" ")}
+                  : ""
+              }`}
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-500 text-sm font-black text-white">
                 {primaryRole
@@ -966,7 +546,8 @@ export function DashboardShell({
                 </p>
 
                 <p className="mt-0.5 truncate text-xs font-bold text-slate-800">
-                  {roleLabel}
+                  {roleLabels[primaryRole] ||
+                    "ACADLYX"}
                 </p>
               </div>
             </div>
@@ -978,7 +559,8 @@ export function DashboardShell({
             className="space-y-1"
           >
             {navItems.map((item) => {
-              const active = isActive(item);
+              const active =
+                isActive(item);
 
               return (
                 <Link
@@ -1028,21 +610,11 @@ export function DashboardShell({
             })}
           </nav>
 
-          {/* Empty state protection */}
-          {!navItems.length && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
-              Your account does not have a dashboard
-              workspace assigned. Please contact your
-              administrator.
-            </div>
-          )}
-
-          {/* Bottom identity */}
+          {/* Bottom identity card */}
           <div
-            className={[
-              "mt-auto pt-5",
-              collapsed ? "lg:hidden" : "",
-            ].join(" ")}
+            className={`mt-auto pt-5 ${
+              collapsed ? "lg:hidden" : ""
+            }`}
           >
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-extrabold text-slate-900">
@@ -1058,13 +630,10 @@ export function DashboardShell({
         </div>
       </aside>
 
-      {/* =====================================================
-          MAIN CONTENT
-      ====================================================== */}
+      {/* Main content */}
       <main
         className={[
-          "min-h-screen pt-[72px]",
-          "transition-[padding] duration-200",
+          "min-h-screen pt-[72px] transition-[padding] duration-200",
           collapsed
             ? "lg:pl-[82px]"
             : "lg:pl-[250px]",
