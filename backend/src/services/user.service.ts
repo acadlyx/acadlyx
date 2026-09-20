@@ -125,19 +125,246 @@ async function getRoleForUser(
   }
 
   throw new AppError(
-    `Role "${roleName}" is not available in this scope`,
-    400
+    `Role "${roleName}" is not initialized`,
+    500
   );
 }
 
-async function getScopedUserOrThrow(
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function normalizeOptionalString(
+  value: string | null | undefined
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = value.trim();
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getRoleNames(
+  user: {
+    userRoles: Array<{
+      role: {
+        name: string;
+      };
+    }>;
+  }
+): string[] {
+  return user.userRoles.map(
+    (userRole) => userRole.role.name
+  );
+}
+
+function hasRole(
+  user: {
+    userRoles: Array<{
+      role: {
+        name: string;
+      };
+    }>;
+  },
+  roleName: string
+): boolean {
+  return getRoleNames(user).includes(roleName);
+}
+
+function canManageUsers(
+  actor: AuthenticatedUser
+): boolean {
+  return (
+    isSuperAdmin(actor) ||
+    actor.permissions.includes("users.manage")
+  );
+}
+
+async function resolveTargetInstitution(
+  actor: AuthenticatedUser,
+  requestedInstitutionId: string | null | undefined
+): Promise<string | null> {
+  if (isSuperAdmin(actor)) {
+    if (requestedInstitutionId === undefined) {
+      return actor.institutionId ?? null;
+    }
+
+    return requestedInstitutionId;
+  }
+
+  const actorInstitutionId =
+    await requireActorInstitution(actor);
+
+  if (
+    requestedInstitutionId &&
+    requestedInstitutionId !== actorInstitutionId
+  ) {
+    throw new AppError(
+      "You are not allowed to manage users in another institution",
+      403
+    );
+  }
+
+  return actorInstitutionId;
+}
+
+export async function listUsers(
+  actor: AuthenticatedUser,
+  options?: {
+    institutionId?: string;
+    search?: string;
+    role?: string;
+    isActive?: boolean;
+    page?: number;
+    pageSize?: number;
+  }
+) {
+  if (!canManageUsers(actor)) {
+    throw new AppError(
+      "You are not allowed to manage users",
+      403
+    );
+  }
+
+  const page = Math.max(
+    1,
+    options?.page ?? 1
+  );
+
+  const pageSize = Math.min(
+    100,
+    Math.max(
+      1,
+      options?.pageSize ?? 25
+    )
+  );
+
+  const skip =
+    (page - 1) * pageSize;
+
+  let institutionId =
+    options?.institutionId;
+
+  if (!isSuperAdmin(actor)) {
+    institutionId =
+      await requireActorInstitution(actor);
+  }
+
+  const search =
+    options?.search?.trim();
+
+  const where: Prisma.UserWhereInput = {
+    ...(institutionId
+      ? {
+          institutionId,
+        }
+      : {}),
+    ...(options?.isActive !== undefined
+      ? {
+          isActive:
+            options.isActive,
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            {
+              email: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              firstName: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+            {
+              lastName: {
+                contains: search,
+                mode: "insensitive",
+              },
+          ],
+        },
+      }
+      : {}),
+    ...(options?.role
+      ? {
+          userRoles: {
+            some: {
+              role: {
+                name: options.role,
+              },
+            },
+          },
+        }
+      : {}),
+  };
+
+  const [
+    total,
+    users,
+  ] = await prisma.$transaction([
+    prisma.user.count({
+      where,
+    }),
+    prisma.user.findMany({
+      where,
+      skip,
+      take: pageSize,
+      orderBy: [
+        {
+          createdAt: "desc",
+        },
+        {
+          id: "desc",
+        },
+      ],
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    data: users,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(
+        total / pageSize
+      ),
+    },
+  };
+}
+
+export async function getUserById(
   id: string,
-  institutionId: string | null
+  institutionId?: string | null
 ) {
   const user = await prisma.user.findFirst({
     where: {
       id,
-      ...(institutionId !== null
+      ...(institutionId
         ? {
             institutionId,
           }
@@ -149,185 +376,11 @@ async function getScopedUserOrThrow(
           role: true,
         },
       },
-    },
-  });
-
-  if (!user) {
-    throw new AppError("User not found", 404);
-  }
-
-  return user;
-}
-
-export async function listUsers(params: {
-  page: number;
-  pageSize: number;
-  search?: string;
-  institutionId?: string;
-  role?: string;
-  isActive?: boolean;
-  scopeInstitutionId?: string | null;
-}) {
-  const where: Prisma.UserWhereInput = {};
-
-  /*
-   * scopeInstitutionId is authoritative when supplied.
-   *
-   * This prevents an institution administrator from passing a different
-   * institutionId through the request and seeing another tenant.
-   */
-  if (
-    params.scopeInstitutionId !== null &&
-    params.scopeInstitutionId !== undefined
-  ) {
-    where.institutionId = params.scopeInstitutionId;
-  } else if (params.institutionId) {
-    where.institutionId = params.institutionId;
-  }
-
-  if (params.search) {
-    where.OR = [
-      {
-        email: {
-          contains: params.search,
-          mode: "insensitive",
-        },
-      },
-      {
-        firstName: {
-          contains: params.search,
-          mode: "insensitive",
-        },
-      },
-      {
-        lastName: {
-          contains: params.search,
-          mode: "insensitive",
-        },
-      },
-    ];
-  }
-
-  if (params.isActive !== undefined) {
-    where.isActive = params.isActive;
-  }
-
-  if (params.role) {
-    where.userRoles = {
-      some: {
-        role: {
-          name: params.role,
-          ...(params.scopeInstitutionId
-            ? {
-                institutionId:
-                  params.scopeInstitutionId,
-              }
-            : {}),
-        },
-      },
-    };
-  }
-
-  const [items, total] = await prisma.$transaction([
-    prisma.user.findMany({
-      where,
-      orderBy: {
-        createdAt: "desc",
-      },
-      skip:
-        (params.page - 1) *
-        params.pageSize,
-      take: params.pageSize,
-      select: {
-        id: true,
-        institutionId: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        institution: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        userRoles: {
-          select: {
-            role: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-
-    prisma.user.count({
-      where,
-    }),
-  ]);
-
-  return {
-    items: items.map((user) => ({
-      ...user,
-      roles: user.userRoles.map(
-        (binding) => binding.role
-      ),
-      userRoles: undefined,
-    })),
-    total,
-  };
-}
-
-export async function getUserById(
-  id: string,
-  scopeInstitutionId?: string | null
-) {
-  const user = await prisma.user.findFirst({
-    where: {
-      id,
-      ...(scopeInstitutionId !== undefined &&
-      scopeInstitutionId !== null
-        ? {
-            institutionId:
-              scopeInstitutionId,
-          }
-        : {}),
-    },
-    select: {
-      id: true,
-      institutionId: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      isActive: true,
-      lastLoginAt: true,
-      createdAt: true,
-      updatedAt: true,
       institution: {
         select: {
           id: true,
           name: true,
           slug: true,
-          isActive: true,
-        },
-      },
-      userRoles: {
-        select: {
-          role: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-            },
-          },
         },
       },
     },
@@ -340,35 +393,55 @@ export async function getUserById(
     );
   }
 
-  return {
-    ...user,
-    roles: user.userRoles.map(
-      (binding) => binding.role
-    ),
-    userRoles: undefined,
-  };
+  return user;
 }
 
 export async function createUser(
   input: CreateUserInput,
   actor: AuthenticatedUser
 ) {
-  /*
-   * SUPER_ADMIN can choose the target institution.
-   *
-   * Every institution-scoped role created by a tenant administrator is
-   * automatically attached to the administrator's own institution.
-   *
-   * The browser cannot override this.
-   */
-  const targetInstitutionId = isSuperAdmin(actor)
-    ? input.institutionId ?? null
-    : await requireActorInstitution(actor);
+  if (!canManageUsers(actor)) {
+    throw new AppError(
+      "You are not allowed to create users",
+      403
+    );
+  }
+
+  const email = normalizeEmail(
+    input.email
+  );
+
+  const targetInstitutionId =
+    await resolveTargetInstitution(
+      actor,
+      input.institutionId
+    );
+
+  if (!targetInstitutionId) {
+    if (input.role !== "SUPER_ADMIN") {
+      throw new AppError(
+        "Institution is required for this role",
+        400
+      );
+    }
+  }
 
   if (input.role === "STUDENT") {
     throw new AppError(
       "Student accounts must be created through the student administration workflow so User + StudentProfile + StudentEnrollment are created atomically",
       400
+    );
+  }
+
+  // CMS is a dedicated website-management account.
+  // Only SUPER_ADMIN may create it.
+  if (
+    input.role === "CMS" &&
+    !isSuperAdmin(actor)
+  ) {
+    throw new AppError(
+      "Only SUPER_ADMIN may create CMS users",
+      403
     );
   }
 
@@ -378,7 +451,7 @@ export async function createUser(
       targetInstitutionId !== null
     ) {
       throw new AppError(
-        "SUPER_ADMIN must be a platform-level user",
+        "SUPER_ADMIN accounts must be platform-level and cannot belong to an institution",
         400
       );
     }
@@ -388,80 +461,28 @@ export async function createUser(
       !targetInstitutionId
     ) {
       throw new AppError(
-        "An institution is required for this role",
+        "Institution is required for institution-scoped users",
         400
       );
     }
-  } else if (input.role === "SUPER_ADMIN") {
-    throw new AppError(
-      "Institution administrators cannot create SUPER_ADMIN users",
-      403
-    );
-  }
-
-  if (
-    input.role === "SUPER_ADMIN" &&
-    targetInstitutionId
-  ) {
-    throw new AppError(
-      "SUPER_ADMIN cannot be assigned to an institution",
-      400
-    );
-  }
-
-  if (targetInstitutionId) {
-    await assertTenantQuota(
-      targetInstitutionId,
-      "users"
-    );
-
-    if (input.role === "FACULTY") {
-      await assertTenantQuota(
-        targetInstitutionId,
-        "faculty"
-      );
-    }
-
-    if (input.role === "STUDENT") {
-      await assertTenantQuota(
-        targetInstitutionId,
-        "students"
-      );
-    }
-
-    const institution =
-      await prisma.institution.findUnique({
-        where: {
-          id: targetInstitutionId,
-        },
-        select: {
-          id: true,
-          isActive: true,
-        },
-      });
-
-    if (!institution) {
+  } else {
+    if (
+      input.role === "SUPER_ADMIN"
+    ) {
       throw new AppError(
-        "Institution not found",
-        404
-      );
-    }
-
-    if (!institution.isActive) {
-      throw new AppError(
-        "Cannot create users in an inactive institution",
-        400
+        "Institution administrators cannot create SUPER_ADMIN accounts",
+        403
       );
     }
   }
-
-  const email =
-    input.email.trim().toLowerCase();
 
   const existing =
     await prisma.user.findUnique({
       where: {
         email,
+      },
+      select: {
+        id: true,
       },
     });
 
@@ -472,13 +493,22 @@ export async function createUser(
     );
   }
 
+  if (targetInstitutionId) {
+    await assertTenantQuota(
+      targetInstitutionId,
+      "users"
+    );
+  }
+
   const role = await getRoleForUser(
     input.role,
     targetInstitutionId
   );
 
   const passwordHash =
-    await hashPassword(input.password);
+    await hashPassword(
+      input.password
+    );
 
   const user =
     await prisma.$transaction(
@@ -486,48 +516,61 @@ export async function createUser(
         const created =
           await tx.user.create({
             data: {
-              institutionId:
-                targetInstitutionId,
               email,
               passwordHash,
               firstName:
-                input.firstName,
+                input.firstName.trim(),
               lastName:
-                input.lastName,
+                input.lastName.trim(),
               phone:
-                input.phone || null,
-              isActive: true,
+                normalizeOptionalString(
+                  input.phone
+                ),
+              institutionId:
+                targetInstitutionId,
+              isActive:
+                input.isActive ??
+                true,
+              userRoles: {
+                create: {
+                  roleId: role.id,
+                },
+              },
+            },
+            include: {
+              userRoles: {
+                include: {
+                  role: true,
+                },
+              },
+              institution: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
             },
           });
-
-        await tx.userRole.create({
-          data: {
-            userId: created.id,
-            roleId: role.id,
-          },
-        });
 
         return created;
       }
     );
 
   await recordAuditLog({
-    institutionId:
-      user.institutionId,
-    userId: actor.id,
-    action: "user.create",
+    actorId: actor.id,
+    action: "USER_CREATED",
     entityType: "User",
     entityId: user.id,
     metadata: {
-      role: input.role,
       email: user.email,
+      role: input.role,
+      institutionId:
+        targetInstitutionId,
     },
   });
 
-  return getUserById(
-    user.id,
-    user.institutionId
-  );
+  return user;
 }
 
 export async function updateUser(
@@ -535,67 +578,69 @@ export async function updateUser(
   input: UpdateUserInput,
   actor: AuthenticatedUser
 ) {
-  /*
-   * Resolve the actor's actual institution from the database when the
-   * authentication payload is missing institutionId.
-   */
-  const actorInstitutionId = isSuperAdmin(actor)
-    ? null
-    : await requireActorInstitution(actor);
+  if (!canManageUsers(actor)) {
+    throw new AppError(
+      "You are not allowed to update users",
+      403
+    );
+  }
 
-  const scopeInstitutionId = isSuperAdmin(actor)
-    ? null
-    : actorInstitutionId;
+  const actorInstitutionId =
+    isSuperAdmin(actor)
+      ? null
+      : await requireActorInstitution(actor);
 
   const existing =
-    await getScopedUserOrThrow(
-      id,
-      scopeInstitutionId
-    );
+    await prisma.user.findFirst({
+      where: {
+        id,
+        ...(actorInstitutionId
+          ? {
+              institutionId:
+                actorInstitutionId,
+            }
+          : {}),
+      },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
 
-  if (
-    !isSuperAdmin(actor) &&
-    existing.institutionId !==
-      actorInstitutionId
-  ) {
+  if (!existing) {
     throw new AppError(
-      "You cannot modify a user outside your institution",
-      403
-    );
-  }
-
-  const currentRole =
-    existing.userRoles[0]?.role;
-
-  if (
-    currentRole?.name ===
-      "SUPER_ADMIN" &&
-    !isSuperAdmin(actor)
-  ) {
-    throw new AppError(
-      "Institution administrators cannot modify SUPER_ADMIN users",
-      403
+      "User not found",
+      404
     );
   }
 
   if (
-    id === actor.id &&
-    input.isActive === false
-  ) {
-    throw new AppError(
-      "You cannot deactivate your own account",
-      400
-    );
-  }
-
-  if (
-    id === actor.id &&
+    existing.id === actor.id &&
     input.role &&
-    input.role !== currentRole?.name
+    input.role !==
+      getRoleNames(existing)[0]
   ) {
     throw new AppError(
       "You cannot change your own role",
-      400
+      403
+    );
+  }
+
+  const existingRoles =
+    getRoleNames(existing);
+
+  if (
+    existingRoles.includes(
+      "SUPER_ADMIN"
+    ) &&
+    !isSuperAdmin(actor)
+  ) {
+    throw new AppError(
+      "Institution administrators cannot modify SUPER_ADMIN",
+      403
     );
   }
 
@@ -609,240 +654,251 @@ export async function updateUser(
     );
   }
 
+  // CMS assignment is explicitly controlled by SUPER_ADMIN.
+  if (
+    input.role === "CMS" &&
+    !isSuperAdmin(actor)
+  ) {
+    throw new AppError(
+      "Only SUPER_ADMIN may assign CMS access",
+      403
+    );
+  }
+
   if (
     input.role === "SUPER_ADMIN" &&
     existing.institutionId !== null
   ) {
     throw new AppError(
-      "SUPER_ADMIN must be platform-level",
+      "SUPER_ADMIN accounts must be platform-level",
       400
     );
   }
 
-  // STUDENT accounts have mandatory StudentProfile + StudentEnrollment
-  // records created by the student-admin workflow. Generic user editing
-  // must never convert a student into another role (or another user into
-  // STUDENT) because that would leave the account in an inconsistent state.
   if (
     input.role &&
-    currentRole?.name === "STUDENT" &&
-    input.role !== "STUDENT"
+    input.role === "STUDENT"
   ) {
     throw new AppError(
-      "Student roles must be managed through the student administration workflow",
+      "Student accounts must be managed through the student administration workflow",
       400
     );
   }
 
   if (
-    input.role === "STUDENT" &&
-    currentRole?.name !== "STUDENT"
+    input.institutionId &&
+    !isSuperAdmin(actor)
   ) {
-    throw new AppError(
-      "Create a student through the student administration workflow",
-      400
-    );
-  }
-
-  // A role change away from INSTITUTION_ADMIN has the same safety
-  // requirement as deactivation: the institution must retain an active
-  // administrator.
-  if (
-    input.role &&
-    input.role !== "INSTITUTION_ADMIN" &&
-    currentRole?.name === "INSTITUTION_ADMIN"
-  ) {
-    const activeAdmins =
-      await prisma.user.count({
-        where: {
-          institutionId: existing.institutionId,
-          isActive: true,
-          userRoles: {
-            some: {
-              role: {
-                name: "INSTITUTION_ADMIN",
-              },
-            },
-          },
-          id: {
-            not: existing.id,
-          },
-        },
-      });
-
-    if (activeAdmins === 0) {
+    if (
+      input.institutionId !==
+      actorInstitutionId
+    ) {
       throw new AppError(
-        "The institution must retain at least one active institution administrator",
+        "You cannot move a user to another institution",
+        403
+      );
+    }
+  }
+
+  const targetInstitutionId =
+    input.institutionId !== undefined
+      ? input.institutionId
+      : existing.institutionId;
+
+  if (
+    input.role &&
+    input.role !==
+      existingRoles[0]
+  ) {
+    if (
+      input.role !==
+        "SUPER_ADMIN" &&
+      !targetInstitutionId
+    ) {
+      throw new AppError(
+        "Institution is required for institution-scoped users",
         400
       );
     }
   }
 
   if (
-    input.isActive === false &&
-    currentRole?.name ===
-      "INSTITUTION_ADMIN"
+    input.email &&
+    normalizeEmail(input.email) !==
+      existing.email
   ) {
-    const activeAdmins =
-      await prisma.user.count({
+    const normalizedEmail =
+      normalizeEmail(
+        input.email
+      );
+
+    const duplicate =
+      await prisma.user.findFirst({
         where: {
-          institutionId:
-            existing.institutionId,
-          isActive: true,
-          userRoles: {
-            some: {
-              role: {
-                name:
-                  "INSTITUTION_ADMIN",
-              },
-            },
-          },
+          email:
+            normalizedEmail,
           id: {
-            not: existing.id,
+            not: id,
           },
+        },
+        select: {
+          id: true,
         },
       });
 
-    if (activeAdmins === 0) {
+    if (duplicate) {
       throw new AppError(
-        "The institution must retain at least one active institution administrator",
-        400
+        "A user with this email already exists",
+        409
       );
     }
   }
+
+  let roleId:
+    | string
+    | undefined;
 
   if (input.role) {
     const role =
       await getRoleForUser(
         input.role,
-        existing.institutionId
+        targetInstitutionId
       );
 
+    roleId = role.id;
+  }
+
+  const data: Prisma.UserUpdateInput = {};
+
+  if (input.email !== undefined) {
+    data.email =
+      normalizeEmail(
+        input.email
+      );
+  }
+
+  if (
+    input.firstName !==
+    undefined
+  ) {
+    data.firstName =
+      input.firstName.trim();
+  }
+
+  if (
+    input.lastName !==
+    undefined
+  ) {
+    data.lastName =
+      input.lastName.trim();
+  }
+
+  if (input.phone !== undefined) {
+    data.phone =
+      normalizeOptionalString(
+        input.phone
+      );
+  }
+
+  if (
+    input.password !==
+    undefined
+  ) {
+    data.passwordHash =
+      await hashPassword(
+        input.password
+      );
+  }
+
+  if (
+    input.isActive !==
+    undefined
+  ) {
+    data.isActive =
+      input.isActive;
+  }
+
+  if (
+    input.institutionId !==
+    undefined
+  ) {
+    data.institution =
+      input.institutionId
+        ? {
+            connect: {
+              id: input.institutionId,
+            },
+          }
+        : {
+            disconnect: true,
+          };
+  }
+
+  const updated =
     await prisma.$transaction(
       async (tx) => {
-        await tx.user.update({
-          where: {
-            id,
-          },
-          data: {
-            ...(input.firstName !==
-            undefined
-              ? {
-                  firstName:
-                    input.firstName,
-                }
-              : {}),
+        const user =
+          await tx.user.update({
+            where: {
+              id,
+            },
+            data,
+            include: {
+              userRoles: {
+                include: {
+                  role: true,
+                },
+              },
+              institution: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          });
 
-            ...(input.lastName !==
-            undefined
-              ? {
-                  lastName:
-                    input.lastName,
-                }
-              : {}),
-
-            ...(input.phone !==
-            undefined
-              ? {
-                  phone:
-                    input.phone || null,
-                }
-              : {}),
-
-            ...(input.isActive !==
-            undefined
-              ? {
-                  isActive:
-                    input.isActive,
-                }
-              : {}),
-          },
-        });
-
-        await tx.userRole.deleteMany({
-          where: {
-            userId: id,
-          },
-        });
-
-        await tx.userRole.create({
-          data: {
-            userId: id,
-            roleId: role.id,
-          },
-        });
-
-        if (input.isActive === false) {
-          await tx.refreshToken.updateMany({
+        if (roleId) {
+          await tx.userRole.deleteMany({
             where: {
               userId: id,
-              revokedAt: null,
             },
+          });
+
+          await tx.userRole.create({
             data: {
-              revokedAt: new Date(),
+              userId: id,
+              roleId,
             },
           });
         }
+
+        return tx.user.findUniqueOrThrow({
+          where: {
+            id,
+          },
+          include: {
+            userRoles: {
+              include: {
+                role: true,
+              },
+            },
+            institution: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        });
       }
     );
-  } else {
-    await prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
-        ...(input.firstName !==
-        undefined
-          ? {
-              firstName:
-                input.firstName,
-            }
-          : {}),
-
-        ...(input.lastName !==
-        undefined
-          ? {
-              lastName:
-                input.lastName,
-            }
-          : {}),
-
-        ...(input.phone !==
-        undefined
-          ? {
-              phone:
-                input.phone || null,
-            }
-          : {}),
-
-        ...(input.isActive !==
-        undefined
-          ? {
-              isActive:
-                input.isActive,
-            }
-          : {}),
-      },
-    });
-
-    if (input.isActive === false) {
-      await prisma.refreshToken.updateMany({
-        where: {
-          userId: id,
-          revokedAt: null,
-        },
-        data: {
-          revokedAt: new Date(),
-        },
-      });
-    }
-  }
 
   await recordAuditLog({
-    institutionId:
-      existing.institutionId,
-    userId: actor.id,
-    action: "user.update",
+    actorId: actor.id,
+    action: "USER_UPDATED",
     entityType: "User",
     entityId: id,
     metadata: {
@@ -853,10 +909,103 @@ export async function updateUser(
     },
   });
 
-  return getUserById(
-    id,
-    existing.institutionId
+  return updated;
+}
+
+export async function deleteUser(
+  id: string,
+  actor: AuthenticatedUser
+) {
+  if (!canManageUsers(actor)) {
+    throw new AppError(
+      "You are not allowed to delete users",
+      403
+    );
+  }
+
+  const actorInstitutionId =
+    isSuperAdmin(actor)
+      ? null
+      : await requireActorInstitution(actor);
+
+  const existing =
+    await prisma.user.findFirst({
+      where: {
+        id,
+        ...(actorInstitutionId
+          ? {
+              institutionId:
+                actorInstitutionId,
+            }
+          : {}),
+      },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+  if (!existing) {
+    throw new AppError(
+      "User not found",
+      404
+    );
+  }
+
+  if (existing.id === actor.id) {
+    throw new AppError(
+      "You cannot delete your own account",
+      400
+    );
+  }
+
+  if (
+    hasRole(
+      existing,
+      "SUPER_ADMIN"
+    ) &&
+    !isSuperAdmin(actor)
+  ) {
+    throw new AppError(
+      "Institution administrators cannot delete SUPER_ADMIN",
+      403
+    );
+  }
+
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.userRole.deleteMany({
+        where: {
+          userId: id,
+        },
+      });
+
+      await tx.user.delete({
+        where: {
+          id,
+        },
+      });
+    }
   );
+
+  await recordAuditLog({
+    actorId: actor.id,
+    action: "USER_DELETED",
+    entityType: "User",
+    entityId: id,
+    metadata: {
+      email: existing.email,
+      roles:
+        getRoleNames(existing),
+    },
+  });
+
+  return {
+    success: true,
+  };
 }
 
 export async function setUserActive(
@@ -879,7 +1028,20 @@ export async function setUserActive(
 export function getSystemRolePermissionKeys(
   roleName: string
 ): string[] {
-  if (!SYSTEM_ROLE_SET.has(roleName)) return [];
-  const role = roleName as keyof typeof ROLE_PERMISSIONS;
-  return [...(ROLE_PERMISSIONS[role] ?? [])];
+  if (
+    !SYSTEM_ROLE_SET.has(
+      roleName
+    )
+  ) {
+    return [];
+  }
+
+  const role =
+    roleName as keyof typeof ROLE_PERMISSIONS;
+
+  return [
+    ...(ROLE_PERMISSIONS[
+      role
+    ] ?? []),
+  ];
 }
