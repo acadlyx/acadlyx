@@ -507,12 +507,18 @@ export async function listRegistrations(
      department they manage. */
   if (!isInstitutionWide(actor) && actor.roles.includes("HOD")) {
     const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    where.courseOffering = {
+    const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
       ...(typeof where.courseOffering === "object" && where.courseOffering !== null
         ? where.courseOffering
         : {}),
-      course: { departmentId: { in: managed.length ? managed : ["__none__"] } },
+      course: {
+        departmentId: {
+          in: managed.length ? managed : ["__none__"],
+        },
+      },
     };
+
+    where.courseOffering = courseOfferingFilter;
   }
 
   const [items, total, grouped] = await Promise.all([
