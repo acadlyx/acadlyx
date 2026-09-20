@@ -153,6 +153,19 @@ const emptyUserForm: UserForm = {
   role: "SUPER_ADMIN",
 };
 
+const assignableRoles = [
+  { value: "SUPER_ADMIN", label: "Super Admin" },
+  { value: "INSTITUTION_ADMIN", label: "Institution Admin" },
+  { value: "DIRECTOR", label: "Director" },
+  { value: "MANAGEMENT", label: "Management" },
+  { value: "HOD", label: "HOD" },
+  { value: "FACULTY", label: "Faculty" },
+  { value: "STAFF", label: "Staff" },
+  { value: "PARENT", label: "Parent" },
+  { value: "STUDENT", label: "Student" },
+  { value: "CMS", label: "Website CMS Manager" },
+] as const;
+
 function formatDate(value: string | null) {
   if (!value) return "Never";
 
@@ -509,6 +522,11 @@ export default function SuperAdminPage() {
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    if (userForm.role !== "SUPER_ADMIN" && !userForm.institutionId) {
+      setError("An institution is required for this role.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -1496,40 +1514,19 @@ export default function SuperAdminPage() {
                     setUserForm((current) => ({
                       ...current,
                       role: event.target.value,
+                      institutionId:
+                        event.target.value === "SUPER_ADMIN"
+                          ? ""
+                          : current.institutionId,
                     }))
                   }
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 >
-                  <option value="SUPER_ADMIN">
-                    Super Admin
-                  </option>
-                  <option value="INSTITUTION_ADMIN">
-                    Institution Admin
-                  </option>
-                  <option value="DIRECTOR">
-                    Director
-                  </option>
-                  <option value="MANAGEMENT">
-                    Management
-                  </option>
-                  <option value="HOD">
-                    HOD
-                  </option>
-                  <option value="FACULTY">
-                    Faculty
-                  </option>
-                  <option value="STAFF">
-                    Staff
-                  </option>
-                  <option value="PARENT">
-                    Parent
-                  </option>
-                  <option value="STUDENT">
-                    Student
-                  </option>
-                  <option value="CMS">
-                    CMS
-                  </option>
+                  {assignableRoles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
                 </select>
 
                 <select
@@ -1579,9 +1576,12 @@ export default function SuperAdminPage() {
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                Super Admin accounts remain platform-level and
-                should not be assigned to an institution. Institution
-                roles must be assigned to their tenant.
+                Super Admin accounts remain platform-level and should
+                not be assigned to an institution. Institution roles
+                must be assigned to their tenant. The Website CMS
+                Manager role is intentionally limited to website content
+                management and must be explicitly created or assigned by
+                a Super Admin. It does not grant ERP administration access.
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
