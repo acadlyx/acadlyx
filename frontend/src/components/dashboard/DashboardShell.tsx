@@ -3,13 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import {
   AuthRequiredError,
-  type AuthUser,
+  AuthUser,
   getCurrentUser,
   logout,
 } from "@/lib/auth";
@@ -20,13 +24,18 @@ type NavItem = {
   icon: string;
 };
 
-type DashboardShellProps = {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  allowedRoles?: string[];
-};
-
+/*
+ * IMPORTANT:
+ *
+ * Navigation is intentionally role-isolated.
+ *
+ * Do NOT merge menus from multiple roles.
+ * The user's primary/effective dashboard role gets exactly
+ * one navigation set.
+ *
+ * CMS is intentionally NOT included in institutional roles.
+ * CMS access must be explicitly assigned to a CMS user.
+ */
 const roleNavigation: Record<string, NavItem[]> = {
   STUDENT: [
     {
@@ -133,24 +142,14 @@ const roleNavigation: Record<string, NavItem[]> = {
       icon: "◈",
     },
     {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
       label: "Course material",
       href: "/lms",
       icon: "▤",
     },
     {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
+      label: "Examinations",
+      href: "/examinations",
+      icon: "✍",
     },
     {
       label: "Calendar",
@@ -163,9 +162,279 @@ const roleNavigation: Record<string, NavItem[]> = {
       icon: "⏻",
     },
     {
-      label: "Maintenance",
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
+    },
+  ],
+
+  HOD: [
+    {
+      label: "Dashboard",
+      href: "/hod",
+      icon: "⌂",
+    },
+    {
+      label: "Intelligence",
+      href: "/intelligence",
+      icon: "✦",
+    },
+    {
+      label: "Examinations",
+      href: "/examinations",
+      icon: "✍",
+    },
+    {
+      label: "Operations",
       href: "/operations",
       icon: "⚒",
+    },
+    {
+      label: "Student movement",
+      href: "/student-promotion",
+      icon: "⇗",
+    },
+    {
+      label: "Leave approvals",
+      href: "/leave-management",
+      icon: "⏻",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: "◫",
+    },
+    {
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
+    },
+  ],
+
+  MANAGEMENT: [
+    {
+      label: "Dashboard",
+      href: "/management",
+      icon: "⌂",
+    },
+    {
+      label: "Intelligence",
+      href: "/intelligence",
+      icon: "✦",
+    },
+    {
+      label: "Admissions",
+      href: "/admissions",
+      icon: "✎",
+    },
+    {
+      label: "HR",
+      href: "/hr",
+      icon: "♙",
+    },
+    {
+      label: "Student movement",
+      href: "/student-promotion",
+      icon: "⇗",
+    },
+    {
+      label: "Leave",
+      href: "/leave-management",
+      icon: "⏻",
+    },
+    {
+      label: "Results",
+      href: "/results",
+      icon: "◉",
+    },
+    {
+      label: "Examinations",
+      href: "/examinations",
+      icon: "✍",
+    },
+    {
+      label: "Fees",
+      href: "/fees",
+      icon: "₹",
+    },
+    {
+      label: "Operations",
+      href: "/operations",
+      icon: "⚒",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: "◫",
+    },
+    {
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
+    },
+  ],
+
+  DIRECTOR: [
+    {
+      label: "Dashboard",
+      href: "/director",
+      icon: "⌂",
+    },
+    {
+      label: "Intelligence",
+      href: "/intelligence",
+      icon: "✦",
+    },
+    {
+      label: "Admissions",
+      href: "/admissions",
+      icon: "✎",
+    },
+    {
+      label: "HR",
+      href: "/hr",
+      icon: "♙",
+    },
+    {
+      label: "Student movement",
+      href: "/student-promotion",
+      icon: "⇗",
+    },
+    {
+      label: "Leave",
+      href: "/leave-management",
+      icon: "⏻",
+    },
+    {
+      label: "Results",
+      href: "/results",
+      icon: "◉",
+    },
+    {
+      label: "Examinations",
+      href: "/examinations",
+      icon: "✍",
+    },
+    {
+      label: "Fees",
+      href: "/fees",
+      icon: "₹",
+    },
+    {
+      label: "Operations",
+      href: "/operations",
+      icon: "⚒",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: "◫",
+    },
+    {
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
+    },
+  ],
+
+  INSTITUTION_ADMIN: [
+    {
+      label: "Dashboard",
+      href: "/admin",
+      icon: "⌂",
+    },
+    {
+      label: "People & Users",
+      href: "/admin",
+      icon: "♙",
+    },
+    {
+      label: "ERP Operations",
+      href: "/erp",
+      icon: "▦",
+    },
+    {
+      label: "Intelligence",
+      href: "/intelligence",
+      icon: "✦",
+    },
+    {
+      label: "Admissions",
+      href: "/admissions",
+      icon: "✎",
+    },
+    {
+      label: "HR",
+      href: "/hr",
+      icon: "♙",
+    },
+    {
+      label: "Leave",
+      href: "/leave-management",
+      icon: "⏻",
+    },
+    {
+      label: "Fees",
+      href: "/fees",
+      icon: "₹",
+    },
+    {
+      label: "Operations",
+      href: "/operations",
+      icon: "⚒",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: "◫",
+    },
+    {
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
+    },
+  ],
+
+  STAFF: [
+    {
+      label: "Dashboard",
+      href: "/staff",
+      icon: "⌂",
+    },
+    {
+      label: "Admissions",
+      href: "/admissions",
+      icon: "✎",
+    },
+    {
+      label: "Library",
+      href: "/library",
+      icon: "❏",
+    },
+    {
+      label: "Certificates",
+      href: "/certificates",
+      icon: "❖",
+    },
+    {
+      label: "Leave",
+      href: "/leave-management",
+      icon: "⏻",
+    },
+    {
+      label: "Fees",
+      href: "/fees",
+      icon: "₹",
+    },
+    {
+      label: "Operations",
+      href: "/operations",
+      icon: "⚒",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: "◫",
     },
     {
       label: "Account security",
@@ -197,396 +466,6 @@ const roleNavigation: Record<string, NavItem[]> = {
     },
   ],
 
-  HOD: [
-    {
-      label: "Dashboard",
-      href: "/hod",
-      icon: "⌂",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Course material",
-      href: "/lms",
-      icon: "▤",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Registrations",
-      href: "/course-registration",
-      icon: "⊞",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Leave approvals",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-  ],
-
-  MANAGEMENT: [
-    {
-      label: "Dashboard",
-      href: "/management",
-      icon: "⌂",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Data Import",
-      href: "/imports",
-      icon: "⇅",
-    },
-    {
-      label: "Website CMS",
-      href: "/site-content",
-      icon: "◫",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Registrations",
-      href: "/course-registration",
-      icon: "⊞",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  DIRECTOR: [
-    {
-      label: "Dashboard",
-      href: "/director",
-      icon: "⌂",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Data Import",
-      href: "/imports",
-      icon: "⇅",
-    },
-    {
-      label: "Website CMS",
-      href: "/site-content",
-      icon: "◫",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Registrations",
-      href: "/course-registration",
-      icon: "⊞",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  STAFF: [
-    {
-      label: "Dashboard",
-      href: "/staff",
-      icon: "⌂",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Data Import",
-      href: "/imports",
-      icon: "⇅",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
-  INSTITUTION_ADMIN: [
-    {
-      label: "Dashboard",
-      href: "/admin",
-      icon: "⌂",
-    },
-    {
-      label: "ERP Operations",
-      href: "/erp",
-      icon: "▦",
-    },
-    {
-      label: "Intelligence",
-      href: "/intelligence",
-      icon: "✦",
-    },
-    {
-      label: "Data Import",
-      href: "/imports",
-      icon: "⇅",
-    },
-    {
-      label: "Website CMS",
-      href: "/site-content",
-      icon: "◫",
-    },
-    {
-      label: "Admissions",
-      href: "/admissions",
-      icon: "✎",
-    },
-    {
-      label: "HR",
-      href: "/hr",
-      icon: "♙",
-    },
-    {
-      label: "Leave",
-      href: "/leave-management",
-      icon: "⏻",
-    },
-    {
-      label: "Library",
-      href: "/library",
-      icon: "❏",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-      icon: "◫",
-    },
-    {
-      label: "Registrations",
-      href: "/course-registration",
-      icon: "⊞",
-    },
-    {
-      label: "Student movement",
-      href: "/student-promotion",
-      icon: "⇗",
-    },
-    {
-      label: "Certificates",
-      href: "/certificates",
-      icon: "❖",
-    },
-    {
-      label: "Results",
-      href: "/results",
-      icon: "◉",
-    },
-    {
-      label: "Examinations",
-      href: "/examinations",
-      icon: "✍",
-    },
-    {
-      label: "Fees",
-      href: "/fees",
-      icon: "₹",
-    },
-    {
-      label: "Operations",
-      href: "/operations",
-      icon: "⚒",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "⛨",
-    },
-  ],
-
   SUPER_ADMIN: [
     {
       label: "Dashboard",
@@ -600,11 +479,22 @@ const roleNavigation: Record<string, NavItem[]> = {
     },
   ],
 
+  /*
+   * CMS is deliberately a separate workspace.
+   *
+   * It is NOT merged with INSTITUTION_ADMIN,
+   * DIRECTOR or MANAGEMENT.
+   */
   CMS: [
     {
       label: "Website CMS",
       href: "/site-content",
       icon: "◫",
+    },
+    {
+      label: "Account security",
+      href: "/account-security",
+      icon: "⛨",
     },
   ],
 };
@@ -619,9 +509,17 @@ const roleLabels: Record<string, string> = {
   STAFF: "Staff",
   INSTITUTION_ADMIN: "Institution Admin",
   SUPER_ADMIN: "Super Admin",
-  CMS: "CMS",
+  CMS: "Website CMS",
 };
 
+/*
+ * This order determines the single dashboard workspace.
+ *
+ * IMPORTANT:
+ * This is NOT used to merge menus.
+ * It only determines which one dashboard should be active
+ * when a user technically has multiple roles.
+ */
 const rolePriority = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
@@ -682,115 +580,19 @@ function getRoleHome(roles: string[]): string {
   }
 }
 
-function normalizePath(path: string): string {
-  if (!path) {
-    return "/";
+function getNavigationRole(
+  user: AuthUser | null,
+  allowedRoles?: string[],
+): string {
+  if (user?.roles?.length) {
+    return getPrimaryRole(user.roles);
   }
 
-  if (path.length > 1 && path.endsWith("/")) {
-    return path.slice(0, -1);
+  if (allowedRoles?.length) {
+    return getPrimaryRole(allowedRoles);
   }
 
-  return path;
-}
-
-function isNavigationItemActive(
-  pathname: string,
-  item: NavItem,
-): boolean {
-  const currentPath = normalizePath(pathname);
-  const itemPath = normalizePath(item.href);
-
-  if (itemPath === "/") {
-    return currentPath === "/";
-  }
-
-  if (currentPath === itemPath) {
-    return true;
-  }
-
-  return currentPath.startsWith(`${itemPath}/`);
-}
-
-function getUniqueNavigationItems(
-  items: NavItem[],
-): NavItem[] {
-  const seen = new Set<string>();
-
-  return items.filter((item) => {
-    const key = `${item.href}::${item.label}`;
-
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
-}
-
-function DashboardLoadingState() {
-  return (
-    <div
-      className="min-h-screen bg-slate-50"
-      aria-busy="true"
-      aria-label="Loading dashboard"
-    >
-      <div className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="flex h-full items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 animate-pulse rounded-xl bg-slate-200" />
-
-            <div className="hidden space-y-2 sm:block">
-              <div className="h-3 w-28 animate-pulse rounded bg-slate-200" />
-              <div className="h-2.5 w-20 animate-pulse rounded bg-slate-100" />
-            </div>
-          </div>
-
-          <div className="h-9 w-28 animate-pulse rounded-xl bg-slate-100" />
-        </div>
-      </div>
-
-      <div className="hidden lg:block">
-        <div className="fixed bottom-0 left-0 top-[72px] w-[250px] border-r border-slate-200 bg-white">
-          <div className="space-y-3 p-4">
-            <div className="h-20 animate-pulse rounded-2xl bg-slate-100" />
-
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-11 animate-pulse rounded-xl bg-slate-50"
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="min-h-screen pt-[72px] lg:pl-[250px]">
-        <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
-          <div className="mb-6 space-y-3">
-            <div className="h-3 w-44 animate-pulse rounded bg-slate-200" />
-            <div className="h-8 w-72 animate-pulse rounded-lg bg-slate-200" />
-            <div className="h-4 w-96 max-w-full animate-pulse rounded bg-slate-100" />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white"
-              />
-            ))}
-          </div>
-
-          <div className="mt-6 grid gap-5 xl:grid-cols-[1.5fr_1fr]">
-            <div className="h-72 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-            <div className="h-72 animate-pulse rounded-2xl bg-slate-900" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return "";
 }
 
 export function DashboardShell({
@@ -798,41 +600,45 @@ export function DashboardShell({
   subtitle,
   children,
   allowedRoles,
-}: DashboardShellProps) {
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  allowedRoles?: string[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [authChecking, setAuthChecking] = useState(true);
 
-  const allowedRolesKey = useMemo(
-    () => allowedRoles?.join(",") || "",
-    [allowedRoles],
-  );
+  const allowedRolesKey = allowedRoles?.join(",") || "";
 
+  /*
+   * Authenticate exactly once for this shell instance.
+   *
+   * Pages should not depend on the roleNavigation object
+   * for security. The backend remains authoritative.
+   */
   useEffect(() => {
     let mounted = true;
 
-    setAuthChecking(true);
-
     getCurrentUser()
       .then((currentUser) => {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
-        const hasRoleRestriction =
-          Boolean(allowedRoles && allowedRoles.length > 0);
-
-        const hasAllowedRole =
-          !hasRoleRestriction ||
-          currentUser.roles.some((role) =>
-            allowedRoles?.includes(role),
-          );
-
-        if (!hasAllowedRole) {
+        /*
+         * If this page explicitly restricts roles, enforce
+         * that restriction before rendering the workspace.
+         */
+        if (
+          allowedRoles &&
+          allowedRoles.length > 0 &&
+          !currentUser.roles.some((role) =>
+            allowedRoles.includes(role),
+          )
+        ) {
           router.replace(
             getRoleHome(currentUser.roles),
           );
@@ -840,225 +646,250 @@ export function DashboardShell({
         }
 
         setUser(currentUser);
-        setAuthChecking(false);
       })
       .catch((error) => {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         if (error instanceof AuthRequiredError) {
           router.replace("/login");
-          return;
         }
-
-        setAuthChecking(false);
       });
 
     return () => {
       mounted = false;
     };
-  }, [allowedRolesKey, router, allowedRoles]);
+  }, [router, allowedRolesKey]);
 
+  /*
+   * Close mobile navigation whenever the route changes.
+   */
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
+  /*
+   * Prevent background scrolling while the mobile menu
+   * is open.
+   */
   useEffect(() => {
-    if (!mobileOpen) {
-      document.body.style.overflow = "";
-      return;
-    }
+    if (!mobileOpen) return;
+
+    const previousOverflow =
+      document.body.style.overflow;
 
     document.body.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow =
+        previousOverflow;
     };
   }, [mobileOpen]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setMobileOpen(false);
-      }
-    };
-
-    window.addEventListener(
-      "resize",
-      handleResize,
-    );
-
-    return () => {
-      window.removeEventListener(
-        "resize",
-        handleResize,
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    const stored =
-      window.localStorage.getItem(
-        "acadlyx.dashboard.sidebar.collapsed",
-      );
-
-    if (stored === "true") {
-      setCollapsed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      "acadlyx.dashboard.sidebar.collapsed",
-      String(collapsed),
-    );
-  }, [collapsed]);
-
-  const primaryRole = useMemo(
-    () => getPrimaryRole(user?.roles || allowedRoles || []),
-    [user?.roles, allowedRoles],
+  const primaryRole = getNavigationRole(
+    user,
+    allowedRoles,
   );
 
+  /*
+   * CRITICAL:
+   *
+   * Only ONE role's navigation is returned.
+   *
+   * The previous implementation iterated over every role
+   * and merged all menus together. That behaviour is removed.
+   */
   const navItems = useMemo(() => {
-    const roles = user?.roles || allowedRoles || [];
+    if (!primaryRole) return [];
 
-    const mergedItems = roles.flatMap(
-      (role) => roleNavigation[role] || [],
-    );
+    return roleNavigation[primaryRole] || [];
+  }, [primaryRole]);
 
-    return getUniqueNavigationItems(
-      mergedItems.length > 0
-        ? mergedItems
-        : roleNavigation[primaryRole] || [],
-    );
-  }, [allowedRoles, primaryRole, user?.roles]);
-
-  const signOut = async () => {
+  async function signOut() {
     try {
       await logout();
     } finally {
       router.replace("/login");
     }
-  };
-
-  if (authChecking || !user) {
-    return <DashboardLoadingState />;
   }
 
+  function isActive(item: NavItem): boolean {
+    if (item.href === "/student") {
+      return (
+        pathname === "/student" ||
+        pathname.startsWith("/student/")
+      );
+    }
+
+    if (item.href === "/faculty") {
+      return (
+        pathname === "/faculty" ||
+        pathname.startsWith("/faculty/")
+      );
+    }
+
+    if (item.href === "/parent") {
+      return (
+        pathname === "/parent" ||
+        pathname.startsWith("/parent/")
+      );
+    }
+
+    if (item.href === "/admin") {
+      return pathname === "/admin";
+    }
+
+    if (item.href === "/superadmin") {
+      return pathname === "/superadmin";
+    }
+
+    if (item.href === "/director") {
+      return pathname === "/director";
+    }
+
+    if (item.href === "/management") {
+      return pathname === "/management";
+    }
+
+    if (item.href === "/hod") {
+      return pathname === "/hod";
+    }
+
+    if (item.href === "/staff") {
+      return pathname === "/staff";
+    }
+
+    return (
+      pathname === item.href ||
+      pathname.startsWith(`${item.href}/`)
+    );
+  }
+
+  const roleLabel =
+    roleLabels[primaryRole] ||
+    primaryRole.replace(/_/g, " ") ||
+    "Workspace";
+
+  const roleHome = getRoleHome(
+    user?.roles || allowedRoles || [],
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      {/* =========================================================
-          GLOBAL DASHBOARD HEADER
-          ========================================================= */}
-      <header className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200/90 bg-white/95 shadow-[0_1px_12px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-        <div className="flex h-full items-center justify-between gap-3 px-3 sm:px-5 lg:px-6">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            {/* Mobile menu */}
-            <button
-              type="button"
-              aria-label={
-                mobileOpen
-                  ? "Close navigation"
-                  : "Open navigation"
-              }
-              aria-expanded={mobileOpen}
-              onClick={() =>
-                setMobileOpen((value) => !value)
-              }
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 lg:hidden"
-            >
-              {mobileOpen ? (
-                <span className="text-xl leading-none">
-                  ×
-                </span>
-              ) : (
-                <span className="flex flex-col gap-1">
-                  <span className="h-0.5 w-4 rounded-full bg-current" />
-                  <span className="h-0.5 w-4 rounded-full bg-current" />
-                  <span className="h-0.5 w-4 rounded-full bg-current" />
-                </span>
-              )}
-            </button>
-
-            {/* Desktop collapse */}
-            <button
-              type="button"
-              aria-label={
-                collapsed
-                  ? "Expand sidebar"
-                  : "Collapse sidebar"
-              }
-              aria-expanded={!collapsed}
-              onClick={() =>
-                setCollapsed((value) => !value)
-              }
-              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 lg:inline-flex"
-            >
-              <span className="text-lg leading-none">
-                {collapsed ? "→" : "←"}
+    <div className="min-h-screen bg-[#f3f6fb] text-slate-900">
+      {/* =====================================================
+          TOP HEADER
+      ====================================================== */}
+      <header className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
+        <div className="flex h-full items-center gap-3 px-4 sm:px-6">
+          {/* Mobile navigation */}
+          <button
+            type="button"
+            aria-label={
+              mobileOpen
+                ? "Close navigation"
+                : "Open navigation"
+            }
+            aria-expanded={mobileOpen}
+            onClick={() =>
+              setMobileOpen((value) => !value)
+            }
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 lg:hidden"
+          >
+            {mobileOpen ? (
+              <span className="text-xl leading-none">
+                ×
               </span>
-            </button>
+            ) : (
+              <span className="flex flex-col gap-1.5">
+                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
+                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
+                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
+              </span>
+            )}
+          </button>
 
-            {/* Brand */}
-            <Link
-              href="/"
-              className="flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1 transition hover:bg-slate-50"
-              aria-label="ACADLYX home"
-            >
-              <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <Image
-                  src="/logo.png"
-                  alt="ACADLYX"
-                  fill
-                  sizes="36px"
-                  className="object-contain p-1.5"
-                  priority
-                />
-              </div>
+          {/* Desktop sidebar toggle */}
+          <button
+            type="button"
+            aria-label={
+              collapsed
+                ? "Expand sidebar"
+                : "Collapse sidebar"
+            }
+            onClick={() =>
+              setCollapsed((value) => !value)
+            }
+            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 lg:flex"
+          >
+            <span className="text-lg font-medium">
+              {collapsed ? "›" : "‹"}
+            </span>
+          </button>
 
-              <div className="hidden min-w-0 sm:block">
-                <p className="truncate text-sm font-black tracking-tight text-slate-950">
-                  ACADLYX
-                </p>
+          {/* Brand */}
+          <Link
+            href={roleHome}
+            className="flex min-w-0 items-center gap-3"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950">
+              <Image
+                src="/branding/acadlyx-logo.png"
+                alt="ACADLYX"
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain"
+                priority
+              />
+            </div>
 
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Institutional Platform
-                </p>
-              </div>
-            </Link>
-
-            {/* Current page */}
-            <div className="hidden h-8 w-px bg-slate-200 md:block" />
-
-            <div className="hidden min-w-0 md:block">
-              <p className="max-w-[300px] truncate text-sm font-bold text-slate-900">
-                {title}
+            <div className="hidden min-w-0 sm:block">
+              <p className="truncate text-sm font-extrabold tracking-tight text-slate-950">
+                ACADLYX
               </p>
 
-              {subtitle ? (
-                <p className="max-w-[420px] truncate text-xs text-slate-400">
-                  {subtitle}
-                </p>
-              ) : null}
+              <p className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                Institutional intelligence
+              </p>
             </div>
+          </Link>
+
+          {/* Page separator */}
+          <div className="ml-3 hidden min-w-0 md:block">
+            <div className="h-6 w-px bg-slate-200" />
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="hidden lg:block">
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                {roleLabels[primaryRole] ||
-                  "Authenticated"}
-              </span>
+          {/* Current page */}
+          <div className="hidden min-w-0 md:block">
+            <p className="truncate text-sm font-bold text-slate-900">
+              {title}
+            </p>
+
+            {subtitle && (
+              <p className="max-w-[500px] truncate text-xs text-slate-500">
+                {subtitle}
+              </p>
+            )}
+          </div>
+
+          {/* Account */}
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden text-right xl:block">
+              <p className="text-xs font-bold text-slate-800">
+                {user
+                  ? `${user.firstName} ${user.lastName}`
+                  : "Loading…"}
+              </p>
+
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                {roleLabel}
+              </p>
             </div>
 
-            <AccountMenu user={user} />
+            <AccountMenu />
 
             <button
               type="button"
               onClick={signOut}
-              className="hidden h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 sm:inline-flex"
+              className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:block"
             >
               Sign out
             </button>
@@ -1066,42 +897,42 @@ export function DashboardShell({
         </div>
       </header>
 
-      {/* =========================================================
-          MOBILE BACKDROP
-          ========================================================= */}
-      {mobileOpen ? (
+      {/* =====================================================
+          MOBILE OVERLAY
+      ====================================================== */}
+      {mobileOpen && (
         <button
           type="button"
           aria-label="Close navigation"
           onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
         />
-      ) : null}
+      )}
 
-      {/* =========================================================
-          GLOBAL SIDEBAR
-          ========================================================= */}
+      {/* =====================================================
+          SIDEBAR
+      ====================================================== */}
       <aside
-        aria-label="Dashboard navigation"
         className={[
           "fixed bottom-0 left-0 top-[72px] z-40",
-          "border-r border-slate-200/90 bg-white",
-          "shadow-[8px_0_30px_rgba(15,23,42,0.04)]",
-          "transition-[width,transform] duration-200 ease-out",
+          "border-r border-slate-200/80",
+          "bg-white",
+          "transition-all duration-200",
           "lg:translate-x-0",
           mobileOpen
             ? "translate-x-0"
             : "-translate-x-full",
           collapsed
             ? "lg:w-[82px]"
-            : "w-[280px] lg:w-[250px]",
+            : "w-[270px] lg:w-[250px]",
         ].join(" ")}
       >
         <div className="flex h-full flex-col overflow-y-auto p-3">
           {/* Workspace identity */}
           <div
             className={[
-              "mb-5 rounded-2xl border border-slate-100",
+              "mb-5 rounded-2xl border",
+              "border-slate-100",
               "bg-gradient-to-br from-sky-50 via-white to-violet-50",
               "p-3",
               collapsed ? "lg:p-2" : "",
@@ -1115,7 +946,7 @@ export function DashboardShell({
                   : "",
               ].join(" ")}
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-500 text-sm font-black text-white shadow-sm">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-500 text-sm font-black text-white">
                 {primaryRole
                   ? primaryRole
                       .charAt(0)
@@ -1135,8 +966,7 @@ export function DashboardShell({
                 </p>
 
                 <p className="mt-0.5 truncate text-xs font-bold text-slate-800">
-                  {roleLabels[primaryRole] ||
-                    "ACADLYX"}
+                  {roleLabel}
                 </p>
               </div>
             </div>
@@ -1144,28 +974,19 @@ export function DashboardShell({
 
           {/* Navigation */}
           <nav
-            aria-label="Dashboard navigation links"
+            aria-label="Dashboard navigation"
             className="space-y-1"
           >
             {navItems.map((item) => {
-              const active =
-                isNavigationItemActive(
-                  pathname,
-                  item,
-                );
+              const active = isActive(item);
 
               return (
                 <Link
-                  key={`${item.href}::${item.label}`}
+                  key={`${item.href}-${item.label}`}
                   href={item.href}
                   title={
                     collapsed
                       ? item.label
-                      : undefined
-                  }
-                  aria-current={
-                    active
-                      ? "page"
                       : undefined
                   }
                   onClick={() =>
@@ -1173,8 +994,7 @@ export function DashboardShell({
                   }
                   className={[
                     "group flex items-center gap-3 rounded-xl px-3 py-2.5",
-                    "text-sm font-semibold transition-all duration-150",
-                    "focus:outline-none focus:ring-2 focus:ring-sky-500/30",
+                    "text-sm font-semibold transition-all",
                     collapsed
                       ? "lg:justify-center lg:px-2"
                       : "",
@@ -1184,12 +1004,11 @@ export function DashboardShell({
                   ].join(" ")}
                 >
                   <span
-                    aria-hidden="true"
                     className={[
                       "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm",
                       active
                         ? "bg-white/20 text-white"
-                        : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700",
+                        : "bg-slate-100 text-slate-500 group-hover:bg-white",
                     ].join(" ")}
                   >
                     {item.icon}
@@ -1209,7 +1028,16 @@ export function DashboardShell({
             })}
           </nav>
 
-          {/* Sidebar footer */}
+          {/* Empty state protection */}
+          {!navItems.length && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+              Your account does not have a dashboard
+              workspace assigned. Please contact your
+              administrator.
+            </div>
+          )}
+
+          {/* Bottom identity */}
           <div
             className={[
               "mt-auto pt-5",
@@ -1217,36 +1045,22 @@ export function DashboardShell({
             ].join(" ")}
           >
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-extrabold text-slate-900">
-                  ACADLYX
-                </p>
-
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
-                  Live
-                </span>
-              </div>
+              <p className="text-xs font-extrabold text-slate-900">
+                ACADLYX
+              </p>
 
               <p className="mt-1 text-[11px] leading-5 text-slate-500">
                 Education ERP & institutional
                 intelligence platform.
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={signOut}
-              className="mt-3 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 lg:hidden"
-            >
-              Sign out
-            </button>
           </div>
         </div>
       </aside>
 
-      {/* =========================================================
+      {/* =====================================================
           MAIN CONTENT
-          ========================================================= */}
+      ====================================================== */}
       <main
         className={[
           "min-h-screen pt-[72px]",
@@ -1256,7 +1070,7 @@ export function DashboardShell({
             : "lg:pl-[250px]",
         ].join(" ")}
       >
-        <div className="min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-[1600px]">
             {children}
           </div>
