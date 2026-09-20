@@ -1,4 +1,3 @@
-```typescript
 import { apiUrl } from "./api";
 
 /**
@@ -829,4 +828,3 @@ export async function authedFetch<T>(
 
   return res.json() as Promise<T>;
 }
-```
