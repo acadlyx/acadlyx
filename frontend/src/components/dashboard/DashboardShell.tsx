@@ -8,6 +8,7 @@ import { AccountMenu } from "@/components/auth/AccountMenu";
 import {
   AuthRequiredError,
   AuthUser,
+  getCachedCurrentUser,
   getCurrentUser,
   logout,
 } from "@/lib/auth";
@@ -169,7 +170,7 @@ const roleLabels: Record<string, string> = {
   STAFF: "Staff",
   INSTITUTION_ADMIN: "Institution Admin",
   SUPER_ADMIN: "Super Admin",
-  CMS: "Website CMS Manager",
+  CMS: "CMS",
 };
 
 const rolePriority = [
@@ -244,21 +245,36 @@ export function DashboardShell({
 
   useEffect(() => {
     let mounted = true;
+    const cachedUser = getCachedCurrentUser();
 
-    getCurrentUser()
+    if (cachedUser) {
+      if (
+        allowedRoles &&
+        allowedRoles.length > 0 &&
+        !cachedUser.roles.some((role) => allowedRoles.includes(role))
+      ) {
+        router.replace(getRoleHome(cachedUser.roles));
+        return () => {
+          mounted = false;
+        };
+      }
+
+      // Render immediately from the tab-local snapshot. The backend is
+      // revalidated in the background and therefore cannot hold up route
+      // transitions.
+      setUser(cachedUser);
+    }
+
+    getCurrentUser({ background: Boolean(cachedUser) })
       .then((currentUser) => {
         if (!mounted) return;
 
         if (
           allowedRoles &&
           allowedRoles.length > 0 &&
-          !currentUser.roles.some((role) =>
-            allowedRoles.includes(role)
-          )
+          !currentUser.roles.some((role) => allowedRoles.includes(role))
         ) {
-          router.replace(
-            getRoleHome(currentUser.roles)
-          );
+          router.replace(getRoleHome(currentUser.roles));
           return;
         }
 
@@ -280,6 +296,27 @@ export function DashboardShell({
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const handleInvalidAuth = () => router.replace("/login");
+    window.addEventListener("acadlyx-auth-invalid", handleInvalidAuth);
+    return () =>
+      window.removeEventListener("acadlyx-auth-invalid", handleInvalidAuth);
+  }, [router]);
+
+  useEffect(() => {
+    // Next.js already prefetches visible <Link>s, but explicitly warming the
+    // current role's routes makes sidebar navigation feel app-like even on
+    // slower connections. This work is intentionally idle and non-blocking.
+    const warmRoutes = () => {
+      for (const item of navItems) {
+        router.prefetch(item.href);
+      }
+    };
+
+    const idle = window.setTimeout(warmRoutes, 40);
+    return () => window.clearTimeout(idle);
+  }, [navItems, router]);
 
   useEffect(() => {
     if (!mobileOpen) return;
