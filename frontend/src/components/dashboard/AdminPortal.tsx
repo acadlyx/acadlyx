@@ -45,7 +45,6 @@ type AdminSection =
   | "academics"
   | "finance"
   | "operations"
-  | "website"
   | "intelligence";
 
 type AdminAction = {
@@ -96,11 +95,6 @@ const sectionConfig: Record<
     title: "Operations",
     description:
       "Manage institutional operational services and workflows.",
-  },
-  website: {
-    title: "Website & CMS",
-    description:
-      "Manage the public institution website through the CMS.",
   },
   intelligence: {
     title: "Institution Intelligence",
@@ -198,12 +192,6 @@ function getActions(): AdminAction[] {
       description:
         "Review institutional performance and intelligence.",
       href: "/intelligence",
-    },
-    {
-      label: "Manage Website CMS",
-      description:
-        "Manage public website content from the CMS.",
-      href: "/site-content",
     },
     {
       label: "Import Institutional Data",
@@ -361,22 +349,6 @@ function getSectionActions(
           description:
             "Open library management.",
           href: "/library",
-        },
-      ];
-
-    case "website":
-      return [
-        {
-          label: "Website CMS",
-          description:
-            "Manage public-facing website content.",
-          href: "/site-content",
-        },
-        {
-          label: "Applications",
-          description:
-            "Review application-related website workflows.",
-          href: "/applications",
         },
       ];
 
@@ -590,11 +562,6 @@ function SectionSwitcher({
       id: "operations",
       label: "Operations",
       icon: "⚒",
-    },
-    {
-      id: "website",
-      label: "Website",
-      icon: "◫",
     },
     {
       id: "intelligence",
