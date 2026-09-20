@@ -1078,7 +1078,7 @@ export async function getReceipt(
   });
   const institution = await prisma.institution.findUniqueOrThrow({
     where: { id: institutionId },
-    select: { name: true, code: true },
+    select: { name: true, slug: true },
   });
 
   return {
