@@ -1,12 +1,35 @@
-"use client";
+import { apiUrl } from "./api";
+
+/**
+ * Acadlyx authentication client
+ *
+ * Important security behavior:
+ * - Access/refresh tokens are stored in sessionStorage, NOT localStorage.
+ * - Every browser tab gets its own authentication storage.
+ * - Legacy localStorage token values are removed.
+ * - MFA tokens are only stored after successful verification.
+ * - Authenticated requests automatically attempt one token refresh after 401.
+ *
+ * sessionStorage is intentionally used so separate tabs do not share the
+ * active authenticated session.
+ */
 
 const ACCESS_TOKEN_KEY = "acadlyx_access_token";
 const REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
+
+const LEGACY_ACCESS_TOKEN_KEY = "acadlyx_access_token";
+const LEGACY_REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
 
 const TAB_ID_KEY = "acadlyx_tab_id";
 const TAB_INITIALIZED_KEY = "acadlyx_tab_initialized";
 
 const TAB_CHANNEL_NAME = "acadlyx_auth_tab_isolation";
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
 
 export interface AuthUser {
   id: string;
@@ -18,813 +41,604 @@ export interface AuthUser {
   permissions: string[];
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken?: string;
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  error?: {
+    message?: string;
+    code?: string;
+  };
 }
-
-export class AuthRequiredError extends Error {
-  constructor(message = "Authentication required") {
-    super(message);
-    this.name = "AuthRequiredError";
-  }
-}
-
-let protectionPromise: Promise<void> | null = null;
-let protectionCompleted = false;
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
-function getSessionStorage(): Storage | null {
-  if (!isBrowser()) {
-    return null;
-  }
-
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function getLocalStorage(): Storage | null {
-  if (!isBrowser()) {
-    return null;
-  }
-
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function createRandomId(): string {
+/**
+ * Generates a per-tab identifier.
+ */
+function generateTabId(): string {
   if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
   ) {
-    return crypto.randomUUID();
+    return globalThis.crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function ensureTabId(): string {
-  const storage = getSessionStorage();
+/**
+ * Ensures this browser tab has its own identifier.
+ *
+ * sessionStorage is intentionally used here because it is scoped to the
+ * individual tab.
+ */
+function ensureTabId(): string | null {
+  if (!isBrowser()) return null;
 
-  if (!storage) {
-    return createRandomId();
+  let tabId = window.sessionStorage.getItem(TAB_ID_KEY);
+
+  if (!tabId) {
+    tabId = generateTabId();
+    window.sessionStorage.setItem(TAB_ID_KEY, tabId);
   }
+
+  return tabId;
+}
+
+/**
+ * Remove authentication tokens that may have been left behind by older
+ * Acadlyx builds which used localStorage.
+ *
+ * We NEVER read authentication tokens from localStorage.
+ */
+function removeLegacyLocalStorageTokens(): void {
+  if (!isBrowser()) return;
 
   try {
-    const existing = storage.getItem(TAB_ID_KEY);
-
-    if (existing) {
-      return existing;
-    }
-
-    const id = createRandomId();
-    storage.setItem(TAB_ID_KEY, id);
-
-    return id;
+    window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+    window.localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
   } catch {
-    return createRandomId();
-  }
-}
-
-function getStoredTabId(): string | null {
-  const storage = getSessionStorage();
-
-  if (!storage) {
-    return null;
-  }
-
-  try {
-    return storage.getItem(TAB_ID_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function getAccessTokenUnsafe(): string | null {
-  const storage = getSessionStorage();
-
-  if (!storage) {
-    return null;
-  }
-
-  try {
-    return storage.getItem(ACCESS_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function getRefreshTokenUnsafe(): string | null {
-  const storage = getSessionStorage();
-
-  if (!storage) {
-    return null;
-  }
-
-  try {
-    return storage.getItem(REFRESH_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function clearLegacyLocalStorageTokens(): void {
-  const storage = getLocalStorage();
-
-  if (!storage) {
-    return;
-  }
-
-  try {
-    /*
-     * Older versions of the application stored authentication
-     * tokens in localStorage.
-     *
-     * Remove ONLY authentication keys.
-     * Do not clear unrelated application storage.
-     */
-    storage.removeItem(ACCESS_TOKEN_KEY);
-    storage.removeItem(REFRESH_TOKEN_KEY);
-  } catch {
-    // Ignore storage access errors.
-  }
-}
-
-function clearSessionTokens(): void {
-  const storage = getSessionStorage();
-
-  if (!storage) {
-    return;
-  }
-
-  try {
-    storage.removeItem(ACCESS_TOKEN_KEY);
-    storage.removeItem(REFRESH_TOKEN_KEY);
-  } catch {
-    // Ignore storage access errors.
-  }
-}
-
-function tokenFingerprint(token: string | null): string {
-  if (!token) {
-    return "";
-  }
-
-  /*
-   * We do not need cryptographic hashing here.
-   *
-   * This value is only used as a short in-memory/tab
-   * coordination identifier and is never sent to the server.
-   */
-  let hash = 2166136261;
-
-  for (let index = 0; index < token.length; index += 1) {
-    hash ^= token.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (
-    hash >>> 0
-  ).toString(16);
-}
-
-function broadcastTabState(): void {
-  if (!isBrowser()) {
-    return;
-  }
-
-  try {
-    if (typeof BroadcastChannel === "undefined") {
-      return;
-    }
-
-    const channel = new BroadcastChannel(
-      TAB_CHANNEL_NAME,
-    );
-
-    channel.postMessage({
-      type: "acadlyx-auth-tab-ready",
-      tabId: ensureTabId(),
-      tokenFingerprint: tokenFingerprint(
-        getAccessTokenUnsafe(),
-      ),
-      timestamp: Date.now(),
-    });
-
-    channel.close();
-  } catch {
-    // BroadcastChannel is optional.
+    // Ignore storage access failures.
   }
 }
 
 /**
- * Protect against the browser copying sessionStorage
- * from an opener into a newly opened tab.
- *
- * IMPORTANT:
- * sessionStorage itself is still the actual token store.
- * localStorage is never used for authentication.
- *
- * A tab opened with an opener can inherit the opener's
- * sessionStorage. In that situation, we deliberately
- * clear the inherited authentication state so the new
- * tab starts unauthenticated.
+ * Read an access token only from this tab's sessionStorage.
  */
-async function protectAgainstClonedSession(): Promise<void> {
-  if (!isBrowser()) {
-    return;
-  }
-
-  const storage = getSessionStorage();
-
-  if (!storage) {
-    return;
-  }
-
-  clearLegacyLocalStorageTokens();
+function getAccessTokenUnsafe(): string | null {
+  if (!isBrowser()) return null;
 
   try {
-    const initialized = storage.getItem(
-      TAB_INITIALIZED_KEY,
-    );
-
-    /*
-     * window.opener is the strongest browser-level signal
-     * available to us for a newly opened browsing context.
-     *
-     * If this tab has an opener and inherited an authenticated
-     * session, do not allow that authentication to carry into
-     * the new tab.
-     */
-    if (
-      window.opener &&
-      getAccessTokenUnsafe()
-    ) {
-      clearSessionTokens();
-
-      storage.setItem(
-        TAB_INITIALIZED_KEY,
-        "1",
-      );
-
-      ensureTabId();
-
-      protectionCompleted = true;
-      broadcastTabState();
-
-      return;
-    }
-
-    /*
-     * A normal first load gets a fresh tab marker.
-     *
-     * If a browser duplicated sessionStorage without exposing
-     * an opener, the application cannot reliably distinguish
-     * that browser operation using sessionStorage alone.
-     * The explicit opener check handles the standard new-tab /
-     * window.open cloning path.
-     */
-    if (!initialized) {
-      storage.setItem(
-        TAB_INITIALIZED_KEY,
-        "1",
-      );
-    }
-
-    ensureTabId();
-
-    protectionCompleted = true;
-    broadcastTabState();
+    return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
   } catch {
-    /*
-     * Authentication must remain functional even when browser
-     * storage APIs are restricted.
-     */
-    protectionCompleted = true;
+    return null;
   }
 }
 
-async function ensureTabProtection(): Promise<void> {
-  if (protectionCompleted) {
-    return;
+/**
+ * Read a refresh token only from this tab's sessionStorage.
+ */
+function getRefreshTokenUnsafe(): string | null {
+  if (!isBrowser()) return null;
+
+  try {
+    return window.sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear only this tab's authentication state.
+ */
+function clearSessionTokens(): void {
+  if (!isBrowser()) return;
+
+  try {
+    window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  } catch {
+    // Ignore storage access failures.
+  }
+}
+
+/**
+ * Best-effort protection against sessionStorage cloning.
+ *
+ * Browsers can initially clone sessionStorage when a new document is opened
+ * from an existing document with window.opener.
+ *
+ * When that happens, the new document must not inherit the parent's active
+ * authentication session.
+ *
+ * We deliberately do NOT use localStorage for authentication.
+ */
+function protectAgainstClonedSession(): void {
+  if (!isBrowser()) return;
+
+  removeLegacyLocalStorageTokens();
+
+  const initialized = window.sessionStorage.getItem(TAB_INITIALIZED_KEY);
+
+  /**
+   * A page opened from another document may inherit sessionStorage.
+   *
+   * If this is a fresh document with an opener and it already contains
+   * authentication data, clear that copied authentication state.
+   */
+  if (!initialized && window.opener && getAccessTokenUnsafe()) {
+    clearSessionTokens();
   }
 
-  if (!protectionPromise) {
-    protectionPromise =
-      protectAgainstClonedSession().finally(() => {
-        protectionPromise = null;
-      });
-  }
+  ensureTabId();
 
-  await protectionPromise;
+  try {
+    window.sessionStorage.setItem(TAB_INITIALIZED_KEY, "1");
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+/**
+ * Run tab protection before accessing authentication state.
+ */
+function ensureTabProtection(): void {
+  if (!isBrowser()) return;
+
+  protectAgainstClonedSession();
 }
 
 export function getAccessToken(): string | null {
-  if (!isBrowser()) {
-    return null;
-  }
+  if (!isBrowser()) return null;
 
-  /*
-   * Never read authentication tokens from localStorage.
-   */
+  ensureTabProtection();
+
   return getAccessTokenUnsafe();
 }
 
 export function getRefreshToken(): string | null {
-  if (!isBrowser()) {
-    return null;
-  }
+  if (!isBrowser()) return null;
+
+  ensureTabProtection();
 
   return getRefreshTokenUnsafe();
 }
 
 export function setTokens(tokens: AuthTokens): void {
-  const storage = getSessionStorage();
+  if (!isBrowser()) return;
 
-  if (!storage) {
-    return;
-  }
+  ensureTabProtection();
 
   try {
-    storage.setItem(
+    window.sessionStorage.setItem(
       ACCESS_TOKEN_KEY,
-      tokens.accessToken,
+      tokens.accessToken
     );
 
-    if (tokens.refreshToken) {
-      storage.setItem(
-        REFRESH_TOKEN_KEY,
-        tokens.refreshToken,
-      );
-    } else {
-      storage.removeItem(REFRESH_TOKEN_KEY);
-    }
+    window.sessionStorage.setItem(
+      REFRESH_TOKEN_KEY,
+      tokens.refreshToken
+    );
 
-    /*
-     * Keep old localStorage authentication data removed.
-     */
-    clearLegacyLocalStorageTokens();
-
-    broadcastTabState();
+    removeLegacyLocalStorageTokens();
   } catch {
     throw new Error(
-      "Unable to securely store authentication state in this browser.",
+      "Unable to securely store the authentication session in this browser."
     );
   }
 }
 
 export function clearTokens(): void {
-  clearSessionTokens();
-  clearLegacyLocalStorageTokens();
+  if (!isBrowser()) return;
+
+  try {
+    window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    window.sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+
+  removeLegacyLocalStorageTokens();
 }
 
 export function isAuthenticated(): boolean {
-  return Boolean(getAccessToken());
+  if (!isBrowser()) return false;
+
+  ensureTabProtection();
+
+  return getAccessTokenUnsafe() !== null;
 }
 
-async function parseResponse<T>(
-  response: Response,
-): Promise<T> {
-  const contentType =
-    response.headers.get("content-type") || "";
+/**
+ * Result of a sign-in attempt.
+ *
+ * Accounts requiring MFA return a challenge instead of authenticated
+ * tokens. Tokens are not stored until MFA verification succeeds.
+ */
+export type LoginResult =
+  | {
+      mfaRequired: false;
+      user: AuthUser;
+    }
+  | {
+      mfaRequired: true;
+      challengeToken: string;
+      expiresAt: string;
+    };
+
+interface LoginPayload {
+  mfaRequired?: boolean;
+  challengeToken?: string;
+  expiresAt?: string;
+  user?: AuthUser;
+  tokens?: AuthTokens;
+}
+
+/**
+ * Standard email/password login.
+ */
+export async function login(
+  email: string,
+  password: string
+): Promise<LoginResult> {
+  if (!isBrowser()) {
+    throw new Error("Login is only available in a browser.");
+  }
+
+  ensureTabProtection();
+
+  const response = await fetch(apiUrl("/auth/login"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+
+  const body = (await response
+    .json()
+    .catch(() => null)) as ApiEnvelope<LoginPayload> | null;
+
+  if (!response.ok || !body) {
+    throw new Error(
+      body?.error?.message ||
+        "Login failed. Please check your credentials and try again."
+    );
+  }
+
+  const payload = body.data;
 
   if (
-    contentType.includes("application/json")
+    payload.mfaRequired &&
+    payload.challengeToken
   ) {
-    return (await response.json()) as T;
+    return {
+      mfaRequired: true,
+      challengeToken: payload.challengeToken,
+      expiresAt: payload.expiresAt ?? "",
+    };
+  }
+
+  if (!payload.tokens || !payload.user) {
+    throw new Error("Login response was incomplete.");
+  }
+
+  setTokens(payload.tokens);
+
+  return {
+    mfaRequired: false,
+    user: payload.user,
+  };
+}
+
+/**
+ * Complete an MFA login.
+ *
+ * This function is intentionally exported because the login page imports
+ * completeMfaLogin directly.
+ */
+export async function completeMfaLogin(
+  challengeToken: string,
+  code: string
+): Promise<AuthUser> {
+  if (!isBrowser()) {
+    throw new Error("MFA verification is only available in a browser.");
+  }
+
+  ensureTabProtection();
+
+  const response = await fetch(
+    apiUrl("/auth/mfa/verify"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        challengeToken,
+        code,
+      }),
+    }
+  );
+
+  const body = (await response
+    .json()
+    .catch(() => null)) as ApiEnvelope<{
+      user: AuthUser;
+      tokens: AuthTokens;
+    }> | null;
+
+  if (!response.ok || !body) {
+    throw new Error(
+      body?.error?.message ||
+        "Verification failed. Please check the code and try again."
+    );
+  }
+
+  if (!body.data?.tokens || !body.data?.user) {
+    throw new Error("MFA verification response was incomplete.");
+  }
+
+  setTokens(body.data.tokens);
+
+  return body.data.user;
+}
+
+/**
+ * Get the currently authenticated user.
+ */
+export async function getCurrentUser(): Promise<AuthUser> {
+  const response =
+    await authedFetch<ApiEnvelope<AuthUser>>(
+      "/auth/me"
+    );
+
+  if (
+    !response.data ||
+    !Array.isArray(response.data.roles) ||
+    !Array.isArray(response.data.permissions)
+  ) {
+    throw new Error(
+      "Invalid authenticated user response."
+    );
+  }
+
+  return response.data;
+}
+
+/**
+ * Logout.
+ *
+ * Tokens are removed locally BEFORE making the network request so that
+ * even if the backend is unavailable, this browser tab is immediately
+ * unauthenticated.
+ */
+export async function logout(): Promise<void> {
+  if (!isBrowser()) return;
+
+  ensureTabProtection();
+
+  const refreshToken = getRefreshTokenUnsafe();
+
+  clearTokens();
+
+  if (!refreshToken) return;
+
+  try {
+    await fetch(
+      apiUrl("/auth/logout"),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          refreshToken,
+        }),
+      }
+    );
+  } catch {
+    // Local session is already cleared.
+  }
+}
+
+/**
+ * Refresh the access token using the refresh token belonging ONLY to
+ * this browser tab.
+ */
+async function tryRefresh(): Promise<boolean> {
+  if (!isBrowser()) return false;
+
+  ensureTabProtection();
+
+  const refreshToken = getRefreshTokenUnsafe();
+
+  if (!refreshToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      apiUrl("/auth/refresh"),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          refreshToken,
+        }),
+      }
+    );
+
+    const body = (await response
+      .json()
+      .catch(() => null)) as ApiEnvelope<{
+      tokens: AuthTokens;
+    }> | null;
+
+    if (!response.ok || !body?.data?.tokens) {
+      clearTokens();
+      return false;
+    }
+
+    setTokens(body.data.tokens);
+
+    return true;
+  } catch {
+    clearTokens();
+    return false;
+  }
+}
+
+/**
+ * Error thrown when the browser no longer has a valid authenticated
+ * session.
+ */
+export class AuthRequiredError extends Error {
+  constructor() {
+    super("Authentication required");
+    this.name = "AuthRequiredError";
+  }
+}
+
+/**
+ * Authenticated fetch wrapper.
+ *
+ * IMPORTANT:
+ * This is intentionally generic:
+ *
+ *   authedFetch<MyResponse>("/some-endpoint")
+ *
+ * Existing pages rely on this generic response typing.
+ *
+ * On a 401:
+ * 1. Refresh once.
+ * 2. Retry the original request once.
+ * 3. Throw AuthRequiredError if refresh fails.
+ */
+export async function authedFetch<T = unknown>(
+  path: string,
+  init?: RequestInit
+): Promise<T> {
+  if (!isBrowser()) {
+    throw new AuthRequiredError();
+  }
+
+  ensureTabProtection();
+
+  const performFetch = async (
+    token: string
+  ): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+
+    if (!headers.has("Content-Type")) {
+      headers.set(
+        "Content-Type",
+        "application/json"
+      );
+    }
+
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+
+    return fetch(apiUrl(path), {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+  };
+
+  let token = getAccessTokenUnsafe();
+
+  if (!token) {
+    throw new AuthRequiredError();
+  }
+
+  let response = await performFetch(token);
+
+  if (response.status === 401) {
+    const refreshed = await tryRefresh();
+
+    if (!refreshed) {
+      clearTokens();
+      throw new AuthRequiredError();
+    }
+
+    token = getAccessTokenUnsafe();
+
+    if (!token) {
+      throw new AuthRequiredError();
+    }
+
+    response = await performFetch(token);
+  }
+
+  if (response.status === 401) {
+    clearTokens();
+    throw new AuthRequiredError();
   }
 
   const text = await response.text();
 
-  if (!text) {
-    return {} as T;
-  }
+  let payload: unknown = null;
 
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return {
-      message: text,
-    } as T;
-  }
-}
-
-function getApiUrl(): string {
-  const configured =
-    process.env.NEXT_PUBLIC_API_URL;
-
-  if (configured) {
-    return configured.replace(/\/+$/, "");
-  }
-
-  return "";
-}
-
-export async function getCurrentUser(): Promise<AuthUser> {
-  await ensureTabProtection();
-
-  const token = getAccessToken();
-
-  if (!token) {
-    throw new AuthRequiredError();
-  }
-
-  const response = await fetch(
-    `${getApiUrl()}/api/v1/auth/me`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      credentials: "include",
-      cache: "no-store",
-    },
-  );
-
-  if (
-    response.status === 401 ||
-    response.status === 403
-  ) {
-    clearTokens();
-    throw new AuthRequiredError(
-      "Your session has expired. Please sign in again.",
-    );
-  }
-
-  if (!response.ok) {
-    const data =
-      await parseResponse<{
-        message?: string;
-      }>(response);
-
-    throw new Error(
-      data.message ||
-        "Unable to load the current user.",
-    );
-  }
-
-  return parseResponse<AuthUser>(response);
-}
-
-async function refreshAccessToken(): Promise<string | null> {
-  await ensureTabProtection();
-
-  const refreshToken =
-    getRefreshToken();
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  const response = await fetch(
-    `${getApiUrl()}/api/v1/auth/refresh`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        refreshToken,
-      }),
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    clearTokens();
-    return null;
-  }
-
-  const data =
-    await parseResponse<{
-      accessToken?: string;
-      refreshToken?: string;
-      tokens?: {
-        accessToken?: string;
-        refreshToken?: string;
-      };
-    }>(response);
-
-  const accessToken =
-    data.accessToken ||
-    data.tokens?.accessToken;
-
-  const newRefreshToken =
-    data.refreshToken ||
-    data.tokens?.refreshToken;
-
-  if (!accessToken) {
-    clearTokens();
-    return null;
-  }
-
-  setTokens({
-    accessToken,
-    refreshToken:
-      newRefreshToken || refreshToken,
-  });
-
-  return accessToken;
-}
-
-export async function authedFetch(
-  input: RequestInfo | URL,
-  init: RequestInit = {},
-): Promise<Response> {
-  await ensureTabProtection();
-
-  let token = getAccessToken();
-
-  if (!token) {
-    throw new AuthRequiredError();
-  }
-
-  const makeRequest = (
-    accessToken: string,
-  ) => {
-    const headers = new Headers(
-      init.headers,
-    );
-
-    headers.set(
-      "Authorization",
-      `Bearer ${accessToken}`,
-    );
-
-    headers.set(
-      "Accept",
-      "application/json",
-    );
-
-    return fetch(input, {
-      ...init,
-      headers,
-      credentials:
-        init.credentials || "include",
-      cache:
-        init.cache || "no-store",
-    });
-  };
-
-  let response =
-    await makeRequest(token);
-
-  if (response.status !== 401) {
-    return response;
-  }
-
-  /*
-   * One refresh attempt only.
-   */
-  const refreshed =
-    await refreshAccessToken();
-
-  if (!refreshed) {
-    clearTokens();
-
-    throw new AuthRequiredError(
-      "Your session has expired. Please sign in again.",
-    );
-  }
-
-  token = refreshed;
-
-  response =
-    await makeRequest(token);
-
-  if (response.status === 401) {
-    clearTokens();
-
-    throw new AuthRequiredError(
-      "Your session has expired. Please sign in again.",
-    );
-  }
-
-  return response;
-}
-
-export async function login(
-  email: string,
-  password: string,
-): Promise<
-  | {
-      requiresMfa: true;
-      challengeId?: string;
-      message?: string;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = text;
     }
-  | {
-      requiresMfa?: false;
-      user?: AuthUser;
-      accessToken?: string;
-      refreshToken?: string;
-    }
-> {
-  await ensureTabProtection();
-
-  const response = await fetch(
-    `${getApiUrl()}/api/v1/auth/login`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-      }),
-      cache: "no-store",
-    },
-  );
-
-  const data =
-    await parseResponse<{
-      requiresMfa?: boolean;
-      challengeId?: string;
-      message?: string;
-      accessToken?: string;
-      refreshToken?: string;
-      user?: AuthUser;
-      tokens?: {
-        accessToken?: string;
-        refreshToken?: string;
-      };
-    }>(response);
+  }
 
   if (!response.ok) {
-    throw new Error(
-      data.message ||
-        "Unable to sign in.",
-    );
+    const errorMessage =
+      typeof payload === "object" &&
+      payload !== null &&
+      "error" in payload &&
+      typeof (payload as { error?: unknown }).error ===
+        "object" &&
+      (payload as { error?: { message?: unknown } })
+        .error?.message
+        ? String(
+            (
+              payload as {
+                error?: { message?: unknown };
+              }
+            ).error?.message
+          )
+        : typeof payload === "object" &&
+            payload !== null &&
+            "message" in payload
+          ? String(
+              (payload as { message?: unknown })
+                .message
+            )
+          : `Request failed with status ${response.status}`;
+
+    throw new Error(errorMessage);
   }
 
-  if (data.requiresMfa) {
-    return {
-      requiresMfa: true,
-      challengeId:
-        data.challengeId,
-      message: data.message,
-    };
-  }
-
-  const accessToken =
-    data.accessToken ||
-    data.tokens?.accessToken;
-
-  const refreshToken =
-    data.refreshToken ||
-    data.tokens?.refreshToken;
-
-  if (!accessToken) {
-    throw new Error(
-      "Login succeeded but no access token was returned.",
-    );
-  }
-
-  setTokens({
-    accessToken,
-    refreshToken,
-  });
-
-  return {
-    requiresMfa: false,
-    user: data.user,
-    accessToken,
-    refreshToken,
-  };
-}
-
-export async function verifyMfa(
-  challengeId: string,
-  code: string,
-): Promise<{
-  user?: AuthUser;
-  accessToken?: string;
-  refreshToken?: string;
-}> {
-  await ensureTabProtection();
-
-  const response = await fetch(
-    `${getApiUrl()}/api/v1/auth/mfa/verify`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        challengeId,
-        code: code.trim(),
-      }),
-      cache: "no-store",
-    },
-  );
-
-  const data =
-    await parseResponse<{
-      message?: string;
-      accessToken?: string;
-      refreshToken?: string;
-      user?: AuthUser;
-      tokens?: {
-        accessToken?: string;
-        refreshToken?: string;
-      };
-    }>(response);
-
-  if (!response.ok) {
-    throw new Error(
-      data.message ||
-        "Unable to verify MFA.",
-    );
-  }
-
-  const accessToken =
-    data.accessToken ||
-    data.tokens?.accessToken;
-
-  const refreshToken =
-    data.refreshToken ||
-    data.tokens?.refreshToken;
-
-  if (!accessToken) {
-    throw new Error(
-      "MFA verification succeeded but no access token was returned.",
-    );
-  }
-
-  setTokens({
-    accessToken,
-    refreshToken,
-  });
-
-  return {
-    user: data.user,
-    accessToken,
-    refreshToken,
-  };
-}
-
-export async function logout(): Promise<void> {
-  await ensureTabProtection();
-
-  const token = getAccessToken();
-
-  try {
-    if (token) {
-      await fetch(
-        `${getApiUrl()}/api/v1/auth/logout`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          credentials: "include",
-          cache: "no-store",
-        },
-      );
-    }
-  } catch {
-    /*
-     * Logout must still clear the local session if the
-     * backend is temporarily unavailable.
-     */
-  } finally {
-    clearTokens();
-  }
+  return payload as T;
 }
 
 /**
- * Utility for pages that need to require authentication
- * without duplicating redirect logic.
+ * Remove any old localStorage authentication state immediately when this
+ * module executes in the browser.
+ *
+ * This protects users upgrading from older Acadlyx versions.
  */
-export async function requireCurrentUser(): Promise<AuthUser> {
-  return getCurrentUser();
-}
-
-/**
- * Useful when a component needs the current tab identity
- * for diagnostics without exposing tokens.
- */
-export function getTabId(): string | null {
-  return getStoredTabId();
+if (isBrowser()) {
+  removeLegacyLocalStorageTokens();
 }
