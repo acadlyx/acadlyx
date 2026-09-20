@@ -130,6 +130,15 @@ export function assertAuthEnv(): void {
 
   if (
     isProduction &&
+    (!process.env.CORS_ORIGIN || corsOrigins.length === 0)
+  ) {
+    throw new Error(
+      "CORS_ORIGIN must be set in production."
+    );
+  }
+
+  if (
+    isProduction &&
     (
       missingAccessSecret ||
       missingRefreshSecret

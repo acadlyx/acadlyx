@@ -12,7 +12,8 @@ const MANAGEMENT_ROLES = [
   "STAFF",
 ];
 
-const weekday = new Date().getDay();
+/** Evaluated per call: a module-level constant would freeze the weekday at process start. */
+const todayWeekday = () => new Date().getDay();
 
 function assertRole(
   user: AuthenticatedUser,
@@ -722,7 +723,7 @@ export async function getMyWorkspace(
       prisma.timetableEntry.findMany({
         where: {
           institutionId,
-          dayOfWeek: weekday,
+          dayOfWeek: todayWeekday(),
           courseOffering: {
             course: {
               departmentId: {
@@ -906,7 +907,7 @@ export async function getMyWorkspace(
       prisma.timetableEntry.findMany({
         where: {
           institutionId,
-          dayOfWeek: weekday,
+          dayOfWeek: todayWeekday(),
           courseOfferingId: {
             in: offeringIds,
           },
@@ -2031,18 +2032,19 @@ export async function recordPayment(
     invoice.studentId
   );
 
+  /*
+   * Payments are money movements. Only the finance desk (institution admin
+   * or staff) may record them; a student or parent must never be able to
+   * mark their own invoice as paid. Online payments require a verified
+   * gateway callback, which is out of scope for this endpoint.
+   */
   if (
-    actor.id !== invoice.studentId &&
     !actor.roles.some((role) =>
-      [
-        "INSTITUTION_ADMIN",
-        "STAFF",
-        "PARENT",
-      ].includes(role)
+      ["INSTITUTION_ADMIN", "STAFF"].includes(role)
     )
   ) {
     throw new AppError(
-      "Not authorized to record this payment",
+      "Only finance staff can record fee payments",
       403
     );
   }
@@ -2060,7 +2062,7 @@ export async function recordPayment(
         _sum: { amount: true },
       });
       const alreadyPaid = Number(existing._sum.amount || 0);
-      if (alreadyPaid + amount > Number(currentInvoice.amount)) {
+      if (alreadyPaid + amount > Number(currentInvoice.amount) + 0.005) {
         throw new AppError("Payment exceeds the outstanding invoice balance", 400);
       }
 
@@ -2078,7 +2080,7 @@ export async function recordPayment(
       await tx.feeInvoice.update({
         where: { id: invoiceId },
         data: {
-          status: totalPaid >= Number(currentInvoice.amount) ? "PAID" : "PARTIAL",
+          status: totalPaid >= Number(currentInvoice.amount) - 0.005 ? "PAID" : "PARTIAL",
         },
       });
 
@@ -2097,6 +2099,7 @@ export async function recordPayment(
     action: "fee-payment.create",
     entityType: "FeePayment",
     entityId: payment.id,
+    metadata: { invoiceId, amount, reference: reference ?? null },
   });
 
   return payment;

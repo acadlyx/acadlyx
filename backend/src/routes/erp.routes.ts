@@ -48,11 +48,7 @@ router.use(authenticate);
 router.get(
   "/me/workspace",
   requireFeature("notices"),
-  authorize(
-    "attendance.read",
-    "assignments.read",
-    "marks.read"
-  ),
+  authorize("notifications.read"),
   controller.workspace
 );
 
@@ -60,7 +56,7 @@ router.get(
 router.get(
   "/timetable",
   requireFeature("timetable"),
-  authorize("timetable.manage"),
+  authorize("timetable.read"),
   validateQuery(timetableListQuerySchema),
   controller.timetableList
 );
@@ -91,7 +87,7 @@ router.delete(
 router.get(
   "/notices",
   requireFeature("notices"),
-  authorize("notices.manage"),
+  authorize("notices.read"),
   validateQuery(noticeListQuerySchema),
   controller.noticeList
 );
@@ -122,14 +118,14 @@ router.delete(
 router.get(
   "/exams",
   requireFeature("exams"),
-  authorize("exams.manage"),
+  authorize("exams.read"),
   validateQuery(examListQuerySchema),
   controller.examList
 );
 router.get(
   "/exams/:id",
   requireFeature("exams"),
-  authorize("exams.manage"),
+  authorize("exams.read"),
   validateParams(idParamSchema),
   controller.examDetails
 );
@@ -167,14 +163,14 @@ router.put(
 router.get(
   "/fee-invoices",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.read"),
   validateQuery(invoiceListQuerySchema),
   controller.invoiceList
 );
 router.get(
   "/fee-invoices/:id",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.read"),
   validateParams(idParamSchema),
   controller.invoiceDetails
 );
@@ -213,7 +209,7 @@ router.post(
 router.get(
   "/parent-links",
   requireFeature("parent_portal"),
-  authorize("parent-links.manage"),
+  authorize("parent-links.read"),
   validateQuery(parentLinkListQuerySchema),
   controller.parentLinkList
 );
@@ -235,18 +231,21 @@ router.delete(
 /* Fee heads */
 router.get(
   "/fee-heads",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateQuery(feeStructureListSchema),
   feeController.listFeeHeads
 );
 router.post(
   "/fee-heads",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateBody(feeHeadCreateSchema),
   feeController.createFeeHead
 );
 router.patch(
   "/fee-heads/:id",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateParams(idParamSchema),
   validateBody(feeHeadUpdateSchema),
@@ -256,18 +255,21 @@ router.patch(
 /* Fee structures */
 router.get(
   "/fee-structures",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateQuery(feeStructureListSchema),
   feeController.listFeeStructures
 );
 router.post(
   "/fee-structures",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateBody(feeStructureCreateSchema),
   feeController.createFeeStructure
 );
 router.patch(
   "/fee-structures/:id",
+  requireFeature("fees"),
   authorize("fees.manage"),
   validateParams(idParamSchema),
   validateBody(feeStructureUpdateSchema),
