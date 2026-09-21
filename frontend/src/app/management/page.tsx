@@ -1,2 +1,5 @@
-import { InstitutionRoleDashboard } from "@/components/dashboard/InstitutionRoleDashboard";
-export default function Page() { return <InstitutionRoleDashboard role="MANAGEMENT" />; }
+import { redirect } from "next/navigation";
+
+export default function Page() {
+  redirect("/chairman");
+}
