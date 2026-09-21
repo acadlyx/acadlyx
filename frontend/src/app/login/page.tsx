@@ -7,51 +7,27 @@ import { completeMfaLogin, login } from "@/lib/auth";
 import { apiUrl } from "@/lib/api";
 
 function getDashboardRoute(roles: string[]): string {
-  // Platform administrator gets the platform dashboard.
-  if (roles.includes("SUPER_ADMIN")) {
-    return "/superadmin";
-  }
+  const normalized = new Set(roles.map((role) => role.trim().toUpperCase()));
 
-  // Institution administrator gets the actual ERP administration area.
-  if (roles.includes("INSTITUTION_ADMIN")) {
-    return "/admin";
-  }
-
-  // Executive institutional roles.
-  if (roles.includes("DIRECTOR")) {
-    return "/director";
-  }
-
-  if (roles.includes("MANAGEMENT")) {
-    return "/management";
-  }
-
-  if (roles.includes("HOD")) {
-    return "/hod";
-  }
-
-  // Faculty workspace.
-  if (roles.includes("FACULTY")) {
-    return "/faculty";
-  }
-
-  // Parent workspace.
-  if (roles.includes("PARENT")) {
-    return "/parent";
-  }
-
-  // Staff workspace.
-  if (roles.includes("STAFF")) {
-    return "/staff";
-  }
-
-  if (roles.includes("CMS")) {
-    return "/site-content";
-  }
-
-  if (roles.includes("STUDENT")) {
-    return "/student";
-  }
+  if (normalized.has("SUPER_ADMIN")) return "/superadmin";
+  if (normalized.has("INSTITUTION_ADMIN")) return "/admin";
+  if (normalized.has("CHAIRMAN") || normalized.has("MANAGEMENT")) return "/chairman";
+  if (normalized.has("DIRECTOR")) return "/director";
+  if (normalized.has("DEAN")) return "/dean";
+  if (normalized.has("REGISTRAR")) return "/registrar";
+  if (normalized.has("HOD")) return "/hod";
+  if (normalized.has("FACULTY")) return "/faculty";
+  if (normalized.has("ACCOUNTS") || normalized.has("STAFF")) return "/accounts";
+  if (normalized.has("HR")) return "/hr";
+  if (normalized.has("ADMISSIONS")) return "/admissions";
+  if (normalized.has("EXAMINATION")) return "/examinations";
+  if (normalized.has("LIBRARIAN")) return "/library";
+  if (normalized.has("PLACEMENT")) return "/placements";
+  if (normalized.has("IT")) return "/it";
+  if (normalized.has("CMS")) return "/site-content";
+  if (normalized.has("STUDENT")) return "/student";
+  if (normalized.has("PARENT")) return "/parent";
+  if (normalized.has("CLUB_PRESIDENT")) return "/club-president";
 
   return "/login";
 }
