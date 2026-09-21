@@ -2,6 +2,7 @@
 import { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { AccessTokenPayload } from "../types/auth";
+import { getCanonicalRoleNames, getEffectivePermissions } from "../config/rbac";
 import { verifyAccessToken } from "../utils/jwt";
 import { AppError } from "./errorHandler";
 
@@ -300,26 +301,13 @@ export async function authenticate(
       }
     }
 
-    const permissionSet =
-      new Set<string>();
-
-    const roles =
+    const roles = getCanonicalRoleNames(
       user.userRoles.map(
-        (userRole) => {
-          for (
-            const rolePermission of
-              userRole.role
-                .rolePermissions
-          ) {
-            permissionSet.add(
-              rolePermission
-                .permission.key
-            );
-          }
+        (userRole) => userRole.role.name
+      )
+    );
 
-          return userRole.role.name;
-        }
-      );
+    const permissions = getEffectivePermissions(roles);
 
     /*
      * Never trust tenant context from the JWT or browser.
@@ -331,10 +319,7 @@ export async function authenticate(
         effectiveInstitutionId,
       email: user.email,
       roles,
-      permissions:
-        Array.from(
-          permissionSet
-        ),
+      permissions,
     };
 
     next();
