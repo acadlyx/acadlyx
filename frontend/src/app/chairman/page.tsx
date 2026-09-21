@@ -1,5 +1,5 @@
-import { RoleWorkspaceLanding } from "@/components/dashboard/RoleWorkspaceLanding";
+import { LeadershipDashboard } from "@/components/dashboard/LeadershipDashboard";
 
 export default function Page() {
-  return <RoleWorkspaceLanding role="CHAIRMAN" />;
+  return <LeadershipDashboard role="CHAIRMAN" />;
 }
