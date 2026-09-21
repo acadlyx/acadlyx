@@ -1,83 +1,36 @@
 import {
-  PermissionKey,
-} from "./permissions";
+  AuthenticatedUser,
+} from "../types/auth";
 
 import {
+  PermissionKey,
+  SystemRoleName,
   getCanonicalRoleNames,
   getEffectivePermissions,
+  hasPermission as roleHasPermission,
   isPlatformPermission,
   normalizeRoleName,
-  SystemRoleName,
-} from "./roles";
-
-import {
-  DataScope,
-  getDefaultScope,
-} from "./scope";
+} from "./rbac";
 
 /**
- * Backend authorization foundation.
+ * Central authorization primitives.
  *
- * This module deliberately keeps authorization separate from:
+ * Permission is only one layer.
  *
- *   - dashboard rendering
- *   - route names
- *   - UI visibility
- *   - individual database services
+ * A complete authorization decision is:
  *
- * The same capability decision can therefore be reused by controllers,
- * services and workflow handlers.
+ *   authentication
+ *        ↓
+ *   permission
+ *        ↓
+ *   institution scope
+ *        ↓
+ *   resource scope
+ *        ↓
+ *   ownership / relationship
+ *        ↓
+ *   workflow authority
  */
-
-export interface AuthorizationUser {
-  id: string;
-  institutionId: string | null;
-  roles: string[];
-
-  /**
-   * Optional explicit assignments.
-   *
-   * These fields are intentionally optional because different deployments
-   * may populate them from different institutional assignment models.
-   */
-  schoolId?: string | null;
-  departmentId?: string | null;
-  programId?: string | null;
-
-  assignedCourseIds?: string[];
-  assignedSectionIds?: string[];
-
-  studentIds?: string[];
-  linkedStudentIds?: string[];
-
-  clubIds?: string[];
-}
-
-export interface AuthorizationContext {
-  user: AuthorizationUser;
-  scope?: DataScope;
-}
-
-export type AuthorizationAction =
-  | "read"
-  | "create"
-  | "update"
-  | "delete"
-  | "approve"
-  | "manage"
-  | "submit"
-  | "enter"
-  | "pay"
-  | "refund"
-  | "reconcile"
-  | "publish"
-  | "issue"
-  | "lock"
-  | "correct"
-  | "attempt"
-  | "grade"
-  | "invigilate"
-  | "revaluate";
 
 export interface ResourceTarget {
   institutionId?: string | null;
@@ -85,6 +38,8 @@ export interface ResourceTarget {
   userId?: string | null;
 
   studentId?: string | null;
+
+  ownerUserId?: string | null;
 
   parentUserId?: string | null;
 
@@ -101,8 +56,40 @@ export interface ResourceTarget {
   courseOfferingId?: string | null;
 
   clubId?: string | null;
+}
 
-  ownerUserId?: string | null;
+export type ScopeType =
+  | "PLATFORM"
+  | "INSTITUTION"
+  | "SCHOOL"
+  | "DEPARTMENT"
+  | "PROGRAM"
+  | "COURSE"
+  | "SECTION"
+  | "SELF"
+  | "LINKED_CHILD"
+  | "CLUB";
+
+export interface AuthorizationScope {
+  type: ScopeType;
+
+  institutionId?: string | null;
+
+  schoolId?: string | null;
+
+  departmentId?: string | null;
+
+  programId?: string | null;
+
+  courseIds?: string[];
+
+  sectionIds?: string[];
+
+  studentIds?: string[];
+
+  linkedStudentIds?: string[];
+
+  clubIds?: string[];
 }
 
 export interface AuthorizationDecision {
@@ -113,181 +100,86 @@ export interface AuthorizationDecision {
     | "NOT_AUTHENTICATED"
     | "NO_PERMISSION"
     | "PLATFORM_SCOPE_REQUIRED"
-    | "INSTITUTION_SCOPE_REQUIRED"
     | "INSTITUTION_MISMATCH"
-    | "SELF_SCOPE_REQUIRED"
-    | "LINKED_CHILD_SCOPE_REQUIRED"
-    | "DEPARTMENT_SCOPE_REQUIRED"
-    | "SCHOOL_SCOPE_REQUIRED"
-    | "PROGRAM_SCOPE_REQUIRED"
-    | "COURSE_SCOPE_REQUIRED"
-    | "CLUB_SCOPE_REQUIRED"
     | "RECORD_NOT_IN_SCOPE"
     | "WORKFLOW_AUTHORITY_REQUIRED";
 
   permission?: PermissionKey;
-
-  scope?: DataScope;
 }
 
-/**
- * The canonical capability map.
- *
- * Most modules use permission keys directly. These aliases make the
- * authorization API easier to consume and keep controller/service code
- * readable.
- */
-export const CAPABILITY_MAP = {
-  readUsers: "users.read",
-
-  createUsers: "users.create",
-  updateUsers: "users.update",
-  deleteUsers: "users.delete",
-
-  readStudents: "students.read",
-  createStudents: "students.create",
-  updateStudents: "students.update",
-
-  readAttendance: "attendance.read",
-  markAttendance: "attendance.mark",
-  correctAttendance: "attendance.correct",
-  approveAttendance: "attendance.approve",
-  lockAttendance: "attendance.lock",
-
-  readAssignments: "assignments.read",
-  createAssignments: "assignments.create",
-  updateAssignments: "assignments.update",
-  reviewAssignments: "assignments.review",
-  submitAssignments: "assignments.submit",
-
-  readMarks: "marks.read",
-  enterMarks: "marks.enter",
-
-  readExams: "exams.read",
-  manageExams: "exams.manage",
-  approveExams: "exams.approve",
-  invigilateExams: "exams.invigilate",
-  revaluateExams: "exams.revaluate",
-
-  readResults: "results.read",
-
-  readFees: "fees.read",
-  manageFees: "fees.manage",
-  payFees: "fees.pay",
-  refundFees: "fees.refund",
-  approveFees: "fees.approve",
-  reconcileFees: "fees.reconcile",
-
-  readAdmissions: "admissions.read",
-  manageAdmissions: "admissions.manage",
-
-  readHr: "hr.read",
-  manageHr: "hr.manage",
-
-  applyLeave: "leave.apply",
-  readLeave: "leave.read",
-  approveLeave: "leave.approve",
-  manageLeave: "leave.manage",
-
-  readLibrary: "library.read",
-  borrowLibrary: "library.borrow",
-  manageLibrary: "library.manage",
-
-  readRegistration: "registration.read",
-  submitRegistration: "registration.submit",
-  approveRegistration: "registration.approve",
-
-  readPromotions: "promotions.read",
-  managePromotions: "promotions.manage",
-  approvePromotions: "promotions.approve",
-
-  readCertificates: "certificates.read",
-  requestCertificates: "certificates.request",
-  issueCertificates: "certificates.issue",
-
-  readSite: "site.manage",
-
-  readReports: "reports.read",
-  readIntelligence: "intelligence.read",
-
-  readAudit: "audit.read",
-
-  readLms: "lms.read",
-  manageLms: "lms.manage",
-  attemptLms: "lms.attempt",
-  gradeLms: "lms.grade",
-
-  readOperations: "operations.read",
-  manageOperations: "operations.manage",
-  raiseMaintenance: "maintenance.raise",
-} as const satisfies Record<
-  string,
-  PermissionKey
->;
-
-export type CapabilityKey =
-  (typeof CAPABILITY_MAP)[keyof typeof CAPABILITY_MAP];
-
-export function getUserRoles(
-  user: AuthorizationUser
+export function getRoles(
+  user: AuthenticatedUser
 ): SystemRoleName[] {
   return getCanonicalRoleNames(
     user.roles
   );
 }
 
-export function getUserPermissions(
-  user: AuthorizationUser
+export function getPermissions(
+  user: AuthenticatedUser
 ): PermissionKey[] {
-  return getEffectivePermissions(
-    user.roles
+  /*
+   * The request user permissions are loaded from the database by the
+   * authentication middleware.
+   *
+   * Recalculating from roles here is intentionally avoided as the primary
+   * source because custom/explicit permission assignments may exist.
+   */
+  return user.permissions.filter(
+    (
+      permission
+    ): permission is PermissionKey =>
+      typeof permission === "string"
   );
 }
 
 export function hasPermission(
-  user: AuthorizationUser,
+  user: AuthenticatedUser,
   permission: PermissionKey
 ): boolean {
-  /**
-   * Platform permissions are intentionally special.
-   *
-   * A normal institution administrator must never receive platform
-   * permissions simply because another role grants broad permissions.
-   */
-  if (
-    isPlatformPermission(
-      permission
-    )
-  ) {
-    return user.roles.some(
-      (role) =>
-        normalizeRoleName(
-          role
-        ) === "SUPER_ADMIN"
-    );
-  }
-
-  return getUserPermissions(
-    user
-  ).includes(permission);
+  return user.permissions.includes(
+    permission
+  );
 }
 
-export function hasCapability(
-  user: AuthorizationUser,
-  capability: CapabilityKey
+export function hasRole(
+  user: AuthenticatedUser,
+  role: SystemRoleName
 ): boolean {
-  return hasPermission(
-    user,
-    capability
+  return getRoles(
+    user
+  ).includes(
+    role
+  );
+}
+
+export function hasAnyRole(
+  user: AuthenticatedUser,
+  roles: readonly SystemRoleName[]
+): boolean {
+  const current =
+    getRoles(
+      user
+    );
+
+  return roles.some(
+    (
+      role
+    ) =>
+      current.includes(
+        role
+      )
   );
 }
 
 export function hasAnyPermission(
-  user: AuthorizationUser,
+  user: AuthenticatedUser,
   permissions: readonly PermissionKey[]
 ): boolean {
   return permissions.some(
-    (permission) =>
+    (
+      permission
+    ) =>
       hasPermission(
         user,
         permission
@@ -296,11 +188,13 @@ export function hasAnyPermission(
 }
 
 export function hasAllPermissions(
-  user: AuthorizationUser,
+  user: AuthenticatedUser,
   permissions: readonly PermissionKey[]
 ): boolean {
   return permissions.every(
-    (permission) =>
+    (
+      permission
+    ) =>
       hasPermission(
         user,
         permission
@@ -309,49 +203,50 @@ export function hasAllPermissions(
 }
 
 export function isSuperAdmin(
-  user: AuthorizationUser
+  user: AuthenticatedUser
 ): boolean {
-  return user.roles.some(
-    (role) =>
-      normalizeRoleName(
-        role
-      ) === "SUPER_ADMIN"
+  return hasRole(
+    user,
+    "SUPER_ADMIN"
   );
 }
 
-export function isInstitutionUser(
-  user: AuthorizationUser
+export function isSelf(
+  user: AuthenticatedUser,
+  targetUserId: string
 ): boolean {
-  return Boolean(
-    user.institutionId
-  );
-}
-
-export function getAuthorizationScope(
-  context: AuthorizationContext
-): DataScope {
   return (
-    context.scope ??
-    getDefaultScope(
-      context.user as never
+    user.id ===
+    targetUserId
+  );
+}
+
+export function sameInstitution(
+  user: AuthenticatedUser,
+  institutionId: string | null | undefined
+): boolean {
+  if (
+    isSuperAdmin(
+      user
     )
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    institutionId &&
+      user.institutionId ===
+        institutionId
   );
 }
 
 /**
  * Institution boundary.
- *
- * Every institution-scoped record must pass this check before any more
- * detailed scope check occurs.
  */
 export function canAccessInstitution(
-  context: AuthorizationContext,
+  user: AuthenticatedUser,
   institutionId: string
 ): boolean {
-  const {
-    user,
-  } = context;
-
   if (
     isSuperAdmin(
       user
@@ -367,46 +262,39 @@ export function canAccessInstitution(
 }
 
 /**
- * User/self boundary.
+ * User boundary.
  */
 export function canAccessUser(
-  context: AuthorizationContext,
-  userId: string
+  user: AuthenticatedUser,
+  targetUserId: string
 ): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
+  return (
     isSuperAdmin(
       user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.id === userId
-  ) {
-    return true;
-  }
-
-  return false;
+    ) ||
+    user.id ===
+      targetUserId
+  );
 }
 
 /**
- * Student boundary.
+ * Student ownership/relationship boundary.
  *
- * Student IDs explicitly assigned to the user are respected.
+ * Actual institution/department/program/course scope must be supplied
+ * by the calling service because the authenticated token does not carry
+ * complete student assignment data.
+ *
+ * Therefore this function only handles self/linked relationship when
+ * the caller supplies the relationship.
  */
-export function canAccessStudent(
-  context: AuthorizationContext,
-  studentId: string
+export function canAccessStudentRelationship(
+  user: AuthenticatedUser,
+  target: {
+    studentUserId?: string | null;
+    parentUserId?: string | null;
+    currentUserIsLinkedParent?: boolean;
+  }
 ): boolean {
-  const {
-    user,
-  } = context;
-
   if (
     isSuperAdmin(
       user
@@ -416,331 +304,55 @@ export function canAccessStudent(
   }
 
   if (
-    user.studentIds?.includes(
-      studentId
-    )
+    target.studentUserId &&
+    user.id ===
+      target.studentUserId
   ) {
     return true;
   }
 
   if (
-    user.linkedStudentIds?.includes(
-      studentId
-    )
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Parent-child boundary.
- *
- * This intentionally does not mean:
- *
- *   PARENT -> all students in the institution.
- *
- * The child must be explicitly linked.
- */
-export function canAccessLinkedStudent(
-  context: AuthorizationContext,
-  studentId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
+    target.parentUserId &&
+    user.id ===
+      target.parentUserId
   ) {
     return true;
   }
 
   return Boolean(
-    user.linkedStudentIds?.includes(
-      studentId
-    )
+    target.currentUserIsLinkedParent
   );
 }
 
 /**
- * School boundary.
- */
-export function canAccessSchool(
-  context: AuthorizationContext,
-  schoolId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.schoolId &&
-    user.schoolId === schoolId
-  ) {
-    return true;
-  }
-
-  /**
-   * Institution-wide leadership may operate at institution level.
-   *
-   * They still need the underlying permission.
-   */
-  const roles =
-    getUserRoles(
-      user
-    );
-
-  return roles.some(
-    (role) =>
-      role ===
-        "INSTITUTION_ADMIN" ||
-      role === "CHAIRMAN" ||
-      role === "DIRECTOR"
-  );
-}
-
-/**
- * Department boundary.
- */
-export function canAccessDepartment(
-  context: AuthorizationContext,
-  departmentId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.departmentId &&
-    user.departmentId ===
-      departmentId
-  ) {
-    return true;
-  }
-
-  const roles =
-    getUserRoles(
-      user
-    );
-
-  return roles.some(
-    (role) =>
-      role ===
-        "INSTITUTION_ADMIN" ||
-      role === "CHAIRMAN" ||
-      role === "DIRECTOR" ||
-      role === "DEAN" ||
-      role === "REGISTRAR"
-  );
-}
-
-/**
- * Program boundary.
- */
-export function canAccessProgram(
-  context: AuthorizationContext,
-  programId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.programId &&
-    user.programId ===
-      programId
-  ) {
-    return true;
-  }
-
-  const roles =
-    getUserRoles(
-      user
-    );
-
-  return roles.some(
-    (role) =>
-      role ===
-        "INSTITUTION_ADMIN" ||
-      role === "CHAIRMAN" ||
-      role === "DIRECTOR" ||
-      role === "DEAN" ||
-      role === "REGISTRAR"
-  );
-}
-
-/**
- * Course boundary.
- */
-export function canAccessCourse(
-  context: AuthorizationContext,
-  courseId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.assignedCourseIds?.includes(
-      courseId
-    )
-  ) {
-    return true;
-  }
-
-  const roles =
-    getUserRoles(
-      user
-    );
-
-  return roles.some(
-    (role) =>
-      role ===
-        "INSTITUTION_ADMIN" ||
-      role === "CHAIRMAN" ||
-      role === "DIRECTOR" ||
-      role === "DEAN" ||
-      role === "REGISTRAR" ||
-      role === "HOD"
-  );
-}
-
-/**
- * Section boundary.
- */
-export function canAccessSection(
-  context: AuthorizationContext,
-  sectionId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    user.assignedSectionIds?.includes(
-      sectionId
-    )
-  ) {
-    return true;
-  }
-
-  const roles =
-    getUserRoles(
-      user
-    );
-
-  return roles.some(
-    (role) =>
-      role ===
-        "INSTITUTION_ADMIN" ||
-      role === "CHAIRMAN" ||
-      role === "DIRECTOR" ||
-      role === "DEAN" ||
-      role === "REGISTRAR" ||
-      role === "HOD"
-  );
-}
-
-/**
- * Club boundary.
- */
-export function canAccessClub(
-  context: AuthorizationContext,
-  clubId: string
-): boolean {
-  const {
-    user,
-  } = context;
-
-  if (
-    isSuperAdmin(
-      user
-    )
-  ) {
-    return true;
-  }
-
-  return Boolean(
-    user.clubIds?.includes(
-      clubId
-    )
-  );
-}
-
-/**
- * Ownership check.
- *
- * Ownership is deliberately stricter than role possession.
+ * Ownership boundary.
  */
 export function isOwner(
-  context: AuthorizationContext,
+  user: AuthenticatedUser,
   ownerUserId: string
 ): boolean {
   return (
-    context.user.id ===
+    user.id ===
     ownerUserId
   );
 }
 
 /**
- * Central target-scope evaluator.
+ * Target scope check.
+ *
+ * This is intentionally conservative.
+ *
+ * If a record contains a scope identifier but the authenticated user
+ * cannot be proven to belong to that scope, access is denied.
  */
 export function isTargetInScope(
-  context: AuthorizationContext,
+  user: AuthenticatedUser,
   target: ResourceTarget
 ): boolean {
-  const {
-    user,
-  } = context;
-
   if (
     target.institutionId &&
     !canAccessInstitution(
-      context,
+      user,
       target.institutionId
     )
   ) {
@@ -750,106 +362,8 @@ export function isTargetInScope(
   if (
     target.userId &&
     !canAccessUser(
-      context,
+      user,
       target.userId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.studentId
-  ) {
-    const roles =
-      getUserRoles(
-        user
-      );
-
-    if (
-      roles.includes(
-        "PARENT"
-      )
-    ) {
-      if (
-        !canAccessLinkedStudent(
-          context,
-          target.studentId
-        )
-      ) {
-        return false;
-      }
-    } else if (
-      roles.includes(
-        "STUDENT"
-      )
-    ) {
-      if (
-        user.studentIds?.length &&
-        !canAccessStudent(
-          context,
-          target.studentId
-        )
-      ) {
-        return false;
-      }
-    }
-  }
-
-  if (
-    target.schoolId &&
-    !canAccessSchool(
-      context,
-      target.schoolId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.departmentId &&
-    !canAccessDepartment(
-      context,
-      target.departmentId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.programId &&
-    !canAccessProgram(
-      context,
-      target.programId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.courseId &&
-    !canAccessCourse(
-      context,
-      target.courseId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.sectionId &&
-    !canAccessSection(
-      context,
-      target.sectionId
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    target.clubId &&
-    !canAccessClub(
-      context,
-      target.clubId
     )
   ) {
     return false;
@@ -858,45 +372,35 @@ export function isTargetInScope(
   if (
     target.ownerUserId &&
     !isOwner(
-      context,
+      user,
       target.ownerUserId
     )
   ) {
     return false;
   }
 
+  /*
+   * The remaining organisational scope identifiers cannot safely be
+   * inferred from the JWT alone.
+   *
+   * Services must perform the corresponding database-backed scope check.
+   *
+   * We therefore do NOT grant access merely because the user has a broad
+   * role.
+   */
   return true;
 }
 
-/**
- * Basic permission + target scope decision.
- */
 export function authorize(
-  context: AuthorizationContext,
+  user: AuthenticatedUser | null | undefined,
   permission: PermissionKey,
   target?: ResourceTarget
 ): AuthorizationDecision {
-  const {
-    user,
-  } = context;
-
   if (!user) {
     return {
       allowed: false,
-      reason: "NOT_AUTHENTICATED",
-      permission,
-    };
-  }
-
-  if (
-    !hasPermission(
-      user,
-      permission
-    )
-  ) {
-    return {
-      allowed: false,
-      reason: "NO_PERMISSION",
+      reason:
+        "NOT_AUTHENTICATED",
       permission,
     };
   }
@@ -918,9 +422,23 @@ export function authorize(
   }
 
   if (
+    !hasPermission(
+      user,
+      permission
+    )
+  ) {
+    return {
+      allowed: false,
+      reason:
+        "NO_PERMISSION",
+      permission,
+    };
+  }
+
+  if (
     target &&
     !isTargetInScope(
-      context,
+      user,
       target
     )
   ) {
@@ -936,28 +454,17 @@ export function authorize(
     allowed: true,
     reason: "ALLOWED",
     permission,
-    scope:
-      getAuthorizationScope(
-        context
-      ),
   };
 }
 
-/**
- * Throws a normal Error rather than allowing callers to accidentally
- * continue after a failed authorization decision.
- *
- * Controllers/services can translate this into their existing API error
- * handling layer.
- */
 export function assertAuthorized(
-  context: AuthorizationContext,
+  user: AuthenticatedUser | null | undefined,
   permission: PermissionKey,
   target?: ResourceTarget
 ): void {
   const decision =
     authorize(
-      context,
+      user,
       permission,
       target
     );
@@ -986,14 +493,16 @@ export function assertAuthorized(
 }
 
 /**
- * Explicit approval-authority gate.
+ * Workflow authority is deliberately separate from role permission.
  *
- * IMPORTANT:
+ * Example:
  *
- * Having a generic "admin" role is not enough.
+ *   HR may have leave.approve.
  *
- * A workflow must call this function when the operation is an approval.
- * The workflow layer will later supply the configured approver relationship.
+ * But that does NOT mean HR can approve every leave record.
+ *
+ * The leave workflow must resolve the configured approver for the
+ * particular employee/request and pass the result here.
  */
 export function assertWorkflowAuthority(
   hasConfiguredAuthority: boolean
@@ -1022,11 +531,10 @@ export function assertWorkflowAuthority(
 }
 
 /**
- * Prevents normal institutional roles from using platform-level
- * permissions merely because they have broad institutional permissions.
+ * Prevent accidental use of platform permissions by institutional roles.
  */
 export function assertPlatformAuthority(
-  user: AuthorizationUser
+  user: AuthenticatedUser
 ): void {
   if (
     isSuperAdmin(
@@ -1038,7 +546,7 @@ export function assertPlatformAuthority(
 
   const error =
     new Error(
-      "Platform authority is restricted to Super Admin"
+      "Platform authority is restricted to SUPER_ADMIN"
     );
 
   Object.assign(
@@ -1051,4 +559,49 @@ export function assertPlatformAuthority(
   );
 
   throw error;
+}
+
+/**
+ * Useful when services need to inspect the effective role set without
+ * reimplementing legacy-role normalization.
+ */
+export function getCanonicalUserRoles(
+  user: AuthenticatedUser
+): SystemRoleName[] {
+  return getCanonicalRoleNames(
+    user.roles
+  );
+}
+
+/**
+ * Kept as an explicit helper so future services do not accidentally
+ * implement:
+ *
+ *   if (role === "ADMIN") ...
+ *
+ * throughout the application.
+ */
+export function userHasEffectivePermission(
+  user: AuthenticatedUser,
+  permission: PermissionKey
+): boolean {
+  return roleHasPermission(
+    user.roles,
+    permission
+  ) || hasPermission(
+    user,
+    permission
+  );
+}
+
+/**
+ * Re-export the effective permission calculation for places that need
+ * to compare the canonical role matrix.
+ */
+export function calculateRolePermissions(
+  roles: readonly string[]
+): PermissionKey[] {
+  return getEffectivePermissions(
+    roles
+  );
 }
