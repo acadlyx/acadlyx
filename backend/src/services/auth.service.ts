@@ -11,6 +11,10 @@ import {
 import { comparePassword, hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import {
+  getCanonicalRoleNames,
+  getEffectivePermissions,
+} from "../config/rbac";
+import {
   assertNotLocked,
   clearFailedLogins,
   createMfaChallenge,
@@ -207,24 +211,13 @@ async function loadRolesAndPermissions(
     );
   }
 
-  const roles =
+  const roles = getCanonicalRoleNames(
     user.userRoles.map(
-      (userRole) =>
-        userRole.role.name
-    );
+      (userRole) => userRole.role.name
+    )
+  );
 
-  const permissionSet =
-    new Set<string>();
-
-  for (const userRole of user.userRoles) {
-    for (const rolePermission of
-      userRole.role
-        .rolePermissions) {
-      permissionSet.add(
-        rolePermission.permission.key
-      );
-    }
-  }
+  const permissions = getEffectivePermissions(roles);
 
   const institutionId =
     await resolveEffectiveInstitution(
@@ -234,8 +227,7 @@ async function loadRolesAndPermissions(
 
   return {
     roles,
-    permissions:
-      Array.from(permissionSet),
+    permissions,
     institutionId,
   };
 }
