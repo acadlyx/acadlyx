@@ -1,2 +1,7 @@
-import { InstitutionRoleDashboard } from "@/components/dashboard/InstitutionRoleDashboard";
-export default function Page() { return <InstitutionRoleDashboard role="HOD" />; }
+"use client";
+
+import { AcademicLeadershipDashboard } from "@/components/dashboard/AcademicLeadershipDashboard";
+
+export default function HODDashboardPage() {
+  return <AcademicLeadershipDashboard role="HOD" />;
+}
