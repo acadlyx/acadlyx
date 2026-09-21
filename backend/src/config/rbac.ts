@@ -1,14 +1,23 @@
 /**
  * ACADLYX — canonical RBAC configuration.
  *
- * Single source of truth for system roles, grantable permissions and the
- * default role -> permission matrix. prisma/seed.ts, prisma/seedAdmin.ts,
- * institution provisioning and the startup RBAC sync all import from here.
+ * This file is the single source of truth for:
  *
- * Permissions are coarse capabilities. They are ONE of three gates:
- *   entitlement (tenant feature) + permission (this file) + data scope
- * Resource-level scope (tenant, department, ownership, parent-child link)
- * is always enforced again inside services. Never trust the frontend.
+ *   1. System roles
+ *   2. Permission catalogue
+ *   3. Default role -> permission assignments
+ *   4. Authority rank
+ *   5. Legacy role aliases
+ *
+ * IMPORTANT:
+ *
+ * Role != permission != scope != workflow authority.
+ *
+ * A permission only says that a role may perform a class of operation.
+ * Services/controllers must still enforce institution, department,
+ * program, course, student, ownership and workflow scope.
+ *
+ * Frontend navigation is never a security boundary.
  */
 
 export const PERMISSIONS = [
@@ -17,46 +26,41 @@ export const PERMISSIONS = [
   { key: "users.update", module: "users", description: "Update users" },
   { key: "users.delete", module: "users", description: "Delete or deactivate users" },
 
-  { key: "students.read", module: "students", description: "View students" },
-  { key: "students.create", module: "students", description: "Create students" },
-  { key: "students.update", module: "students", description: "Update students" },
+  { key: "students.read", module: "students", description: "View students within scope" },
+  { key: "students.create", module: "students", description: "Create students through institutional student administration" },
+  { key: "students.update", module: "students", description: "Update student master records within scope" },
 
-  { key: "attendance.read", module: "attendance", description: "View attendance" },
-  { key: "attendance.mark", module: "attendance", description: "Mark attendance" },
+  { key: "attendance.read", module: "attendance", description: "View attendance within scope" },
+  { key: "attendance.mark", module: "attendance", description: "Mark attendance for assigned classes" },
+  { key: "attendance.correct", module: "attendance", description: "Raise attendance correction requests" },
+  { key: "attendance.approve", module: "attendance", description: "Approve attendance corrections within authority" },
+  { key: "attendance.lock", module: "attendance", description: "Finalise and lock attendance" },
+  { key: "attendance.policy", module: "attendance", description: "Configure attendance policy" },
 
-  { key: "assignments.read", module: "assignments", description: "View assignments" },
+  { key: "assignments.read", module: "assignments", description: "View assignments within scope" },
   { key: "assignments.create", module: "assignments", description: "Create assignments" },
   { key: "assignments.update", module: "assignments", description: "Edit or publish assignments" },
   { key: "assignments.review", module: "assignments", description: "Review or grade assignments" },
   { key: "assignments.submit", module: "assignments", description: "Submit assignment work" },
 
-  { key: "marks.read", module: "marks", description: "View academic marks" },
-  { key: "marks.enter", module: "marks", description: "Enter academic marks" },
+  { key: "marks.read", module: "marks", description: "View academic marks within scope" },
+  { key: "marks.enter", module: "marks", description: "Enter academic marks for assigned courses" },
 
-  /*
-   * Website CMS.
-   *
-   * This is intentionally a standalone capability.
-   *
-   * It must NOT be included in the generic leadership permission set.
-   * Only:
-   *
-   *   - SUPER_ADMIN
-   *   - CMS
-   *
-   * receive this capability by default.
-   */
   {
     key: "site.manage",
     module: "site",
-    description: "Manage the public institutional website",
+    description: "Manage public institutional website content",
   },
 
-  { key: "imports.manage", module: "imports", description: "Import institutional data from spreadsheets" },
-  { key: "reports.read", module: "reports", description: "View reports" },
+  { key: "imports.manage", module: "imports", description: "Import institutional data" },
+  { key: "reports.read", module: "reports", description: "View reports within scope" },
   { key: "intelligence.read", module: "intelligence", description: "View institutional intelligence" },
 
-  { key: "institutions.manage", module: "institutions", description: "Manage institutions at platform level" },
+  {
+    key: "institutions.manage",
+    module: "institutions",
+    description: "Manage institutions at platform level",
+  },
 
   { key: "departments.read", module: "academics", description: "View departments" },
   { key: "departments.create", module: "academics", description: "Create departments" },
@@ -90,31 +94,38 @@ export const PERMISSIONS = [
   { key: "course-offerings.read", module: "academics", description: "View course offerings" },
   { key: "course-offerings.create", module: "academics", description: "Create course offerings" },
   { key: "course-offerings.update", module: "academics", description: "Update course offerings" },
-  { key: "course-offerings.delete", module: "academics", description: "Close or deactivate course offerings" },
+  { key: "course-offerings.delete", module: "academics", description: "Close course offerings" },
 
   { key: "timetable.read", module: "timetable", description: "View timetables" },
-  { key: "timetable.manage", module: "timetable", description: "Create and change timetable entries" },
+  { key: "timetable.manage", module: "timetable", description: "Manage timetables" },
 
-  { key: "notices.read", module: "notices", description: "View notice administration" },
+  { key: "notices.read", module: "notices", description: "View notices" },
   { key: "notices.manage", module: "notices", description: "Publish and manage notices" },
 
   { key: "exams.read", module: "exams", description: "View examinations" },
-  { key: "exams.manage", module: "exams", description: "Create examinations and enter results" },
-  { key: "results.read", module: "exams", description: "View exam results, grades, SGPA and CGPA within scope" },
+  { key: "exams.manage", module: "exams", description: "Manage examination operations" },
+  { key: "exams.approve", module: "exams", description: "Approve, lock and publish examination marks" },
+  { key: "exams.invigilate", module: "exams", description: "Record examination attendance and incidents" },
+  { key: "exams.revaluate", module: "exams", description: "Handle examination revaluation authority" },
 
-  { key: "fees.read", module: "fees", description: "View fee invoices within scope" },
+  { key: "results.read", module: "exams", description: "View examination results within scope" },
+
+  { key: "fees.read", module: "fees", description: "View fee records within scope" },
   { key: "fees.manage", module: "fees", description: "Manage fee heads, structures and invoices" },
   { key: "fees.pay", module: "fees", description: "Record fee payments and issue receipts" },
+  { key: "fees.refund", module: "fees", description: "Process or request fee refunds" },
+  { key: "fees.approve", module: "fees", description: "Approve fee concessions and refunds" },
+  { key: "fees.reconcile", module: "fees", description: "Reconcile financial payments" },
 
   { key: "parent-links.read", module: "parent-portal", description: "View parent-student links" },
   { key: "parent-links.manage", module: "parent-portal", description: "Manage parent-student links" },
-  { key: "parent-portal.read", module: "parent-portal", description: "Use the linked-student portal views" },
+  { key: "parent-portal.read", module: "parent-portal", description: "Use linked-student portal views" },
 
   { key: "notifications.read", module: "notifications", description: "Read own notifications" },
-  { key: "notifications.manage", module: "notifications", description: "Send notifications to users in scope" },
+  { key: "notifications.manage", module: "notifications", description: "Send notifications within scope" },
 
   { key: "documents.read", module: "documents", description: "View documents within scope" },
-  { key: "documents.manage", module: "documents", description: "Upload and remove documents" },
+  { key: "documents.manage", module: "documents", description: "Manage documents within scope" },
 
   { key: "admissions.read", module: "admissions", description: "View admission applications" },
   { key: "admissions.manage", module: "admissions", description: "Process admission applications" },
@@ -124,135 +135,199 @@ export const PERMISSIONS = [
 
   { key: "leave.apply", module: "leave", description: "Apply for leave" },
   { key: "leave.read", module: "leave", description: "View leave requests within scope" },
-  { key: "leave.approve", module: "leave", description: "Approve or reject leave requests within authority" },
-  { key: "leave.manage", module: "leave", description: "Manage leave types" },
+  { key: "leave.approve", module: "leave", description: "Approve or reject leave within configured authority" },
+  { key: "leave.manage", module: "leave", description: "Manage leave types and leave administration" },
 
-  { key: "library.read", module: "library", description: "Browse the library catalogue" },
-  { key: "library.borrow", module: "library", description: "View own library loans" },
-  { key: "library.manage", module: "library", description: "Manage catalogue and circulation" },
+  { key: "library.read", module: "library", description: "Browse library catalogue" },
+  { key: "library.borrow", module: "library", description: "Use personal library services" },
+  { key: "library.manage", module: "library", description: "Manage library catalogue and circulation" },
 
-  { key: "calendar.read", module: "calendar", description: "View the academic calendar" },
-  { key: "calendar.manage", module: "calendar", description: "Manage the academic calendar" },
+  { key: "calendar.read", module: "calendar", description: "View academic calendar" },
+  { key: "calendar.manage", module: "calendar", description: "Manage academic calendar" },
 
-  { key: "registration.submit", module: "registration", description: "Register for course offerings" },
-  { key: "registration.read", module: "registration", description: "View course registrations within scope" },
-  { key: "registration.approve", module: "registration", description: "Approve course registrations within scope" },
+  { key: "registration.submit", module: "registration", description: "Submit course registration" },
+  { key: "registration.read", module: "registration", description: "View registrations within scope" },
+  { key: "registration.approve", module: "registration", description: "Approve course registrations" },
 
-  { key: "promotions.read", module: "promotions", description: "View promotion and transfer requests" },
-  { key: "promotions.manage", module: "promotions", description: "Raise promotion and transfer requests" },
-  { key: "promotions.approve", module: "promotions", description: "Approve promotion and transfer requests" },
+  { key: "promotions.read", module: "promotions", description: "View student movement requests" },
+  { key: "promotions.manage", module: "promotions", description: "Create student movement requests" },
+  { key: "promotions.approve", module: "promotions", description: "Approve student movement requests" },
 
   { key: "certificates.request", module: "certificates", description: "Request certificates" },
-  { key: "certificates.read", module: "certificates", description: "View certificate requests within scope" },
+  { key: "certificates.read", module: "certificates", description: "View certificate requests" },
   { key: "certificates.issue", module: "certificates", description: "Issue certificates" },
 
-  { key: "audit.read", module: "audit", description: "View the institution audit trail" },
+  { key: "audit.read", module: "audit", description: "View audit trail" },
 
-  // Examinations control
-  { key: "exams.approve", module: "exams", description: "Approve, lock and publish examination marks" },
-  { key: "exams.invigilate", module: "exams", description: "Record examination attendance and incidents" },
-  { key: "exams.revaluate", module: "exams", description: "Request or decide revaluation" },
+  { key: "lms.read", module: "lms", description: "View LMS content" },
+  { key: "lms.manage", module: "lms", description: "Manage LMS content" },
+  { key: "lms.attempt", module: "lms", description: "Attempt LMS assessments" },
+  { key: "lms.grade", module: "lms", description: "Grade LMS assessments" },
 
-  // Attendance governance
-  { key: "attendance.correct", module: "attendance", description: "Raise attendance correction requests" },
-  { key: "attendance.approve", module: "attendance", description: "Approve or reject attendance corrections" },
-  { key: "attendance.lock", module: "attendance", description: "Finalise and lock attendance" },
-  { key: "attendance.policy", module: "attendance", description: "Configure attendance shortage policy" },
+  { key: "operations.read", module: "operations", description: "View operational records" },
+  { key: "operations.manage", module: "operations", description: "Manage operational records" },
+  { key: "maintenance.raise", module: "operations", description: "Raise maintenance requests" },
 
-  // Learning management
-  { key: "lms.read", module: "lms", description: "View course content and quizzes" },
-  { key: "lms.manage", module: "lms", description: "Author modules, lessons, question banks and quizzes" },
-  { key: "lms.attempt", module: "lms", description: "Attempt quizzes and record lesson progress" },
-  { key: "lms.grade", module: "lms", description: "Grade quiz attempts" },
-
-  // Fee lifecycle
-  { key: "fees.refund", module: "fees", description: "Request refunds" },
-  { key: "fees.approve", module: "fees", description: "Approve concessions and refunds" },
-  { key: "fees.reconcile", module: "fees", description: "Reconcile payments against provider statements" },
-
-  // Institution operations
-  { key: "operations.read", module: "operations", description: "View assets, facilities and maintenance" },
-  { key: "operations.manage", module: "operations", description: "Manage assets, facilities and maintenance" },
-  { key: "maintenance.raise", module: "operations", description: "Raise a maintenance request" },
-
-  // Campuses
   { key: "campuses.read", module: "campuses", description: "View campuses" },
-  { key: "campuses.create", module: "campuses", description: "Create a campus" },
-  { key: "campuses.update", module: "campuses", description: "Update a campus" },
-  { key: "campuses.delete", module: "campuses", description: "Remove a campus" },
+  { key: "campuses.create", module: "campuses", description: "Create campuses" },
+  { key: "campuses.update", module: "campuses", description: "Update campuses" },
+  { key: "campuses.delete", module: "campuses", description: "Remove campuses" },
 
-  // Platform SaaS administration
-  { key: "plans.manage", module: "saas", description: "Manage subscription plans and tenant lifecycle" },
+  { key: "plans.manage", module: "saas", description: "Manage platform subscription plans" },
 ] as const;
 
-export type PermissionKey = (typeof PERMISSIONS)[number]["key"];
+export type PermissionKey =
+  (typeof PERMISSIONS)[number]["key"];
 
+/**
+ * Canonical application roles.
+ *
+ * MANAGEMENT and STAFF remain in the catalogue temporarily for backwards
+ * compatibility with existing production accounts. They are legacy aliases
+ * and are not the target architecture for new assignments.
+ */
 export const SYSTEM_ROLE_NAMES = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
+  "CHAIRMAN",
   "DIRECTOR",
-  "MANAGEMENT",
+  "DEAN",
+  "REGISTRAR",
   "HOD",
   "FACULTY",
-  "STAFF",
+  "ACCOUNTS",
+  "HR",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "PLACEMENT",
+  "IT",
+  "CMS",
   "STUDENT",
   "PARENT",
-  "CMS",
+  "CLUB_PRESIDENT",
+
+  // Legacy production compatibility.
+  "MANAGEMENT",
+  "STAFF",
 ] as const;
 
-export type SystemRoleName = (typeof SYSTEM_ROLE_NAMES)[number];
+export type SystemRoleName =
+  (typeof SYSTEM_ROLE_NAMES)[number];
 
 /**
- * Authority hierarchy:
- *
- * SUPER_ADMIN > INSTITUTION_ADMIN > DIRECTOR = MANAGEMENT > HOD >
- * FACULTY = STAFF > STUDENT = PARENT
- *
- * CMS is intentionally not part of the ERP authority hierarchy.
- * Its role exists only for the website-management capability.
+ * Roles that may exist only at platform level.
  */
-export const ROLE_RANK: Record<SystemRoleName, number> = {
-  SUPER_ADMIN: 100,
-  INSTITUTION_ADMIN: 90,
-  DIRECTOR: 70,
-  MANAGEMENT: 70,
-  HOD: 60,
-  FACULTY: 40,
-  STAFF: 40,
-  STUDENT: 10,
-  PARENT: 10,
+export const PLATFORM_ROLES = [
+  "SUPER_ADMIN",
+] as const;
 
-  // CMS is a dedicated website-management role and has no ERP authority.
-  CMS: 5,
+/**
+ * Roles that are institution scoped.
+ */
+export const INSTITUTION_ROLES = SYSTEM_ROLE_NAMES.filter(
+  (role) =>
+    role !== "SUPER_ADMIN"
+) as readonly SystemRoleName[];
+
+/**
+ * Legacy aliases.
+ *
+ * Existing production records are not silently destroyed.
+ * New application logic should use the canonical role names.
+ */
+export const LEGACY_ROLE_ALIASES: Record<
+  string,
+  SystemRoleName
+> = {
+  MANAGEMENT: "CHAIRMAN",
+  STAFF: "ACCOUNTS",
 };
 
-export function highestRank(
-  roles: readonly string[]
-): number {
-  return roles.reduce(
-    (max, role) =>
-      Math.max(
-        max,
-        ROLE_RANK[role as SystemRoleName] ?? 0
-      ),
-    0
+export function normalizeRoleName(
+  role: string
+): SystemRoleName | null {
+  if (
+    SYSTEM_ROLE_NAMES.includes(
+      role as SystemRoleName
+    )
+  ) {
+    const canonical =
+      LEGACY_ROLE_ALIASES[role];
+
+    return (
+      canonical ??
+      (role as SystemRoleName)
+    );
+  }
+
+  return null;
+}
+
+export function isSupportedRole(
+  role: string
+): boolean {
+  return (
+    normalizeRoleName(
+      role
+    ) !== null
   );
 }
 
-/** True when every role of the approver strictly outranks the applicant. */
-export function outranks(
-  approverRoles: readonly string[],
-  applicantRoles: readonly string[]
+export function isPlatformRole(
+  role: string
 ): boolean {
   return (
-    highestRank(approverRoles) >
-    highestRank(applicantRoles)
+    normalizeRoleName(
+      role
+    ) === "SUPER_ADMIN"
   );
+}
+
+export function isInstitutionRole(
+  role: string
+): boolean {
+  const normalized =
+    normalizeRoleName(
+      role
+    );
+
+  return Boolean(
+    normalized &&
+      normalized !== "SUPER_ADMIN"
+  );
+}
+
+export function getCanonicalRoleNames(
+  roles: readonly string[]
+): SystemRoleName[] {
+  const result =
+    new Set<SystemRoleName>();
+
+  for (
+    const role of roles
+  ) {
+    const normalized =
+      normalizeRoleName(
+        role
+      );
+
+    if (normalized) {
+      result.add(
+        normalized
+      );
+    }
+  }
+
+  return [
+    ...result,
+  ];
 }
 
 const ALL_PERMISSIONS: PermissionKey[] =
   PERMISSIONS.map(
-    (permission) => permission.key
+    (permission) =>
+      permission.key
   );
 
 const ACADEMIC_READ: PermissionKey[] = [
@@ -265,113 +340,209 @@ const ACADEMIC_READ: PermissionKey[] = [
   "course-offerings.read",
 ];
 
-const LEADERSHIP: PermissionKey[] = [
-  "users.read",
+const LEADERSHIP_READ: PermissionKey[] = [
   "students.read",
   "attendance.read",
   "assignments.read",
   "marks.read",
   "reports.read",
   "intelligence.read",
-  "imports.manage",
+  "users.read",
 
   ...ACADEMIC_READ,
 
   "timetable.read",
   "notices.read",
-  "notices.manage",
-
   "exams.read",
   "results.read",
-
   "fees.read",
-
   "parent-links.read",
   "parent-portal.read",
-
   "notifications.read",
-  "notifications.manage",
-
   "documents.read",
-
   "admissions.read",
-  "admissions.manage",
-
   "hr.read",
-
-  "leave.apply",
   "leave.read",
-  "leave.approve",
-
   "library.read",
-  "library.borrow",
-
   "calendar.read",
-  "calendar.manage",
-
   "registration.read",
-
   "promotions.read",
-  "promotions.approve",
-
   "certificates.read",
-  "certificates.issue",
-
-  "exams.approve",
-  "exams.revaluate",
-
-  "attendance.approve",
-  "attendance.lock",
-  "attendance.policy",
-
-  "lms.read",
-
-  "fees.approve",
-  "fees.reconcile",
-
   "operations.read",
-  "operations.manage",
-  "maintenance.raise",
-
   "campuses.read",
 ];
 
 /**
- * Default permissions for every built-in role.
+ * Default permissions by role.
  *
- * Permission checks alone never establish data ownership:
- * services also enforce tenant, department, student, parent-child and
- * record ownership.
+ * IMPORTANT:
+ *
+ * SUPER_ADMIN deliberately does NOT receive every institutional permission.
+ *
+ * Platform administration and institution administration are separate
+ * authority domains.
+ *
+ * Super Admin can provision institutions, manage platform security and
+ * designate institution administrators/CMS users, but does not become the
+ * operational Accounts/HR/Faculty/Student/etc. operator merely by virtue
+ * of being Super Admin.
  */
 export const ROLE_PERMISSIONS: Record<
   SystemRoleName,
   PermissionKey[]
 > = {
-  SUPER_ADMIN: [...ALL_PERMISSIONS],
+  SUPER_ADMIN: [
+    "users.read",
+    "users.create",
+    "users.update",
+    "users.delete",
 
-  /*
-   * Institution administrators receive institution/ERP administration
-   * capabilities, but NOT website CMS authority.
-   *
-   * CMS is an explicitly designated account type.
-   */
-  INSTITUTION_ADMIN: ALL_PERMISSIONS.filter(
-    (permission) =>
-      permission !== "institutions.manage" &&
-      permission !== "plans.manage" &&
-      permission !== "site.manage"
-  ),
+    "institutions.manage",
+    "plans.manage",
 
-  DIRECTOR: [
-    ...LEADERSHIP,
+    "site.manage",
+
+    "reports.read",
     "audit.read",
   ],
 
-  MANAGEMENT: [
-    ...LEADERSHIP,
+  INSTITUTION_ADMIN: [
+    "users.read",
+    "users.create",
+    "users.update",
+    "users.delete",
+
+    "students.read",
+    "students.create",
+    "students.update",
+
+    ...ACADEMIC_READ,
+    "departments.create",
+    "departments.update",
+    "departments.delete",
+
+    "programs.create",
+    "programs.update",
+    "programs.delete",
+
+    "academic-years.create",
+    "academic-years.update",
+
+    "semesters.create",
+    "semesters.update",
+    "semesters.delete",
+
+    "sections.create",
+    "sections.update",
+    "sections.delete",
+
+    "courses.create",
+    "courses.update",
+    "courses.delete",
+
+    "course-offerings.create",
+    "course-offerings.update",
+    "course-offerings.delete",
+
+    "timetable.read",
+    "timetable.manage",
+
+    "notices.read",
+    "notices.manage",
+
+    "admissions.read",
+    "admissions.manage",
+
+    "students.read",
+    "students.create",
+    "students.update",
+
+    "reports.read",
+    "intelligence.read",
+
+    "parent-links.read",
+    "parent-links.manage",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+    "documents.manage",
+
+    "calendar.read",
+    "calendar.manage",
+
+    "registration.read",
+    "registration.approve",
+
+    "promotions.read",
+    "promotions.approve",
+
+    "certificates.read",
+
+    "audit.read",
+
+    "operations.read",
+    "operations.manage",
+
+    "maintenance.raise",
+
+    "campuses.read",
+    "campuses.create",
+    "campuses.update",
+    "campuses.delete",
   ],
 
-  HOD: [
+  CHAIRMAN: [
+    ...LEADERSHIP_READ,
+
+    "reports.read",
+    "intelligence.read",
+
+    "fees.read",
+
+    "exams.read",
+    "results.read",
+
+    "operations.read",
+
+    "audit.read",
+  ],
+
+  DIRECTOR: [
+    ...LEADERSHIP_READ,
+
+    "reports.read",
+    "intelligence.read",
+
+    "admissions.manage",
+
+    "registration.read",
+    "registration.approve",
+
+    "promotions.read",
+    "promotions.approve",
+
+    "certificates.read",
+    "certificates.issue",
+
+    "exams.read",
+    "exams.approve",
+    "exams.revaluate",
+
+    "attendance.read",
+    "attendance.approve",
+    "attendance.lock",
+
+    "fees.read",
+    "fees.approve",
+
+    "operations.read",
+
+    "audit.read",
+  ],
+
+  DEAN: [
     "students.read",
     "attendance.read",
     "assignments.read",
@@ -382,7 +553,119 @@ export const ROLE_PERMISSIONS: Record<
 
     ...ACADEMIC_READ,
 
+    "sections.read",
+    "course-offerings.read",
+    "timetable.read",
+
+    "notices.read",
+    "notices.manage",
+
+    "exams.read",
+    "results.read",
+
+    "parent-portal.read",
+
+    "notifications.read",
+    "documents.read",
+
+    "leave.read",
+
+    "calendar.read",
+
+    "registration.read",
+    "registration.approve",
+
+    "promotions.read",
+    "promotions.approve",
+
+    "certificates.read",
+
+    "attendance.approve",
+    "attendance.lock",
+
+    "operations.read",
+  ],
+
+  REGISTRAR: [
+    "students.read",
+    "students.update",
+
+    "users.read",
+
+    ...ACADEMIC_READ,
+
+    "departments.create",
+    "departments.update",
+
+    "programs.create",
+    "programs.update",
+
+    "academic-years.create",
+    "academic-years.update",
+
+    "semesters.create",
+    "semesters.update",
+
+    "sections.create",
     "sections.update",
+
+    "courses.create",
+    "courses.update",
+
+    "course-offerings.create",
+    "course-offerings.update",
+
+    "registration.read",
+    "registration.approve",
+
+    "promotions.read",
+    "promotions.manage",
+    "promotions.approve",
+
+    "certificates.read",
+    "certificates.issue",
+
+    "results.read",
+
+    "exams.read",
+
+    "reports.read",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+    "documents.manage",
+
+    "calendar.read",
+    "calendar.manage",
+
+    "audit.read",
+  ],
+
+  HOD: [
+    "students.read",
+
+    "attendance.read",
+    "attendance.approve",
+    "attendance.lock",
+
+    "assignments.read",
+    "assignments.review",
+
+    "marks.read",
+
+    "reports.read",
+    "intelligence.read",
+
+    "departments.read",
+    "programs.read",
+    "academic-years.read",
+    "semesters.read",
+    "sections.read",
+    "sections.update",
+    "courses.read",
+    "course-offerings.read",
     "course-offerings.update",
 
     "timetable.read",
@@ -392,19 +675,14 @@ export const ROLE_PERMISSIONS: Record<
     "notices.manage",
 
     "exams.read",
-    "exams.manage",
     "results.read",
-
-    "parent-portal.read",
 
     "notifications.read",
     "notifications.manage",
 
     "documents.read",
 
-    "leave.apply",
     "leave.read",
-    "leave.approve",
 
     "library.read",
     "library.borrow",
@@ -417,21 +695,12 @@ export const ROLE_PERMISSIONS: Record<
     "promotions.read",
     "promotions.manage",
 
-    "exams.approve",
-    "exams.invigilate",
-    "exams.revaluate",
-
-    "attendance.approve",
-    "attendance.lock",
-
     "lms.read",
     "lms.manage",
     "lms.grade",
 
     "operations.read",
     "maintenance.raise",
-
-    "campuses.read",
   ],
 
   FACULTY: [
@@ -439,6 +708,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "attendance.read",
     "attendance.mark",
+    "attendance.correct",
 
     "assignments.read",
     "assignments.create",
@@ -448,16 +718,21 @@ export const ROLE_PERMISSIONS: Record<
     "marks.read",
     "marks.enter",
 
-    ...ACADEMIC_READ,
+    "courses.read",
+    "course-offerings.read",
+    "sections.read",
+    "programs.read",
+    "academic-years.read",
+    "semesters.read",
 
     "timetable.read",
 
     "exams.read",
-    "exams.manage",
+    "exams.invigilate",
+
     "results.read",
 
     "notifications.read",
-
     "documents.read",
 
     "leave.apply",
@@ -466,11 +741,6 @@ export const ROLE_PERMISSIONS: Record<
     "library.borrow",
 
     "calendar.read",
-
-    "exams.invigilate",
-
-    "attendance.correct",
-    "attendance.approve",
 
     "lms.read",
     "lms.manage",
@@ -479,26 +749,42 @@ export const ROLE_PERMISSIONS: Record<
     "maintenance.raise",
   ],
 
-  STAFF: [
-    "users.read",
+  ACCOUNTS: [
     "students.read",
-
-    ...ACADEMIC_READ,
-
-    "timetable.read",
-    "timetable.manage",
-
-    "notices.read",
-    "notices.manage",
-
-    "exams.read",
 
     "fees.read",
     "fees.manage",
     "fees.pay",
+    "fees.refund",
+    "fees.approve",
+    "fees.reconcile",
 
-    "parent-links.read",
-    "parent-links.manage",
+    "reports.read",
+
+    "users.read",
+
+    "notifications.read",
+
+    "documents.read",
+
+    "calendar.read",
+
+    "operations.read",
+  ],
+
+  HR: [
+    "users.read",
+    "users.create",
+    "users.update",
+
+    "hr.read",
+    "hr.manage",
+
+    "leave.read",
+    "leave.approve",
+    "leave.manage",
+
+    "reports.read",
 
     "notifications.read",
     "notifications.manage",
@@ -506,36 +792,97 @@ export const ROLE_PERMISSIONS: Record<
     "documents.read",
     "documents.manage",
 
+    "audit.read",
+  ],
+
+  ADMISSIONS: [
     "admissions.read",
     "admissions.manage",
 
-    "leave.apply",
+    "students.read",
+
+    "documents.read",
+    "documents.manage",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "reports.read",
+
+    "calendar.read",
+  ],
+
+  EXAMINATION: [
+    "students.read",
+
+    "exams.read",
+    "exams.manage",
+    "exams.approve",
+    "exams.invigilate",
+    "exams.revaluate",
+
+    "marks.read",
+
+    "results.read",
+
+    "reports.read",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+
+    "audit.read",
+  ],
+
+  LIBRARIAN: [
+    "students.read",
 
     "library.read",
     "library.borrow",
     "library.manage",
 
+    "notifications.read",
+
+    "reports.read",
+
+    "documents.read",
+
+    "maintenance.raise",
+  ],
+
+  PLACEMENT: [
+    "students.read",
+
+    "reports.read",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+    "documents.manage",
+
     "calendar.read",
+  ],
 
-    "registration.read",
+  IT: [
+    "users.read",
+    "users.update",
 
-    "promotions.read",
-
-    "certificates.read",
-
-    "imports.manage",
-
-    "exams.invigilate",
-
-    "fees.refund",
-    "fees.reconcile",
+    "reports.read",
+    "audit.read",
 
     "operations.read",
     "operations.manage",
 
-    "maintenance.raise",
+    "notifications.read",
+    "notifications.manage",
 
-    "campuses.read",
+    "documents.read",
+  ],
+
+  CMS: [
+    "site.manage",
   ],
 
   STUDENT: [
@@ -546,11 +893,19 @@ export const ROLE_PERMISSIONS: Record<
 
     "marks.read",
 
-    ...ACADEMIC_READ,
+    "courses.read",
+    "course-offerings.read",
+    "sections.read",
+    "programs.read",
+    "academic-years.read",
+    "semesters.read",
+
+    "timetable.read",
+
+    "exams.read",
+    "results.read",
 
     "fees.read",
-
-    "results.read",
 
     "notifications.read",
 
@@ -569,8 +924,6 @@ export const ROLE_PERMISSIONS: Record<
 
     "attendance.correct",
 
-    "exams.revaluate",
-
     "lms.read",
     "lms.attempt",
 
@@ -584,7 +937,14 @@ export const ROLE_PERMISSIONS: Record<
 
     "marks.read",
 
-    ...ACADEMIC_READ,
+    "courses.read",
+    "course-offerings.read",
+    "sections.read",
+    "programs.read",
+    "academic-years.read",
+    "semesters.read",
+
+    "timetable.read",
 
     "fees.read",
 
@@ -601,65 +961,181 @@ export const ROLE_PERMISSIONS: Record<
     "lms.read",
   ],
 
-  /*
-   * CMS is intentionally isolated.
+  CLUB_PRESIDENT: [
+    "students.read",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+
+    "calendar.read",
+
+    "maintenance.raise",
+  ],
+
+  /**
+   * Legacy MANAGEMENT.
    *
-   * A CMS account cannot:
-   * - administer ERP users
-   * - view students
-   * - access academic operations
-   * - access finance
-   * - access intelligence
-   * - access institution administration
-   *
-   * Its default authority is ONLY public website management.
+   * Existing production accounts continue to work, but new application
+   * code should treat this as CHAIRMAN.
    */
-  CMS: [
-    "site.manage",
+  MANAGEMENT: [
+    ...LEADERSHIP_READ,
+    "reports.read",
+    "intelligence.read",
+    "fees.read",
+    "operations.read",
+    "audit.read",
+  ],
+
+  /**
+   * Legacy STAFF.
+   *
+   * Existing STAFF accounts are retained until explicitly migrated.
+   * New financial/operational staff should be assigned a specialist role
+   * such as ACCOUNTS, HR, ADMISSIONS, LIBRARIAN, PLACEMENT or IT.
+   */
+  STAFF: [
+    "users.read",
+    "students.read",
+
+    ...ACADEMIC_READ,
+
+    "timetable.read",
+
+    "notices.read",
+
+    "exams.read",
+
+    "fees.read",
+    "fees.manage",
+    "fees.pay",
+
+    "parent-links.read",
+
+    "notifications.read",
+
+    "documents.read",
+
+    "admissions.read",
+
+    "leave.apply",
+
+    "library.read",
+    "library.borrow",
+
+    "calendar.read",
+
+    "registration.read",
+
+    "promotions.read",
+
+    "certificates.read",
+
+    "operations.read",
+
+    "maintenance.raise",
   ],
 };
 
-export function isSystemRole(
-  value: string
-): value is SystemRoleName {
+export const ROLE_RANK: Record<
+  SystemRoleName,
+  number
+> = {
+  SUPER_ADMIN: 100,
+
+  INSTITUTION_ADMIN: 90,
+
+  CHAIRMAN: 80,
+
+  DIRECTOR: 75,
+
+  DEAN: 65,
+
+  REGISTRAR: 65,
+
+  HOD: 55,
+
+  ACCOUNTS: 45,
+  HR: 45,
+  ADMISSIONS: 45,
+  EXAMINATION: 45,
+  LIBRARIAN: 45,
+  PLACEMENT: 45,
+  IT: 45,
+
+  FACULTY: 40,
+
+  CMS: 20,
+
+  CLUB_PRESIDENT: 20,
+
+  STUDENT: 10,
+  PARENT: 10,
+
+  MANAGEMENT: 80,
+  STAFF: 40,
+};
+
+export function highestRoleRank(
+  roles: readonly string[]
+): number {
+  return roles.reduce(
+    (highest, role) => {
+      const normalized =
+        normalizeRoleName(
+          role
+        );
+
+      if (!normalized) {
+        return highest;
+      }
+
+      return Math.max(
+        highest,
+        ROLE_RANK[
+          normalized
+        ] ?? 0
+      );
+    },
+    0
+  );
+}
+
+export function outranks(
+  approverRoles: readonly string[],
+  applicantRoles: readonly string[]
+): boolean {
   return (
-    SYSTEM_ROLE_NAMES as readonly string[]
-  ).includes(value);
+    highestRoleRank(
+      approverRoles
+    ) >
+    highestRoleRank(
+      applicantRoles
+    )
+  );
 }
 
 export function getRolePermissions(
-  role: string
+  roleName: string
 ): PermissionKey[] {
-  if (!isSystemRole(role)) return [];
+  const normalized =
+    normalizeRoleName(
+      roleName
+    );
+
+  if (!normalized) {
+    return [];
+  }
 
   return [
-    ...ROLE_PERMISSIONS[role],
+    ...(
+      ROLE_PERMISSIONS[
+        normalized
+      ] ?? []
+    ),
   ];
-}
-
-export function roleHasPermission(
-  role: string,
-  permission: string
-): permission is PermissionKey {
-  if (!isSystemRole(role)) return false;
-
-  return ROLE_PERMISSIONS[
-    role
-  ].includes(
-    permission as PermissionKey
-  );
-}
-
-export function rolesHavePermission(
-  roles: readonly string[],
-  permission: string
-): boolean {
-  return roles.some((role) =>
-    roleHasPermission(
-      role,
-      permission
-    )
-  );
 }
 
 export function getEffectivePermissions(
@@ -668,11 +1144,18 @@ export function getEffectivePermissions(
   const permissions =
     new Set<PermissionKey>();
 
-  for (const role of roles) {
-    for (const permission of getRolePermissions(
-      role
-    )) {
-      permissions.add(permission);
+  for (
+    const role of roles
+  ) {
+    for (
+      const permission of
+        getRolePermissions(
+          role
+        )
+    ) {
+      permissions.add(
+        permission
+      );
     }
   }
 
@@ -681,16 +1164,93 @@ export function getEffectivePermissions(
   ];
 }
 
-/** Platform-level permissions are never granted to institution roles. */
-export const PLATFORM_ONLY_PERMISSIONS: PermissionKey[] = [
+export function hasRole(
+  roles: readonly string[],
+  role: SystemRoleName
+): boolean {
+  return roles.some(
+    (candidate) =>
+      normalizeRoleName(
+        candidate
+      ) === role
+  );
+}
+
+export function hasPermission(
+  roles: readonly string[],
+  permission: PermissionKey
+): boolean {
+  return getEffectivePermissions(
+    roles
+  ).includes(
+    permission
+  );
+}
+
+/**
+ * Platform-only permissions.
+ *
+ * These must never be inherited by institution roles.
+ */
+export const PLATFORM_PERMISSIONS: PermissionKey[] = [
   "institutions.manage",
   "plans.manage",
 ];
 
 export function isPlatformPermission(
-  permission: string
-): permission is PermissionKey {
-  return PLATFORM_ONLY_PERMISSIONS.includes(
-    permission as PermissionKey
+  permission: PermissionKey
+): boolean {
+  return PLATFORM_PERMISSIONS.includes(
+    permission
+  );
+}
+
+/**
+ * Institution permissions that must never be granted merely because
+ * somebody has the Super Admin role.
+ *
+ * This is intentionally separate from platform permissions.
+ */
+export const INSTITUTION_OPERATION_PERMISSIONS: PermissionKey[] = [
+  "students.create",
+  "students.update",
+
+  "fees.manage",
+  "fees.pay",
+  "fees.refund",
+  "fees.approve",
+  "fees.reconcile",
+
+  "hr.manage",
+
+  "leave.approve",
+  "leave.manage",
+
+  "admissions.manage",
+
+  "exams.manage",
+  "exams.approve",
+  "exams.invigilate",
+  "exams.revaluate",
+
+  "library.manage",
+
+  "registration.approve",
+
+  "promotions.approve",
+
+  "certificates.issue",
+
+  "operations.manage",
+];
+
+/**
+ * Returns only canonical roles.
+ */
+export function getCanonicalRoles(
+  roles: readonly string[]
+): SystemRoleName[] {
+  return getCanonicalRoleNames(
+    roles
   );
 }
