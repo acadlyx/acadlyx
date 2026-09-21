@@ -541,14 +541,20 @@ export async function getMyWorkspace(
   const now = new Date();
 
   /*
-   * MANAGEMENT / DIRECTOR / INSTITUTION ADMIN / STAFF
+   * LEADERSHIP WORKSPACES
+   *
+   * These roles share the institution-level KPI source for the dashboard
+   * summary, but their actionable modules remain permission-controlled by
+   * the authenticated role. Department/school-specific authority is not
+   * inferred here; it is enforced by the underlying module APIs.
    */
   if (
     hasAnyRole(actor, [
       "INSTITUTION_ADMIN",
+      "CHAIRMAN",
       "DIRECTOR",
-      "MANAGEMENT",
-      "STAFF",
+      "DEAN",
+      "REGISTRAR",
     ])
   ) {
     const management =
@@ -586,8 +592,18 @@ export async function getMyWorkspace(
         take: 10,
       });
 
+    const workspaceType = actor.roles.includes("CHAIRMAN")
+      ? "CHAIRMAN"
+      : actor.roles.includes("DIRECTOR")
+        ? "DIRECTOR"
+        : actor.roles.includes("DEAN")
+          ? "DEAN"
+          : actor.roles.includes("REGISTRAR")
+            ? "REGISTRAR"
+            : "INSTITUTION_ADMIN";
+
     return {
-      workspaceType: "MANAGEMENT",
+      workspaceType,
       stats: management.stats,
       timetable: [],
       notices,
