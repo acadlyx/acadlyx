@@ -11,10 +11,9 @@ import {
 
 type InstitutionRole =
   | "DIRECTOR"
-  | "MANAGEMENT"
   | "HOD"
   | "PARENT"
-  | "STAFF";
+;
 
 type Notice = {
   id: string;
@@ -69,21 +68,6 @@ const roleConfig: Record<
     ],
   },
 
-  MANAGEMENT: {
-    title: "Management Home",
-    subtitle:
-      "Executive control centre for your institution",
-    eyebrow:
-      "Executive workspace · Institutional control",
-    focus: [
-      "Institution KPIs",
-      "Growth & operations",
-      "Academic health",
-      "Placement outcomes",
-      "Decision support",
-    ],
-  },
-
   HOD: {
     title: "HOD Dashboard",
     subtitle:
@@ -114,20 +98,6 @@ const roleConfig: Record<
     ],
   },
 
-  STAFF: {
-    title: "Staff Dashboard",
-    subtitle:
-      "Institutional operations workspace",
-    eyebrow:
-      "Operations workspace · Institutional services",
-    focus: [
-      "Operations",
-      "Students",
-      "Academics",
-      "Notices",
-      "Reports",
-    ],
-  },
 };
 
 function getNumber(
@@ -271,8 +241,7 @@ function getActionItems(
     ];
   }
 
-  if (role === "STAFF") {
-    return [
+  return [
       {
         label: "Open ERP Operations",
         description:
