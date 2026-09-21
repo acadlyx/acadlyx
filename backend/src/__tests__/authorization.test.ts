@@ -18,7 +18,7 @@ import {
   getEffectivePermissions,
   isPlatformPermission,
   outranks,
-  rolesHavePermission,
+  hasPermission,
 } from "../config/rbac";
 import { assertSameInstitution } from "../utils/requireInstitution";
 import { visibleAudiences } from "../services/calendar.service";
@@ -66,8 +66,8 @@ describe("authorize middleware", () => {
 
   test("allows a caller holding every required permission", () => {
     const staff = makeUser({
-      roles: ["STAFF"],
-      permissions: getEffectivePermissions(["STAFF"]),
+      roles: ["ACCOUNTS"],
+      permissions: getEffectivePermissions(["ACCOUNTS"]),
     });
     assert.equal(runMiddleware(authorize("fees.manage", "fees.pay"), staff), undefined);
   });
@@ -103,7 +103,7 @@ describe("tenant isolation", () => {
     assert.throws(
       () =>
         assertSameInstitution(
-          makeUser({ institutionId: null, roles: ["STAFF"] }),
+          makeUser({ institutionId: null, roles: ["ACCOUNTS"] }),
           "tenant-a"
         ),
       (error: unknown) => error instanceof AppError
@@ -122,7 +122,7 @@ describe("role matrix", () => {
       "registration.approve",
     ]) {
       assert.equal(
-        rolesHavePermission(["STUDENT"], permission),
+        hasPermission(["STUDENT"], permission),
         false,
         `STUDENT must not hold ${permission}`
       );
@@ -130,16 +130,16 @@ describe("role matrix", () => {
   });
 
   test("parents are read-only and never see fee management", () => {
-    assert.equal(rolesHavePermission(["PARENT"], "fees.read"), true);
-    assert.equal(rolesHavePermission(["PARENT"], "fees.manage"), false);
-    assert.equal(rolesHavePermission(["PARENT"], "marks.enter"), false);
+    assert.equal(hasPermission(["PARENT"], "fees.read"), true);
+    assert.equal(hasPermission(["PARENT"], "fees.manage"), false);
+    assert.equal(hasPermission(["PARENT"], "marks.enter"), false);
   });
 
   test("platform-only permissions are not granted to institution roles", () => {
     assert.equal(isPlatformPermission("institutions.manage"), true);
-    for (const role of ["INSTITUTION_ADMIN", "DIRECTOR", "STAFF", "HOD"]) {
+    for (const role of ["INSTITUTION_ADMIN", "DIRECTOR", "ACCOUNTS", "HOD"]) {
       assert.equal(
-        rolesHavePermission([role], "institutions.manage"),
+        hasPermission([role], "institutions.manage"),
         false,
         `${role} must not manage institutions`
       );
