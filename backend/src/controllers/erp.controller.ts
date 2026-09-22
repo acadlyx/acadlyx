@@ -2,7 +2,15 @@ import { Request } from "express";
 
 import * as erp from "../services/erp.service";
 
-import { asyncHandler } from "../utils/asyncHandler";
+import {
+  getWorkspace,
+  isLeadershipActor,
+} from "../services/workspace.service";
+
+import {
+  asyncHandler,
+} from "../utils/asyncHandler";
+
 import {
   requireInstitution,
 } from "../utils/requireInstitution";
@@ -11,9 +19,9 @@ import {
   AppError,
 } from "../middleware/errorHandler";
 
-function getActor(
+const actor = (
   req: Request
-) {
+) => {
   if (!req.user) {
     throw new AppError(
       "Authentication required",
@@ -22,22 +30,28 @@ function getActor(
   }
 
   return req.user;
-}
+};
 
 /*
  * ---------------------------------------------------------------------------
  * WORKSPACE
  * ---------------------------------------------------------------------------
  *
- * IMPORTANT:
+ * CRITICAL PERFORMANCE PATH
  *
- * Keep the critical dashboard request on the existing ERP workspace service.
+ * Leadership users:
+ *   /erp/me/workspace
+ *          ↓
+ *   workspace.service
+ *          ↓
+ *   one PostgreSQL aggregate query
+ *          +
+ *   one small notices query
  *
- * Do not fan this request out into another management service.
- * The dashboard is the first screen users see, so stability and predictable
- * latency matter more than adding additional aggregation here.
+ * HOD / FACULTY / PARENT / STUDENT:
+ *   existing ERP workspace implementation
  *
- * Detailed module data should be loaded by the individual module endpoints.
+ * The detailed role-specific authorization logic is therefore preserved.
  */
 
 export const workspace =
@@ -47,7 +61,7 @@ export const workspace =
       res
     ) => {
       const currentActor =
-        getActor(req);
+        actor(req);
 
       const institutionId =
         requireInstitution(
@@ -55,7 +69,7 @@ export const workspace =
         );
 
       const data =
-        await erp.getMyWorkspace(
+        await getWorkspace(
           institutionId,
           currentActor
         );
@@ -84,7 +98,7 @@ export const timetableList =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           {
             dayOfWeek:
               req.query
@@ -124,7 +138,7 @@ export const timetable =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body
         );
 
@@ -146,7 +160,7 @@ export const timetableUpdate =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id,
           req.body
         );
@@ -169,7 +183,7 @@ export const timetableDelete =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -197,7 +211,7 @@ export const noticeList =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.query
             .includeExpired !==
             "false"
@@ -221,7 +235,7 @@ export const notice =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body
         );
 
@@ -243,7 +257,7 @@ export const noticeUpdate =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id,
           req.body
         );
@@ -266,7 +280,7 @@ export const noticeDelete =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -294,7 +308,7 @@ export const examList =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           typeof req.query
             .courseOfferingId ===
             "string"
@@ -321,7 +335,7 @@ export const examDetails =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -343,7 +357,7 @@ export const exam =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body
         );
 
@@ -365,7 +379,7 @@ export const examUpdate =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id,
           req.body
         );
@@ -388,7 +402,7 @@ export const examDelete =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -410,11 +424,11 @@ export const result =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body
         );
 
-      res.json({
+      res.status(200).json({
         success: true,
         data,
       });
@@ -438,7 +452,7 @@ export const invoiceList =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           {
             studentId:
               typeof req.query
@@ -476,7 +490,7 @@ export const invoiceDetails =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -498,7 +512,7 @@ export const invoice =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body
         );
 
@@ -520,7 +534,7 @@ export const invoiceUpdate =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id,
           req.body
         );
@@ -543,7 +557,7 @@ export const invoiceDelete =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id
         );
 
@@ -565,7 +579,7 @@ export const payment =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.id,
           req.body.amount,
           req.body.reference
@@ -595,11 +609,12 @@ export const parentLinkList =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           typeof req.query
             .studentId ===
             "string"
-            ? req.query.studentId
+            ? req.query
+                .studentId
             : undefined
         );
 
@@ -621,7 +636,7 @@ export const parentLink =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.body.parentId,
           req.body.studentId,
           req.body.relationship
@@ -645,7 +660,7 @@ export const parentLinkDelete =
           requireInstitution(
             req
           ),
-          getActor(req),
+          actor(req),
           req.params.parentId,
           req.params.studentId
         );
