@@ -13,6 +13,7 @@ import test, { describe } from "node:test";
 import type { NextFunction, Request, Response } from "express";
 
 import { authorize, authorizeRoles } from "../middleware/authorize";
+import type { PermissionKey } from "../config/rbac";
 import { AppError } from "../middleware/errorHandler";
 import {
   getEffectivePermissions,
@@ -120,7 +121,7 @@ describe("role matrix", () => {
       "certificates.issue",
       "users.create",
       "registration.approve",
-    ]) {
+    ] satisfies PermissionKey[]) {
       assert.equal(
         hasPermission(["STUDENT"], permission),
         false,
