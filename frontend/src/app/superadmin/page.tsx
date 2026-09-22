@@ -156,13 +156,6 @@ const emptyUserForm: UserForm = {
 const assignableRoles = [
   { value: "SUPER_ADMIN", label: "Super Admin" },
   { value: "INSTITUTION_ADMIN", label: "Institution Admin" },
-  { value: "DIRECTOR", label: "Director" },
-  { value: "MANAGEMENT", label: "Management" },
-  { value: "HOD", label: "HOD" },
-  { value: "FACULTY", label: "Faculty" },
-  { value: "STAFF", label: "Staff" },
-  { value: "PARENT", label: "Parent" },
-  { value: "STUDENT", label: "Student" },
   { value: "CMS", label: "Website CMS Manager" },
 ] as const;
 
