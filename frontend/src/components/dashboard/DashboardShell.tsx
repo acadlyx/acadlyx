@@ -11,6 +11,7 @@ import {
   canAccessRoute,
   canAccessWorkspace,
   navigationForUser,
+  navigationGroups,
   primaryRole,
   ROLE_LABELS,
   workspaceHome,
@@ -62,6 +63,7 @@ export function DashboardShell({
   }, [pathname]);
 
   const navigation = useMemo(() => user ? navigationForUser(user) : [], [user]);
+  const groupedNavigation = useMemo(() => navigationGroups(navigation), [navigation]);
   const activeHref = useMemo(() => activeNavigationHref(pathname, navigation), [pathname, navigation]);
   const role = primaryRole(user?.roles || allowedRoles || []);
 
@@ -103,11 +105,11 @@ export function DashboardShell({
             <p className={`mt-1 text-sm font-semibold text-slate-700 ${collapsed ? "lg:hidden" : ""}`}>{ROLE_LABELS[role] || "ACADLYX"}</p>
             {collapsed && <span className="hidden text-sm font-bold text-indigo-600 lg:block">{role.charAt(0)}</span>}
           </div>
-          <nav aria-label="Workspace navigation" className="space-y-1">
-            {navigation.map((item) => {
+          <nav aria-label="Workspace navigation" className="space-y-4">
+            {groupedNavigation.map((group) => <section key={group.label}><p className={`px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400 ${collapsed ? "lg:hidden" : ""}`}>{group.label}</p><div className="mt-1 space-y-1">{group.items.map((item) => {
               const active = item.href === activeHref;
               return <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${collapsed ? "lg:justify-center lg:px-2" : ""} ${active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}><span className={`grid h-6 w-6 place-items-center text-sm ${active ? "text-indigo-600" : "text-slate-400"}`}>{item.icon}</span><span className={collapsed ? "lg:hidden" : ""}>{item.label}</span></Link>;
-            })}
+            })}</div></section>)}
           </nav>
         </div>
       </aside>

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   AuthRequiredError,
@@ -276,6 +276,7 @@ function ErrorPanel({
 
 export default function SuperAdminPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -286,7 +287,7 @@ export default function SuperAdminPage() {
 
   const [activeSection, setActiveSection] = useState<
     "overview" | "institutions" | "users"
-  >("overview");
+  >(() => searchParams.get("section") === "institutions" ? "institutions" : searchParams.get("section") === "users" ? "users" : "overview");
 
   const [showInstitutionModal, setShowInstitutionModal] =
     useState(false);
@@ -382,14 +383,11 @@ export default function SuperAdminPage() {
        * into the generic "Unable to load platform data" state for the
        * whole platform console.
        */
-      const [statsResult, institutionsResult, usersResult] =
+      const [statsResult, institutionsResult] =
         await Promise.allSettled([
           authedFetch<StatsResponse>("/institutions/stats"),
           authedFetch<InstitutionResponse>(
             "/institutions?page=1&pageSize=100"
-          ),
-          authedFetch<UsersResponse>(
-            "/users?page=1&pageSize=100"
           ),
         ]);
 
@@ -412,16 +410,6 @@ export default function SuperAdminPage() {
           institutionsResult.reason instanceof Error
             ? `Institutions: ${institutionsResult.reason.message}`
             : "Institutions could not be loaded."
-        );
-      }
-
-      if (usersResult.status === "fulfilled") {
-        setUsers(usersResult.value.data);
-      } else {
-        failures.push(
-          usersResult.reason instanceof Error
-            ? `Users: ${usersResult.reason.message}`
-            : "Users could not be loaded."
         );
       }
 
@@ -448,6 +436,16 @@ export default function SuperAdminPage() {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  useEffect(() => {
+    const requested = searchParams.get("section");
+    if (requested === "institutions" || requested === "users" || requested === "overview") setActiveSection(requested);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (activeSection !== "users" || users.length) return;
+    authedFetch<UsersResponse>("/users?page=1&pageSize=100").then((response) => setUsers(response.data)).catch((reason: Error) => setError(reason.message || "Users could not be loaded."));
+  }, [activeSection, users.length]);
 
   async function handleCreateInstitution(
     event: FormEvent<HTMLFormElement>
@@ -537,7 +535,7 @@ export default function SuperAdminPage() {
           phone:
             userForm.phone.trim() || undefined,
           password: userForm.password,
-          roles: [userForm.role],
+          role: userForm.role,
         }),
       });
 
@@ -828,9 +826,7 @@ export default function SuperAdminPage() {
               <button
                 key={key}
                 type="button"
-                onClick={() =>
-                  setActiveSection(key)
-                }
+                onClick={() => { setActiveSection(key); router.replace(key === "overview" ? "/superadmin" : `/superadmin?section=${key}`); }}
                 className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                   activeSection === key
                     ? "bg-slate-950 text-white"

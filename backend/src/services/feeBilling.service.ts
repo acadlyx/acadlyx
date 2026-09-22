@@ -36,8 +36,6 @@ import { getPaymentGateway, paymentCurrency } from "./payments/gateway";
  */
 
 const BILLING_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
   "DIRECTOR",
   "ACCOUNTS",
 ];

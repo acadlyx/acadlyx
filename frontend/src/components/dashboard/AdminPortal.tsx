@@ -860,27 +860,6 @@ export function AdminPortal() {
               </div>
             </section>
 
-            <section className="mt-4">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {loading
-                  ? Array.from({
-                      length: 4,
-                    }).map((_, index) => (
-                      <MetricSkeleton
-                        key={index}
-                      />
-                    ))
-                  : metrics
-                      .slice(4)
-                      .map((metric) => (
-                        <MetricCard
-                          key={metric.label}
-                          metric={metric}
-                        />
-                      ))}
-              </div>
-            </section>
-
             <div className="mt-6 grid gap-5 xl:grid-cols-[1.45fr_1fr]">
               <NoticeList
                 notices={
@@ -888,24 +867,11 @@ export function AdminPortal() {
                 }
               />
 
-              <ActionPanel
-                actions={getActions()}
-                onOpen={open}
-              />
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Administration</p><h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">Work from the menu</h2><p className="mt-2 text-sm leading-6 text-slate-500">Use the categorized sidebar for institutional structure, people, reports and controlled operations. This overview intentionally shows only the institution snapshot.</p></section>
             </div>
           </>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
-            <SectionActions
-              actions={actions}
-              onOpen={open}
-            />
-
-            <ActionPanel
-              actions={actions}
-              onOpen={open}
-            />
-          </div>
+          <SectionActions actions={actions} onOpen={open} />
         )}
 
         {/* =====================================================
