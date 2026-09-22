@@ -74,6 +74,17 @@ export const studentPortal =
     }
   );
 
+/** Authenticated student self-service record; avoids a client-supplied user id. */
+export const myStudentPortal = asyncHandler(async (req: Request, res: Response) => {
+  const current = actor(req);
+  const data = await portalService.getStudentPortal(
+    requireInstitution(req),
+    current,
+    current.id
+  );
+  res.status(200).json({ success: true, data });
+});
+
 export const notifications =
   asyncHandler(
     async (

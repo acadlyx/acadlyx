@@ -85,6 +85,7 @@ export interface AnnouncementItem {
 export interface UpcomingEventItem {
   id: string;
   title: string;
+  date?: string;
   whenLabel: string;
 }
 

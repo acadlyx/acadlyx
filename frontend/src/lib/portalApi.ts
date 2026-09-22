@@ -238,6 +238,11 @@ export async function getStudentPortal(
   return response.data;
 }
 
+export async function getMyStudentPortal(): Promise<StudentPortalData> {
+  const response = await authedFetch<ApiEnvelope<StudentPortalData>>("/portal/me");
+  return response.data;
+}
+
 export async function getMyNotifications(
   page = 1,
   limit = 25,

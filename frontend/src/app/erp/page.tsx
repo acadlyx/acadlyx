@@ -348,123 +348,19 @@ try {
     );
   }
 
-  const results =
-    await Promise.allSettled([
-      getErpWorkspace(),
-      listOfferings(),
-      listUsers("STUDENT"),
-      listUsers("PARENT"),
-      listDepartments(),
-      listAcademicYears(),
-      listPrograms(),
-      listSemesters(),
-      listFeeHeads(),
-      listFeeStructures(),
-      getNotifications(),
-      getMyDocuments(),
-    ]);
-
-  const [
-    workspaceResult,
-    offeringsResult,
-    studentsResult,
-    parentsResult,
-    departmentsResult,
-    academicYearsResult,
-    programsResult,
-    semestersResult,
-    feeHeadsResult,
-    feeStructuresResult,
-    notificationsResult,
-    documentsResult,
-  ] = results;
+  // The shell needs only its aggregate workspace data.  Module datasets are
+  // deliberately fetched only for the active tab so opening ERP does not
+  // create a twelve-request storm or preload records the user will not view.
+  const [workspaceResult, notificationsResult] = await Promise.allSettled([
+    getErpWorkspace(),
+    getNotifications(),
+  ]);
 
   if (
     workspaceResult.status ===
     "fulfilled"
   ) {
     setWorkspace(workspaceResult.value);
-  }
-
-  if (
-    offeringsResult.status ===
-    "fulfilled"
-  ) {
-    setOfferings(
-      offeringsResult.value
-    );
-  }
-
-  if (
-    studentsResult.status ===
-    "fulfilled"
-  ) {
-    setStudents(
-      studentsResult.value
-    );
-  }
-
-  if (
-    parentsResult.status ===
-    "fulfilled"
-  ) {
-    setParents(
-      parentsResult.value
-    );
-  }
-
-  if (
-    departmentsResult.status ===
-    "fulfilled"
-  ) {
-    setDepartments(
-      departmentsResult.value
-    );
-  }
-
-  if (
-    academicYearsResult.status ===
-    "fulfilled"
-  ) {
-    setAcademicYears(
-      academicYearsResult.value
-    );
-  }
-
-  if (
-    programsResult.status ===
-    "fulfilled"
-  ) {
-    setPrograms(
-      programsResult.value
-    );
-  }
-
-  if (
-    semestersResult.status ===
-    "fulfilled"
-  ) {
-    setSemesters(
-      semestersResult.value
-    );
-  }
-
-  if (
-    feeHeadsResult.status ===
-    "fulfilled"
-  ) {
-    setFeeHeads(
-      feeHeadsResult.value
-    );
-  }
-
-  if (
-    feeStructuresResult.status ===
-    "fulfilled"
-  ) {
-    setFeeStructures(
-      feeStructuresResult.value
-    );
   }
 
   if (
@@ -476,31 +372,36 @@ try {
     );
   }
 
-  if (
-    documentsResult.status ===
-    "fulfilled"
-  ) {
-    setDocuments(
-      documentsResult.value
-    );
-  }
+  if (workspaceResult.status === "rejected" && notificationsResult.status === "rejected") throw workspaceResult.reason;
 
-  const failed =
-    results.find(
-      (item) =>
-        item.status === "rejected"
-    ) as
-      | PromiseRejectedResult
-      | undefined;
-
-  if (
-    failed &&
-    results.every(
-      (item) =>
-        item.status === "rejected"
-    )
-  ) {
-    throw failed.reason;
+  if (tab === "overview") {
+    const [offeringsResult, feeStructuresResult, documentsResult] = await Promise.allSettled([listOfferings(), listFeeStructures(), getMyDocuments()]);
+    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
+    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
+    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
+  } else if (tab === "timetable" || tab === "exams") {
+    const [offeringsResult, studentsResult] = await Promise.allSettled(tab === "exams" ? [listOfferings(), listUsers("STUDENT")] : [listOfferings()]);
+    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
+    if (studentsResult?.status === "fulfilled") setStudents(studentsResult.value);
+  } else if (tab === "notices") {
+    const [departmentsResult] = await Promise.allSettled([listDepartments()]);
+    if (departmentsResult.status === "fulfilled") setDepartments(departmentsResult.value);
+  } else if (tab === "fees") {
+    const [studentsResult, academicYearsResult, programsResult, semestersResult, feeHeadsResult, feeStructuresResult] = await Promise.allSettled([listUsers("STUDENT"), listAcademicYears(), listPrograms(), listSemesters(), listFeeHeads(), listFeeStructures()]);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+    if (academicYearsResult.status === "fulfilled") setAcademicYears(academicYearsResult.value);
+    if (programsResult.status === "fulfilled") setPrograms(programsResult.value);
+    if (semestersResult.status === "fulfilled") setSemesters(semestersResult.value);
+    if (feeHeadsResult.status === "fulfilled") setFeeHeads(feeHeadsResult.value);
+    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
+  } else if (tab === "parents") {
+    const [parentsResult, studentsResult] = await Promise.allSettled([listUsers("PARENT"), listUsers("STUDENT")]);
+    if (parentsResult.status === "fulfilled") setParents(parentsResult.value);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+  } else if (tab === "documents") {
+    const [studentsResult, documentsResult] = await Promise.allSettled([listUsers("STUDENT"), getMyDocuments()]);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
   }
 } catch (err) {
   if (
@@ -521,9 +422,7 @@ try {
 
 }
 
-useEffect(() => {
-void loadAll();
-}, []);
+useEffect(() => { void loadAll(); }, [tab]);
 
 function flash(message: string) {
 setSuccess(message);
