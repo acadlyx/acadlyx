@@ -29,8 +29,6 @@ export const PERMISSIONS = [
   { key: "students.read", module: "students", description: "View students within scope" },
   { key: "students.create", module: "students", description: "Create students through institutional student administration" },
   { key: "students.update", module: "students", description: "Update student master records within scope" },
-  { key: "club.read", module: "clubs", description: "View the assigned student club within club scope" },
-  { key: "club.manage", module: "clubs", description: "Manage permitted activities of the assigned student club within club scope" },
 
   { key: "attendance.read", module: "attendance", description: "View attendance within scope" },
   { key: "attendance.mark", module: "attendance", description: "Mark attendance for assigned classes" },
@@ -453,7 +451,6 @@ export const ROLE_PERMISSIONS: Record<
     "notices.manage",
 
     "admissions.read",
-    "admissions.manage",
 
     "students.read",
     "students.create",
@@ -475,10 +472,8 @@ export const ROLE_PERMISSIONS: Record<
     "calendar.manage",
 
     "registration.read",
-    "registration.approve",
 
     "promotions.read",
-    "promotions.approve",
 
     "certificates.read",
 
@@ -517,7 +512,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
     "intelligence.read",
 
-    "admissions.manage",
 
     "registration.read",
     "registration.approve",
@@ -964,9 +958,16 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CLUB_PRESIDENT: [
-    "club.read",
-    "club.manage",
+    "students.read",
+
+    "notifications.read",
+    "notifications.manage",
+
+    "documents.read",
+
     "calendar.read",
+
+    "maintenance.raise",
   ],
 
   /**
