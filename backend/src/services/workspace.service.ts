@@ -1,9 +1,11 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
+
 import {
   getCanonicalRoleNames,
 } from "../config/rbac";
+
 import {
   AuthenticatedUser,
 } from "../types/auth";
@@ -102,32 +104,26 @@ interface LeadershipStatsRow {
   paidInvoices: bigint;
 }
 
-/**
+/*
  * Fast institution-level workspace.
  *
- * The old dashboard path performed a large fan-out of independent
- * Prisma queries. That is particularly expensive when PostgreSQL is
- * accessed through a hosted connection pooler.
+ * This is deliberately kept separate from the large legacy ERP workspace.
  *
- * This implementation intentionally keeps the dashboard payload small:
+ * The leadership dashboard only needs:
  *
- * - one aggregate SQL query for institutional counters
- * - one small query for recent notices
+ *   - KPI counters
+ *   - recent notices
+ *   - workspace identity
  *
- * Detailed ERP data remains behind the individual module endpoints.
+ * It does NOT need the complete ERP data graph.
+ *
+ * Hosted PostgreSQL/pooler connections are particularly sensitive to
+ * excessive sequential round trips, so PostgreSQL performs the aggregation.
  */
 async function getFastLeadershipWorkspace(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  /*
-   * PostgreSQL does the aggregation.
-   *
-   * The table names below follow the explicit @@map() values from
-   * Prisma schema.prisma.
-   *
-   * No invoice rows are transferred to Node.
-   */
   const rows =
     await prisma.$queryRaw<
       LeadershipStatsRow[]
@@ -293,14 +289,15 @@ async function getFastLeadershipWorkspace(
     );
   }
 
-  /*
-   * Only the small visible notice list is returned.
-   *
-   * Detailed notices remain available from the notices endpoint.
-   */
   const now =
     new Date();
 
+  /*
+   * Keep the notice payload deliberately small.
+   *
+   * The full notices endpoint remains responsible for the complete
+   * institution notice dataset.
+   */
   const notices =
     await prisma.notice.findMany({
       where: {
@@ -336,6 +333,16 @@ async function getFastLeadershipWorkspace(
       },
 
       take: 10,
+
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        audience: true,
+        departmentId: true,
+        expiresAt: true,
+        publishedAt: true,
+      },
     });
 
   return {
@@ -437,10 +444,6 @@ async function getFastLeadershipWorkspace(
         ),
     },
 
-    /*
-     * Keep the response shape compatible with
-     * the existing ERP workspace contract.
-     */
     timetable: [],
 
     notices,
@@ -475,14 +478,7 @@ export async function getWorkspace(
   actor: AuthenticatedUser
 ) {
   /*
-   * Only institution-level leadership uses
-   * the aggregate dashboard path.
-   *
-   * HOD / FACULTY / STUDENT / PARENT continue
-   * through the existing ERP implementation.
-   *
-   * Their detailed authority and tenant/department
-   * scope therefore remains untouched.
+   * Leadership dashboards use the fast aggregate path.
    */
   if (
     isLeadershipActor(
@@ -502,23 +498,35 @@ export async function getWorkspace(
 }
 
 /*
- * Importing erp.service at module initialization
- * creates a circular dependency if this service
- * imports it at the top.
+ * ---------------------------------------------------------------------------
+ * LEGACY ERP FALLBACK
+ * ---------------------------------------------------------------------------
  *
- * Keep the fallback lazy so the leadership path
- * remains independent and cheap.
+ * IMPORTANT:
+ *
+ * Do not load erp.service while a leadership dashboard is being initialized.
+ *
+ * The previous dynamic import was rejected by the TypeScript Node16 resolver
+ * in the Render build even though the service file exists.
+ *
+ * This lazy CommonJS load keeps the large service completely off the
+ * leadership critical path and also avoids the Node16 dynamic-import
+ * resolution problem.
  */
+
 async function erpWorkspaceFallback(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  const erp =
-    await import(
-      "./erp.service"
-    );
+  const loadErpService =
+    require("./erp.service") as {
+      getMyWorkspace: (
+        institutionId: string,
+        actor: AuthenticatedUser
+      ) => Promise<unknown>;
+    };
 
-  return erp.getMyWorkspace(
+  return loadErpService.getMyWorkspace(
     institutionId,
     actor
   );
