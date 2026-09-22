@@ -39,8 +39,7 @@ const BILLING_ROLES = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
-  "STAFF",
+  "ACCOUNTS",
 ];
 
 function assertCanManageFees(actor: AuthenticatedUser): void {
