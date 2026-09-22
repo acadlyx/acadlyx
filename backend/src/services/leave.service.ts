@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
-import { outranks } from "../config/rbac";
 import { AuthenticatedUser } from "../types/auth";
 import { inclusiveDays } from "../utils/http";
 import { PaginationParams } from "../utils/pagination";
@@ -10,11 +9,7 @@ import {
   CreateLeaveTypeInput,
   UpdateLeaveTypeInput,
 } from "../validators/leave.validators";
-import {
-  assertHodCanReachUser,
-  getManagedDepartmentIds,
-  getUserRoleNames,
-} from "./accessScope.service";
+import { assertLeaveDecisionAuthority } from "./workflowAuthority.service";
 import { recordAuditLog } from "./audit.service";
 
 type Meta = { ipAddress?: string; userAgent?: string };
@@ -296,50 +291,6 @@ export async function listMine(
   return { items: rows.map(shape), total };
 }
 
-/** Restricts the approvals inbox to the requests this actor may decide. */
-async function approvalScope(
-  institutionId: string,
-  actor: AuthenticatedUser
-): Promise<Prisma.LeaveRequestWhereInput | null> {
-  const notSelf: Prisma.LeaveRequestWhereInput = { applicantId: { not: actor.id } };
-
-  if (actor.roles.includes("INSTITUTION_ADMIN")) return notSelf;
-
-  if (actor.roles.some((role) => ["DIRECTOR", "MANAGEMENT"].includes(role))) {
-    return {
-      ...notSelf,
-      applicant: {
-        userRoles: {
-          none: {
-            role: { name: { in: ["INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"] } },
-          },
-        },
-      },
-    };
-  }
-
-  if (actor.roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (managed.length === 0) return null;
-    return {
-      ...notSelf,
-      applicant: {
-        userRoles: {
-          none: {
-            role: { name: { in: ["INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD"] } },
-          },
-        },
-        OR: [
-          { studentEnrollments: { some: { program: { departmentId: { in: managed } } } } },
-          { facultyCourseOfferings: { some: { course: { departmentId: { in: managed } } } } },
-          { employeeProfile: { departmentId: { in: managed } } },
-        ],
-      },
-    };
-  }
-
-  return null;
-}
 
 export async function listApprovals(
   institutionId: string,
@@ -347,26 +298,34 @@ export async function listApprovals(
   pagination: PaginationParams,
   filters: { status?: string; leaveTypeId?: string }
 ) {
-  const scope = await approvalScope(institutionId, actor);
-  if (!scope) return { items: [], total: 0 };
+  if (!actor.roles.some((role) => ["HR", "HOD"].includes(role))) {
+    return { items: [], total: 0 };
+  }
 
+  // Approval inbox is intentionally resolved from the same per-record
+  // authority check used by the decision endpoint. This prevents the list
+  // endpoint from exposing requests that the actor cannot actually approve.
   const where: Prisma.LeaveRequestWhereInput = {
     institutionId,
-    ...scope,
     status: filters.status ?? "PENDING",
     ...(filters.leaveTypeId ? { leaveTypeId: filters.leaveTypeId } : {}),
   };
-  const [rows, total] = await Promise.all([
-    prisma.leaveRequest.findMany({
-      where,
-      include,
-      orderBy: { createdAt: "asc" },
-      skip: pagination.skip,
-      take: pagination.take,
-    }),
-    prisma.leaveRequest.count({ where }),
-  ]);
-  return { items: rows.map(shape), total };
+  const candidates = await prisma.leaveRequest.findMany({
+    where,
+    include,
+    orderBy: { createdAt: "asc" },
+  });
+  const authorised: LeaveRow[] = [];
+  for (const row of candidates) {
+    try {
+      await assertLeaveDecisionAuthority(institutionId, actor, row.applicantId);
+      authorised.push(row);
+    } catch {
+      // Not in this actor's configured approval scope.
+    }
+  }
+  const page = authorised.slice(pagination.skip, pagination.skip + pagination.take);
+  return { items: page.map(shape), total: authorised.length };
 }
 
 export async function listAll(
@@ -397,21 +356,7 @@ async function assertCanDecide(
   actor: AuthenticatedUser,
   applicantId: string
 ) {
-  if (applicantId === actor.id) {
-    throw new AppError("You cannot decide your own leave request", 403);
-  }
-  const applicantRoles = await getUserRoleNames(institutionId, applicantId);
-
-  // Institution admins may decide anyone in their tenant (including peers).
-  if (actor.roles.includes("INSTITUTION_ADMIN")) return;
-
-  if (!outranks(actor.roles, applicantRoles)) {
-    throw new AppError("This request is above your approval authority", 403);
-  }
-  if (!actor.roles.some((role) => ["DIRECTOR", "MANAGEMENT"].includes(role))) {
-    // HOD: only people inside a managed department.
-    await assertHodCanReachUser(institutionId, actor, applicantId);
-  }
+  await assertLeaveDecisionAuthority(institutionId, actor, applicantId);
 }
 
 export async function decide(
