@@ -8,18 +8,21 @@
   --acadlyx-sky: #0ea5e9;
   --acadlyx-violet: #7c3aed;
   --acadlyx-surface: #ffffff;
-  --acadlyx-background: #f4f7fb;
+  --acadlyx-background: #f7f8fc;
 }
 
 html {
   min-height: 100%;
   background: var(--acadlyx-background);
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
   color: var(--acadlyx-primary);
   background: var(--acadlyx-background);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -28,6 +31,20 @@ input,
 textarea,
 select {
   -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.28);
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -51,4 +68,36 @@ select {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+@layer components {
+  .shell-icon-button {
+    display: inline-flex;
+    min-height: 40px;
+    min-width: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    transition: 160ms ease;
+  }
+
+  .shell-icon-button:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #0f172a;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
