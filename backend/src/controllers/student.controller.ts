@@ -752,6 +752,9 @@ export const dashboard =
                 title:
                   exam.title,
 
+                date:
+                  exam.examDate.toISOString(),
+
                 whenLabel:
                   exam.examDate.toLocaleDateString(),
               })
