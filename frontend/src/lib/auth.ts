@@ -35,12 +35,31 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+let currentUserCache: AuthUser | null = null;
+let currentUserRequest: Promise<AuthUser> | null = null;
+
 export async function getCurrentUser(): Promise<AuthUser> {
-  const response = await authedFetch<ApiEnvelope<AuthUser>>("/auth/me");
-  if (!Array.isArray(response.data.roles) || !Array.isArray(response.data.permissions)) {
-    throw new Error("Invalid authenticated user response");
-  }
-  return response.data;
+  if (currentUserCache) return currentUserCache;
+  if (currentUserRequest) return currentUserRequest;
+
+  currentUserRequest = authedFetch<ApiEnvelope<AuthUser>>("/auth/me")
+    .then((response) => {
+      if (!Array.isArray(response.data.roles) || !Array.isArray(response.data.permissions)) {
+        throw new Error("Invalid authenticated user response");
+      }
+      currentUserCache = response.data;
+      return response.data;
+    })
+    .finally(() => {
+      currentUserRequest = null;
+    });
+
+  return currentUserRequest;
+}
+
+export function invalidateCurrentUser(): void {
+  currentUserCache = null;
+  currentUserRequest = null;
 }
 
 function isBrowser(): boolean {
@@ -67,6 +86,7 @@ export function clearTokens(): void {
   if (!isBrowser()) return;
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  invalidateCurrentUser();
 }
 
 export function isAuthenticated(): boolean {
@@ -93,6 +113,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   }
 
   setTokens(body.data.tokens);
+  currentUserCache = body.data.user;
   return body.data.user;
 }
 

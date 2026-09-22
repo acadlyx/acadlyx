@@ -33,18 +33,23 @@ export function AccountMenu() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!open || account) return;
+    let active = true;
     authedFetch<{ success: true; data: Account }>(
       "/auth/account"
     )
       .then((response) =>
-        setAccount(response.data)
+        active && setAccount(response.data)
       )
       .catch((error) => {
-        if (!(error instanceof AuthRequiredError)) {
+        if (active && !(error instanceof AuthRequiredError)) {
           setAccount(null);
         }
       });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [open, account]);
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
@@ -71,8 +76,6 @@ export function AccountMenu() {
       );
     };
   }, [open]);
-
-  if (!account) return null;
 
   async function saveProfile(
     event: FormEvent<HTMLFormElement>
@@ -170,22 +173,25 @@ export function AccountMenu() {
         className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-violet-500 text-[11px] font-black text-white">
-          {account.firstName
-            .charAt(0)
-            .toUpperCase()}
-          {account.lastName
-            .charAt(0)
-            .toUpperCase()}
+          {account
+            ? `${account.firstName.charAt(0)}${account.lastName.charAt(0)}`.toUpperCase()
+            : "…"}
         </span>
 
         <span className="hidden max-w-28 truncate text-xs font-bold text-slate-700 sm:block">
-          {account.firstName}
+          {account?.firstName || "Account"}
         </span>
 
         <span className="text-slate-400">⌄</span>
       </button>
 
-      {open && (
+      {open && !account && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-64 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-xl">
+          Loading account details…
+        </div>
+      )}
+
+      {open && account && (
         <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[min(92vw,390px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
           <div className="border-b border-slate-100 bg-gradient-to-br from-sky-50 to-violet-50 p-4">
             <div className="flex items-center gap-3">

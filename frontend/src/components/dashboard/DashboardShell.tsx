@@ -2,155 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { AccountMenu } from "@/components/auth/AccountMenu";
+import { AuthRequiredError, AuthUser, getCurrentUser, logout } from "@/lib/auth";
 import {
-  AuthRequiredError,
-  AuthUser,
-  getCurrentUser,
-  logout,
-} from "@/lib/auth";
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-};
-
-const roleNavigation: Record<string, NavItem[]> = {
-  STUDENT: [
-    { label: "Dashboard", href: "/student", icon: "⌂" },
-    { label: "Timetable", href: "/student/timetable", icon: "▦" },
-    { label: "Academic dates", href: "/student/calendar", icon: "◫" },
-    { label: "Attendance", href: "/student/attendance", icon: "◷" },
-    { label: "Assignments", href: "/student/assignments", icon: "✓" },
-    { label: "Marks", href: "/student/marks", icon: "◈" },
-  ],
-
-  FACULTY: [
-    { label: "Dashboard", href: "/faculty", icon: "⌂" },
-    { label: "Attendance", href: "/faculty/attendance", icon: "◷" },
-    { label: "Assignments", href: "/faculty/assignments", icon: "✓" },
-    { label: "Marks", href: "/faculty/marks", icon: "◈" },
-  ],
-
-  PARENT: [
-    { label: "Dashboard", href: "/parent", icon: "⌂" },
-  ],
-
-  HOD: [
-    { label: "Dashboard", href: "/hod", icon: "⌂" },
-    { label: "ERP Operations", href: "/erp", icon: "▦" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦" },
-    { label: "Placements", href: "/placements", icon: "↗" },
-  ],
-
-  MANAGEMENT: [
-    { label: "Dashboard", href: "/management", icon: "⌂" },
-    { label: "ERP Operations", href: "/erp", icon: "▦" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦" },
-    { label: "Placements", href: "/placements", icon: "↗" },
-    { label: "Data Import", href: "/imports", icon: "⇅" },
-    { label: "Website CMS", href: "/site-content", icon: "◫" },
-  ],
-
-  DIRECTOR: [
-    { label: "Dashboard", href: "/director", icon: "⌂" },
-    { label: "ERP Operations", href: "/erp", icon: "▦" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦" },
-    { label: "Placements", href: "/placements", icon: "↗" },
-    { label: "Data Import", href: "/imports", icon: "⇅" },
-    { label: "Website CMS", href: "/site-content", icon: "◫" },
-  ],
-
-  STAFF: [
-    { label: "Dashboard", href: "/staff", icon: "⌂" },
-    { label: "ERP Operations", href: "/erp", icon: "▦" },
-    { label: "Data Import", href: "/imports", icon: "⇅" },
-  ],
-
-  INSTITUTION_ADMIN: [
-    { label: "Dashboard", href: "/admin", icon: "⌂" },
-    { label: "People & Users", href: "/admin", icon: "♙" },
-    { label: "ERP Operations", href: "/erp", icon: "▦" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦" },
-    { label: "Placements", href: "/placements", icon: "↗" },
-    { label: "Data Import", href: "/imports", icon: "⇅" },
-    { label: "Website CMS", href: "/site-content", icon: "◫" },
-  ],
-
-  SUPER_ADMIN: [
-    { label: "Dashboard", href: "/superadmin", icon: "⌂" },
-  ],
-
-  CMS: [
-    { label: "Website CMS", href: "/site-content", icon: "◫" },
-  ],
-};
-
-const roleLabels: Record<string, string> = {
-  STUDENT: "Student",
-  FACULTY: "Faculty",
-  PARENT: "Parent",
-  HOD: "Head of Department",
-  MANAGEMENT: "Management",
-  DIRECTOR: "Director",
-  STAFF: "Staff",
-  INSTITUTION_ADMIN: "Institution Admin",
-  SUPER_ADMIN: "Super Admin",
-  CMS: "CMS",
-};
-
-const rolePriority = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "MANAGEMENT",
-  "HOD",
-  "FACULTY",
-  "STAFF",
-  "PARENT",
-  "STUDENT",
-  "CMS",
-];
-
-function getPrimaryRole(roles: string[]) {
-  return (
-    rolePriority.find((role) => roles.includes(role)) ||
-    roles[0] ||
-    ""
-  );
-}
-
-function getRoleHome(roles: string[]) {
-  const role = getPrimaryRole(roles);
-
-  switch (role) {
-    case "SUPER_ADMIN":
-      return "/superadmin";
-    case "INSTITUTION_ADMIN":
-      return "/admin";
-    case "DIRECTOR":
-      return "/director";
-    case "MANAGEMENT":
-      return "/management";
-    case "HOD":
-      return "/hod";
-    case "FACULTY":
-      return "/faculty";
-    case "STAFF":
-      return "/staff";
-    case "PARENT":
-      return "/parent";
-    case "STUDENT":
-      return "/student";
-    case "CMS":
-      return "/site-content";
-    default:
-      return "/login";
-  }
-}
+  activeNavigationHref,
+  canAccessWorkspace,
+  navigationForUser,
+  primaryRole,
+  ROLE_LABELS,
+  workspaceHome,
+} from "@/lib/navigation";
 
 export function DashboardShell({
   title,
@@ -163,9 +26,8 @@ export function DashboardShell({
   children: ReactNode;
   allowedRoles?: string[];
 }) {
-  const router = useRouter();
   const pathname = usePathname();
-
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -173,37 +35,24 @@ export function DashboardShell({
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
     getCurrentUser()
       .then((currentUser) => {
-        if (!mounted) return;
-
-        if (
-          allowedRoles &&
-          allowedRoles.length > 0 &&
-          !currentUser.roles.some((role) =>
-            allowedRoles.includes(role)
-          )
-        ) {
-          router.replace(
-            getRoleHome(currentUser.roles)
-          );
+        if (!active) return;
+        if (!canAccessWorkspace(currentUser, allowedRoles)) {
+          router.replace(workspaceHome(currentUser.roles));
           return;
         }
-
         setUser(currentUser);
       })
       .catch((error) => {
-        if (!mounted) return;
-
-        if (error instanceof AuthRequiredError) {
-          router.replace("/login");
-        }
+        if (!active) return;
+        if (error instanceof AuthRequiredError) router.replace("/login");
       });
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, [router, allowedRolesKey]);
 
@@ -211,369 +60,59 @@ export function DashboardShell({
     setMobileOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!mobileOpen) return;
-
-    const previousOverflow =
-      document.body.style.overflow;
-
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow =
-        previousOverflow;
-    };
-  }, [mobileOpen]);
-
-  const primaryRole = getPrimaryRole(
-    user?.roles || allowedRoles || []
-  );
-
-  const navItems = useMemo(() => {
-    const roles =
-      user?.roles ||
-      allowedRoles ||
-      [];
-
-    const result: NavItem[] = [];
-    const seen = new Set<string>();
-
-    for (const role of rolePriority) {
-      if (!roles.includes(role)) continue;
-
-      for (const item of roleNavigation[role] || []) {
-        if (seen.has(item.href)) continue;
-
-        seen.add(item.href);
-        result.push(item);
-      }
-    }
-
-    for (const role of roles) {
-      for (const item of roleNavigation[role] || []) {
-        if (seen.has(item.href)) continue;
-
-        seen.add(item.href);
-        result.push(item);
-      }
-    }
-
-    return result;
-  }, [user?.roles, allowedRolesKey]);
+  const navigation = useMemo(() => user ? navigationForUser(user) : [], [user]);
+  const activeHref = useMemo(() => activeNavigationHref(pathname, navigation), [pathname, navigation]);
+  const role = primaryRole(user?.roles || allowedRoles || []);
 
   async function signOut() {
     await logout();
     router.replace("/login");
   }
 
-  function isActive(item: NavItem) {
-    if (item.href === "/student") {
-      return (
-        pathname === "/student" ||
-        pathname.startsWith("/student/")
-      );
-    }
-
-    if (item.href === "/faculty") {
-      return (
-        pathname === "/faculty" ||
-        pathname.startsWith("/faculty/")
-      );
-    }
-
-    if (
-      item.href === "/admin" ||
-      item.href === "/superadmin"
-    ) {
-      return pathname === item.href;
-    }
-
-    return (
-      pathname === item.href ||
-      pathname.startsWith(`${item.href}/`)
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#f3f6fb] text-slate-900">
-      {/* Top header */}
-      <header className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
-        <div className="flex h-full items-center gap-3 px-4 sm:px-6">
-          {/* Mobile menu */}
-          <button
-            type="button"
-            aria-label="Open navigation"
-            aria-expanded={mobileOpen}
-            onClick={() =>
-              setMobileOpen((value) => !value)
-            }
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 lg:hidden"
-          >
-            {mobileOpen ? (
-              <span className="text-xl leading-none">
-                ×
-              </span>
-            ) : (
-              <span className="flex flex-col gap-1.5">
-                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
-                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
-                <span className="h-0.5 w-5 rounded-full bg-slate-700" />
-              </span>
-            )}
-          </button>
-
-          {/* Desktop sidebar toggle */}
-          <button
-            type="button"
-            aria-label={
-              collapsed
-                ? "Expand sidebar"
-                : "Collapse sidebar"
-            }
-            onClick={() =>
-              setCollapsed((value) => !value)
-            }
-            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 lg:flex"
-          >
-            <span className="text-lg font-medium">
-              {collapsed ? "›" : "‹"}
-            </span>
-          </button>
-
-          {/* Brand */}
-          <Link
-            href={getRoleHome(
-              user?.roles || allowedRoles || []
-            )}
-            className="flex min-w-0 items-center gap-3"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-950">
-              <Image
-                src="/branding/acadlyx-logo.png"
-                alt="ACADLYX"
-                width={40}
-                height={40}
-                className="h-10 w-10 object-contain"
-                priority
-              />
-            </div>
-
-            <div className="hidden min-w-0 sm:block">
-              <p className="truncate text-sm font-extrabold tracking-tight text-slate-950">
-                ACADLYX
-              </p>
-              <p className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                Institutional intelligence
-              </p>
-            </div>
-          </Link>
-
-          {/* Current page */}
-          <div className="ml-3 hidden min-w-0 md:block">
-            <div className="h-6 w-px bg-slate-200" />
-          </div>
-
-          <div className="hidden min-w-0 md:block">
-            <p className="truncate text-sm font-bold text-slate-900">
-              {title}
-            </p>
-
-            {subtitle && (
-              <p className="max-w-[500px] truncate text-xs text-slate-500">
-                {subtitle}
-              </p>
-            )}
-          </div>
-
-          {/* Account */}
-          <div className="ml-auto flex items-center gap-2">
-            <div className="hidden text-right xl:block">
-              <p className="text-xs font-bold text-slate-800">
-                {user
-                  ? `${user.firstName} ${user.lastName}`
-                  : "Loading…"}
-              </p>
-
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                {roleLabels[primaryRole] ||
-                  primaryRole.replace(
-                    /_/g,
-                    " "
-                  )}
-              </p>
-            </div>
-
-            <AccountMenu />
-
-            <button
-              type="button"
-              onClick={signOut}
-              className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:block"
-            >
-              Sign out
-            </button>
-          </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center border-b border-slate-200 bg-white px-4 lg:px-6">
+        <button type="button" aria-label="Toggle navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen((value) => !value)} className="mr-3 grid h-9 w-9 place-items-center rounded-md border border-slate-200 text-slate-600 lg:hidden">
+          {mobileOpen ? "×" : "☰"}
+        </button>
+        <button type="button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed((value) => !value)} className="mr-3 hidden h-9 w-9 rounded-md border border-slate-200 text-slate-600 lg:block">
+          {collapsed ? "›" : "‹"}
+        </button>
+        <Link href={workspaceHome(user?.roles || allowedRoles || [])} className="flex items-center gap-2.5">
+          <Image src="/branding/acadlyx-logo.png" alt="ACADLYX" width={34} height={34} className="h-8 w-8 object-contain" priority />
+          <span className="text-sm font-bold tracking-wide text-slate-900">ACADLYX</span>
+        </Link>
+        <div className="ml-5 hidden min-w-0 border-l border-slate-200 pl-5 md:block">
+          <p className="truncate text-sm font-semibold text-slate-900">{title}</p>
+          {subtitle && <p className="truncate text-xs text-slate-500">{subtitle}</p>}
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          <div className="hidden text-right sm:block"><p className="text-xs font-semibold text-slate-800">{user ? `${user.firstName} ${user.lastName}` : ""}</p><p className="text-[11px] text-slate-500">{ROLE_LABELS[role] || role.replace(/_/g, " ")}</p></div>
+          <AccountMenu />
+          <button type="button" onClick={signOut} className="hidden rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:block">Sign out</button>
         </div>
       </header>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
-        />
-      )}
+      {mobileOpen && <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden" />}
 
-      {/* Sidebar */}
-      <aside
-        className={[
-          "fixed bottom-0 left-0 top-[72px] z-40",
-          "border-r border-slate-200/80",
-          "bg-white",
-          "transition-all duration-200",
-          "lg:translate-x-0",
-          mobileOpen
-            ? "translate-x-0"
-            : "-translate-x-full",
-          collapsed
-            ? "lg:w-[82px]"
-            : "w-[270px] lg:w-[250px]",
-        ].join(" ")}
-      >
-        <div className="flex h-full flex-col overflow-y-auto p-3">
-          {/* Workspace identity */}
-          <div
-            className={`mb-5 rounded-2xl border border-slate-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 p-3 ${
-              collapsed ? "lg:p-2" : ""
-            }`}
-          >
-            <div
-              className={`flex items-center gap-3 ${
-                collapsed
-                  ? "lg:justify-center"
-                  : ""
-              }`}
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-500 text-sm font-black text-white">
-                {primaryRole
-                  ? primaryRole
-                      .charAt(0)
-                      .toUpperCase()
-                  : "A"}
-              </div>
-
-              <div
-                className={
-                  collapsed
-                    ? "lg:hidden"
-                    : ""
-                }
-              >
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                  Workspace
-                </p>
-
-                <p className="mt-0.5 truncate text-xs font-bold text-slate-800">
-                  {roleLabels[primaryRole] ||
-                    "ACADLYX"}
-                </p>
-              </div>
-            </div>
+      <aside className={`fixed bottom-0 left-0 top-16 z-40 border-r border-slate-200 bg-white transition-[width,transform] duration-200 ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${collapsed ? "lg:w-16" : "w-64 lg:w-60"}`}>
+        <div className="flex h-full flex-col p-3">
+          <div className={`mb-4 border-b border-slate-100 pb-3 ${collapsed ? "lg:text-center" : ""}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-widest text-slate-400 ${collapsed ? "lg:hidden" : ""}`}>Workspace</p>
+            <p className={`mt-1 text-sm font-semibold text-slate-700 ${collapsed ? "lg:hidden" : ""}`}>{ROLE_LABELS[role] || "ACADLYX"}</p>
+            {collapsed && <span className="hidden text-sm font-bold text-indigo-600 lg:block">{role.charAt(0)}</span>}
           </div>
-
-          {/* Navigation */}
-          <nav
-            aria-label="Dashboard navigation"
-            className="space-y-1"
-          >
-            {navItems.map((item) => {
-              const active =
-                isActive(item);
-
-              return (
-                <Link
-                  key={`${item.href}-${item.label}`}
-                  href={item.href}
-                  title={
-                    collapsed
-                      ? item.label
-                      : undefined
-                  }
-                  onClick={() =>
-                    setMobileOpen(false)
-                  }
-                  className={[
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5",
-                    "text-sm font-semibold transition-all",
-                    collapsed
-                      ? "lg:justify-center lg:px-2"
-                      : "",
-                    active
-                      ? "bg-gradient-to-r from-sky-500 to-violet-500 text-white shadow-md shadow-sky-500/20"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
-                  ].join(" ")}
-                >
-                  <span
-                    className={[
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm",
-                      active
-                        ? "bg-white/20 text-white"
-                        : "bg-slate-100 text-slate-500 group-hover:bg-white",
-                    ].join(" ")}
-                  >
-                    {item.icon}
-                  </span>
-
-                  <span
-                    className={
-                      collapsed
-                        ? "lg:hidden"
-                        : ""
-                    }
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
+          <nav aria-label="Workspace navigation" className="space-y-1">
+            {navigation.map((item) => {
+              const active = item.href === activeHref;
+              return <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${collapsed ? "lg:justify-center lg:px-2" : ""} ${active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`}><span className={`grid h-6 w-6 place-items-center text-sm ${active ? "text-indigo-600" : "text-slate-400"}`}>{item.icon}</span><span className={collapsed ? "lg:hidden" : ""}>{item.label}</span></Link>;
             })}
           </nav>
-
-          {/* Bottom identity card */}
-          <div
-            className={`mt-auto pt-5 ${
-              collapsed ? "lg:hidden" : ""
-            }`}
-          >
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-extrabold text-slate-900">
-                ACADLYX
-              </p>
-
-              <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                Education ERP & institutional
-                intelligence platform.
-              </p>
-            </div>
-          </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main
-        className={[
-          "min-h-screen pt-[72px] transition-[padding] duration-200",
-          collapsed
-            ? "lg:pl-[82px]"
-            : "lg:pl-[250px]",
-        ].join(" ")}
-      >
-        <div className="min-w-0 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-[1600px]">
-            {children}
-          </div>
-        </div>
+      <main className={`min-h-screen pt-16 transition-[padding] duration-200 ${collapsed ? "lg:pl-16" : "lg:pl-60"}`}>
+        <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>
   );
