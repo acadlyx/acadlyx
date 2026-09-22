@@ -1,10 +1,19 @@
 import { Request } from "express";
-import * as erp from "../services/erp.service";
-import { asyncHandler } from "../utils/asyncHandler";
-import { requireInstitution } from "../utils/requireInstitution";
-import { AppError } from "../middleware/errorHandler";
 
-function getActor(req: Request) {
+import * as erp from "../services/erp.service";
+
+import { asyncHandler } from "../utils/asyncHandler";
+import {
+  requireInstitution,
+} from "../utils/requireInstitution";
+
+import {
+  AppError,
+} from "../middleware/errorHandler";
+
+function getActor(
+  req: Request
+) {
   if (!req.user) {
     throw new AppError(
       "Authentication required",
@@ -20,39 +29,43 @@ function getActor(req: Request) {
  * WORKSPACE
  * ---------------------------------------------------------------------------
  *
- * Keep the workspace request on the existing ERP service.
+ * IMPORTANT:
  *
- * This is intentionally conservative:
+ * Keep the critical dashboard request on the existing ERP workspace service.
  *
- * - no extra database fan-out
- * - no second workspace implementation
- * - no management-specific aggregation on the critical page-load path
- * - existing tenant and permission logic remains authoritative
+ * Do not fan this request out into another management service.
+ * The dashboard is the first screen users see, so stability and predictable
+ * latency matter more than adding additional aggregation here.
  *
- * Performance work will be moved behind the individual ERP modules instead
- * of making the initial dashboard request heavier.
+ * Detailed module data should be loaded by the individual module endpoints.
  */
 
-export const workspace = asyncHandler(
-  async (req, res) => {
-    const currentActor =
-      getActor(req);
+export const workspace =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const currentActor =
+        getActor(req);
 
-    const institutionId =
-      requireInstitution(req);
+      const institutionId =
+        requireInstitution(
+          req
+        );
 
-    const data =
-      await erp.getMyWorkspace(
-        institutionId,
-        currentActor
-      );
+      const data =
+        await erp.getMyWorkspace(
+          institutionId,
+          currentActor
+        );
 
-    res.json({
-      success: true,
-      data,
-    });
-  }
-);
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
 
 /*
  * ---------------------------------------------------------------------------
@@ -62,18 +75,25 @@ export const workspace = asyncHandler(
 
 export const timetableList =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.listTimetableEntries(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           {
             dayOfWeek:
-              req.query.dayOfWeek ===
+              req.query
+                .dayOfWeek ===
               undefined
                 ? undefined
                 : Number(
-                    req.query.dayOfWeek
+                    req.query
+                      .dayOfWeek
                   ),
 
             courseOfferingId:
@@ -95,10 +115,15 @@ export const timetableList =
 
 export const timetable =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.createTimetableEntry(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body
         );
@@ -112,10 +137,15 @@ export const timetable =
 
 export const timetableUpdate =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.updateTimetableEntry(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id,
           req.body
@@ -130,10 +160,15 @@ export const timetableUpdate =
 
 export const timetableDelete =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.deleteTimetableEntry(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -153,12 +188,18 @@ export const timetableDelete =
 
 export const noticeList =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.listNotices(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
-          req.query.includeExpired !==
+          req.query
+            .includeExpired !==
             "false"
         );
 
@@ -171,10 +212,15 @@ export const noticeList =
 
 export const notice =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.createNotice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body
         );
@@ -188,10 +234,15 @@ export const notice =
 
 export const noticeUpdate =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.updateNotice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id,
           req.body
@@ -206,10 +257,15 @@ export const noticeUpdate =
 
 export const noticeDelete =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.deleteNotice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -229,10 +285,15 @@ export const noticeDelete =
 
 export const examList =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.listExams(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           typeof req.query
             .courseOfferingId ===
@@ -251,10 +312,15 @@ export const examList =
 
 export const examDetails =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.getExamDetails(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -268,10 +334,15 @@ export const examDetails =
 
 export const exam =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.createExam(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body
         );
@@ -285,10 +356,15 @@ export const exam =
 
 export const examUpdate =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.updateExam(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id,
           req.body
@@ -303,10 +379,15 @@ export const examUpdate =
 
 export const examDelete =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.deleteExam(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -320,10 +401,15 @@ export const examDelete =
 
 export const result =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.upsertExamResult(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body
         );
@@ -343,23 +429,31 @@ export const result =
 
 export const invoiceList =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.listFeeInvoices(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           {
             studentId:
               typeof req.query
                 .studentId ===
               "string"
-                ? req.query.studentId
+                ? req.query
+                    .studentId
                 : undefined,
 
             status:
-              typeof req.query.status ===
+              typeof req.query
+                .status ===
               "string"
-                ? req.query.status
+                ? req.query
+                    .status
                 : undefined,
           }
         );
@@ -373,10 +467,15 @@ export const invoiceList =
 
 export const invoiceDetails =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.getFeeInvoice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -390,10 +489,15 @@ export const invoiceDetails =
 
 export const invoice =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.createInvoice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body
         );
@@ -407,10 +511,15 @@ export const invoice =
 
 export const invoiceUpdate =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.updateFeeInvoice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id,
           req.body
@@ -425,10 +534,15 @@ export const invoiceUpdate =
 
 export const invoiceDelete =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.deleteFeeInvoice(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id
         );
@@ -442,10 +556,15 @@ export const invoiceDelete =
 
 export const payment =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.recordPayment(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.id,
           req.body.amount,
@@ -467,10 +586,15 @@ export const payment =
 
 export const parentLinkList =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.listParentLinks(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           typeof req.query
             .studentId ===
@@ -488,10 +612,15 @@ export const parentLinkList =
 
 export const parentLink =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.linkParent(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.body.parentId,
           req.body.studentId,
@@ -507,10 +636,15 @@ export const parentLink =
 
 export const parentLinkDelete =
   asyncHandler(
-    async (req, res) => {
+    async (
+      req,
+      res
+    ) => {
       const data =
         await erp.deleteParentLink(
-          requireInstitution(req),
+          requireInstitution(
+            req
+          ),
           getActor(req),
           req.params.parentId,
           req.params.studentId
