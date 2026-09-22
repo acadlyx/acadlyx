@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 
 const MANAGEMENT_ROLES = [
@@ -19,7 +20,9 @@ function assertRole(
   user: AuthenticatedUser,
   allowed: string[]
 ): void {
-  if (!user.roles.some((role) => allowed.includes(role))) {
+  const actorRoles = getCanonicalRoleNames(user.roles);
+  const allowedRoles = getCanonicalRoleNames(allowed);
+  if (!actorRoles.some((role) => allowedRoles.includes(role))) {
     throw new AppError(
       "Not authorized for this ERP operation",
       403
@@ -31,7 +34,9 @@ function hasAnyRole(
   user: AuthenticatedUser,
   roles: string[]
 ): boolean {
-  return user.roles.some((role) => roles.includes(role));
+  const actorRoles = getCanonicalRoleNames(user.roles);
+  const allowedRoles = getCanonicalRoleNames(roles);
+  return actorRoles.some((role) => allowedRoles.includes(role));
 }
 
 async function assertDepartmentScope(
