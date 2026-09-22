@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import { AccountMenu } from "@/components/auth/AccountMenu";
+import { AccessNotice } from "@/components/dashboard/AccessNotice";
 import {
   AuthRequiredError,
   AuthUser,
@@ -21,8 +22,13 @@ import {
 type NavItem = {
   label: string;
   href: string;
-  icon: string;
   permissions?: string[];
+  description?: string;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
 };
 
 const ROLE_PRIORITY: CanonicalRole[] = [
@@ -91,149 +97,279 @@ const ROLE_HOME: Record<CanonicalRole, string> = {
   CLUB_PRESIDENT: "/club-president",
 };
 
-const ROLE_NAVIGATION: Record<CanonicalRole, NavItem[]> = {
-  SUPER_ADMIN: [
-    { label: "Dashboard", href: "/superadmin", icon: "⌂" },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  INSTITUTION_ADMIN: [
-    { label: "Dashboard", href: "/admin", icon: "⌂" },
-    { label: "People & users", href: "/admin", icon: "♙", permissions: ["users.read"] },
-    { label: "Institution settings", href: "/institution-settings", icon: "⚙", permissions: ["institutions.manage"] },
-    { label: "Academic masters", href: "/erp", icon: "▦", permissions: ["academic-masters.read"] },
-    { label: "Students", href: "/students", icon: "♙", permissions: ["students.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  CHAIRMAN: [
-    { label: "Dashboard", href: "/chairman", icon: "⌂" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Reports", href: "/reports", icon: "▤", permissions: ["reports.read"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  DIRECTOR: [
-    { label: "Dashboard", href: "/director", icon: "⌂" },
-    { label: "Intelligence", href: "/intelligence", icon: "✦", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Admissions", href: "/admissions", icon: "✎", permissions: ["admissions.read"] },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read"] },
-    { label: "Reports", href: "/reports", icon: "▤", permissions: ["reports.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  DEAN: [
-    { label: "Dashboard", href: "/dean", icon: "⌂" },
-    { label: "Students", href: "/students", icon: "♙", permissions: ["students.read"] },
-    { label: "Intelligence", href: "/intelligence", icon: "✦", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read", "results.read"] },
-    { label: "Results", href: "/results", icon: "◉", permissions: ["results.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  REGISTRAR: [
-    { label: "Dashboard", href: "/registrar", icon: "⌂" },
-    { label: "Enrollment", href: "/enrollment", icon: "♙", permissions: ["students.read", "students.manage", "registration.read", "registration.manage"] },
-    { label: "Course registration", href: "/course-registration", icon: "⊞", permissions: ["registration.read", "registration.manage"] },
-    { label: "Student movement", href: "/student-promotion", icon: "⇗", permissions: ["promotions.read", "promotions.manage"] },
-    { label: "Certificates", href: "/certificates", icon: "❖", permissions: ["certificates.read", "certificates.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  HOD: [
-    { label: "Dashboard", href: "/hod", icon: "⌂" },
-    { label: "Students", href: "/students", icon: "♙", permissions: ["students.read"] },
-    { label: "Academic operations", href: "/erp", icon: "▦", permissions: ["academic-masters.read", "timetable.read"] },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read", "marks.read", "results.read"] },
-    { label: "Student movement", href: "/student-promotion", icon: "⇗", permissions: ["promotions.read", "promotions.manage"] },
-    { label: "Intelligence", href: "/intelligence", icon: "✦", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  FACULTY: [
-    { label: "Dashboard", href: "/faculty", icon: "⌂" },
-    { label: "Attendance", href: "/faculty/attendance", icon: "◷", permissions: ["attendance.read", "attendance.manage"] },
-    { label: "Assignments", href: "/faculty/assignments", icon: "✓", permissions: ["assignments.read", "assignments.manage"] },
-    { label: "Marks", href: "/faculty/marks", icon: "◈", permissions: ["marks.read", "marks.manage"] },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Leave", href: "/leave-management", icon: "⏻", permissions: ["leave.read", "leave.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  ACCOUNTS: [
-    { label: "Dashboard", href: "/accounts", icon: "⌂" },
-    { label: "Fees & billing", href: "/fees", icon: "₹", permissions: ["fees.read", "fees.manage", "fees.pay"] },
-    { label: "Fee configuration", href: "/erp?tab=fees", icon: "▦", permissions: ["fees.manage"] },
-    { label: "Reports", href: "/reports", icon: "▤", permissions: ["reports.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  HR: [
-    { label: "Dashboard", href: "/hr", icon: "⌂" },
-    { label: "Employees", href: "/hr", icon: "♙", permissions: ["hr.read", "hr.manage"] },
-    { label: "Leave management", href: "/leave-management", icon: "⏻", permissions: ["leave.read", "leave.manage"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  ADMISSIONS: [
-    { label: "Dashboard", href: "/admissions", icon: "⌂" },
-    { label: "Applications", href: "/applications", icon: "✎", permissions: ["admissions.read", "admissions.manage"] },
-    { label: "Admissions", href: "/admissions", icon: "♙", permissions: ["admissions.read", "admissions.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  EXAMINATION: [
-    { label: "Dashboard", href: "/examinations", icon: "⌂" },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read", "exams.manage"] },
-    { label: "Results", href: "/results", icon: "◉", permissions: ["results.read", "results.manage"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  LIBRARIAN: [
-    { label: "Dashboard", href: "/library", icon: "⌂" },
-    { label: "Library", href: "/library", icon: "❏", permissions: ["library.read", "library.manage", "library.borrow"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  PLACEMENT: [
-    { label: "Dashboard", href: "/placements", icon: "⌂" },
-    { label: "Placement operations", href: "/placements", icon: "◈", permissions: ["placement.read", "placement.manage"] },
-    { label: "Intelligence", href: "/intelligence", icon: "✦", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  IT: [
-    { label: "Dashboard", href: "/it", icon: "⌂" },
-    { label: "Operations", href: "/operations", icon: "⚒", permissions: ["operations.read", "operations.manage", "maintenance.read", "maintenance.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  CMS: [
-    { label: "Website CMS", href: "/site-content", icon: "◫", permissions: ["site.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  STUDENT: [
-    { label: "Dashboard", href: "/student", icon: "⌂" },
-    { label: "Timetable", href: "/student/timetable", icon: "▦", permissions: ["timetable.read"] },
-    { label: "Attendance", href: "/student/attendance", icon: "◷", permissions: ["attendance.read"] },
-    { label: "Assignments", href: "/student/assignments", icon: "✓", permissions: ["assignments.read"] },
-    { label: "Marks", href: "/student/marks", icon: "◈", permissions: ["marks.read"] },
-    { label: "Results", href: "/results", icon: "◉", permissions: ["results.read"] },
-    { label: "Examinations", href: "/examinations", icon: "✍", permissions: ["exams.read"] },
-    { label: "Fees", href: "/fees", icon: "₹", permissions: ["fees.read", "fees.pay"] },
-    { label: "Course registration", href: "/course-registration", icon: "⊞", permissions: ["registration.read", "registration.manage"] },
-    { label: "Library", href: "/library", icon: "❏", permissions: ["library.read", "library.borrow"] },
-    { label: "Certificates", href: "/certificates", icon: "❖", permissions: ["certificates.read"] },
-    { label: "Leave", href: "/leave-management", icon: "⏻", permissions: ["leave.read", "leave.manage"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  PARENT: [
-    { label: "Dashboard", href: "/parent", icon: "⌂" },
-    { label: "My children", href: "/parent/children", icon: "♙", permissions: ["parent-links.read"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
-  CLUB_PRESIDENT: [
-    { label: "Dashboard", href: "/club-president", icon: "⌂" },
-    { label: "Club workspace", href: "/club-president", icon: "♣", permissions: ["club.read", "club.manage"] },
-    { label: "Calendar", href: "/calendar", icon: "◫", permissions: ["calendar.read"] },
-    { label: "Account security", href: "/account-security", icon: "⛨" },
-  ],
+const roleNavigation = (role: CanonicalRole): NavGroup[] => {
+  const account: NavGroup = {
+    label: "Account",
+    items: [{ label: "Account & security", href: "/account-security" }],
+  };
+
+  const map: Record<CanonicalRole, NavGroup[]> = {
+    SUPER_ADMIN: [
+      {
+        label: "Platform",
+        items: [
+          { label: "Overview", href: "/superadmin" },
+          { label: "Institutions", href: "/superadmin", permissions: ["institutions.manage"] },
+          { label: "Platform security", href: "/account-security" },
+        ],
+      },
+    ],
+    INSTITUTION_ADMIN: [
+      {
+        label: "Administration",
+        items: [
+          { label: "Overview", href: "/admin" },
+          { label: "People & users", href: "/admin", permissions: ["users.read"] },
+          { label: "Institution settings", href: "/institution-settings", permissions: ["institutions.manage"] },
+          { label: "Students", href: "/students", permissions: ["students.read"] },
+        ],
+      },
+      {
+        label: "Academic setup",
+        items: [
+          { label: "Academic structure", href: "/erp", permissions: ["academic-masters.read"] },
+          { label: "Data import", href: "/imports", permissions: ["imports.manage"] },
+        ],
+      },
+    ],
+    CHAIRMAN: [
+      {
+        label: "Leadership",
+        items: [
+          { label: "Overview", href: "/chairman" },
+          { label: "Institution intelligence", href: "/intelligence", permissions: ["intelligence.read"] },
+          { label: "Reports", href: "/reports", permissions: ["reports.read"] },
+        ],
+      },
+    ],
+    DIRECTOR: [
+      {
+        label: "Leadership",
+        items: [
+          { label: "Overview", href: "/director" },
+          { label: "Institution intelligence", href: "/intelligence", permissions: ["intelligence.read"] },
+          { label: "Reports", href: "/reports", permissions: ["reports.read"] },
+        ],
+      },
+      {
+        label: "Operations",
+        items: [
+          { label: "Admissions", href: "/admissions", permissions: ["admissions.read"] },
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+        ],
+      },
+    ],
+    DEAN: [
+      {
+        label: "School",
+        items: [
+          { label: "Overview", href: "/dean" },
+          { label: "Students", href: "/students", permissions: ["students.read"] },
+          { label: "Academic intelligence", href: "/intelligence", permissions: ["intelligence.read"] },
+        ],
+      },
+      {
+        label: "Assessment",
+        items: [
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+          { label: "Results", href: "/results", permissions: ["results.read"] },
+        ],
+      },
+    ],
+    REGISTRAR: [
+      {
+        label: "Student records",
+        items: [
+          { label: "Overview", href: "/registrar" },
+          { label: "Enrollment", href: "/enrollment", permissions: ["students.read", "registration.read"] },
+          { label: "Student movement", href: "/student-promotion", permissions: ["promotions.read"] },
+          { label: "Certificates", href: "/certificates", permissions: ["certificates.read"] },
+        ],
+      },
+      {
+        label: "Registration",
+        items: [
+          { label: "Course registration", href: "/course-registration", permissions: ["registration.read"] },
+        ],
+      },
+    ],
+    HOD: [
+      {
+        label: "Department",
+        items: [
+          { label: "Overview", href: "/hod" },
+          { label: "Students", href: "/students", permissions: ["students.read"] },
+          { label: "Academic operations", href: "/erp", permissions: ["academic-masters.read"] },
+          { label: "Student movement", href: "/student-promotion", permissions: ["promotions.read"] },
+        ],
+      },
+      {
+        label: "Assessment",
+        items: [
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+          { label: "Intelligence", href: "/intelligence", permissions: ["intelligence.read"] },
+        ],
+      },
+    ],
+    FACULTY: [
+      {
+        label: "Teaching",
+        items: [
+          { label: "Overview", href: "/faculty" },
+          { label: "Attendance", href: "/faculty/attendance", permissions: ["attendance.read"] },
+          { label: "Assignments", href: "/faculty/assignments", permissions: ["assignments.read"] },
+          { label: "Marks", href: "/faculty/marks", permissions: ["marks.read"] },
+        ],
+      },
+      {
+        label: "My work",
+        items: [
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+          { label: "Calendar", href: "/calendar", permissions: ["calendar.read"] },
+          { label: "Leave", href: "/leave-management", permissions: ["leave.read"] },
+        ],
+      },
+    ],
+    ACCOUNTS: [
+      {
+        label: "Finance",
+        items: [
+          { label: "Overview", href: "/accounts" },
+          { label: "Fees & billing", href: "/fees", permissions: ["fees.read"] },
+          { label: "Fee setup", href: "/erp?tab=fees", permissions: ["fees.manage"] },
+          { label: "Reports", href: "/reports", permissions: ["reports.read"] },
+        ],
+      },
+    ],
+    HR: [
+      {
+        label: "People",
+        items: [
+          { label: "Overview", href: "/hr" },
+          { label: "Employees", href: "/hr", permissions: ["hr.read"] },
+          { label: "Leave", href: "/leave-management", permissions: ["leave.read"] },
+          { label: "Calendar", href: "/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+    ],
+    ADMISSIONS: [
+      {
+        label: "Admissions",
+        items: [
+          { label: "Overview", href: "/admissions" },
+          { label: "Applications", href: "/applications", permissions: ["admissions.read"] },
+        ],
+      },
+    ],
+    EXAMINATION: [
+      {
+        label: "Examination",
+        items: [
+          { label: "Overview", href: "/examinations" },
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+          { label: "Results", href: "/results", permissions: ["results.read"] },
+          { label: "Calendar", href: "/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+    ],
+    LIBRARIAN: [
+      {
+        label: "Library",
+        items: [
+          { label: "Overview & circulation", href: "/library", permissions: ["library.read"] },
+          { label: "Calendar", href: "/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+    ],
+    PLACEMENT: [
+      {
+        label: "Placement",
+        items: [
+          { label: "Overview", href: "/placements" },
+          { label: "Placement operations", href: "/placements", permissions: ["placement.read"] },
+          { label: "Intelligence", href: "/intelligence", permissions: ["intelligence.read"] },
+        ],
+      },
+    ],
+    IT: [
+      {
+        label: "Technology",
+        items: [
+          { label: "Overview", href: "/it" },
+          { label: "Operations", href: "/operations", permissions: ["operations.read"] },
+        ],
+      },
+    ],
+    CMS: [
+      {
+        label: "Website",
+        items: [
+          { label: "Content workspace", href: "/site-content", permissions: ["site.manage"] },
+        ],
+      },
+    ],
+    STUDENT: [
+      {
+        label: "My academics",
+        items: [
+          { label: "Overview", href: "/student" },
+          { label: "Timetable", href: "/student/timetable", permissions: ["timetable.read"] },
+          { label: "Attendance", href: "/student/attendance", permissions: ["attendance.read"] },
+          { label: "Assignments", href: "/student/assignments", permissions: ["assignments.read"] },
+          { label: "Marks & results", href: "/student/marks", permissions: ["marks.read"] },
+        ],
+      },
+      {
+        label: "Campus",
+        items: [
+          { label: "Examinations", href: "/examinations", permissions: ["exams.read"] },
+          { label: "Course registration", href: "/course-registration", permissions: ["registration.read"] },
+          { label: "Library", href: "/library", permissions: ["library.read"] },
+          { label: "Academic dates", href: "/student/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+      {
+        label: "My requests",
+        items: [
+          { label: "Fees", href: "/fees", permissions: ["fees.read"] },
+          { label: "Certificates", href: "/certificates", permissions: ["certificates.read"] },
+          { label: "Leave", href: "/leave-management", permissions: ["leave.read"] },
+        ],
+      },
+    ],
+    PARENT: [
+      {
+        label: "My family",
+        items: [
+          { label: "Overview", href: "/parent" },
+          { label: "My children", href: "/parent/children", permissions: ["parent-links.read"] },
+          { label: "Academic calendar", href: "/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+    ],
+    CLUB_PRESIDENT: [
+      {
+        label: "Club",
+        items: [
+          { label: "Overview", href: "/club-president" },
+          { label: "Club workspace", href: "/club-president", permissions: ["club.read"] },
+          { label: "Calendar", href: "/calendar", permissions: ["calendar.read"] },
+        ],
+      },
+    ],
+  };
+
+  return [...map[role], account];
 };
 
 function getPrimaryRole(roles: string[]): CanonicalRole | null {
   const normalized = normalizeRoles(roles);
   return ROLE_PRIORITY.find((role) => normalized.includes(role)) ?? null;
+}
+
+function initials(user: AuthUser | null): string {
+  if (!user) return "A";
+  return `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "A";
 }
 
 export function DashboardShell({
@@ -253,6 +389,7 @@ export function DashboardShell({
   const [user, setUser] = useState<AuthUser | null>(cached);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
   const normalizedAllowedRoles = useMemo(
     () => normalizeRoles(allowedRoles ?? []),
@@ -267,16 +404,23 @@ export function DashboardShell({
       .then((currentUser) => {
         if (!mounted) return;
         const roles = normalizeRoles(currentUser.roles);
-        if (normalizedAllowedRoles.length && !normalizedAllowedRoles.some((role) => roles.includes(role))) {
-          const target = getPrimaryRole(roles);
-          router.replace(target ? ROLE_HOME[target] : "/login");
+        setUser(currentUser);
+        setCheckingAccess(false);
+
+        if (
+          normalizedAllowedRoles.length &&
+          !normalizedAllowedRoles.some((role) => roles.includes(role))
+        ) {
           return;
         }
-        setUser(currentUser);
       })
       .catch((error) => {
         if (!mounted) return;
-        if (error instanceof AuthRequiredError) router.replace("/login");
+        if (error instanceof AuthRequiredError) {
+          router.replace("/login");
+          return;
+        }
+        setCheckingAccess(false);
       });
 
     return () => {
@@ -296,12 +440,27 @@ export function DashboardShell({
   }, [mobileOpen]);
 
   const primaryRole = getPrimaryRole(user?.roles ?? normalizedAllowedRoles);
-  const navItems = useMemo(() => {
-    if (!primaryRole) return [];
-    return ROLE_NAVIGATION[primaryRole].filter(
-      (item) => !item.permissions?.length || (user ? hasAnyPermission(user, item.permissions) : false),
-    );
-  }, [primaryRole, user]);
+  const groups = useMemo(
+    () => (primaryRole ? roleNavigation(primaryRole) : []),
+    [primaryRole],
+  );
+
+  const visibleGroups = useMemo(() => {
+    if (!user) return groups;
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(
+          (item) =>
+            !item.permissions?.length || hasAnyPermission(user, item.permissions),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [groups, user]);
+
+  const allowed =
+    !normalizedAllowedRoles.length ||
+    (primaryRole ? normalizedAllowedRoles.includes(primaryRole) : true);
 
   async function signOut() {
     await logout();
@@ -309,82 +468,172 @@ export function DashboardShell({
   }
 
   function isActive(item: NavItem) {
-    if (pathname === item.href) return true;
-    if (item.href.includes("?")) return false;
-    return pathname.startsWith(`${item.href}/`);
+    const [path] = item.href.split("?");
+    if (pathname === path) return true;
+    return pathname.startsWith(`${path}/`);
+  }
+
+  if (!checkingAccess && normalizedAllowedRoles.length && !allowed) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
+        <div className="mx-auto max-w-3xl pt-8 sm:pt-16">
+          <AccessNotice
+            title="This workspace isn't assigned to you"
+            message="Your account is active, but this workspace belongs to a different responsibility. Use your own dashboard to see the tools and records available to you."
+            homeHref={primaryRole ? ROLE_HOME[primaryRole] : "/login"}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6">
+    <div className="min-h-screen bg-[#f7f8fc] text-slate-950">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-[68px] max-w-[1800px] items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileOpen((value) => !value)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm lg:hidden"
-              aria-label="Toggle navigation"
+              className="shell-icon-button lg:hidden"
+              aria-label="Open navigation"
             >
-              ☰
+              <span className="text-lg">☰</span>
             </button>
             <button
               type="button"
               onClick={() => setCollapsed((value) => !value)}
-              className="hidden rounded-xl border border-slate-200 px-3 py-2 text-sm lg:block"
-              aria-label="Toggle sidebar"
+              className="shell-icon-button hidden lg:inline-flex"
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             >
-              {collapsed ? "→" : "←"}
+              <span className="text-sm font-black">{collapsed ? "→" : "←"}</span>
             </button>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black tracking-tight">ACADLYX</p>
-              <p className="truncate text-xs text-slate-500">{primaryRole ? ROLE_LABELS[primaryRole] : "Workspace"}</p>
-            </div>
+            <Link href={primaryRole ? ROLE_HOME[primaryRole] : "/"} className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-black tracking-tight text-white">
+                AX
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black tracking-tight">ACADLYX</p>
+                <p className="truncate text-[11px] font-medium text-slate-500">
+                  {primaryRole ? ROLE_LABELS[primaryRole] : "Workspace"}
+                </p>
+              </div>
+            </Link>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-bold text-slate-800">{user ? `${user.firstName} ${user.lastName}`.trim() : "Loading…"}</p>
-              <p className="text-[11px] text-slate-500">{user?.email ?? ""}</p>
+
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="hidden min-w-0 text-right md:block">
+              <p className="truncate text-xs font-bold text-slate-800">
+                {user ? `${user.firstName} ${user.lastName}`.trim() : "Loading…"}
+              </p>
+              <p className="truncate text-[11px] text-slate-500">{user?.email ?? ""}</p>
+            </div>
+            <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700 sm:flex">
+              {initials(user)}
             </div>
             <AccountMenu />
-            <button type="button" onClick={signOut} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+            <button
+              type="button"
+              onClick={signOut}
+              className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex"
+            >
               Sign out
             </button>
           </div>
         </div>
       </header>
 
-      {mobileOpen ? <button aria-label="Close navigation" className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" onClick={() => setMobileOpen(false)} /> : null}
+      {mobileOpen ? (
+        <button
+          aria-label="Close navigation"
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      ) : null}
 
-      <aside className={`fixed bottom-0 left-0 top-[72px] z-50 w-[250px] border-r border-slate-200 bg-white transition-transform duration-200 ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${collapsed ? "lg:w-[82px]" : ""}`}>
-        <div className="flex h-full flex-col overflow-y-auto p-4">
-          {primaryRole ? (
-            <div className={`mb-4 rounded-2xl bg-slate-950 p-4 text-white ${collapsed ? "lg:hidden" : ""}`}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300">Current workspace</p>
-              <p className="mt-1 text-sm font-black">{ROLE_LABELS[primaryRole]}</p>
-            </div>
-          ) : null}
+      <aside
+        className={`fixed bottom-0 left-0 top-[68px] z-50 w-[270px] border-r border-slate-200/80 bg-white transition-transform duration-200 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } ${collapsed ? "lg:w-[86px]" : ""}`}
+      >
+        <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
+          <div className={`mb-4 rounded-2xl bg-slate-950 p-4 text-white ${collapsed ? "lg:hidden" : ""}`}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-300">Your workspace</p>
+            <p className="mt-1 text-sm font-black">{primaryRole ? ROLE_LABELS[primaryRole] : "Workspace"}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              Only tools assigned to your responsibility are shown.
+            </p>
+          </div>
 
-          <nav className="space-y-1" aria-label="Workspace navigation">
-            {navItems.map((item) => {
-              const active = isActive(item);
-              return (
-                <Link key={`${item.href}:${item.label}`} href={item.href} title={collapsed ? item.label : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${collapsed ? "lg:justify-center lg:px-2" : ""} ${active ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"}`} onClick={() => setMobileOpen(false)}>
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${active ? "bg-white/15" : "bg-slate-100 text-slate-500"}`}>{item.icon}</span>
-                  <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
-                </Link>
-              );
-            })}
+          <nav className="space-y-5" aria-label="Workspace navigation">
+            {visibleGroups.map((group) => (
+              <section key={group.label}>
+                <p className={`mb-2 px-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 ${collapsed ? "lg:hidden" : ""}`}>
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const active = isActive(item);
+                    return (
+                      <Link
+                        key={`${item.href}:${item.label}`}
+                        href={item.href}
+                        title={collapsed ? item.label : item.description}
+                        className={`group flex min-h-10 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                          collapsed ? "lg:justify-center lg:px-2" : ""
+                        } ${
+                          active
+                            ? "bg-slate-950 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                        }`}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-black ${
+                            active
+                              ? "bg-white/15 text-white"
+                              : "bg-slate-100 text-slate-500 group-hover:bg-white"
+                          }`}
+                        >
+                          {item.label.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </nav>
+
+          <div className={`mt-auto pt-5 ${collapsed ? "lg:hidden" : ""}`}>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-800">Need help?</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                If a tool is missing, it is usually outside your assigned responsibility or data scope.
+              </p>
+            </div>
+          </div>
         </div>
       </aside>
 
-      <main className={`min-h-screen pt-[72px] transition-[padding] duration-200 ${collapsed ? "lg:pl-[82px]" : "lg:pl-[250px]"}`}>
-        <div className="min-w-0 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-[1600px]">
-            <div className="mb-6">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{primaryRole ? ROLE_LABELS[primaryRole] : "Workspace"}</p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{title}</h1>
-              {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+      <main
+        className={`min-h-screen pt-[68px] transition-[padding] duration-200 ${
+          collapsed ? "lg:pl-[86px]" : "lg:pl-[270px]"
+        }`}
+      >
+        <div className="min-w-0 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-[1480px]">
+            <div className="mb-6 flex flex-col gap-2 sm:mb-8">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                {primaryRole ? ROLE_LABELS[primaryRole] : "Workspace"}
+              </p>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                {title}
+              </h1>
+              {subtitle ? (
+                <p className="max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>
+              ) : null}
             </div>
             {children}
           </div>
