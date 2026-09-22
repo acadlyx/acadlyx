@@ -23,17 +23,27 @@ import {
 } from "./middleware/requestContext";
 
 import academicYearRoutes from "./routes/academicYear.routes";
+import admissionRoutes from "./routes/admission.routes";
 import assignmentRoutes from "./routes/assignment.routes";
 import attendanceSessionRoutes from "./routes/attendanceSession.routes";
 import authRoutes from "./routes/auth.routes";
+import calendarRoutes from "./routes/calendar.routes";
 import campusRoutes from "./routes/campus.routes";
+import certificateRoutes from "./routes/certificate.routes";
 import courseRoutes from "./routes/course.routes";
 import courseOfferingRoutes from "./routes/courseOffering.routes";
 import departmentRoutes from "./routes/department.routes";
 import facultyRoutes from "./routes/faculty.routes";
+import gradingRoutes from "./routes/grading.routes";
 import healthRoutes from "./routes/health.routes";
+import hrRoutes from "./routes/hr.routes";
 import internalMarkRoutes from "./routes/internalMark.routes";
+import leaveRoutes from "./routes/leave.routes";
+import libraryRoutes from "./routes/library.routes";
+import movementRoutes from "./routes/movement.routes";
+import portalRoutes from "./routes/portal.routes";
 import programRoutes from "./routes/program.routes";
+import registrationRoutes from "./routes/registration.routes";
 import sectionRoutes from "./routes/section.routes";
 import semesterRoutes from "./routes/semester.routes";
 import studentRoutes from "./routes/student.routes";
@@ -45,6 +55,15 @@ import importRoutes from "./routes/import.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
+import examinationRoutes from "./routes/examination.routes";
+import attendanceGovernanceRoutes from "./routes/attendanceGovernance.routes";
+import lmsRoutes from "./routes/lms.routes";
+import feeBillingRoutes from "./routes/feeBilling.routes";
+import parentPortalRoutes from "./routes/parentPortal.routes";
+import operationsRoutes from "./routes/operations.routes";
+import securityRoutes from "./routes/security.routes";
+import subscriptionPlanRoutes from "./routes/subscriptionPlan.routes";
+import directoryRoutes from "./routes/directory.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -266,6 +285,57 @@ export function createApp(): Application {
   );
 
   /*
+   * ADMISSIONS / HR / LEAVE / PORTALS
+   */
+  app.use(
+    `${apiPrefix}/admissions`,
+    admissionRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/hr`,
+    hrRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/leave`,
+    leaveRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/portal`,
+    portalRoutes
+  );
+
+  /*
+   * STUDENT SERVICES
+   */
+  app.use(
+    `${apiPrefix}/library`,
+    libraryRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/calendar`,
+    calendarRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/registrations`,
+    registrationRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/movements`,
+    movementRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/certificates`,
+    certificateRoutes
+  );
+
+  /*
    * ACADEMIC OPERATIONS
    */
   app.use(
@@ -281,6 +351,89 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/internal-marks`,
     internalMarkRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/grades`,
+    gradingRoutes
+  );
+
+  /*
+   * DIRECTORY LOOKUPS
+   *
+   * Typeahead endpoints backing the searchable selectors, so no screen
+   * ever asks a user to paste an identifier.
+   */
+  app.use(
+    `${apiPrefix}/directory`,
+    directoryRoutes
+  );
+
+  /*
+   * EXAMINATIONS
+   */
+  app.use(
+    `${apiPrefix}/examinations`,
+    examinationRoutes
+  );
+
+  /*
+   * ATTENDANCE GOVERNANCE
+   *
+   * Policy, shortage, corrections and locking. Marking itself stays
+   * on /attendance-sessions.
+   */
+  app.use(
+    `${apiPrefix}/attendance`,
+    attendanceGovernanceRoutes
+  );
+
+  /*
+   * LEARNING MANAGEMENT
+   */
+  app.use(
+    `${apiPrefix}/lms`,
+    lmsRoutes
+  );
+
+  /*
+   * FEE BILLING
+   */
+  app.use(
+    `${apiPrefix}/billing`,
+    feeBillingRoutes
+  );
+
+  /*
+   * PARENT PORTAL
+   */
+  app.use(
+    `${apiPrefix}/parent`,
+    parentPortalRoutes
+  );
+
+  /*
+   * INSTITUTION OPERATIONS
+   */
+  app.use(
+    `${apiPrefix}/operations`,
+    operationsRoutes
+  );
+
+  /*
+   * ACCOUNT SECURITY (MFA, password reset, session control)
+   */
+  app.use(
+    `${apiPrefix}/security`,
+    securityRoutes
+  );
+
+  /*
+   * SaaS SUBSCRIPTION + TENANT LIFECYCLE
+   */
+  app.use(
+    `${apiPrefix}/subscriptions`,
+    subscriptionPlanRoutes
   );
 
   /*

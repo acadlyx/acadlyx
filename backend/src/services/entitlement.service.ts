@@ -37,7 +37,15 @@ export async function assertTenantFeature(institutionId: string, feature: Tenant
   if (unavailableStatuses.has(subscription.status) || (subscription.expiresAt && subscription.expiresAt < new Date())) {
     throw new AppError("This tenant subscription is not active", 402);
   }
-  const entitlement = subscription.entitlements[0];
+  let entitlement = subscription.entitlements[0];
+  if (!entitlement) {
+    // A feature added after this tenant was provisioned has no row yet.
+    // Provision the missing default rows once (idempotent), then re-read.
+    await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
+    entitlement = (await prisma.tenantFeatureEntitlement.findUnique({
+      where: { institutionId_featureKey: { institutionId, featureKey: feature } },
+    })) as typeof entitlement;
+  }
   if (!entitlement || !entitlement.isEnabled) {
     throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
   }

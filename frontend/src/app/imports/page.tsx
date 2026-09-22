@@ -32,7 +32,7 @@ export default function ImportsPage() {
   const [type, setType] = useState<DataType>("students");
 
   return (
-    <DashboardShell title="Data Import & Export" subtitle="Bulk ERP data operations" allowedRoles={["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "STAFF"]}>
+    <DashboardShell title="Data Import & Export" subtitle="Bulk ERP data operations" allowedRoles={["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "IT"]}>
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">No database access required</p>

@@ -67,6 +67,17 @@ model Institution {
   subscription          TenantSubscription?
   featureEntitlements   TenantFeatureEntitlement[]
 
+  admissionApplications AdmissionApplication[]
+  employeeProfiles EmployeeProfile[]
+  leaveTypes LeaveType[]
+  leaveRequests LeaveRequest[]
+  libraryBooks LibraryBook[]
+  libraryIssues LibraryIssue[]
+  calendarEvents CalendarEvent[]
+  courseRegistrations CourseRegistration[]
+  movementRequests StudentMovementRequest[]
+  certificates Certificate[]
+
   @@index([isActive])
   @@map("institutions")
 }
@@ -87,6 +98,9 @@ model TenantSubscription {
   userLimit      Int?
   facultyLimit   Int?
   storageLimitMb Int?
+  planId             String?
+  cancelledAt        DateTime?
+  cancellationReason String?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -135,6 +149,17 @@ model User {
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
 
+  /// Authentication hardening. MFA is TOTP (RFC 6238); the secret is
+  /// stored encrypted at rest by auth.mfa.service and is never returned
+  /// to a client after enrolment.
+  mfaEnabled          Boolean   @default(false)
+  mfaSecret           String?
+  mfaEnrolledAt       DateTime?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  passwordChangedAt   DateTime?
+  mustChangePassword  Boolean   @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -162,6 +187,16 @@ model User {
   feePayments             FeePayment[]
   documents               Document[]             @relation("DocumentOwner")
   notifications           Notification[]
+
+  employeeProfile EmployeeProfile?
+  leaveRequests LeaveRequest[] @relation("LeaveApplicant")
+  libraryIssues LibraryIssue[] @relation("LibraryBorrower")
+  courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
+  movementRequests StudentMovementRequest[] @relation("MovementStudent")
+  certificates Certificate[] @relation("CertificateStudent")
+  passwordResetTokens PasswordResetToken[]
+  mfaRecoveryCodes    MfaRecoveryCode[]
+  mfaChallenges       MfaChallenge[]
 
   @@index([institutionId])
   @@map("users")
@@ -355,6 +390,8 @@ model Department {
   courses            Course[]
   departmentAccesses DepartmentAccess[]
 
+  employeeProfiles EmployeeProfile[]
+
   @@unique([institutionId, code])
   @@index([institutionId])
   @@index([campusId])
@@ -383,6 +420,8 @@ model Program {
 
   studentEnrollments StudentEnrollment[]
 
+  admissionApplications AdmissionApplication[]
+
   @@unique([institutionId, code])
   @@index([institutionId])
   @@index([departmentId])
@@ -407,6 +446,9 @@ model AcademicYear {
   semesters Semester[]
 
   studentEnrollments StudentEnrollment[]
+
+  admissionApplications AdmissionApplication[]
+  calendarEvents CalendarEvent[]
 
   @@unique([institutionId, name])
   @@index([institutionId])
@@ -514,6 +556,13 @@ model CourseOffering {
   facultyId     String?
   faculty       User?       @relation("CourseOfferingFaculty", fields: [facultyId], references: [id], onDelete: SetNull)
 
+  /// Seat limit for self-registration. Null falls back to the section capacity.
+  capacity          Int?
+  /// When false the offering is closed to new student registrations.
+  registrationOpen  Boolean @default(true)
+  /// Elective offerings require approval and are not auto-rostered by section.
+  isElective        Boolean @default(false)
+
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -524,6 +573,8 @@ model CourseOffering {
   internalMarks      InternalMark[]
   timetableEntries   TimetableEntry[]
   exams              Exam[]
+
+  registrations CourseRegistration[]
 
   @@unique([courseId, semesterId, sectionId])
   @@index([institutionId])
@@ -613,6 +664,7 @@ model StudentEnrollment {
   @@index([userId])
   @@index([programId])
   @@index([sectionId])
+  @@index([semesterId])
   @@index([academicYearId])
   @@map("student_enrollments")
 }
@@ -639,6 +691,12 @@ model AttendanceSession {
   sessionDate DateTime  @db.Date
   isSubmitted Boolean   @default(false)
   submittedAt DateTime?
+
+  /// Finalisation. A locked session can only be changed through an
+  /// approved AttendanceCorrectionRequest, never by direct marking.
+  isLocked    Boolean   @default(false)
+  lockedAt    DateTime?
+  lockedById  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -991,11 +1049,32 @@ model FeeInvoice {
   amount        Float
   dueDate       DateTime?
   status        String       @default("PENDING")
+
+  /// Billing lifecycle. `amount` remains the net payable so existing
+  /// readers are unaffected; the breakdown below explains how it was
+  /// reached and how much of it has settled.
+  invoiceNumber     String?
+  feeStructureId    String?
+  academicYearId    String?
+  semesterId        String?
+  installmentNumber Int       @default(1)
+  grossAmount       Float?
+  discountAmount    Float     @default(0)
+  lateFeeAmount     Float     @default(0)
+  paidAmount        Float     @default(0)
+  refundedAmount    Float     @default(0)
+  currency          String    @default("INR")
+  notes             String?
+  cancelledAt       DateTime?
+  createdById       String?
+
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   payments      FeePayment[]
 
+  @@unique([institutionId, invoiceNumber])
   @@index([institutionId, studentId, status])
+  @@index([institutionId, dueDate])
   @@map("fee_invoices")
 }
 
@@ -1008,11 +1087,30 @@ model FeePayment {
   amount        Float
   reference     String?
   paidAt        DateTime    @default(now())
+
+  /// Settlement metadata. `provider*` fields are written by whichever
+  /// payment gateway adapter handled the transaction and are the
+  /// reconciliation join key.
+  method            String    @default("OFFLINE")
+  status            String    @default("SUCCESS")
+  provider          String?
+  providerOrderId   String?
+  providerPaymentId String?
+  providerSignature String?
+  receiptNumber     String?
+  refundedAmount    Float     @default(0)
+  reconciledAt      DateTime?
+  recordedById      String?
+  notes             String?
+
   createdAt     DateTime    @default(now())
   User          User?       @relation(fields: [userId], references: [id])
   userId        String?
 
+  @@unique([institutionId, receiptNumber])
+  @@unique([provider, providerPaymentId])
   @@index([institutionId, invoiceId])
+  @@index([institutionId, status])
   @@map("fee_payments")
 }
 
@@ -1086,4 +1184,323 @@ model SiteContent {
   @@unique([institutionId])
   @@index([institutionId, updatedAt])
   @@map("site_contents")
+}
+
+
+// ==========================================================
+// ERP EXPANSION: admissions, HR, leave, library, calendar,
+// course registration, promotion/transfer, certificates.
+// Every table is tenant-scoped through institutionId.
+// ==========================================================
+
+model AdmissionApplication {
+  id                  String       @id @default(uuid())
+  institutionId       String
+  institution         Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  applicationNumber   String
+  firstName           String
+  lastName            String
+  email               String
+  phone               String?
+  dateOfBirth         DateTime?
+  gender              String?
+  guardianName        String?
+  guardianPhone       String?
+  previousInstitution String?
+  previousPercentage  Float?
+  programId           String
+  program             Program      @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId      String
+  academicYear        AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  /// SUBMITTED | UNDER_REVIEW | DOCUMENTS_PENDING | SELECTED | REJECTED | ENROLLED | WITHDRAWN
+  status              String       @default("SUBMITTED")
+  remarks             String?
+  reviewedById        String?
+  reviewedAt          DateTime?
+  enrolledUserId      String?      @unique
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([institutionId, applicationNumber])
+  @@index([institutionId, status])
+  @@index([programId])
+  @@index([academicYearId])
+  @@map("admission_applications")
+}
+
+model EmployeeProfile {
+  id                    String      @id @default(uuid())
+  institutionId         String
+  institution           Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId                String      @unique
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode          String
+  departmentId          String?
+  department            Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation           String
+  /// FULL_TIME | PART_TIME | CONTRACT | VISITING
+  employmentType        String      @default("FULL_TIME")
+  joiningDate           DateTime
+  /// ACTIVE | ON_LEAVE | RESIGNED | TERMINATED | RETIRED
+  status                String      @default("ACTIVE")
+  qualification         String?
+  address               String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@unique([institutionId, employeeCode])
+  @@index([institutionId, status])
+  @@index([departmentId])
+  @@map("employee_profiles")
+}
+
+model LeaveType {
+  id              String         @id @default(uuid())
+  institutionId   String
+  institution     Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name            String
+  code            String
+  annualQuota     Int            @default(0)
+  /// Role names allowed to apply (empty = every role).
+  applicableRoles String[]
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  requests        LeaveRequest[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@map("leave_types")
+}
+
+model LeaveRequest {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  applicantId   String
+  applicant     User        @relation("LeaveApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  leaveTypeId   String
+  leaveType     LeaveType   @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  fromDate      DateTime
+  toDate        DateTime
+  days          Int
+  reason        String
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status        String      @default("PENDING")
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([institutionId, status])
+  @@index([applicantId])
+  @@index([leaveTypeId])
+  @@map("leave_requests")
+}
+
+model LibraryBook {
+  id              String         @id @default(uuid())
+  institutionId   String
+  institution     Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title           String
+  author          String
+  isbn            String?
+  category        String?
+  publisher       String?
+  shelfLocation   String?
+  totalCopies     Int            @default(1)
+  availableCopies Int            @default(1)
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  issues          LibraryIssue[]
+
+  @@unique([institutionId, isbn])
+  @@index([institutionId, title])
+  @@map("library_books")
+}
+
+model LibraryIssue {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  bookId        String
+  book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  borrowerId    String
+  borrower      User        @relation("LibraryBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+  issuedById    String
+  issuedAt      DateTime    @default(now())
+  dueDate       DateTime
+  returnedAt    DateTime?
+  fineAmount    Float       @default(0)
+  /// ISSUED | RETURNED | LOST
+  status        String      @default("ISSUED")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([institutionId, status])
+  @@index([institutionId, dueDate])
+  @@index([borrowerId])
+  @@index([bookId])
+  @@map("library_issues")
+}
+
+model CalendarEvent {
+  id             String        @id @default(uuid())
+  institutionId  String
+  institution    Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  /// HOLIDAY | EXAM | EVENT | DEADLINE | ACADEMIC
+  eventType      String        @default("EVENT")
+  startDate      DateTime
+  endDate        DateTime
+  academicYearId String?
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  /// ALL | STUDENTS | FACULTY | STAFF
+  audience       String        @default("ALL")
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([institutionId, startDate])
+  @@index([institutionId, endDate])
+  @@index([academicYearId])
+  @@map("calendar_events")
+}
+
+model CourseRegistration {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User           @relation("RegistrationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  /// REQUESTED | APPROVED | REJECTED | DROPPED
+  status           String         @default("REQUESTED")
+  decidedById      String?
+  decidedAt        DateTime?
+  remarks          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([studentId, courseOfferingId])
+  @@index([institutionId, status])
+  @@index([studentId, status])
+  @@index([courseOfferingId])
+  @@map("course_registrations")
+}
+
+model StudentMovementRequest {
+  id                  String      @id @default(uuid())
+  institutionId       String
+  institution         Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             User        @relation("MovementStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  /// PROMOTION | SECTION_TRANSFER | PROGRAM_TRANSFER
+  requestType         String
+  fromEnrollmentId    String
+  targetProgramId     String?
+  targetAcademicYearId String?
+  targetSemesterId    String?
+  targetSectionId     String?
+  reason              String?
+  /// PENDING | APPROVED | REJECTED
+  status              String      @default("PENDING")
+  requestedById       String
+  decidedById         String?
+  decidedAt           DateTime?
+  decisionNote        String?
+  appliedEnrollmentId String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([institutionId, status])
+  @@index([institutionId, requestType])
+  @@index([studentId])
+  @@map("student_movement_requests")
+}
+
+model Certificate {
+  id                String      @id @default(uuid())
+  institutionId     String
+  institution       Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId         String
+  student           User        @relation("CertificateStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  /// BONAFIDE | CHARACTER | TRANSFER | MARKSHEET | COURSE_COMPLETION
+  certificateType   String
+  certificateNumber String?
+  purpose           String?
+  /// REQUESTED | ISSUED | REJECTED
+  status            String      @default("REQUESTED")
+  requestedById     String
+  issuedById        String?
+  issuedAt          DateTime?
+  remarks           String?
+  /// Immutable snapshot of the facts certified at issue time.
+  payload           Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([institutionId, certificateNumber])
+  @@index([institutionId, status])
+  @@index([institutionId, certificateType])
+  @@index([studentId])
+  @@map("certificates")
+}
+
+
+// ==========================================================
+// AUTHENTICATION HARDENING
+// ==========================================================
+
+/// Single-use password reset grant. Only the SHA-256 hash of the token
+/// is stored, so a database read never yields a usable reset link.
+model PasswordResetToken {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+/// One-time MFA bypass code, hashed. Consumed on use and never reissued.
+model MfaRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
+}
+
+/// Short-lived handle issued after a correct password when MFA is on.
+/// It is not an access token: it only authorises the second factor step.
+model MfaChallenge {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeHash String    @unique
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  attempts      Int       @default(0)
+  ipAddress     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+  @@map("mfa_challenges")
 }

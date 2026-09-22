@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 
 const MANAGEMENT_ROLES = [
@@ -12,13 +13,16 @@ const MANAGEMENT_ROLES = [
   "STAFF",
 ];
 
-const weekday = new Date().getDay();
+/** Evaluated per call: a module-level constant would freeze the weekday at process start. */
+const todayWeekday = () => new Date().getDay();
 
 function assertRole(
   user: AuthenticatedUser,
   allowed: string[]
 ): void {
-  if (!user.roles.some((role) => allowed.includes(role))) {
+  const actorRoles = getCanonicalRoleNames(user.roles);
+  const allowedRoles = getCanonicalRoleNames(allowed);
+  if (!actorRoles.some((role) => allowedRoles.includes(role))) {
     throw new AppError(
       "Not authorized for this ERP operation",
       403
@@ -30,7 +34,9 @@ function hasAnyRole(
   user: AuthenticatedUser,
   roles: string[]
 ): boolean {
-  return user.roles.some((role) => roles.includes(role));
+  const actorRoles = getCanonicalRoleNames(user.roles);
+  const allowedRoles = getCanonicalRoleNames(roles);
+  return actorRoles.some((role) => allowedRoles.includes(role));
 }
 
 async function assertDepartmentScope(
@@ -540,14 +546,20 @@ export async function getMyWorkspace(
   const now = new Date();
 
   /*
-   * MANAGEMENT / DIRECTOR / INSTITUTION ADMIN / STAFF
+   * LEADERSHIP WORKSPACES
+   *
+   * These roles share the institution-level KPI source for the dashboard
+   * summary, but their actionable modules remain permission-controlled by
+   * the authenticated role. Department/school-specific authority is not
+   * inferred here; it is enforced by the underlying module APIs.
    */
   if (
     hasAnyRole(actor, [
       "INSTITUTION_ADMIN",
+      "CHAIRMAN",
       "DIRECTOR",
-      "MANAGEMENT",
-      "STAFF",
+      "DEAN",
+      "REGISTRAR",
     ])
   ) {
     const management =
@@ -585,8 +597,18 @@ export async function getMyWorkspace(
         take: 10,
       });
 
+    const workspaceType = actor.roles.includes("CHAIRMAN")
+      ? "CHAIRMAN"
+      : actor.roles.includes("DIRECTOR")
+        ? "DIRECTOR"
+        : actor.roles.includes("DEAN")
+          ? "DEAN"
+          : actor.roles.includes("REGISTRAR")
+            ? "REGISTRAR"
+            : "INSTITUTION_ADMIN";
+
     return {
-      workspaceType: "MANAGEMENT",
+      workspaceType,
       stats: management.stats,
       timetable: [],
       notices,
@@ -722,7 +744,7 @@ export async function getMyWorkspace(
       prisma.timetableEntry.findMany({
         where: {
           institutionId,
-          dayOfWeek: weekday,
+          dayOfWeek: todayWeekday(),
           courseOffering: {
             course: {
               departmentId: {
@@ -906,7 +928,7 @@ export async function getMyWorkspace(
       prisma.timetableEntry.findMany({
         where: {
           institutionId,
-          dayOfWeek: weekday,
+          dayOfWeek: todayWeekday(),
           courseOfferingId: {
             in: offeringIds,
           },
@@ -2031,18 +2053,19 @@ export async function recordPayment(
     invoice.studentId
   );
 
+  /*
+   * Payments are money movements. Only the finance desk (institution admin
+   * or staff) may record them; a student or parent must never be able to
+   * mark their own invoice as paid. Online payments require a verified
+   * gateway callback, which is out of scope for this endpoint.
+   */
   if (
-    actor.id !== invoice.studentId &&
     !actor.roles.some((role) =>
-      [
-        "INSTITUTION_ADMIN",
-        "STAFF",
-        "PARENT",
-      ].includes(role)
+      ["INSTITUTION_ADMIN", "STAFF"].includes(role)
     )
   ) {
     throw new AppError(
-      "Not authorized to record this payment",
+      "Only finance staff can record fee payments",
       403
     );
   }
@@ -2060,7 +2083,7 @@ export async function recordPayment(
         _sum: { amount: true },
       });
       const alreadyPaid = Number(existing._sum.amount || 0);
-      if (alreadyPaid + amount > Number(currentInvoice.amount)) {
+      if (alreadyPaid + amount > Number(currentInvoice.amount) + 0.005) {
         throw new AppError("Payment exceeds the outstanding invoice balance", 400);
       }
 
@@ -2078,7 +2101,7 @@ export async function recordPayment(
       await tx.feeInvoice.update({
         where: { id: invoiceId },
         data: {
-          status: totalPaid >= Number(currentInvoice.amount) ? "PAID" : "PARTIAL",
+          status: totalPaid >= Number(currentInvoice.amount) - 0.005 ? "PAID" : "PARTIAL",
         },
       });
 
@@ -2097,6 +2120,7 @@ export async function recordPayment(
     action: "fee-payment.create",
     entityType: "FeePayment",
     entityId: payment.id,
+    metadata: { invoiceId, amount, reference: reference ?? null },
   });
 
   return payment;

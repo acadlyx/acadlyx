@@ -3,55 +3,31 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { login } from "@/lib/auth";
+import { completeMfaLogin, login } from "@/lib/auth";
 import { apiUrl } from "@/lib/api";
 
 function getDashboardRoute(roles: string[]): string {
-  // Platform administrator gets the platform dashboard.
-  if (roles.includes("SUPER_ADMIN")) {
-    return "/superadmin";
-  }
+  const normalized = new Set(roles.map((role) => role.trim().toUpperCase()));
 
-  // Institution administrator gets the actual ERP administration area.
-  if (roles.includes("INSTITUTION_ADMIN")) {
-    return "/admin";
-  }
-
-  // Executive institutional roles.
-  if (roles.includes("DIRECTOR")) {
-    return "/director";
-  }
-
-  if (roles.includes("MANAGEMENT")) {
-    return "/management";
-  }
-
-  if (roles.includes("HOD")) {
-    return "/hod";
-  }
-
-  // Faculty workspace.
-  if (roles.includes("FACULTY")) {
-    return "/faculty";
-  }
-
-  // Parent workspace.
-  if (roles.includes("PARENT")) {
-    return "/parent";
-  }
-
-  // Staff workspace.
-  if (roles.includes("STAFF")) {
-    return "/staff";
-  }
-
-  if (roles.includes("CMS")) {
-    return "/site-content";
-  }
-
-  if (roles.includes("STUDENT")) {
-    return "/student";
-  }
+  if (normalized.has("SUPER_ADMIN")) return "/superadmin";
+  if (normalized.has("INSTITUTION_ADMIN")) return "/admin";
+  if (normalized.has("CHAIRMAN") || normalized.has("MANAGEMENT")) return "/chairman";
+  if (normalized.has("DIRECTOR")) return "/director";
+  if (normalized.has("DEAN")) return "/dean";
+  if (normalized.has("REGISTRAR")) return "/registrar";
+  if (normalized.has("HOD")) return "/hod";
+  if (normalized.has("FACULTY")) return "/faculty";
+  if (normalized.has("ACCOUNTS") || normalized.has("STAFF")) return "/accounts";
+  if (normalized.has("HR")) return "/hr";
+  if (normalized.has("ADMISSIONS")) return "/admissions";
+  if (normalized.has("EXAMINATION")) return "/examinations";
+  if (normalized.has("LIBRARIAN")) return "/library";
+  if (normalized.has("PLACEMENT")) return "/placements";
+  if (normalized.has("IT")) return "/it";
+  if (normalized.has("CMS")) return "/site-content";
+  if (normalized.has("STUDENT")) return "/student";
+  if (normalized.has("PARENT")) return "/parent";
+  if (normalized.has("CLUB_PRESIDENT")) return "/club-president";
 
   return "/login";
 }
@@ -67,6 +43,9 @@ export default function LoginPage() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [institutions, setInstitutions] = useState<{id:string;name:string;adminOfficeEmail:string|null}[]>([]);
   const [institutionId, setInstitutionId] = useState("");
+  // Set once the password is accepted but a second factor is required.
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
 
   useEffect(() => { if (forgotOpen && !institutions.length) fetch(apiUrl("/auth/recovery-institutions")).then(r=>r.json()).then(b=>setInstitutions(b.data || [])).catch(()=>setInstitutions([])); }, [forgotOpen, institutions.length]);
   const selectedInstitution = institutions.find((institution) => institution.id === institutionId);
@@ -78,11 +57,16 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const user = await login(email.trim(), password);
+      const result = await login(email.trim(), password);
 
-      const destination = getDashboardRoute(user.roles);
+      if (result.mfaRequired) {
+        // No tokens were issued; ask for the authenticator code.
+        setMfaChallenge(result.challengeToken);
+        setMfaCode("");
+        return;
+      }
 
-      router.replace(destination);
+      router.replace(getDashboardRoute(result.user.roles));
     } catch (err) {
       setError(
         err instanceof Error
@@ -92,6 +76,88 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleMfaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!mfaChallenge) return;
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const user = await completeMfaLogin(mfaChallenge, mfaCode.trim());
+      router.replace(getDashboardRoute(user.roles));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Verification failed. Try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (mfaChallenge) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#07111f] px-4 py-10">
+        <div className="w-full max-w-md">
+          <form
+            onSubmit={handleMfaSubmit}
+            className="rounded-3xl border border-white/15 bg-white p-6 shadow-2xl shadow-slate-950/40"
+          >
+            <h2 className="text-lg font-semibold text-slate-950">
+              Two-factor verification
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Enter the 6-digit code from your authenticator app, or one of
+              your recovery codes.
+            </p>
+
+            {error && (
+              <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
+            <label className="mt-5 block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">
+                Verification code
+              </span>
+              <input
+                value={mfaCode}
+                onChange={(event) => setMfaCode(event.target.value)}
+                inputMode="text"
+                autoComplete="one-time-code"
+                autoFocus
+                placeholder="123456"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 tracking-widest"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={submitting || mfaCode.trim().length < 6}
+              className="mt-5 w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+            >
+              {submitting ? "Verifying…" : "Verify and sign in"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMfaChallenge(null);
+                setMfaCode("");
+                setError(null);
+              }}
+              className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600"
+            >
+              Back to sign in
+            </button>
+          </form>
+        </div>
+      </main>
+    );
   }
 
   return (

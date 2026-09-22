@@ -14,15 +14,50 @@ function requestMeta(req: Request) {
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body as LoginInput;
 
-  const { user, tokens } = await authService.login(
+  const result = await authService.login(
     email,
     password,
     requestMeta(req)
   );
 
+  /*
+   * An MFA-enrolled account gets a challenge, not tokens. The shape is
+   * explicit (`mfaRequired`) so a client can never mistake one for the
+   * other.
+   */
+  if (result.mfaRequired) {
+    res.status(200).json({
+      success: true,
+      data: {
+        mfaRequired: true,
+        challengeToken: result.challengeToken,
+        expiresAt: result.expiresAt,
+      },
+    });
+    return;
+  }
+
   res.status(200).json({
     success: true,
-    data: { user, tokens },
+    data: { mfaRequired: false, user: result.user, tokens: result.tokens },
+  });
+});
+
+export const verifyMfa = asyncHandler(async (req: Request, res: Response) => {
+  const { challengeToken, code } = req.body as {
+    challengeToken: string;
+    code: string;
+  };
+
+  const { user, tokens } = await authService.completeMfaLogin(
+    challengeToken,
+    code,
+    requestMeta(req)
+  );
+
+  res.status(200).json({
+    success: true,
+    data: { mfaRequired: false, user, tokens },
   });
 });
 

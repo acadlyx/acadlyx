@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: acadlyx-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci && npm run render:build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_VERSION
+        value: v1
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN_DAYS
+        value: 30
+      - key: BCRYPT_SALT_ROUNDS
+        value: 12
+      - key: AUTH_MAX_FAILED_ATTEMPTS
+        value: 8
+      - key: AUTH_LOCKOUT_MINUTES
+        value: 15
+      - key: AUTH_RESET_TTL_MINUTES
+        value: 30
+      - key: MAIL_ENABLED
+        value: "false"
+      - key: PAYMENT_PROVIDER
+        value: manual
+      - key: PAYMENT_CURRENCY
+        value: INR
+      - key: RBAC_SYNC_ON_BOOT
+        value: "true"

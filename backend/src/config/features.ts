@@ -4,6 +4,9 @@ export const TENANT_FEATURES = [
   "assignments", "fees", "payments", "parent_portal", "notices",
   "notifications", "reports", "import_export", "cms", "documents",
   "analytics", "intelligence", "placements",
+  "admissions", "hr", "leave", "library", "calendar", "registration",
+  "promotions", "certificates", "audit",
+  "lms", "operations",
 ] as const;
 
 export type TenantFeature = typeof TENANT_FEATURES[number];

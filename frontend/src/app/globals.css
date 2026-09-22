@@ -3,23 +3,44 @@
 @tailwind utilities;
 
 :root {
-  --acadlyx-primary: #0f172a;
-  --acadlyx-secondary: #64748b;
-  --acadlyx-sky: #0ea5e9;
-  --acadlyx-violet: #7c3aed;
+  --acadlyx-primary: #2563eb;
+  --acadlyx-primary-dark: #1d4ed8;
+  --acadlyx-primary-soft: #eff6ff;
+  --acadlyx-accent: #06b6d4;
+
   --acadlyx-surface: #ffffff;
-  --acadlyx-background: #f4f7fb;
+  --acadlyx-background: #eef3f8;
+  --acadlyx-border: #dbe4ee;
+
+  --acadlyx-text: #172033;
+  --acadlyx-muted: #64748b;
 }
 
 html {
   min-height: 100%;
   background: var(--acadlyx-background);
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
-  color: var(--acadlyx-primary);
-  background: var(--acadlyx-background);
+  margin: 0;
+
+  color: var(--acadlyx-text);
+
+  background:
+    radial-gradient(
+      circle at 0 0,
+      rgba(37, 99, 235, 0.045),
+      transparent 28rem
+    ),
+    var(--acadlyx-background);
+
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
+
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -30,10 +51,70 @@ select {
   -webkit-tap-highlight-color: transparent;
 }
 
-::selection {
-  background: #bae6fd;
-  color: #0f172a;
+button,
+a {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * LEGACY BLACK BUTTON NORMALIZATION
+ * ---------------------------------------------------------------------------
+ *
+ * A number of older ERP pages still contain bg-slate-950.
+ * Visually normalize those old buttons without forcing every page to be
+ * rewritten immediately.
+ */
+
+button.bg-slate-950,
+a.bg-slate-950,
+[role="button"].bg-slate-950 {
+  background-color:
+    var(--acadlyx-primary) !important;
+}
+
+button.bg-slate-950:hover,
+a.bg-slate-950:hover,
+[role="button"].bg-slate-950:hover {
+  background-color:
+    var(--acadlyx-primary-dark) !important;
+}
+
+button[class~="bg-slate-950"][class~="text-white"],
+a[class~="bg-slate-950"][class~="text-white"] {
+  color: #ffffff !important;
+}
+
+button[class~="hover:bg-slate-800"]:hover,
+a[class~="hover:bg-slate-800"]:hover {
+  background-color:
+    var(--acadlyx-primary-dark) !important;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * SCROLLBARS
+ * ---------------------------------------------------------------------------
+ */
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -46,9 +127,146 @@ select {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #cbd5e1;
+  background: #c4d0dd;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #aab8c8;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * FAST LIGHTWEIGHT LOADING
+ * ---------------------------------------------------------------------------
+ */
+
+@keyframes acadlyx-shimmer {
+  0% {
+    background-position:
+      -560px 0;
+  }
+
+  100% {
+    background-position:
+      560px 0;
+  }
+}
+
+.acadlyx-skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      #e7edf4 0%,
+      #f7f9fc 48%,
+      #e7edf4 100%
+    );
+
+  background-size:
+    560px 100%;
+
+  animation:
+    acadlyx-shimmer
+    1.05s
+    linear
+    infinite;
+}
+
+.acadlyx-loading {
+  min-height: 120px;
+
+  display: grid;
+  place-items: center;
+}
+
+.acadlyx-loading-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 999px;
+
+  background:
+    var(--acadlyx-primary);
+
+  box-shadow:
+    14px 0 0
+      rgba(
+        37,
+        99,
+        235,
+        0.35
+      ),
+    28px 0 0
+      rgba(
+        37,
+        99,
+        235,
+        0.16
+      );
+
+  animation:
+    acadlyx-dots
+    900ms
+    ease-in-out
+    infinite
+    alternate;
+}
+
+@keyframes acadlyx-dots {
+  from {
+    transform:
+      translateX(-7px);
+
+    opacity:
+      0.55;
+  }
+
+  to {
+    transform:
+      translateX(7px);
+
+    opacity:
+      1;
+  }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * MEDIA / TABLE SAFETY
+ * ---------------------------------------------------------------------------
+ */
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * ACCESSIBILITY
+ * ---------------------------------------------------------------------------
+ */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration:
+      0.01ms !important;
+
+    animation-iteration-count:
+      1 !important;
+
+    transition-duration:
+      0.01ms !important;
+  }
 }

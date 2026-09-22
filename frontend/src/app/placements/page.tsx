@@ -1,7 +1,5 @@
-"use client";
-import { useEffect, useState } from "react";
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { authedFetch, AuthRequiredError } from "@/lib/auth";
-import { useRouter } from "next/navigation";
-type Workspace={stats:Record<string,number>};
-export default function PlacementsPage(){const router=useRouter();const [data,setData]=useState<any>(null);const [error,setError]=useState("");useEffect(()=>{authedFetch<any>("/erp/me/workspace").then(r=>setData(r.data)).catch(e=>{if(e instanceof AuthRequiredError)router.replace("/login");else setError(e.message)})},[router]);return <DashboardShell title="Placement Center" subtitle="Career readiness, opportunities and placement intelligence"><div className="mx-auto max-w-7xl"><div className="mb-6"><p className="text-xs font-bold uppercase tracking-widest text-slate-400">Career Intelligence</p><h1 className="mt-2 text-2xl font-bold">Placement Command Center</h1><p className="mt-1 text-sm text-slate-500">Connect student skills, target roles, opportunities and institutional placement outcomes.</p></div>{error&&<div className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Students",data?.stats?.students||0],["Opportunities",data?.stats?.opportunities||0],["Applications",data?.stats?.applications||0],["Placements",data?.stats?.placements||0]].map(([l,v])=><div key={String(l)} className="rounded-2xl border bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{l}</p><p className="mt-2 text-3xl font-bold">{Number(v).toLocaleString("en-IN")}</p></div>)}</div><div className="mt-6 grid gap-5 lg:grid-cols-3">{["Student readiness", "Skill gap intelligence", "Opportunity pipeline"].map((x,i)=><section key={x} className="rounded-2xl border bg-white p-5"><h2 className="font-semibold">{x}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{["Track readiness by target role, academic health and career profile.","Identify missing skills and prioritize interventions before placement season.","Manage opportunities and connect applications to student career paths."][i]}</p><button onClick={()=>router.push(i===0?"/intelligence":"/admin")} className="mt-4 text-sm font-semibold text-slate-900">Open module →</button></section>)}</div></div></DashboardShell>}
+import { RoleWorkspaceLanding } from "@/components/dashboard/RoleWorkspaceLanding";
+
+export default function Page() {
+  return <RoleWorkspaceLanding role="PLACEMENT" />;
+}

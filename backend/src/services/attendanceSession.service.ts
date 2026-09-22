@@ -183,6 +183,18 @@ export async function upsertRecords(
 
   assertCanManageOffering(user, session.courseOffering.facultyId);
 
+  /*
+   * Finalised attendance is evidence. Once a session is locked the only
+   * route to a different record is an approved correction request
+   * (attendancePolicy.service), which writes the change itself.
+   */
+  if (session.isLocked) {
+    throw new AppError(
+      "This attendance session is locked. Raise a correction request to change it.",
+      409
+    );
+  }
+
   const roster = await getRoster(
     institutionId,
     session.courseOffering.id

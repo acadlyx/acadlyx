@@ -130,6 +130,25 @@ async function getRoleForUser(
   );
 }
 
+async function assertClubPresidentEligibility(userId: string, institutionId: string | null) {
+  const student = await prisma.studentProfile.findFirst({
+    where: {
+      userId,
+      ...(institutionId ? { institutionId } : {}),
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  if (!student) {
+    throw new AppError(
+      "CLUB_PRESIDENT can only be assigned to an existing student account",
+      400
+    );
+  }
+}
+
 async function getScopedUserOrThrow(
   id: string,
   institutionId: string | null
@@ -372,7 +391,35 @@ export async function createUser(
     );
   }
 
+  if (input.role === "CLUB_PRESIDENT") {
+    throw new AppError(
+      "Club President responsibility must be assigned to an existing student through the student/club workflow",
+      400
+    );
+  }
+
+  // CMS is a dedicated website-management account.
+  // Only SUPER_ADMIN may create it.
+  if (input.role === "CMS" && !isSuperAdmin(actor)) {
+    throw new AppError(
+      "Only SUPER_ADMIN may create CMS users",
+      403
+    );
+  }
+
   if (isSuperAdmin(actor)) {
+    const allowedPlatformCreationRoles = new Set([
+      "SUPER_ADMIN",
+      "INSTITUTION_ADMIN",
+      "CMS",
+    ]);
+    if (!allowedPlatformCreationRoles.has(input.role)) {
+      throw new AppError(
+        "SUPER_ADMIN may create only SUPER_ADMIN, INSTITUTION_ADMIN, or CMS accounts through platform user management",
+        403
+      );
+    }
+
     if (
       input.role === "SUPER_ADMIN" &&
       targetInstitutionId !== null
@@ -469,6 +516,13 @@ export async function createUser(
     throw new AppError(
       "A user with this email already exists",
       409
+    );
+  }
+
+  if (input.role === "CLUB_PRESIDENT") {
+    throw new AppError(
+      "Club President must be assigned to an existing student through the student/club workflow; generic user creation cannot create this responsibility",
+      400
     );
   }
 
@@ -609,6 +663,18 @@ export async function updateUser(
     );
   }
 
+  if (input.role === "CLUB_PRESIDENT") {
+    await assertClubPresidentEligibility(id, existing.institutionId);
+  }
+
+  // CMS assignment is explicitly controlled by SUPER_ADMIN.
+  if (input.role === "CMS" && !isSuperAdmin(actor)) {
+    throw new AppError(
+      "Only SUPER_ADMIN may assign CMS access",
+      403
+    );
+  }
+
   if (
     input.role === "SUPER_ADMIN" &&
     existing.institutionId !== null
@@ -626,7 +692,8 @@ export async function updateUser(
   if (
     input.role &&
     currentRole?.name === "STUDENT" &&
-    input.role !== "STUDENT"
+    input.role !== "STUDENT" &&
+    input.role !== "CLUB_PRESIDENT"
   ) {
     throw new AppError(
       "Student roles must be managed through the student administration workflow",
@@ -712,6 +779,13 @@ export async function updateUser(
   }
 
   if (input.role) {
+    if (input.role === "CLUB_PRESIDENT") {
+      await assertClubPresidentEligibility(
+        existing.id,
+        existing.institutionId
+      );
+    }
+
     const role =
       await getRoleForUser(
         input.role,
@@ -759,18 +833,37 @@ export async function updateUser(
           },
         });
 
-        await tx.userRole.deleteMany({
-          where: {
-            userId: id,
-          },
-        });
+        if (input.role === "CLUB_PRESIDENT") {
+          const existingClubRole = await tx.userRole.findFirst({
+            where: {
+              userId: id,
+              roleId: role.id,
+            },
+            select: { userId: true, roleId: true },
+          });
 
-        await tx.userRole.create({
-          data: {
-            userId: id,
-            roleId: role.id,
-          },
-        });
+          if (!existingClubRole) {
+            await tx.userRole.create({
+              data: {
+                userId: id,
+                roleId: role.id,
+              },
+            });
+          }
+        } else {
+          await tx.userRole.deleteMany({
+            where: {
+              userId: id,
+            },
+          });
+
+          await tx.userRole.create({
+            data: {
+              userId: id,
+              roleId: role.id,
+            },
+          });
+        }
 
         if (input.isActive === false) {
           await tx.refreshToken.updateMany({

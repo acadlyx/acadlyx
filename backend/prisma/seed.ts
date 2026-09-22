@@ -12,6 +12,10 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
+import {
+  PERMISSIONS as CANON_PERMISSIONS,
+  ROLE_PERMISSIONS as CANON_ROLE_PERMISSIONS,
+} from "../src/config/rbac";
 
 const prisma = new PrismaClient();
 
@@ -23,145 +27,9 @@ function requireDemoPassword(): string {
   return password;
 }
 
-const PERMISSIONS: Array<{ key: string; module: string; description: string }> = [
-  { key: "users.read", module: "users", description: "View users" },
-  { key: "users.create", module: "users", description: "Create users" },
-  { key: "users.update", module: "users", description: "Update users" },
-  { key: "users.delete", module: "users", description: "Delete/deactivate users" },
-
-  { key: "students.read", module: "students", description: "View students" },
-  { key: "students.create", module: "students", description: "Create students" },
-  { key: "students.update", module: "students", description: "Update students" },
-
-  { key: "attendance.read", module: "attendance", description: "View attendance" },
-  { key: "attendance.mark", module: "attendance", description: "Mark attendance" },
-
-  { key: "assignments.read", module: "assignments", description: "View assignments" },
-  { key: "assignments.create", module: "assignments", description: "Create assignments" },
-  { key: "assignments.update", module: "assignments", description: "Edit/publish assignments" },
-  { key: "assignments.review", module: "assignments", description: "Review/grade assignments" },
-  { key: "assignments.submit", module: "assignments", description: "Submit assignment work" },
-
-  { key: "marks.read", module: "marks", description: "View academic marks" },
-  { key: "marks.enter", module: "marks", description: "Enter academic marks" },
-
-  { key: "reports.read", module: "reports", description: "View reports" },
-  { key: "intelligence.read", module: "intelligence", description: "View institutional intelligence" },
-
-  { key: "institutions.manage", module: "institutions", description: "Manage institutions (platform-level)" },
-
-  { key: "departments.read", module: "academics", description: "View departments" },
-  { key: "departments.create", module: "academics", description: "Create departments" },
-  { key: "departments.update", module: "academics", description: "Update departments" },
-  { key: "departments.delete", module: "academics", description: "Deactivate departments" },
-
-  { key: "programs.read", module: "academics", description: "View programs" },
-  { key: "programs.create", module: "academics", description: "Create programs" },
-  { key: "programs.update", module: "academics", description: "Update programs" },
-  { key: "programs.delete", module: "academics", description: "Deactivate programs" },
-
-  { key: "academic-years.read", module: "academics", description: "View academic years" },
-  { key: "academic-years.create", module: "academics", description: "Create academic years" },
-  { key: "academic-years.update", module: "academics", description: "Update academic years" },
-
-  { key: "semesters.read", module: "academics", description: "View semesters" },
-  { key: "semesters.create", module: "academics", description: "Create semesters" },
-  { key: "semesters.update", module: "academics", description: "Update semesters" },
-  { key: "semesters.delete", module: "academics", description: "Deactivate semesters" },
-
-  { key: "sections.read", module: "academics", description: "View sections" },
-  { key: "sections.create", module: "academics", description: "Create sections" },
-  { key: "sections.update", module: "academics", description: "Update sections" },
-  { key: "sections.delete", module: "academics", description: "Deactivate sections" },
-
-  { key: "courses.read", module: "academics", description: "View courses" },
-  { key: "courses.create", module: "academics", description: "Create courses" },
-  { key: "courses.update", module: "academics", description: "Update courses" },
-  { key: "courses.delete", module: "academics", description: "Deactivate courses" },
-
-  { key: "course-offerings.read", module: "academics", description: "View course offerings" },
-  { key: "course-offerings.create", module: "academics", description: "Create course offerings" },
-  { key: "course-offerings.update", module: "academics", description: "Update course offerings (e.g. reassign faculty)" },
-  { key: "course-offerings.delete", module: "academics", description: "Close/deactivate course offerings" },
-];
-
-/** Every academic-structure read permission — granted to nearly every role. */
-const ACADEMIC_READ_PERMISSIONS = [
-  "departments.read",
-  "programs.read",
-  "academic-years.read",
-  "semesters.read",
-  "sections.read",
-  "courses.read",
-  "course-offerings.read",
-];
-
-/** name -> permission keys granted */
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  SUPER_ADMIN: PERMISSIONS.map((p) => p.key), // everything
-  INSTITUTION_ADMIN: PERMISSIONS.map((p) => p.key).filter(
-    (k) => k !== "institutions.manage"
-  ),
-  DIRECTOR: [
-    "users.read",
-    "students.read",
-    "attendance.read",
-    "assignments.read",
-    "marks.read",
-    "reports.read",
-    "intelligence.read",
-    ...ACADEMIC_READ_PERMISSIONS,
-  ],
-  MANAGEMENT: [
-    "users.read",
-    "students.read",
-    "attendance.read",
-    "assignments.read",
-    "marks.read",
-    "reports.read",
-    "intelligence.read",
-    ...ACADEMIC_READ_PERMISSIONS,
-  ],
-  HOD: [
-    "users.read",
-    "students.read",
-    "attendance.read",
-    "assignments.read",
-    "assignments.review",
-    "marks.read",
-    "reports.read",
-    "intelligence.read",
-    ...ACADEMIC_READ_PERMISSIONS,
-    "sections.update",
-    "course-offerings.update",
-  ],
-  FACULTY: [
-    "students.read",
-    "attendance.read",
-    "attendance.mark",
-    "assignments.read",
-    "assignments.create",
-    "assignments.update",
-    "assignments.review",
-    "marks.read",
-    "marks.enter",
-    ...ACADEMIC_READ_PERMISSIONS,
-  ],
-  STAFF: ["students.read", "users.read", ...ACADEMIC_READ_PERMISSIONS],
-  STUDENT: [
-    "attendance.read",
-    "assignments.read",
-    "assignments.submit",
-    "marks.read",
-    ...ACADEMIC_READ_PERMISSIONS,
-  ],
-  PARENT: [
-    "attendance.read",
-    "assignments.read",
-    "marks.read",
-    ...ACADEMIC_READ_PERMISSIONS,
-  ],
-};
+// Canonical catalogue: never duplicate RBAC definitions in seed scripts.
+const PERMISSIONS: Array<{ key: string; module: string; description: string }> = [...CANON_PERMISSIONS];
+const ROLE_PERMISSIONS: Record<string, string[]> = CANON_ROLE_PERMISSIONS as unknown as Record<string, string[]>;
 
 const DEMO_USERS: Array<{
   email: string;

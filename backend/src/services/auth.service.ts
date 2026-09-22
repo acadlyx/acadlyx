@@ -10,6 +10,17 @@ import {
 } from "../utils/jwt";
 import { comparePassword, hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
+import {
+  getCanonicalRoleNames,
+  getEffectivePermissions,
+} from "../config/rbac";
+import {
+  assertNotLocked,
+  clearFailedLogins,
+  createMfaChallenge,
+  consumeMfaChallenge,
+  recordFailedLogin,
+} from "./accountSecurity.service";
 
 export interface RequestMeta {
   ipAddress?: string;
@@ -200,24 +211,13 @@ async function loadRolesAndPermissions(
     );
   }
 
-  const roles =
+  const roles = getCanonicalRoleNames(
     user.userRoles.map(
-      (userRole) =>
-        userRole.role.name
-    );
+      (userRole) => userRole.role.name
+    )
+  );
 
-  const permissionSet =
-    new Set<string>();
-
-  for (const userRole of user.userRoles) {
-    for (const rolePermission of
-      userRole.role
-        .rolePermissions) {
-      permissionSet.add(
-        rolePermission.permission.key
-      );
-    }
-  }
+  const permissions = getEffectivePermissions(roles);
 
   const institutionId =
     await resolveEffectiveInstitution(
@@ -227,8 +227,7 @@ async function loadRolesAndPermissions(
 
   return {
     roles,
-    permissions:
-      Array.from(permissionSet),
+    permissions,
     institutionId,
   };
 }
@@ -370,14 +369,22 @@ async function issueTokens(
   };
 }
 
+/**
+ * Result of a password check.
+ *
+ * When the account has a second factor enrolled, no tokens are issued:
+ * the caller receives a short-lived challenge and must complete
+ * `completeMfaLogin` before holding any credential.
+ */
+export type LoginResult =
+  | { mfaRequired: false; user: SafeUser; tokens: AuthTokens }
+  | { mfaRequired: true; challengeToken: string; expiresAt: Date };
+
 export async function login(
   email: string,
   password: string,
   meta: RequestMeta
-): Promise<{
-  user: SafeUser;
-  tokens: AuthTokens;
-}> {
+): Promise<LoginResult> {
   const user =
     await prisma.user.findUnique({
       where: {
@@ -433,6 +440,12 @@ export async function login(
     );
   }
 
+  /*
+   * Brute-force guard. Runs before the (deliberately slow) bcrypt
+   * comparison so a locked account also stops burning CPU.
+   */
+  await assertNotLocked(user);
+
   const passwordMatches =
     await comparePassword(
       password,
@@ -440,6 +453,12 @@ export async function login(
     );
 
   if (!passwordMatches) {
+    await recordFailedLogin(
+      user.id,
+      user.institutionId,
+      meta
+    );
+
     await recordAuditLog({
       institutionId:
         user.institutionId,
@@ -457,6 +476,33 @@ export async function login(
     });
 
     throw invalidCredentials();
+  }
+
+  await clearFailedLogins(user.id);
+
+  /*
+   * Second factor. The password was correct, but nothing is issued yet:
+   * the challenge only authorises the verification step.
+   */
+  if (user.mfaEnabled && user.mfaSecret) {
+    const challenge = await createMfaChallenge(
+      user.id,
+      meta.ipAddress
+    );
+
+    await recordAuditLog({
+      institutionId: user.institutionId,
+      userId: user.id,
+      action: "auth.mfa_challenged",
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    return {
+      mfaRequired: true,
+      challengeToken: challenge.challengeToken,
+      expiresAt: challenge.expiresAt,
+    };
   }
 
   /*
@@ -527,12 +573,70 @@ export async function login(
   });
 
   return {
+    mfaRequired: false,
     user: toSafeUser(
       freshUser,
       roles,
       permissions,
       institutionId
     ),
+    tokens,
+  };
+}
+
+/**
+ * Second step of an MFA sign-in. The challenge is verified and consumed
+ * by accountSecurity.service; only then are real tokens minted, through
+ * exactly the same path a non-MFA login uses.
+ */
+export async function completeMfaLogin(
+  challengeToken: string,
+  code: string,
+  meta: RequestMeta
+): Promise<{ user: SafeUser; tokens: AuthTokens }> {
+  const userId = await consumeMfaChallenge(
+    challengeToken,
+    code,
+    meta
+  );
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user || !user.isActive) {
+    throw new AppError("This account is no longer active", 403);
+  }
+
+  const { roles, permissions, institutionId } =
+    await loadRolesAndPermissions(user.id);
+
+  await assertInstitutionUsable(institutionId);
+
+  const tokens = await issueTokens(
+    user,
+    roles,
+    permissions,
+    institutionId,
+    meta
+  );
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: user.id,
+    action: "auth.login",
+    metadata: { secondFactor: true },
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
+
+  return {
+    user: toSafeUser(user, roles, permissions, institutionId),
     tokens,
   };
 }

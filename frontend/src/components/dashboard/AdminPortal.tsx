@@ -1,3657 +1,934 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import StudentManagement from "@/components/dashboard/StudentManagement";
-import CourseOfferingRoster from "@/components/dashboard/CourseOfferingRoster";
-import DataTransferActions from "@/components/dashboard/DataTransferActions";
+
+import { DashboardShell } from "./DashboardShell";
 import {
   AuthRequiredError,
   authedFetch,
-  getCurrentUser,
-  isAuthenticated,
-  logout,
 } from "@/lib/auth";
 
-type User = {
+type AdminStats = {
+  students?: number;
+  faculty?: number;
+  departments?: number;
+  courses?: number;
+  assignments?: number;
+  exams?: number;
+  documents?: number;
+  notifications?: number;
+  users?: number;
+};
+
+type Notice = {
   id: string;
-  institutionId?: string | null;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string | null;
-  isActive: boolean;
-  roles?: {
-    id: string;
-    name: string;
-  }[];
+  title: string;
+  body: string;
+  createdAt?: string;
 };
 
-type RecordItem = Record<string, unknown> & {
-  id: string;
-  name?: string;
-  code?: string;
-  title?: string;
-  isActive?: boolean;
-  isCurrent?: boolean;
+type WorkspaceData = {
+  stats?: AdminStats;
+  notices?: Notice[];
+  students?: unknown[];
+  facultyOfferings?: unknown[];
+  departments?: unknown[];
+  fees?: unknown[];
+  exams?: unknown[];
 };
 
-type ListResponse<T> = {
-  success?: boolean;
-  data?: T[];
-  meta?: {
-    total?: number;
-    page?: number;
-    pageSize?: number;
-    totalPages?: number;
-  };
-};
-
-type UserListResponse = {
-  success?: boolean;
-  data?: User[];
-  meta?: {
-    total?: number;
-    page?: number;
-    pageSize?: number;
-    totalPages?: number;
-  };
-};
-
-type ModuleKey =
+type AdminSection =
   | "overview"
-  | "users"
   | "students"
   | "faculty"
-  | "campuses"
-  | "departments"
-  | "programs"
-  | "academic-years"
-  | "semesters"
-  | "sections"
-  | "courses"
-  | "course-offerings";
+  | "academics"
+  | "finance"
+  | "operations"
+  | "intelligence";
 
-type ModuleDefinition = {
-  key: ModuleKey;
+type AdminAction = {
   label: string;
-  endpoint?: string;
   description: string;
-  canCreate: boolean;
+  href: string;
 };
 
-const modules: ModuleDefinition[] = [
-  {
-    key: "overview",
-    label: "Overview",
-    description:
-      "Institution-wide administration and academic structure.",
-    canCreate: false,
-  },
-  {
-    key: "users",
-    label: "Users",
-    endpoint: "/users",
-    description:
-      "Create and manage institution users and roles.",
-    canCreate: true,
-  },
-  {
-    key: "students",
-    label: "Students",
-    endpoint:
-      "/users?role=STUDENT&page=1&pageSize=100",
-    description:
-      "Student accounts and institutional identities.",
-    canCreate: true,
-  },
-  {
-    key: "faculty",
-    label: "Faculty",
-    endpoint:
-      "/users?role=FACULTY&page=1&pageSize=100",
-    description:
-      "Faculty accounts and teaching staff.",
-    canCreate: true,
-  },
-  {
-    key: "campuses",
-    label: "Campuses",
-    endpoint: "/campuses",
-    description:
-      "Physical campuses and their academic locations.",
-    canCreate: true,
-  },
-  {
-    key: "departments",
-    label: "Departments",
-    endpoint: "/departments",
-    description:
-      "Academic departments and organizational units.",
-    canCreate: true,
-  },
-  {
-    key: "programs",
-    label: "Programs",
-    endpoint: "/programs",
-    description:
-      "Degree and academic programs.",
-    canCreate: true,
-  },
-  {
-    key: "academic-years",
-    label: "Academic Years",
-    endpoint: "/academic-years",
-    description:
-      "Academic years and the active academic cycle.",
-    canCreate: true,
-  },
-  {
-    key: "semesters",
-    label: "Semesters",
-    endpoint: "/semesters",
-    description:
-      "Program-specific semester structure.",
-    canCreate: true,
-  },
-  {
-    key: "sections",
-    label: "Sections",
-    endpoint: "/sections",
-    description:
-      "Student sections within academic semesters.",
-    canCreate: true,
-  },
-  {
-    key: "courses",
-    label: "Courses",
-    endpoint: "/courses",
-    description:
-      "Course catalog and department subjects.",
-    canCreate: true,
-  },
-  {
-    key: "course-offerings",
-    label: "Course Offerings",
-    endpoint: "/course-offerings",
-    description:
-      "Connect courses, semesters, sections and faculty.",
-    canCreate: true,
-  },
-];
+type Metric = {
+  label: string;
+  value: number;
+  description: string;
+};
 
-const roleOptions = [
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "MANAGEMENT",
-  "HOD",
-  "FACULTY",
-  "STAFF",
-  "STUDENT",
-  "PARENT",
-];
+const sectionConfig: Record<
+  AdminSection,
+  {
+    title: string;
+    description: string;
+  }
+> = {
+  overview: {
+    title: "Institution Overview",
+    description:
+      "Monitor the most important institutional activity from one workspace.",
+  },
+  students: {
+    title: "Students",
+    description:
+      "Access student records, academic activity, and student operations.",
+  },
+  faculty: {
+    title: "Faculty",
+    description:
+      "Manage faculty-facing academic and operational workflows.",
+  },
+  academics: {
+    title: "Academics",
+    description:
+      "Open examinations, results, registrations, courses, and academic services.",
+  },
+  finance: {
+    title: "Finance",
+    description:
+      "Access fees, receipts, and institution financial workflows.",
+  },
+  operations: {
+    title: "Operations",
+    description:
+      "Manage institutional operational services and workflows.",
+  },
+  intelligence: {
+    title: "Institution Intelligence",
+    description:
+      "Review institutional intelligence and performance information.",
+  },
+};
 
-function inputClass() {
-  return "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
+function numberValue(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return value;
 }
 
-function labelClass() {
-  return "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+function formatNumber(
+  value: number,
+): string {
+  return value.toLocaleString("en-IN");
 }
 
-function getRecordName(item: RecordItem) {
-  return String(
-    item.name ||
-      item.title ||
-      item.code ||
-      item.id
+function getMetrics(
+  data: WorkspaceData | null,
+): Metric[] {
+  const stats = data?.stats ?? {};
+
+  return [
+    {
+      label: "Students",
+      value: numberValue(stats.students),
+      description:
+        "Students currently represented in the institution workspace.",
+    },
+    {
+      label: "Faculty",
+      value: numberValue(stats.faculty),
+      description:
+        "Faculty records available to institutional workflows.",
+    },
+    {
+      label: "Departments",
+      value: numberValue(stats.departments),
+      description:
+        "Departments available across the institution.",
+    },
+    {
+      label: "Courses",
+      value: numberValue(stats.courses),
+      description:
+        "Courses currently available in the academic workspace.",
+    },
+    {
+      label: "Assignments",
+      value: numberValue(stats.assignments),
+      description:
+        "Assignments available across supported academic workflows.",
+    },
+    {
+      label: "Exams",
+      value: numberValue(stats.exams),
+      description:
+        "Examination records available to the workspace.",
+    },
+    {
+      label: "Documents",
+      value: numberValue(stats.documents),
+      description:
+        "Documents currently represented in the system.",
+    },
+    {
+      label: "Notifications",
+      value: numberValue(stats.notifications),
+      description:
+        "Notifications currently available to institutional users.",
+    },
+  ];
+}
+
+function getActions(): AdminAction[] {
+  return [
+    {
+      label: "Open ERP Operations",
+      description:
+        "Access institutional ERP modules and operational workflows.",
+      href: "/erp",
+    },
+    {
+      label: "Open Intelligence",
+      description:
+        "Review institutional performance and intelligence.",
+      href: "/intelligence",
+    },
+    {
+      label: "Import Institutional Data",
+      description:
+        "Open the controlled institutional data-import workspace.",
+      href: "/imports",
+    },
+    {
+      label: "Admissions",
+      description:
+        "Open admissions and applicant workflows.",
+      href: "/admissions",
+    },
+    {
+      label: "HR",
+      description:
+        "Open institutional HR workflows.",
+      href: "/hr",
+    },
+    {
+      label: "Fees",
+      description:
+        "Review fees and receipt workflows.",
+      href: "/fees",
+    },
+    {
+      label: "Operations",
+      description:
+        "Open institutional operations.",
+      href: "/operations",
+    },
+  ];
+}
+
+function getSectionActions(
+  section: AdminSection,
+): AdminAction[] {
+  switch (section) {
+    case "students":
+      return [
+        {
+          label: "Student management",
+          description:
+            "Open student records and institutional student workflows.",
+          href: "/students",
+        },
+        {
+          label: "Student movement",
+          description:
+            "Manage promotion and student movement workflows.",
+          href: "/student-promotion",
+        },
+        {
+          label: "Attendance",
+          description:
+            "Review attendance workflows.",
+          href: "/attendance",
+        },
+      ];
+
+    case "faculty":
+      return [
+        {
+          label: "Faculty management",
+          description:
+            "Open faculty management.",
+          href: "/faculty-management",
+        },
+        {
+          label: "Assignments",
+          description:
+            "Review faculty assignment workflows.",
+          href: "/faculty/assignments",
+        },
+        {
+          label: "Leave management",
+          description:
+            "Review leave workflows.",
+          href: "/leave-management",
+        },
+      ];
+
+    case "academics":
+      return [
+        {
+          label: "Examinations",
+          description:
+            "Open examination workflows.",
+          href: "/examinations",
+        },
+        {
+          label: "Results",
+          description:
+            "Review academic results.",
+          href: "/results",
+        },
+        {
+          label: "Course registration",
+          description:
+            "Manage course registration.",
+          href: "/course-registration",
+        },
+        {
+          label: "Timetable",
+          description:
+            "Open academic timetable workflows.",
+          href: "/timetable",
+        },
+      ];
+
+    case "finance":
+      return [
+        {
+          label: "Fees",
+          description:
+            "Open fee management.",
+          href: "/fees",
+        },
+        {
+          label: "Receipts",
+          description:
+            "Review fee receipts.",
+          href: "/fees/receipts",
+        },
+      ];
+
+    case "operations":
+      return [
+        {
+          label: "ERP Operations",
+          description:
+            "Open institutional ERP operations.",
+          href: "/erp",
+        },
+        {
+          label: "Admissions",
+          description:
+            "Open admissions.",
+          href: "/admissions",
+        },
+        {
+          label: "HR",
+          description:
+            "Open human-resources workflows.",
+          href: "/hr",
+        },
+        {
+          label: "Leave management",
+          description:
+            "Open leave workflows.",
+          href: "/leave-management",
+        },
+        {
+          label: "Library",
+          description:
+            "Open library management.",
+          href: "/library",
+        },
+      ];
+
+    case "intelligence":
+      return [
+        {
+          label: "Institution Intelligence",
+          description:
+            "Open institutional intelligence.",
+          href: "/intelligence",
+        },
+        {
+          label: "Reports",
+          description:
+            "Review institution reports.",
+          href: "/reports",
+        },
+        {
+          label: "Placements",
+          description:
+            "Review placement workflows.",
+          href: "/placements",
+        },
+      ];
+
+    case "overview":
+    default:
+      return getActions();
+  }
+}
+
+function MetricCard({
+  metric,
+}: {
+  metric: Metric;
+}) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+          {metric.label}
+        </p>
+
+        <span className="h-2 w-2 shrink-0 rounded-full bg-sky-500" />
+      </div>
+
+      <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+        {formatNumber(metric.value)}
+      </p>
+
+      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">
+        {metric.description}
+      </p>
+    </article>
   );
 }
 
-function normalizeList<T>(
-  response: ListResponse<T>
-): T[] {
-  return Array.isArray(response.data)
-    ? response.data
-    : [];
-}
-
-function formatDateInput(value: unknown) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(
-    String(value)
+function MetricSkeleton() {
+  return (
+    <div className="h-[164px] animate-pulse rounded-2xl border border-slate-200 bg-white" />
   );
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value).slice(0, 10);
-  }
-
-  return date
-    .toISOString()
-    .slice(0, 10);
 }
 
-function optionLabel(item: RecordItem) {
-  const name =
-    item.name ||
-    item.title ||
-    "";
+function NoticeList({
+  notices,
+}: {
+  notices: Notice[];
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Communication
+          </p>
 
-  const code =
-    item.code ||
-    "";
+          <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">
+            Current notices
+          </h2>
+        </div>
 
-  if (code && name) {
-    return `${code} — ${name}`;
-  }
+        <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+          Live
+        </span>
+      </div>
 
-  return String(
-    name ||
-      code ||
-      item.id
+      <div className="mt-5 space-y-3">
+        {notices.length > 0 ? (
+          notices.map((notice) => (
+            <article
+              key={notice.id}
+              className="rounded-xl border border-slate-100 bg-slate-50 p-4"
+            >
+              <p className="text-sm font-bold text-slate-900">
+                {notice.title}
+              </p>
+
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                {notice.body}
+              </p>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+            <p className="text-sm font-semibold text-slate-600">
+              No active notices
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Institutional notices will appear here when published.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ActionPanel({
+  actions,
+  onOpen,
+}: {
+  actions: AdminAction[];
+  onOpen: (href: string) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-900 bg-slate-950 p-5 text-white shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+        Quick access
+      </p>
+
+      <h2 className="mt-1 text-lg font-black tracking-tight">
+        Institutional actions
+      </h2>
+
+      <p className="mt-1 text-sm leading-6 text-slate-400">
+        Open the most commonly used administrative workspaces.
+      </p>
+
+      <div className="mt-5 space-y-2">
+        {actions.slice(0, 6).map((action) => (
+          <button
+            key={action.href}
+            type="button"
+            onClick={() =>
+              onOpen(action.href)
+            }
+            className="group flex w-full items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/20"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-white">
+                {action.label}
+              </span>
+
+              <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                {action.description}
+              </span>
+            </span>
+
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-white"
+            >
+              →
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SectionSwitcher({
+  active,
+  onChange,
+}: {
+  active: AdminSection;
+  onChange: (section: AdminSection) => void;
+}) {
+  const sections: Array<{
+    id: AdminSection;
+    label: string;
+    icon: string;
+  }> = [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: "⌂",
+    },
+    {
+      id: "students",
+      label: "Students",
+      icon: "♙",
+    },
+    {
+      id: "faculty",
+      label: "Faculty",
+      icon: "♟",
+    },
+    {
+      id: "academics",
+      label: "Academics",
+      icon: "▦",
+    },
+    {
+      id: "finance",
+      label: "Finance",
+      icon: "₹",
+    },
+    {
+      id: "operations",
+      label: "Operations",
+      icon: "⚒",
+    },
+    {
+      id: "intelligence",
+      label: "Intelligence",
+      icon: "✦",
+    },
+  ];
+
+  return (
+    <div className="mb-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex min-w-max gap-1">
+        {sections.map((section) => {
+          const isActive =
+            active === section.id;
+
+          return (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() =>
+                onChange(section.id)
+              }
+              className={[
+                "inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition",
+                isActive
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+              ].join(" ")}
+            >
+              <span aria-hidden="true">
+                {section.icon}
+              </span>
+
+              {section.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SectionActions({
+  actions,
+  onOpen,
+}: {
+  actions: AdminAction[];
+  onOpen: (href: string) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+          Available modules
+        </p>
+
+        <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">
+          {actions.length} workspace
+          {actions.length === 1
+            ? ""
+            : "s"}
+        </h2>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {actions.map((action) => (
+          <button
+            key={action.href}
+            type="button"
+            onClick={() =>
+              onOpen(action.href)
+            }
+            className="group rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-300 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-slate-900">
+                {action.label}
+              </p>
+
+              <span className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-700">
+                →
+              </span>
+            </div>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {action.description}
+            </p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AdminLoadingState() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div className="h-3 w-44 animate-pulse rounded bg-slate-200" />
+        <div className="h-9 w-72 animate-pulse rounded-lg bg-slate-200" />
+        <div className="h-4 w-[500px] max-w-full animate-pulse rounded bg-slate-100" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map(
+          (_, index) => (
+            <MetricSkeleton key={index} />
+          ),
+        )}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.45fr_1fr]">
+        <div className="h-72 animate-pulse rounded-2xl bg-white" />
+        <div className="h-72 animate-pulse rounded-2xl bg-slate-950" />
+      </div>
+    </div>
   );
 }
 
 export function AdminPortal() {
   const router = useRouter();
 
-  const [
-    activeModule,
-    setActiveModule,
-  ] =
-    useState<ModuleKey>(
-      "overview"
-    );
-
-  const [user, setUser] =
-    useState<
-      Awaited<
-        ReturnType<
-          typeof getCurrentUser
-        >
-      > | null
-    >(null);
-
-  const [
-    records,
-    setRecords,
-  ] =
-    useState<RecordItem[]>(
-      []
-    );
-
-  const [
-    users,
-    setUsers,
-  ] =
-    useState<User[]>([]);
+  const [data, setData] =
+    useState<WorkspaceData | null>(null);
 
   const [loading, setLoading] =
-    useState(false);
-
-  const [saving, setSaving] =
-    useState(false);
+    useState(true);
 
   const [error, setError] =
     useState("");
 
-  const [
-    success,
-    setSuccess,
-  ] = useState("");
+  const [section, setSection] =
+    useState<AdminSection>("overview");
 
-  const [search, setSearch] =
-    useState("");
+  const loadWorkspace =
+    useCallback(async () => {
+      setLoading(true);
+      setError("");
 
-  const [
-    editing,
-    setEditing,
-  ] =
-    useState<RecordItem | null>(
-      null
-    );
-
-  const [
-    showCreate,
-    setShowCreate,
-  ] = useState(false);
-
-  const [
-    showUserCreate,
-    setShowUserCreate,
-  ] = useState(false);
-
-  const [
-    editingUser,
-    setEditingUser,
-  ] = useState<User | null>(null);
-
-  const [
-    userEditForm,
-    setUserEditForm,
-  ] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    role: "",
-  });
-
-  const [
-    form,
-    setForm,
-  ] =
-    useState<
-      Record<string, string>
-    >({});
-
-  const [
-    userForm,
-    setUserForm,
-  ] = useState({
-    email: "",
-    firstName: "",
-    lastName: "",
-    phone: "",
-    password: "",
-    role: "STUDENT",
-  });
-
-  const [selectedOffering, setSelectedOffering] = useState<RecordItem | null>(null);
-
-  const [
-    lookups,
-    setLookups,
-  ] = useState({
-    campuses:
-      [] as RecordItem[],
-    departments:
-      [] as RecordItem[],
-    programs:
-      [] as RecordItem[],
-    academicYears:
-      [] as RecordItem[],
-    semesters:
-      [] as RecordItem[],
-    sections:
-      [] as RecordItem[],
-    courses:
-      [] as RecordItem[],
-    faculty:
-      [] as User[],
-  });
-
-  const [
-    stats,
-    setStats,
-  ] = useState({
-    users: 0,
-    students: 0,
-    faculty: 0,
-    campuses: 0,
-    departments: 0,
-    programs: 0,
-    academicYears: 0,
-    semesters: 0,
-    courses: 0,
-    sections: 0,
-    offerings: 0,
-  });
-
-  const currentModule =
-    useMemo(
-      () =>
-        modules.find(
-          (module) =>
-            module.key ===
-            activeModule
-        ) ||
-        modules[0],
-      [activeModule]
-    );
-
-  useEffect(() => {
-    async function initialize() {
       try {
+        const response =
+          await authedFetch<{
+            success: true;
+            data: WorkspaceData;
+          }>("/erp/me/workspace");
+
+        setData(response.data);
+      } catch (requestError) {
         if (
-          !isAuthenticated()
+          requestError instanceof AuthRequiredError
         ) {
-          router.replace(
-            "/login"
-          );
+          router.replace("/login");
           return;
         }
 
-        const currentUser =
-          await getCurrentUser();
-
-        if (
-          !currentUser.roles.includes(
-            "INSTITUTION_ADMIN"
-          )
-        ) {
-          router.replace(
-            "/login"
-          );
-          return;
-        }
-
-        setUser(currentUser);
-
-        await Promise.all([
-          loadOverview(),
-          loadLookups(),
-        ]);
-      } catch (err) {
-        handleError(err);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load the institution workspace.",
+        );
+      } finally {
+        setLoading(false);
       }
-    }
-
-    void initialize();
-  }, [router]);
+    }, [router]);
 
   useEffect(() => {
-    if (
-      activeModule !==
-        "overview" &&
-      activeModule !== "students" &&
-      currentModule.endpoint
-    ) {
-      void loadModule();
-    }
-  }, [
-    activeModule,
-  ]);
-
-  async function loadOverview() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const [
-        userResponse,
-        campusResponse,
-        departmentResponse,
-        programResponse,
-        yearResponse,
-        semesterResponse,
-        courseResponse,
-        sectionResponse,
-        offeringResponse,
-        studentCountResponse,
-        facultyCountResponse,
-      ] = await Promise.all([
-        authedFetch<UserListResponse>(
-          "/users?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/campuses?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/departments?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/programs?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/academic-years?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/semesters?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/courses?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/sections?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/course-offerings?page=1&pageSize=100"
-        ),
-        authedFetch<UserListResponse>(
-          "/users?role=STUDENT&page=1&pageSize=1"
-        ),
-        authedFetch<UserListResponse>(
-          "/users?role=FACULTY&page=1&pageSize=1"
-        ),
-      ]);
-
-      const loadedUsers =
-        userResponse.data ||
-        [];
-
-      const campuses =
-        normalizeList(
-          campusResponse
-        );
-
-      const departments =
-        normalizeList(
-          departmentResponse
-        );
-
-      const programs =
-        normalizeList(
-          programResponse
-        );
-
-      const academicYears =
-        normalizeList(
-          yearResponse
-        );
-
-      const semesters =
-        normalizeList(
-          semesterResponse
-        );
-
-      const courses =
-        normalizeList(
-          courseResponse
-        );
-
-      const sections =
-        normalizeList(
-          sectionResponse
-        );
-
-      const offerings =
-        normalizeList(
-          offeringResponse
-        );
-
-      setUsers(
-        loadedUsers
-      );
-
-      setStats({
-        users:
-          userResponse.meta?.total ??
-          loadedUsers.length,
-
-        students:
-          studentCountResponse.meta?.total ??
-          0,
-
-        faculty:
-          facultyCountResponse.meta?.total ??
-          0,
-
-        campuses:
-          campusResponse.meta?.total ??
-          campuses.length,
-
-        departments:
-          departmentResponse.meta?.total ??
-          departments.length,
-
-        programs:
-          programResponse.meta?.total ??
-          programs.length,
-
-        academicYears:
-          yearResponse.meta?.total ??
-          academicYears.length,
-
-        semesters:
-          semesterResponse.meta?.total ??
-          semesters.length,
-
-        courses:
-          courseResponse.meta?.total ??
-          courses.length,
-
-        sections:
-          sectionResponse.meta?.total ??
-          sections.length,
-
-        offerings:
-          offeringResponse.meta?.total ??
-          offerings.length,
-      });
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadLookups() {
-    try {
-      const [
-        campusResponse,
-        departmentResponse,
-        programResponse,
-        yearResponse,
-        semesterResponse,
-        sectionResponse,
-        courseResponse,
-        facultyResponse,
-      ] = await Promise.all([
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/campuses?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/departments?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/programs?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/academic-years?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/semesters?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/sections?page=1&pageSize=100"
-        ),
-        authedFetch<
-          ListResponse<RecordItem>
-        >(
-          "/courses?page=1&pageSize=100"
-        ),
-        authedFetch<UserListResponse>(
-          "/users?role=FACULTY&page=1&pageSize=100"
-        ),
-      ]);
-
-      setLookups({
-        campuses:
-          normalizeList(
-            campusResponse
-          ),
-
-        departments:
-          normalizeList(
-            departmentResponse
-          ),
-
-        programs:
-          normalizeList(
-            programResponse
-          ),
-
-        academicYears:
-          normalizeList(
-            yearResponse
-          ),
-
-        semesters:
-          normalizeList(
-            semesterResponse
-          ),
-
-        sections:
-          normalizeList(
-            sectionResponse
-          ),
-
-        courses:
-          normalizeList(
-            courseResponse
-          ),
-
-        faculty:
-          facultyResponse.data || [],
-      });
-    } catch (err) {
-      handleError(err);
-    }
-  }
-
-  async function loadModule() {
-    if (
-      !currentModule.endpoint ||
-      activeModule ===
-        "overview"
-    ) {
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      if (
-        activeModule ===
-          "users" ||
-        activeModule ===
-          "students" ||
-        activeModule ===
-          "faculty"
-      ) {
-        const response =
-          await authedFetch<UserListResponse>(
-            currentModule.endpoint
-          );
-
-        setUsers(
-          response.data ||
-            []
-        );
-
-        setRecords([]);
-      } else {
-        const separator =
-          currentModule.endpoint.includes(
-            "?"
-          )
-            ? "&"
-            : "?";
-
-        const response =
-          await authedFetch<
-            ListResponse<RecordItem>
-          >(
-            `${currentModule.endpoint}${separator}page=1&pageSize=100`
-          );
-
-        setRecords(
-          normalizeList(
-            response
-          )
-        );
-
-        setUsers([]);
-      }
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleError(
-    err: unknown
-  ) {
-    if (
-      err instanceof
-      AuthRequiredError
-    ) {
-      router.replace(
-        "/login"
-      );
-      return;
-    }
-
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Request failed."
-    );
-  }
-
-  function clearMessages() {
-    setError("");
-    setSuccess("");
-  }
-
-  function openModule(
-    key: ModuleKey
-  ) {
-    clearMessages();
-    setEditing(null);
-    setShowCreate(false);
-    setShowUserCreate(false);
-    setEditingUser(null);
-    setForm({});
-    setSearch("");
-    setActiveModule(key);
-  }
-
-  function startCreate() {
-    clearMessages();
-    setEditing(null);
-    setForm(
-      defaultFormForModule(
-        activeModule
-      )
-    );
-    setShowCreate(true);
-  }
-
-  function startEdit(
-    item: RecordItem
-  ) {
-    clearMessages();
-    setEditing(item);
-    setShowCreate(true);
-
-    const next: Record<
-      string,
-      string
-    > = {};
-
-    Object.entries(item).forEach(
-      ([key, value]) => {
-        if (
-          [
-            "id",
-            "createdAt",
-            "updatedAt",
-            "institutionId",
-          ].includes(key)
-        ) {
-          return;
-        }
-
-        if (
-          value !== null &&
-          value !== undefined &&
-          typeof value !==
-            "object"
-        ) {
-          next[key] =
-            key.endsWith(
-              "Date"
-            )
-              ? formatDateInput(
-                  value
-                )
-              : String(value);
-        }
-      }
-    );
-
-    if (
-      activeModule ===
-        "departments" &&
-      item.campusId
-    ) {
-      next.campusId =
-        String(
-          item.campusId
-        );
-    }
-
-    if (
-      activeModule ===
-        "programs" &&
-      item.departmentId
-    ) {
-      next.departmentId =
-        String(
-          item.departmentId
-        );
-    }
-
-    if (
-      activeModule ===
-      "semesters"
-    ) {
-      if (
-        item.programId
-      ) {
-        next.programId =
-          String(
-            item.programId
-          );
-      }
-
-      if (
-        item.academicYearId
-      ) {
-        next.academicYearId =
-          String(
-            item.academicYearId
-          );
-      }
-    }
-
-    if (
-      activeModule ===
-        "sections" &&
-      item.semesterId
-    ) {
-      next.semesterId =
-        String(
-          item.semesterId
-        );
-    }
-
-    if (
-      activeModule ===
-        "courses" &&
-      item.departmentId
-    ) {
-      next.departmentId =
-        String(
-          item.departmentId
-        );
-    }
-
-    if (
-      activeModule ===
-      "course-offerings"
-    ) {
-      if (
-        item.courseId
-      ) {
-        next.courseId =
-          String(
-            item.courseId
-          );
-      }
-
-      if (
-        item.semesterId
-      ) {
-        next.semesterId =
-          String(
-            item.semesterId
-          );
-      }
-
-      if (
-        item.sectionId
-      ) {
-        next.sectionId =
-          String(
-            item.sectionId
-          );
-      }
-
-      if (
-        item.facultyId
-      ) {
-        next.facultyId =
-          String(
-            item.facultyId
-          );
-      }
-    }
-
-    setForm(next);
-  }
-
-  function setField(
-    key: string,
-    value: string
-  ) {
-    setForm(
-      (previous) => ({
-        ...previous,
-        [key]: value,
-      })
-    );
-  }
-
-  function buildPayload() {
-    const payload: Record<
-      string,
-      unknown
-    > = {};
-
-    Object.entries(form).forEach(
-      ([key, value]) => {
-        if (
-          value === ""
-        ) {
-          return;
-        }
-
-        if (
-          [
-            "durationYears",
-            "credits",
-            "number",
-            "capacity",
-          ].includes(key)
-        ) {
-          const parsed =
-            Number(value);
-
-          if (
-            Number.isFinite(
-              parsed
-            )
-          ) {
-            payload[key] =
-              parsed;
-          }
-
-          return;
-        }
-
-        if (
-          [
-            "isCurrent",
-            "isActive",
-          ].includes(key)
-        ) {
-          payload[key] =
-            value ===
-            "true";
-
-          return;
-        }
-
-        payload[key] =
-          value;
-      }
-    );
-
-    return payload;
-  }
-
-  async function saveRecord(
-    event: FormEvent
-  ) {
-    event.preventDefault();
-
-    if (
-      !currentModule.endpoint
-    ) {
-      return;
-    }
-
-    setSaving(true);
-    clearMessages();
-
-    try {
-      const endpoint =
-        editing
-          ? `${currentModule.endpoint}/${editing.id}`
-          : currentModule.endpoint;
-
-      await authedFetch(
-        endpoint,
-        {
-          method:
-            editing
-              ? "PATCH"
-              : "POST",
-          body:
-            JSON.stringify(
-              buildPayload()
-            ),
-        }
-      );
-
-      setSuccess(
-        editing
-          ? `${singularLabel(
-              currentModule.label
-            )} updated successfully.`
-          : `${singularLabel(
-              currentModule.label
-            )} created successfully.`
-      );
-
-      setEditing(null);
-      setShowCreate(false);
-      setForm({});
-
-      await Promise.all([
-        loadModule(),
-        loadOverview(),
-        loadLookups(),
-      ]);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function deactivate(
-    item: RecordItem
-  ) {
-    if (
-      !currentModule.endpoint
-    ) {
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Deactivate "${getRecordName(
-          item
-        )}"?`
-      )
-    ) {
-      return;
-    }
-
-    setSaving(true);
-    clearMessages();
-
-    try {
-      await authedFetch(
-        `${currentModule.endpoint}/${item.id}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      setSuccess(
-        "Record deactivated successfully."
-      );
-
-      await Promise.all([
-        loadModule(),
-        loadOverview(),
-        loadLookups(),
-      ]);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function createUser(
-    event: FormEvent
-  ) {
-    event.preventDefault();
-
-    setSaving(true);
-    clearMessages();
-
-    try {
-      await authedFetch(
-        "/users",
-        {
-          method: "POST",
-          body:
-            JSON.stringify({
-              email:
-                userForm.email.trim(),
-              firstName:
-                userForm.firstName.trim(),
-              lastName:
-                userForm.lastName.trim(),
-              phone:
-                userForm.phone.trim(),
-              password:
-                userForm.password,
-              role:
-                userForm.role,
-            }),
-        }
-      );
-
-      setSuccess(
-        `${userForm.role.replace(
-          /_/g,
-          " "
-        )} account created successfully.`
-      );
-
-      setUserForm({
-        email: "",
-        firstName: "",
-        lastName: "",
-        phone: "",
-        password: "",
-        role: "STUDENT",
-      });
-
-      setShowUserCreate(
-        false
-      );
-
-      await Promise.all([
-        loadModule(),
-        loadOverview(),
-        loadLookups(),
-      ]);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function startEditUser(item: User) {
-    clearMessages();
-    setEditingUser(item);
-    setUserEditForm({
-      firstName: item.firstName,
-      lastName: item.lastName,
-      phone: item.phone || "",
-      role: item.roles?.[0]?.name || "",
-    });
-  }
-
-  async function updateUser(event: FormEvent) {
-    event.preventDefault();
-    if (!editingUser) return;
-
-    setSaving(true);
-    clearMessages();
-
-    try {
-      await authedFetch(`/users/${editingUser.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          firstName: userEditForm.firstName.trim(),
-          lastName: userEditForm.lastName.trim(),
-          phone: userEditForm.phone.trim(),
-          role: userEditForm.role,
-        }),
-      });
-
-      setSuccess("User updated successfully.");
-      setEditingUser(null);
-
-      await Promise.all([
-        loadModule(),
-        loadOverview(),
-        loadLookups(),
-      ]);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function toggleUser(
-    item: User
-  ) {
-    setSaving(true);
-    clearMessages();
-
-    try {
-      await authedFetch(
-        `/users/${item.id}/status`,
-        {
-          method: "PATCH",
-          body:
-            JSON.stringify({
-              isActive:
-                !item.isActive,
-            }),
-        }
-      );
-
-      setSuccess(
-        item.isActive
-          ? "User deactivated."
-          : "User activated."
-      );
-
-      await Promise.all([
-        loadModule(),
-        loadOverview(),
-        loadLookups(),
-      ]);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const filteredRecords =
-    records.filter(
-      (item) => {
-        if (
-          !search.trim()
-        ) {
-          return true;
-        }
-
-        const text =
-          `${item.name || ""} ${
-            item.code || ""
-          } ${
-            item.title || ""
-          } ${item.id}`.toLowerCase();
-
-        return text.includes(
-          search.toLowerCase()
-        );
-      }
-    );
-
-  const filteredUsers =
-    users.filter(
-      (item) => {
-        if (
-          !search.trim()
-        ) {
-          return true;
-        }
-
-        const text =
-          `${item.firstName} ${
-            item.lastName
-          } ${
-            item.email
-          } ${
-            item.roles
-              ?.map(
-                (role) =>
-                  role.name
-              )
-              .join(" ") ||
-            ""
-          }`.toLowerCase();
-
-        return text.includes(
-          search.toLowerCase()
-        );
-      }
-    );
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  const metrics = useMemo(
+    () => getMetrics(data),
+    [data],
+  );
+
+  const actions = useMemo(
+    () =>
+      section === "overview"
+        ? getActions()
+        : getSectionActions(section),
+    [section],
+  );
+
+  const sectionInfo =
+    sectionConfig[section];
+
+  const open = (href: string) => {
+    router.push(href);
+  };
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400">
-              ACADLYX ERP
-            </p>
-
-            <h1 className="mt-1 text-xl font-bold text-slate-950">
-              Institution Administration
-            </h1>
-
-            {user && (
-              <p className="mt-0.5 text-xs text-slate-500">
-                {
-                  user.firstName
-                }{" "}
-                {
-                  user.lastName
-                }{" "}
-                · Institution
-                Admin
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() =>
-                void Promise.all(
-                  [
-                    loadOverview(),
-                    loadLookups(),
-                    activeModule !== "overview" &&
-                    activeModule !== "students"
-                      ? loadModule()
-                      : Promise.resolve(),
-                  ]
-                )
-              }
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Refresh
-            </button>
-
-            <button
-              onClick={() =>
-                void logout().then(
-                  () =>
-                    router.push(
-                      "/login"
-                    )
-                )
-              }
-              className="rounded-xl bg-slate-950 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-[1500px] gap-5 p-5 lg:grid-cols-[250px_1fr]">
-        <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-2 lg:sticky lg:top-[90px]">
-          <div className="px-3 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Workspace
-            </p>
-          </div>
-
-          <nav className="space-y-1">
-            {modules.map(
-              (module) => (
-                <button
-                  key={
-                    module.key
-                  }
-                  onClick={() =>
-                    openModule(
-                      module.key
-                    )
-                  }
-                  className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-                    activeModule ===
-                    module.key
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
-                >
-                  {
-                    module.label
-                  }
-                </button>
-              )
-            )}
-          </nav>
-
-          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-            Academic relationships
-            use live institutional
-            selectors. Database
-            IDs do not need to be
-            entered manually.
-          </div>
-        </aside>
-
-        <section className="min-w-0">
-          {error && (
-            <Alert
-              tone="error"
-              text={error}
-              onClose={() =>
-                setError("")
-              }
-            />
-          )}
-
-          {success && (
-            <Alert
-              tone="success"
-              text={success}
-              onClose={() =>
-                setSuccess("")
-              }
-            />
-          )}
-
-          {activeModule ===
-          "overview" ? (
-            <Overview
-              stats={stats}
-              loading={loading}
-              onOpen={openModule}
-            />
-          ) : (
+    <DashboardShell
+      title="Institution Admin"
+      subtitle="Institution administration workspace"
+      allowedRoles={[
+        "INSTITUTION_ADMIN",
+      ]}
+    >
+      <div className="mx-auto w-full max-w-7xl">
+        {/* =====================================================
+            INTRO
+            ===================================================== */}
+        <section className="mb-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Administration
-                  </p>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Institution administration · Control centre
+              </p>
 
-                  <h2 className="mt-1 text-2xl font-bold text-slate-950">
-                    {
-                      currentModule.label
-                    }
-                  </h2>
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                {sectionInfo.title}
+              </h1>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {
-                      currentModule.description
-                    }
-                  </p>
-                </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                {sectionInfo.description}
+              </p>
+            </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {(["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings"] as string[]).includes(activeModule) && (
-                    <DataTransferActions type={activeModule as any} compact />
-                  )}
-                  {currentModule.canCreate &&
-                    ![
-                      "users",
-                      "students",
-                      "faculty",
-                    ].includes(
-                      activeModule
-                    ) && (
-                      <button
-                        onClick={
-                          startCreate
-                        }
-                        className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-                      >
-                        + Add{" "}
-                        {singularLabel(
-                          currentModule.label
-                        )}
-                      </button>
-                    )}
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Workspace active
+              </span>
+            </div>
+          </div>
+        </section>
 
-                  {["users", "faculty"].includes(activeModule) && (
-                    <button
-                      onClick={() => {
-                        clearMessages();
-                        setShowUserCreate(
-                          true
-                        );
-                      }}
-                      className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-                    >
-                      + Create User
-                    </button>
-                  )}
-                </div>
+        {/* =====================================================
+            SECTION SWITCHER
+            ===================================================== */}
+        <SectionSwitcher
+          active={section}
+          onChange={setSection}
+        />
+
+        {/* =====================================================
+            ERROR
+            ===================================================== */}
+        {error ? (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-sm font-black text-red-700">
+                !
               </div>
 
-              {activeModule === "students" ? (
-                <StudentManagement
-                  onChanged={async () => {
-                    await Promise.all([
-                      loadOverview(),
-                      loadLookups(),
-                    ]);
-                  }}
-                />
-              ) : ["users", "faculty"].includes(activeModule) ? (
-                <UserTable
-                  users={filteredUsers}
-                  search={search}
-                  setSearch={setSearch}
-                  loading={loading}
-                  onToggle={toggleUser}
-                  onEdit={startEditUser}
-                />
-              ) : (
-                <RecordTable
-                  records={filteredRecords}
-                  search={search}
-                  setSearch={setSearch}
-                  loading={loading}
-                  onEdit={startEdit}
-                  onDeactivate={deactivate}
-                  allowDeactivate={activeModule !== "academic-years"}
-                  showRoster={activeModule === "course-offerings"}
-                  onRoster={setSelectedOffering}
-                />
-              )}
+              <div>
+                <p className="text-sm font-bold text-red-900">
+                  Unable to load institution data
+                </p>
+
+                <p className="mt-1 text-sm leading-6 text-red-700">
+                  {error}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void loadWorkspace()
+                  }
+                  className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"
+                >
+                  Retry
+                </button>
+              </div>
             </div>
-          )}
+          </div>
+        ) : null}
 
-          {selectedOffering && activeModule === "course-offerings" && (
-            <CourseOfferingRoster
-              offering={selectedOffering}
-              onClose={() => setSelectedOffering(null)}
-            />
-          )}
-
-          {editingUser && (
-            <Modal
-              title="Edit User"
-              onClose={() => setEditingUser(null)}
-            >
-              <form onSubmit={updateUser} className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="First name" required>
-                    <input
-                      required
-                      value={userEditForm.firstName}
-                      onChange={(event) =>
-                        setUserEditForm((previous) => ({
-                          ...previous,
-                          firstName: event.target.value,
-                        }))
-                      }
-                      className={inputClass()}
-                    />
-                  </Field>
-                  <Field label="Last name" required>
-                    <input
-                      required
-                      value={userEditForm.lastName}
-                      onChange={(event) =>
-                        setUserEditForm((previous) => ({
-                          ...previous,
-                          lastName: event.target.value,
-                        }))
-                      }
-                      className={inputClass()}
-                    />
-                  </Field>
-                  <Field label="Phone">
-                    <input
-                      value={userEditForm.phone}
-                      onChange={(event) =>
-                        setUserEditForm((previous) => ({
-                          ...previous,
-                          phone: event.target.value,
-                        }))
-                      }
-                      className={inputClass()}
-                    />
-                  </Field>
-                  <Field label="Role" required>
-                    <select
-                      required
-                      value={userEditForm.role}
-                      onChange={(event) =>
-                        setUserEditForm((previous) => ({
-                          ...previous,
-                          role: event.target.value,
-                        }))
-                      }
-                      className={inputClass()}
-                    >
-                      {roleOptions.map((role) => (
-                        <option key={role} value={role}>
-                          {role.replace(/_/g, " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEditingUser(null)}
-                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {saving ? "Saving…" : "Save changes"}
-                  </button>
-                </div>
-              </form>
-            </Modal>
-          )}
-
-          {showUserCreate && (
-            <Modal
-              title="Create User"
-              onClose={() =>
-                setShowUserCreate(
-                  false
-                )
-              }
-            >
-              <form
-                onSubmit={
-                  createUser
-                }
-                className="space-y-5"
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field
-                    label="First name"
-                    required
-                  >
-                    <input
-                      required
-                      value={
-                        userForm.firstName
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            firstName:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    />
-                  </Field>
-
-                  <Field
-                    label="Last name"
-                    required
-                  >
-                    <input
-                      required
-                      value={
-                        userForm.lastName
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            lastName:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    />
-                  </Field>
-
-                  <Field
-                    label="Email"
-                    required
-                  >
-                    <input
-                      required
-                      type="email"
-                      value={
-                        userForm.email
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            email:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    />
-                  </Field>
-
-                  <Field label="Phone">
-                    <input
-                      value={
-                        userForm.phone
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            phone:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    />
-                  </Field>
-
-                  <Field
-                    label="Password"
-                    required
-                  >
-                    <input
-                      required
-                      minLength={8}
-                      type="password"
-                      value={
-                        userForm.password
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            password:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    />
-                  </Field>
-
-                  <Field
-                    label="Role"
-                    required
-                  >
-                    <select
-                      value={
-                        userForm.role
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setUserForm(
-                          (
-                            previous
-                          ) => ({
-                            ...previous,
-                            role:
-                              event
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      className={
-                        inputClass()
-                      }
-                    >
-                      {roleOptions.map(
-                        (role) => (
-                          <option
-                            key={
-                              role
-                            }
-                            value={
-                              role
-                            }
-                          >
-                            {role.replace(
-                              /_/g,
-                              " "
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </Field>
-                </div>
-
-                <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                  User creation
-                  establishes the
-                  institutional
-                  account. Student
-                  academic enrollment
-                  will be handled by
-                  the dedicated
-                  Student module.
-                </div>
-
-                <ModalActions
-                  onCancel={() =>
-                    setShowUserCreate(
-                      false
-                    )
-                  }
-                  saving={saving}
-                  submitLabel="Create User"
-                />
-              </form>
-            </Modal>
-          )}
-
-          {showCreate &&
-            currentModule.endpoint &&
-            ![
-              "users",
-              "students",
-              "faculty",
-            ].includes(
-              activeModule
-            ) && (
-              <Modal
-                title={`${editing ? "Edit" : "Add"} ${singularLabel(
-                  currentModule.label
-                )}`}
-                onClose={() => {
-                  setShowCreate(
-                    false
-                  );
-                  setEditing(
-                    null
-                  );
-                }}
-              >
-                <RecordForm
-                  module={
-                    currentModule.key
-                  }
-                  form={form}
-                  setField={
-                    setField
-                  }
-                  onSubmit={
-                    saveRecord
-                  }
-                  onCancel={() => {
-                    setShowCreate(
-                      false
-                    );
-                    setEditing(
-                      null
-                    );
-                  }}
-                  saving={saving}
-                  editing={Boolean(
-                    editing
-                  )}
-                  lookups={
-                    lookups
-                  }
-                />
-              </Modal>
-            )}
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function singularLabel(
-  label: string
-) {
-  const map: Record<
-    string,
-    string
-  > = {
-    Campuses: "Campus",
-    Departments:
-      "Department",
-    Programs: "Program",
-    "Academic Years":
-      "Academic Year",
-    Semesters: "Semester",
-    Sections: "Section",
-    Courses: "Course",
-    "Course Offerings":
-      "Course Offering",
-  };
-
-  return (
-    map[label] ||
-    label.replace(
-      /s$/,
-      ""
-    )
-  );
-}
-
-function defaultFormForModule(
-  module: ModuleKey
-): Record<string, string> {
-  switch (module) {
-    case "campuses":
-      return {};
-
-    case "departments":
-      return {};
-
-    case "programs":
-      return {};
-
-    case "academic-years":
-      return {
-        isCurrent:
-          "false",
-      };
-
-    case "semesters":
-      return {};
-
-    case "sections":
-      return {};
-
-    case "courses":
-      return {};
-
-    case "course-offerings":
-      return {};
-
-    default:
-      return {};
-  }
-}
-
-function Overview({
-  stats,
-  loading,
-  onOpen,
-}: {
-  stats: {
-    users: number;
-    students: number;
-    faculty: number;
-    campuses: number;
-    departments: number;
-    programs: number;
-    academicYears: number;
-    semesters: number;
-    courses: number;
-    sections: number;
-    offerings: number;
-  };
-
-  loading: boolean;
-
-  onOpen: (
-    module: ModuleKey
-  ) => void;
-}) {
-  const cards: {
-    label: string;
-    value: number;
-    module: ModuleKey;
-  }[] = [
-    {
-      label: "Total Users",
-      value: stats.users,
-      module: "users",
-    },
-    {
-      label: "Students",
-      value: stats.students,
-      module: "students",
-    },
-    {
-      label: "Faculty",
-      value: stats.faculty,
-      module: "faculty",
-    },
-    {
-      label: "Campuses",
-      value: stats.campuses,
-      module: "campuses",
-    },
-    {
-      label: "Departments",
-      value: stats.departments,
-      module: "departments",
-    },
-    {
-      label: "Programs",
-      value: stats.programs,
-      module: "programs",
-    },
-    {
-      label: "Academic Years",
-      value: stats.academicYears,
-      module:
-        "academic-years",
-    },
-    {
-      label: "Semesters",
-      value: stats.semesters,
-      module:
-        "semesters",
-    },
-    {
-      label: "Courses",
-      value: stats.courses,
-      module: "courses",
-    },
-    {
-      label: "Sections",
-      value: stats.sections,
-      module: "sections",
-    },
-    {
-      label:
-        "Course Offerings",
-      value: stats.offerings,
-      module:
-        "course-offerings",
-    },
-  ];
-
-  return (
-    <div>
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Institution overview
-        </p>
-
-        <h2 className="mt-1 text-2xl font-bold text-slate-950">
-          Administration
-          Dashboard
-        </h2>
-
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-          Configure the institution
-          from its physical
-          campuses through
-          departments, programs,
-          academic years,
-          semesters, sections,
-          courses and teaching
-          assignments.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(
-          (card) => (
-            <button
-              key={
-                card.label
-              }
-              onClick={() =>
-                onOpen(
-                  card.module
-                )
-              }
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-sm"
-            >
-              <p className="text-sm font-medium text-slate-500">
-                {
-                  card.label
-                }
-              </p>
-
-              <p className="mt-3 text-3xl font-bold text-slate-950">
+        {/* =====================================================
+            KPI AREA
+            ===================================================== */}
+        {section === "overview" ? (
+          <>
+            <section aria-label="Institution statistics">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {loading
-                  ? "—"
-                  : card.value}
-              </p>
-
-              <p className="mt-3 text-xs font-medium text-slate-400">
-                Open module →
-              </p>
-            </button>
-          )
-        )}
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <QuickCard
-          title="Physical structure"
-          description="Create campuses and attach departments to the correct campus."
-          button="Manage Campuses"
-          onClick={() =>
-            onOpen(
-              "campuses"
-            )
-          }
-        />
-
-        <QuickCard
-          title="Academic structure"
-          description="Build departments, programs, academic years, semesters, sections and courses using relationship-aware forms."
-          button="Manage Departments"
-          onClick={() =>
-            onOpen(
-              "departments"
-            )
-          }
-        />
-
-        <QuickCard
-          title="Teaching setup"
-          description="Assign courses to sections and faculty without entering database IDs manually."
-          button="Manage Offerings"
-          onClick={() =>
-            onOpen(
-              "course-offerings"
-            )
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function QuickCard({
-  title,
-  description,
-  button,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  button: string;
-  onClick: () => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h3 className="font-semibold text-slate-950">
-        {title}
-      </h3>
-
-      <p className="mt-2 text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-
-      <button
-        onClick={onClick}
-        className="mt-4 text-sm font-semibold text-slate-900 underline underline-offset-4"
-      >
-        {button}
-      </button>
-    </div>
-  );
-}
-
-function UserTable({
-  users,
-  search,
-  setSearch,
-  loading,
-  onToggle,
-  onEdit,
-}: {
-  users: User[];
-  search: string;
-  setSearch: (
-    value: string
-  ) => void;
-  loading: boolean;
-  onToggle: (
-    user: User
-  ) => void;
-  onEdit: (
-    user: User
-  ) => void;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-4">
-        <input
-          value={search}
-          onChange={(event) =>
-            setSearch(
-              event.target
-                .value
-            )
-          }
-          placeholder="Search name, email or role…"
-          className={
-            inputClass()
-          }
-        />
-      </div>
-
-      {loading ? (
-        <Loading />
-      ) : users.length ===
-        0 ? (
-        <EmptyState text="No users found." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-4 py-3">
-                  User
-                </th>
-
-                <th className="px-4 py-3">
-                  Role
-                </th>
-
-                <th className="px-4 py-3">
-                  Phone
-                </th>
-
-                <th className="px-4 py-3">
-                  Status
-                </th>
-
-                <th className="px-4 py-3 text-right">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {users.map(
-                (item) => (
-                  <tr
-                    key={
-                      item.id
-                    }
-                    className="hover:bg-slate-50"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-900">
-                        {
-                          item.firstName
-                        }{" "}
-                        {
-                          item.lastName
-                        }
-                      </p>
-
-                      <p className="text-xs text-slate-400">
-                        {
-                          item.email
-                        }
-                      </p>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {item.roles?.map(
-                          (
-                            role
-                          ) => (
-                            <span
-                              key={
-                                role.id
-                              }
-                              className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600"
-                            >
-                              {role.name.replace(
-                                /_/g,
-                                " "
-                              )}
-                            </span>
-                          )
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3 text-slate-500">
-                      {
-                        item.phone ||
-                        "—"
-                      }
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <StatusBadge
-                        active={
-                          item.isActive
-                        }
+                  ? Array.from({
+                      length: 4,
+                    }).map((_, index) => (
+                      <MetricSkeleton
+                        key={index}
                       />
-                    </td>
-
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          disabled={loading}
-                          onClick={() => onEdit(item)}
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          disabled={loading}
-                          onClick={() => onToggle(item)}
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
-                        >
-                          {item.isActive ? "Deactivate" : "Activate"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RecordTable({
-  records,
-  search,
-  setSearch,
-  loading,
-  onEdit,
-  onDeactivate,
-  allowDeactivate,
-  showRoster,
-  onRoster,
-}: {
-  records: RecordItem[];
-  search: string;
-  setSearch: (
-    value: string
-  ) => void;
-  loading: boolean;
-  onEdit: (
-    item: RecordItem
-  ) => void;
-  onDeactivate: (
-    item: RecordItem
-  ) => void;
-  allowDeactivate: boolean;
-  showRoster?: boolean;
-  onRoster?: (item: RecordItem) => void;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-4">
-        <input
-          value={search}
-          onChange={(event) =>
-            setSearch(
-              event.target
-                .value
-            )
-          }
-          placeholder="Search records…"
-          className={
-            inputClass()
-          }
-        />
-      </div>
-
-      {loading ? (
-        <Loading />
-      ) : records.length ===
-        0 ? (
-        <EmptyState text="No records found. Create the first record for this module." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-4 py-3">
-                  Record
-                </th>
-
-                <th className="px-4 py-3">
-                  Details
-                </th>
-
-                <th className="px-4 py-3">
-                  Status
-                </th>
-
-                <th className="px-4 py-3 text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {records.map(
-                (item) => (
-                  <tr
-                    key={
-                      item.id
-                    }
-                    className="hover:bg-slate-50"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-900">
-                        {getRecordName(
-                          item
-                        )}
-                      </p>
-
-                      {item.code && (
-                        <p className="text-xs text-slate-400">
-                          {
-                            String(
-                              item.code
-                            )
-                          }
-                        </p>
-                      )}
-                    </td>
-
-                    <td className="max-w-[520px] px-4 py-3 text-xs leading-5 text-slate-500">
-                      <RecordDetails
-                        item={
-                          item
-                        }
-                      />
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {typeof item.isCurrent ===
-                      "boolean" ? (
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                            item.isCurrent
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {item.isCurrent
-                            ? "Current"
-                            : "Not current"}
-                        </span>
-                      ) : (
-                        <StatusBadge
-                          active={
-                            item.isActive !==
-                            false
-                          }
+                    ))
+                  : metrics
+                      .slice(0, 4)
+                      .map((metric) => (
+                        <MetricCard
+                          key={metric.label}
+                          metric={metric}
                         />
-                      )}
-                    </td>
+                      ))}
+              </div>
+            </section>
 
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        {showRoster && onRoster && (
-                          <button
-                            onClick={() => onRoster(item)}
-                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            Roster
-                          </button>
-                        )}
+            <section className="mt-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {loading
+                  ? Array.from({
+                      length: 4,
+                    }).map((_, index) => (
+                      <MetricSkeleton
+                        key={index}
+                      />
+                    ))
+                  : metrics
+                      .slice(4)
+                      .map((metric) => (
+                        <MetricCard
+                          key={metric.label}
+                          metric={metric}
+                        />
+                      ))}
+              </div>
+            </section>
 
-                        <button
-                          onClick={() =>
-                            onEdit(
-                              item
-                            )
-                          }
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white"
-                        >
-                          Edit
-                        </button>
-
-                        {allowDeactivate &&
-                          item.isActive !==
-                            false && (
-                            <button
-                              onClick={() =>
-                                onDeactivate(
-                                  item
-                                )
-                              }
-                              className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                            >
-                              Deactivate
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RecordDetails({
-  item,
-}: {
-  item: RecordItem;
-}) {
-  const details: string[] =
-    [];
-
-  const department =
-    item.department as
-      | RecordItem
-      | undefined;
-
-  const campus =
-    item.campus as
-      | RecordItem
-      | undefined;
-
-  const program =
-    item.program as
-      | RecordItem
-      | undefined;
-
-  const academicYear =
-    item.academicYear as
-      | RecordItem
-      | undefined;
-
-  const course =
-    item.course as
-      | RecordItem
-      | undefined;
-
-  const section =
-    item.section as
-      | RecordItem
-      | undefined;
-
-  const faculty =
-    item.faculty as
-      | User
-      | undefined;
-
-  if (campus?.name) {
-    details.push(
-      `Campus: ${String(
-        campus.name
-      )}`
-    );
-  }
-
-  if (department?.name) {
-    details.push(
-      `Department: ${String(
-        department.name
-      )}`
-    );
-  }
-
-  if (program?.name) {
-    details.push(
-      `Program: ${String(
-        program.name
-      )}`
-    );
-  }
-
-  if (academicYear?.name) {
-    details.push(
-      `Academic year: ${String(
-        academicYear.name
-      )}`
-    );
-  }
-
-  if (course?.name) {
-    details.push(
-      `Course: ${String(
-        course.name
-      )}`
-    );
-  }
-
-  if (section?.name) {
-    details.push(
-      `Section: ${String(
-        section.name
-      )}`
-    );
-  }
-
-  if (faculty?.firstName) {
-    details.push(
-      `Faculty: ${faculty.firstName} ${faculty.lastName}`
-    );
-  }
-
-  if (item.level) {
-    details.push(
-      `Level: ${String(
-        item.level
-      )}`
-    );
-  }
-
-  if (item.durationYears) {
-    details.push(
-      `Duration: ${String(
-        item.durationYears
-      )} years`
-    );
-  }
-
-  if (item.number) {
-    details.push(
-      `Semester: ${String(
-        item.number
-      )}`
-    );
-  }
-
-  if (item.credits) {
-    details.push(
-      `Credits: ${String(
-        item.credits
-      )}`
-    );
-  }
-
-  if (item.capacity) {
-    details.push(
-      `Capacity: ${String(
-        item.capacity
-      )}`
-    );
-  }
-
-  if (item.address) {
-    details.push(
-      String(
-        item.address
-      )
-    );
-  }
-
-  return (
-    <span>
-      {details.length
-        ? details.join(
-            " · "
-          )
-        : "No additional details"}
-    </span>
-  );
-}
-
-type Lookups = {
-  campuses: RecordItem[];
-  departments: RecordItem[];
-  programs: RecordItem[];
-  academicYears: RecordItem[];
-  semesters: RecordItem[];
-  sections: RecordItem[];
-  courses: RecordItem[];
-  faculty: User[];
-};
-
-function RecordForm({
-  module,
-  form,
-  setField,
-  onSubmit,
-  onCancel,
-  saving,
-  editing,
-  lookups,
-}: {
-  module: ModuleKey;
-  form: Record<
-    string,
-    string
-  >;
-  setField: (
-    key: string,
-    value: string
-  ) => void;
-  onSubmit: (
-    event: FormEvent
-  ) => void;
-  onCancel: () => void;
-  saving: boolean;
-  editing: boolean;
-  lookups: Lookups;
-}) {
-  const semesterOptions =
-    lookups.semesters.filter(
-      (item) => {
-        const programId =
-          form.programId;
-
-        const academicYearId =
-          form.academicYearId;
-
-        return (
-          (!programId ||
-            String(
-              item.programId
-            ) ===
-              programId) &&
-          (!academicYearId ||
-            String(
-              item.academicYearId
-            ) ===
-              academicYearId)
-        );
-      }
-    );
-
-  const sectionOptions =
-    lookups.sections.filter(
-      (item) =>
-        !form.semesterId ||
-        String(
-          item.semesterId
-        ) ===
-          form.semesterId
-    );
-
-  const programOptions =
-    lookups.programs.filter(
-      (item) =>
-        !form.departmentId ||
-        String(
-          item.departmentId
-        ) ===
-          form.departmentId
-    );
-
-  const courseOptions =
-    lookups.courses.filter(
-      (item) =>
-        !form.departmentId ||
-        String(
-          item.departmentId
-        ) ===
-          form.departmentId
-    );
-
-  const facultyOptions: RecordItem[] =
-    lookups.faculty.map(
-      (item) => ({
-        id: item.id,
-        name: `${item.firstName} ${item.lastName}`,
-        code: item.email,
-      })
-    );
-
-  const fields =
-    getFieldsForModule(
-      module
-    );
-
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="space-y-5"
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        {fields.map(
-          (field) => {
-            const options =
-              field.optionSource ===
-              "campuses"
-                ? lookups.campuses
-                : field.optionSource ===
-                  "departments"
-                ? lookups.departments
-                : field.optionSource ===
-                  "programs"
-                ? programOptions
-                : field.optionSource ===
-                  "academicYears"
-                ? lookups.academicYears
-                : field.optionSource ===
-                  "semesters"
-                ? semesterOptions
-                : field.optionSource ===
-                  "sections"
-                ? sectionOptions
-                : field.optionSource ===
-                  "courses"
-                ? courseOptions
-                : field.optionSource ===
-                  "faculty"
-                ? facultyOptions
-                : undefined;
-
-            return (
-              <Field
-                key={
-                  field.key
+            <div className="mt-6 grid gap-5 xl:grid-cols-[1.45fr_1fr]">
+              <NoticeList
+                notices={
+                  data?.notices ?? []
                 }
-                label={
-                  field.label
-                }
-                required={
-                  field.required
-                }
-                help={
-                  field.help
-                }
-              >
-                {field.type ===
-                "select" ? (
-                  <select
-                    required={
-                      field.required
-                    }
-                    value={
-                      form[
-                        field.key
-                      ] ||
-                      ""
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setField(
-                        field.key,
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    className={
-                      inputClass()
-                    }
-                    disabled={
-                      field.disabled
-                    }
-                  >
-                    {field.placeholderOption && (
-                      <option value="">
-                        {
-                          field.placeholderOption
-                        }
-                      </option>
-                    )}
+              />
 
-                    {options?.map(
-                      (
-                        option
-                      ) => (
-                        <option
-                          key={
-                            option.id
-                          }
-                          value={
-                            option.id
-                          }
-                        >
-                          {optionLabel(
-                            option
-                          )}
-                        </option>
-                      )
-                    )}
+              <ActionPanel
+                actions={getActions()}
+                onOpen={open}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+            <SectionActions
+              actions={actions}
+              onOpen={open}
+            />
 
-                    {field.staticOptions?.map(
-                      (
-                        option
-                      ) => (
-                        <option
-                          key={
-                            option.value
-                          }
-                          value={
-                            option.value
-                          }
-                        >
-                          {
-                            option.label
-                          }
-                        </option>
-                      )
-                    )}
-                  </select>
-                ) : (
-                  <input
-                    required={
-                      field.required
-                    }
-                    type={
-                      field.type ||
-                      "text"
-                    }
-                    min={
-                      field.min !==
-                      undefined
-                        ? String(
-                            field.min
-                          )
-                        : undefined
-                    }
-                    value={
-                      form[
-                        field.key
-                      ] ||
-                      ""
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setField(
-                        field.key,
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    placeholder={
-                      field.placeholder
-                    }
-                    className={
-                      inputClass()
-                    }
-                  />
-                )}
-              </Field>
-            );
-          }
+            <ActionPanel
+              actions={actions}
+              onOpen={open}
+            />
+          </div>
         )}
-      </div>
 
-      <div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-        {editing
-          ? "Changes are validated by the backend and remain inside your institution."
-          : "Relationships are selected from live institutional records. The backend enforces tenant boundaries again before saving."}
-      </div>
+        {/* =====================================================
+            FOOTER STATUS
+            ===================================================== */}
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-800">
+                ACADLYX Institution Admin
+              </p>
 
-      <ModalActions
-        onCancel={onCancel}
-        saving={saving}
-        submitLabel={
-          editing
-            ? "Save Changes"
-            : "Create"
-        }
-      />
-    </form>
-  );
-}
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Administrative access is controlled by your
+                authenticated institution role.
+              </p>
+            </div>
 
-type FormField = {
-  key: string;
-  label: string;
-  required?: boolean;
-  type?: string;
-  placeholder?: string;
-  min?: number;
-  optionSource?: keyof Lookups;
-  placeholderOption?: string;
-  disabled?: boolean;
-  help?: string;
-  staticOptions?: {
-    value: string;
-    label: string;
-  }[];
-};
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
 
-function getFieldsForModule(
-  module: ModuleKey
-): FormField[] {
-  switch (module) {
-    case "campuses":
-      return [
-        {
-          key: "name",
-          label: "Campus name",
-          required: true,
-          placeholder:
-            "Main Campus",
-        },
-        {
-          key: "code",
-          label: "Campus code",
-          required: true,
-          placeholder:
-            "MAIN",
-        },
-        {
-          key: "address",
-          label: "Address",
-          placeholder:
-            "Campus address",
-        },
-        {
-          key: "isActive",
-          label: "Status",
-          type: "select",
-          staticOptions: [
-            {
-              value:
-                "true",
-              label:
-                "Active",
-            },
-            {
-              value:
-                "false",
-              label:
-                "Inactive",
-            },
-          ],
-        },
-      ];
-
-    case "departments":
-      return [
-        {
-          key: "name",
-          label:
-            "Department name",
-          required: true,
-          placeholder:
-            "Computer Science & Engineering",
-        },
-        {
-          key: "code",
-          label:
-            "Department code",
-          required: true,
-          placeholder:
-            "CSE",
-        },
-        {
-          key: "campusId",
-          label: "Campus",
-          optionSource:
-            "campuses",
-          type: "select",
-          placeholderOption:
-            "Select campus (optional)",
-        },
-      ];
-
-    case "programs":
-      return [
-        {
-          key:
-            "departmentId",
-          label:
-            "Department",
-          required: true,
-          optionSource:
-            "departments",
-          type: "select",
-          placeholderOption:
-            "Select department",
-        },
-        {
-          key: "name",
-          label:
-            "Program name",
-          required: true,
-          placeholder:
-            "B.Tech Computer Science & Engineering",
-        },
-        {
-          key: "code",
-          label:
-            "Program code",
-          required: true,
-          placeholder:
-            "BTECH-CSE",
-        },
-        {
-          key: "level",
-          label: "Level",
-          required: true,
-          type: "select",
-          staticOptions: [
-            {
-              value:
-                "UG",
-              label:
-                "Undergraduate (UG)",
-            },
-            {
-              value:
-                "PG",
-              label:
-                "Postgraduate (PG)",
-            },
-            {
-              value:
-                "DIPLOMA",
-              label:
-                "Diploma",
-            },
-            {
-              value:
-                "CERTIFICATE",
-              label:
-                "Certificate",
-            },
-          ],
-        },
-        {
-          key:
-            "durationYears",
-          label:
-            "Duration in years",
-          required: true,
-          type: "number",
-          min: 1,
-        },
-      ];
-
-    case "academic-years":
-      return [
-        {
-          key: "name",
-          label:
-            "Academic year",
-          required: true,
-          placeholder:
-            "2026-27",
-        },
-        {
-          key:
-            "startDate",
-          label:
-            "Start date",
-          required: true,
-          type: "date",
-        },
-        {
-          key:
-            "endDate",
-          label:
-            "End date",
-          required: true,
-          type: "date",
-        },
-        {
-          key:
-            "isCurrent",
-          label:
-            "Current academic year",
-          type: "select",
-          staticOptions: [
-            {
-              value:
-                "true",
-              label: "Yes",
-            },
-            {
-              value:
-                "false",
-              label: "No",
-            },
-          ],
-        },
-      ];
-
-    case "semesters":
-      return [
-        {
-          key:
-            "programId",
-          label: "Program",
-          required: true,
-          optionSource:
-            "programs",
-          type: "select",
-          placeholderOption:
-            "Select program",
-        },
-        {
-          key:
-            "academicYearId",
-          label:
-            "Academic year",
-          required: true,
-          optionSource:
-            "academicYears",
-          type: "select",
-          placeholderOption:
-            "Select academic year",
-        },
-        {
-          key: "number",
-          label:
-            "Semester number",
-          required: true,
-          type: "number",
-          min: 1,
-        },
-        {
-          key: "name",
-          label:
-            "Semester name",
-          required: true,
-          placeholder:
-            "Semester 1",
-        },
-        {
-          key:
-            "startDate",
-          label:
-            "Start date",
-          type: "date",
-        },
-        {
-          key:
-            "endDate",
-          label:
-            "End date",
-          type: "date",
-        },
-      ];
-
-    case "sections":
-      return [
-        {
-          key:
-            "semesterId",
-          label:
-            "Semester",
-          required: true,
-          optionSource:
-            "semesters",
-          type: "select",
-          placeholderOption:
-            "Select semester",
-        },
-        {
-          key: "name",
-          label:
-            "Section name",
-          required: true,
-          placeholder:
-            "A",
-        },
-        {
-          key:
-            "capacity",
-          label:
-            "Capacity",
-          type: "number",
-          min: 1,
-          placeholder:
-            "60",
-        },
-      ];
-
-    case "courses":
-      return [
-        {
-          key:
-            "departmentId",
-          label:
-            "Department",
-          required: true,
-          optionSource:
-            "departments",
-          type: "select",
-          placeholderOption:
-            "Select department",
-        },
-        {
-          key: "code",
-          label:
-            "Course code",
-          required: true,
-          placeholder:
-            "CS301",
-        },
-        {
-          key: "name",
-          label:
-            "Course name",
-          required: true,
-          placeholder:
-            "Data Structures",
-        },
-        {
-          key: "credits",
-          label: "Credits",
-          required: true,
-          type: "number",
-          min: 1,
-        },
-        {
-          key:
-            "description",
-          label:
-            "Description",
-          placeholder:
-            "Course description",
-        },
-      ];
-
-    case "course-offerings":
-      return [
-        {
-          key:
-            "courseId",
-          label: "Course",
-          required: true,
-          optionSource:
-            "courses",
-          type: "select",
-          placeholderOption:
-            "Select course",
-        },
-        {
-          key:
-            "semesterId",
-          label:
-            "Semester",
-          required: true,
-          optionSource:
-            "semesters",
-          type: "select",
-          placeholderOption:
-            "Select semester",
-        },
-        {
-          key:
-            "sectionId",
-          label:
-            "Section",
-          required: true,
-          optionSource:
-            "sections",
-          type: "select",
-          placeholderOption:
-            "Select section",
-        },
-        {
-          key:
-            "facultyId",
-          label:
-            "Faculty",
-          optionSource:
-            "faculty",
-          type: "select",
-          placeholderOption:
-            "Select faculty (optional)",
-        },
-      ];
-
-    default:
-      return [];
-  }
-}
-
-function Field({
-  label,
-  required,
-  children,
-  help,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-  help?: string;
-}) {
-  return (
-    <div>
-      <label
-        className={
-          labelClass()
-        }
-      >
-        {label}
-
-        {required && (
-          <span className="ml-1 text-red-500">
-            *
-          </span>
-        )}
-      </label>
-
-      {children}
-
-      {help && (
-        <p className="mt-1 text-[11px] leading-4 text-slate-400">
-          {help}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
-          <h3 className="font-semibold text-slate-950">
-            {title}
-          </h3>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="p-5">
-          {children}
+              <span className="text-[11px] font-semibold text-slate-500">
+                Connected
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ModalActions({
-  onCancel,
-  saving,
-  submitLabel,
-}: {
-  onCancel: () => void;
-  saving: boolean;
-  submitLabel: string;
-}) {
-  return (
-    <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-      >
-        Cancel
-      </button>
-
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {saving
-          ? "Saving…"
-          : submitLabel}
-      </button>
-    </div>
-  );
-}
-
-function Alert({
-  tone,
-  text,
-  onClose,
-}: {
-  tone:
-    | "error"
-    | "success";
-  text: string;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className={`mb-4 flex items-start justify-between gap-4 rounded-xl border p-3 text-sm ${
-        tone ===
-        "error"
-          ? "border-red-100 bg-red-50 text-red-700"
-          : "border-emerald-100 bg-emerald-50 text-emerald-700"
-      }`}
-    >
-      <span>
-        {text}
-      </span>
-
-      <button
-        onClick={
-          onClose
-        }
-        className="font-bold opacity-60 hover:opacity-100"
-      >
-        ✕
-      </button>
-    </div>
-  );
-}
-
-function StatusBadge({
-  active,
-}: {
-  active: boolean;
-}) {
-  return (
-    <span
-      className={`rounded-full px-2 py-1 text-xs font-semibold ${
-        active
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
-    >
-      {active
-        ? "Active"
-        : "Inactive"}
-    </span>
-  );
-}
-
-function Loading() {
-  return (
-    <div className="p-8 text-center text-sm text-slate-400">
-      Loading live data…
-    </div>
-  );
-}
-
-function EmptyState({
-  text,
-}: {
-  text: string;
-}) {
-  return (
-    <div className="p-8 text-center text-sm text-slate-400">
-      {text}
-    </div>
+    </DashboardShell>
   );
 }
