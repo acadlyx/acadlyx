@@ -45,9 +45,7 @@ export default function OperationsPage() {
   const [notice, setNotice] = useState("");
 
   const canManage = roles.some((role) =>
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "STAFF"].includes(
-      role
-    )
+    ["IT", "DIRECTOR"].includes(role)
   );
 
   const run = useCallback(
