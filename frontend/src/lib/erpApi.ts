@@ -404,6 +404,27 @@ export async function listUsers(
   );
 }
 
+/**
+ * Deactivation is the safe user-deletion operation in an ERP: the backend
+ * revokes active sessions while retaining academic and financial history.
+ */
+export async function setUserActive(
+  userId: string,
+  isActive: boolean
+): Promise<ErpUser> {
+  const response = await authedFetch<ApiEnvelope<ErpUser>>(
+    `/users/${userId}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    }
+  );
+
+  invalidateUsers();
+  invalidateWorkspace();
+  return response.data;
+}
+
 /*
  * ---------------------------------------------------------------------------
  * COURSE OFFERINGS

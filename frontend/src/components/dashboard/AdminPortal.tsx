@@ -200,6 +200,11 @@ function getActions(): AdminAction[] {
       href: "/imports",
     },
     {
+      label: "User lifecycle",
+      description: "Safely deactivate or reactivate institutional accounts.",
+      href: "/user-management",
+    },
+    {
       label: "Admissions",
       description:
         "Open admissions and applicant workflows.",

@@ -72,6 +72,7 @@ const NAVIGATION: NavigationItem[] = [
 
   { label: "Overview", href: "/admin", icon: "⌂", roles: ["INSTITUTION_ADMIN"] },
   { label: "People & users", href: "/admin", icon: "♙", roles: ["INSTITUTION_ADMIN"], permissions: ["users.read"] },
+  { label: "User lifecycle", href: "/user-management", icon: "♙", roles: ["INSTITUTION_ADMIN", "SUPER_ADMIN"], permissions: ["users.delete"] },
   { label: "ERP operations", href: "/erp", icon: "▦", roles: ["INSTITUTION_ADMIN"], permissions: ["attendance.read"] },
   { label: "Intelligence", href: "/intelligence", icon: "✦", roles: ["INSTITUTION_ADMIN"], permissions: ["intelligence.read"] },
   { label: "Data import", href: "/imports", icon: "⇅", roles: ["INSTITUTION_ADMIN"], permissions: ["imports.manage"] },
