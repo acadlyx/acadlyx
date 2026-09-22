@@ -144,6 +144,8 @@ export const PERMISSIONS = [
 
   { key: "calendar.read", module: "calendar", description: "View academic calendar" },
   { key: "calendar.manage", module: "calendar", description: "Manage academic calendar" },
+  { key: "club.read", module: "clubs", description: "View assigned club within scope" },
+  { key: "club.manage", module: "clubs", description: "Manage assigned club within scope" },
 
   { key: "registration.submit", module: "registration", description: "Submit course registration" },
   { key: "registration.read", module: "registration", description: "View registrations within scope" },
@@ -180,11 +182,8 @@ export type PermissionKey =
   (typeof PERMISSIONS)[number]["key"];
 
 /**
- * Canonical application roles.
- *
- * MANAGEMENT and STAFF remain in the catalogue temporarily for backwards
- * compatibility with existing production accounts. They are legacy aliases
- * and are not the target architecture for new assignments.
+ * Canonical application roles. Legacy MANAGEMENT/STAFF values are accepted
+ * only as database/input compatibility aliases and are never canonical roles.
  */
 export const SYSTEM_ROLE_NAMES = [
   "SUPER_ADMIN",
@@ -207,9 +206,6 @@ export const SYSTEM_ROLE_NAMES = [
   "PARENT",
   "CLUB_PRESIDENT",
 
-  // Legacy production compatibility.
-  "MANAGEMENT",
-  "STAFF",
 ] as const;
 
 export type SystemRoleName =
@@ -247,18 +243,11 @@ export const LEGACY_ROLE_ALIASES: Record<
 export function normalizeRoleName(
   role: string
 ): SystemRoleName | null {
-  if (
-    SYSTEM_ROLE_NAMES.includes(
-      role as SystemRoleName
-    )
-  ) {
-    const canonical =
-      LEGACY_ROLE_ALIASES[role];
+  const canonicalAlias = LEGACY_ROLE_ALIASES[role];
+  if (canonicalAlias) return canonicalAlias;
 
-    return (
-      canonical ??
-      (role as SystemRoleName)
-    );
+  if (SYSTEM_ROLE_NAMES.includes(role as SystemRoleName)) {
+    return role as SystemRoleName;
   }
 
   return null;
@@ -958,80 +947,9 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CLUB_PRESIDENT: [
-    "students.read",
-
-    "notifications.read",
-    "notifications.manage",
-
-    "documents.read",
-
+    "club.read",
+    "club.manage",
     "calendar.read",
-
-    "maintenance.raise",
-  ],
-
-  /**
-   * Legacy MANAGEMENT.
-   *
-   * Existing production accounts continue to work, but new application
-   * code should treat this as CHAIRMAN.
-   */
-  MANAGEMENT: [
-    ...LEADERSHIP_READ,
-    "reports.read",
-    "intelligence.read",
-    "fees.read",
-    "operations.read",
-    "audit.read",
-  ],
-
-  /**
-   * Legacy STAFF.
-   *
-   * Existing STAFF accounts are retained until explicitly migrated.
-   * New financial/operational staff should be assigned a specialist role
-   * such as ACCOUNTS, HR, ADMISSIONS, LIBRARIAN, PLACEMENT or IT.
-   */
-  STAFF: [
-    "users.read",
-    "students.read",
-
-    ...ACADEMIC_READ,
-
-    "timetable.read",
-
-    "notices.read",
-
-    "exams.read",
-
-    "fees.read",
-    "fees.manage",
-    "fees.pay",
-
-    "parent-links.read",
-
-    "notifications.read",
-
-    "documents.read",
-
-    "admissions.read",
-
-    "leave.apply",
-
-    "library.read",
-    "library.borrow",
-
-    "calendar.read",
-
-    "registration.read",
-
-    "promotions.read",
-
-    "certificates.read",
-
-    "operations.read",
-
-    "maintenance.raise",
   ],
 };
 
@@ -1070,8 +988,6 @@ export const ROLE_RANK: Record<
   STUDENT: 10,
   PARENT: 10,
 
-  MANAGEMENT: 80,
-  STAFF: 40,
 };
 
 export function highestRoleRank(
