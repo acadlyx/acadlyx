@@ -1,20 +1,12 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { useRouter } from "next/navigation";
-
+import { FormEvent, useEffect, useRef, useState } from "react";
 import {
   authedFetch,
   AuthRequiredError,
   clearTokens,
 } from "@/lib/auth";
-
-import type { AuthUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 type Account = {
   email: string;
@@ -28,69 +20,42 @@ type Account = {
   lastLoginAt: string | null;
 };
 
-type AccountMenuProps = {
-  user?: AuthUser | null;
-};
-
-export function AccountMenu({
-  user,
-}: AccountMenuProps) {
+export function AccountMenu() {
   const router = useRouter();
-  const menuRef =
-    useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [account, setAccount] =
     useState<Account | null>(null);
 
-  const [open, setOpen] =
-    useState(false);
-
-  const [editing, setEditing] =
-    useState(false);
-
-  const [password, setPassword] =
-    useState(false);
-
-  const [message, setMessage] =
-    useState("");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [password, setPassword] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    let mounted = true;
-
-    authedFetch<{
-      success: true;
-      data: Account;
-    }>("/auth/account")
-      .then((response) => {
-        if (!mounted) return;
-
-        setAccount(response.data);
-      })
+    if (!open || account) return;
+    let active = true;
+    authedFetch<{ success: true; data: Account }>(
+      "/auth/account"
+    )
+      .then((response) =>
+        active && setAccount(response.data)
+      )
       .catch((error) => {
-        if (!mounted) return;
-
-        if (
-          error instanceof AuthRequiredError
-        ) {
+        if (active && !(error instanceof AuthRequiredError)) {
           setAccount(null);
-          return;
         }
-
-        setAccount(null);
       });
-
     return () => {
-      mounted = false;
+      active = false;
     };
-  }, []);
+  }, [open, account]);
 
   useEffect(() => {
-    function handleOutsideClick(
-      event: MouseEvent,
-    ) {
+    function handleOutsideClick(event: MouseEvent) {
       if (
         !menuRef.current?.contains(
-          event.target as Node,
+          event.target as Node
         )
       ) {
         setOpen(false);
@@ -100,137 +65,74 @@ export function AccountMenu({
     if (open) {
       document.addEventListener(
         "mousedown",
-        handleOutsideClick,
+        handleOutsideClick
       );
     }
 
     return () => {
       document.removeEventListener(
         "mousedown",
-        handleOutsideClick,
+        handleOutsideClick
       );
     };
   }, [open]);
 
-  /*
-   * The DashboardShell already knows the
-   * authenticated user. The account endpoint
-   * remains the authoritative source for the
-   * editable profile information.
-   *
-   * If the account endpoint has not loaded yet,
-   * fall back to the authenticated user for
-   * the avatar/name display instead of making
-   * the entire dashboard header disappear.
-   */
-  const displayFirstName =
-    account?.firstName ??
-    user?.firstName ??
-    "";
-
-  const displayLastName =
-    account?.lastName ??
-    user?.lastName ??
-    "";
-
-  const displayEmail =
-    account?.email ??
-    user?.email ??
-    "";
-
-  const displayInstitution =
-    account?.institution?.name ??
-    "ACADLYX Platform";
-
-  if (!account && !user) {
-    return null;
-  }
-
   async function saveProfile(
-    event: FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    const form = new FormData(
-      event.currentTarget,
-    );
-
-    setMessage("");
+    const form = new FormData(event.currentTarget);
 
     try {
-      const response =
-        await authedFetch<{
-          success: true;
-          data: Account;
-        }>("/auth/account", {
-          method: "PATCH",
-          body: JSON.stringify({
-            firstName:
-              form.get("firstName"),
-            lastName:
-              form.get("lastName"),
-            phone:
-              form.get("phone") || null,
-          }),
-        });
+      const response = await authedFetch<{
+        success: true;
+        data: Account;
+      }>("/auth/account", {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName: form.get("firstName"),
+          lastName: form.get("lastName"),
+          phone: form.get("phone") || null,
+        }),
+      });
 
       setAccount((current) =>
         current
-          ? {
-              ...current,
-              ...response.data,
-            }
-          : response.data,
+          ? { ...current, ...response.data }
+          : response.data
       );
 
       setEditing(false);
-      setMessage(
-        "Profile saved successfully.",
-      );
+      setMessage("Profile saved successfully.");
     } catch (error) {
-      if (
-        error instanceof AuthRequiredError
-      ) {
-        clearTokens();
-        router.replace("/login");
-        return;
-      }
-
       setMessage(
         error instanceof Error
           ? error.message
-          : "Unable to save profile.",
+          : "Unable to save profile."
       );
     }
   }
 
   async function savePassword(
-    event: FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    const form = new FormData(
-      event.currentTarget,
-    );
+    const form = new FormData(event.currentTarget);
 
     const newPassword = String(
-      form.get("newPassword") || "",
+      form.get("newPassword") || ""
     );
 
     const confirmPassword = String(
-      form.get("confirmPassword") || "",
+      form.get("confirmPassword") || ""
     );
 
-    if (
-      newPassword !== confirmPassword
-    ) {
-      setMessage(
-        "New passwords do not match.",
-      );
+    if (newPassword !== confirmPassword) {
+      setMessage("New passwords do not match.");
       return;
     }
-
-    setMessage("");
 
     try {
       await authedFetch(
@@ -239,44 +141,29 @@ export function AccountMenu({
           method: "POST",
           body: JSON.stringify({
             currentPassword:
-              form.get(
-                "currentPassword",
-              ),
+              form.get("currentPassword"),
             newPassword,
           }),
-        },
+        }
       );
 
       clearTokens();
       router.replace("/login");
     } catch (error) {
-      if (
-        error instanceof AuthRequiredError
-      ) {
-        clearTokens();
-        router.replace("/login");
-        return;
-      }
-
       setMessage(
         error instanceof Error
           ? error.message
-          : "Unable to change password.",
+          : "Unable to change password."
       );
     }
   }
 
   return (
-    <div
-      ref={menuRef}
-      className="relative"
-    >
+    <div ref={menuRef} className="relative">
       <button
         type="button"
         onClick={() => {
-          setOpen(
-            (value) => !value,
-          );
+          setOpen((value) => !value);
           setMessage("");
           setEditing(false);
           setPassword(false);
@@ -286,50 +173,50 @@ export function AccountMenu({
         className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-violet-500 text-[11px] font-black text-white">
-          {displayFirstName
-            .charAt(0)
-            .toUpperCase()}
-
-          {displayLastName
-            .charAt(0)
-            .toUpperCase()}
+          {account
+            ? `${account.firstName.charAt(0)}${account.lastName.charAt(0)}`.toUpperCase()
+            : "…"}
         </span>
 
         <span className="hidden max-w-28 truncate text-xs font-bold text-slate-700 sm:block">
-          {displayFirstName}
+          {account?.firstName || "Account"}
         </span>
 
-        <span className="text-slate-400">
-          ⌄
-        </span>
+        <span className="text-slate-400">⌄</span>
       </button>
 
-      {open && (
+      {open && !account && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-64 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-xl">
+          Loading account details…
+        </div>
+      )}
+
+      {open && account && (
         <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[min(92vw,390px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
           <div className="border-b border-slate-100 bg-gradient-to-br from-sky-50 to-violet-50 p-4">
             <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-500 text-sm font-black text-white">
-                {displayFirstName
+                {account.firstName
                   .charAt(0)
                   .toUpperCase()}
-
-                {displayLastName
+                {account.lastName
                   .charAt(0)
                   .toUpperCase()}
               </span>
 
               <div className="min-w-0">
                 <p className="truncate font-bold text-slate-950">
-                  {displayFirstName}{" "}
-                  {displayLastName}
+                  {account.firstName}{" "}
+                  {account.lastName}
                 </p>
 
                 <p className="truncate text-xs text-slate-500">
-                  {displayEmail}
+                  {account.email}
                 </p>
 
                 <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  {displayInstitution}
+                  {account.institution?.name ||
+                    "ACADLYX Platform"}
                 </p>
               </div>
             </div>
@@ -346,9 +233,7 @@ export function AccountMenu({
               <button
                 type="button"
                 onClick={() => {
-                  setEditing(
-                    (value) => !value,
-                  );
+                  setEditing((value) => !value);
                   setPassword(false);
                   setMessage("");
                 }}
@@ -364,9 +249,7 @@ export function AccountMenu({
               <button
                 type="button"
                 onClick={() => {
-                  setPassword(
-                    (value) => !value,
-                  );
+                  setPassword((value) => !value);
                   setEditing(false);
                   setMessage("");
                 }}
@@ -382,9 +265,9 @@ export function AccountMenu({
 
             <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500">
               Last sign-in:{" "}
-              {account?.lastLoginAt
+              {account.lastLoginAt
                 ? new Date(
-                    account.lastLoginAt,
+                    account.lastLoginAt
                   ).toLocaleString()
                 : "Not available"}
             </div>
@@ -397,9 +280,7 @@ export function AccountMenu({
                 <input
                   name="firstName"
                   defaultValue={
-                    account?.firstName ??
-                    user?.firstName ??
-                    ""
+                    account.firstName
                   }
                   required
                   placeholder="First name"
@@ -409,9 +290,7 @@ export function AccountMenu({
                 <input
                   name="lastName"
                   defaultValue={
-                    account?.lastName ??
-                    user?.lastName ??
-                    ""
+                    account.lastName
                   }
                   required
                   placeholder="Last name"
@@ -421,16 +300,13 @@ export function AccountMenu({
                 <input
                   name="phone"
                   defaultValue={
-                    account?.phone ?? ""
+                    account.phone || ""
                   }
                   placeholder="Phone"
                   className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
 
-                <button
-                  type="submit"
-                  className="rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90"
-                >
+                <button className="rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm">
                   Save profile
                 </button>
               </form>
@@ -464,13 +340,10 @@ export function AccountMenu({
                   minLength={10}
                   required
                   placeholder="Confirm new password"
-                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-slate-100"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 />
 
-                <button
-                  type="submit"
-                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
-                >
+                <button className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white">
                   Change password
                 </button>
               </form>
