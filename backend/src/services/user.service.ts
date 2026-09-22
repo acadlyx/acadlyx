@@ -130,6 +130,25 @@ async function getRoleForUser(
   );
 }
 
+async function assertClubPresidentEligibility(userId: string, institutionId: string | null) {
+  const student = await prisma.studentProfile.findFirst({
+    where: {
+      userId,
+      ...(institutionId ? { institutionId } : {}),
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  if (!student) {
+    throw new AppError(
+      "CLUB_PRESIDENT can only be assigned to an existing student account",
+      400
+    );
+  }
+}
+
 async function getScopedUserOrThrow(
   id: string,
   institutionId: string | null
@@ -481,6 +500,13 @@ export async function createUser(
     );
   }
 
+  if (input.role === "CLUB_PRESIDENT") {
+    throw new AppError(
+      "Club President must be assigned to an existing student through the student/club workflow; generic user creation cannot create this responsibility",
+      400
+    );
+  }
+
   const role = await getRoleForUser(
     input.role,
     targetInstitutionId
@@ -729,6 +755,13 @@ export async function updateUser(
   }
 
   if (input.role) {
+    if (input.role === "CLUB_PRESIDENT") {
+      await assertClubPresidentEligibility(
+        existing.id,
+        existing.institutionId
+      );
+    }
+
     const role =
       await getRoleForUser(
         input.role,
