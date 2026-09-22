@@ -1,12 +1,7 @@
+
 "use client";
 
 import {
-  AuthRequiredError,
-  getCurrentUser,
-} from "@/lib/auth";
-
-import {
-  clearErpClientCache,
   getErpWorkspace,
   getMyDocuments,
   getNotifications,
@@ -18,70 +13,72 @@ import {
   listPrograms,
   listSemesters,
   listUsers,
-} from "@/lib/erpApi";
+  type ErpDocument,
+  type ErpOffering,
+  type ErpUser,
+  type ErpWorkspace,
+  type FeeHead,
+  type FeeStructure,
+} from "./erpApi";
 
-export type ErpPageData = {
-  roles: string[];
+export type ErpTab =
+  | "overview"
+  | "timetable"
+  | "notices"
+  | "exams"
+  | "fees"
+  | "parents"
+  | "notifications"
+  | "documents";
 
-  workspace: Record<
-    string,
-    unknown
-  > | null;
+export interface ErpPageData {
+  workspace: ErpWorkspace | null;
 
-  offerings: Awaited<
-    ReturnType<typeof listOfferings>
-  >;
+  offerings: ErpOffering[];
 
-  students: Awaited<
-    ReturnType<typeof listUsers>
-  >;
+  students: ErpUser[];
 
-  parents: Awaited<
-    ReturnType<typeof listUsers>
-  >;
+  parents: ErpUser[];
 
-  departments: Awaited<
-    ReturnType<typeof listDepartments>
-  >;
+  departments: Array<{
+    id: string;
+    name: string;
+    code?: string;
+  }>;
 
-  academicYears: Awaited<
-    ReturnType<typeof listAcademicYears>
-  >;
+  academicYears: Array<{
+    id: string;
+    name: string;
+    isCurrent?: boolean;
+  }>;
 
-  programs: Awaited<
-    ReturnType<typeof listPrograms>
-  >;
+  programs: Array<{
+    id: string;
+    name: string;
+    code?: string;
+  }>;
 
-  semesters: Awaited<
-    ReturnType<typeof listSemesters>
-  >;
+  semesters: Array<{
+    id: string;
+    name: string;
+    number?: number;
+  }>;
 
-  feeHeads: Awaited<
-    ReturnType<typeof listFeeHeads>
-  >;
+  feeHeads: FeeHead[];
 
-  feeStructures: Awaited<
-    ReturnType<typeof listFeeStructures>
-  >;
+  feeStructures: FeeStructure[];
 
   notifications: Awaited<
-    ReturnType<typeof getNotifications>
-  >;
+    ReturnType<
+      typeof getNotifications
+    >
+  > | null;
 
-  documents: Awaited<
-    ReturnType<typeof getMyDocuments>
-  >;
-};
+  documents: ErpDocument[];
+}
 
-export type ErpDataSetter = (
-  updater: (
-    current: ErpPageData
-  ) => ErpPageData
-) => void;
-
-export function emptyErpPageData(): ErpPageData {
+export function createEmptyErpPageData(): ErpPageData {
   return {
-    roles: [],
     workspace: null,
     offerings: [],
     students: [],
@@ -92,477 +89,434 @@ export function emptyErpPageData(): ErpPageData {
     semesters: [],
     feeHeads: [],
     feeStructures: [],
-    notifications: {
-      items: [],
-      unread: 0,
-      pagination: {},
-    },
+    notifications: null,
     documents: [],
   };
 }
 
-/**
- * Loads only what is needed to paint the first ERP screen.
+/*
+ * ---------------------------------------------------------------------------
+ * REQUEST CONTROL
+ * ---------------------------------------------------------------------------
  *
- * IMPORTANT:
- * Overview does not require students, parents, fee structures,
- * documents, etc.
+ * Each tab gets its own AbortController.
  *
- * Therefore those datasets are intentionally deferred.
+ * If the user rapidly switches:
+ *
+ * Fees -> Exams -> Timetable -> Fees
+ *
+ * an abandoned module request is cancelled instead of continuing to consume
+ * browser/network resources.
+ *
+ * The current API functions do not yet accept AbortSignal, so the controller
+ * is also used as a lifecycle marker. The next API layer can pass the signal
+ * through without changing the page architecture again.
  */
-export async function loadErpCriticalData(
-  signal?: AbortSignal
-): Promise<{
-  user: Awaited<
-    ReturnType<typeof getCurrentUser>
-  >;
 
-  workspace: Awaited<
-    ReturnType<typeof getErpWorkspace>
-  >;
-}> {
-  if (signal?.aborted) {
-    throw new DOMException(
-      "ERP load aborted",
-      "AbortError"
-    );
-  }
+const tabControllers =
+  new Map<
+    ErpTab,
+    AbortController
+  >();
 
-  const user =
-    await getCurrentUser();
+export function beginTabLoad(
+  tab: ErpTab
+): AbortController {
+  const previous =
+    tabControllers.get(tab);
 
-  if (
-    !user.institutionId &&
-    !user.roles.includes(
-      "SUPER_ADMIN"
-    )
+  previous?.abort();
+
+  const controller =
+    new AbortController();
+
+  tabControllers.set(
+    tab,
+    controller
+  );
+
+  return controller;
+}
+
+export function cancelTabLoad(
+  tab: ErpTab
+): void {
+  const controller =
+    tabControllers.get(tab);
+
+  controller?.abort();
+
+  tabControllers.delete(tab);
+}
+
+export function cancelAllTabLoads(): void {
+  for (
+    const controller of tabControllers.values()
   ) {
-    throw new Error(
-      "No institution is assigned to this account."
-    );
+    controller.abort();
   }
 
-  if (signal?.aborted) {
-    throw new DOMException(
-      "ERP load aborted",
-      "AbortError"
-    );
-  }
+  tabControllers.clear();
+}
 
+/*
+ * ---------------------------------------------------------------------------
+ * DATA MERGING
+ * ---------------------------------------------------------------------------
+ */
+
+export function mergeErpPageData(
+  current: ErpPageData,
+  patch: Partial<ErpPageData>
+): ErpPageData {
+  return {
+    ...current,
+    ...patch,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * CRITICAL LOAD
+ * ---------------------------------------------------------------------------
+ *
+ * The first screen only needs the workspace.
+ *
+ * Nothing else is allowed to block the dashboard from becoming interactive.
+ */
+
+export async function loadErpOverview(): Promise<{
+  workspace: ErpWorkspace;
+}> {
   const workspace =
     await getErpWorkspace();
 
   return {
-    user,
     workspace,
   };
 }
 
-/**
- * Loads the supporting data needed by the
- * operational tabs.
- *
- * These requests are deliberately independent.
- * One failed secondary resource must not destroy
- * the entire ERP screen.
+/*
+ * ---------------------------------------------------------------------------
+ * TIMETABLE
+ * ---------------------------------------------------------------------------
  */
-export async function loadErpSecondaryData(
-  options: {
-    includeStudents?: boolean;
-    includeParents?: boolean;
-    includeAcademic?: boolean;
-    includeFees?: boolean;
-    includeDocuments?: boolean;
-    includeNotifications?: boolean;
-    includeOfferings?: boolean;
-    signal?: AbortSignal;
-  } = {}
+
+export async function loadTimetableData(): Promise<
+  Pick<
+    ErpPageData,
+    "offerings"
+  >
+> {
+  const offerings =
+    await listOfferings();
+
+  return {
+    offerings,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * NOTICES
+ * ---------------------------------------------------------------------------
+ *
+ * The notices page primarily needs academic metadata for optional filtering.
+ */
+
+export async function loadNoticeData(): Promise<
+  Pick<
+    ErpPageData,
+    | "departments"
+    | "academicYears"
+  >
+> {
+  const [
+    departments,
+    academicYears,
+  ] = await Promise.all([
+    listDepartments(),
+    listAcademicYears(),
+  ]);
+
+  return {
+    departments,
+    academicYears,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * EXAMS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function loadExamData(): Promise<
+  Pick<
+    ErpPageData,
+    | "offerings"
+    | "students"
+  >
+> {
+  const [
+    offerings,
+    students,
+  ] = await Promise.all([
+    listOfferings(),
+    listUsers(
+      "STUDENT"
+    ),
+  ]);
+
+  return {
+    offerings,
+    students,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * FEES
+ * ---------------------------------------------------------------------------
+ */
+
+export async function loadFeeData(): Promise<
+  Pick<
+    ErpPageData,
+    | "students"
+    | "feeHeads"
+    | "feeStructures"
+    | "academicYears"
+    | "programs"
+    | "semesters"
+  >
+> {
+  const [
+    students,
+    feeHeads,
+    feeStructures,
+    academicYears,
+    programs,
+    semesters,
+  ] = await Promise.all([
+    listUsers(
+      "STUDENT"
+    ),
+
+    listFeeHeads(),
+
+    listFeeStructures(),
+
+    listAcademicYears(),
+
+    listPrograms(),
+
+    listSemesters(),
+  ]);
+
+  return {
+    students,
+    feeHeads,
+    feeStructures,
+    academicYears,
+    programs,
+    semesters,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * PARENTS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function loadParentData(): Promise<
+  Pick<
+    ErpPageData,
+    | "students"
+    | "parents"
+  >
+> {
+  const [
+    students,
+    parents,
+  ] = await Promise.all([
+    listUsers(
+      "STUDENT"
+    ),
+
+    listUsers(
+      "PARENT"
+    ),
+  ]);
+
+  return {
+    students,
+    parents,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * NOTIFICATIONS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function loadNotificationData(): Promise<
+  Pick<
+    ErpPageData,
+    "notifications"
+  >
+> {
+  const notifications =
+    await getNotifications();
+
+  return {
+    notifications,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * DOCUMENTS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function loadDocumentData(): Promise<
+  Pick<
+    ErpPageData,
+    "documents"
+  >
+> {
+  const documents =
+    await getMyDocuments();
+
+  return {
+    documents,
+  };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * TAB LOADER
+ * ---------------------------------------------------------------------------
+ *
+ * This is intentionally explicit.
+ *
+ * It prevents accidental "load everything" behavior from creeping back
+ * into the ERP page.
+ */
+
+export async function loadErpTab(
+  tab: ErpTab
 ): Promise<
   Partial<ErpPageData>
 > {
-  const {
-    includeStudents = false,
-    includeParents = false,
-    includeAcademic = false,
-    includeFees = false,
-    includeDocuments = false,
-    includeNotifications = false,
-    includeOfferings = false,
-    signal,
-  } = options;
-
-  const jobs: Array<
-    Promise<{
-      key: keyof ErpPageData;
-      value: unknown;
-    }>
-  > = [];
-
-  if (includeOfferings) {
-    jobs.push(
-      listOfferings().then(
-        (value) => ({
-          key: "offerings",
-          value,
-        })
-      )
-    );
-  }
-
-  if (includeStudents) {
-    jobs.push(
-      listUsers("STUDENT").then(
-        (value) => ({
-          key: "students",
-          value,
-        })
-      )
-    );
-  }
-
-  if (includeParents) {
-    jobs.push(
-      listUsers("PARENT").then(
-        (value) => ({
-          key: "parents",
-          value,
-        })
-      )
-    );
-  }
-
-  if (includeAcademic) {
-    jobs.push(
-      Promise.all([
-        listDepartments(),
-        listAcademicYears(),
-        listPrograms(),
-        listSemesters(),
-      ]).then(
-        ([
-          departments,
-          academicYears,
-          programs,
-          semesters,
-        ]) => ({
-          key: "departments",
-          value: {
-            departments,
-            academicYears,
-            programs,
-            semesters,
-          },
-        })
-      )
-    );
-  }
-
-  if (includeFees) {
-    jobs.push(
-      Promise.all([
-        listFeeHeads(),
-        listFeeStructures(),
-      ]).then(
-        ([
-          feeHeads,
-          feeStructures,
-        ]) => ({
-          key: "feeHeads",
-          value: {
-            feeHeads,
-            feeStructures,
-          },
-        })
-      )
-    );
-  }
-
-  if (includeNotifications) {
-    jobs.push(
-      getNotifications().then(
-        (value) => ({
-          key: "notifications",
-          value,
-        })
-      )
-    );
-  }
-
-  if (includeDocuments) {
-    jobs.push(
-      getMyDocuments().then(
-        (value) => ({
-          key: "documents",
-          value,
-        })
-      )
-    );
-  }
-
-  if (
-    signal?.aborted
-  ) {
-    throw new DOMException(
-      "ERP load aborted",
-      "AbortError"
-    );
-  }
-
-  const settled =
-    await Promise.allSettled(
-      jobs
-    );
-
-  const output: Partial<ErpPageData> =
-    {};
-
-  for (
-    const result of settled
-  ) {
-    if (
-      result.status !==
-      "fulfilled"
-    ) {
-      continue;
-    }
-
-    const {
-      key,
-      value,
-    } = result.value;
-
-    if (
-      key === "departments" &&
-      value &&
-      typeof value === "object" &&
-      "departments" in value
-    ) {
-      const academic =
-        value as {
-          departments: Awaited<
-            ReturnType<
-              typeof listDepartments
-            >
-          >;
-
-          academicYears: Awaited<
-            ReturnType<
-              typeof listAcademicYears
-            >
-          >;
-
-          programs: Awaited<
-            ReturnType<
-              typeof listPrograms
-            >
-          >;
-
-          semesters: Awaited<
-            ReturnType<
-              typeof listSemesters
-            >
-          >;
-        };
-
-      output.departments =
-        academic.departments;
-
-      output.academicYears =
-        academic.academicYears;
-
-      output.programs =
-        academic.programs;
-
-      output.semesters =
-        academic.semesters;
-
-      continue;
-    }
-
-    if (
-      key === "feeHeads" &&
-      value &&
-      typeof value === "object" &&
-      "feeHeads" in value
-    ) {
-      const fees =
-        value as {
-          feeHeads: Awaited<
-            ReturnType<
-              typeof listFeeHeads
-            >
-          >;
-
-          feeStructures: Awaited<
-            ReturnType<
-              typeof listFeeStructures
-            >
-          >;
-        };
-
-      output.feeHeads =
-        fees.feeHeads;
-
-      output.feeStructures =
-        fees.feeStructures;
-
-      continue;
-    }
-
-    (
-      output as Record<
-        string,
-        unknown
-      >
-    )[key] = value;
-  }
-
-  return output;
-}
-
-/**
- * Load data specifically when the user opens
- * an operational tab.
- *
- * This is the key performance strategy:
- *
- * Overview:
- *   workspace only
- *
- * Timetable:
- *   offerings
- *
- * Notices:
- *   departments
- *
- * Exams:
- *   offerings + students
- *
- * Fees:
- *   students + academic + fees
- *
- * Parents:
- *   parents + students
- *
- * Notifications:
- *   notifications
- *
- * Documents:
- *   documents
- */
-export async function loadErpTabData(
-  tab:
-    | "overview"
-    | "timetable"
-    | "notices"
-    | "exams"
-    | "fees"
-    | "parents"
-    | "notifications"
-    | "documents",
-  signal?: AbortSignal
-) {
   switch (tab) {
     case "overview":
-      return {};
+      return loadErpOverview();
 
     case "timetable":
-      return loadErpSecondaryData({
-        includeOfferings: true,
-        signal,
-      });
+      return loadTimetableData();
 
     case "notices":
-      return loadErpSecondaryData({
-        includeAcademic: true,
-        signal,
-      });
+      return loadNoticeData();
 
     case "exams":
-      return loadErpSecondaryData({
-        includeOfferings: true,
-        includeStudents: true,
-        signal,
-      });
+      return loadExamData();
 
     case "fees":
-      return loadErpSecondaryData({
-        includeStudents: true,
-        includeAcademic: true,
-        includeFees: true,
-        signal,
-      });
+      return loadFeeData();
 
     case "parents":
-      return loadErpSecondaryData({
-        includeParents: true,
-        includeStudents: true,
-        signal,
-      });
+      return loadParentData();
 
     case "notifications":
-      return loadErpSecondaryData({
-        includeNotifications: true,
-        signal,
-      });
+      return loadNotificationData();
 
     case "documents":
-      return loadErpSecondaryData({
-        includeDocuments: true,
-        signal,
-      });
+      return loadDocumentData();
 
     default:
       return {};
   }
 }
 
-/**
- * Clears the client cache when the authenticated
- * tenant/session changes.
+/*
+ * ---------------------------------------------------------------------------
+ * PRELOAD STRATEGY
+ * ---------------------------------------------------------------------------
+ *
+ * We only preload the next likely module.
+ *
+ * We DO NOT preload every ERP module.
  */
-export function resetErpSessionData() {
-  clearErpClientCache();
+
+export function getPreloadTab(
+  current: ErpTab
+): ErpTab | null {
+  switch (current) {
+    case "overview":
+      return "timetable";
+
+    case "timetable":
+      return "notices";
+
+    case "notices":
+      return "exams";
+
+    case "exams":
+      return "fees";
+
+    case "fees":
+      return "parents";
+
+    case "parents":
+      return "notifications";
+
+    case "notifications":
+      return "documents";
+
+    case "documents":
+      return null;
+
+    default:
+      return null;
+  }
 }
 
-/**
- * Merge nested grouped data returned by
- * loadErpSecondaryData.
+/*
+ * ---------------------------------------------------------------------------
+ * ERROR HELPERS
+ * ---------------------------------------------------------------------------
  */
-export function mergeErpData(
-  current: ErpPageData,
-  incoming: Partial<ErpPageData>
-): ErpPageData {
-  return {
-    ...current,
-    ...incoming,
-  };
-}
 
-/**
- * Ignore AbortError generated by navigation or
- * component unmounting.
- */
-export function isErpAbortError(
+export function isAbortError(
   error: unknown
 ): boolean {
   return (
-    error instanceof DOMException &&
+    error instanceof
+      DOMException &&
     error.name ===
       "AbortError"
   );
 }
 
-/**
- * Authentication failures should be handled by
- * the page/router rather than displayed as an
- * ordinary ERP data error.
- */
-export function isErpAuthError(
+export function getErpErrorMessage(
   error: unknown
-): boolean {
-  return (
-    error instanceof
-    AuthRequiredError
-  );
+): string {
+  if (
+    error instanceof Error
+  ) {
+    return error.message;
+  }
+
+  if (
+    typeof error ===
+    "string"
+  ) {
+    return error;
+  }
+
+  return "Unable to load this ERP module.";
 }
