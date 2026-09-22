@@ -12,8 +12,15 @@ import {
   getCurrentUser,
   logout,
 } from "@/lib/auth";
-import { hasAnyPermission, normalizeRoles } from "@/lib/authorization";
-import { getWorkspaceHome, isRouteInWorkspace } from "./roleRouteAccess";
+import {
+  hasAnyPermission,
+  normalizeRoles,
+  type CanonicalRole,
+} from "@/lib/authorization";
+import {
+  getWorkspaceHome,
+  isRouteInWorkspace,
+} from "./roleRouteAccess";
 import {
   getPrimaryRole,
   ROLE_NAVIGATION,
@@ -24,25 +31,42 @@ import {
 
 function isItemActive(pathname: string, href: string): boolean {
   const [path] = href.split("?");
-  if (pathname === path) return true;
-  if (path === "/") return pathname === "/";
+
+  if (pathname === path) {
+    return true;
+  }
+
+  if (path === "/") {
+    return pathname === "/";
+  }
+
   return pathname.startsWith(`${path}/`);
 }
 
-function filterGroups(groups: NavigationGroup[], user: AuthUser | null): NavigationGroup[] {
+function filterGroups(
+  groups: NavigationGroup[],
+  user: AuthUser | null,
+): NavigationGroup[] {
   return groups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
           !item.permissions?.length ||
-          Boolean(user && hasAnyPermission(user, item.permissions)),
+          Boolean(
+            user &&
+              hasAnyPermission(user, item.permissions),
+          ),
       ),
     }))
     .filter((group) => group.items.length > 0);
 }
 
-function Initials({ user }: { user: AuthUser | null }) {
+function Initials({
+  user,
+}: {
+  user: AuthUser | null;
+}) {
   const value = user
     ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase()
     : "A";
@@ -51,6 +75,19 @@ function Initials({ user }: { user: AuthUser | null }) {
     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-white">
       {value || "A"}
     </span>
+  );
+}
+
+function toCanonicalRoles(
+  roles: readonly string[],
+): CanonicalRole[] {
+  const normalized = normalizeRoles(roles);
+
+  return normalized.filter(
+    (role): role is CanonicalRole =>
+      ROLE_PRIORITY.includes(
+        role as CanonicalRole,
+      ),
   );
 }
 
@@ -67,51 +104,105 @@ export function DashboardShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+
   const cached = getCachedCurrentUser();
-  const [user, setUser] = useState<AuthUser | null>(cached);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+
+  const [user, setUser] =
+    useState<AuthUser | null>(cached);
+
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
+
+  const [collapsed, setCollapsed] =
+    useState(false);
 
   const normalizedAllowedRoles = useMemo(
-    () => normalizeRoles(allowedRoles ?? []),
+    () => toCanonicalRoles(allowedRoles ?? []),
     [allowedRoles],
   );
 
   useEffect(() => {
     let mounted = true;
 
-    getCurrentUser({ background: Boolean(cached) })
+    getCurrentUser({
+      background: Boolean(cached),
+    })
       .then((currentUser) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
-        const actualRoles = normalizeRoles(currentUser.roles);
+        const actualRoles = toCanonicalRoles(
+          currentUser.roles,
+        );
+
         if (
           normalizedAllowedRoles.length > 0 &&
-          !normalizedAllowedRoles.some((role) => actualRoles.includes(role))
+          !normalizedAllowedRoles.some((role) =>
+            actualRoles.includes(role),
+          )
         ) {
-          const target = getPrimaryRole(actualRoles);
-          router.replace(target ? WORKSPACE_META[target].home : "/login");
+          const target =
+            getPrimaryRole(actualRoles);
+
+          router.replace(
+            target
+              ? WORKSPACE_META[target].home
+              : "/login",
+          );
+
           return;
         }
 
         setUser(currentUser);
       })
       .catch((error) => {
-        if (!mounted) return;
-        if (error instanceof AuthRequiredError) router.replace("/login");
+        if (!mounted) {
+          return;
+        }
+
+        if (
+          error instanceof AuthRequiredError
+        ) {
+          router.replace("/login");
+        }
       });
 
     return () => {
       mounted = false;
     };
-  }, [cached, normalizedAllowedRoles, router]);
+  }, [
+    cached,
+    normalizedAllowedRoles,
+    router,
+  ]);
 
   useEffect(() => {
-    if (!user || pathname === "/login") return;
-    const actualRole = getPrimaryRole(user.roles);
-    if (!actualRole) return;
-    if (!isRouteInWorkspace(actualRole, pathname)) {
-      router.replace(getWorkspaceHome(actualRole));
+    if (!user || pathname === "/login") {
+      return;
+    }
+
+    const actualRoles = toCanonicalRoles(
+      user.roles,
+    );
+
+    const actualRole =
+      getPrimaryRole(actualRoles);
+
+    if (!actualRole) {
+      router.replace("/login");
+      return;
+    }
+
+    if (
+      !isRouteInWorkspace(
+        actualRole,
+        pathname,
+      )
+    ) {
+      router.replace(
+        getWorkspaceHome(actualRole),
+      );
     }
   }, [pathname, router, user]);
 
@@ -120,25 +211,59 @@ export function DashboardShell({
   }, [pathname]);
 
   useEffect(() => {
-    if (!mobileOpen) return;
-    const previous = document.body.style.overflow;
+    if (!mobileOpen) {
+      return;
+    }
+
+    const previous =
+      document.body.style.overflow;
+
     document.body.style.overflow = "hidden";
+
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow =
+        previous;
     };
   }, [mobileOpen]);
 
-  const primaryRole = getPrimaryRole(user?.roles ?? normalizedAllowedRoles);
-  const workspace = primaryRole ? WORKSPACE_META[primaryRole] : null;
+  const primaryRole = useMemo(() => {
+    const roles =
+      user?.roles ??
+      normalizedAllowedRoles;
+
+    return getPrimaryRole(
+      toCanonicalRoles(roles),
+    );
+  }, [normalizedAllowedRoles, user]);
+
+  const workspace = primaryRole
+    ? WORKSPACE_META[primaryRole]
+    : null;
+
   const groups = useMemo(() => {
-    if (!primaryRole) return [];
-    const visible = filterGroups(ROLE_NAVIGATION[primaryRole], user);
+    if (!primaryRole) {
+      return [];
+    }
+
+    const visible = filterGroups(
+      ROLE_NAVIGATION[primaryRole],
+      user,
+    );
+
     return visible
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => isRouteInWorkspace(primaryRole, item.href.split("?")[0])),
+        items: group.items.filter(
+          (item) =>
+            isRouteInWorkspace(
+              primaryRole,
+              item.href.split("?")[0],
+            ),
+        ),
       }))
-      .filter((group) => group.items.length > 0);
+      .filter(
+        (group) => group.items.length > 0,
+      );
   }, [primaryRole, user]);
 
   async function signOut() {
@@ -147,7 +272,11 @@ export function DashboardShell({
   }
 
   function navigateHome() {
-    if (primaryRole) router.push(WORKSPACE_META[primaryRole].home);
+    if (primaryRole) {
+      router.push(
+        WORKSPACE_META[primaryRole].home,
+      );
+    }
   }
 
   return (
@@ -157,7 +286,11 @@ export function DashboardShell({
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
-              onClick={() => setMobileOpen((value) => !value)}
+              onClick={() =>
+                setMobileOpen(
+                  (value) => !value,
+                )
+              }
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg lg:hidden"
               aria-label="Open workspace navigation"
             >
@@ -173,10 +306,15 @@ export function DashboardShell({
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-black tracking-tight text-white">
                 AX
               </span>
+
               <span className="hidden min-w-0 sm:block">
-                <span className="block truncate text-sm font-black tracking-tight">ACADLYX</span>
+                <span className="block truncate text-sm font-black tracking-tight">
+                  ACADLYX
+                </span>
+
                 <span className="block truncate text-[11px] font-medium text-slate-500">
-                  {workspace?.label ?? "Workspace"}
+                  {workspace?.label ??
+                    "Workspace"}
                 </span>
               </span>
             </button>
@@ -185,16 +323,22 @@ export function DashboardShell({
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
               <Initials user={user} />
+
               <div className="max-w-[190px]">
                 <p className="truncate text-xs font-bold text-slate-900">
-                  {user ? `${user.firstName} ${user.lastName}`.trim() : "Loading…"}
+                  {user
+                    ? `${user.firstName} ${user.lastName}`.trim()
+                    : "Loading…"}
                 </p>
+
                 <p className="truncate text-[11px] text-slate-500">
                   {user?.email ?? ""}
                 </p>
               </div>
             </div>
+
             <AccountMenu />
+
             <button
               type="button"
               onClick={signOut}
@@ -211,74 +355,139 @@ export function DashboardShell({
           type="button"
           aria-label="Close workspace navigation"
           className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={() =>
+            setMobileOpen(false)
+          }
         />
       ) : null}
 
       <aside
         className={`fixed bottom-0 left-0 top-[72px] z-50 w-[272px] border-r border-slate-200 bg-white transition-[width,transform] duration-200 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } ${collapsed ? "lg:w-[84px]" : ""}`}
+          mobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
+        } ${
+          collapsed
+            ? "lg:w-[84px]"
+            : ""
+        }`}
       >
         <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
-          <div className={`mb-4 rounded-2xl bg-slate-950 p-4 text-white ${collapsed ? "lg:hidden" : ""}`}>
+          <div
+            className={`mb-4 rounded-2xl bg-slate-950 p-4 text-white ${
+              collapsed
+                ? "lg:hidden"
+                : ""
+            }`}
+          >
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300">
               Current workspace
             </p>
-            <p className="mt-1 text-sm font-black">{workspace?.label ?? "Workspace"}</p>
+
+            <p className="mt-1 text-sm font-black">
+              {workspace?.label ??
+                "Workspace"}
+            </p>
+
             <p className="mt-1 text-xs leading-5 text-slate-400">
-              {workspace?.subtitle ?? "Your available work and tools"}
+              {workspace?.subtitle ??
+                "Your available work and tools"}
             </p>
           </div>
 
-          <nav className="space-y-5" aria-label="Workspace navigation">
+          <nav
+            className="space-y-5"
+            aria-label="Workspace navigation"
+          >
             {groups.map((group) => (
               <section key={group.label}>
-                <p className={`mb-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 ${collapsed ? "lg:hidden" : ""}`}>
+                <p
+                  className={`mb-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 ${
+                    collapsed
+                      ? "lg:hidden"
+                      : ""
+                  }`}
+                >
                   {group.label}
                 </p>
+
                 <div className="space-y-1">
-                  {group.items.map((item) => {
-                    const active = isItemActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={`${item.href}:${item.label}`}
-                        href={item.href}
-                        title={collapsed ? item.label : undefined}
-                        onClick={() => setMobileOpen(false)}
-                        className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                          collapsed ? "lg:justify-center lg:px-2" : ""
-                        } ${
-                          active
-                            ? "bg-slate-950 text-white shadow-sm"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                        }`}
-                      >
-                        <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${
+                  {group.items.map(
+                    (item) => {
+                      const active =
+                        isItemActive(
+                          pathname,
+                          item.href,
+                        );
+
+                      return (
+                        <Link
+                          key={`${item.href}:${item.label}`}
+                          href={item.href}
+                          title={
+                            collapsed
+                              ? item.label
+                              : undefined
+                          }
+                          onClick={() =>
+                            setMobileOpen(
+                              false,
+                            )
+                          }
+                          className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                            collapsed
+                              ? "lg:justify-center lg:px-2"
+                              : ""
+                          } ${
                             active
-                              ? "bg-white/15 text-white"
-                              : "bg-slate-100 text-slate-500 group-hover:bg-white"
+                              ? "bg-slate-950 text-white shadow-sm"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          {item.icon}
-                        </span>
-                        <span className={collapsed ? "lg:hidden" : ""}>
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
+                          <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${
+                              active
+                                ? "bg-white/15 text-white"
+                                : "bg-slate-100 text-slate-500 group-hover:bg-white"
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
+
+                          <span
+                            className={
+                              collapsed
+                                ? "lg:hidden"
+                                : ""
+                            }
+                          >
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    },
+                  )}
                 </div>
               </section>
             ))}
           </nav>
 
-          <div className={`mt-auto pt-5 ${collapsed ? "lg:hidden" : ""}`}>
+          <div
+            className={`mt-auto pt-5 ${
+              collapsed
+                ? "lg:hidden"
+                : ""
+            }`}
+          >
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-800">Need help?</p>
+              <p className="text-xs font-bold text-slate-800">
+                Need help?
+              </p>
+
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Start from Overview. It shows the work that belongs to your responsibility.
+                Start from Overview. It
+                shows the work that belongs
+                to your responsibility.
               </p>
             </div>
           </div>
@@ -287,7 +496,9 @@ export function DashboardShell({
 
       <main
         className={`min-h-screen pt-[72px] transition-[padding] duration-200 ${
-          collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"
+          collapsed
+            ? "lg:pl-[84px]"
+            : "lg:pl-[272px]"
         }`}
       >
         <div className="min-w-0 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
@@ -295,19 +506,34 @@ export function DashboardShell({
             <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
-                  {workspace ? <span>{workspace.label}</span> : null}
-                  {workspace ? <span aria-hidden="true">/</span> : null}
-                  <span className="text-slate-500">{title}</span>
+                  {workspace ? (
+                    <span>
+                      {workspace.label}
+                    </span>
+                  ) : null}
+
+                  {workspace ? (
+                    <span aria-hidden="true">
+                      /
+                    </span>
+                  ) : null}
+
+                  <span className="text-slate-500">
+                    {title}
+                  </span>
                 </div>
+
                 <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
                   {title}
                 </h1>
+
                 {subtitle ? (
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
                     {subtitle}
                   </p>
                 ) : null}
               </div>
+
               {workspace ? (
                 <button
                   type="button"
@@ -326,9 +552,17 @@ export function DashboardShell({
 
       <button
         type="button"
-        onClick={() => setCollapsed((value) => !value)}
+        onClick={() =>
+          setCollapsed(
+            (value) => !value,
+          )
+        }
         className="fixed bottom-5 left-4 z-[60] hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-slate-600 shadow-lg lg:flex"
-        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+        aria-label={
+          collapsed
+            ? "Expand navigation"
+            : "Collapse navigation"
+        }
       >
         {collapsed ? "→" : "←"}
       </button>
