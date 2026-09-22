@@ -10,6 +10,7 @@ import {
 } from "../validators/admission.validators";
 import { recordAuditLog } from "./audit.service";
 import { createStudent } from "./studentAdmin.service";
+import { assertAdmissionWorkflowAuthority } from "./workflowAuthority.service";
 
 const TRANSITIONS: Record<string, string[]> = {
   SUBMITTED: ["UNDER_REVIEW", "DOCUMENTS_PENDING", "REJECTED", "WITHDRAWN"],
@@ -122,6 +123,7 @@ export async function createApplication(
   input: CreateAdmissionInput,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  assertAdmissionWorkflowAuthority(actor);
   await assertPlacement(institutionId, input.programId, input.academicYearId);
 
   const duplicate = await prisma.admissionApplication.findFirst({
@@ -196,6 +198,7 @@ export async function updateApplication(
   input: UpdateAdmissionInput,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  assertAdmissionWorkflowAuthority(actor);
   const existing = await load(institutionId, id);
   if (["ENROLLED", "REJECTED", "WITHDRAWN"].includes(existing.status)) {
     throw new AppError(`A ${existing.status.toLowerCase()} application can no longer be edited`, 409);
@@ -246,6 +249,7 @@ export async function changeStatus(
   remarks: string | undefined,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  assertAdmissionWorkflowAuthority(actor);
   const existing = await load(institutionId, id);
   if (!(TRANSITIONS[existing.status] ?? []).includes(status)) {
     throw new AppError(
@@ -285,6 +289,7 @@ export async function enrollApplicant(
   input: AdmissionEnrollInput,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  assertAdmissionWorkflowAuthority(actor);
   const application = await load(institutionId, id);
   if (application.status !== "SELECTED") {
     throw new AppError("Only SELECTED applicants can be enrolled", 409);
