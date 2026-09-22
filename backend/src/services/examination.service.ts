@@ -18,6 +18,7 @@ import {
   requireTenantRow,
 } from "../utils/sqlScope";
 import { recordAuditLog } from "./audit.service";
+import { assertExaminationController } from "./workflowAuthority.service";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 
@@ -97,20 +98,14 @@ interface ExamScheduleRow {
   createdById: string;
 }
 
-const CONTROLLER_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "STAFF"];
-
 /**
- * Approving, locking and publishing are examination-controller acts.
- * A faculty member may enter and submit marks for their own offering
- * but may never approve their own entry.
+ * Official examination approval, locking and publication are controlled by
+ * the Examination Cell, with Director-level oversight. A generic admin role
+ * does not become an examination controller merely by having access to the
+ * institution.
  */
 function assertExamController(actor: AuthenticatedUser): void {
-  if (actor.roles.some((role) => CONTROLLER_ROLES.includes(role))) return;
-  if (actor.permissions.includes("exams.approve")) return;
-  throw new AppError(
-    "Only the examination controller may perform this action",
-    403
-  );
+  assertExaminationController(actor);
 }
 
 function assertValue<T extends string>(
