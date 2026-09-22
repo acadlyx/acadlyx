@@ -9,7 +9,6 @@ import {
   getEffectivePermissions,
   hasPermission as roleHasPermission,
   isPlatformPermission,
-  normalizeRoleName,
 } from "./rbac";
 
 /**
