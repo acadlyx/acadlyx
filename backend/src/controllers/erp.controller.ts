@@ -1,14 +1,10 @@
 import { Request } from "express";
 import * as erp from "../services/erp.service";
-import {
-  getManagementWorkspace,
-  isLeadershipActor,
-} from "../services/managementWorkspace.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
 
-const actor = (req: Request) => {
+function getActor(req: Request) {
   if (!req.user) {
     throw new AppError(
       "Authentication required",
@@ -17,33 +13,39 @@ const actor = (req: Request) => {
   }
 
   return req.user;
-};
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * WORKSPACE
+ * ---------------------------------------------------------------------------
+ *
+ * Keep the workspace request on the existing ERP service.
+ *
+ * This is intentionally conservative:
+ *
+ * - no extra database fan-out
+ * - no second workspace implementation
+ * - no management-specific aggregation on the critical page-load path
+ * - existing tenant and permission logic remains authoritative
+ *
+ * Performance work will be moved behind the individual ERP modules instead
+ * of making the initial dashboard request heavier.
+ */
 
 export const workspace = asyncHandler(
   async (req, res) => {
-    const currentActor = actor(req);
+    const currentActor =
+      getActor(req);
+
     const institutionId =
       requireInstitution(req);
 
-    /*
-     * Leadership dashboards use the optimized
-     * PostgreSQL aggregation service.
-     *
-     * HOD / FACULTY / PARENT / STUDENT continue
-     * through the existing ERP service so their
-     * existing authority and scope logic remains
-     * untouched.
-     */
     const data =
-      isLeadershipActor(currentActor)
-        ? await getManagementWorkspace(
-            institutionId,
-            currentActor
-          )
-        : await erp.getMyWorkspace(
-            institutionId,
-            currentActor
-          );
+      await erp.getMyWorkspace(
+        institutionId,
+        currentActor
+      );
 
     res.json({
       success: true,
@@ -52,14 +54,19 @@ export const workspace = asyncHandler(
   }
 );
 
+/*
+ * ---------------------------------------------------------------------------
+ * TIMETABLE
+ * ---------------------------------------------------------------------------
+ */
+
 export const timetableList =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.listTimetableEntries(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           {
             dayOfWeek:
               req.query.dayOfWeek ===
@@ -77,186 +84,270 @@ export const timetableList =
                     .courseOfferingId
                 : undefined,
           }
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const timetable =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.createTimetableEntry(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.body
-        ),
-    })
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const timetableUpdate =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.updateTimetableEntry(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.id,
           req.body
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const timetableDelete =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.deleteTimetableEntry(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.id
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
+/*
+ * ---------------------------------------------------------------------------
+ * NOTICES
+ * ---------------------------------------------------------------------------
+ */
+
 export const noticeList =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.listNotices(
-        requireInstitution(req),
-        actor(req),
-        req.query.includeExpired !==
-          "false"
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.listNotices(
+          requireInstitution(req),
+          getActor(req),
+          req.query.includeExpired !==
+            "false"
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const notice =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data: await erp.createNotice(
-        requireInstitution(req),
-        actor(req),
-        req.body
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.createNotice(
+          requireInstitution(req),
+          getActor(req),
+          req.body
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const noticeUpdate =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.updateNotice(
-        requireInstitution(req),
-        actor(req),
-        req.params.id,
-        req.body
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.updateNotice(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id,
+          req.body
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const noticeDelete =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.deleteNotice(
-        requireInstitution(req),
-        actor(req),
-        req.params.id
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.deleteNotice(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
+/*
+ * ---------------------------------------------------------------------------
+ * EXAMS
+ * ---------------------------------------------------------------------------
+ */
+
 export const examList =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.listExams(
-        requireInstitution(req),
-        actor(req),
-        typeof req.query
-          .courseOfferingId ===
-          "string"
-          ? req.query.courseOfferingId
-          : undefined
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.listExams(
+          requireInstitution(req),
+          getActor(req),
+          typeof req.query
+            .courseOfferingId ===
+            "string"
+            ? req.query
+                .courseOfferingId
+            : undefined
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const examDetails =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.getExamDetails(
-        requireInstitution(req),
-        actor(req),
-        req.params.id
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.getExamDetails(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const exam =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data: await erp.createExam(
-        requireInstitution(req),
-        actor(req),
-        req.body
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.createExam(
+          requireInstitution(req),
+          getActor(req),
+          req.body
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const examUpdate =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.updateExam(
-        requireInstitution(req),
-        actor(req),
-        req.params.id,
-        req.body
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.updateExam(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id,
+          req.body
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const examDelete =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data: await erp.deleteExam(
-        requireInstitution(req),
-        actor(req),
-        req.params.id
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.deleteExam(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const result =
-  asyncHandler(async (req, res) =>
-    res.status(200).json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.upsertExamResult(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.body
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
+/*
+ * ---------------------------------------------------------------------------
+ * FEES
+ * ---------------------------------------------------------------------------
+ */
+
 export const invoiceList =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.listFeeInvoices(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           {
             studentId:
               typeof req.query
@@ -271,116 +362,163 @@ export const invoiceList =
                 ? req.query.status
                 : undefined,
           }
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const invoiceDetails =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.getFeeInvoice(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.id
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const invoice =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data: await erp.createInvoice(
-        requireInstitution(req),
-        actor(req),
-        req.body
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.createInvoice(
+          requireInstitution(req),
+          getActor(req),
+          req.body
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const invoiceUpdate =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.updateFeeInvoice(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.id,
           req.body
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const invoiceDelete =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.deleteFeeInvoice(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.id
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const payment =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data: await erp.recordPayment(
-        requireInstitution(req),
-        actor(req),
-        req.params.id,
-        req.body.amount,
-        req.body.reference
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.recordPayment(
+          requireInstitution(req),
+          getActor(req),
+          req.params.id,
+          req.body.amount,
+          req.body.reference
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
+/*
+ * ---------------------------------------------------------------------------
+ * PARENT LINKS
+ * ---------------------------------------------------------------------------
+ */
+
 export const parentLinkList =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.listParentLinks(
           requireInstitution(req),
-          actor(req),
-          typeof req.query.studentId ===
+          getActor(req),
+          typeof req.query
+            .studentId ===
             "string"
             ? req.query.studentId
             : undefined
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const parentLink =
-  asyncHandler(async (req, res) =>
-    res.status(201).json({
-      success: true,
-      data: await erp.linkParent(
-        requireInstitution(req),
-        actor(req),
-        req.body.parentId,
-        req.body.studentId,
-        req.body.relationship
-      ),
-    })
+  asyncHandler(
+    async (req, res) => {
+      const data =
+        await erp.linkParent(
+          requireInstitution(req),
+          getActor(req),
+          req.body.parentId,
+          req.body.studentId,
+          req.body.relationship
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
   );
 
 export const parentLinkDelete =
-  asyncHandler(async (req, res) =>
-    res.json({
-      success: true,
-      data:
+  asyncHandler(
+    async (req, res) => {
+      const data =
         await erp.deleteParentLink(
           requireInstitution(req),
-          actor(req),
+          getActor(req),
           req.params.parentId,
           req.params.studentId
-        ),
-    })
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
   );
