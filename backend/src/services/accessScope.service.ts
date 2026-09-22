@@ -24,7 +24,9 @@ export function hasAnyRole(
   actor: Pick<AuthenticatedUser, "roles">,
   roles: readonly string[]
 ): boolean {
-  const canonical = getCanonicalRoleNames(actor.roles);\n  return canonical.some((role) => roles.includes(role));
+  const canonical = getCanonicalRoleNames(actor.roles);
+  return canonical.some((role) => roles.includes(role));
+  return canonical.some((role) => roles.includes(role));
 }
 
 export function isInstitutionWide(
