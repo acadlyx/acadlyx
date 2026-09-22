@@ -41,12 +41,8 @@ import {
 type Tab = "sessions" | "marks";
 
 const MANAGE_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
-  "HOD",
-  "STAFF",
+  "EXAMINATION",
 ];
 
 export default function ExaminationsPage() {
@@ -69,9 +65,7 @@ export default function ExaminationsPage() {
 
   const canManage = roles.some((role) => MANAGE_ROLES.includes(role));
   const canApprove = roles.some((role) =>
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD"].includes(
-      role
-    )
+    ["DIRECTOR", "EXAMINATION"].includes(role)
   );
 
   /** Wraps every mutation so errors surface instead of failing silently. */
