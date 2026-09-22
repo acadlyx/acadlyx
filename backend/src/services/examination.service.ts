@@ -22,6 +22,8 @@ import { assertExaminationController } from "./workflowAuthority.service";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 
+const CONTROLLER_ROLES = ["EXAMINATION", "DIRECTOR"] as const;
+
 /**
  * Examinations.
  *
