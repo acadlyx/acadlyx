@@ -8,6 +8,7 @@ import { AccountMenu } from "@/components/auth/AccountMenu";
 import { AuthRequiredError, AuthUser, getCurrentUser, logout } from "@/lib/auth";
 import {
   activeNavigationHref,
+  canAccessRoute,
   canAccessWorkspace,
   navigationForUser,
   primaryRole,
@@ -40,7 +41,7 @@ export function DashboardShell({
     getCurrentUser()
       .then((currentUser) => {
         if (!active) return;
-        if (!canAccessWorkspace(currentUser, allowedRoles)) {
+        if (!canAccessRoute(currentUser, pathname, allowedRoles)) {
           router.replace(workspaceHome(currentUser.roles));
           return;
         }
@@ -54,7 +55,7 @@ export function DashboardShell({
     return () => {
       active = false;
     };
-  }, [router, allowedRolesKey]);
+  }, [router, pathname, allowedRolesKey]);
 
   useEffect(() => {
     setMobileOpen(false);
