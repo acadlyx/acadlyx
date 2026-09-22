@@ -40,20 +40,24 @@ export interface ErpOffering {
   sectionId?: string | null;
   facultyId?: string | null;
   isActive?: boolean;
+
   course?: {
     id?: string;
     code?: string;
     name?: string;
   };
+
   semester?: {
     id?: string;
     name?: string;
     number?: number;
   };
+
   section?: {
     id?: string;
     name?: string;
   } | null;
+
   faculty?: {
     id?: string;
     firstName?: string;
@@ -121,70 +125,50 @@ export interface ErpDocument {
 
 /*
  * ---------------------------------------------------------------------------
- * ERP CLIENT CACHE
+ * MEMORY CACHE
  * ---------------------------------------------------------------------------
  *
- * The old ERP client treated every call as a completely new request.
+ * This is deliberately an in-memory cache.
  *
- * That became especially expensive because the ERP page calls:
+ * It is NOT localStorage.
+ * It is NOT persistent.
+ * It is NOT shared between users.
  *
- *   workspace
- *   offerings
- *   students
- *   parents
- *   departments
- *   academic years
- *   programs
- *   semesters
- *   fee heads
- *   fee structures
- *   notifications
- *   documents
- *
- * together.
- *
- * This layer adds:
- *
- *   1. in-flight request deduplication
- *   2. a very short TTL cache
- *   3. targeted invalidation after mutations
- *
- * It does NOT use localStorage and does NOT persist ERP data across
- * browser sessions. Sensitive tenant data therefore remains in memory only.
- *
- * The cache is intentionally short-lived. It is a performance layer,
- * not a source of truth.
+ * The cache exists only to prevent the ERP page from repeatedly requesting
+ * the same tenant data during a single active browser session.
  */
 
-const ERP_CACHE_TTL_MS = 8_000;
+const CACHE_TTL_MS = 8_000;
 
-interface CacheEntry {
-  value: unknown;
+interface CacheEntry<T = unknown> {
+  value: T;
   expiresAt: number;
 }
 
-const cache = new Map<string, CacheEntry>();
+const responseCache =
+  new Map<string, CacheEntry>();
 
-const inFlight = new Map<
-  string,
-  Promise<unknown>
->();
-
-function now() {
-  return Date.now();
-}
+const inFlightRequests =
+  new Map<
+    string,
+    Promise<unknown>
+  >();
 
 function getCached<T>(
   key: string
 ): T | undefined {
-  const entry = cache.get(key);
+  const entry =
+    responseCache.get(key);
 
   if (!entry) {
     return undefined;
   }
 
-  if (entry.expiresAt <= now()) {
-    cache.delete(key);
+  if (
+    entry.expiresAt <=
+    Date.now()
+  ) {
+    responseCache.delete(key);
     return undefined;
   }
 
@@ -194,117 +178,153 @@ function getCached<T>(
 function setCached<T>(
   key: string,
   value: T
-) {
-  cache.set(key, {
+): void {
+  responseCache.set(key, {
     value,
     expiresAt:
-      now() + ERP_CACHE_TTL_MS,
+      Date.now() + CACHE_TTL_MS,
   });
-}
-
-async function cachedRequest<T>(
-  key: string,
-  request: () => Promise<T>
-): Promise<T> {
-  const cached = getCached<T>(key);
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const existing = inFlight.get(key);
-
-  if (existing) {
-    return existing as Promise<T>;
-  }
-
-  const promise = request()
-    .then((value) => {
-      setCached(key, value);
-      return value;
-    })
-    .finally(() => {
-      inFlight.delete(key);
-    });
-
-  inFlight.set(key, promise);
-
-  return promise;
 }
 
 function invalidate(
   predicate: (key: string) => boolean
-) {
-  for (const key of cache.keys()) {
+): void {
+  for (const key of responseCache.keys()) {
     if (predicate(key)) {
-      cache.delete(key);
+      responseCache.delete(key);
     }
   }
 }
 
-function invalidateWorkspace() {
+function invalidateWorkspace(): void {
   invalidate((key) =>
-    key.startsWith("erp:workspace")
+    key.startsWith(
+      "erp:workspace"
+    )
+  );
+}
+
+function invalidateOfferings(): void {
+  invalidate((key) =>
+    key.startsWith(
+      "erp:offerings"
+    )
+  );
+
+  invalidateWorkspace();
+}
+
+function invalidateFeeData(): void {
+  invalidate((key) =>
+    key.startsWith(
+      "erp:fee-heads"
+    ) ||
+    key.startsWith(
+      "erp:fee-structures"
+    ) ||
+    key.startsWith(
+      "erp:workspace"
+    )
+  );
+}
+
+function invalidateNotifications(): void {
+  invalidate((key) =>
+    key.startsWith(
+      "erp:notifications"
+    ) ||
+    key.startsWith(
+      "erp:workspace"
+    )
+  );
+}
+
+function invalidateDocuments(): void {
+  invalidate((key) =>
+    key.startsWith(
+      "erp:documents"
+    ) ||
+    key.startsWith(
+      "erp:workspace"
+    )
   );
 }
 
 function invalidateUsers(
   role?: string
-) {
-  invalidate((key) => {
-    if (!key.startsWith("erp:users:")) {
-      return false;
-    }
-
-    if (!role) {
-      return true;
-    }
-
-    return key === `erp:users:${role}`;
-  });
+): void {
+  if (!role) {
+    invalidate((key) =>
+      key.startsWith("erp:users:")
+    );
+  } else {
+    responseCache.delete(
+      `erp:users:${role}`
+    );
+  }
 }
 
-function invalidateFeeData() {
-  invalidate(
-    (key) =>
-      key.startsWith("erp:fee-heads") ||
-      key.startsWith("erp:fee-structures") ||
-      key.startsWith("erp:workspace")
-  );
-}
-
-function invalidateDocuments() {
-  invalidate(
-    (key) =>
-      key.startsWith("erp:documents") ||
-      key.startsWith("erp:workspace")
-  );
-}
-
-function invalidateNotifications() {
-  invalidate(
-    (key) =>
-      key.startsWith("erp:notifications") ||
-      key.startsWith("erp:workspace")
-  );
-}
-
-function invalidateOfferings() {
-  invalidate(
-    (key) =>
-      key.startsWith("erp:offerings") ||
-      key.startsWith("erp:workspace")
-  );
+export function clearErpClientCache(): void {
+  responseCache.clear();
+  inFlightRequests.clear();
 }
 
 /*
- * Public cache reset.
+ * ---------------------------------------------------------------------------
+ * CORE REQUEST DEDUPLICATION
+ * ---------------------------------------------------------------------------
  *
- * Useful for a future global refresh button or logout handler.
+ * If five React effects ask for the same resource at the same time:
+ *
+ *   request A ─┐
+ *   request B ─┤
+ *   request C ─┼──> ONE network request
+ *   request D ─┤
+ *   request E ─┘
+ *
+ * Every caller receives the same promise result.
  */
-export function clearErpClientCache() {
-  cache.clear();
-  inFlight.clear();
+
+async function cachedRequest<T>(
+  key: string,
+  request: () => Promise<T>
+): Promise<T> {
+  const cached =
+    getCached<T>(key);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const existing =
+    inFlightRequests.get(key);
+
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const promise =
+    request()
+      .then((value) => {
+        setCached(
+          key,
+          value
+        );
+
+        return value;
+      })
+      .finally(() => {
+        inFlightRequests.delete(
+          key
+        );
+      });
+
+  inFlightRequests.set(
+    key,
+    promise
+  );
+
+  return promise;
 }
 
 /*
@@ -658,7 +678,6 @@ export async function createExam(
     );
 
   invalidateWorkspace();
-  invalidateOfferings();
 
   return response.data;
 }
@@ -752,6 +771,76 @@ export async function recordPayment(
   return response.data;
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * PARENT LINKS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function createParentLink(
+  input: {
+    parentId: string;
+    studentId: string;
+    relationship?: string;
+  }
+) {
+  const response =
+    await authedFetch<
+      ApiEnvelope<
+        Record<string, unknown>
+      >
+    >(
+      "/erp/parent-links",
+      {
+        method: "POST",
+        body: JSON.stringify(
+          input
+        ),
+      }
+    );
+
+  invalidateUsers("PARENT");
+  invalidateUsers("STUDENT");
+  invalidateWorkspace();
+
+  return response.data;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * FEE HEADS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function listFeeHeads(
+  includeInactive = false
+): Promise<FeeHead[]> {
+  const cacheKey =
+    `erp:fee-heads:${
+      includeInactive
+        ? "all"
+        : "active"
+    }`;
+
+  return cachedRequest(
+    cacheKey,
+    async () => {
+      const response =
+        await authedFetch<
+          ApiEnvelope<FeeHead[]>
+        >(
+          `/erp/fee-heads?includeInactive=${
+            includeInactive
+              ? "true"
+              : "false"
+          }`
+        );
+
+      return response.data;
+    }
+  );
+}
+
 export async function createFeeHead(
   input: {
     name: string;
@@ -806,30 +895,11 @@ export async function updateFeeHead(
   return response.data;
 }
 
-export async function listFeeHeads(
-  includeInactive = false
-): Promise<FeeHead[]> {
-  const cacheKey =
-    `erp:fee-heads:${includeInactive ? "all" : "active"}`;
-
-  return cachedRequest(
-    cacheKey,
-    async () => {
-      const response =
-        await authedFetch<
-          ApiEnvelope<FeeHead[]>
-        >(
-          `/erp/fee-heads?includeInactive=${
-            includeInactive
-              ? "true"
-              : "false"
-          }`
-        );
-
-      return response.data;
-    }
-  );
-}
+/*
+ * ---------------------------------------------------------------------------
+ * FEE STRUCTURES
+ * ---------------------------------------------------------------------------
+ */
 
 export async function listFeeStructures(
   params: {
@@ -854,14 +924,18 @@ export async function listFeeStructures(
   );
 
   const cacheKey =
-    `erp:fee-structures:${qs.toString()}`;
+    `erp:fee-structures:${
+      qs.toString()
+    }`;
 
   return cachedRequest(
     cacheKey,
     async () => {
       const response =
         await authedFetch<
-          ApiEnvelope<FeeStructure[]>
+          ApiEnvelope<
+            FeeStructure[]
+          >
         >(
           `/erp/fee-structures?${qs.toString()}`
         );
@@ -990,7 +1064,9 @@ export async function markNotificationRead(
 ) {
   const response =
     await authedFetch<
-      ApiEnvelope<ErpNotification>
+      ApiEnvelope<
+        ErpNotification
+      >
     >(
       `/portal/notifications/${id}`,
       {
@@ -1038,7 +1114,9 @@ export async function getMyDocuments(): Promise<
     async () => {
       const response =
         await authedFetch<
-          ApiEnvelope<ErpDocument[]>
+          ApiEnvelope<
+            ErpDocument[]
+          >
         >(
           "/portal/documents/me"
         );
@@ -1056,7 +1134,9 @@ export async function getStudentDocuments(
     async () => {
       const response =
         await authedFetch<
-          ApiEnvelope<ErpDocument[]>
+          ApiEnvelope<
+            ErpDocument[]
+          >
         >(
           `/portal/documents/students/${studentId}`
         );
