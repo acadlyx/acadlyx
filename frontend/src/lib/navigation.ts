@@ -45,13 +45,20 @@ const NAVIGATION: NavigationItem[] = [
   { label: "Attendance", href: "/student/attendance", icon: "◷", roles: ["STUDENT"], permissions: ["attendance.read"] },
   { label: "Assignments", href: "/student/assignments", icon: "✓", roles: ["STUDENT"], permissions: ["assignments.read"] },
   { label: "Marks", href: "/student/marks", icon: "◈", roles: ["STUDENT"], permissions: ["marks.read"] },
+  { label: "Results", href: "/student/results", icon: "★", roles: ["STUDENT"], permissions: ["marks.read"] },
+  { label: "Examinations", href: "/student/examinations", icon: "◉", roles: ["STUDENT"], permissions: ["marks.read"] },
+  { label: "Fees", href: "/student/fees", icon: "₹", roles: ["STUDENT"] },
+  { label: "Notifications", href: "/student/notifications", icon: "◌", roles: ["STUDENT"], permissions: ["attendance.read"] },
+  { label: "Profile", href: "/student/profile", icon: "◍", roles: ["STUDENT"] },
 
   { label: "Overview", href: "/faculty", icon: "⌂", roles: ["FACULTY"] },
   { label: "Attendance", href: "/faculty/attendance", icon: "◷", roles: ["FACULTY"], permissions: ["attendance.mark"] },
   { label: "Assignments", href: "/faculty/assignments", icon: "✓", roles: ["FACULTY"], permissions: ["assignments.read"] },
   { label: "Marks", href: "/faculty/marks", icon: "◈", roles: ["FACULTY"], permissions: ["marks.enter"] },
+  { label: "Profile", href: "/faculty/profile", icon: "◍", roles: ["FACULTY"] },
 
   { label: "Overview", href: "/parent", icon: "⌂", roles: ["PARENT"] },
+  { label: "Profile", href: "/parent/profile", icon: "◍", roles: ["PARENT"] },
 
   { label: "Overview", href: "/hod", icon: "⌂", roles: ["HOD"] },
   { label: "ERP operations", href: "/erp", icon: "▦", roles: ["HOD"], permissions: ["attendance.read"] },

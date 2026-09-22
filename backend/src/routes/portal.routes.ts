@@ -80,6 +80,13 @@ router.get(
   controller.studentPortal
 );
 
+router.get(
+  "/me",
+  requireFeature("students"),
+  authorizeRoles("STUDENT"),
+  controller.myStudentPortal
+);
+
 /*
  * NOTIFICATIONS
  */

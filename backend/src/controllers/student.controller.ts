@@ -231,7 +231,7 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
 
       todaysClasses: timetable.map((entry) => ({ time: `${entry.startTime}–${entry.endTime}`, courseCode: entry.courseOffering.course.code, courseName: entry.courseOffering.course.name, location: entry.room || "Location not specified" })),
       announcements: notices.map((notice) => ({ id: notice.id, title: notice.title, postedLabel: notice.publishedAt.toLocaleDateString() })),
-      upcomingEvents: exams.map((exam) => ({ id: exam.id, title: exam.title, whenLabel: exam.examDate.toLocaleDateString() })),
+      upcomingEvents: exams.map((exam) => ({ id: exam.id, title: exam.title, date: exam.examDate.toISOString(), whenLabel: exam.examDate.toLocaleDateString() })),
       academicHealth,
       academicRisk: intelligenceData.risk,
       recommendations: intelligenceData.recommendations,
