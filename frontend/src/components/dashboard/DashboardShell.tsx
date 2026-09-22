@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { AccountMenu } from "@/components/auth/AccountMenu";
+
 import {
   AuthRequiredError,
   AuthUser,
@@ -12,15 +21,18 @@ import {
   getCurrentUser,
   logout,
 } from "@/lib/auth";
+
 import {
   hasAnyPermission,
   normalizeRoles,
   type CanonicalRole,
 } from "@/lib/authorization";
+
 import {
   getWorkspaceHome,
   isRouteInWorkspace,
 } from "./roleRouteAccess";
+
 import {
   getPrimaryRole,
   ROLE_NAVIGATION,
@@ -29,8 +41,12 @@ import {
   type NavigationGroup,
 } from "./dashboardNavigation";
 
-function isItemActive(pathname: string, href: string): boolean {
-  const [path] = href.split("?");
+function isItemActive(
+  pathname: string,
+  href: string
+): boolean {
+  const [path] =
+    href.split("?");
 
   if (pathname === path) {
     return true;
@@ -40,26 +56,35 @@ function isItemActive(pathname: string, href: string): boolean {
     return pathname === "/";
   }
 
-  return pathname.startsWith(`${path}/`);
+  return pathname.startsWith(
+    `${path}/`
+  );
 }
 
 function filterGroups(
   groups: NavigationGroup[],
-  user: AuthUser | null,
+  user: AuthUser | null
 ): NavigationGroup[] {
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) =>
-          !item.permissions?.length ||
-          Boolean(
-            user &&
-              hasAnyPermission(user, item.permissions),
-          ),
-      ),
+      items:
+        group.items.filter(
+          (item) =>
+            !item.permissions?.length ||
+            Boolean(
+              user &&
+                hasAnyPermission(
+                  user,
+                  item.permissions
+                )
+            )
+        ),
     }))
-    .filter((group) => group.items.length > 0);
+    .filter(
+      (group) =>
+        group.items.length > 0
+    );
 }
 
 function Initials({
@@ -79,15 +104,16 @@ function Initials({
 }
 
 function toCanonicalRoles(
-  roles: readonly string[],
+  roles: readonly string[]
 ): CanonicalRole[] {
-  const normalized = normalizeRoles(roles);
+  const normalized =
+    normalizeRoles(roles);
 
   return normalized.filter(
     (role): role is CanonicalRole =>
       ROLE_PRIORITY.includes(
-        role as CanonicalRole,
-      ),
+        role as CanonicalRole
+      )
   );
 }
 
@@ -102,13 +128,39 @@ export function DashboardShell({
   children: ReactNode;
   allowedRoles?: string[];
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
+  const router =
+    useRouter();
 
-  const cached = getCachedCurrentUser();
+  const pathname =
+    usePathname();
 
+  /*
+   * IMPORTANT PERFORMANCE FIX
+   *
+   * Do NOT call getCachedCurrentUser()
+   * directly on every render and then place
+   * the returned object in an effect dependency.
+   *
+   * getCachedCurrentUser() parses sessionStorage
+   * and therefore returns a new object reference.
+   *
+   * The old pattern could repeatedly trigger:
+   *
+   * render
+   *   -> new cached object
+   *   -> auth effect
+   *   -> setUser
+   *   -> render
+   *   -> new cached object
+   *   -> auth effect
+   *
+   * The initial snapshot is therefore intentionally
+   * read once.
+   */
   const [user, setUser] =
-    useState<AuthUser | null>(cached);
+    useState<AuthUser | null>(
+      () => getCachedCurrentUser()
+    );
 
   const [mobileOpen, setMobileOpen] =
     useState(false);
@@ -116,39 +168,59 @@ export function DashboardShell({
   const [collapsed, setCollapsed] =
     useState(false);
 
-  const normalizedAllowedRoles = useMemo(
-    () => toCanonicalRoles(allowedRoles ?? []),
-    [allowedRoles],
-  );
+  const normalizedAllowedRoles =
+    useMemo(
+      () =>
+        toCanonicalRoles(
+          allowedRoles ?? []
+        ),
+      [allowedRoles]
+    );
 
+  /*
+   * Authenticate exactly once when the shell
+   * mounts for the current route.
+   *
+   * Background revalidation is handled inside
+   * getCurrentUser().
+   */
   useEffect(() => {
     let mounted = true;
 
     getCurrentUser({
-      background: Boolean(cached),
+      background: Boolean(user),
     })
       .then((currentUser) => {
         if (!mounted) {
           return;
         }
 
-        const actualRoles = toCanonicalRoles(
-          currentUser.roles,
-        );
+        const actualRoles =
+          toCanonicalRoles(
+            currentUser.roles
+          );
 
         if (
-          normalizedAllowedRoles.length > 0 &&
-          !normalizedAllowedRoles.some((role) =>
-            actualRoles.includes(role),
+          normalizedAllowedRoles.length >
+            0 &&
+          !normalizedAllowedRoles.some(
+            (role) =>
+              actualRoles.includes(
+                role
+              )
           )
         ) {
           const target =
-            getPrimaryRole(actualRoles);
+            getPrimaryRole(
+              actualRoles
+            );
 
           router.replace(
             target
-              ? WORKSPACE_META[target].home
-              : "/login",
+              ? WORKSPACE_META[
+                  target
+                ].home
+              : "/login"
           );
 
           return;
@@ -162,49 +234,73 @@ export function DashboardShell({
         }
 
         if (
-          error instanceof AuthRequiredError
+          error instanceof
+          AuthRequiredError
         ) {
-          router.replace("/login");
+          router.replace(
+            "/login"
+          );
         }
       });
 
     return () => {
       mounted = false;
     };
+
+    /*
+     * Deliberately do not depend on `user`.
+     *
+     * User updates must not cause the
+     * authentication effect to execute again.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    cached,
     normalizedAllowedRoles,
     router,
   ]);
 
   useEffect(() => {
-    if (!user || pathname === "/login") {
+    if (
+      !user ||
+      pathname === "/login"
+    ) {
       return;
     }
 
-    const actualRoles = toCanonicalRoles(
-      user.roles,
-    );
+    const actualRoles =
+      toCanonicalRoles(
+        user.roles
+      );
 
     const actualRole =
-      getPrimaryRole(actualRoles);
+      getPrimaryRole(
+        actualRoles
+      );
 
     if (!actualRole) {
-      router.replace("/login");
+      router.replace(
+        "/login"
+      );
       return;
     }
 
     if (
       !isRouteInWorkspace(
         actualRole,
-        pathname,
+        pathname
       )
     ) {
       router.replace(
-        getWorkspaceHome(actualRole),
+        getWorkspaceHome(
+          actualRole
+        )
       );
     }
-  }, [pathname, router, user]);
+  }, [
+    pathname,
+    router,
+    user,
+  ]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -216,9 +312,11 @@ export function DashboardShell({
     }
 
     const previous =
-      document.body.style.overflow;
+      document.body.style
+        .overflow;
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow =
+      "hidden";
 
     return () => {
       document.body.style.overflow =
@@ -226,57 +324,85 @@ export function DashboardShell({
     };
   }, [mobileOpen]);
 
-  const primaryRole = useMemo(() => {
-    const roles =
-      user?.roles ??
-      normalizedAllowedRoles;
+  const primaryRole =
+    useMemo(() => {
+      const roles =
+        user?.roles ??
+        normalizedAllowedRoles;
 
-    return getPrimaryRole(
-      toCanonicalRoles(roles),
-    );
-  }, [normalizedAllowedRoles, user]);
-
-  const workspace = primaryRole
-    ? WORKSPACE_META[primaryRole]
-    : null;
-
-  const groups = useMemo(() => {
-    if (!primaryRole) {
-      return [];
-    }
-
-    const visible = filterGroups(
-      ROLE_NAVIGATION[primaryRole],
-      user,
-    );
-
-    return visible
-      .map((group) => ({
-        ...group,
-        items: group.items.filter(
-          (item) =>
-            isRouteInWorkspace(
-              primaryRole,
-              item.href.split("?")[0],
-            ),
-        ),
-      }))
-      .filter(
-        (group) => group.items.length > 0,
+      return getPrimaryRole(
+        toCanonicalRoles(
+          roles
+        )
       );
-  }, [primaryRole, user]);
+    }, [
+      normalizedAllowedRoles,
+      user,
+    ]);
+
+  const workspace =
+    primaryRole
+      ? WORKSPACE_META[
+          primaryRole
+        ]
+      : null;
+
+  const groups =
+    useMemo(() => {
+      if (!primaryRole) {
+        return [];
+      }
+
+      const visible =
+        filterGroups(
+          ROLE_NAVIGATION[
+            primaryRole
+          ],
+          user
+        );
+
+      return visible
+        .map((group) => ({
+          ...group,
+          items:
+            group.items.filter(
+              (item) =>
+                isRouteInWorkspace(
+                  primaryRole,
+                  item.href.split(
+                    "?"
+                  )[0]
+                )
+            ),
+        }))
+        .filter(
+          (group) =>
+            group.items.length >
+            0
+        );
+    }, [
+      primaryRole,
+      user,
+    ]);
 
   async function signOut() {
     await logout();
-    router.replace("/login");
+
+    router.replace(
+      "/login"
+    );
   }
 
   function navigateHome() {
-    if (primaryRole) {
-      router.push(
-        WORKSPACE_META[primaryRole].home,
-      );
+    if (!primaryRole) {
+      return;
     }
+
+    router.push(
+      WORKSPACE_META[
+        primaryRole
+      ].home
+    );
   }
 
   return (
@@ -288,7 +414,8 @@ export function DashboardShell({
               type="button"
               onClick={() =>
                 setMobileOpen(
-                  (value) => !value,
+                  (value) =>
+                    !value
                 )
               }
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg lg:hidden"
@@ -299,7 +426,9 @@ export function DashboardShell({
 
             <button
               type="button"
-              onClick={navigateHome}
+              onClick={
+                navigateHome
+              }
               className="flex min-w-0 items-center gap-3 text-left"
               aria-label="Open workspace home"
             >
@@ -322,7 +451,9 @@ export function DashboardShell({
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 md:flex">
-              <Initials user={user} />
+              <Initials
+                user={user}
+              />
 
               <div className="max-w-[190px]">
                 <p className="truncate text-xs font-bold text-slate-900">
@@ -332,7 +463,8 @@ export function DashboardShell({
                 </p>
 
                 <p className="truncate text-[11px] text-slate-500">
-                  {user?.email ?? ""}
+                  {user?.email ??
+                    ""}
                 </p>
               </div>
             </div>
@@ -341,7 +473,9 @@ export function DashboardShell({
 
             <button
               type="button"
-              onClick={signOut}
+              onClick={
+                signOut
+              }
               className="hidden rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:block"
             >
               Sign out
@@ -356,7 +490,9 @@ export function DashboardShell({
           aria-label="Close workspace navigation"
           className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden"
           onClick={() =>
-            setMobileOpen(false)
+            setMobileOpen(
+              false
+            )
           }
         />
       ) : null}
@@ -399,77 +535,91 @@ export function DashboardShell({
             className="space-y-5"
             aria-label="Workspace navigation"
           >
-            {groups.map((group) => (
-              <section key={group.label}>
-                <p
-                  className={`mb-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 ${
-                    collapsed
-                      ? "lg:hidden"
-                      : ""
-                  }`}
+            {groups.map(
+              (group) => (
+                <section
+                  key={
+                    group.label
+                  }
                 >
-                  {group.label}
-                </p>
+                  <p
+                    className={`mb-2 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 ${
+                      collapsed
+                        ? "lg:hidden"
+                        : ""
+                    }`}
+                  >
+                    {
+                      group.label
+                    }
+                  </p>
 
-                <div className="space-y-1">
-                  {group.items.map(
-                    (item) => {
-                      const active =
-                        isItemActive(
-                          pathname,
-                          item.href,
-                        );
+                  <div className="space-y-1">
+                    {group.items.map(
+                      (item) => {
+                        const active =
+                          isItemActive(
+                            pathname,
+                            item.href
+                          );
 
-                      return (
-                        <Link
-                          key={`${item.href}:${item.label}`}
-                          href={item.href}
-                          title={
-                            collapsed
-                              ? item.label
-                              : undefined
-                          }
-                          onClick={() =>
-                            setMobileOpen(
-                              false,
-                            )
-                          }
-                          className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                            collapsed
-                              ? "lg:justify-center lg:px-2"
-                              : ""
-                          } ${
-                            active
-                              ? "bg-slate-950 text-white shadow-sm"
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${
+                        return (
+                          <Link
+                            key={`${item.href}:${item.label}`}
+                            href={
+                              item.href
+                            }
+                            title={
+                              collapsed
+                                ? item.label
+                                : undefined
+                            }
+                            onClick={() =>
+                              setMobileOpen(
+                                false
+                              )
+                            }
+                            className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                              collapsed
+                                ? "lg:justify-center lg:px-2"
+                                : ""
+                            } ${
                               active
-                                ? "bg-white/15 text-white"
-                                : "bg-slate-100 text-slate-500 group-hover:bg-white"
+                                ? "bg-slate-950 text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                             }`}
                           >
-                            {item.icon}
-                          </span>
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${
+                                active
+                                  ? "bg-white/15 text-white"
+                                  : "bg-slate-100 text-slate-500 group-hover:bg-white"
+                              }`}
+                            >
+                              {
+                                item.icon
+                              }
+                            </span>
 
-                          <span
-                            className={
-                              collapsed
-                                ? "lg:hidden"
-                                : ""
-                            }
-                          >
-                            {item.label}
-                          </span>
-                        </Link>
-                      );
-                    },
-                  )}
-                </div>
-              </section>
-            ))}
+                            <span
+                              className={
+                                collapsed
+                                  ? "lg:hidden"
+                                  : ""
+                              }
+                            >
+                              {
+                                item.label
+                              }
+                            </span>
+                          </Link>
+                        );
+                      }
+                    )}
+                  </div>
+                </section>
+              )
+            )}
           </nav>
 
           <div
@@ -485,9 +635,10 @@ export function DashboardShell({
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Start from Overview. It
-                shows the work that belongs
-                to your responsibility.
+                Start from Overview.
+                It shows the work
+                that belongs to
+                your responsibility.
               </p>
             </div>
           </div>
@@ -508,7 +659,9 @@ export function DashboardShell({
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
                   {workspace ? (
                     <span>
-                      {workspace.label}
+                      {
+                        workspace.label
+                      }
                     </span>
                   ) : null}
 
@@ -529,7 +682,9 @@ export function DashboardShell({
 
                 {subtitle ? (
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                    {subtitle}
+                    {
+                      subtitle
+                    }
                   </p>
                 ) : null}
               </div>
@@ -537,10 +692,13 @@ export function DashboardShell({
               {workspace ? (
                 <button
                   type="button"
-                  onClick={navigateHome}
+                  onClick={
+                    navigateHome
+                  }
                   className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 >
-                  Back to workspace
+                  Back to
+                  workspace
                 </button>
               ) : null}
             </div>
@@ -554,7 +712,8 @@ export function DashboardShell({
         type="button"
         onClick={() =>
           setCollapsed(
-            (value) => !value,
+            (value) =>
+              !value
           )
         }
         className="fixed bottom-5 left-4 z-[60] hidden h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-slate-600 shadow-lg lg:flex"
@@ -564,7 +723,9 @@ export function DashboardShell({
             : "Collapse navigation"
         }
       >
-        {collapsed ? "→" : "←"}
+        {collapsed
+          ? "→"
+          : "←"}
       </button>
     </div>
   );
