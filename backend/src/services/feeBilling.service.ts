@@ -15,6 +15,7 @@ import {
 } from "../utils/sqlScope";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
+import { assertFeeApprovalAuthority } from "./workflowAuthority.service";
 import { getPaymentGateway, paymentCurrency } from "./payments/gateway";
 
 /**
@@ -49,12 +50,7 @@ function assertCanManageFees(actor: AuthenticatedUser): void {
 }
 
 function assertCanApproveMoney(actor: AuthenticatedUser): void {
-  const allowed = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"];
-  if (actor.roles.some((role) => allowed.includes(role))) return;
-  throw new AppError(
-    "Only institution leadership may approve this financial action",
-    403
-  );
+  assertFeeApprovalAuthority(actor);
 }
 
 interface InvoiceRow {
