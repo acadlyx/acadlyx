@@ -6,6 +6,10 @@ import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
 import { assertRegistrationApprovalAuthority } from "./workflowAuthority.service";
 import {
+  getManagedDepartmentIds,
+  isInstitutionWide,
+} from "./accessScope.service";
+import {
   OfferingCapacityInput,
   RegisterInput,
 } from "../validators/registration.validators";
