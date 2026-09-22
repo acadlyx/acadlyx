@@ -1,6 +1,9 @@
 import { Request } from "express";
 import * as erp from "../services/erp.service";
-import { getWorkspace } from "../services/workspace.service";
+import {
+  getManagementWorkspace,
+  isLeadershipActor,
+} from "../services/managementWorkspace.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
@@ -17,18 +20,40 @@ const actor = (req: Request) => {
 };
 
 export const workspace = asyncHandler(
-  async (req, res) =>
+  async (req, res) => {
+    const currentActor = actor(req);
+    const institutionId =
+      requireInstitution(req);
+
+    /*
+     * Leadership dashboards use the optimized
+     * PostgreSQL aggregation service.
+     *
+     * HOD / FACULTY / PARENT / STUDENT continue
+     * through the existing ERP service so their
+     * existing authority and scope logic remains
+     * untouched.
+     */
+    const data =
+      isLeadershipActor(currentActor)
+        ? await getManagementWorkspace(
+            institutionId,
+            currentActor
+          )
+        : await erp.getMyWorkspace(
+            institutionId,
+            currentActor
+          );
+
     res.json({
       success: true,
-      data: await getWorkspace(
-        requireInstitution(req),
-        actor(req)
-      ),
-    })
+      data,
+    });
+  }
 );
 
-export const timetableList = asyncHandler(
-  async (req, res) =>
+export const timetableList =
+  asyncHandler(async (req, res) =>
     res.json({
       success: true,
       data:
@@ -41,8 +66,7 @@ export const timetableList = asyncHandler(
               undefined
                 ? undefined
                 : Number(
-                    req.query
-                      .dayOfWeek
+                    req.query.dayOfWeek
                   ),
 
             courseOfferingId:
@@ -55,10 +79,10 @@ export const timetableList = asyncHandler(
           }
         ),
     })
-);
+  );
 
-export const timetable = asyncHandler(
-  async (req, res) =>
+export const timetable =
+  asyncHandler(async (req, res) =>
     res.status(201).json({
       success: true,
       data:
@@ -68,7 +92,7 @@ export const timetable = asyncHandler(
           req.body
         ),
     })
-);
+  );
 
 export const timetableUpdate =
   asyncHandler(async (req, res) =>
@@ -97,8 +121,8 @@ export const timetableDelete =
     })
   );
 
-export const noticeList = asyncHandler(
-  async (req, res) =>
+export const noticeList =
+  asyncHandler(async (req, res) =>
     res.json({
       success: true,
       data: await erp.listNotices(
@@ -108,10 +132,10 @@ export const noticeList = asyncHandler(
           "false"
       ),
     })
-);
+  );
 
-export const notice = asyncHandler(
-  async (req, res) =>
+export const notice =
+  asyncHandler(async (req, res) =>
     res.status(201).json({
       success: true,
       data: await erp.createNotice(
@@ -120,7 +144,7 @@ export const notice = asyncHandler(
         req.body
       ),
     })
-);
+  );
 
 export const noticeUpdate =
   asyncHandler(async (req, res) =>
@@ -147,8 +171,8 @@ export const noticeDelete =
     })
   );
 
-export const examList = asyncHandler(
-  async (req, res) =>
+export const examList =
+  asyncHandler(async (req, res) =>
     res.json({
       success: true,
       data: await erp.listExams(
@@ -161,7 +185,7 @@ export const examList = asyncHandler(
           : undefined
       ),
     })
-);
+  );
 
 export const examDetails =
   asyncHandler(async (req, res) =>
@@ -175,8 +199,8 @@ export const examDetails =
     })
   );
 
-export const exam = asyncHandler(
-  async (req, res) =>
+export const exam =
+  asyncHandler(async (req, res) =>
     res.status(201).json({
       success: true,
       data: await erp.createExam(
@@ -185,10 +209,10 @@ export const exam = asyncHandler(
         req.body
       ),
     })
-);
+  );
 
-export const examUpdate = asyncHandler(
-  async (req, res) =>
+export const examUpdate =
+  asyncHandler(async (req, res) =>
     res.json({
       success: true,
       data: await erp.updateExam(
@@ -198,10 +222,10 @@ export const examUpdate = asyncHandler(
         req.body
       ),
     })
-);
+  );
 
-export const examDelete = asyncHandler(
-  async (req, res) =>
+export const examDelete =
+  asyncHandler(async (req, res) =>
     res.json({
       success: true,
       data: await erp.deleteExam(
@@ -210,10 +234,10 @@ export const examDelete = asyncHandler(
         req.params.id
       ),
     })
-);
+  );
 
-export const result = asyncHandler(
-  async (req, res) =>
+export const result =
+  asyncHandler(async (req, res) =>
     res.status(200).json({
       success: true,
       data:
@@ -223,7 +247,7 @@ export const result = asyncHandler(
           req.body
         ),
     })
-);
+  );
 
 export const invoiceList =
   asyncHandler(async (req, res) =>
@@ -242,8 +266,7 @@ export const invoiceList =
                 : undefined,
 
             status:
-              typeof req.query
-                .status ===
+              typeof req.query.status ===
               "string"
                 ? req.query.status
                 : undefined,
@@ -256,16 +279,17 @@ export const invoiceDetails =
   asyncHandler(async (req, res) =>
     res.json({
       success: true,
-      data: await erp.getFeeInvoice(
-        requireInstitution(req),
-        actor(req),
-        req.params.id
-      ),
+      data:
+        await erp.getFeeInvoice(
+          requireInstitution(req),
+          actor(req),
+          req.params.id
+        ),
     })
   );
 
-export const invoice = asyncHandler(
-  async (req, res) =>
+export const invoice =
+  asyncHandler(async (req, res) =>
     res.status(201).json({
       success: true,
       data: await erp.createInvoice(
@@ -274,7 +298,7 @@ export const invoice = asyncHandler(
         req.body
       ),
     })
-);
+  );
 
 export const invoiceUpdate =
   asyncHandler(async (req, res) =>
@@ -303,8 +327,8 @@ export const invoiceDelete =
     })
   );
 
-export const payment = asyncHandler(
-  async (req, res) =>
+export const payment =
+  asyncHandler(async (req, res) =>
     res.status(201).json({
       success: true,
       data: await erp.recordPayment(
@@ -315,7 +339,7 @@ export const payment = asyncHandler(
         req.body.reference
       ),
     })
-);
+  );
 
 export const parentLinkList =
   asyncHandler(async (req, res) =>
@@ -325,8 +349,7 @@ export const parentLinkList =
         await erp.listParentLinks(
           requireInstitution(req),
           actor(req),
-          typeof req.query
-            .studentId ===
+          typeof req.query.studentId ===
             "string"
             ? req.query.studentId
             : undefined
