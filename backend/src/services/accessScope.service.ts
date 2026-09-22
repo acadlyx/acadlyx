@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 
 /**
  * Central resource-level scope checks shared by every module.
@@ -14,14 +15,16 @@ import { AuthenticatedUser } from "../types/auth";
 export const INSTITUTION_WIDE_ROLES = [
   "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
+  "CHAIRMAN",
+  "DEAN",
+  "REGISTRAR",
 ];
 
 export function hasAnyRole(
   actor: Pick<AuthenticatedUser, "roles">,
   roles: readonly string[]
 ): boolean {
-  return actor.roles.some((role) => roles.includes(role));
+  const canonical = getCanonicalRoleNames(actor.roles);\n  return canonical.some((role) => roles.includes(role));
 }
 
 export function isInstitutionWide(
@@ -141,9 +144,9 @@ export async function assertCanViewStudent(
   if (!student) throw new AppError("Student not found in this institution", 404);
 
   if (actor.id === studentId) return;
-  if (isInstitutionWide(actor) || actor.roles.includes("STAFF")) return;
+  if (isInstitutionWide(actor)) return;
 
-  if (actor.roles.includes("PARENT")) {
+  if (getCanonicalRoleNames(actor.roles).includes("PARENT")) {
     const link = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
       select: { parentId: true },
@@ -151,7 +154,7 @@ export async function assertCanViewStudent(
     if (link) return;
   }
 
-  if (actor.roles.includes("HOD")) {
+  if (getCanonicalRoleNames(actor.roles).includes("HOD")) {
     const [managed, studentDepartments] = await Promise.all([
       getManagedDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -159,7 +162,7 @@ export async function assertCanViewStudent(
     if (studentDepartments.some((id) => managed.includes(id))) return;
   }
 
-  if (actor.roles.includes("FACULTY")) {
+  if (getCanonicalRoleNames(actor.roles).includes("FACULTY")) {
     const taught = await prisma.courseOffering.findFirst({
       where: {
         institutionId,
