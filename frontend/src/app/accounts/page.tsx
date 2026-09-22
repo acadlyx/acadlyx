@@ -1,5 +1,7 @@
-import { RoleWorkspaceLanding } from "@/components/dashboard/RoleWorkspaceLanding";
+"use client";
 
-export default function Page() {
-  return <RoleWorkspaceLanding role="ACCOUNTS" />;
+import { SpecialistDashboard } from "@/components/dashboard/SpecialistDashboard";
+
+export default function AccountsPage() {
+  return <SpecialistDashboard role="ACCOUNTS" />;
 }
