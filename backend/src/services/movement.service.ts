@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
 import { assertCanViewStudent } from "./accessScope.service";
+import { assertMovementApprovalAuthority } from "./workflowAuthority.service";
 import {
   BulkPromotionInput,
   CreateMovementInput,
@@ -334,16 +335,9 @@ export async function decide(
   if (existing.status !== "PENDING") {
     throw new AppError("This request has already been decided", 422);
   }
+  await assertMovementApprovalAuthority(institutionId, actor, existing.studentId);
   if (existing.requestedById === actor.id && decision === "APPROVED") {
-    /* Separation of duties: the raiser of a request cannot also approve
-       it unless they hold institution-wide authority. */
-    const institutionWide =
-      actor.roles.includes("INSTITUTION_ADMIN") ||
-      actor.roles.includes("DIRECTOR") ||
-      actor.roles.includes("SUPER_ADMIN");
-    if (!institutionWide) {
-      throw new AppError("You cannot approve a request you raised", 403);
-    }
+    throw new AppError("You cannot approve a student-lifecycle request you raised", 403);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
