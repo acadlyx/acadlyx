@@ -6,11 +6,13 @@
   --acadlyx-primary: #2563eb;
   --acadlyx-primary-dark: #1d4ed8;
   --acadlyx-primary-soft: #eff6ff;
-  --acadlyx-secondary: #64748b;
+  --acadlyx-accent: #06b6d4;
+
   --acadlyx-surface: #ffffff;
-  --acadlyx-background: #f5f7fb;
-  --acadlyx-border: #e2e8f0;
-  --acadlyx-text: #0f172a;
+  --acadlyx-background: #eef3f8;
+  --acadlyx-border: #dbe4ee;
+
+  --acadlyx-text: #172033;
   --acadlyx-muted: #64748b;
 }
 
@@ -23,11 +25,22 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
+
   color: var(--acadlyx-text);
-  background: var(--acadlyx-background);
+
+  background:
+    radial-gradient(
+      circle at 0 0,
+      rgba(37, 99, 235, 0.045),
+      transparent 28rem
+    ),
+    var(--acadlyx-background);
+
   font-feature-settings:
     "rlig" 1,
     "calt" 1;
+
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -41,11 +54,11 @@ select {
 button,
 a {
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 button:focus-visible,
@@ -63,22 +76,27 @@ select:focus-visible {
 }
 
 /*
- * ACADLYX primary action normalization.
+ * ---------------------------------------------------------------------------
+ * LEGACY BLACK BUTTON NORMALIZATION
+ * ---------------------------------------------------------------------------
  *
- * The older pages use bg-slate-950 for primary buttons.
- * Keep their markup intact but visually move primary actions
- * into the new blue ERP design system.
+ * A number of older ERP pages still contain bg-slate-950.
+ * Visually normalize those old buttons without forcing every page to be
+ * rewritten immediately.
  */
+
 button.bg-slate-950,
 a.bg-slate-950,
 [role="button"].bg-slate-950 {
-  background-color: var(--acadlyx-primary) !important;
+  background-color:
+    var(--acadlyx-primary) !important;
 }
 
 button.bg-slate-950:hover,
 a.bg-slate-950:hover,
 [role="button"].bg-slate-950:hover {
-  background-color: var(--acadlyx-primary-dark) !important;
+  background-color:
+    var(--acadlyx-primary-dark) !important;
 }
 
 button[class~="bg-slate-950"][class~="text-white"],
@@ -88,19 +106,16 @@ a[class~="bg-slate-950"][class~="text-white"] {
 
 button[class~="hover:bg-slate-800"]:hover,
 a[class~="hover:bg-slate-800"]:hover {
-  background-color: var(--acadlyx-primary-dark) !important;
+  background-color:
+    var(--acadlyx-primary-dark) !important;
 }
 
 /*
- * Selected tabs used to become nearly black.
+ * ---------------------------------------------------------------------------
+ * SCROLLBARS
+ * ---------------------------------------------------------------------------
  */
-button[class~="bg-slate-950"][class~="text-white"] {
-  background-color: var(--acadlyx-primary) !important;
-}
 
-/*
- * Better default scrollbars.
- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -112,23 +127,28 @@ button[class~="bg-slate-950"][class~="text-white"] {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #cbd5e1;
+  background: #c4d0dd;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #aab8c8;
 }
 
 /*
- * Lightweight loading shimmer.
+ * ---------------------------------------------------------------------------
+ * FAST LIGHTWEIGHT LOADING
+ * ---------------------------------------------------------------------------
  */
+
 @keyframes acadlyx-shimmer {
   0% {
-    background-position: -700px 0;
+    background-position:
+      -560px 0;
   }
 
   100% {
-    background-position: 700px 0;
+    background-position:
+      560px 0;
   }
 }
 
@@ -136,19 +156,85 @@ button[class~="bg-slate-950"][class~="text-white"] {
   background:
     linear-gradient(
       90deg,
-      #eef2f7 0%,
-      #f8fafc 45%,
-      #eef2f7 90%
+      #e7edf4 0%,
+      #f7f9fc 48%,
+      #e7edf4 100%
     );
-  background-size: 700px 100%;
+
+  background-size:
+    560px 100%;
+
   animation:
-    acadlyx-shimmer 1.25s
-    linear infinite;
+    acadlyx-shimmer
+    1.05s
+    linear
+    infinite;
+}
+
+.acadlyx-loading {
+  min-height: 120px;
+
+  display: grid;
+  place-items: center;
+}
+
+.acadlyx-loading-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 999px;
+
+  background:
+    var(--acadlyx-primary);
+
+  box-shadow:
+    14px 0 0
+      rgba(
+        37,
+        99,
+        235,
+        0.35
+      ),
+    28px 0 0
+      rgba(
+        37,
+        99,
+        235,
+        0.16
+      );
+
+  animation:
+    acadlyx-dots
+    900ms
+    ease-in-out
+    infinite
+    alternate;
+}
+
+@keyframes acadlyx-dots {
+  from {
+    transform:
+      translateX(-7px);
+
+    opacity:
+      0.55;
+  }
+
+  to {
+    transform:
+      translateX(7px);
+
+    opacity:
+      1;
+  }
 }
 
 /*
- * Prevent ugly horizontal overflow from long ERP tables.
+ * ---------------------------------------------------------------------------
+ * MEDIA / TABLE SAFETY
+ * ---------------------------------------------------------------------------
  */
+
 img,
 svg,
 video,
@@ -160,6 +246,12 @@ table {
   border-collapse: collapse;
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * ACCESSIBILITY
+ * ---------------------------------------------------------------------------
+ */
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -168,8 +260,13 @@ table {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation-duration:
+      0.01ms !important;
+
+    animation-iteration-count:
+      1 !important;
+
+    transition-duration:
+      0.01ms !important;
   }
 }
