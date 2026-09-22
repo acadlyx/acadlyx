@@ -5,121 +5,125 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { AccessNotice } from "@/components/dashboard/AccessNotice";
 import {
   AuthRequiredError,
   AuthUser,
   getCachedCurrentUser,
   getCurrentUser,
 } from "@/lib/auth";
-import { CanonicalRole, hasAnyPermission, normalizeRole } from "@/lib/authorization";
+import { CanonicalRole, hasAnyPermission, normalizeRoles } from "@/lib/authorization";
 
-type WorkspaceLink = {
+type Action = {
   label: string;
   href: string;
   description: string;
   permissions?: string[];
 };
 
-const WORKSPACE_META: Record<CanonicalRole, { title: string; subtitle: string; eyebrow: string }> = {
-  SUPER_ADMIN: { title: "Super Admin Workspace", subtitle: "Platform administration and tenant control", eyebrow: "Platform workspace" },
-  INSTITUTION_ADMIN: { title: "Institution Admin Workspace", subtitle: "Institution configuration and administration", eyebrow: "Institution administration" },
-  CHAIRMAN: { title: "Chairman Workspace", subtitle: "Executive oversight and institutional intelligence", eyebrow: "Executive workspace" },
-  DIRECTOR: { title: "Director Workspace", subtitle: "Institution-wide academic and operational oversight", eyebrow: "Leadership workspace" },
-  DEAN: { title: "Dean Workspace", subtitle: "School-level academic leadership and performance", eyebrow: "Academic leadership" },
-  REGISTRAR: { title: "Registrar Workspace", subtitle: "Official student, registration and academic records", eyebrow: "Academic records" },
-  HOD: { title: "HOD Workspace", subtitle: "Department operations, faculty and student performance", eyebrow: "Department workspace" },
-  FACULTY: { title: "Faculty Workspace", subtitle: "Teaching, attendance, assessment and assigned classes", eyebrow: "Teaching workspace" },
-  ACCOUNTS: { title: "Accounts Workspace", subtitle: "Fees, payments, receipts and financial operations", eyebrow: "Finance workspace" },
-  HR: { title: "HR Workspace", subtitle: "Employee lifecycle, leave administration and HR operations", eyebrow: "People operations" },
-  ADMISSIONS: { title: "Admissions Workspace", subtitle: "Applications, verification and admission workflow", eyebrow: "Admissions workspace" },
-  EXAMINATION: { title: "Examination Cell Workspace", subtitle: "Examinations, eligibility, marks and result processing", eyebrow: "Examination workspace" },
-  LIBRARIAN: { title: "Librarian Workspace", subtitle: "Library catalogue, circulation, reservations and fines", eyebrow: "Library workspace" },
-  PLACEMENT: { title: "Placement Workspace", subtitle: "Companies, drives, applications and placement outcomes", eyebrow: "Career workspace" },
-  IT: { title: "IT Workspace", subtitle: "Technical administration, integrations and operational support", eyebrow: "Technology workspace" },
-  CMS: { title: "CMS Workspace", subtitle: "Public website content and publishing", eyebrow: "Content workspace" },
-  STUDENT: { title: "Student Workspace", subtitle: "Your academic information and self-service actions", eyebrow: "Student workspace" },
-  PARENT: { title: "Parent Workspace", subtitle: "Linked-child academic information and communication", eyebrow: "Parent workspace" },
-  CLUB_PRESIDENT: { title: "Club President Workspace", subtitle: "Student-led club activities, members and events", eyebrow: "Club workspace" },
+const META: Record<CanonicalRole, { title: string; subtitle: string; eyebrow: string; intro: string }> = {
+  SUPER_ADMIN: { title: "Platform overview", subtitle: "Manage institutions and platform-level controls.", eyebrow: "Platform", intro: "Start with the institution or platform task you need to complete." },
+  INSTITUTION_ADMIN: { title: "Institution overview", subtitle: "Keep your institution structure, people and academic setup organized.", eyebrow: "Administration", intro: "Everything here is focused on running your institution. Specialist approvals remain with their assigned teams." },
+  CHAIRMAN: { title: "Leadership overview", subtitle: "See the institution at a strategic level.", eyebrow: "Leadership", intro: "Start with the information that helps you understand institutional performance." },
+  DIRECTOR: { title: "Director overview", subtitle: "Monitor institution-wide academic and operational activity.", eyebrow: "Leadership", intro: "Use the overview first, then open only the operational area you need." },
+  DEAN: { title: "School overview", subtitle: "Monitor your school or faculty without unrelated institution-wide controls.", eyebrow: "Academic leadership", intro: "Your workspace is scoped to the academic responsibility assigned to you." },
+  REGISTRAR: { title: "Registrar overview", subtitle: "Manage official student records and academic lifecycle workflows.", eyebrow: "Academic records", intro: "Student records, registration and official documents are grouped together here." },
+  HOD: { title: "Department overview", subtitle: "Run department-level academic operations and monitor your students.", eyebrow: "Department", intro: "Your tools are limited to the department responsibilities assigned to you." },
+  FACULTY: { title: "Teaching overview", subtitle: "See your classes, attendance, assignments and assessment work.", eyebrow: "Teaching", intro: "Your most common teaching actions are one step away from this screen." },
+  ACCOUNTS: { title: "Finance overview", subtitle: "Manage fees, payments, receipts and financial operations.", eyebrow: "Finance", intro: "Financial tools are grouped by the work you perform rather than by technical ERP modules." },
+  HR: { title: "People overview", subtitle: "Manage employees and assigned leave workflows.", eyebrow: "People operations", intro: "Employee and leave work is kept together so you do not have to hunt through the system." },
+  ADMISSIONS: { title: "Admissions overview", subtitle: "Move applications through the admission process.", eyebrow: "Admissions", intro: "Start with applications, then move through verification and admission steps." },
+  EXAMINATION: { title: "Examination overview", subtitle: "Manage official examination and result workflows.", eyebrow: "Examination", intro: "Examination setup, processing and results are grouped into one clear workspace." },
+  LIBRARIAN: { title: "Library overview", subtitle: "Run catalogue and circulation work from one place.", eyebrow: "Library", intro: "Open the library workspace for catalogue, circulation and member activity." },
+  PLACEMENT: { title: "Placement overview", subtitle: "Manage career drives, applications and placement outcomes.", eyebrow: "Placement", intro: "Your placement workspace keeps company and student career work together." },
+  IT: { title: "Technology overview", subtitle: "Handle technical operations and support workflows.", eyebrow: "Technology", intro: "Use the technology workspace for operational and support tasks only." },
+  CMS: { title: "Website overview", subtitle: "Manage public website content and publishing.", eyebrow: "Content", intro: "CMS is isolated from academic, finance and HR operations." },
+  STUDENT: { title: "My college", subtitle: "Your timetable, attendance, assignments, results and requests.", eyebrow: "Student", intro: "Start here. Your workspace shows only your own academic and student-service information." },
+  PARENT: { title: "Family overview", subtitle: "Follow the academic information available for your linked children.", eyebrow: "Parent", intro: "Everything is organized around your linked children, not the wider institution." },
+  CLUB_PRESIDENT: { title: "Club overview", subtitle: "Run your assigned student club within its own scope.", eyebrow: "Student club", intro: "Club President access is limited to the assigned club responsibility." },
 };
 
-const LINKS: Record<CanonicalRole, WorkspaceLink[]> = {
-  SUPER_ADMIN: [{ label: "Platform administration", href: "/superadmin", description: "Manage platform-level institutions and designated administrators." }],
-  INSTITUTION_ADMIN: [{ label: "Institution administration", href: "/admin", description: "Manage institution-level configuration and administration." }],
+const ACTIONS: Record<CanonicalRole, Action[]> = {
+  SUPER_ADMIN: [{ label: "Open platform administration", href: "/superadmin", description: "Institutions, platform controls and designated administrators." }],
+  INSTITUTION_ADMIN: [
+    { label: "Manage people & users", href: "/admin", description: "Institution-level user and administration work.", permissions: ["users.read"] },
+    { label: "Institution setup", href: "/institution-settings", description: "Institution settings and structure.", permissions: ["institutions.manage"] },
+    { label: "Academic structure", href: "/erp", description: "Academic masters and institution setup.", permissions: ["academic-masters.read"] },
+  ],
   CHAIRMAN: [
-    { label: "Institution intelligence", href: "/intelligence", description: "Review institution-wide performance and strategic indicators.", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Reports", href: "/reports", description: "Review institution reports available to your authority.", permissions: ["reports.read"] },
+    { label: "View institution intelligence", href: "/intelligence", description: "Strategic academic and operational indicators.", permissions: ["intelligence.read"] },
+    { label: "Open reports", href: "/reports", description: "Reports available to your authority.", permissions: ["reports.read"] },
   ],
   DIRECTOR: [
-    { label: "Institution intelligence", href: "/intelligence", description: "Review academic and operational performance.", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Admissions", href: "/admissions", description: "Review admission workflow where authorized.", permissions: ["admissions.read"] },
-    { label: "Academic operations", href: "/erp", description: "Open authorized institutional ERP operations.", permissions: ["students.read", "academic-masters.read", "fees.read"] },
+    { label: "View institution intelligence", href: "/intelligence", description: "Academic and operational performance.", permissions: ["intelligence.read"] },
+    { label: "Review admissions", href: "/admissions", description: "Admission workflow where assigned.", permissions: ["admissions.read"] },
+    { label: "Review examinations", href: "/examinations", description: "Examination information within your authority.", permissions: ["exams.read"] },
   ],
   DEAN: [
-    { label: "Academic intelligence", href: "/intelligence", description: "Review school-level academic indicators.", permissions: ["intelligence.read", "reports.read"] },
-    { label: "Student administration", href: "/students", description: "Open students within your permitted school scope.", permissions: ["students.read"] },
-    { label: "Examinations", href: "/examinations", description: "Review examination information within your authority.", permissions: ["exams.read", "results.read"] },
+    { label: "View students", href: "/students", description: "Students inside your permitted school scope.", permissions: ["students.read"] },
+    { label: "View academic intelligence", href: "/intelligence", description: "School-level academic indicators.", permissions: ["intelligence.read"] },
+    { label: "Review examinations", href: "/examinations", description: "Examination information within your authority.", permissions: ["exams.read"] },
   ],
   REGISTRAR: [
-    { label: "Enrollment", href: "/enrollment", description: "Manage authorized enrollment and academic lifecycle workflows.", permissions: ["registration.manage", "students.manage"] },
-    { label: "Course registration", href: "/course-registration", description: "Review registration workflows.", permissions: ["registration.read", "registration.manage"] },
-    { label: "Certificates", href: "/certificates", description: "Manage authorized academic record and certificate workflows.", permissions: ["certificates.read", "certificates.manage"] },
+    { label: "Manage enrollment", href: "/enrollment", description: "Official student enrollment and lifecycle workflows.", permissions: ["registration.read", "students.read"] },
+    { label: "Course registration", href: "/course-registration", description: "Registration workflows.", permissions: ["registration.read"] },
+    { label: "Certificates", href: "/certificates", description: "Official academic document workflows.", permissions: ["certificates.read"] },
   ],
   HOD: [
-    { label: "Department operations", href: "/erp", description: "Open department-scoped ERP operations.", permissions: ["students.read", "academic-masters.read", "timetable.read"] },
-    { label: "Examinations", href: "/examinations", description: "Review departmental examination workflows.", permissions: ["exams.read", "marks.read", "results.read"] },
-    { label: "Student movement", href: "/student-promotion", description: "Open authorized student movement workflows.", permissions: ["promotions.read", "promotions.manage"] },
+    { label: "Open department operations", href: "/erp", description: "Department-scoped academic operations.", permissions: ["academic-masters.read"] },
+    { label: "View department students", href: "/students", description: "Students inside your department scope.", permissions: ["students.read"] },
+    { label: "Review examinations", href: "/examinations", description: "Department examination workflows.", permissions: ["exams.read"] },
   ],
   FACULTY: [
-    { label: "Teaching dashboard", href: "/faculty", description: "Open assigned teaching, attendance and learner information." },
-    { label: "Examinations", href: "/examinations", description: "Open examination tasks assigned to you.", permissions: ["exams.read", "marks.read"] },
-    { label: "Calendar", href: "/calendar", description: "View academic events and schedules.", permissions: ["calendar.read"] },
+    { label: "Open teaching workspace", href: "/faculty", description: "Your assigned classes and teaching activity." },
+    { label: "Take attendance", href: "/faculty/attendance", description: "Attendance for assigned classes.", permissions: ["attendance.read"] },
+    { label: "Manage assignments", href: "/faculty/assignments", description: "Assignments for your classes.", permissions: ["assignments.read"] },
+    { label: "Enter marks", href: "/faculty/marks", description: "Assessment work for assigned courses.", permissions: ["marks.read"] },
   ],
   ACCOUNTS: [
-    { label: "Fees & billing", href: "/fees", description: "Open authorized fee collection and financial operations.", permissions: ["fees.read", "fees.manage", "fees.pay"] },
-    { label: "ERP finance", href: "/erp?tab=fees", description: "Configure authorized fee structures and billing.", permissions: ["fees.manage"] },
-    { label: "Reports", href: "/reports", description: "Review authorized financial reports.", permissions: ["reports.read"] },
+    { label: "Open fees & billing", href: "/fees", description: "Collection, invoices, receipts and financial operations.", permissions: ["fees.read"] },
+    { label: "Configure fees", href: "/erp?tab=fees", description: "Fee structures and billing setup.", permissions: ["fees.manage"] },
+    { label: "View financial reports", href: "/reports", description: "Authorized financial reporting.", permissions: ["reports.read"] },
   ],
   HR: [
-    { label: "Employees", href: "/hr", description: "Manage authorized employee lifecycle operations.", permissions: ["hr.read", "hr.manage"] },
-    { label: "Leave management", href: "/leave-management", description: "Process leave workflows assigned to HR authority.", permissions: ["leave.read", "leave.manage"] },
+    { label: "Manage employees", href: "/hr", description: "Employee lifecycle and records.", permissions: ["hr.read"] },
+    { label: "Process leave", href: "/leave-management", description: "Leave workflows assigned to HR.", permissions: ["leave.read"] },
   ],
   ADMISSIONS: [
-    { label: "Applications", href: "/applications", description: "Review and process admission applications.", permissions: ["admissions.read", "admissions.manage"] },
-    { label: "Admissions", href: "/admissions", description: "Open the admission workflow.", permissions: ["admissions.read", "admissions.manage"] },
+    { label: "Review applications", href: "/applications", description: "Application review and processing.", permissions: ["admissions.read"] },
+    { label: "Open admissions", href: "/admissions", description: "Admission workflow and onboarding.", permissions: ["admissions.read"] },
   ],
   EXAMINATION: [
-    { label: "Examinations", href: "/examinations", description: "Manage examination setup and official processing.", permissions: ["exams.read", "exams.manage"] },
-    { label: "Results", href: "/results", description: "Process and publish authorized results.", permissions: ["results.read", "results.manage"] },
+    { label: "Manage examinations", href: "/examinations", description: "Official examination setup and processing.", permissions: ["exams.read"] },
+    { label: "Process results", href: "/results", description: "Authorized result processing and publication.", permissions: ["results.read"] },
   ],
-  LIBRARIAN: [{ label: "Library", href: "/library", description: "Manage catalogue, circulation, reservations and fines.", permissions: ["library.read", "library.manage", "library.borrow"] }],
+  LIBRARIAN: [{ label: "Open library", href: "/library", description: "Catalogue, circulation, reservations and fines.", permissions: ["library.read"] }],
   PLACEMENT: [
-    { label: "Placement operations", href: "/placements", description: "Open placement workflows.", permissions: ["placement.read", "placement.manage"] },
-    { label: "Intelligence", href: "/intelligence", description: "Review authorized placement and outcome analytics.", permissions: ["intelligence.read", "reports.read"] },
+    { label: "Open placement operations", href: "/placements", description: "Companies, drives, applications and outcomes.", permissions: ["placement.read"] },
+    { label: "View placement intelligence", href: "/intelligence", description: "Authorized placement analytics.", permissions: ["intelligence.read"] },
   ],
-  IT: [
-    { label: "Operations", href: "/operations", description: "Review technical operations and support workflows.", permissions: ["operations.read", "operations.manage", "maintenance.read", "maintenance.manage"] },
-    { label: "Account security", href: "/account-security", description: "Manage your account security settings." },
-  ],
-  CMS: [{ label: "Website CMS", href: "/site-content", description: "Manage public website content within CMS authority.", permissions: ["site.manage"] }],
+  IT: [{ label: "Open IT operations", href: "/operations", description: "Technical operations and support workflows.", permissions: ["operations.read"] }],
+  CMS: [{ label: "Open website CMS", href: "/site-content", description: "Manage public website content.", permissions: ["site.manage"] }],
   STUDENT: [
-    { label: "Student portal", href: "/student", description: "Open your academic dashboard." },
-    { label: "Fees", href: "/fees", description: "View your own financial records.", permissions: ["fees.read", "fees.pay"] },
-    { label: "Examinations", href: "/examinations", description: "View your examination information.", permissions: ["exams.read", "results.read"] },
+    { label: "Open my academic dashboard", href: "/student", description: "Classes, progress and upcoming actions." },
+    { label: "Check fees", href: "/fees", description: "Your own fee records and payments.", permissions: ["fees.read"] },
+    { label: "View results", href: "/student/marks", description: "Your own marks and results.", permissions: ["marks.read"] },
+    { label: "Check timetable", href: "/student/timetable", description: "Your enrolled classes.", permissions: ["timetable.read"] },
   ],
-  PARENT: [{ label: "Parent portal", href: "/parent", description: "View information for your linked children." }],
+  PARENT: [{ label: "Open family dashboard", href: "/parent", description: "Your linked children's academic information." }],
   CLUB_PRESIDENT: [
-    { label: "Club workspace", href: "/club-president", description: "Manage activities within your assigned club scope.", permissions: ["club.read", "club.manage"] },
-    { label: "Calendar", href: "/calendar", description: "View relevant institution and club events.", permissions: ["calendar.read"] },
+    { label: "Open club workspace", href: "/club-president", description: "Activities within your assigned club scope.", permissions: ["club.read"] },
+    { label: "Open club calendar", href: "/calendar", description: "Relevant institution and club events.", permissions: ["calendar.read"] },
   ],
 };
 
-function primaryRole(roles: string[]): CanonicalRole | null {
+function getPrimaryRole(roles: readonly string[]): CanonicalRole | null {
+  const normalized = normalizeRoles(roles);
   const priority: CanonicalRole[] = [
     "SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "DEAN", "REGISTRAR", "HOD",
-    "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "FACULTY",
-    "STUDENT", "PARENT", "CLUB_PRESIDENT",
+    "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT",
+    "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT",
   ];
-  const normalized = roles.map(normalizeRole);
   return priority.find((role) => normalized.includes(role)) ?? null;
 }
 
@@ -137,48 +141,90 @@ export function RoleWorkspaceLanding({ role }: { role: CanonicalRole }) {
       .catch((err) => {
         if (!mounted) return;
         if (err instanceof AuthRequiredError) router.replace("/login");
-        else setError(err instanceof Error ? err.message : "Unable to load workspace");
+        else setError("We could not load your workspace. Please try again.");
       });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
-  const visibleLinks = useMemo(() => {
+  const currentRole = user ? getPrimaryRole(user.roles) : role;
+  const meta = META[role];
+
+  const actions = useMemo(() => {
     if (!user) return [];
-    return LINKS[role].filter((item) => !item.permissions?.length || hasAnyPermission(user, item.permissions));
+    return ACTIONS[role].filter(
+      (item) => !item.permissions?.length || hasAnyPermission(user, item.permissions),
+    );
   }, [role, user]);
 
-  const meta = WORKSPACE_META[role];
-  const currentRole = user ? primaryRole(user.roles) : role;
-
   if (currentRole && currentRole !== role) {
-    return null;
+    return (
+      <DashboardShell title="Workspace" allowedRoles={[role]}>
+        <AccessNotice
+          title="This workspace isn't assigned to you"
+          message="Your account is active, but this workspace belongs to another responsibility. Your dashboard will only show the tools available to you."
+        />
+      </DashboardShell>
+    );
   }
 
   return (
     <DashboardShell title={meta.title} subtitle={meta.subtitle} allowedRoles={[role]}>
       <div className="space-y-6">
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-6 py-8 text-white sm:px-8">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-sky-300">{meta.eyebrow}</p>
-            <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">{meta.title}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{meta.subtitle}</p>
+          <div className="border-b border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-6 py-7 text-white sm:px-8 sm:py-8">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300">{meta.eyebrow}</p>
+            <h2 className="mt-2 max-w-3xl text-2xl font-black tracking-tight sm:text-3xl">Welcome{user?.firstName ? `, ${user.firstName}` : ""}.</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">{meta.intro}</p>
           </div>
-          <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleLinks.map((item) => (
-              <Link key={item.href} href={item.href} className="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-bold text-slate-900">{item.label}</h2>
-                    <p className="mt-2 text-sm leading-5 text-slate-500">{item.description}</p>
-                  </div>
-                  <span className="text-slate-400 transition group-hover:translate-x-1">→</span>
-                </div>
-              </Link>
-            ))}
+
+          <div className="p-5 sm:p-7">
+            <div className="mb-5 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Start here</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">Your available work</h3>
+              </div>
+              <span className="hidden text-xs font-medium text-slate-400 sm:block">Only authorized tools are shown</span>
+            </div>
+
+            {actions.length ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {actions.map((item) => (
+                  <Link
+                    key={`${item.href}:${item.label}`}
+                    href={item.href}
+                    className="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-4">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition group-hover:bg-slate-950 group-hover:text-white group-hover:ring-slate-950">
+                        {item.label.slice(0, 1).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-950">{item.label}</h4>
+                        <p className="mt-1.5 text-sm leading-5 text-slate-500">{item.description}</p>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-xs font-bold text-slate-400 transition group-hover:text-slate-700">Open →</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <AccessNotice
+                title="No workspace actions are assigned yet"
+                message="Your account is active, but there are currently no actions assigned to this workspace. Ask your institution administrator to review your responsibilities."
+                homeHref="/account-security"
+                homeLabel="Open account settings"
+              />
+            )}
           </div>
         </section>
 
-        {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
+        {error ? (
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {error}
+          </p>
+        ) : null}
       </div>
     </DashboardShell>
   );
