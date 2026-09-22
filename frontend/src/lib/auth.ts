@@ -6,8 +6,14 @@ const ACCESS_TOKEN_KEY =
 const REFRESH_TOKEN_KEY =
   "acadlyx_refresh_token";
 
-const USER_CACHE_TTL_MS = 30_000;
-const REQUEST_TIMEOUT_MS = 15_000;
+const USER_CACHE_TTL_MS =
+  30_000;
+
+const REQUEST_TIMEOUT_MS =
+  8_000;
+
+const REFRESH_TIMEOUT_MS =
+  6_000;
 
 export interface AuthTokens {
   accessToken: string;
@@ -17,7 +23,8 @@ export interface AuthTokens {
 
 export interface AuthUser {
   id: string;
-  institutionId: string | null;
+  institutionId:
+    string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -41,7 +48,8 @@ let cachedUser:
   | AuthUser
   | null = null;
 
-let cachedUserAt = 0;
+let cachedUserAt =
+  0;
 
 let currentUserRequest:
   | Promise<AuthUser>
@@ -70,20 +78,28 @@ interface LoginPayload {
   tokens?: AuthTokens;
 }
 
-export class AuthRequiredError extends Error {
+export class AuthRequiredError
+  extends Error
+{
   constructor() {
     super(
       "Authentication required"
     );
+
     this.name =
       "AuthRequiredError";
   }
 }
 
 function invalidateUserCache() {
-  cachedUser = null;
-  cachedUserAt = 0;
-  currentUserRequest = null;
+  cachedUser =
+    null;
+
+  cachedUserAt =
+    0;
+
+  currentUserRequest =
+    null;
 }
 
 function validateUser(
@@ -105,16 +121,22 @@ function validateUser(
   return user;
 }
 
-export function getAccessToken(): string | null {
-  if (!isBrowser()) return null;
+export function getAccessToken():
+  string | null {
+  if (!isBrowser()) {
+    return null;
+  }
 
   return window.localStorage.getItem(
     ACCESS_TOKEN_KEY
   );
 }
 
-export function getRefreshToken(): string | null {
-  if (!isBrowser()) return null;
+export function getRefreshToken():
+  string | null {
+  if (!isBrowser()) {
+    return null;
+  }
 
   return window.localStorage.getItem(
     REFRESH_TOKEN_KEY
@@ -124,7 +146,9 @@ export function getRefreshToken(): string | null {
 export function setTokens(
   tokens: AuthTokens
 ): void {
-  if (!isBrowser()) return;
+  if (!isBrowser()) {
+    return;
+  }
 
   window.localStorage.setItem(
     ACCESS_TOKEN_KEY,
@@ -140,7 +164,9 @@ export function setTokens(
 }
 
 export function clearTokens(): void {
-  if (!isBrowser()) return;
+  if (!isBrowser()) {
+    return;
+  }
 
   window.localStorage.removeItem(
     ACCESS_TOKEN_KEY
@@ -153,13 +179,29 @@ export function clearTokens(): void {
   invalidateUserCache();
 }
 
-export function isAuthenticated(): boolean {
+export function isAuthenticated():
+  boolean {
   return (
     getAccessToken() !== null
   );
 }
 
-export async function getCurrentUser(): Promise<AuthUser> {
+/*
+ * Fast synchronous access for dashboard shells.
+ *
+ * This never makes a network request.
+ */
+export function getCachedCurrentUser():
+  AuthUser | null {
+  return cachedUser;
+}
+
+export async function getCurrentUser(
+  options: {
+    background?: boolean;
+    force?: boolean;
+  } = {}
+): Promise<AuthUser> {
   const token =
     getAccessToken();
 
@@ -167,42 +209,98 @@ export async function getCurrentUser(): Promise<AuthUser> {
     throw new AuthRequiredError();
   }
 
-  const now = Date.now();
+  const now =
+    Date.now();
 
-  if (
-    cachedUser &&
+  const hasFreshCache =
+    cachedUser !== null &&
     now - cachedUserAt <
-      USER_CACHE_TTL_MS
+      USER_CACHE_TTL_MS;
+
+  /*
+   * Normal dashboard navigation should use the cache immediately.
+   *
+   * Background callers can ask for revalidation without making the
+   * visible workspace wait for another network request.
+   */
+  if (
+    hasFreshCache &&
+    !options.force
   ) {
-    return cachedUser;
+    if (
+      options.background
+    ) {
+      void refreshCurrentUserInBackground();
+    }
+
+    return cachedUser as AuthUser;
   }
 
-  if (currentUserRequest) {
+  /*
+   * Never allow several dashboard components to create several
+   * /auth/me requests at the same time.
+   */
+  if (
+    currentUserRequest
+  ) {
     return currentUserRequest;
   }
 
   currentUserRequest =
     authedFetch<
       ApiEnvelope<AuthUser>
-    >("/auth/me")
-      .then((response) => {
-        const user =
-          validateUser(
-            response.data
-          );
+    >(
+      "/auth/me"
+    )
+      .then(
+        (response) => {
+          const user =
+            validateUser(
+              response.data
+            );
 
-        cachedUser = user;
-        cachedUserAt =
-          Date.now();
+          cachedUser =
+            user;
 
-        return user;
-      })
+          cachedUserAt =
+            Date.now();
+
+          return user;
+        }
+      )
       .finally(() => {
         currentUserRequest =
           null;
       });
 
   return currentUserRequest;
+}
+
+async function refreshCurrentUserInBackground():
+  Promise<void> {
+  if (
+    currentUserRequest
+  ) {
+    return;
+  }
+
+  const token =
+    getAccessToken();
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    await getCurrentUser({
+      force: true,
+    });
+  } catch {
+    /*
+     * Background authentication refresh must never make
+     * the visible ERP workspace unusable.
+     */
+  }
 }
 
 export async function login(
@@ -216,10 +314,12 @@ export async function login(
       ),
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
         },
+
         body: JSON.stringify({
           email,
           password,
@@ -230,11 +330,16 @@ export async function login(
   const body =
     (await res
       .json()
-      .catch(() => null)) as
+      .catch(
+        () => null
+      )) as
       | ApiEnvelope<LoginPayload>
       | null;
 
-  if (!res.ok || !body) {
+  if (
+    !res.ok ||
+    !body
+  ) {
     throw new Error(
       (
         body as unknown as {
@@ -248,15 +353,22 @@ export async function login(
   }
 
   if (
-    body.data.mfaRequired &&
-    body.data.challengeToken
+    body.data
+      .mfaRequired &&
+    body.data
+      .challengeToken
   ) {
     return {
-      mfaRequired: true,
+      mfaRequired:
+        true,
+
       challengeToken:
-        body.data.challengeToken,
+        body.data
+          .challengeToken,
+
       expiresAt:
-        body.data.expiresAt ??
+        body.data
+          .expiresAt ??
         "",
     };
   }
@@ -283,8 +395,11 @@ export async function login(
     Date.now();
 
   return {
-    mfaRequired: false,
-    user: cachedUser,
+    mfaRequired:
+      false,
+
+    user:
+      cachedUser,
   };
 }
 
@@ -299,10 +414,12 @@ export async function completeMfaLogin(
       ),
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
         },
+
         body: JSON.stringify({
           challengeToken,
           code,
@@ -313,14 +430,19 @@ export async function completeMfaLogin(
   const body =
     (await res
       .json()
-      .catch(() => null)) as
+      .catch(
+        () => null
+      )) as
       | ApiEnvelope<{
           user: AuthUser;
           tokens: AuthTokens;
         }>
       | null;
 
-  if (!res.ok || !body) {
+  if (
+    !res.ok ||
+    !body
+  ) {
     throw new Error(
       (
         body as unknown as {
@@ -348,13 +470,16 @@ export async function completeMfaLogin(
   return cachedUser;
 }
 
-export async function logout(): Promise<void> {
+export async function logout():
+  Promise<void> {
   const refreshToken =
     getRefreshToken();
 
   clearTokens();
 
-  if (!refreshToken) return;
+  if (!refreshToken) {
+    return;
+  }
 
   try {
     await fetchWithTimeout(
@@ -363,10 +488,12 @@ export async function logout(): Promise<void> {
       ),
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
         },
+
         body: JSON.stringify({
           refreshToken,
         }),
@@ -374,12 +501,17 @@ export async function logout(): Promise<void> {
       5_000
     );
   } catch {
-    // Local credentials have already been cleared.
+    /*
+     * Local credentials are already removed.
+     */
   }
 }
 
-async function tryRefresh(): Promise<boolean> {
-  if (refreshRequest) {
+async function tryRefresh():
+  Promise<boolean> {
+  if (
+    refreshRequest
+  ) {
     return refreshRequest;
   }
 
@@ -400,25 +532,31 @@ async function tryRefresh(): Promise<boolean> {
             ),
             {
               method: "POST",
+
               headers: {
                 "Content-Type":
                   "application/json",
               },
+
               body: JSON.stringify({
                 refreshToken,
               }),
-            }
+            },
+            REFRESH_TIMEOUT_MS
           );
 
-        if (!res.ok) {
+        if (
+          !res.ok
+        ) {
           clearTokens();
           return false;
         }
 
         const body =
-          (await res.json()) as ApiEnvelope<{
-            tokens: AuthTokens;
-          }>;
+          (await res.json()) as
+            ApiEnvelope<{
+              tokens: AuthTokens;
+            }>;
 
         setTokens(
           body.data.tokens
@@ -438,9 +576,12 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 async function fetchWithTimeout(
-  input: RequestInfo | URL,
+  input:
+    | RequestInfo
+    | URL,
   init?: RequestInit,
-  timeoutMs = REQUEST_TIMEOUT_MS
+  timeoutMs =
+    REQUEST_TIMEOUT_MS
 ): Promise<Response> {
   const controller =
     new AbortController();
@@ -452,7 +593,9 @@ async function fetchWithTimeout(
       timeoutMs
     );
 
-  if (init?.signal) {
+  if (
+    init?.signal
+  ) {
     if (
       init.signal.aborted
     ) {
@@ -504,14 +647,18 @@ export async function authedFetch<T>(
         apiUrl(path),
         {
           ...init,
+
           headers: {
             "Content-Type":
               "application/json",
+
             ...(currentToken
               ? {
-                  Authorization: `Bearer ${currentToken}`,
+                  Authorization:
+                    `Bearer ${currentToken}`,
                 }
               : {}),
+
             ...(init?.headers ||
               {}),
           },
@@ -525,7 +672,8 @@ export async function authedFetch<T>(
     );
 
   if (
-    res.status === 401
+    res.status ===
+    401
   ) {
     const refreshed =
       await tryRefresh();
@@ -551,14 +699,17 @@ export async function authedFetch<T>(
     const body =
       (await res
         .json()
-        .catch(() => null)) as {
+        .catch(
+          () => null
+        )) as {
         error?: {
           message?: string;
         };
       } | null;
 
     throw new Error(
-      body?.error?.message ||
+      body?.error
+        ?.message ||
         `Request failed: ${res.status}`
     );
   }
