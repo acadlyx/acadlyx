@@ -60,12 +60,10 @@ export default function FeesPage() {
   const [notice, setNotice] = useState("");
 
   const canApprove = roles.some((role) =>
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"].includes(role)
+    ["DIRECTOR", "ACCOUNTS"].includes(role)
   );
   const canCollect = roles.some((role) =>
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "STAFF"].includes(
-      role
-    )
+    ["ACCOUNTS"].includes(role)
   );
 
   const run = useCallback(
