@@ -22,6 +22,9 @@ export const FRONTEND_PERMISSIONS = [
   "students.create",
   "students.update",
 
+  "club.read",
+  "club.manage",
+
   "attendance.read",
   "attendance.mark",
   "attendance.correct",
@@ -494,8 +497,8 @@ export function canManageCms(
 export function canUseClubWorkspace(
   user: AuthUser | null
 ): boolean {
-  return isDashboard(
-    user,
-    "CLUB_PRESIDENT"
+  return (
+    isDashboard(user, "CLUB_PRESIDENT") &&
+    hasPermission(user, "club.read")
   );
 }
