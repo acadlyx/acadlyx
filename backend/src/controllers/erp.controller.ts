@@ -4,7 +4,6 @@ import * as erp from "../services/erp.service";
 
 import {
   getWorkspace,
-  isLeadershipActor,
 } from "../services/workspace.service";
 
 import {
@@ -37,9 +36,8 @@ const actor = (
  * WORKSPACE
  * ---------------------------------------------------------------------------
  *
- * CRITICAL PERFORMANCE PATH
- *
  * Leadership users:
+ *
  *   /erp/me/workspace
  *          ↓
  *   workspace.service
@@ -49,9 +47,11 @@ const actor = (
  *   one small notices query
  *
  * HOD / FACULTY / PARENT / STUDENT:
+ *
  *   existing ERP workspace implementation
  *
- * The detailed role-specific authorization logic is therefore preserved.
+ * The detailed role-specific authorization logic remains inside
+ * erp.service and the underlying module services.
  */
 
 export const workspace =
@@ -309,34 +309,7 @@ export const examList =
             req
           ),
           actor(req),
-          typeof req.query
-            .courseOfferingId ===
-            "string"
-            ? req.query
-                .courseOfferingId
-            : undefined
-        );
-
-      res.json({
-        success: true,
-        data,
-      });
-    }
-  );
-
-export const examDetails =
-  asyncHandler(
-    async (
-      req,
-      res
-    ) => {
-      const data =
-        await erp.getExamDetails(
-          requireInstitution(
-            req
-          ),
-          actor(req),
-          req.params.id
+          req.query
         );
 
       res.json({
@@ -413,14 +386,42 @@ export const examDelete =
     }
   );
 
-export const result =
+/*
+ * ---------------------------------------------------------------------------
+ * INTERNAL MARKS
+ * ---------------------------------------------------------------------------
+ */
+
+export const internalMarks =
   asyncHandler(
     async (
       req,
       res
     ) => {
       const data =
-        await erp.upsertExamResult(
+        await erp.listInternalMarks(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.query
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const internalMark =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.createInternalMark(
           requireInstitution(
             req
           ),
@@ -428,7 +429,52 @@ export const result =
           req.body
         );
 
-      res.status(200).json({
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const internalMarkUpdate =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.updateInternalMark(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.params.id,
+          req.body
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const internalMarkDelete =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.deleteInternalMark(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.params.id
+        );
+
+      res.json({
         success: true,
         data,
       });
@@ -437,7 +483,152 @@ export const result =
 
 /*
  * ---------------------------------------------------------------------------
- * FEES
+ * ATTENDANCE
+ * ---------------------------------------------------------------------------
+ */
+
+export const attendanceList =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.listAttendanceSessions(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.query
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const attendance =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.createAttendanceSession(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.body
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const attendanceUpdate =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.updateAttendanceSession(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.params.id,
+          req.body
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+/*
+ * ---------------------------------------------------------------------------
+ * PARENT LINKS
+ * ---------------------------------------------------------------------------
+ */
+
+export const parentLinks =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.listParentStudentLinks(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.query
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const parentLink =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.createParentStudentLink(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.body
+        );
+
+      res.status(201).json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+export const parentLinkDelete =
+  asyncHandler(
+    async (
+      req,
+      res
+    ) => {
+      const data =
+        await erp.deleteParentStudentLink(
+          requireInstitution(
+            req
+          ),
+          actor(req),
+          req.params.id
+        );
+
+      res.json({
+        success: true,
+        data,
+      });
+    }
+  );
+
+/*
+ * ---------------------------------------------------------------------------
+ * FEE OPERATIONS
  * ---------------------------------------------------------------------------
  */
 
@@ -448,50 +639,12 @@ export const invoiceList =
       res
     ) => {
       const data =
-        await erp.listFeeInvoices(
+        await erp.listInvoices(
           requireInstitution(
             req
           ),
           actor(req),
-          {
-            studentId:
-              typeof req.query
-                .studentId ===
-              "string"
-                ? req.query
-                    .studentId
-                : undefined,
-
-            status:
-              typeof req.query
-                .status ===
-              "string"
-                ? req.query
-                    .status
-                : undefined,
-          }
-        );
-
-      res.json({
-        success: true,
-        data,
-      });
-    }
-  );
-
-export const invoiceDetails =
-  asyncHandler(
-    async (
-      req,
-      res
-    ) => {
-      const data =
-        await erp.getFeeInvoice(
-          requireInstitution(
-            req
-          ),
-          actor(req),
-          req.params.id
+          req.query
         );
 
       res.json({
@@ -530,35 +683,13 @@ export const invoiceUpdate =
       res
     ) => {
       const data =
-        await erp.updateFeeInvoice(
+        await erp.updateInvoice(
           requireInstitution(
             req
           ),
           actor(req),
           req.params.id,
           req.body
-        );
-
-      res.json({
-        success: true,
-        data,
-      });
-    }
-  );
-
-export const invoiceDelete =
-  asyncHandler(
-    async (
-      req,
-      res
-    ) => {
-      const data =
-        await erp.deleteFeeInvoice(
-          requireInstitution(
-            req
-          ),
-          actor(req),
-          req.params.id
         );
 
       res.json({
@@ -580,9 +711,7 @@ export const payment =
             req
           ),
           actor(req),
-          req.params.id,
-          req.body.amount,
-          req.body.reference
+          req.body
         );
 
       res.status(201).json({
@@ -594,28 +723,23 @@ export const payment =
 
 /*
  * ---------------------------------------------------------------------------
- * PARENT LINKS
+ * DOCUMENTS
  * ---------------------------------------------------------------------------
  */
 
-export const parentLinkList =
+export const documentList =
   asyncHandler(
     async (
       req,
       res
     ) => {
       const data =
-        await erp.listParentLinks(
+        await erp.listDocuments(
           requireInstitution(
             req
           ),
           actor(req),
-          typeof req.query
-            .studentId ===
-            "string"
-            ? req.query
-                .studentId
-            : undefined
+          req.query
         );
 
       res.json({
@@ -625,44 +749,25 @@ export const parentLinkList =
     }
   );
 
-export const parentLink =
+/*
+ * ---------------------------------------------------------------------------
+ * NOTIFICATIONS
+ * ---------------------------------------------------------------------------
+ */
+
+export const notificationList =
   asyncHandler(
     async (
       req,
       res
     ) => {
       const data =
-        await erp.linkParent(
+        await erp.listNotifications(
           requireInstitution(
             req
           ),
           actor(req),
-          req.body.parentId,
-          req.body.studentId,
-          req.body.relationship
-        );
-
-      res.status(201).json({
-        success: true,
-        data,
-      });
-    }
-  );
-
-export const parentLinkDelete =
-  asyncHandler(
-    async (
-      req,
-      res
-    ) => {
-      const data =
-        await erp.deleteParentLink(
-          requireInstitution(
-            req
-          ),
-          actor(req),
-          req.params.parentId,
-          req.params.studentId
+          req.query
         );
 
       res.json({
