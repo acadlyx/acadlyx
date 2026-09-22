@@ -118,3 +118,19 @@ export function activeNavigationHref(pathname: string, items: NavigationItem[]):
 export function canAccessWorkspace(user: AuthUser, allowedRoles?: readonly string[]): boolean {
   return !allowedRoles?.length || allowedRoles.some((role) => user.roles.includes(role));
 }
+
+/** Route ownership guard used by the shared shell for direct URL access. */
+export function canAccessRoute(user: AuthUser, pathname: string, allowedRoles?: readonly string[]): boolean {
+  if (!canAccessWorkspace(user, allowedRoles)) return false;
+  const namespaceOwners: Array<[string, string[]]> = [
+    ["/student", ["STUDENT"]],
+    ["/faculty", ["FACULTY"]],
+    ["/parent", ["PARENT"]],
+    ["/management", ["MANAGEMENT", "DIRECTOR"]],
+    ["/hod", ["HOD"]],
+    ["/admin", ["INSTITUTION_ADMIN"]],
+    ["/superadmin", ["SUPER_ADMIN"]],
+  ];
+  const owner = namespaceOwners.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return !owner || owner[1].some((role) => user.roles.includes(role));
+}
