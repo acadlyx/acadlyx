@@ -4,10 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
-import {
-  getManagedDepartmentIds,
-  isInstitutionWide,
-} from "./accessScope.service";
+import { assertRegistrationApprovalAuthority } from "./workflowAuthority.service";
 import {
   OfferingCapacityInput,
   RegisterInput,
@@ -71,13 +68,9 @@ async function assertApproverScope(
   actor: AuthenticatedUser,
   departmentId: string
 ) {
-  if (isInstitutionWide(actor)) return;
-  if (actor.roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (managed.includes(departmentId)) return;
-  }
-  throw new AppError("This course is outside your department scope", 403);
+  await assertRegistrationApprovalAuthority(institutionId, actor, departmentId);
 }
+
 
 /* -------------------------------------------------------------- catalogue */
 
