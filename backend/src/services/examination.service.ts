@@ -44,6 +44,7 @@ const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISH
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
+const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION", "DIRECTOR"];
 
 export type ExamType = (typeof EXAM_TYPES)[number];
 export type ExamSessionStatus = (typeof SESSION_STATUSES)[number];
