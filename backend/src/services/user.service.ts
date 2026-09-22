@@ -839,7 +839,7 @@ export async function updateUser(
               userId: id,
               roleId: role.id,
             },
-            select: { id: true },
+            select: { userId: true, roleId: true },
           });
 
           if (!existingClubRole) {
