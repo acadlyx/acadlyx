@@ -13,6 +13,7 @@ import {
   logout,
 } from "@/lib/auth";
 import { hasAnyPermission, normalizeRoles } from "@/lib/authorization";
+import { getWorkspaceHome, isRouteInWorkspace } from "./roleRouteAccess";
 import {
   getPrimaryRole,
   ROLE_NAVIGATION,
@@ -106,6 +107,15 @@ export function DashboardShell({
   }, [cached, normalizedAllowedRoles, router]);
 
   useEffect(() => {
+    if (!user || pathname === "/login") return;
+    const actualRole = getPrimaryRole(user.roles);
+    if (!actualRole) return;
+    if (!isRouteInWorkspace(actualRole, pathname)) {
+      router.replace(getWorkspaceHome(actualRole));
+    }
+  }, [pathname, router, user]);
+
+  useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
@@ -120,10 +130,16 @@ export function DashboardShell({
 
   const primaryRole = getPrimaryRole(user?.roles ?? normalizedAllowedRoles);
   const workspace = primaryRole ? WORKSPACE_META[primaryRole] : null;
-  const groups = useMemo(
-    () => (primaryRole ? filterGroups(ROLE_NAVIGATION[primaryRole], user) : []),
-    [primaryRole, user],
-  );
+  const groups = useMemo(() => {
+    if (!primaryRole) return [];
+    const visible = filterGroups(ROLE_NAVIGATION[primaryRole], user);
+    return visible
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => isRouteInWorkspace(primaryRole, item.href.split("?")[0])),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [primaryRole, user]);
 
   async function signOut() {
     await logout();
