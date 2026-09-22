@@ -17,10 +17,17 @@ type Meta = { ipAddress?: string; userAgent?: string };
 const STAFF_ROLES = [
   "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
+  "DEAN",
+  "REGISTRAR",
   "HOD",
   "FACULTY",
-  "STAFF",
+  "ACCOUNTS",
+  "HR",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "PLACEMENT",
+  "IT",
 ];
 
 const DEFAULT_TYPES = [
