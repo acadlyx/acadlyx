@@ -242,34 +242,6 @@ function getActionItems(
   }
 
   return [
-      {
-        label: "Open ERP Operations",
-        description:
-          "Access institutional operational modules.",
-        href: "/erp",
-      },
-      {
-        label: "Import institutional data",
-        description:
-          "Work with approved data-import workflows.",
-        href: "/imports",
-      },
-      {
-        label: "Manage admissions",
-        description:
-          "Open the admissions workspace.",
-        href: "/admissions",
-      },
-      {
-        label: "Open operations",
-        description:
-          "Review operational services and tasks.",
-        href: "/operations",
-      },
-    ];
-  }
-
-  return [
     {
       label: "Open Intelligence",
       description:
