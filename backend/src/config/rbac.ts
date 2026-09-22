@@ -313,11 +313,6 @@ export function getCanonicalRoleNames(
   ];
 }
 
-const ALL_PERMISSIONS: PermissionKey[] =
-  PERMISSIONS.map(
-    (permission) =>
-      permission.key
-  );
 
 const ACADEMIC_READ: PermissionKey[] = [
   "departments.read",
