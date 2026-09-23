@@ -12,16 +12,24 @@ import { normalizeRole } from "@/lib/authorization";
  *
  * Backend authorization remains the security boundary.
  */
-const COMMON_ROUTES = ["/account-security"];
+const COMMON_ROUTES = [
+  "/account-security",
+];
 
-const ROLE_ROUTES: Record<CanonicalRole, readonly string[]> = {
-  SUPER_ADMIN: ["/superadmin", ...COMMON_ROUTES],
+const ROLE_ROUTES: Record<
+  CanonicalRole,
+  readonly string[]
+> = {
+  SUPER_ADMIN: [
+    "/superadmin",
+    ...COMMON_ROUTES,
+  ],
 
   INSTITUTION_ADMIN: [
     "/admin",
+    "/user-management",
     "/institution-settings",
-    "/erp",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   CHAIRMAN: [
@@ -166,30 +174,59 @@ const ROLE_ROUTES: Record<CanonicalRole, readonly string[]> = {
   ],
 };
 
-function matchesRoute(pathname: string, route: string): boolean {
-  if (pathname === route) {
+function matchesRoute(
+  pathname: string,
+  route: string,
+): boolean {
+  if (
+    pathname === route
+  ) {
     return true;
   }
 
-  return pathname.startsWith(`${route}/`);
+  return pathname.startsWith(
+    `${route}/`,
+  );
 }
 
-export function getAllowedRoutes(role: string): readonly string[] {
-  const canonical = normalizeRole(role) as CanonicalRole;
-  return ROLE_ROUTES[canonical] ?? [];
+export function getAllowedRoutes(
+  role: string,
+): readonly string[] {
+  const canonical =
+    normalizeRole(
+      role,
+    ) as CanonicalRole;
+
+  return (
+    ROLE_ROUTES[
+      canonical
+    ] ?? []
+  );
 }
 
 export function isRouteInWorkspace(
   role: string,
   pathname: string,
 ): boolean {
-  const allowed = getAllowedRoutes(role);
+  const allowed =
+    getAllowedRoutes(role);
 
-  return allowed.some((route) => matchesRoute(pathname, route));
+  return allowed.some(
+    (route) =>
+      matchesRoute(
+        pathname,
+        route,
+      ),
+  );
 }
 
-export function getWorkspaceHome(role: string): string {
-  const canonical = normalizeRole(role) as CanonicalRole;
+export function getWorkspaceHome(
+  role: string,
+): string {
+  const canonical =
+    normalizeRole(
+      role,
+    ) as CanonicalRole;
 
   switch (canonical) {
     case "SUPER_ADMIN":
@@ -258,5 +295,8 @@ export function roleOwnsRoute(
   role: string,
   pathname: string,
 ): boolean {
-  return isRouteInWorkspace(role, pathname);
+  return isRouteInWorkspace(
+    role,
+    pathname,
+  );
 }
