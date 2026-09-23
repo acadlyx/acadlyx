@@ -1,35 +1,44 @@
 "use client";
 
 import {
-  ChangeEvent,
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+ChangeEvent,
+FormEvent,
+useCallback,
+useEffect,
+useMemo,
+useRef,
+useState,
 } from "react";
 
 import { useRouter } from "next/navigation";
 
-import {
-  DashboardShell,
-} from "./DashboardShell";
+import { DashboardShell } from "./DashboardShell";
 
 import {
-  AuthRequiredError,
+AuthRequiredError,
 } from "@/lib/auth";
 
 import {
-  AdminUser,
-  createAdminUser,
-  getAdminUserPhotos,
-  listAdminUsers,
-  setAdminUserActive,
-  uploadAdminUserPhoto,
+AdminUser,
+createAdminUser,
+getAdminUserPhotos,
+listAdminUsers,
+setAdminUserActive,
+uploadAdminUserPhoto,
 } from "@/lib/adminApi";
 
-const CREATION_ROLES = [
+/**
+
+* Institution Admin may create institutional operator accounts.
+*
+* STUDENT is intentionally excluded.
+*
+* Student creation must go through /students because the backend
+* creates User + StudentProfile + StudentEnrollment atomically.
+*
+* SUPER_ADMIN is also intentionally excluded.
+  */
+  const CREATION_ROLES = [
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "DIRECTOR",
@@ -44,917 +53,1002 @@ const CREATION_ROLES = [
   "LIBRARIAN",
   "PLACEMENT",
   "IT",
-] as const;
+  ] as const;
 
-function roleLabel(
-  user: AdminUser
-) {
-  return user.roles
-    .map(
-      (role) =>
-        role.name.replace(
-          /_/g,
-          " "
-        )
-    )
-    .join(", ") ||
-    "No role";
+type RoleFilter =
+| "ALL"
+| (typeof CREATION_ROLES)[number]
+| "STUDENT";
+
+function roleLabel(role: string) {
+return role
+.replace(/_/g, " ")
+.toLowerCase()
+.replace(/\b\w/g, (letter) =>
+letter.toUpperCase(),
+);
+}
+
+function userRoleLabel(user: AdminUser) {
+return (
+user.roles
+.map((role) => roleLabel(role.name))
+.join(", ") || "No role"
+);
 }
 
 function initials(
-  user: Pick<
-    AdminUser,
-    "firstName" | "lastName"
-  >
-) {
-  return `${user.firstName.charAt(
-    0
-  )}${user.lastName.charAt(
-    0
-  )}`.toUpperCase();
+user: Pick<
+AdminUser,
+"firstName" | "lastName"
+
+> ,
+> ) {
+> const first =
+> user.firstName?.trim()?.charAt(0) || "";
+
+const last =
+user.lastName?.trim()?.charAt(0) || "";
+
+return `${first}${last}`.toUpperCase() || "?";
 }
 
 function Avatar({
-  user,
-  url,
+user,
+url,
+size = "md",
 }: {
-  user: AdminUser;
-  url: string | null;
+user: AdminUser;
+url: string | null;
+size?: "sm" | "md" | "lg";
 }) {
-  if (url) {
-    return (
-      <img
-        src={url}
-        alt={`${user.firstName} ${user.lastName}`}
-        className="h-11 w-11 rounded-2xl object-cover ring-1 ring-slate-200"
-      />
-    );
-  }
+const sizeClass =
+size === "lg"
+? "h-16 w-16 text-base"
+: size === "sm"
+? "h-9 w-9 text-[10px]"
+: "h-11 w-11 text-xs";
 
-  return (
-    <span className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-950 text-xs font-black text-white">
-      {initials(user)}
-    </span>
-  );
+if (url) {
+return (
+<img
+src={url}
+alt={`${user.firstName} ${user.lastName}`}
+className={`${sizeClass} rounded-2xl object-cover ring-1 ring-slate-200`}
+/>
+);
+}
+
+return (
+<span
+aria-label={`${user.firstName} ${user.lastName} profile picture placeholder`}
+className={`grid ${sizeClass} shrink-0 place-items-center rounded-2xl bg-slate-950 font-black text-white`}
+>
+{initials(user)} </span>
+);
+}
+
+function Field({
+label,
+name,
+type = "text",
+required = false,
+placeholder,
+}: {
+label: string;
+name: string;
+type?: string;
+required?: boolean;
+placeholder?: string;
+}) {
+return ( <label className="block"> <span className="mb-1.5 block text-xs font-bold text-slate-600">
+{label}
+{required ? ( <span className="ml-1 text-red-500">*</span>
+) : null} </span>
+
+```
+  <input
+    name={name}
+    type={type}
+    required={required}
+    placeholder={placeholder}
+    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
+  />
+</label>
+```
+
+);
 }
 
 export function UserLifecycleManager() {
-  const router =
-    useRouter();
+const router = useRouter();
 
-  const [
-    users,
-    setUsers,
-  ] =
-    useState<
-      AdminUser[]
-    >([]);
+const [users, setUsers] =
+useState<AdminUser[]>([]);
 
-  const [
-    photos,
-    setPhotos,
-  ] =
-    useState<
-      Record<
-        string,
-        string | null
-      >
-    >({});
+const [photos, setPhotos] =
+useState<Record<string, string | null>>(
+{},
+);
 
-  const [
-    query,
-    setQuery,
-  ] =
-    useState("");
+const [query, setQuery] =
+useState("");
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+const [roleFilter, setRoleFilter] =
+useState<RoleFilter>("ALL");
 
-  const [
-    error,
-    setError,
-  ] =
-    useState("");
+const [statusFilter, setStatusFilter] =
+useState<"ALL" | "ACTIVE" | "INACTIVE">(
+"ALL",
+);
 
-  const [
-    pendingId,
-    setPendingId,
-  ] =
-    useState<
-      string | null
-    >(null);
+const [loading, setLoading] =
+useState(true);
 
-  const [
-    showCreate,
-    setShowCreate,
-  ] =
-    useState(false);
+const [error, setError] =
+useState("");
 
-  const [
-    creating,
-    setCreating,
-  ] =
-    useState(false);
+const [pendingId, setPendingId] =
+useState<string | null>(null);
 
-  const [
-    createPhoto,
-    setCreatePhoto,
-  ] =
-    useState<File | null>(
-      null
+const [showCreate, setShowCreate] =
+useState(false);
+
+const [creating, setCreating] =
+useState(false);
+
+const [createPhoto, setCreatePhoto] =
+useState<File | null>(null);
+
+const createPhotoRef =
+useRef<HTMLInputElement>(null);
+
+const load = useCallback(async () => {
+setLoading(true);
+setError("");
+
+```
+try {
+  const rows =
+    await listAdminUsers();
+
+  setUsers(rows);
+
+  const ids = rows.map(
+    (user) => user.id,
+  );
+
+  if (ids.length) {
+    setPhotos(
+      await getAdminUserPhotos(ids),
     );
-
-  const createPhotoRef =
-    useRef<HTMLInputElement>(
-      null
-    );
-
-  const load =
-    useCallback(
-      async () => {
-        setLoading(
-          true
-        );
-
-        setError("");
-
-        try {
-          const rows =
-            await listAdminUsers();
-
-          setUsers(rows);
-
-          setPhotos(
-            await getAdminUserPhotos(
-              rows.map(
-                (
-                  user
-                ) =>
-                  user.id
-              )
-            )
-          );
-        } catch (
-          reason
-        ) {
-          if (
-            reason instanceof
-            AuthRequiredError
-          ) {
-            router.replace(
-              "/login"
-            );
-          } else {
-            setError(
-              reason instanceof
-                Error
-                ? reason.message
-                : "Unable to load people."
-            );
-          }
-        } finally {
-          setLoading(
-            false
-          );
-        }
-      },
-      [router]
-    );
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const filtered =
-    useMemo(() => {
-      const term =
-        query
-          .trim()
-          .toLocaleLowerCase();
-
-      if (!term) {
-        return users;
-      }
-
-      return users.filter(
-        (
-          user
-        ) =>
-          `${user.firstName} ${user.lastName} ${user.email} ${roleLabel(
-            user
-          )}`
-            .toLocaleLowerCase()
-            .includes(
-              term
-            )
-      );
-    }, [
-      query,
-      users,
-    ]);
-
-  async function toggle(
-    user: AdminUser
+  } else {
+    setPhotos({});
+  }
+} catch (reason) {
+  if (
+    reason instanceof AuthRequiredError
   ) {
-    const active =
-      user.isActive;
-
-    if (
-      !window.confirm(
-        `${
-          active
-            ? "Deactivate"
-            : "Reactivate"
-        } ${user.firstName} ${user.lastName}?`
-      )
-    ) {
-      return;
-    }
-
-    setPendingId(
-      user.id
-    );
-
-    setError("");
-
-    try {
-      const updated =
-        await setAdminUserActive(
-          user.id,
-          !active
-        );
-
-      setUsers(
-        (
-          current
-        ) =>
-          current.map(
-            (
-              entry
-            ) =>
-              entry.id ===
-              updated.id
-                ? {
-                    ...entry,
-                    ...updated,
-                  }
-                : entry
-          )
-      );
-    } catch (
-      reason
-    ) {
-      setError(
-        reason instanceof
-          Error
-          ? reason.message
-          : "Unable to change account status."
-      );
-    } finally {
-      setPendingId(
-        null
-      );
-    }
+    router.replace("/login");
+    return;
   }
 
-  async function changePhoto(
-    user: AdminUser,
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const file =
-      event.target.files?.[0];
+  setError(
+    reason instanceof Error
+      ? reason.message
+      : "Unable to load people.",
+  );
+} finally {
+  setLoading(false);
+}
+```
 
-    event.target.value =
-      "";
+}, [router]);
 
-    if (!file) {
-      return;
-    }
+useEffect(() => {
+void load();
+}, [load]);
 
-    setPendingId(
-      user.id
+const filtered = useMemo(() => {
+const term = query
+.trim()
+.toLowerCase();
+
+```
+return users.filter((user) => {
+  const matchesSearch =
+    !term ||
+    [
+      user.firstName,
+      user.lastName,
+      user.email,
+      user.phone || "",
+      userRoleLabel(user),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(term);
+
+  const matchesRole =
+    roleFilter === "ALL" ||
+    user.roles.some(
+      (role) =>
+        role.name === roleFilter,
     );
 
-    setError("");
-
-    try {
-      const response =
-        await uploadAdminUserPhoto(
-          user.id,
-          file
-        );
-
-      setPhotos(
-        (
-          current
-        ) => ({
-          ...current,
-          [user.id]:
-            response.url,
-        })
-      );
-    } catch (
-      reason
-    ) {
-      setError(
-        reason instanceof
-          Error
-          ? reason.message
-          : "Unable to update profile picture."
-      );
-    } finally {
-      setPendingId(
-        null
-      );
-    }
-  }
-
-  async function createPerson(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    const form =
-      new FormData(
-        event.currentTarget
-      );
-
-    setCreating(
-      true
-    );
-
-    setError("");
-
-    try {
-      const created =
-        await createAdminUser({
-          firstName:
-            String(
-              form.get(
-                "firstName"
-              ) || ""
-            ),
-
-          lastName:
-            String(
-              form.get(
-                "lastName"
-              ) || ""
-            ),
-
-          email:
-            String(
-              form.get(
-                "email"
-              ) || ""
-            ),
-
-          phone:
-            String(
-              form.get(
-                "phone"
-              ) || ""
-            ),
-
-          password:
-            String(
-              form.get(
-                "password"
-              ) || ""
-            ),
-
-          role:
-            String(
-              form.get(
-                "role"
-              ) || ""
-            ),
-        });
-
-      let photoUrl:
-        | string
-        | null =
-        null;
-
-      if (createPhoto) {
-        const uploaded =
-          await uploadAdminUserPhoto(
-            created.id,
-            createPhoto
-          );
-
-        photoUrl =
-          uploaded.url;
-      }
-
-      setUsers(
-        (
-          current
-        ) => [
-          {
-            ...created,
-          },
-          ...current,
-        ]
-      );
-
-      setPhotos(
-        (
-          current
-        ) => ({
-          ...current,
-          [created.id]:
-            photoUrl,
-        })
-      );
-
-      setShowCreate(
-        false
-      );
-
-      setCreatePhoto(
-        null
-      );
-
-      if (
-        createPhotoRef.current
-      ) {
-        createPhotoRef.current.value =
-          "";
-      }
-    } catch (
-      reason
-    ) {
-      setError(
-        reason instanceof
-          Error
-          ? reason.message
-          : "Unable to create the person."
-      );
-    } finally {
-      setCreating(
-        false
-      );
-    }
-  }
+  const matchesStatus =
+    statusFilter === "ALL" ||
+    (statusFilter === "ACTIVE"
+      ? user.isActive
+      : !user.isActive);
 
   return (
-    <DashboardShell
-      title="People & Access"
-      subtitle="Institution-scoped people, accounts and access lifecycle"
-      allowedRoles={[
-        "INSTITUTION_ADMIN",
-        "SUPER_ADMIN",
-      ]}
-    >
-      <main className="mx-auto max-w-7xl space-y-5">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">
-                Institution directory
-              </p>
+    matchesSearch &&
+    matchesRole &&
+    matchesStatus
+  );
+});
+```
 
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
-                Everyone in your
-                institution
-              </h1>
+}, [
+query,
+roleFilter,
+statusFilter,
+users,
+]);
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Create
-                institution-scoped
-                accounts, maintain
-                access status and
-                keep every person
-                represented by a
-                real profile
-                picture.
-              </p>
-            </div>
+const activeCount = users.filter(
+(user) => user.isActive,
+).length;
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setShowCreate(
-                    true
-                  )
-                }
-                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
-              >
-                + Add person
-              </button>
+const inactiveCount = users.filter(
+(user) => !user.isActive,
+).length;
 
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    "/admissions"
-                  )
-                }
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Student admission
-              </button>
-            </div>
+const missingPhotos = users.filter(
+(user) => !photos[user.id],
+).length;
+
+async function toggleUser(
+user: AdminUser,
+) {
+const nextState = !user.isActive;
+
+```
+if (
+  !window.confirm(
+    `${nextState ? "Reactivate" : "Deactivate"} ${user.firstName} ${user.lastName}?`,
+  )
+) {
+  return;
+}
+
+setPendingId(user.id);
+setError("");
+
+try {
+  const updated =
+    await setAdminUserActive(
+      user.id,
+      nextState,
+    );
+
+  setUsers((current) =>
+    current.map((entry) =>
+      entry.id === updated.id
+        ? {
+            ...entry,
+            ...updated,
+          }
+        : entry,
+    ),
+  );
+} catch (reason) {
+  setError(
+    reason instanceof Error
+      ? reason.message
+      : "Unable to change account status.",
+  );
+} finally {
+  setPendingId(null);
+}
+```
+
+}
+
+async function changePhoto(
+user: AdminUser,
+event: ChangeEvent<HTMLInputElement>,
+) {
+const file =
+event.target.files?.[0];
+
+```
+event.target.value = "";
+
+if (!file) {
+  return;
+}
+
+setPendingId(user.id);
+setError("");
+
+try {
+  const response =
+    await uploadAdminUserPhoto(
+      user.id,
+      file,
+    );
+
+  setPhotos((current) => ({
+    ...current,
+    [user.id]: response.url,
+  }));
+} catch (reason) {
+  setError(
+    reason instanceof Error
+      ? reason.message
+      : "Unable to update profile picture.",
+  );
+} finally {
+  setPendingId(null);
+}
+```
+
+}
+
+async function createPerson(
+event: FormEvent<HTMLFormElement>,
+) {
+event.preventDefault();
+
+```
+const form =
+  new FormData(event.currentTarget);
+
+setCreating(true);
+setError("");
+
+try {
+  const role = String(
+    form.get("role") || "",
+  ).toUpperCase();
+
+  if (
+    !CREATION_ROLES.includes(
+      role as (typeof CREATION_ROLES)[number],
+    )
+  ) {
+    throw new Error(
+      "Select a valid institutional role.",
+    );
+  }
+
+  const created =
+    await createAdminUser({
+      firstName: String(
+        form.get("firstName") || "",
+      ),
+      lastName: String(
+        form.get("lastName") || "",
+      ),
+      email: String(
+        form.get("email") || "",
+      ),
+      phone: String(
+        form.get("phone") || "",
+      ),
+      password: String(
+        form.get("password") || "",
+      ),
+      role,
+    });
+
+  if (createPhoto) {
+    try {
+      const uploaded =
+        await uploadAdminUserPhoto(
+          created.id,
+          createPhoto,
+        );
+
+      setPhotos((current) => ({
+        ...current,
+        [created.id]:
+          uploaded.url,
+      }));
+    } catch (photoError) {
+      setError(
+        photoError instanceof Error
+          ? `Account created, but the profile picture could not be uploaded: ${photoError.message}`
+          : "Account created, but the profile picture could not be uploaded.",
+      );
+    }
+  }
+
+  setUsers((current) => [
+    created,
+    ...current,
+  ]);
+
+  setShowCreate(false);
+  setCreatePhoto(null);
+
+  if (createPhotoRef.current) {
+    createPhotoRef.current.value = "";
+  }
+
+  event.currentTarget.reset();
+} catch (reason) {
+  setError(
+    reason instanceof Error
+      ? reason.message
+      : "Unable to create the person.",
+  );
+} finally {
+  setCreating(false);
+}
+```
+
+}
+
+return (
+<DashboardShell
+title="People"
+subtitle="Institution-scoped people, accounts and profile management"
+allowedRoles={[
+"INSTITUTION_ADMIN",
+]}
+> <main className="mx-auto max-w-7xl space-y-6 pb-10"> <section className="overflow-hidden rounded-[28px] bg-slate-950 p-6 text-white shadow-xl shadow-slate-200/40 sm:p-8"> <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"> <div className="max-w-2xl"> <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-300">
+Institution directory </p>
+
+```
+          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+            Everyone who belongs here.
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            Manage institution-scoped accounts,
+            keep access status accurate and make
+            sure every person has a recognizable
+            profile.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setShowCreate(true)
+              }
+              className="rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-slate-100"
+            >
+              + Add person
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push("/students")
+              }
+              className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+            >
+              Manage students
+            </button>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <SummaryStat
+            label="People"
+            value={users.length}
+          />
+
+          <SummaryStat
+            label="Active"
+            value={activeCount}
+          />
+
+          <SummaryStat
+            label="Photos missing"
+            value={missingPhotos}
+          />
+        </div>
+      </div>
+    </section>
+
+    {error ? (
+      <section
+        role="alert"
+        className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+      >
+        {error}
+      </section>
+    ) : null}
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            ⌕
+          </span>
 
           <input
             value={query}
-            onChange={(
-              event
-            ) =>
+            onChange={(event) =>
               setQuery(
-                event.target.value
+                event.target.value,
               )
             }
-            placeholder="Search name, email or role"
-            className="mt-5 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white"
+            placeholder="Search name, email, phone or role..."
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-4 text-sm outline-none focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
           />
-        </section>
+        </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
-          >
-            {error}
+        <select
+          value={roleFilter}
+          onChange={(event) =>
+            setRoleFilter(
+              event.target.value as RoleFilter,
+            )
+          }
+          className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400"
+        >
+          <option value="ALL">
+            All roles
+          </option>
+
+          <option value="STUDENT">
+            Student
+          </option>
+
+          {CREATION_ROLES.map(
+            (role) => (
+              <option
+                key={role}
+                value={role}
+              >
+                {roleLabel(role)}
+              </option>
+            ),
+          )}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(event) =>
+            setStatusFilter(
+              event.target.value as
+                | "ALL"
+                | "ACTIVE"
+                | "INACTIVE",
+            )
+          }
+          className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 outline-none focus:border-indigo-400"
+        >
+          <option value="ALL">
+            All status
+          </option>
+
+          <option value="ACTIVE">
+            Active
+          </option>
+
+          <option value="INACTIVE">
+            Inactive
+          </option>
+        </select>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-400">
+        <span>
+          Showing{" "}
+          <strong className="text-slate-700">
+            {filtered.length}
+          </strong>{" "}
+          of{" "}
+          <strong className="text-slate-700">
+            {users.length}
+          </strong>{" "}
+          people
+        </span>
+
+        <span>
+          {inactiveCount} inactive
+        </span>
+      </div>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {loading ? (
+        <div className="space-y-3 p-5">
+          {Array.from({
+            length: 7,
+          }).map((_, index) => (
+            <div
+              key={index}
+              className="h-16 animate-pulse rounded-xl bg-slate-100"
+            />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="px-6 py-16 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl">
+            ♙
+          </div>
+
+          <h2 className="mt-4 text-lg font-black text-slate-950">
+            No people found
+          </h2>
+
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+            Try changing the search or filters,
+            or add a new institution person.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {filtered.map((user) => (
+            <PersonRow
+              key={user.id}
+              user={user}
+              photo={photos[user.id] || null}
+              pending={
+                pendingId === user.id
+              }
+              onToggle={() =>
+                void toggleUser(user)
+              }
+              onPhoto={(event) =>
+                void changePhoto(
+                  user,
+                  event,
+                )
+              }
+            />
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-500">
+            Student records
+          </p>
+
+          <h2 className="mt-1 text-lg font-black text-slate-950">
+            Students have their own administration workflow
+          </h2>
+
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+            Student creation includes the student profile
+            and academic enrollment. It is intentionally
+            separated from generic account creation.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            router.push("/students")
+          }
+          className="shrink-0 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+        >
+          Open student administration →
+        </button>
+      </div>
+    </section>
+
+    {showCreate ? (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-person-title"
+          className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-500">
+                New institution account
+              </p>
+
+              <h2
+                id="add-person-title"
+                className="mt-1 text-2xl font-black tracking-tight text-slate-950"
+              >
+                Add a person
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                This creates an institution-scoped
+                account. Students use the dedicated
+                student administration workflow.
+              </p>
+            </div>
 
             <button
+              type="button"
               onClick={() =>
-                void load()
+                setShowCreate(false)
               }
-              className="ml-3 font-bold underline"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200"
+              aria-label="Close"
             >
-              Retry
+              ×
             </button>
           </div>
-        )}
 
-        {loading ? (
-          <div className="h-80 animate-pulse rounded-2xl bg-slate-200" />
-        ) : (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  <tr>
-                    <th className="px-5 py-3">
-                      Person
-                    </th>
-                    <th className="px-5 py-3">
-                      Role
-                    </th>
-                    <th className="px-5 py-3">
-                      Contact
-                    </th>
-                    <th className="px-5 py-3">
-                      Status
-                    </th>
-                    <th className="px-5 py-3 text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
+          <form
+            className="mt-7 space-y-6"
+            onSubmit={createPerson}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="First name"
+                name="firstName"
+                required
+              />
 
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.map(
-                    (
-                      user
-                    ) => {
-                      const photoUrl =
-                        photos[
-                          user.id
-                        ] ??
-                        null;
+              <Field
+                label="Last name"
+                name="lastName"
+                required
+              />
 
-                      return (
-                        <tr
-                          key={
-                            user.id
-                          }
-                          className="hover:bg-slate-50/70"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar
-                                user={
-                                  user
-                                }
-                                url={
-                                  photoUrl
-                                }
-                              />
+              <Field
+                label="Email"
+                name="email"
+                type="email"
+                required
+              />
 
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-950">
-                                  {
-                                    user.firstName
-                                  }{" "}
-                                  {
-                                    user.lastName
-                                  }
-                                </p>
+              <Field
+                label="Phone"
+                name="phone"
+              />
 
-                                <p className="truncate text-xs text-slate-500">
-                                  {
-                                    user.email
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                          </td>
+              <Field
+                label="Temporary password"
+                name="password"
+                type="password"
+                required
+              />
 
-                          <td className="px-5 py-4 text-xs font-bold text-slate-600">
-                            {roleLabel(
-                              user
-                            )}
-                          </td>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                  Institutional role
+                  <span className="ml-1 text-red-500">
+                    *
+                  </span>
+                </span>
 
-                          <td className="px-5 py-4 text-xs text-slate-500">
-                            {
-                              user.phone ||
-                              "No phone"
-                            }
-                          </td>
+                <select
+                  name="role"
+                  required
+                  defaultValue=""
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"
+                >
+                  <option value="" disabled>
+                    Select role
+                  </option>
 
-                          <td className="px-5 py-4">
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
-                                user.isActive
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              {user.isActive
-                                ? "Active"
-                                : "Inactive"}
-                            </span>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              <label className="cursor-pointer rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
-                                Picture
-
-                                <input
-                                  type="file"
-                                  accept="image/jpeg,image/png,image/webp,image/gif"
-                                  className="hidden"
-                                  disabled={
-                                    pendingId ===
-                                    user.id
-                                  }
-                                  onChange={(
-                                    event
-                                  ) =>
-                                    void changePhoto(
-                                      user,
-                                      event
-                                    )
-                                  }
-                                />
-                              </label>
-
-                              <button
-                                disabled={
-                                  pendingId ===
-                                  user.id
-                                }
-                                onClick={() =>
-                                  void toggle(
-                                    user
-                                  )
-                                }
-                                className={`rounded-lg border px-3 py-2 text-[11px] font-bold disabled:opacity-50 ${
-                                  user.isActive
-                                    ? "border-red-200 text-red-700"
-                                    : "border-emerald-200 text-emerald-700"
-                                }`}
-                              >
-                                {pendingId ===
-                                user.id
-                                  ? "Saving…"
-                                  : user.isActive
-                                    ? "Deactivate"
-                                    : "Reactivate"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
+                  {CREATION_ROLES.map(
+                    (role) => (
+                      <option
+                        key={role}
+                        value={role}
+                      >
+                        {roleLabel(role)}
+                      </option>
+                    ),
                   )}
-                </tbody>
-              </table>
+                </select>
+              </label>
             </div>
 
-            {!filtered.length && (
-              <p className="p-10 text-center text-sm text-slate-500">
-                No people match
-                this search.
-              </p>
-            )}
-          </section>
-        )}
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-slate-200 text-2xl text-slate-500">
+                  {createPhoto
+                    ? "✓"
+                    : "◍"}
+                </div>
 
-        {showCreate && (
-          <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/45 p-4">
-            <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">
-                    People
+                <div className="flex-1">
+                  <p className="font-black text-slate-900">
+                    Profile picture
                   </p>
 
-                  <h2 className="mt-1 text-xl font-black text-slate-950">
-                    Add institution
-                    person
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Creates an
-                    institution-scoped
-                    account. Add the
-                    person's picture
-                    now or let them
-                    add it after
-                    signing in.
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Add a clear photo now. It can also
+                    be changed later by an authorized
+                    administrator or by the person.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowCreate(
-                      false
-                    )
-                  }
-                  className="text-2xl text-slate-400"
-                >
-                  ×
-                </button>
-              </div>
-
-              <form
-                onSubmit={
-                  createPerson
-                }
-                className="mt-6 grid gap-4 sm:grid-cols-2"
-              >
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    First name
-                  </span>
+                <label className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50">
+                  {createPhoto
+                    ? "Change photo"
+                    : "Choose photo"}
 
                   <input
-                    name="firstName"
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Last name
-                  </span>
-
-                  <input
-                    name="lastName"
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Email
-                  </span>
-
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Phone
-                  </span>
-
-                  <input
-                    name="phone"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Role
-                  </span>
-
-                  <select
-                    name="role"
-                    required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-                  >
-                    {CREATION_ROLES.map(
-                      (
-                        role
-                      ) => (
-                        <option
-                          key={
-                            role
-                          }
-                          value={
-                            role
-                          }
-                        >
-                          {role.replace(
-                            /_/g,
-                            " "
-                          )}
-                        </option>
-                      )
-                    )}
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Initial password
-                  </span>
-
-                  <input
-                    name="password"
-                    type="password"
-                    minLength={
-                      8
-                    }
-                    required
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  />
-                </label>
-
-                <label className="block sm:col-span-2">
-                  <span className="mb-1 block text-xs font-bold text-slate-500">
-                    Profile picture
-                  </span>
-
-                  <input
-                    ref={
-                      createPhotoRef
-                    }
+                    ref={createPhotoRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
-                    onChange={(
-                      event
-                    ) =>
+                    className="hidden"
+                    onChange={(event) =>
                       setCreatePhoto(
-                        event
-                          .target
+                        event.target
                           .files?.[0] ||
-                          null
+                          null,
                       )
                     }
-                    className="block w-full rounded-xl border border-dashed border-slate-300 p-3 text-sm"
                   />
                 </label>
+              </div>
 
-                <div className="flex justify-end gap-2 sm:col-span-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowCreate(
-                        false
-                      )
-                    }
-                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    disabled={
-                      creating
-                    }
-                    className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                  >
-                    {creating
-                      ? "Creating…"
-                      : "Create person"}
-                  </button>
-                </div>
-              </form>
+              {createPhoto ? (
+                <p className="mt-3 truncate text-xs font-semibold text-slate-500">
+                  Selected:{" "}
+                  {createPhoto.name}
+                </p>
+              ) : null}
             </div>
-          </div>
-        )}
-      </main>
-    </DashboardShell>
-  );
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCreate(false)
+                }
+                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={creating}
+                className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {creating
+                  ? "Creating..."
+                  : "Create account"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    ) : null}
+  </main>
+</DashboardShell>
+```
+
+);
+}
+
+function SummaryStat({
+label,
+value,
+}: {
+label: string;
+value: number;
+}) {
+return ( <div className="rounded-2xl border border-white/10 bg-white/5 p-4"> <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+{label} </p>
+
+```
+  <p className="mt-2 text-2xl font-black text-white">
+    {value.toLocaleString("en-IN")}
+  </p>
+</div>
+```
+
+);
+}
+
+function PersonRow({
+user,
+photo,
+pending,
+onToggle,
+onPhoto,
+}: {
+user: AdminUser;
+photo: string | null;
+pending: boolean;
+onToggle: () => void;
+onPhoto: (
+event: ChangeEvent<HTMLInputElement>,
+) => void;
+}) {
+const fileId = `profile-photo-${user.id}`;
+
+return ( <article className="flex flex-col gap-4 p-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:p-5"> <div className="relative"> <Avatar
+       user={user}
+       url={photo}
+     />
+
+```
+    <label
+      htmlFor={fileId}
+      title="Change profile picture"
+      className="absolute -bottom-1 -right-1 grid h-6 w-6 cursor-pointer place-items-center rounded-lg border-2 border-white bg-indigo-600 text-[10px] font-black text-white shadow-sm hover:bg-indigo-700"
+    >
+      +
+    </label>
+
+    <input
+      id={fileId}
+      type="file"
+      accept="image/jpeg,image/png,image/webp,image/gif"
+      className="hidden"
+      onChange={onPhoto}
+      disabled={pending}
+    />
+  </div>
+
+  <div className="min-w-0 flex-1">
+    <div className="flex flex-wrap items-center gap-2">
+      <h3 className="truncate font-black text-slate-950">
+        {user.firstName}{" "}
+        {user.lastName}
+      </h3>
+
+      <span
+        className={[
+          "rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em]",
+          user.isActive
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-slate-100 text-slate-500",
+        ].join(" ")}
+      >
+        {user.isActive
+          ? "Active"
+          : "Inactive"}
+      </span>
+    </div>
+
+    <p className="mt-1 truncate text-sm text-slate-500">
+      {user.email}
+    </p>
+
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-slate-400">
+      <span>
+        {userRoleLabel(user)}
+      </span>
+
+      {user.phone ? (
+        <span>
+          {user.phone}
+        </span>
+      ) : null}
+    </div>
+  </div>
+
+  <div className="flex items-center gap-2 sm:shrink-0">
+    <button
+      type="button"
+      disabled={pending}
+      onClick={onToggle}
+      className={[
+        "rounded-xl border px-3 py-2.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50",
+        user.isActive
+          ? "border-red-200 bg-white text-red-600 hover:bg-red-50"
+          : "border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50",
+      ].join(" ")}
+    >
+      {pending
+        ? "Saving..."
+        : user.isActive
+          ? "Deactivate"
+          : "Reactivate"}
+    </button>
+  </div>
+</article>
+```
+
+);
 }
