@@ -59,6 +59,14 @@ let refreshRequest:
   | Promise<boolean>
   | null = null;
 
+/*
+ * In-memory API caches must never survive an account transition.  This value
+ * changes whenever tokens are written or cleared and lets feature modules
+ * scope their ephemeral caches without storing or deriving a cache key from
+ * the access token itself.
+ */
+let authCacheScope = 0;
+
 export type LoginResult =
   | {
       mfaRequired: false;
@@ -161,6 +169,7 @@ export function setTokens(
   );
 
   invalidateUserCache();
+  authCacheScope += 1;
 }
 
 export function clearTokens(): void {
@@ -177,6 +186,11 @@ export function clearTokens(): void {
   );
 
   invalidateUserCache();
+  authCacheScope += 1;
+}
+
+export function getAuthCacheScope(): number {
+  return authCacheScope;
 }
 
 export function isAuthenticated():

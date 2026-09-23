@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+Suspense,
+useCallback,
+useEffect,
+useMemo,
+useRef,
+useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
@@ -320,6 +327,9 @@ unread: 0,
 const [documents, setDocuments] =
 useState<ErpDocument[]>([]);
 
+const loadedTabs =
+useRef<Set<Tab>>(new Set());
+
 const can = (
 permissionRoles: string[]
 ) =>
@@ -327,13 +337,16 @@ roles.some((role) =>
 permissionRoles.includes(role)
 );
 
-async function loadAll() {
+const loadWorkspace = useCallback(async () => {
 setLoading(true);
 setError("");
 
 try {
-  const user =
-    await getCurrentUser();
+  const [user, workspaceResult] =
+    await Promise.all([
+      getCurrentUser(),
+      getErpWorkspace(),
+    ]);
 
   setRoles(user.roles);
 
@@ -348,61 +361,12 @@ try {
     );
   }
 
-  // The shell needs only its aggregate workspace data.  Module datasets are
-  // deliberately fetched only for the active tab so opening ERP does not
-  // create a twelve-request storm or preload records the user will not view.
-  const [workspaceResult, notificationsResult] = await Promise.allSettled([
-    getErpWorkspace(),
-    getNotifications(),
-  ]);
-
-  if (
-    workspaceResult.status ===
-    "fulfilled"
-  ) {
-    setWorkspace(workspaceResult.value);
-  }
-
-  if (
-    notificationsResult.status ===
-    "fulfilled"
-  ) {
-    setNotifications(
-      notificationsResult.value
-    );
-  }
-
-  if (workspaceResult.status === "rejected" && notificationsResult.status === "rejected") throw workspaceResult.reason;
-
-  if (tab === "overview") {
-    const [offeringsResult, feeStructuresResult, documentsResult] = await Promise.allSettled([listOfferings(), listFeeStructures(), getMyDocuments()]);
-    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
-    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
-    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
-  } else if (tab === "timetable" || tab === "exams") {
-    const [offeringsResult, studentsResult] = await Promise.allSettled(tab === "exams" ? [listOfferings(), listUsers("STUDENT")] : [listOfferings()]);
-    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
-    if (studentsResult?.status === "fulfilled") setStudents(studentsResult.value);
-  } else if (tab === "notices") {
-    const [departmentsResult] = await Promise.allSettled([listDepartments()]);
-    if (departmentsResult.status === "fulfilled") setDepartments(departmentsResult.value);
-  } else if (tab === "fees") {
-    const [studentsResult, academicYearsResult, programsResult, semestersResult, feeHeadsResult, feeStructuresResult] = await Promise.allSettled([listUsers("STUDENT"), listAcademicYears(), listPrograms(), listSemesters(), listFeeHeads(), listFeeStructures()]);
-    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
-    if (academicYearsResult.status === "fulfilled") setAcademicYears(academicYearsResult.value);
-    if (programsResult.status === "fulfilled") setPrograms(programsResult.value);
-    if (semestersResult.status === "fulfilled") setSemesters(semestersResult.value);
-    if (feeHeadsResult.status === "fulfilled") setFeeHeads(feeHeadsResult.value);
-    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
-  } else if (tab === "parents") {
-    const [parentsResult, studentsResult] = await Promise.allSettled([listUsers("PARENT"), listUsers("STUDENT")]);
-    if (parentsResult.status === "fulfilled") setParents(parentsResult.value);
-    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
-  } else if (tab === "documents") {
-    const [studentsResult, documentsResult] = await Promise.allSettled([listUsers("STUDENT"), getMyDocuments()]);
-    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
-    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
-  }
+  /*
+   * The workspace is the only blocking request. Module records load in a
+   * separate effect after the shell is usable, and never again simply
+   * because the user changes tabs.
+   */
+  setWorkspace(workspaceResult);
 } catch (err) {
   if (
     err instanceof AuthRequiredError
@@ -419,10 +383,82 @@ try {
 } finally {
   setLoading(false);
 }
+}, [router]);
 
+const loadTabData = useCallback(async (
+targetTab: Tab,
+force = false
+) => {
+if (!force && loadedTabs.current.has(targetTab)) {
+  return;
 }
 
-useEffect(() => { void loadAll(); }, [tab]);
+try {
+  if (targetTab === "overview") {
+    const [offeringsResult, feeStructuresResult, documentsResult] = await Promise.allSettled([listOfferings(), listFeeStructures(), getMyDocuments()]);
+    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
+    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
+    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
+  } else if (targetTab === "timetable" || targetTab === "exams") {
+    const [offeringsResult, studentsResult] = await Promise.allSettled(targetTab === "exams" ? [listOfferings(), listUsers("STUDENT")] : [listOfferings()]);
+    if (offeringsResult.status === "fulfilled") setOfferings(offeringsResult.value);
+    if (studentsResult?.status === "fulfilled") setStudents(studentsResult.value);
+  } else if (targetTab === "notices") {
+    const [departmentsResult] = await Promise.allSettled([listDepartments()]);
+    if (departmentsResult.status === "fulfilled") setDepartments(departmentsResult.value);
+  } else if (targetTab === "fees") {
+    const [studentsResult, academicYearsResult, programsResult, semestersResult, feeHeadsResult, feeStructuresResult] = await Promise.allSettled([listUsers("STUDENT"), listAcademicYears(), listPrograms(), listSemesters(), listFeeHeads(), listFeeStructures()]);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+    if (academicYearsResult.status === "fulfilled") setAcademicYears(academicYearsResult.value);
+    if (programsResult.status === "fulfilled") setPrograms(programsResult.value);
+    if (semestersResult.status === "fulfilled") setSemesters(semestersResult.value);
+    if (feeHeadsResult.status === "fulfilled") setFeeHeads(feeHeadsResult.value);
+    if (feeStructuresResult.status === "fulfilled") setFeeStructures(feeStructuresResult.value);
+  } else if (targetTab === "parents") {
+    const [parentsResult, studentsResult] = await Promise.allSettled([listUsers("PARENT"), listUsers("STUDENT")]);
+    if (parentsResult.status === "fulfilled") setParents(parentsResult.value);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+  } else if (targetTab === "documents") {
+    const [studentsResult, documentsResult] = await Promise.allSettled([listUsers("STUDENT"), getMyDocuments()]);
+    if (studentsResult.status === "fulfilled") setStudents(studentsResult.value);
+    if (documentsResult.status === "fulfilled") setDocuments(documentsResult.value);
+  } else if (targetTab === "notifications") {
+    const result = await getNotifications();
+    setNotifications(result);
+  }
+
+  loadedTabs.current.add(targetTab);
+} catch (err) {
+  if (
+    err instanceof AuthRequiredError
+  ) {
+    router.replace("/login");
+    return;
+  }
+
+  setError(
+    err instanceof Error
+      ? err.message
+      : "Unable to load ERP workspace."
+  );
+}
+}, [router]);
+
+const refreshActiveTab = useCallback(async () => {
+loadedTabs.current.delete(tab);
+await Promise.all([
+  loadWorkspace(),
+  loadTabData(tab, true),
+]);
+}, [loadTabData, loadWorkspace, tab]);
+
+useEffect(() => {
+void loadWorkspace();
+}, [loadWorkspace]);
+
+useEffect(() => {
+void loadTabData(tab);
+}, [loadTabData, tab]);
 
 function flash(message: string) {
 setSuccess(message);
@@ -444,7 +480,7 @@ setError("");
 try {
   await action();
   flash(message);
-  await loadAll();
+  await refreshActiveTab();
 } catch (err) {
   setError(
     err instanceof Error
@@ -501,7 +537,7 @@ ACADLYX ERP
       </div>
 
       <button
-        onClick={() => void loadAll()}
+        onClick={() => void refreshActiveTab()}
         className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
       >
         Refresh data
@@ -665,7 +701,7 @@ ACADLYX ERP
           notifications
         }
         busy={busy}
-        onRefresh={loadAll}
+        onRefresh={refreshActiveTab}
         onRead={(id) =>
           run(
             () =>
@@ -696,7 +732,7 @@ ACADLYX ERP
         ])}
         busy={busy}
         run={run}
-        onRefresh={loadAll}
+        onRefresh={refreshActiveTab}
       />
     )}
   </div>

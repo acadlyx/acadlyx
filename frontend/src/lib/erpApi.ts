@@ -1,4 +1,7 @@
-import { authedFetch } from "./auth";
+import {
+  authedFetch,
+  getAuthCacheScope,
+} from "./auth";
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -289,15 +292,23 @@ async function cachedRequest<T>(
   key: string,
   request: () => Promise<T>
 ): Promise<T> {
+  /*
+   * A browser can switch accounts without a full reload.  Keep cached ERP
+   * responses strictly within that auth session so tenant- and
+   * permission-scoped data can never be reused by the next account.
+   */
+  const scopedKey =
+    `session:${getAuthCacheScope()}:${key}`;
+
   const cached =
-    getCached<T>(key);
+    getCached<T>(scopedKey);
 
   if (cached !== undefined) {
     return cached;
   }
 
   const existing =
-    inFlightRequests.get(key);
+    inFlightRequests.get(scopedKey);
 
   if (existing) {
     return existing as Promise<T>;
@@ -307,7 +318,7 @@ async function cachedRequest<T>(
     request()
       .then((value) => {
         setCached(
-          key,
+          scopedKey,
           value
         );
 
@@ -315,12 +326,12 @@ async function cachedRequest<T>(
       })
       .finally(() => {
         inFlightRequests.delete(
-          key
+          scopedKey
         );
       });
 
   inFlightRequests.set(
-    key,
+    scopedKey,
     promise
   );
 
@@ -367,7 +378,7 @@ export async function listUsers(
       const params =
         new URLSearchParams({
           page: "1",
-          pageSize: "200",
+          pageSize: "100",
         });
 
       if (role) {
@@ -446,7 +457,7 @@ export async function listOfferings(): Promise<
               }
           >
         >(
-          "/course-offerings?page=1&pageSize=200"
+          "/course-offerings?page=1&pageSize=100"
         );
 
       if (
@@ -490,7 +501,7 @@ export async function listDepartments(): Promise<
             }>
           >
         >(
-          "/departments?page=1&pageSize=200"
+          "/departments?page=1&pageSize=100"
         );
 
       return response.data;
@@ -524,7 +535,7 @@ export async function listAcademicYears(): Promise<
             }>
           >
         >(
-          "/academic-years?page=1&pageSize=200"
+          "/academic-years?page=1&pageSize=100"
         );
 
       return response.data;
@@ -558,7 +569,7 @@ export async function listPrograms(): Promise<
             }>
           >
         >(
-          "/programs?page=1&pageSize=200"
+          "/programs?page=1&pageSize=100"
         );
 
       return response.data;
@@ -592,7 +603,7 @@ export async function listSemesters(): Promise<
             }>
           >
         >(
-          "/semesters?page=1&pageSize=200"
+          "/semesters?page=1&pageSize=100"
         );
 
       return response.data;

@@ -662,6 +662,7 @@ model StudentEnrollment {
   @@unique([userId, academicYearId])
   @@index([institutionId])
   @@index([userId])
+  @@index([institutionId, userId, status])
   @@index([programId])
   @@index([sectionId])
   @@index([semesterId])
@@ -705,6 +706,7 @@ model AttendanceSession {
 
   @@unique([courseOfferingId, sessionDate])
   @@index([institutionId])
+  @@index([institutionId, isSubmitted])
   @@index([facultyId])
   @@index([sessionDate])
   @@map("attendance_sessions")

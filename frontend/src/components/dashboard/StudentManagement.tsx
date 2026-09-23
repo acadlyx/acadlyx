@@ -217,8 +217,8 @@ export function StudentManagement({ onChanged }: Props) {
 
   async function loadLookups() {
     const [p, y, s, sec] = await Promise.all([
-      authedFetch<ListResponse<Lookup>>("/programs?page=1&pageSize=200"),
-      authedFetch<ListResponse<Lookup>>("/academic-years?page=1&pageSize=200"),
+      authedFetch<ListResponse<Lookup>>("/programs?page=1&pageSize=100"),
+      authedFetch<ListResponse<Lookup>>("/academic-years?page=1&pageSize=100"),
       authedFetch<ListResponse<Lookup>>("/semesters?page=1&pageSize=500"),
       authedFetch<ListResponse<Lookup>>("/sections?page=1&pageSize=500"),
     ]);
@@ -234,7 +234,7 @@ export function StudentManagement({ onChanged }: Props) {
     try {
       const params = new URLSearchParams({
         page: "1",
-        pageSize: "200",
+        pageSize: "100",
       });
       if (search.trim()) params.set("search", search.trim());
       if (statusFilter) params.set("status", statusFilter);
