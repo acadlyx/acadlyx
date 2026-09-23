@@ -1,336 +1,310 @@
-import {
-  authedFetch,
-} from "./auth";
+"use client";
+
+import { authedFetch } from "./auth";
 
 interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
+success: boolean;
+data: T;
 }
 
-export type AdminUser = {
-  id: string;
-  institutionId:
-    | string
-    | null;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone:
-    | string
-    | null;
-  isActive: boolean;
-  lastLoginAt:
-    | string
-    | null;
-  createdAt?: string;
+export type AdminUserRole = {
+id: string;
+name: string;
+description?: string | null;
+};
 
-  roles: Array<{
-    id: string;
-    name: string;
-    description?:
-      | string
-      | null;
-  }>;
+export type AdminUser = {
+id: string;
+institutionId: string | null;
+email: string;
+firstName: string;
+lastName: string;
+phone: string | null;
+isActive: boolean;
+lastLoginAt: string | null;
+createdAt?: string;
+roles: AdminUserRole[];
 };
 
 export type AdminWorkspace = {
-  workspaceType:
-    "INSTITUTION_ADMIN";
+workspaceType: "INSTITUTION_ADMIN";
 
-  stats: Record<
-    string,
-    number
-  >;
+stats: {
+users: number;
+usersWithProfilePhoto: number;
+usersMissingProfilePhoto: number;
 
-  modules: Record<
-    string,
-    boolean
-  >;
+```
+students: number;
+faculty: number;
+
+departments: number;
+programs: number;
+academicYears: number;
+semesters: number;
+sections: number;
+courses: number;
+offerings: number;
+campuses: number;
+
+timetableEntries: number;
+notices: number;
+documents: number;
+notifications: number;
+parentLinks: number;
+
+admissions: number;
+registrations: number;
+promotions: number;
+certificates: number;
+auditLogs: number;
+```
+
+};
+
+modules: {
+users: boolean;
+students: boolean;
+academicStructure: boolean;
+campuses: boolean;
+timetable: boolean;
+notices: boolean;
+admissions: boolean;
+reports: boolean;
+intelligence: boolean;
+parentLinks: boolean;
+notifications: boolean;
+documents: boolean;
+calendar: boolean;
+registration: boolean;
+promotions: boolean;
+certificates: boolean;
+audit: boolean;
+operations: boolean;
+maintenance: boolean;
+};
 };
 
 export async function getAdminWorkspace(): Promise<AdminWorkspace> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminWorkspace>
-    >(
-      "/erp/me/workspace"
-    );
+const response =
+await authedFetch<ApiEnvelope<AdminWorkspace>>(
+"/erp/me/workspace",
+);
 
-  return response.data;
-}
-
-export async function getAdminUserPhotos(
-  userIds: string[]
-): Promise<
-  Record<
-    string,
-    string | null
-  >
-> {
-  if (!userIds.length) {
-    return {};
-  }
-
-  const response =
-    await authedFetch<
-      ApiEnvelope<
-        Record<
-          string,
-          string | null
-        >
-      >
-    >(
-      `/users/photos?ids=${encodeURIComponent(
-        userIds.join(",")
-      )}`
-    );
-
-  return response.data;
+return response.data;
 }
 
 export async function listAdminUsers(
-  params: {
-    search?: string;
-    role?: string;
-    isActive?: boolean;
-  } = {}
+params: {
+search?: string;
+role?: string;
+isActive?: boolean;
+} = {},
 ): Promise<AdminUser[]> {
-  const query =
-    new URLSearchParams({
-      page: "1",
-      pageSize: "100",
-    });
+const query = new URLSearchParams({
+page: "1",
+pageSize: "100",
+});
 
-  if (
-    params.search?.trim()
-  ) {
-    query.set(
-      "search",
-      params.search.trim()
-    );
-  }
-
-  if (params.role) {
-    query.set(
-      "role",
-      params.role
-    );
-  }
-
-  if (
-    params.isActive !==
-    undefined
-  ) {
-    query.set(
-      "isActive",
-      String(
-        params.isActive
-      )
-    );
-  }
-
-  const response =
-    await authedFetch<
-      ApiEnvelope<
-        | AdminUser[]
-        | {
-            items: AdminUser[];
-          }
-      >
-    >(
-      `/users?${query.toString()}`
-    );
-
-  return Array.isArray(
-    response.data
-  )
-    ? response.data
-    : response.data.items;
+if (params.search?.trim()) {
+query.set("search", params.search.trim());
 }
 
-export async function createAdminUser(
-  input: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    phone?: string;
-    password: string;
-    role: string;
-  }
-): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      "/users",
-      {
-        method:
-          "POST",
+if (params.role) {
+query.set("role", params.role);
+}
 
-        body:
-          JSON.stringify(
-            input
-          ),
-      }
-    );
+if (params.isActive !== undefined) {
+query.set("isActive", String(params.isActive));
+}
 
-  return response.data;
+const response = await authedFetch<
+ApiEnvelope<
+| AdminUser[]
+| {
+items: AdminUser[];
+}
+>
+
+> (`/users?${query.toString()}`);
+
+return Array.isArray(response.data)
+? response.data
+: response.data.items;
+}
+
+export async function createAdminUser(input: {
+email: string;
+firstName: string;
+lastName: string;
+phone?: string;
+password: string;
+role: string;
+}): Promise<AdminUser> {
+const response = await authedFetch<
+ApiEnvelope<AdminUser>
+
+> ("/users", {
+> method: "POST",
+> body: JSON.stringify(input),
+> });
+
+return response.data;
 }
 
 export async function updateAdminUser(
-  id: string,
-  input: Partial<{
-    firstName: string;
-    lastName: string;
-    phone: string;
-    isActive: boolean;
-    role: string;
-  }>
+id: string,
+input: Partial<{
+firstName: string;
+lastName: string;
+phone: string;
+isActive: boolean;
+role: string;
+}>,
 ): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}`,
-      {
-        method:
-          "PATCH",
+const response = await authedFetch<
+ApiEnvelope<AdminUser>
 
-        body:
-          JSON.stringify(
-            input
-          ),
-      }
-    );
+> (`/users/${id}`, {
+> method: "PATCH",
+> body: JSON.stringify(input),
+> });
 
-  return response.data;
+return response.data;
 }
 
 export async function setAdminUserActive(
-  id: string,
-  isActive: boolean
+id: string,
+isActive: boolean,
 ): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}/status`,
-      {
-        method:
-          "PATCH",
+const response = await authedFetch<
+ApiEnvelope<AdminUser>
 
-        body:
-          JSON.stringify({
-            isActive,
-          }),
-      }
-    );
+> (`/users/${id}/status`, {
+> method: "PATCH",
+> body: JSON.stringify({
+> isActive,
+> }),
+> });
 
-  return response.data;
+return response.data;
+}
+
+export async function getAdminUserPhotos(
+userIds: string[],
+): Promise<Record<string, string | null>> {
+if (!userIds.length) {
+return {};
+}
+
+const response = await authedFetch<
+ApiEnvelope<Record<string, string | null>>
+
+> (
+> `/users/photos?ids=${encodeURIComponent(
+>       userIds.join(","),
+>     )}`,
+> );
+
+return response.data;
 }
 
 async function fileToDataUrl(
-  file: File
+file: File,
 ): Promise<string> {
-  if (
-    file.size >
-    1_400_000
-  ) {
-    throw new Error(
-      "Profile photo must be 1.4 MB or smaller."
-    );
-  }
+if (file.size > 1_400_000) {
+throw new Error(
+"Profile photo must be 1.4 MB or smaller.",
+);
+}
 
-  if (
-    !/^image\/(jpeg|png|webp|gif)$/i.test(
-      file.type
-    )
-  ) {
-    throw new Error(
-      "Profile photo must be JPEG, PNG, WebP, or GIF."
-    );
-  }
+if (
+!/^image/(jpeg|png|webp|gif)$/i.test(
+file.type,
+)
+) {
+throw new Error(
+"Profile photo must be JPEG, PNG, WebP, or GIF.",
+);
+}
 
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const reader =
-        new FileReader();
+return new Promise((resolve, reject) => {
+const reader = new FileReader();
 
-      reader.onerror =
-        () =>
-          reject(
-            new Error(
-              "Unable to read the selected image."
-            )
-          );
-
-      reader.onload =
-        () =>
-          resolve(
-            String(
-              reader.result
-            )
-          );
-
-      reader.readAsDataURL(
-        file
-      );
-    }
+```
+reader.onerror = () =>
+  reject(
+    new Error(
+      "Unable to read the selected image.",
+    ),
   );
+
+reader.onload = () =>
+  resolve(String(reader.result));
+
+reader.readAsDataURL(file);
+```
+
+});
 }
 
 async function uploadFile(
-  url: string,
-  file: File
+url: string,
+file: File,
 ): Promise<{
-  userId: string;
-  url: string;
+userId: string;
+url: string;
 }> {
-  const dataUrl =
-    await fileToDataUrl(
-      file
-    );
+const dataUrl = await fileToDataUrl(file);
 
-  const response =
-    await authedFetch<
-      ApiEnvelope<{
-        userId: string;
-        url: string;
-      }>
-    >(
-      url,
-      {
-        method:
-          "POST",
+const response = await authedFetch<
+ApiEnvelope<{
+userId: string;
+url: string;
+}>
 
-        body:
-          JSON.stringify({
-            dataUrl,
-          }),
-      }
-    );
+> (url, {
+> method: "POST",
+> body: JSON.stringify({
+> dataUrl,
+> }),
+> });
 
-  return response.data;
+return response.data;
 }
 
 export async function uploadAdminUserPhoto(
-  userId: string,
-  file: File
-) {
-  return uploadFile(
-    `/users/${userId}/photo`,
-    file
-  );
+userId: string,
+file: File,
+): Promise<{
+userId: string;
+url: string;
+}> {
+return uploadFile(
+`/users/${userId}/photo`,
+file,
+);
+}
+
+export async function deleteAdminUserPhoto(
+userId: string,
+): Promise<void> {
+await authedFetch(
+`/users/${userId}/photo`,
+{
+method: "DELETE",
+},
+);
 }
 
 export async function uploadMyProfilePhoto(
-  file: File
-) {
-  return uploadFile(
-    "/auth/account/photo",
-    file
-  );
+file: File,
+): Promise<{
+userId: string;
+url: string;
+}> {
+return uploadFile(
+"/auth/account/photo",
+file,
+);
 }
