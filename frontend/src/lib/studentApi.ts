@@ -1,231 +1,214 @@
+```typescript
 import { authedFetch } from "./auth";
 import { StudentDashboardData } from "@/types/dashboard";
 
 interface ApiEnvelope<T> {
-success: boolean;
-data: T;
+  success: boolean;
+  data: T;
 }
 
 interface PaginatedEnvelope<T> {
-success: boolean;
-data: T[];
-meta?: {
-page?: number;
-pageSize?: number;
-total?: number;
-totalPages?: number;
-};
+  success: boolean;
+  data: T[];
+  meta?: {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    totalPages?: number;
+  };
 }
 
 export type StudentTimetableEntry = {
-id: string;
-dayOfWeek: number;
-startTime: string;
-endTime: string;
-room: string | null;
-course: {
-code: string;
-name: string;
-};
-faculty: string | null;
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  course: {
+    code: string;
+    name: string;
+  };
+  faculty: string | null;
 };
 
 export type ManagedStudent = {
-id: string;
-institutionId: string | null;
-email: string;
-firstName: string;
-lastName: string;
-phone: string | null;
-isActive: boolean;
-createdAt?: string;
+  id: string;
+  institutionId: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  isActive: boolean;
+  createdAt?: string;
 
-roles: Array<{
-id: string;
-name: string;
-description?: string | null;
-}>;
+  roles: Array<{
+    id: string;
+    name: string;
+    description?: string | null;
+  }>;
 
-profile: {
-admissionNumber: string;
-dateOfBirth: string | null;
-gender: string | null;
-bloodGroup: string | null;
-nationality: string | null;
-address: string | null;
-city: string | null;
-state: string | null;
-postalCode: string | null;
-guardianName: string | null;
-guardianPhone: string | null;
-guardianEmail: string | null;
-emergencyContactName: string | null;
-emergencyContactPhone: string | null;
-admissionDate: string | null;
-status:
-| "ACTIVE"
-| "INACTIVE"
-| "GRADUATED"
-| "WITHDRAWN"
-| "TRANSFERRED";
-} | null;
+  profile: {
+    admissionNumber: string;
+    dateOfBirth: string | null;
+    gender: string | null;
+    bloodGroup: string | null;
+    nationality: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    guardianName: string | null;
+    guardianPhone: string | null;
+    guardianEmail: string | null;
+    emergencyContactName: string | null;
+    emergencyContactPhone: string | null;
+    admissionDate: string | null;
+    status:
+      | "ACTIVE"
+      | "INACTIVE"
+      | "GRADUATED"
+      | "WITHDRAWN"
+      | "TRANSFERRED";
+  } | null;
 
-enrollments: Array<{
-id: string;
-status: string;
-rollNumber: string | null;
-academicYearId: string;
-programId: string;
-semesterId: string;
-sectionId: string | null;
-}>;
+  enrollments: Array<{
+    id: string;
+    status: string;
+    rollNumber: string | null;
+    academicYearId: string;
+    programId: string;
+    semesterId: string;
+    sectionId: string | null;
+  }>;
 
-currentEnrollment: {
-id: string;
-status: string;
-rollNumber: string | null;
-academicYearId: string;
-programId: string;
-semesterId: string;
-sectionId: string | null;
-} | null;
+  currentEnrollment: {
+    id: string;
+    status: string;
+    rollNumber: string | null;
+    academicYearId: string;
+    programId: string;
+    semesterId: string;
+    sectionId: string | null;
+  } | null;
 };
 
 export type CreateManagedStudentInput = {
-email: string;
-firstName: string;
-lastName: string;
-phone?: string;
-password: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  password: string;
 
-admissionNumber: string;
-dateOfBirth?: string;
-gender?: string;
-bloodGroup?: string;
-nationality?: string;
-address?: string;
-city?: string;
-state?: string;
-postalCode?: string;
+  admissionNumber: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bloodGroup?: string;
+  nationality?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
 
-guardianName?: string;
-guardianPhone?: string;
-guardianEmail?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
 
-emergencyContactName?: string;
-emergencyContactPhone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 
-admissionDate?: string;
+  admissionDate?: string;
 
-status?:
-| "ACTIVE"
-| "INACTIVE"
-| "GRADUATED"
-| "WITHDRAWN"
-| "TRANSFERRED";
+  status?:
+    | "ACTIVE"
+    | "INACTIVE"
+    | "GRADUATED"
+    | "WITHDRAWN"
+    | "TRANSFERRED";
 
-programId: string;
-academicYearId: string;
-semesterId: string;
-sectionId?: string;
-rollNumber?: string;
+  programId: string;
+  academicYearId: string;
+  semesterId: string;
+  sectionId?: string;
+  rollNumber?: string;
 };
 
 export async function getMyDashboard(): Promise<StudentDashboardData> {
-const res =
-await authedFetch<ApiEnvelope<StudentDashboardData>>(
-"/students/me/dashboard",
-);
+  const res = await authedFetch<ApiEnvelope<StudentDashboardData>>(
+    "/students/me/dashboard",
+  );
 
-return res.data;
+  return res.data;
 }
 
-export async function getMyTimetable(): Promise<
-StudentTimetableEntry[]
+export async function getMyTimetable(): Promise<StudentTimetableEntry[]> {
+  const res = await authedFetch<ApiEnvelope<StudentTimetableEntry[]>>(
+    "/students/me/timetable",
+  );
 
-> {
-> const res =
-> await authedFetch<
-> ApiEnvelope<StudentTimetableEntry[]>
-> >("/students/me/timetable");
-
-return res.data;
+  return res.data;
 }
 
-export async function listManagedStudents(): Promise<
-ManagedStudent[]
+export async function listManagedStudents(): Promise<ManagedStudent[]> {
+  const res = await authedFetch<PaginatedEnvelope<ManagedStudent>>(
+    "/students?page=1&pageSize=200",
+  );
 
-> {
-> const res =
-> await authedFetch<
-> PaginatedEnvelope<ManagedStudent>
-> >(
-> "/students?page=1&pageSize=200",
-> );
-
-return res.data;
+  return res.data;
 }
 
 export async function getManagedStudent(
-id: string,
+  id: string,
 ): Promise<ManagedStudent> {
-const res =
-await authedFetch<ApiEnvelope<ManagedStudent>>(
-`/students/${id}`,
-);
+  const res = await authedFetch<ApiEnvelope<ManagedStudent>>(
+    `/students/${id}`,
+  );
 
-return res.data;
+  return res.data;
 }
 
 export async function createManagedStudent(
-input: CreateManagedStudentInput,
+  input: CreateManagedStudentInput,
 ): Promise<ManagedStudent> {
-const res =
-await authedFetch<ApiEnvelope<ManagedStudent>>(
-"/students",
-{
-method: "POST",
-body: JSON.stringify(input),
-},
-);
+  const res = await authedFetch<ApiEnvelope<ManagedStudent>>(
+    "/students",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
 
-return res.data;
+  return res.data;
 }
 
 export async function updateManagedStudent(
-id: string,
-input: Partial<CreateManagedStudentInput>,
+  id: string,
+  input: Partial<CreateManagedStudentInput>,
 ): Promise<ManagedStudent> {
-const res =
-await authedFetch<ApiEnvelope<ManagedStudent>>(
-`/students/${id}`,
-{
-method: "PATCH",
-body: JSON.stringify(input),
-},
-);
+  const res = await authedFetch<ApiEnvelope<ManagedStudent>>(
+    `/students/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
 
-return res.data;
+  return res.data;
 }
 
 export async function setManagedStudentStatus(
-id: string,
-status: ManagedStudent["profile"] extends {
-status: infer T;
-}
-? T
-: never,
+  id: string,
+  status: NonNullable<ManagedStudent["profile"]>["status"],
 ): Promise<ManagedStudent> {
-const res =
-await authedFetch<ApiEnvelope<ManagedStudent>>(
-`/students/${id}/status`,
-{
-method: "PATCH",
-body: JSON.stringify({
-status,
-}),
-},
-);
+  const res = await authedFetch<ApiEnvelope<ManagedStudent>>(
+    `/students/${id}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        status,
+      }),
+    },
+  );
 
-return res.data;
+  return res.data;
 }
+```
