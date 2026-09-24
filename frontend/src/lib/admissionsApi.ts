@@ -1,22 +1,33 @@
-import { authedFetch } from "./auth";
+import { authedFetch } from "@/lib/auth";
 
-export const ADMISSION_STATUSES = [
-  "APPLIED",
+export type AdmissionStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "DOCUMENTS_PENDING"
+  | "SELECTED"
+  | "APPLIED"
+  | "SHORTLISTED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "WITHDRAWN";
+
+export const ADMISSION_STATUSES: AdmissionStatus[] = [
+  "SUBMITTED",
   "UNDER_REVIEW",
+  "DOCUMENTS_PENDING",
+  "SELECTED",
+  "APPLIED",
   "SHORTLISTED",
   "ACCEPTED",
   "REJECTED",
   "WITHDRAWN",
-] as const;
-
-export type AdmissionStatus =
-  (typeof ADMISSION_STATUSES)[number];
+];
 
 export interface AdmissionApplication {
   id: string;
-  institutionId: string;
-  applicationNumber?: string | null;
+  institutionId?: string | null;
 
+  applicationNumber?: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -25,14 +36,12 @@ export interface AdmissionApplication {
   dateOfBirth?: string | null;
   gender?: string | null;
   address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
 
   programId?: string | null;
   academicYearId?: string | null;
-
-  status: AdmissionStatus | string;
-
-  createdAt?: string;
-  updatedAt?: string;
 
   program?: {
     id: string;
@@ -44,6 +53,12 @@ export interface AdmissionApplication {
     id: string;
     name: string;
   } | null;
+
+  status: AdmissionStatus;
+
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProgramOption {
@@ -55,13 +70,12 @@ export interface ProgramOption {
 export interface AcademicYearOption {
   id: string;
   name: string;
-  startDate?: string | null;
-  endDate?: string | null;
 }
 
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
+  message?: string;
 }
 
 interface PaginatedEnvelope<T> {
@@ -73,6 +87,7 @@ interface PaginatedEnvelope<T> {
     total?: number;
     totalPages?: number;
   };
+  message?: string;
 }
 
 export interface CreateAdmissionApplicationInput {
@@ -80,77 +95,74 @@ export interface CreateAdmissionApplicationInput {
   lastName: string;
   email: string;
   phone?: string;
+
   dateOfBirth?: string;
   gender?: string;
+
   address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+
   programId: string;
   academicYearId: string;
-}
 
-export interface ChangeAdmissionStatusInput {
-  status: AdmissionStatus;
-}
-
-function unwrapList<T>(
-  response: PaginatedEnvelope<T> | ApiEnvelope<T[]>,
-): T[] {
-  return response.data ?? [];
+  notes?: string;
 }
 
 export async function listAdmissionApplications(): Promise<
   AdmissionApplication[]
 > {
-  const response = await authedFetch<
+  const res = await authedFetch<
     PaginatedEnvelope<AdmissionApplication>
-  >("/admissions?page=1&pageSize=200");
+  >("/admissions/applications?page=1&pageSize=200");
 
-  return response.data ?? [];
+  return res.data;
 }
 
-export async function listProgramOptions(): Promise<
-  ProgramOption[]
-> {
-  const response = await authedFetch<
-    PaginatedEnvelope<ProgramOption> | ApiEnvelope<ProgramOption[]>
-  >("/programs?page=1&pageSize=200");
+export async function listProgramOptions(): Promise<ProgramOption[]> {
+  const res = await authedFetch<
+    ApiEnvelope<ProgramOption[]> | PaginatedEnvelope<ProgramOption>
+  >("/admissions/programs");
 
-  return unwrapList(response);
+  return res.data;
 }
 
 export async function listAcademicYearOptions(): Promise<
   AcademicYearOption[]
 > {
-  const response = await authedFetch<
-    PaginatedEnvelope<AcademicYearOption> |
-      ApiEnvelope<AcademicYearOption[]>
-  >("/academic-years?page=1&pageSize=200");
+  const res = await authedFetch<
+    ApiEnvelope<AcademicYearOption[]> | PaginatedEnvelope<AcademicYearOption>
+  >("/admissions/academic-years");
 
-  return unwrapList(response);
+  return res.data;
 }
 
 export async function createAdmissionApplication(
   input: CreateAdmissionApplicationInput,
 ): Promise<AdmissionApplication> {
-  const response = await authedFetch<
-    ApiEnvelope<AdmissionApplication>
-  >("/admissions", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
+    "/admissions/applications",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
 
-  return response.data;
+  return res.data;
 }
 
 export async function changeAdmissionStatus(
   id: string,
   status: AdmissionStatus,
 ): Promise<AdmissionApplication> {
-  const response = await authedFetch<
-    ApiEnvelope<AdmissionApplication>
-  >(`/admissions/${id}/status`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
+  const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
+    `/admissions/applications/${id}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
 
-  return response.data;
+  return res.data;
 }
