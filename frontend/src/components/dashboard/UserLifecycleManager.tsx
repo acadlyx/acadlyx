@@ -17,6 +17,13 @@ interface PaginatedEnvelope<T> {
   };
 }
 
+export type StudentStatus =
+  | "ACTIVE"
+  | "INACTIVE"
+  | "GRADUATED"
+  | "WITHDRAWN"
+  | "TRANSFERRED";
+
 export type StudentTimetableEntry = {
   id: string;
   dayOfWeek: number;
@@ -62,12 +69,7 @@ export type ManagedStudent = {
     emergencyContactName: string | null;
     emergencyContactPhone: string | null;
     admissionDate: string | null;
-    status:
-      | "ACTIVE"
-      | "INACTIVE"
-      | "GRADUATED"
-      | "WITHDRAWN"
-      | "TRANSFERRED";
+    status: StudentStatus;
   } | null;
 
   enrollments: Array<{
@@ -116,13 +118,7 @@ export type CreateManagedStudentInput = {
   emergencyContactPhone?: string;
 
   admissionDate?: string;
-
-  status?:
-    | "ACTIVE"
-    | "INACTIVE"
-    | "GRADUATED"
-    | "WITHDRAWN"
-    | "TRANSFERRED";
+  status?: StudentStatus;
 
   programId: string;
   academicYearId: string;
@@ -149,12 +145,10 @@ export async function getMyTimetable(): Promise<
   return res.data;
 }
 
-export async function listManagedStudents(): Promise<
-  ManagedStudent[]
-> {
-  const res = await authedFetch<
-    PaginatedEnvelope<ManagedStudent>
-  >("/students?page=1&pageSize=200");
+export async function listManagedStudents(): Promise<ManagedStudent[]> {
+  const res = await authedFetch<PaginatedEnvelope<ManagedStudent>>(
+    "/students?page=1&pageSize=200",
+  );
 
   return res.data;
 }
@@ -200,11 +194,7 @@ export async function updateManagedStudent(
 
 export async function setManagedStudentStatus(
   id: string,
-  status: ManagedStudent["profile"] extends {
-    status: infer T;
-  }
-    ? T
-    : never,
+  status: StudentStatus,
 ): Promise<ManagedStudent> {
   const res = await authedFetch<ApiEnvelope<ManagedStudent>>(
     `/students/${id}/status`,
