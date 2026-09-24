@@ -5,6 +5,7 @@ export type AdmissionStatus =
   | "UNDER_REVIEW"
   | "DOCUMENTS_PENDING"
   | "SELECTED"
+  | "ENROLLED"
   | "APPLIED"
   | "SHORTLISTED"
   | "ACCEPTED"
@@ -16,6 +17,7 @@ export const ADMISSION_STATUSES: AdmissionStatus[] = [
   "UNDER_REVIEW",
   "DOCUMENTS_PENDING",
   "SELECTED",
+  "ENROLLED",
   "APPLIED",
   "SHORTLISTED",
   "ACCEPTED",
@@ -28,6 +30,7 @@ export interface AdmissionApplication {
   institutionId?: string | null;
 
   applicationNumber?: string | null;
+
   firstName: string;
   lastName: string;
   email: string;
@@ -35,6 +38,7 @@ export interface AdmissionApplication {
 
   dateOfBirth?: string | null;
   gender?: string | null;
+
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -57,6 +61,7 @@ export interface AdmissionApplication {
   status: AdmissionStatus;
 
   notes?: string | null;
+
   createdAt?: string;
   updatedAt?: string;
 }
@@ -70,24 +75,6 @@ export interface ProgramOption {
 export interface AcademicYearOption {
   id: string;
   name: string;
-}
-
-interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-interface PaginatedEnvelope<T> {
-  success: boolean;
-  data: T[];
-  meta?: {
-    page?: number;
-    pageSize?: number;
-    total?: number;
-    totalPages?: number;
-  };
-  message?: string;
 }
 
 export interface CreateAdmissionApplicationInput {
@@ -108,6 +95,24 @@ export interface CreateAdmissionApplicationInput {
   academicYearId: string;
 
   notes?: string;
+}
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
+
+interface PaginatedEnvelope<T> {
+  success: boolean;
+  data: T[];
+  meta?: {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    totalPages?: number;
+  };
+  message?: string;
 }
 
 export async function listAdmissionApplications(): Promise<
