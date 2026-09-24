@@ -1,336 +1,156 @@
-import {
-  authedFetch,
-} from "./auth";
+import { authedFetch } from "./auth";
+
+export const ADMISSION_STATUSES = [
+  "APPLIED",
+  "UNDER_REVIEW",
+  "SHORTLISTED",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN",
+] as const;
+
+export type AdmissionStatus =
+  (typeof ADMISSION_STATUSES)[number];
+
+export interface AdmissionApplication {
+  id: string;
+  institutionId: string;
+  applicationNumber?: string | null;
+
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  address?: string | null;
+
+  programId?: string | null;
+  academicYearId?: string | null;
+
+  status: AdmissionStatus | string;
+
+  createdAt?: string;
+  updatedAt?: string;
+
+  program?: {
+    id: string;
+    name: string;
+    code?: string | null;
+  } | null;
+
+  academicYear?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+export interface ProgramOption {
+  id: string;
+  name: string;
+  code?: string | null;
+}
+
+export interface AcademicYearOption {
+  id: string;
+  name: string;
+  startDate?: string | null;
+  endDate?: string | null;
+}
 
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
 }
 
-export type AdminUser = {
-  id: string;
-  institutionId:
-    | string
-    | null;
-  email: string;
+interface PaginatedEnvelope<T> {
+  success: boolean;
+  data: T[];
+  meta?: {
+    page?: number;
+    pageSize?: number;
+    total?: number;
+    totalPages?: number;
+  };
+}
+
+export interface CreateAdmissionApplicationInput {
   firstName: string;
   lastName: string;
-  phone:
-    | string
-    | null;
-  isActive: boolean;
-  lastLoginAt:
-    | string
-    | null;
-  createdAt?: string;
-
-  roles: Array<{
-    id: string;
-    name: string;
-    description?:
-      | string
-      | null;
-  }>;
-};
-
-export type AdminWorkspace = {
-  workspaceType:
-    "INSTITUTION_ADMIN";
-
-  stats: Record<
-    string,
-    number
-  >;
-
-  modules: Record<
-    string,
-    boolean
-  >;
-};
-
-export async function getAdminWorkspace(): Promise<AdminWorkspace> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminWorkspace>
-    >(
-      "/erp/me/workspace"
-    );
-
-  return response.data;
+  email: string;
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  address?: string;
+  programId: string;
+  academicYearId: string;
 }
 
-export async function getAdminUserPhotos(
-  userIds: string[]
-): Promise<
-  Record<
-    string,
-    string | null
-  >
+export interface ChangeAdmissionStatusInput {
+  status: AdmissionStatus;
+}
+
+function unwrapList<T>(
+  response: PaginatedEnvelope<T> | ApiEnvelope<T[]>,
+): T[] {
+  return response.data ?? [];
+}
+
+export async function listAdmissionApplications(): Promise<
+  AdmissionApplication[]
 > {
-  if (!userIds.length) {
-    return {};
-  }
+  const response = await authedFetch<
+    PaginatedEnvelope<AdmissionApplication>
+  >("/admissions?page=1&pageSize=200");
 
-  const response =
-    await authedFetch<
-      ApiEnvelope<
-        Record<
-          string,
-          string | null
-        >
-      >
-    >(
-      `/users/photos?ids=${encodeURIComponent(
-        userIds.join(",")
-      )}`
-    );
+  return response.data ?? [];
+}
+
+export async function listProgramOptions(): Promise<
+  ProgramOption[]
+> {
+  const response = await authedFetch<
+    PaginatedEnvelope<ProgramOption> | ApiEnvelope<ProgramOption[]>
+  >("/programs?page=1&pageSize=200");
+
+  return unwrapList(response);
+}
+
+export async function listAcademicYearOptions(): Promise<
+  AcademicYearOption[]
+> {
+  const response = await authedFetch<
+    PaginatedEnvelope<AcademicYearOption> |
+      ApiEnvelope<AcademicYearOption[]>
+  >("/academic-years?page=1&pageSize=200");
+
+  return unwrapList(response);
+}
+
+export async function createAdmissionApplication(
+  input: CreateAdmissionApplicationInput,
+): Promise<AdmissionApplication> {
+  const response = await authedFetch<
+    ApiEnvelope<AdmissionApplication>
+  >("/admissions", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 
   return response.data;
 }
 
-export async function listAdminUsers(
-  params: {
-    search?: string;
-    role?: string;
-    isActive?: boolean;
-  } = {}
-): Promise<AdminUser[]> {
-  const query =
-    new URLSearchParams({
-      page: "1",
-      pageSize: "100",
-    });
-
-  if (
-    params.search?.trim()
-  ) {
-    query.set(
-      "search",
-      params.search.trim()
-    );
-  }
-
-  if (params.role) {
-    query.set(
-      "role",
-      params.role
-    );
-  }
-
-  if (
-    params.isActive !==
-    undefined
-  ) {
-    query.set(
-      "isActive",
-      String(
-        params.isActive
-      )
-    );
-  }
-
-  const response =
-    await authedFetch<
-      ApiEnvelope<
-        | AdminUser[]
-        | {
-            items: AdminUser[];
-          }
-      >
-    >(
-      `/users?${query.toString()}`
-    );
-
-  return Array.isArray(
-    response.data
-  )
-    ? response.data
-    : response.data.items;
-}
-
-export async function createAdminUser(
-  input: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    phone?: string;
-    password: string;
-    role: string;
-  }
-): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      "/users",
-      {
-        method:
-          "POST",
-
-        body:
-          JSON.stringify(
-            input
-          ),
-      }
-    );
-
-  return response.data;
-}
-
-export async function updateAdminUser(
+export async function changeAdmissionStatus(
   id: string,
-  input: Partial<{
-    firstName: string;
-    lastName: string;
-    phone: string;
-    isActive: boolean;
-    role: string;
-  }>
-): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}`,
-      {
-        method:
-          "PATCH",
-
-        body:
-          JSON.stringify(
-            input
-          ),
-      }
-    );
+  status: AdmissionStatus,
+): Promise<AdmissionApplication> {
+  const response = await authedFetch<
+    ApiEnvelope<AdmissionApplication>
+  >(`/admissions/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
 
   return response.data;
-}
-
-export async function setAdminUserActive(
-  id: string,
-  isActive: boolean
-): Promise<AdminUser> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}/status`,
-      {
-        method:
-          "PATCH",
-
-        body:
-          JSON.stringify({
-            isActive,
-          }),
-      }
-    );
-
-  return response.data;
-}
-
-async function fileToDataUrl(
-  file: File
-): Promise<string> {
-  if (
-    file.size >
-    1_400_000
-  ) {
-    throw new Error(
-      "Profile photo must be 1.4 MB or smaller."
-    );
-  }
-
-  if (
-    !/^image\/(jpeg|png|webp|gif)$/i.test(
-      file.type
-    )
-  ) {
-    throw new Error(
-      "Profile photo must be JPEG, PNG, WebP, or GIF."
-    );
-  }
-
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      const reader =
-        new FileReader();
-
-      reader.onerror =
-        () =>
-          reject(
-            new Error(
-              "Unable to read the selected image."
-            )
-          );
-
-      reader.onload =
-        () =>
-          resolve(
-            String(
-              reader.result
-            )
-          );
-
-      reader.readAsDataURL(
-        file
-      );
-    }
-  );
-}
-
-async function uploadFile(
-  url: string,
-  file: File
-): Promise<{
-  userId: string;
-  url: string;
-}> {
-  const dataUrl =
-    await fileToDataUrl(
-      file
-    );
-
-  const response =
-    await authedFetch<
-      ApiEnvelope<{
-        userId: string;
-        url: string;
-      }>
-    >(
-      url,
-      {
-        method:
-          "POST",
-
-        body:
-          JSON.stringify({
-            dataUrl,
-          }),
-      }
-    );
-
-  return response.data;
-}
-
-export async function uploadAdminUserPhoto(
-  userId: string,
-  file: File
-) {
-  return uploadFile(
-    `/users/${userId}/photo`,
-    file
-  );
-}
-
-export async function uploadMyProfilePhoto(
-  file: File
-) {
-  return uploadFile(
-    "/auth/account/photo",
-    file
-  );
 }
