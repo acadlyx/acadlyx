@@ -6,9 +6,6 @@ export type AdmissionStatus =
   | "DOCUMENTS_PENDING"
   | "SELECTED"
   | "ENROLLED"
-  | "APPLIED"
-  | "SHORTLISTED"
-  | "ACCEPTED"
   | "REJECTED"
   | "WITHDRAWN";
 
@@ -18,9 +15,6 @@ export const ADMISSION_STATUSES: AdmissionStatus[] = [
   "DOCUMENTS_PENDING",
   "SELECTED",
   "ENROLLED",
-  "APPLIED",
-  "SHORTLISTED",
-  "ACCEPTED",
   "REJECTED",
   "WITHDRAWN",
 ];
