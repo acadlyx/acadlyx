@@ -33,11 +33,8 @@ stats: {
 users: number;
 usersWithProfilePhoto: number;
 usersMissingProfilePhoto: number;
-
-```
 students: number;
 faculty: number;
-
 departments: number;
 programs: number;
 academicYears: number;
@@ -46,20 +43,16 @@ sections: number;
 courses: number;
 offerings: number;
 campuses: number;
-
 timetableEntries: number;
 notices: number;
 documents: number;
 notifications: number;
 parentLinks: number;
-
 admissions: number;
 registrations: number;
 promotions: number;
 certificates: number;
 auditLogs: number;
-```
-
 };
 
 modules: {
