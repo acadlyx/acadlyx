@@ -1,4 +1,4 @@
-import { authedFetch } from "./auth";
+import { AuthRequiredError } from "@/lib/auth";
 import { StudentDashboardData } from "@/types/dashboard";
 
 interface ApiEnvelope<T> {
