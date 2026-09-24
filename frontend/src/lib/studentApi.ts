@@ -152,135 +152,27 @@ StudentTimetableEntry[]
 return res.data;
 }
 
-/**
+export async function listManagedStudents(): Promise<
+ManagedStudent[]
 
-* Institution-scoped student administration.
-*
-* The backend derives institutionId from the authenticated user.
-* Never send institutionId from the browser.
-  */
-  export async function listManagedStudents(
-  params: {
-  search?: string;
-  status?: string;
-  academicYearId?: string;
-  programId?: string;
-  semesterId?: string;
-  sectionId?: string;
-  page?: number;
-  pageSize?: number;
-  } = {},
-  ): Promise<{
-  items: ManagedStudent[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  }> {
-  const query = new URLSearchParams();
+> {
+> const res =
+> await authedFetch<
+> PaginatedEnvelope<ManagedStudent>
+> >(
+> "/students?page=1&pageSize=200",
+> );
 
-query.set(
-"page",
-String(params.page || 1),
-);
-
-query.set(
-"pageSize",
-String(params.pageSize || 100),
-);
-
-if (params.search?.trim()) {
-query.set(
-"search",
-params.search.trim(),
-);
-}
-
-if (params.status) {
-query.set(
-"status",
-params.status,
-);
-}
-
-if (params.academicYearId) {
-query.set(
-"academicYearId",
-params.academicYearId,
-);
-}
-
-if (params.programId) {
-query.set(
-"programId",
-params.programId,
-);
-}
-
-if (params.semesterId) {
-query.set(
-"semesterId",
-params.semesterId,
-);
-}
-
-if (params.sectionId) {
-query.set(
-"sectionId",
-params.sectionId,
-);
-}
-
-const res =
-await authedFetch<
-PaginatedEnvelope<ManagedStudent>
->(`/students?${query.toString()}`);
-
-const meta = res.meta || {};
-
-const page = Number(
-meta.page ||
-params.page ||
-1,
-);
-
-const pageSize = Number(
-meta.pageSize ||
-params.pageSize ||
-100,
-);
-
-const total = Number(
-meta.total ||
-res.data.length,
-);
-
-const totalPages = Number(
-meta.totalPages ||
-Math.max(
-1,
-Math.ceil(
-total / pageSize,
-),
-),
-);
-
-return {
-items: res.data,
-total,
-page,
-pageSize,
-totalPages,
-};
+return res.data;
 }
 
 export async function getManagedStudent(
 id: string,
 ): Promise<ManagedStudent> {
 const res =
-await authedFetch<
-ApiEnvelope<ManagedStudent>
->(`/students/${id}`);
+await authedFetch<ApiEnvelope<ManagedStudent>>(
+`/students/${id}`,
+);
 
 return res.data;
 }
@@ -289,71 +181,51 @@ export async function createManagedStudent(
 input: CreateManagedStudentInput,
 ): Promise<ManagedStudent> {
 const res =
-await authedFetch<
-ApiEnvelope<ManagedStudent>
->("/students", {
+await authedFetch<ApiEnvelope<ManagedStudent>>(
+"/students",
+{
 method: "POST",
-body: JSON.stringify({
-...input,
-status:
-input.status || "ACTIVE",
-}),
-});
+body: JSON.stringify(input),
+},
+);
 
 return res.data;
 }
 
 export async function updateManagedStudent(
 id: string,
-input: Partial<
-Omit<
-CreateManagedStudentInput,
-| "password"
-| "programId"
-| "academicYearId"
-| "semesterId"
-| "sectionId"
->
-
-> ,
-> ): Promise<ManagedStudent> {
-> const res =
-> await authedFetch<
-> ApiEnvelope<ManagedStudent>
-> >(`/students/${id}`, {
-> method: "PATCH",
-> body: JSON.stringify(input),
-> });
+input: Partial<CreateManagedStudentInput>,
+): Promise<ManagedStudent> {
+const res =
+await authedFetch<ApiEnvelope<ManagedStudent>>(
+`/students/${id}`,
+{
+method: "PATCH",
+body: JSON.stringify(input),
+},
+);
 
 return res.data;
 }
 
-export async function enrollManagedStudent(
+export async function setManagedStudentStatus(
 id: string,
-input: {
-academicYearId: string;
-programId: string;
-semesterId: string;
-sectionId?: string;
-rollNumber?: string;
-status?:
-| "ACTIVE"
-| "COMPLETED"
-| "DROPPED"
-| "TRANSFERRED";
-},
-) {
+status: ManagedStudent["profile"] extends {
+status: infer T;
+}
+? T
+: never,
+): Promise<ManagedStudent> {
 const res =
-await authedFetch<
-ApiEnvelope<unknown>
->(`/students/${id}/enrollments`, {
-method: "POST",
+await authedFetch<ApiEnvelope<ManagedStudent>>(
+`/students/${id}/status`,
+{
+method: "PATCH",
 body: JSON.stringify({
-...input,
-status:
-input.status || "ACTIVE",
+status,
 }),
-});
+},
+);
 
 return res.data;
 }
