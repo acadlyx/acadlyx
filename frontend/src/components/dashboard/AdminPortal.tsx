@@ -16,528 +16,523 @@ import {
   getAdminWorkspace,
 } from "@/lib/adminApi";
 
-type ModuleDefinition = {
+type WorkspaceCard = {
   key: keyof AdminWorkspace["modules"];
   label: string;
-  eyebrow: string;
   description: string;
+  href: string;
   icon: string;
-  href?: string;
-  tone: "primary" | "neutral" | "oversight";
 };
 
-const MODULES: ModuleDefinition[] = [
+const WORKSPACE_CARDS: WorkspaceCard[] = [
   {
     key: "users",
     label: "People",
-    eyebrow: "Core administration",
     description:
-      "Manage institution users, access status and profile pictures within your institution.",
-    icon: "♙",
+      "Manage institution users, roles and account status.",
     href: "/user-management",
-    tone: "primary",
-  },
-  {
-    key: "students",
-    label: "Students",
-    eyebrow: "People",
-    description:
-      "Maintain student administration through the institution's authorized student workflows.",
-    icon: "◎",
-    href: "/students",
-    tone: "primary",
-  },
-  {
-    key: "academicStructure",
-    label: "Academic structure",
-    eyebrow: "Institution setup",
-    description:
-      "Manage departments, programs, academic years, semesters, sections, courses and offerings.",
-    icon: "▦",
-    href: "/enrollment",
-    tone: "primary",
-  },
-  {
-    key: "campuses",
-    label: "Campuses",
-    eyebrow: "Institution setup",
-    description:
-      "Maintain institution campuses and their administrative configuration.",
-    icon: "⌂",
-    href: "/institution-settings",
-    tone: "primary",
+    icon: "people",
   },
   {
     key: "timetable",
     label: "Timetable",
-    eyebrow: "Institution operations",
     description:
-      "Manage timetable information within the permissions granted to Institution Admin.",
-    icon: "◷",
+      "Manage institution timetable information and schedules.",
     href: "/timetable",
-    tone: "neutral",
+    icon: "calendar",
   },
   {
     key: "notices",
     label: "Notices",
-    eyebrow: "Communication",
     description:
       "Publish and maintain institution-wide notices.",
-    icon: "◌",
     href: "/notices",
-    tone: "neutral",
+    icon: "notice",
   },
   {
     key: "calendar",
     label: "Calendar",
-    eyebrow: "Communication",
     description:
-      "Manage the institutional calendar within the configured scope.",
-    icon: "◫",
+      "Manage academic and institutional dates.",
     href: "/calendar",
-    tone: "neutral",
+    icon: "date",
   },
   {
     key: "notifications",
     label: "Notifications",
-    eyebrow: "Communication",
     description:
-      "Manage institution notifications and permitted notification delivery.",
-    icon: "◉",
+      "Manage permitted institution notifications.",
     href: "/notifications",
-    tone: "neutral",
-  },
-  {
-    key: "documents",
-    label: "Documents",
-    eyebrow: "Administration",
-    description:
-      "Manage institution-scoped documents available to the administrative role.",
-    icon: "▱",
-    href: "/forms",
-    tone: "neutral",
+    icon: "bell",
   },
   {
     key: "operations",
     label: "Operations",
-    eyebrow: "Administration",
     description:
-      "Use operational controls explicitly granted to Institution Admin.",
-    icon: "⚙",
+      "Manage institution operational records and requests.",
     href: "/operations",
-    tone: "neutral",
+    icon: "settings",
   },
   {
-    key: "admissions",
-    label: "Admissions overview",
-    eyebrow: "View only",
+    key: "documents",
+    label: "Documents",
     description:
-      "View admission information. Admission processing authority belongs to Admissions.",
-    icon: "↗",
-    href: "/admissions",
-    tone: "oversight",
-  },
-  {
-    key: "registration",
-    label: "Course registration",
-    eyebrow: "View only",
-    description:
-      "View registration information without receiving registration approval authority.",
-    icon: "✓",
-    href: "/course-registration",
-    tone: "oversight",
-  },
-  {
-    key: "promotions",
-    label: "Student movement",
-    eyebrow: "View only",
-    description:
-      "View student movement information without assuming approval authority.",
-    icon: "↑",
-    href: "/student-promotion",
-    tone: "oversight",
-  },
-  {
-    key: "certificates",
-    label: "Certificates",
-    eyebrow: "View only",
-    description:
-      "View certificate information available to the institution administrator.",
-    icon: "▣",
-    href: "/certificates",
-    tone: "oversight",
-  },
-  {
-    key: "reports",
-    label: "Reports",
-    eyebrow: "Institution oversight",
-    description:
-      "View reports available within the Institution Admin permission scope.",
-    icon: "▤",
-    href: "/reports",
-    tone: "oversight",
-  },
-  {
-    key: "intelligence",
-    label: "Intelligence",
-    eyebrow: "Institution oversight",
-    description:
-      "Review institution-level intelligence without becoming an operational module owner.",
-    icon: "✦",
-    href: "/intelligence",
-    tone: "oversight",
-  },
-  {
-    key: "parentLinks",
-    label: "Parent links",
-    eyebrow: "People administration",
-    description:
-      "Manage parent-student relationships within the institution.",
-    icon: "♧",
-    tone: "primary",
-  },
-  {
-    key: "audit",
-    label: "Audit",
-    eyebrow: "Governance",
-    description:
-      "Review institution audit information for administrative accountability.",
-    icon: "⌁",
-    href: "/reports",
-    tone: "oversight",
-  },
-  {
-    key: "maintenance",
-    label: "Maintenance requests",
-    eyebrow: "Operations",
-    description:
-      "Raise maintenance requests without receiving unrelated technical authority.",
-    icon: "⌘",
-    href: "/operations",
-    tone: "neutral",
+      "Manage institution-scoped administrative documents.",
+    href: "/forms",
+    icon: "document",
   },
 ];
+
+const ICON_PATHS: Record<string, string> = {
+  people:
+    "M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM15.5 7.5a3 3 0 0 1 0 5.8M17 15h1.5A3.5 3.5 0 0 1 22 18.5V20",
+
+  calendar:
+    "M5 4v3M19 4v3M4 8.5h16M6 3.5h12A2 2 0 0 1 20 5.5v13A2 2 0 0 1 18 20.5H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2ZM8 12h3M13 12h3M8 15.5h3",
+
+  notice:
+    "M5 8.5a7 7 0 0 1 14 0v4l2 2H3l2-2v-4ZM9 17h6M10 20h4",
+
+  date:
+    "M6 3.5v3M18 3.5v3M4 8.5h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2ZM8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01",
+
+  bell:
+    "M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9.5 21h5",
+
+  settings:
+    "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 12a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.8 7.8 0 0 0-2-1.2L14.2 3h-4.4l-.3 2.6a7.8 7.8 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7.4 7.4 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1 2 1.2.3 2.6h4.4l.3-2.6a7.8 7.8 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z",
+
+  document:
+    "M7 3.5h7l4 4v13H7a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2ZM14 3.5v5h4M8.5 12h7M8.5 15.5h7",
+};
+
+function Icon({
+  name,
+}: {
+  name: string;
+}) {
+  return (
+    <span className="grid h-11 w-11 place-items-center rounded-[15px] bg-[#edf3ff] text-blue-600">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-[19px] w-[19px]"
+        aria-hidden="true"
+      >
+        <path
+          d={
+            ICON_PATHS[name] ||
+            ICON_PATHS.document
+          }
+        />
+      </svg>
+    </span>
+  );
+}
 
 const METRICS: Array<{
   key: keyof AdminWorkspace["stats"];
   label: string;
-  caption: string;
-  emphasis?: boolean;
+  helper: string;
 }> = [
   {
     key: "users",
     label: "People",
-    caption: "Institution accounts",
-    emphasis: true,
+    helper: "institution accounts",
   },
   {
     key: "students",
     label: "Students",
-    caption: "Active student accounts",
+    helper: "active students",
   },
   {
     key: "faculty",
     label: "Faculty",
-    caption: "Active faculty accounts",
+    helper: "active faculty",
   },
   {
     key: "departments",
     label: "Departments",
-    caption: "Active departments",
+    helper: "active departments",
   },
   {
     key: "programs",
     label: "Programs",
-    caption: "Active programs",
-  },
-  {
-    key: "sections",
-    label: "Sections",
-    caption: "Active sections",
+    helper: "active programs",
   },
   {
     key: "courses",
     label: "Courses",
-    caption: "Active courses",
+    helper: "active courses",
   },
   {
     key: "offerings",
     label: "Offerings",
-    caption: "Active course offerings",
+    helper: "course offerings",
   },
   {
     key: "campuses",
     label: "Campuses",
-    caption: "Active campuses",
-  },
-  {
-    key: "usersMissingProfilePhoto",
-    label: "Profiles to complete",
-    caption: "People without a profile photo",
+    helper: "active campuses",
   },
 ];
 
-const EXCLUDED_OPERATIONAL_AREAS = [
-  "Fees & payments",
-  "Assignments",
-  "Marks",
-  "Examination operations",
-  "Result processing",
-  "Attendance operations",
-  "HR operations",
-  "Library operations",
-  "Placement operations",
-  "Payroll",
-];
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-IN").format(value || 0);
+function number(
+  value: unknown,
+) {
+  return new Intl.NumberFormat(
+    "en-IN",
+  ).format(
+    typeof value === "number" &&
+      Number.isFinite(value)
+      ? value
+      : 0,
+  );
 }
 
 export function AdminPortal() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [workspace, setWorkspace] =
-    useState<AdminWorkspace | null>(null);
+  const [
+    workspace,
+    setWorkspace,
+  ] =
+    useState<
+      AdminWorkspace | null
+    >(null);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [error, setError] =
+  const [
+    error,
+    setError,
+  ] =
     useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const load =
+    useCallback(
+      async () => {
+        setLoading(true);
+        setError("");
 
-    try {
-      const data = await getAdminWorkspace();
-      setWorkspace(data);
-    } catch (reason) {
-      if (reason instanceof AuthRequiredError) {
-        router.replace("/login");
-        return;
-      }
+        try {
+          const data =
+            await getAdminWorkspace();
 
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to load the administration workspace.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+          setWorkspace(
+            data,
+          );
+        } catch (
+          reason
+        ) {
+          if (
+            reason instanceof
+            AuthRequiredError
+          ) {
+            router.replace(
+              "/login",
+            );
+
+            return;
+          }
+
+          setError(
+            reason instanceof
+              Error
+              ? reason.message
+              : "Unable to load the administration workspace.",
+          );
+        } finally {
+          setLoading(
+            false,
+          );
+        }
+      },
+      [router],
+    );
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const visibleModules = useMemo(() => {
-    if (!workspace) {
-      return [];
-    }
-
-    return MODULES.filter(
-      (module) =>
-        workspace.modules[module.key] === true,
-    );
-  }, [workspace]);
-
-  const primaryModules =
-    visibleModules.filter(
-      (module) =>
-        module.tone === "primary",
-    );
-
-  const operationalModules =
-    visibleModules.filter(
-      (module) =>
-        module.tone === "neutral",
-    );
-
-  const oversightModules =
-    visibleModules.filter(
-      (module) =>
-        module.tone === "oversight",
+  const visibleCards =
+    useMemo(
+      () =>
+        WORKSPACE_CARDS.filter(
+          (card) =>
+            workspace?.modules[
+              card.key
+            ] === true,
+        ),
+      [workspace],
     );
 
   return (
     <DashboardShell
       title="Institution Admin"
-      subtitle="People, structure and institutional administration"
-      allowedRoles={["INSTITUTION_ADMIN"]}
+      subtitle="Institution administration workspace"
+      allowedRoles={[
+        "INSTITUTION_ADMIN",
+      ]}
     >
-      <main className="mx-auto max-w-7xl space-y-7 pb-10">
-        <section className="overflow-hidden rounded-[28px] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200/40 sm:p-9">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300" />
-                Institution workspace
+      <main className="mx-auto max-w-[1320px] space-y-6 pb-10">
+        <section className="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white px-5 py-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] sm:px-7 sm:py-8 lg:px-9">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-100/70 blur-3xl" />
+
+          <div className="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-indigo-50 blur-3xl" />
+
+          <div className="relative flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+
+                Institution administration
               </div>
 
-              <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">
-                Run the institution.
-                <br />
-                Not every department.
+              <h1 className="mt-4 text-3xl font-black tracking-[-0.035em] text-slate-950 sm:text-4xl">
+                Your institution,
+                <br className="hidden sm:block" />
+                all in one place.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                This workspace is limited to the responsibilities
-                assigned to Institution Admin. Operational ownership
-                stays with the specialist teams responsible for it.
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                Manage people, academic operations and institution
+                services from one focused workspace. Specialist
+                teams keep ownership of their own operational modules.
               </p>
 
-              <div className="mt-7 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-2.5">
                 {workspace?.modules.users ? (
                   <Link
                     href="/user-management"
-                    className="rounded-xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-slate-100"
+                    className="rounded-[14px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(37,99,235,0.20)] transition hover:bg-blue-700"
                   >
-                    + Add people
+                    Manage people
                   </Link>
                 ) : null}
 
-                {workspace?.modules.academicStructure ? (
+                {workspace?.modules.operations ? (
                   <Link
-                    href="/enrollment"
-                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                    href="/operations"
+                    className="rounded-[14px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   >
-                    Academic structure
+                    Open operations
                   </Link>
                 ) : null}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <HeroStat
+            <div className="grid grid-cols-3 gap-2.5 xl:min-w-[390px]">
+              <MiniMetric
                 label="People"
-                value={workspace?.stats.users}
-                loading={loading}
+                value={
+                  workspace?.stats
+                    .users
+                }
+                loading={
+                  loading
+                }
               />
 
-              <HeroStat
+              <MiniMetric
                 label="Students"
-                value={workspace?.stats.students}
-                loading={loading}
+                value={
+                  workspace?.stats
+                    .students
+                }
+                loading={
+                  loading
+                }
               />
 
-              <HeroStat
+              <MiniMetric
                 label="Faculty"
-                value={workspace?.stats.faculty}
-                loading={loading}
+                value={
+                  workspace?.stats
+                    .faculty
+                }
+                loading={
+                  loading
+                }
               />
             </div>
           </div>
         </section>
 
         {error ? (
-          <section
-            role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>{error}</span>
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3.5 text-sm text-red-700">
+            <span>
+              {error}
+            </span>
 
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white"
-              >
-                Retry
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                void load()
+              }
+              className="rounded-[12px] bg-red-700 px-3.5 py-2 text-xs font-extrabold text-white"
+            >
+              Retry
+            </button>
           </section>
         ) : null}
 
-        <section>
-          <SectionHeading
-            eyebrow="Institution snapshot"
-            title="Know what is happening at a glance"
-            description="Only institution-scoped administrative metrics are loaded into this workspace."
-          />
+        <section className="rounded-[26px] border border-slate-200 bg-[#f8fafc] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.03)] sm:p-5">
+          <div className="flex items-end justify-between gap-4 px-1 pb-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                Institution snapshot
+              </p>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {METRICS.map((metric) => (
-              <article
-                key={metric.key}
-                className={[
-                  "rounded-2xl border p-5 transition",
-                  metric.emphasis
-                    ? "border-indigo-200 bg-indigo-50/60"
-                    : "border-slate-200 bg-white",
-                ].join(" ")}
-              >
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                  {metric.label}
-                </p>
+              <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950">
+                At a glance
+              </h2>
+            </div>
 
-                <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
-                  {loading
-                    ? "…"
-                    : formatNumber(
-                        Number(
-                          workspace?.stats[
+            <span className="hidden rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-slate-400 shadow-sm sm:inline-flex">
+              Live institution counts
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {METRICS.map(
+              (metric) => (
+                <article
+                  key={
+                    metric.key
+                  }
+                  className="rounded-[19px] border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    {
+                      metric.label
+                    }
+                  </p>
+
+                  <p className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    {loading
+                      ? "—"
+                      : number(
+                          workspace
+                            ?.stats[
                             metric.key
-                          ] ?? 0,
-                        ),
-                      )}
-                </p>
+                          ],
+                        )}
+                  </p>
 
-                <p className="mt-1 text-xs font-medium text-slate-500">
-                  {metric.caption}
-                </p>
-              </article>
-            ))}
+                  <p className="mt-1 text-[11px] font-medium text-slate-400">
+                    {
+                      metric.helper
+                    }
+                  </p>
+                </article>
+              ),
+            )}
           </div>
         </section>
 
-        {primaryModules.length > 0 ? (
-          <ModuleSection
-            eyebrow="Core administration"
-            title="People & institution"
-            description="The areas where Institution Admin has direct administrative responsibility."
-            modules={primaryModules}
-          />
-        ) : null}
+        <section>
+          <div className="mb-4 px-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+              Your workspace
+            </p>
 
-        {operationalModules.length > 0 ? (
-          <ModuleSection
-            eyebrow="Institution operations"
-            title="Keep the institution moving"
-            description="Operational capabilities explicitly granted to this workspace."
-            modules={operationalModules}
-          />
-        ) : null}
+            <div className="mt-1 flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
+              <h2 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+                Administration tools
+              </h2>
 
-        {oversightModules.length > 0 ? (
-          <ModuleSection
-            eyebrow="Oversight"
-            title="See without taking ownership"
-            description="These areas are visible because the role has explicit read or oversight permission. Visibility does not transfer operational authority."
-            modules={oversightModules}
-          />
-        ) : null}
+              <p className="text-xs font-medium text-slate-400">
+                Only role-owned operational areas are shown here.
+              </p>
+            </div>
+          </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionHeading
-            eyebrow="Responsibility boundary"
-            title="Operational ownership stays with the right team"
-            description="These areas are deliberately not part of the Institution Admin workspace."
-          />
+          {visibleCards.length >
+          0 ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {visibleCards.map(
+                (card) => (
+                  <Link
+                    key={
+                      card.key
+                    }
+                    href={
+                      card.href
+                    }
+                    className="group rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <Icon
+                        name={
+                          card.icon
+                        }
+                      />
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {EXCLUDED_OPERATIONAL_AREAS.map(
-              (item) => (
-                <span
-                  key={item}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500"
-                >
-                  {item}
-                </span>
-              ),
-            )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="font-extrabold text-slate-950">
+                            {
+                              card.label
+                            }
+                          </h3>
+
+                          <span className="text-lg font-light text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-600">
+                            →
+                          </span>
+                        </div>
+
+                        <p className="mt-1.5 text-sm leading-5 text-slate-500">
+                          {
+                            card.description
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ),
+              )}
+            </div>
+          ) : (
+            <div className="rounded-[22px] border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+              No administrative module is currently enabled for this account.
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                Access boundary
+              </p>
+
+              <h2 className="mt-1 text-lg font-black text-slate-950">
+                Specialist operations stay with specialist teams.
+              </h2>
+
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
+                Fees, examination operations, attendance, HR, library,
+                placement and similar specialist workflows are not presented
+                as Institution Admin tools.
+              </p>
+            </div>
+
+            <Link
+              href="/account-security"
+              className="shrink-0 rounded-[14px] border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-extrabold text-slate-700 transition hover:bg-white"
+            >
+              Account security
+            </Link>
           </div>
         </section>
       </main>
@@ -545,125 +540,26 @@ export function AdminPortal() {
   );
 }
 
-function HeroStat({
+function MiniMetric({
   label,
   value,
   loading,
 }: {
   label: string;
-  value: number | undefined;
+  value?: number;
   loading: boolean;
 }) {
   return (
-    <div className="min-w-[105px] rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+    <div className="rounded-[18px] border border-slate-200 bg-[#f8fafc] px-3 py-3.5">
+      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-black">
+      <p className="mt-1 text-xl font-black text-slate-950">
         {loading
-          ? "…"
-          : formatNumber(value || 0)}
+          ? "—"
+          : number(value)}
       </p>
     </div>
-  );
-}
-
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">
-        {eyebrow}
-      </p>
-
-      <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
-        {title}
-      </h2>
-
-      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-function ModuleSection({
-  eyebrow,
-  title,
-  description,
-  modules,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  modules: ModuleDefinition[];
-}) {
-  return (
-    <section>
-      <SectionHeading
-        eyebrow={eyebrow}
-        title={title}
-        description={description}
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {modules.map((module) => {
-          const content = (
-            <article className="group h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50">
-              <div className="flex items-start gap-4">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-950 text-lg text-white transition group-hover:bg-indigo-600">
-                  {module.icon}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                        {module.eyebrow}
-                      </p>
-
-                      <h3 className="mt-1 font-black text-slate-950">
-                        {module.label}
-                      </h3>
-                    </div>
-
-                    {module.href ? (
-                      <span className="text-lg text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-indigo-600">
-                        →
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <p className="mt-3 text-sm leading-6 text-slate-500">
-                    {module.description}
-                  </p>
-                </div>
-              </div>
-            </article>
-          );
-
-          return module.href ? (
-            <Link
-              key={module.key}
-              href={module.href}
-            >
-              {content}
-            </Link>
-          ) : (
-            <div key={module.key}>
-              {content}
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
