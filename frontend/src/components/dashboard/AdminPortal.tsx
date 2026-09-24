@@ -11,9 +11,7 @@ import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "./DashboardShell";
 
-import {
-AuthRequiredError,
-} from "@/lib/auth";
+import { AuthRequiredError } from "@/lib/auth";
 
 import {
 AdminWorkspace,
@@ -346,19 +344,19 @@ useEffect(() => {
 void load();
 }, [load]);
 
-const visibleModules =
-useMemo(() => {
+const visibleModules = useMemo(() => {
 if (!workspace) {
 return [];
 }
 
 ```
-  return MODULES.filter(
-    (module) =>
-      workspace.modules[module.key] === true,
-  );
-}, [workspace]);
+return MODULES.filter(
+  (module) =>
+    workspace.modules[module.key] === true,
+);
 ```
+
+}, [workspace]);
 
 const primaryModules =
 visibleModules.filter(
@@ -430,6 +428,7 @@ Institution workspace </div>
             }
             loading={loading}
           />
+
           <HeroStat
             label="Students"
             value={
@@ -437,6 +436,7 @@ Institution workspace </div>
             }
             loading={loading}
           />
+
           <HeroStat
             label="Faculty"
             value={
