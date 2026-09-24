@@ -1,5 +1,29 @@
+"use client";
+
+import {
+  ChangeEvent,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { useRouter } from "next/navigation";
+
+import { DashboardShell } from "./DashboardShell";
+
 import { AuthRequiredError } from "@/lib/auth";
-import { StudentDashboardData } from "@/types/dashboard";
+
+import {
+  AdminUser,
+  createAdminUser,
+  getAdminUserPhotos,
+  listAdminUsers,
+  setAdminUserActive,
+  uploadAdminUserPhoto,
+} from "@/lib/adminApi";
 
 interface ApiEnvelope<T> {
   success: boolean;
