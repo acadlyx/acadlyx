@@ -199,9 +199,7 @@ export async function uploadAdminUserPhoto(
 id: string,
 file: File,
 ): Promise<AdminUserPhotoResponse> {
-const formData = new FormData();
-
-formData.append("file", file);
+const dataUrl = await fileToDataUrl(file);
 
 const response =
 await authedFetch<
@@ -210,9 +208,61 @@ ApiEnvelope<AdminUserPhotoResponse>
 `/users/${id}/photo`,
 {
 method: "POST",
-body: formData,
+body: JSON.stringify({
+dataUrl,
+}),
 },
 );
 
 return response.data;
+}
+
+export async function uploadMyProfilePhoto(
+file: File,
+): Promise<AdminUserPhotoResponse> {
+const dataUrl = await fileToDataUrl(file);
+
+const response =
+await authedFetch<
+ApiEnvelope<AdminUserPhotoResponse>
+>(
+"/auth/account/photo",
+{
+method: "POST",
+body: JSON.stringify({
+dataUrl,
+}),
+},
+);
+
+return response.data;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+return new Promise((resolve, reject) => {
+const reader = new FileReader();
+
+```
+reader.onload = () => {
+  if (typeof reader.result !== "string") {
+    reject(
+      new Error("Unable to read the selected image."),
+    );
+    return;
+  }
+
+  resolve(reader.result);
+};
+
+reader.onerror = () => {
+  reject(
+    reader.error ??
+      new Error("Unable to read the selected image."),
+  );
+};
+
+reader.readAsDataURL(file);
+```
+
+});
 }
