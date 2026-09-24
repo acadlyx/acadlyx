@@ -39,6 +39,7 @@ lastName: string;
 phone: string | null;
 isActive: boolean;
 createdAt?: string;
+
 roles: Array<{
 id: string;
 name: string;
@@ -95,7 +96,6 @@ email: string;
 firstName: string;
 lastName: string;
 phone?: string;
-
 password: string;
 
 admissionNumber: string;
@@ -133,9 +133,9 @@ rollNumber?: string;
 
 export async function getMyDashboard(): Promise<StudentDashboardData> {
 const res =
-await authedFetch<
-ApiEnvelope<StudentDashboardData>
->("/students/me/dashboard");
+await authedFetch<ApiEnvelope<StudentDashboardData>>(
+"/students/me/dashboard",
+);
 
 return res.data;
 }
@@ -177,8 +177,7 @@ return res.data;
   pageSize: number;
   totalPages: number;
   }> {
-  const query =
-  new URLSearchParams();
+  const query = new URLSearchParams();
 
 query.set(
 "page",
@@ -239,21 +238,24 @@ PaginatedEnvelope<ManagedStudent>
 
 const meta = res.meta || {};
 
-const page =
-Number(meta.page || params.page || 1);
+const page = Number(
+meta.page ||
+params.page ||
+1,
+);
 
-const pageSize =
-Number(
+const pageSize = Number(
 meta.pageSize ||
 params.pageSize ||
 100,
 );
 
-const total =
-Number(meta.total || res.data.length);
+const total = Number(
+meta.total ||
+res.data.length,
+);
 
-const totalPages =
-Number(
+const totalPages = Number(
 meta.totalPages ||
 Math.max(
 1,
