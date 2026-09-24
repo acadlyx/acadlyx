@@ -1,167 +1,260 @@
 import { authedFetch } from "@/lib/auth";
 
 export type AdmissionStatus =
-  | "SUBMITTED"
-  | "UNDER_REVIEW"
-  | "DOCUMENTS_PENDING"
-  | "SELECTED"
-  | "ENROLLED"
-  | "REJECTED"
-  | "WITHDRAWN";
+| "SUBMITTED"
+| "UNDER_REVIEW"
+| "DOCUMENTS_PENDING"
+| "SELECTED"
+| "ENROLLED"
+| "REJECTED"
+| "WITHDRAWN";
 
 export const ADMISSION_STATUSES: AdmissionStatus[] = [
-  "SUBMITTED",
-  "UNDER_REVIEW",
-  "DOCUMENTS_PENDING",
-  "SELECTED",
-  "ENROLLED",
-  "REJECTED",
-  "WITHDRAWN",
+"SUBMITTED",
+"UNDER_REVIEW",
+"DOCUMENTS_PENDING",
+"SELECTED",
+"ENROLLED",
+"REJECTED",
+"WITHDRAWN",
 ];
 
 export interface AdmissionApplication {
-  id: string;
-  institutionId?: string | null;
+id: string;
+institutionId?: string | null;
 
-  applicationNumber?: string | null;
+applicationNumber?: string | null;
 
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string | null;
+firstName: string;
+lastName: string;
+email: string;
+phone?: string | null;
 
-  dateOfBirth?: string | null;
-  gender?: string | null;
+dateOfBirth?: string | null;
+gender?: string | null;
 
-  address?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
+guardianName?: string | null;
+guardianPhone?: string | null;
 
-  programId?: string | null;
-  academicYearId?: string | null;
+previousInstitution?: string | null;
+previousPercentage?: number | null;
 
-  program?: {
-    id: string;
-    name: string;
-    code?: string | null;
-  } | null;
+address?: string | null;
+city?: string | null;
+state?: string | null;
+postalCode?: string | null;
 
-  academicYear?: {
-    id: string;
-    name: string;
-  } | null;
+programId?: string | null;
+academicYearId?: string | null;
 
-  status: AdmissionStatus;
+program?: {
+id: string;
+name: string;
+code?: string | null;
+} | null;
 
-  notes?: string | null;
+academicYear?: {
+id: string;
+name: string;
+} | null;
 
-  createdAt?: string;
-  updatedAt?: string;
+status: AdmissionStatus;
+
+remarks?: string | null;
+notes?: string | null;
+
+createdAt?: string;
+updatedAt?: string;
 }
 
 export interface ProgramOption {
-  id: string;
-  name: string;
-  code?: string | null;
+id: string;
+name: string;
+code?: string | null;
 }
 
 export interface AcademicYearOption {
-  id: string;
-  name: string;
+id: string;
+name: string;
 }
 
 export interface CreateAdmissionApplicationInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
+firstName: string;
+lastName: string;
+email: string;
+phone?: string;
 
-  dateOfBirth?: string;
-  gender?: string;
+dateOfBirth?: string;
+gender?: string;
 
-  address?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
+guardianName?: string;
+guardianPhone?: string;
 
-  programId: string;
-  academicYearId: string;
+previousInstitution?: string;
+previousPercentage?: number;
 
-  notes?: string;
+remarks?: string;
+
+address?: string;
+city?: string;
+state?: string;
+postalCode?: string;
+
+programId: string;
+academicYearId: string;
+}
+
+export interface ListAdmissionApplicationsParams {
+page?: number;
+pageSize?: number;
+search?: string;
+status?: AdmissionStatus;
+programId?: string;
+academicYearId?: string;
+}
+
+export interface AdmissionSummary {
+[key: string]: number;
+}
+
+export interface AdmissionListResult {
+items: AdmissionApplication[];
+summary: AdmissionSummary;
+page: number;
+pageSize: number;
+total: number;
+totalPages: number;
 }
 
 interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
+success: boolean;
+data: T;
+message?: string;
 }
 
 interface PaginatedEnvelope<T> {
-  success: boolean;
-  data: T[];
-  meta?: {
-    page?: number;
-    pageSize?: number;
-    total?: number;
-    totalPages?: number;
-  };
-  message?: string;
+success: boolean;
+data: T[];
+summary?: AdmissionSummary;
+meta?: {
+page?: number;
+pageSize?: number;
+total?: number;
+totalPages?: number;
+};
+message?: string;
 }
 
-export async function listAdmissionApplications(): Promise<
-  AdmissionApplication[]
-> {
-  const res = await authedFetch<
-    PaginatedEnvelope<AdmissionApplication>
-  >("/admissions/applications?page=1&pageSize=200");
+function buildQuery(
+params: ListAdmissionApplicationsParams = {},
+): string {
+const searchParams = new URLSearchParams();
 
-  return res.data;
+if (params.page !== undefined) {
+searchParams.set("page", String(params.page));
+}
+
+if (params.pageSize !== undefined) {
+searchParams.set("pageSize", String(params.pageSize));
+}
+
+if (params.search) {
+searchParams.set("search", params.search);
+}
+
+if (params.status) {
+searchParams.set("status", params.status);
+}
+
+if (params.programId) {
+searchParams.set("programId", params.programId);
+}
+
+if (params.academicYearId) {
+searchParams.set("academicYearId", params.academicYearId);
+}
+
+const query = searchParams.toString();
+
+return query ? `?${query}` : "";
+}
+
+export async function listAdmissionApplications(
+params: ListAdmissionApplicationsParams = {},
+): Promise<AdmissionListResult> {
+const page = params.page ?? 1;
+const pageSize = params.pageSize ?? 20;
+
+const res = await authedFetch<
+PaginatedEnvelope<AdmissionApplication>
+
+> (`/admissions${buildQuery({
+>     ...params,
+>     page,
+>     pageSize,
+>   })}`);
+
+const meta = res.meta ?? {};
+
+return {
+items: res.data ?? [],
+summary: res.summary ?? {},
+page: meta.page ?? page,
+pageSize: meta.pageSize ?? pageSize,
+total: meta.total ?? res.data.length,
+totalPages: meta.totalPages ?? 1,
+};
 }
 
 export async function listProgramOptions(): Promise<ProgramOption[]> {
-  const res = await authedFetch<
-    ApiEnvelope<ProgramOption[]> | PaginatedEnvelope<ProgramOption>
-  >("/admissions/programs");
+const res = await authedFetch<
+PaginatedEnvelope<ProgramOption>
 
-  return res.data;
+> ("/programs?page=1&pageSize=100");
+
+return res.data ?? [];
 }
 
 export async function listAcademicYearOptions(): Promise<
-  AcademicYearOption[]
-> {
-  const res = await authedFetch<
-    ApiEnvelope<AcademicYearOption[]> | PaginatedEnvelope<AcademicYearOption>
-  >("/admissions/academic-years");
+AcademicYearOption[]
 
-  return res.data;
+> {
+> const res = await authedFetch<
+> PaginatedEnvelope<AcademicYearOption>
+> ("/academic-years?page=1&pageSize=100");
+
+return res.data ?? [];
 }
 
 export async function createAdmissionApplication(
-  input: CreateAdmissionApplicationInput,
+input: CreateAdmissionApplicationInput,
 ): Promise<AdmissionApplication> {
-  const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
-    "/admissions/applications",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
+const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
+"/admissions",
+{
+method: "POST",
+body: JSON.stringify(input),
+},
+);
 
-  return res.data;
+return res.data;
 }
 
 export async function changeAdmissionStatus(
-  id: string,
-  status: AdmissionStatus,
+id: string,
+status: AdmissionStatus,
+remarks?: string,
 ): Promise<AdmissionApplication> {
-  const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
-    `/admissions/applications/${id}/status`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    },
-  );
+const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
+`/admissions/${id}/status`,
+{
+method: "POST",
+body: JSON.stringify({
+status,
+...(remarks ? { remarks } : {}),
+}),
+},
+);
 
-  return res.data;
+return res.data;
 }
