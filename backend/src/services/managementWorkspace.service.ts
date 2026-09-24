@@ -63,6 +63,42 @@ export function isLeadershipActor(
 }
 
 /**
+ * Returns the number of users in an institution that
+ * currently have a profile photo.
+ *
+ * Kept as a separate async function so the Prisma
+ * $queryRaw result is correctly typed as a Promise and
+ * can safely be consumed by Promise.all().
+ */
+async function getUsersWithProfilePhotoCount(
+  institutionId: string
+): Promise<number> {
+  const rows =
+    await prisma.$queryRaw<
+      Array<{
+        count: bigint;
+      }>
+    >(
+      Prisma.sql`
+        SELECT
+          COUNT(*)::bigint AS count
+        FROM
+          "user_profile_photos" p
+        INNER JOIN
+          "users" u
+          ON u."id" = p."userId"
+        WHERE
+          u."institutionId" =
+          ${institutionId}
+      `
+    );
+
+  return Number(
+    rows[0]?.count ?? 0
+  );
+}
+
+/**
  * Institution Admin workspace.
  *
  * This deliberately does NOT query:
@@ -134,35 +170,9 @@ async function getInstitutionAdminWorkspace(
           ),
 
       can("users.read")
-        ? prisma
-            .$queryRaw<
-              Array<{
-                count: bigint;
-              }
-            >(
-              Prisma.sql`
-                SELECT
-                  COUNT(*)::bigint AS count
-                FROM
-                  "user_profile_photos" p
-                INNER JOIN
-                  "users" u
-                  ON u."id" = p."userId"
-                WHERE
-                  u."institutionId" =
-                  ${institutionId}
-              `
-            )
-            .then(
-              (
-                rows
-              ) =>
-                Number(
-                  rows[0]
-                    ?.count ??
-                    0
-                )
-            )
+        ? getUsersWithProfilePhotoCount(
+            institutionId
+          )
         : Promise.resolve(
             0
           ),
