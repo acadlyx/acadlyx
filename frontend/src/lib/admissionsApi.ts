@@ -187,12 +187,11 @@ const pageSize = params.pageSize ?? 20;
 
 const res = await authedFetch<
 PaginatedEnvelope<AdmissionApplication>
-
-> (`/admissions${buildQuery({
->     ...params,
->     page,
->     pageSize,
->   })}`);
+>(`/admissions${buildQuery({
+...params,
+page,
+pageSize,
+})}`);
 
 const meta = res.meta ?? {};
 
@@ -209,19 +208,17 @@ totalPages: meta.totalPages ?? 1,
 export async function listProgramOptions(): Promise<ProgramOption[]> {
 const res = await authedFetch<
 PaginatedEnvelope<ProgramOption>
-
-> ("/programs?page=1&pageSize=100");
+>("/programs?page=1&pageSize=100");
 
 return res.data ?? [];
 }
 
 export async function listAcademicYearOptions(): Promise<
 AcademicYearOption[]
-
 > {
-> const res = await authedFetch<
-> PaginatedEnvelope<AcademicYearOption>
-> ("/academic-years?page=1&pageSize=100");
+const res = await authedFetch<
+PaginatedEnvelope<AcademicYearOption>
+>("/academic-years?page=1&pageSize=100");
 
 return res.data ?? [];
 }
