@@ -1,4 +1,3 @@
-```typescript
 import { authedFetch } from "./auth";
 import { StudentDashboardData } from "@/types/dashboard";
 
@@ -211,4 +210,3 @@ export async function setManagedStudentStatus(
 
   return res.data;
 }
-```
