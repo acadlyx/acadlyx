@@ -19,9 +19,12 @@ function configureCloudinary() {
   }
 
   cloudinary.config({
-    cloud_name: env.cloudinaryCloudName,
-    api_key: env.cloudinaryApiKey,
-    api_secret: env.cloudinaryApiSecret,
+    cloud_name:
+      env.cloudinaryCloudName,
+    api_key:
+      env.cloudinaryApiKey,
+    api_secret:
+      env.cloudinaryApiSecret,
   });
 }
 
@@ -35,14 +38,18 @@ export async function getProfilePhoto(
   userId: string
 ): Promise<ProfilePhoto | null> {
   const rows =
-    await prisma.$queryRaw<ProfilePhoto[]>(
+    await prisma.$queryRaw<
+      ProfilePhoto[]
+    >(
       Prisma.sql`
         SELECT
           "userId",
           "url",
           "publicId"
-        FROM "user_profile_photos"
-        WHERE "userId" = ${userId}
+        FROM
+          "user_profile_photos"
+        WHERE
+          "userId" = ${userId}
         LIMIT 1
       `
     );
@@ -70,16 +77,22 @@ export async function getProfilePhotos(
   }
 
   const rows =
-    await prisma.$queryRaw<ProfilePhoto[]>(
+    await prisma.$queryRaw<
+      ProfilePhoto[]
+    >(
       Prisma.sql`
         SELECT
           "userId",
           "url",
           "publicId"
-        FROM "user_profile_photos"
-        WHERE "userId" IN (${Prisma.join(
-          uniqueIds
-        )})
+        FROM
+          "user_profile_photos"
+        WHERE
+          "userId" IN (
+            ${Prisma.join(
+              uniqueIds
+            )}
+          )
       `
     );
 
@@ -124,7 +137,8 @@ export async function uploadProfilePhoto(
                 "acadlyx/profile-photos",
               resource_type:
                 "image",
-              overwrite: true,
+              overwrite:
+                true,
             },
             (
               error,
@@ -141,6 +155,7 @@ export async function uploadProfilePhoto(
                       "Profile photo upload failed"
                     )
                 );
+
                 return;
               }
 
@@ -161,7 +176,8 @@ export async function uploadProfilePhoto(
 
   await prisma.$executeRaw(
     Prisma.sql`
-      INSERT INTO "user_profile_photos"
+      INSERT INTO
+        "user_profile_photos"
         (
           "userId",
           "url",
@@ -177,11 +193,15 @@ export async function uploadProfilePhoto(
           NOW(),
           NOW()
         )
-      ON CONFLICT ("userId")
+      ON CONFLICT
+        ("userId")
       DO UPDATE SET
-        "url" = EXCLUDED."url",
-        "publicId" = EXCLUDED."publicId",
-        "updatedAt" = NOW()
+        "url" =
+          EXCLUDED."url",
+        "publicId" =
+          EXCLUDED."publicId",
+        "updatedAt" =
+          NOW()
     `
   );
 
@@ -267,11 +287,12 @@ export async function uploadProfilePhotoDataUrl(
         "",
       filename:
         "profile-photo",
-      path: "",
+      path:
+        "",
       buffer,
       stream:
         undefined,
-    } as Express.Multer.File;
+    } as unknown as Express.Multer.File;
 
   return uploadProfilePhoto(
     userId,
@@ -295,8 +316,10 @@ export async function deleteProfilePhoto(
 
   await prisma.$executeRaw(
     Prisma.sql`
-      DELETE FROM "user_profile_photos"
-      WHERE "userId" = ${userId}
+      DELETE FROM
+        "user_profile_photos"
+      WHERE
+        "userId" = ${userId}
     `
   );
 
