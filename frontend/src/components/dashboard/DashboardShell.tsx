@@ -14,12 +14,14 @@ import {
 } from "next/navigation";
 
 import { AccountMenu } from "@/components/auth/AccountMenu";
+
 import {
   AuthRequiredError,
   AuthUser,
   getCurrentUser,
   logout,
 } from "@/lib/auth";
+
 import {
   canAccessRoute,
   navigationForUser,
@@ -28,89 +30,10 @@ import {
   workspaceHome,
 } from "@/lib/navigation";
 
-type ShellNavigationItem = {
-  label: string;
-  href: string;
-  icon: string;
-  group: string;
-  permissions?: string[];
-};
-
-/**
- * Institution Admin is an institution-operations role, not a collection of
- * every read-only specialist workspace.
- *
- * The backend remains the security boundary.
- * This list controls the workspace experience and prevents the sidebar from
- * advertising specialist ownership that the role does not have.
- *
- * Do not add /enrollment or /institution-settings here:
- * both currently redirect to another surface instead of being independent
- * workflows.
- */
-const INSTITUTION_ADMIN_NAVIGATION: ShellNavigationItem[] = [
-  {
-    label: "Overview",
-    href: "/admin",
-    icon: "home",
-    group: "Workspace",
-  },
-  {
-    label: "People",
-    href: "/user-management",
-    icon: "people",
-    group: "Administration",
-    permissions: ["users.read"],
-  },
-  {
-    label: "Timetable",
-    href: "/timetable",
-    icon: "calendar",
-    group: "Institution",
-    permissions: ["timetable.read"],
-  },
-  {
-    label: "Notices",
-    href: "/notices",
-    icon: "notice",
-    group: "Institution",
-    permissions: ["notices.read"],
-  },
-  {
-    label: "Calendar",
-    href: "/calendar",
-    icon: "date",
-    group: "Institution",
-    permissions: ["calendar.read"],
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: "bell",
-    group: "Institution",
-    permissions: ["notifications.read"],
-  },
-  {
-    label: "Operations",
-    href: "/operations",
-    icon: "settings",
-    group: "Institution",
-    permissions: ["operations.read"],
-  },
-  {
-    label: "Documents",
-    href: "/forms",
-    icon: "document",
-    group: "Administration",
-    permissions: ["documents.read"],
-  },
-  {
-    label: "Account security",
-    href: "/account-security",
-    icon: "shield",
-    group: "Account",
-  },
-];
+import {
+  getInstitutionAdminNavigation,
+  institutionAdminRouteAllowed,
+} from "@/lib/institutionAdminNavigation";
 
 const ICON_PATHS: Record<string, string> = {
   home:
@@ -120,7 +43,7 @@ const ICON_PATHS: Record<string, string> = {
     "M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM15.5 7.5a3 3 0 0 1 0 5.8M17 15h1.5A3.5 3.5 0 0 1 22 18.5V20",
 
   calendar:
-    "M5 4v3M19 4v3M4 8.5h16M6 3.5h12A2 2 0 0 1 20 5.5v13A2 2 0 0 1 18 20.5H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2ZM8 12h3M13 12h3M8 15.5h3",
+    "M5 4v3M19 4v3M4 8.5h16M6.5 3.5h11A2.5 2.5 0 0 1 20 6v12.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5V6a2.5 2.5 0 0 1 2.5-2.5ZM8 12h3M13 12h3M8 15.5h3",
 
   notice:
     "M5 8.5a7 7 0 0 1 14 0v4l2 2H3l2-2v-4ZM9 17h6M10 20h4",
@@ -132,13 +55,28 @@ const ICON_PATHS: Record<string, string> = {
     "M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9.5 21h5",
 
   settings:
-    "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 12a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.8 7.8 0 0 0-2-1.2L14.2 3h-4.4l-.3 2.6a7.8 7.8 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7.4 7.4 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7.8 7.8 0 0 0 2 1.2l.3 2.6h4.4l.3-2.6a7.8 7.8 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z",
-
-  document:
-    "M7 3.5h7l4 4v13H7a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2ZM14 3.5v5h4M8.5 12h7M8.5 15.5h7",
+    "M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM19 12a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.8 7.8 0 0 0-2-1.2L14.2 3h-4.4l-.3 2.6a7.8 7.8 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7.4 7.4 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2.4 1 2 3.4 2.4-1a7.8 7.8 0 0 0 2 1.2l.3 2.6h4.4l.3-2.6a7.8 7.8 0 0 0 2-1.2l2.4 1 2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z",
 
   shield:
     "M12 3.5 19 6v5.5c0 4.6-2.9 7.9-7 9.5-4.1-1.6-7-4.9-7-9.5V6l7-2.5ZM9 12l2 2 4-4",
+
+  admissions:
+    "M5 19.5h14M7 16.5h10M8 13.5h8M9.5 10.5h5M12 4v4.5",
+
+  reports:
+    "M5 19.5V5h14v14.5M8.5 16v-3M12 16V9M15.5 16v-5",
+
+  intelligence:
+    "M12 3.5 14 9l5.5 1.5L14 12l-2 6-2-6-5.5-1.5L10 9l2-5.5ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16",
+
+  registration:
+    "M6 4.5h12v15H6zM9 8h6M9 12h6M9 16h4",
+
+  movement:
+    "M12 4v16M7 9l5-5 5 5M7 15l5 5 5-5",
+
+  certificate:
+    "M7 3.5h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2ZM8.5 8h7M8.5 12h7M8.5 16h4",
 };
 
 function ShellIcon({
@@ -148,17 +86,13 @@ function ShellIcon({
   name: string;
   active?: boolean;
 }) {
-  const path =
-    ICON_PATHS[name] ||
-    ICON_PATHS.home;
-
   return (
     <span
       className={[
-        "grid h-10 w-10 shrink-0 place-items-center rounded-[14px] transition",
+        "grid h-10 w-10 shrink-0 place-items-center rounded-[13px] transition-colors",
         active
           ? "bg-white/16 text-white"
-          : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600",
+          : "bg-[#edf2f6] text-[#91a1b6] group-hover:bg-blue-50 group-hover:text-blue-600",
       ].join(" ")}
     >
       <svg
@@ -171,7 +105,12 @@ function ShellIcon({
         className="h-[18px] w-[18px]"
         aria-hidden="true"
       >
-        <path d={path} />
+        <path
+          d={
+            ICON_PATHS[name] ||
+            ICON_PATHS.home
+          }
+        />
       </svg>
     </span>
   );
@@ -187,86 +126,12 @@ function matchesRoute(
   );
 }
 
-function hasPermissions(
-  user: AuthUser,
-  permissions?: string[],
-) {
-  if (!permissions?.length) {
-    return true;
-  }
-
-  const granted = new Set(
-    user.permissions || [],
-  );
-
-  return permissions.every(
-    (permission) =>
-      granted.has(permission),
-  );
-}
-
-function getInstitutionAdminNavigation(
-  user: AuthUser | null,
-): ShellNavigationItem[] {
-  if (!user) {
-    return INSTITUTION_ADMIN_NAVIGATION;
-  }
-
-  return INSTITUTION_ADMIN_NAVIGATION.filter(
-    (item) =>
-      hasPermissions(
-        user,
-        item.permissions,
-      ),
-  );
-}
-
-function getFallbackNavigation(
-  user: AuthUser | null,
-  allowedRoles?: string[],
-): ShellNavigationItem[] {
-  if (user) {
-    return navigationForUser(user).map(
-      (item) => ({
-        label: item.label,
-        href: item.href,
-        icon: item.icon,
-        group:
-          item.group ||
-          "Workspace",
-        permissions:
-          item.permissions,
-      }),
-    );
-  }
-
-  const role =
-    primaryRole(
-      allowedRoles || [],
-    );
-
-  const home =
-    workspaceHome(
-      allowedRoles || [],
-    );
-
-  return [
-    {
-      label:
-        ROLE_LABELS[role] ||
-        "Overview",
-      href: home,
-      icon: "home",
-      group: "Workspace",
-    },
-    {
-      label: "Account security",
-      href: "/account-security",
-      icon: "shield",
-      group: "Account",
-    },
-  ];
-}
+type ShellItem = {
+  label: string;
+  href: string;
+  icon: string;
+  group: string;
+};
 
 export function DashboardShell({
   title,
@@ -276,7 +141,7 @@ export function DashboardShell({
 }: {
   title: string;
   subtitle?: string;
-  children: ReactNode;
+  children?: ReactNode;
   allowedRoles?: string[];
 }) {
   const pathname =
@@ -285,16 +150,22 @@ export function DashboardShell({
   const router =
     useRouter();
 
-  const [user, setUser] =
-    useState<AuthUser | null>(
-      null,
-    );
+  const [
+    user,
+    setUser,
+  ] = useState<AuthUser | null>(
+    null,
+  );
 
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
+  const [
+    loadingUser,
+    setLoadingUser,
+  ] = useState(true);
 
-  const [loadingUser, setLoadingUser] =
-    useState(true);
+  const [
+    mobileOpen,
+    setMobileOpen,
+  ] = useState(false);
 
   const allowedRolesKey =
     allowedRoles?.join(",") ||
@@ -309,26 +180,24 @@ export function DashboardShell({
           return;
         }
 
-        const institutionAdminStaticRoute =
+        const isInstitutionAdmin =
           currentUser.roles.includes(
             "INSTITUTION_ADMIN",
-          ) &&
-          INSTITUTION_ADMIN_NAVIGATION.some(
-            (item) =>
-              matchesRoute(
-                pathname,
-                item.href,
-              ),
           );
 
-        if (
-          !canAccessRoute(
-            currentUser,
-            pathname,
-            allowedRoles,
-          ) &&
-          !institutionAdminStaticRoute
-        ) {
+        const allowed =
+          isInstitutionAdmin
+            ? institutionAdminRouteAllowed(
+                currentUser,
+                pathname,
+              )
+            : canAccessRoute(
+                currentUser,
+                pathname,
+                allowedRoles,
+              );
+
+        if (!allowed) {
           router.replace(
             workspaceHome(
               currentUser.roles,
@@ -371,12 +240,11 @@ export function DashboardShell({
     router,
     pathname,
     allowedRolesKey,
+    allowedRoles,
   ]);
 
   useEffect(() => {
-    setMobileOpen(
-      false,
-    );
+    setMobileOpen(false);
   }, [pathname]);
 
   const role =
@@ -391,23 +259,78 @@ export function DashboardShell({
     "INSTITUTION_ADMIN";
 
   const navigation =
-    useMemo(() => {
+    useMemo<ShellItem[]>(() => {
       if (
         isInstitutionAdmin
       ) {
         return getInstitutionAdminNavigation(
           user,
+        ).map(
+          (item) => ({
+            label:
+              item.label,
+            href:
+              item.href,
+            icon:
+              item.icon,
+            group:
+              item.group,
+          }),
         );
       }
 
-      return getFallbackNavigation(
+      if (!user) {
+        return [
+          {
+            label:
+              ROLE_LABELS[
+                role
+              ] ||
+              "Workspace",
+            href:
+              workspaceHome(
+                allowedRoles ||
+                  [],
+              ),
+            icon:
+              "home",
+            group:
+              "Workspace",
+          },
+          {
+            label:
+              "Account security",
+            href:
+              "/account-security",
+            icon:
+              "shield",
+            group:
+              "Account",
+          },
+        ];
+      }
+
+      return navigationForUser(
         user,
-        allowedRoles,
+      ).map(
+        (item) => ({
+          label:
+            item.label,
+          href:
+            item.href,
+          icon:
+            item.icon,
+          group:
+            item.group ||
+            "Workspace",
+        }),
       );
     }, [
       isInstitutionAdmin,
       user,
+      role,
       allowedRolesKey,
+      allowedRoles,
     ]);
 
   const groupedNavigation =
@@ -415,21 +338,17 @@ export function DashboardShell({
       const groups =
         new Map<
           string,
-          ShellNavigationItem[]
+          ShellItem[]
         >();
 
       for (
         const item of navigation
       ) {
-        const group =
-          item.group ||
-          "Workspace";
-
         groups.set(
-          group,
+          item.group,
           [
             ...(groups.get(
-              group,
+              item.group,
             ) || []),
             item,
           ],
@@ -463,12 +382,9 @@ export function DashboardShell({
               ),
           )
           .sort(
-            (
-              left,
-              right,
-            ) =>
-              right.href.length -
-              left.href.length,
+            (a, b) =>
+              b.href.length -
+              a.href.length,
           )[0]?.href ||
         null,
       [
@@ -491,9 +407,9 @@ export function DashboardShell({
       : "Workspace";
 
   return (
-    <div className="min-h-screen bg-[#edf2f6] text-slate-900">
-      <header className="fixed inset-x-0 top-0 z-50 h-[72px] border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
-        <div className="flex h-full items-center px-3 sm:px-5 lg:px-7">
+    <div className="min-h-screen bg-[#eef3f7] text-[#172033]">
+      <header className="fixed inset-x-0 top-0 z-50 h-[74px] border-b border-[#dfe7ee] bg-[#f8fafc]/96 backdrop-blur-xl">
+        <div className="flex h-full items-center px-3 sm:px-5 lg:px-6">
           <button
             type="button"
             aria-label="Open workspace navigation"
@@ -506,7 +422,7 @@ export function DashboardShell({
                   !value,
               )
             }
-            className="mr-3 grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200 bg-white text-slate-600 shadow-sm lg:hidden"
+            className="mr-3 grid h-10 w-10 place-items-center rounded-[14px] border border-[#d9e2ea] bg-white text-[#4c5d73] shadow-sm lg:hidden"
           >
             {mobileOpen
               ? "×"
@@ -519,37 +435,37 @@ export function DashboardShell({
                 allowedRoles ||
                 [],
             )}
-            className="flex shrink-0 items-center gap-3"
+            className="flex min-w-0 items-center gap-3"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-slate-950 shadow-sm">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-[#101828] shadow-sm">
               <Image
                 src="/branding/acadlyx-logo.png"
                 alt="ACADLYX"
-                width={30}
-                height={30}
+                width={29}
+                height={29}
                 className="h-7 w-7 object-contain"
                 priority
               />
             </span>
 
             <span className="hidden leading-none sm:block">
-              <span className="block text-[13px] font-black tracking-[0.12em] text-slate-950">
+              <span className="block text-[13px] font-black tracking-[0.12em] text-[#101828]">
                 ACADLYX
               </span>
 
-              <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.16em] text-[#8b9aab]">
                 Education ERP
               </span>
             </span>
           </Link>
 
-          <div className="ml-5 hidden min-w-0 border-l border-slate-200 pl-5 md:block">
-            <p className="truncate text-sm font-bold text-slate-900">
+          <div className="ml-5 hidden min-w-0 border-l border-[#dfe7ee] pl-5 md:block">
+            <p className="truncate text-sm font-extrabold text-[#172033]">
               {title}
             </p>
 
             {subtitle ? (
-              <p className="mt-0.5 truncate text-[11px] text-slate-500">
+              <p className="mt-0.5 truncate text-[11px] font-medium text-[#77879b]">
                 {subtitle}
               </p>
             ) : null}
@@ -557,12 +473,14 @@ export function DashboardShell({
 
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden text-right xl:block">
-              <p className="text-xs font-bold text-slate-800">
+              <p className="text-xs font-extrabold text-[#243149]">
                 {displayName}
               </p>
 
-              <p className="mt-0.5 text-[10px] font-medium text-slate-500">
-                {ROLE_LABELS[role] ||
+              <p className="mt-0.5 text-[10px] font-semibold text-[#8796a9]">
+                {ROLE_LABELS[
+                  role
+                ] ||
                   role.replace(
                     /_/g,
                     " ",
@@ -570,7 +488,7 @@ export function DashboardShell({
               </p>
             </div>
 
-            <div className="rounded-[15px] border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-[15px] border border-[#dce4eb] bg-white shadow-sm">
               <AccountMenu />
             </div>
 
@@ -579,7 +497,7 @@ export function DashboardShell({
               onClick={
                 signOut
               }
-              className="hidden rounded-[15px] border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:block"
+              className="hidden rounded-[14px] border border-[#dce4eb] bg-white px-4 py-2.5 text-xs font-extrabold text-[#40516a] shadow-sm transition hover:bg-[#f5f8fb] sm:block"
             >
               Sign out
             </button>
@@ -596,14 +514,14 @@ export function DashboardShell({
               false,
             )
           }
-          className="fixed inset-0 z-30 bg-slate-950/20 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-30 bg-[#172033]/20 backdrop-blur-[2px] lg:hidden"
         />
       ) : null}
 
       <aside
         className={[
-          "fixed bottom-0 left-0 top-[72px] z-40 w-[276px] border-r border-slate-200/90 bg-[#f6f8fa]",
-          "shadow-[10px_0_35px_rgba(15,23,42,0.03)]",
+          "fixed bottom-0 left-0 top-[74px] z-40 w-[282px] border-r border-[#dfe7ee] bg-[#f7f9fb]",
+          "shadow-[12px_0_35px_rgba(20,32,50,0.035)]",
           "transition-transform duration-200 lg:translate-x-0",
           mobileOpen
             ? "translate-x-0"
@@ -611,24 +529,24 @@ export function DashboardShell({
         ].join(" ")}
       >
         <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
-          <div className="mb-4 rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  Workspace
-                </p>
+          <div className="mb-5 rounded-[22px] border border-[#dfe7ee] bg-white px-4 py-4 shadow-[0_6px_20px_rgba(20,32,50,0.035)]">
+            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[#92a1b4]">
+              Workspace
+            </p>
 
-                <p className="mt-1 text-[15px] font-extrabold text-slate-900">
-                  {ROLE_LABELS[role] ||
-                    role.replace(
-                      /_/g,
-                      " ",
-                    ) ||
-                    "ACADLYX"}
-                </p>
-              </div>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <p className="text-[17px] font-black tracking-[-0.02em] text-[#243149]">
+                {ROLE_LABELS[
+                  role
+                ] ||
+                  role.replace(
+                    /_/g,
+                    " ",
+                  ) ||
+                  "ACADLYX"}
+              </p>
 
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.10)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.09)]" />
             </div>
           </div>
 
@@ -636,6 +554,28 @@ export function DashboardShell({
             aria-label="Workspace navigation"
             className="space-y-6 pb-8"
           >
+            {loadingUser &&
+            !navigation.length ? (
+              <div className="space-y-2 px-1">
+                {[
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                ].map(
+                  (item) => (
+                    <div
+                      key={
+                        item
+                      }
+                      className="h-[54px] animate-pulse rounded-[17px] bg-[#edf2f6]"
+                    />
+                  ),
+                )}
+              </div>
+            ) : null}
+
             {groupedNavigation.map(
               (group) => (
                 <section
@@ -643,7 +583,7 @@ export function DashboardShell({
                     group.label
                   }
                 >
-                  <p className="px-3 text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">
+                  <p className="px-3 text-[9px] font-black uppercase tracking-[0.23em] text-[#91a1b6]">
                     {group.label}
                   </p>
 
@@ -666,10 +606,10 @@ export function DashboardShell({
                               )
                             }
                             className={[
-                              "group flex min-h-[54px] items-center gap-3 rounded-[17px] px-2.5 pr-3 text-sm font-bold transition-all",
+                              "group flex min-h-[54px] items-center gap-3 rounded-[17px] px-2.5 pr-3 text-[14px] font-extrabold transition-all",
                               active
-                                ? "bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.22)]"
-                                : "text-slate-600 hover:bg-white hover:text-slate-950 hover:shadow-sm",
+                                ? "bg-[#2864e8] text-white shadow-[0_8px_20px_rgba(40,100,232,0.22)]"
+                                : "text-[#4d5d74] hover:bg-white hover:text-[#172033] hover:shadow-[0_4px_14px_rgba(20,32,50,0.045)]",
                             ].join(
                               " ",
                             )}
@@ -701,17 +641,11 @@ export function DashboardShell({
               ),
             )}
           </nav>
-
-          {loadingUser ? (
-            <div className="mt-auto rounded-[18px] border border-slate-200 bg-white p-3 text-[10px] font-semibold text-slate-400 shadow-sm">
-              Securing workspace…
-            </div>
-          ) : null}
         </div>
       </aside>
 
-      <main className="min-h-screen pt-[72px] lg:pl-[276px]">
-        <div className="mx-auto min-h-[calc(100vh-72px)] w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
+      <main className="min-h-screen pt-[74px] lg:pl-[282px]">
+        <div className="mx-auto min-h-[calc(100vh-74px)] w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
           {children}
         </div>
       </main>
