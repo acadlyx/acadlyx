@@ -1,20 +1,9 @@
 import type { CanonicalRole } from "@/lib/authorization";
 import { normalizeRole } from "@/lib/authorization";
 
-/**
- * UI route ownership map.
- *
- * Permissions answer:
- * "Can this account perform this capability?"
- *
- * Route ownership answers:
- * "Does this workspace contain this area at all?"
- *
- * Backend authorization remains the security boundary.
- */
 const COMMON_ROUTES = [
   "/account-security",
-];
+] as const;
 
 const ROLE_ROUTES: Record<
   CanonicalRole,
@@ -28,7 +17,17 @@ const ROLE_ROUTES: Record<
   INSTITUTION_ADMIN: [
     "/admin",
     "/user-management",
-    "/institution-settings",
+    "/timetable",
+    "/notices",
+    "/calendar",
+    "/notifications",
+    "/operations",
+    "/admissions",
+    "/reports",
+    "/intelligence",
+    "/course-registration",
+    "/student-promotion",
+    "/certificates",
     ...COMMON_ROUTES,
   ],
 
@@ -37,7 +36,7 @@ const ROLE_ROUTES: Record<
     "/intelligence",
     "/reports",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   DIRECTOR: [
@@ -47,7 +46,7 @@ const ROLE_ROUTES: Record<
     "/examinations",
     "/reports",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   DEAN: [
@@ -56,7 +55,7 @@ const ROLE_ROUTES: Record<
     "/examinations",
     "/results",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   REGISTRAR: [
@@ -66,7 +65,7 @@ const ROLE_ROUTES: Record<
     "/student-promotion",
     "/certificates",
     "/students",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   HOD: [
@@ -76,7 +75,7 @@ const ROLE_ROUTES: Record<
     "/student-promotion",
     "/intelligence",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   FACULTY: [
@@ -87,7 +86,7 @@ const ROLE_ROUTES: Record<
     "/examinations",
     "/calendar",
     "/leave-management",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   ACCOUNTS: [
@@ -96,50 +95,50 @@ const ROLE_ROUTES: Record<
     "/fees/receipts",
     "/erp",
     "/reports",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   HR: [
     "/hr",
     "/leave-management",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   ADMISSIONS: [
     "/admissions",
     "/applications",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   EXAMINATION: [
     "/examinations",
     "/results",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   LIBRARIAN: [
     "/library",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   PLACEMENT: [
     "/placements",
     "/intelligence",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   IT: [
     "/it",
     "/operations",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   CMS: [
     "/site-content",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   STUDENT: [
@@ -156,7 +155,7 @@ const ROLE_ROUTES: Record<
     "/student/library",
     "/student/certificates",
     "/student/leave",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   PARENT: [
@@ -164,28 +163,25 @@ const ROLE_ROUTES: Record<
     "/parent/children",
     "/parent/students",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 
   CLUB_PRESIDENT: [
     "/club-president",
     "/calendar",
-    "/account-security",
+    ...COMMON_ROUTES,
   ],
 };
 
 function matchesRoute(
   pathname: string,
   route: string,
-): boolean {
-  if (
-    pathname === route
-  ) {
-    return true;
-  }
-
-  return pathname.startsWith(
-    `${route}/`,
+) {
+  return (
+    pathname === route ||
+    pathname.startsWith(
+      `${route}/`,
+    )
   );
 }
 
@@ -208,10 +204,9 @@ export function isRouteInWorkspace(
   role: string,
   pathname: string,
 ): boolean {
-  const allowed =
-    getAllowedRoutes(role);
-
-  return allowed.some(
+  return getAllowedRoutes(
+    role,
+  ).some(
     (route) =>
       matchesRoute(
         pathname,
@@ -228,7 +223,9 @@ export function getWorkspaceHome(
       role,
     ) as CanonicalRole;
 
-  switch (canonical) {
+  switch (
+    canonical
+  ) {
     case "SUPER_ADMIN":
       return "/superadmin";
 
