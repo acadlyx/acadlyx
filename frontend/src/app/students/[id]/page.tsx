@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import {
+  use,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -107,40 +109,25 @@ type Envelope<T> = {
   data?: T;
 };
 
-function formatDate(
-  value?: string | null,
-) {
+function formatDate(value?: string | null) {
   if (!value) {
     return "—";
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return String(value).slice(
-      0,
-      10,
-    );
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10);
   }
 
-  return date.toLocaleDateString(
-    "en-IN",
-    {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    },
-  );
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
-function value(
-  item: unknown,
-) {
+function value(item: unknown) {
   if (
     item === null ||
     item === undefined ||
@@ -205,13 +192,73 @@ function DataGrid({
   );
 }
 
+function ProfileSkeleton() {
+  return (
+    <main className="mx-auto max-w-[1320px] space-y-5 pb-12">
+      <section className="animate-pulse rounded-[30px] border border-[#dce5f0] bg-[#f7faff] p-6 sm:p-8">
+        <div className="h-3 w-20 rounded bg-[#e5eaf1]" />
+
+        <div className="mt-5 flex items-center gap-4">
+          <div className="h-16 w-16 rounded-[22px] bg-[#e5eaf1]" />
+
+          <div className="flex-1">
+            <div className="h-3 w-32 rounded bg-[#e5eaf1]" />
+            <div className="mt-3 h-8 w-72 max-w-full rounded bg-[#e5eaf1]" />
+            <div className="mt-2 h-4 w-80 max-w-full rounded bg-[#e5eaf1]" />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <section className="h-72 animate-pulse rounded-[24px] border border-[#dfe7ef] bg-white p-6">
+          <div className="h-5 w-48 rounded bg-[#edf1f6]" />
+          <div className="mt-7 grid gap-5 sm:grid-cols-2">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index}>
+                <div className="h-2.5 w-24 rounded bg-[#edf1f6]" />
+                <div className="mt-2 h-4 w-32 rounded bg-[#edf1f6]" />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="h-72 animate-pulse rounded-[24px] border border-[#dfe7ef] bg-white p-6">
+          <div className="h-5 w-56 rounded bg-[#edf1f6]" />
+          <div className="mt-7 grid gap-5 sm:grid-cols-2">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index}>
+                <div className="h-2.5 w-24 rounded bg-[#edf1f6]" />
+                <div className="mt-2 h-4 w-32 rounded bg-[#edf1f6]" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="h-56 animate-pulse rounded-[24px] border border-[#dfe7ef] bg-white p-6">
+        <div className="h-5 w-64 rounded bg-[#edf1f6]" />
+        <div className="mt-7 grid gap-5 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index}>
+              <div className="h-2.5 w-24 rounded bg-[#edf1f6]" />
+              <div className="mt-2 h-4 w-40 rounded bg-[#edf1f6]" />
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function StudentProfilePage({
   params,
 }: {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }) {
+  const { id } = use(params);
+
   const [student, setStudent] =
     useState<Student | null>(null);
 
@@ -242,7 +289,7 @@ export default function StudentProfilePage({
   const [relationship, setRelationship] =
     useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -252,17 +299,13 @@ export default function StudentProfilePage({
         parentResponse,
         parentUsersResponse,
       ] = await Promise.all([
-        authedFetch<
-          Envelope<Student>
-        >(
-          `/students/${params.id}`,
+        authedFetch<Envelope<Student>>(
+          `/students/${encodeURIComponent(id)}`,
         ),
 
-        authedFetch<
-          Envelope<ParentLink[]>
-        >(
+        authedFetch<Envelope<ParentLink[]>>(
           `/erp/parent-links?studentId=${encodeURIComponent(
-            params.id,
+            id,
           )}`,
         ),
 
@@ -278,13 +321,11 @@ export default function StudentProfilePage({
       ]);
 
       setStudent(
-        studentResponse.data ||
-          null,
+        studentResponse.data || null,
       );
 
       setParentLinks(
-        parentResponse.data ||
-          [],
+        parentResponse.data || [],
       );
 
       const parentData =
@@ -293,13 +334,11 @@ export default function StudentProfilePage({
       setParents(
         Array.isArray(parentData)
           ? parentData
-          : parentData?.items ||
-              [],
+          : parentData?.items || [],
       );
     } catch (reason) {
       if (
-        reason instanceof
-        AuthRequiredError
+        reason instanceof AuthRequiredError
       ) {
         setError(
           "Your session has expired. Please sign in again.",
@@ -314,29 +353,24 @@ export default function StudentProfilePage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     void load();
-  }, [params.id]);
+  }, [load]);
 
-  const availableParents =
-    useMemo(() => {
-      const linkedIds =
-        new Set(
-          parentLinks.map(
-            (link) =>
-              link.parentId,
-          ),
-        );
+  const availableParents = useMemo(() => {
+    const linkedIds = new Set(
+      parentLinks.map(
+        (link) => link.parentId,
+      ),
+    );
 
-      return parents.filter(
-        (parent) =>
-          !linkedIds.has(
-            parent.id,
-          ),
-      );
-    }, [parents, parentLinks]);
+    return parents.filter(
+      (parent) =>
+        !linkedIds.has(parent.id),
+    );
+  }, [parents, parentLinks]);
 
   async function linkParent(
     event: React.FormEvent,
@@ -361,8 +395,7 @@ export default function StudentProfilePage({
           method: "POST",
           body: JSON.stringify({
             parentId,
-            studentId:
-              params.id,
+            studentId: id,
             relationship:
               relationship.trim() ||
               undefined,
@@ -429,22 +462,12 @@ export default function StudentProfilePage({
     return (
       <DashboardShell
         title="Student Profile"
-        subtitle="Loading student record"
+        subtitle="Student record"
         allowedRoles={[
           "INSTITUTION_ADMIN",
         ]}
       >
-        <main className="mx-auto max-w-[1320px] pb-12">
-          <div className="animate-pulse rounded-[28px] border border-[#dfe7ef] bg-white p-8">
-            <div className="h-8 w-72 rounded bg-[#edf1f6]" />
-            <div className="mt-4 h-4 w-96 max-w-full rounded bg-[#edf1f6]" />
-
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <div className="h-48 rounded-2xl bg-[#f3f6fa]" />
-              <div className="h-48 rounded-2xl bg-[#f3f6fa]" />
-            </div>
-          </div>
-        </main>
+        <ProfileSkeleton />
       </DashboardShell>
     );
   }
@@ -525,8 +548,7 @@ export default function StudentProfilePage({
                   {value(
                     profile?.admissionNumber,
                   )}{" "}
-                  ·{" "}
-                  {student.email}
+                  · {student.email}
                 </p>
               </div>
             </div>
