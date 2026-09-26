@@ -166,6 +166,15 @@ const NAVIGATION: NavigationItem[] = [
     group: "People",
   },
   {
+    label: "Students",
+    href: "/students",
+    icon: "◎",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["students.read"],
+    group: "People",
+  },
+
+  {
     label: "Academic structure",
     href: "/admin",
     icon: "▦",
@@ -179,14 +188,6 @@ const NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["campuses.read"],
-    group: "Institution",
-  },
-  {
-    label: "Timetable",
-    href: "/timetable",
-    icon: "◷",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["timetable.read"],
     group: "Institution",
   },
   {
@@ -220,54 +221,6 @@ const NAVIGATION: NavigationItem[] = [
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["operations.read"],
     group: "Institution",
-  },
-  {
-    label: "Admissions overview",
-    href: "/admissions",
-    icon: "↗",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["admissions.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Reports",
-    href: "/reports",
-    icon: "▤",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["reports.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Intelligence",
-    href: "/intelligence",
-    icon: "✦",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["intelligence.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Course registration",
-    href: "/course-registration",
-    icon: "✓",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["registration.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Student movement",
-    href: "/student-promotion",
-    icon: "↑",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["promotions.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Certificates",
-    href: "/certificates",
-    icon: "▣",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["certificates.read"],
-    group: "Oversight",
   },
   {
     label: "Account security",
@@ -1375,34 +1328,20 @@ const NAMESPACE_OWNERS: Array<
   ["/hod", ["HOD"]],
   ["/accounts", ["ACCOUNTS"]],
   ["/hr", ["HR"]],
-  [
-    "/admissions",
-    ["ADMISSIONS", "INSTITUTION_ADMIN"],
-  ],
-  [
-    "/examinations",
-    [
-      "EXAMINATION",
-      "FACULTY",
-      "HOD",
-      "DEAN",
-      "DIRECTOR",
-      "CHAIRMAN",
-    ],
-  ],
-  [
-    "/library",
-    [
-      "LIBRARIAN",
-      "STUDENT",
-      "FACULTY",
-      "HOD",
-    ],
-  ],
-  [
-    "/placements",
-    ["PLACEMENT", "STUDENT"],
-  ],
+  ["/admissions", ["ADMISSIONS"]],
+
+  ["/examinations", [
+    "EXAMINATION",
+    "FACULTY",
+    "HOD",
+    "DEAN",
+    "DIRECTOR",
+    "CHAIRMAN",
+  ]],
+
+  ["/library", ["LIBRARIAN", "STUDENT", "FACULTY", "HOD"]],
+
+  ["/placements", ["PLACEMENT", "STUDENT"]],
   ["/it", ["IT"]],
   ["/site-content", ["CMS"]],
   [

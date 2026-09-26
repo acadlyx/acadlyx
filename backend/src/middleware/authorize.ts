@@ -7,6 +7,7 @@ import {
 import {
   PermissionKey,
   isPlatformPermission,
+  normalizeRoleName,
 } from "../config/rbac";
 
 import {
@@ -52,6 +53,28 @@ export function authorize(
     const user =
       req.user;
 
+    const hasPlatformRole = user.roles.some(
+      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
+    );
+
+    /*
+     * Institutional permissions require a tenant context.
+     * SUPER_ADMIN is the only platform role that may operate without
+     * an institutionId at this middleware boundary.
+     *
+     * Narrower department/program/course/student ownership remains the
+     * responsibility of the service/resource authorization layer.
+     */
+    if (!hasPlatformRole && !user.institutionId) {
+      next(
+        new AppError(
+          "Institution context is required for this operation",
+          403
+        )
+      );
+      return;
+    }
+
     const missing =
       requiredPermissions.filter(
         (
@@ -95,8 +118,8 @@ export function authorize(
 
     if (
       requestingPlatformPermission &&
-      !user.roles.includes(
-        "SUPER_ADMIN"
+      !user.roles.some(
+        (role) => normalizeRoleName(role) === "SUPER_ADMIN"
       )
     ) {
       next(
@@ -140,13 +163,21 @@ export function authorizeRoles(
       return;
     }
 
-    const allowed =
-      req.user.roles.some(
-        (role) =>
-          allowedRoles.includes(
-            role
-          )
+    const normalizedAllowedRoles = new Set(
+      allowedRoles
+        .map((role) => normalizeRoleName(role))
+        .filter(
+          (role): role is NonNullable<ReturnType<typeof normalizeRoleName>> =>
+            Boolean(role)
+        )
+    );
+
+    const allowed = req.user.roles.some((role) => {
+      const normalized = normalizeRoleName(role);
+      return Boolean(
+        normalized && normalizedAllowedRoles.has(normalized)
       );
+    });
 
     if (!allowed) {
       next(
@@ -156,6 +187,20 @@ export function authorizeRoles(
         )
       );
 
+      return;
+    }
+
+    const hasPlatformRole = req.user.roles.some(
+      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
+    );
+
+    if (!hasPlatformRole && !req.user.institutionId) {
+      next(
+        new AppError(
+          "Institution context is required for this workspace",
+          403
+        )
+      );
       return;
     }
 
@@ -220,6 +265,20 @@ export function authorizeAnyPermission(
           )
       );
 
+    const hasPlatformRole = req.user.roles.some(
+      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
+    );
+
+    if (!hasPlatformRole && !req.user.institutionId) {
+      next(
+        new AppError(
+          "Institution context is required for this operation",
+          403
+        )
+      );
+      return;
+    }
+
     if (!allowed) {
       next(
         new AppError(
@@ -245,8 +304,8 @@ export function authorizeAnyPermission(
 
     if (
       platformPermissionRequested &&
-      !req.user.roles.includes(
-        "SUPER_ADMIN"
+      !req.user.roles.some(
+        (role) => normalizeRoleName(role) === "SUPER_ADMIN"
       )
     ) {
       next(

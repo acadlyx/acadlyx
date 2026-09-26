@@ -391,6 +391,23 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   INSTITUTION_ADMIN: [
+    /*
+     * Institutional administration only.
+     *
+     * Deliberately excluded:
+     * - fees / payments
+     * - assignments / marks
+     * - attendance operations
+     * - examinations / result processing
+     * - HR
+     * - admissions processing
+     * - library operations
+     * - placement operations
+     * - specialist financial / academic operations
+     *
+     * Institution Admin owns people, institutional structure and
+     * general administrative configuration.
+     */
     "users.read",
     "users.create",
     "users.update",
@@ -401,6 +418,7 @@ export const ROLE_PERMISSIONS: Record<
     "students.update",
 
     ...ACADEMIC_READ,
+
     "departments.create",
     "departments.update",
     "departments.delete",
@@ -428,23 +446,8 @@ export const ROLE_PERMISSIONS: Record<
     "course-offerings.update",
     "course-offerings.delete",
 
-    "timetable.read",
-    "timetable.manage",
-
     "notices.read",
     "notices.manage",
-
-    "admissions.read",
-
-    "students.read",
-    "students.create",
-    "students.update",
-
-    "reports.read",
-    "intelligence.read",
-
-    "parent-links.read",
-    "parent-links.manage",
 
     "notifications.read",
     "notifications.manage",
@@ -455,17 +458,11 @@ export const ROLE_PERMISSIONS: Record<
     "calendar.read",
     "calendar.manage",
 
-    "registration.read",
-
-    "promotions.read",
-
-    "certificates.read",
-
-    "audit.read",
+    "parent-links.read",
+    "parent-links.manage",
 
     "operations.read",
     "operations.manage",
-
     "maintenance.raise",
 
     "campuses.read",

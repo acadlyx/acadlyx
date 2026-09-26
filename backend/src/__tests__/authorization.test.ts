@@ -12,7 +12,11 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 import type { NextFunction, Request, Response } from "express";
 
-import { authorize, authorizeRoles } from "../middleware/authorize";
+import {
+  authorize,
+  authorizeAnyPermission,
+  authorizeRoles,
+} from "../middleware/authorize";
 import type { PermissionKey } from "../config/rbac";
 import { AppError } from "../middleware/errorHandler";
 import {
@@ -85,6 +89,33 @@ describe("authorize middleware", () => {
   test("role workspaces reject other roles", () => {
     const error = runMiddleware(authorizeRoles("STUDENT"), makeUser({ roles: ["FACULTY"] }));
     assert.ok(error instanceof AppError);
+  });
+
+  test("rejects a tenant permission when no institution context exists", () => {
+    const error = runMiddleware(
+      authorize("students.read"),
+      makeUser({
+        institutionId: null,
+        roles: ["FACULTY"],
+        permissions: ["students.read"],
+      })
+    );
+    assert.ok(error instanceof AppError);
+    assert.equal((error as AppError).statusCode, 403);
+  });
+
+  test("accepts a permitted parent portal read without student-directory access", () => {
+    const parent = makeUser({
+      roles: ["PARENT"],
+      permissions: ["parent-portal.read"],
+    });
+    assert.equal(
+      runMiddleware(
+        authorizeAnyPermission("students.read", "parent-portal.read"),
+        parent
+      ),
+      undefined
+    );
   });
 });
 

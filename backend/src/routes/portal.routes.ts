@@ -4,6 +4,7 @@ import * as controller from "../controllers/portal.controller";
 import { authenticate } from "../middleware/authenticate";
 import {
   authorize,
+  authorizeAnyPermission,
   authorizeRoles,
 } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
@@ -73,8 +74,9 @@ router.get(
 router.get(
   "/students/:studentId",
   requireFeature("parent_portal"),
-  authorize(
-    "students.read"
+  authorizeAnyPermission(
+    "students.read",
+    "parent-portal.read"
   ),
   validateParams(studentIdParamSchema),
   controller.studentPortal
@@ -95,7 +97,7 @@ router.get(
   "/notifications",
   requireFeature("notifications"),
   authorize(
-    "attendance.read"
+    "notifications.read"
   ),
   validateQuery(
     portalPaginationSchema
@@ -107,7 +109,7 @@ router.patch(
   "/notifications/:id",
   requireFeature("notifications"),
   authorize(
-    "attendance.read"
+    "notifications.read"
   ),
   validateParams(
     notificationIdParamSchema
@@ -122,7 +124,7 @@ router.post(
   "/notifications/read-all",
   requireFeature("notifications"),
   authorize(
-    "attendance.read"
+    "notifications.read"
   ),
   controller.markAllNotificationsRead
 );
@@ -159,7 +161,7 @@ router.get(
   "/documents/me",
   requireFeature("documents"),
   authorize(
-    "students.read"
+    "documents.read"
   ),
   controller.myDocuments
 );
@@ -167,8 +169,9 @@ router.get(
 router.get(
   "/documents/students/:studentId",
   requireFeature("documents"),
-  authorize(
-    "students.read"
+  authorizeAnyPermission(
+    "students.read",
+    "parent-portal.read"
   ),
   validateParams(
     studentIdParamSchema
