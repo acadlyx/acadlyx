@@ -1,273 +1,1030 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
+import Link from "next/link";
 import {
-  StudentEnrollmentRecord,
-  StudentRecord,
-  getStudent,
-  getStudentEnrollments,
-} from "@/lib/studentProfileApi";
-import { MovementRequest, getStudentMovementHistory } from "@/lib/movementApi";
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-type ViewState = "loading" | "ready" | "error";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import {
+  AuthRequiredError,
+  authedFetch,
+} from "@/lib/auth";
 
-const day = (value: string | null) =>
-  value ? new Date(value).toLocaleDateString() : "—";
+type Lookup = {
+  id: string;
+  name?: string | null;
+  code?: string | null;
+  number?: number | null;
+};
 
-function Field({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-slate-900">{value || "—"}</dd>
-    </div>
+type Enrollment = {
+  id: string;
+  academicYearId: string;
+  programId: string;
+  semesterId?: string | null;
+  sectionId?: string | null;
+  rollNumber?: string | null;
+  status: string;
+  enrolledAt?: string;
+  program?: Lookup | null;
+  academicYear?: Lookup | null;
+  semester?: Lookup | null;
+  section?: Lookup | null;
+};
+
+type Student = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  profile?: {
+    admissionNumber?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    bloodGroup?: string | null;
+    nationality?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+    guardianEmail?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    admissionDate?: string | null;
+    status?: string | null;
+  } | null;
+  enrollments?: Enrollment[];
+  currentEnrollment?: Enrollment | null;
+};
+
+type ParentLink = {
+  parentId: string;
+  studentId: string;
+  relationship?: string | null;
+  createdAt?: string;
+  parent: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string | null;
+  };
+  student?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profile?: {
+      admissionNumber?: string | null;
+    } | null;
+  };
+};
+
+type User = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  isActive: boolean;
+  roles?: {
+    id: string;
+    name: string;
+  }[];
+};
+
+type Envelope<T> = {
+  success?: boolean;
+  data?: T;
+};
+
+function formatDate(
+  value?: string | null,
+) {
+  if (!value) {
+    return "—";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return String(value).slice(
+      0,
+      10,
+    );
+  }
+
+  return date.toLocaleDateString(
+    "en-IN",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    },
   );
 }
 
-export default function StudentProfilePage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const studentId = params?.id;
+function value(
+  item: unknown,
+) {
+  if (
+    item === null ||
+    item === undefined ||
+    item === ""
+  ) {
+    return "—";
+  }
 
-  const [state, setState] = useState<ViewState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [student, setStudent] = useState<StudentRecord | null>(null);
-  const [enrollments, setEnrollments] = useState<StudentEnrollmentRecord[]>([]);
-  const [movements, setMovements] = useState<MovementRequest[]>([]);
+  return String(item);
+}
 
-  const load = useCallback(async () => {
-    if (!studentId) return;
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[24px] border border-[#dfe7ef] bg-white p-5 shadow-[0_8px_26px_rgba(25,45,75,0.035)] sm:p-6">
+      <div className="mb-5">
+        <h2 className="text-lg font-black text-[#172033]">
+          {title}
+        </h2>
+
+        {description ? (
+          <p className="mt-1 text-xs leading-5 text-[#7c8ca0]">
+            {description}
+          </p>
+        ) : null}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function DataGrid({
+  items,
+}: {
+  items: Array<{
+    label: string;
+    value: unknown;
+  }>;
+}) {
+  return (
+    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt className="text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+            {item.label}
+          </dt>
+
+          <dd className="mt-1 text-sm font-semibold text-[#334158]">
+            {value(item.value)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export default function StudentProfilePage({
+  params,
+}: {
+  params: {
+    id: string;
+  };
+}) {
+  const [student, setStudent] =
+    useState<Student | null>(null);
+
+  const [parentLinks, setParentLinks] =
+    useState<ParentLink[]>([]);
+
+  const [parents, setParents] =
+    useState<User[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [savingLink, setSavingLink] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [showParentForm, setShowParentForm] =
+    useState(false);
+
+  const [parentId, setParentId] =
+    useState("");
+
+  const [relationship, setRelationship] =
+    useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+
     try {
-      const [record, enrollmentList] = await Promise.all([
-        getStudent(studentId),
-        getStudentEnrollments(studentId).catch(() => []),
+      const [
+        studentResponse,
+        parentResponse,
+        parentUsersResponse,
+      ] = await Promise.all([
+        authedFetch<
+          Envelope<Student>
+        >(
+          `/students/${params.id}`,
+        ),
+
+        authedFetch<
+          Envelope<ParentLink[]>
+        >(
+          `/erp/parent-links?studentId=${encodeURIComponent(
+            params.id,
+          )}`,
+        ),
+
+        authedFetch<
+          Envelope<
+            User[] | {
+              items: User[];
+            }
+          >
+        >(
+          "/users?role=PARENT&page=1&pageSize=200",
+        ),
       ]);
-      setStudent(record);
-      setEnrollments(enrollmentList);
 
-      /* Movement history needs the promotions feature and permission;
-         its absence must not break the profile. */
-      try {
-        const history = await getStudentMovementHistory(studentId);
-        setMovements(history.requests);
-      } catch {
-        setMovements([]);
-      }
-
-      setState("ready");
-    } catch (err) {
-      if (err instanceof AuthRequiredError) {
-        router.replace("/login");
-        return;
-      }
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to load the student record"
+      setStudent(
+        studentResponse.data ||
+          null,
       );
-      setState("error");
+
+      setParentLinks(
+        parentResponse.data ||
+          [],
+      );
+
+      const parentData =
+        parentUsersResponse.data;
+
+      setParents(
+        Array.isArray(parentData)
+          ? parentData
+          : parentData?.items ||
+              [],
+      );
+    } catch (reason) {
+      if (
+        reason instanceof
+        AuthRequiredError
+      ) {
+        setError(
+          "Your session has expired. Please sign in again.",
+        );
+      } else {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Unable to load the student profile.",
+        );
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [studentId, router]);
+  }
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace("/login");
+    void load();
+  }, [params.id]);
+
+  const availableParents =
+    useMemo(() => {
+      const linkedIds =
+        new Set(
+          parentLinks.map(
+            (link) =>
+              link.parentId,
+          ),
+        );
+
+      return parents.filter(
+        (parent) =>
+          !linkedIds.has(
+            parent.id,
+          ),
+      );
+    }, [parents, parentLinks]);
+
+  async function linkParent(
+    event: React.FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (!parentId) {
+      setError(
+        "Select a parent account.",
+      );
       return;
     }
-    load();
-  }, [load, router]);
 
-  if (state === "loading") {
+    setSavingLink(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await authedFetch(
+        "/erp/parent-links",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            parentId,
+            studentId:
+              params.id,
+            relationship:
+              relationship.trim() ||
+              undefined,
+          }),
+        },
+      );
+
+      setParentId("");
+      setRelationship("");
+      setShowParentForm(false);
+
+      setSuccess(
+        "Parent linked to the student successfully.",
+      );
+
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to create the parent link.",
+      );
+    } finally {
+      setSavingLink(false);
+    }
+  }
+
+  async function removeParent(
+    link: ParentLink,
+  ) {
+    setSavingLink(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await authedFetch(
+        `/erp/parent-links/${encodeURIComponent(
+          link.parentId,
+        )}/${encodeURIComponent(
+          link.studentId,
+        )}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      setSuccess(
+        "Parent link removed successfully.",
+      );
+
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to remove the parent link.",
+      );
+    } finally {
+      setSavingLink(false);
+    }
+  }
+
+  if (loading) {
     return (
-      <DashboardShell title="Student Profile" subtitle="Academic record">
-        <div className="p-8 text-sm text-slate-500">Loading student…</div>
+      <DashboardShell
+        title="Student Profile"
+        subtitle="Loading student record"
+        allowedRoles={[
+          "INSTITUTION_ADMIN",
+        ]}
+      >
+        <main className="mx-auto max-w-[1320px] pb-12">
+          <div className="animate-pulse rounded-[28px] border border-[#dfe7ef] bg-white p-8">
+            <div className="h-8 w-72 rounded bg-[#edf1f6]" />
+            <div className="mt-4 h-4 w-96 max-w-full rounded bg-[#edf1f6]" />
+
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="h-48 rounded-2xl bg-[#f3f6fa]" />
+              <div className="h-48 rounded-2xl bg-[#f3f6fa]" />
+            </div>
+          </div>
+        </main>
       </DashboardShell>
     );
   }
 
-  if (state === "error" || !student) {
+  if (!student) {
     return (
-      <DashboardShell title="Student Profile" subtitle="Academic record">
-        <div className="m-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-          {errorMessage || "Student not found"}
-        </div>
+      <DashboardShell
+        title="Student Profile"
+        subtitle="Student record"
+        allowedRoles={[
+          "INSTITUTION_ADMIN",
+        ]}
+      >
+        <main className="mx-auto max-w-[1000px] pb-12">
+          <section className="rounded-[28px] border border-red-200 bg-red-50 p-7">
+            <h1 className="font-black text-red-900">
+              Student profile unavailable
+            </h1>
+
+            <p className="mt-2 text-sm text-red-700">
+              {error ||
+                "The requested student could not be found."}
+            </p>
+
+            <Link
+              href="/students"
+              className="mt-5 inline-flex rounded-xl bg-red-700 px-4 py-2.5 text-sm font-black text-white"
+            >
+              Back to Students
+            </Link>
+          </section>
+        </main>
       </DashboardShell>
     );
   }
 
-  const profile = student.profile;
-  const current = student.currentEnrollment ?? enrollments[0] ?? null;
+  const profile =
+    student.profile;
+
+  const enrollment =
+    student.currentEnrollment;
 
   return (
     <DashboardShell
-      title={`${student.firstName} ${student.lastName}`}
-      subtitle="Student master record"
+      title="Student Profile"
+      subtitle="Complete student master record"
+      allowedRoles={[
+        "INSTITUTION_ADMIN",
+      ]}
     >
-      <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-black text-slate-950">
-                {student.firstName} {student.lastName}
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                {student.email}
-                {student.phone ? ` · ${student.phone}` : ""}
-              </p>
-              {profile && (
-                <p className="mt-1 text-sm font-semibold text-indigo-600">
-                  Admission no. {profile.admissionNumber}
+      <main className="mx-auto max-w-[1320px] space-y-5 pb-12">
+        <section className="rounded-[30px] border border-[#dce5f0] bg-[#f7faff] p-6 shadow-[0_12px_34px_rgba(25,45,75,0.04)] sm:p-8">
+          <Link
+            href="/students"
+            className="text-xs font-black uppercase tracking-[0.15em] text-[#2864e8]"
+          >
+            ← Students
+          </Link>
+
+          <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-[22px] bg-[#e8f0ff] text-lg font-black text-[#2864e8]">
+                {student.firstName?.[0] || ""}
+                {student.lastName?.[0] || ""}
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2864e8]">
+                  Student master record
                 </p>
-              )}
+
+                <h1 className="mt-1 text-3xl font-black tracking-[-0.04em] text-[#152238]">
+                  {student.firstName}{" "}
+                  {student.lastName}
+                </h1>
+
+                <p className="mt-1 text-sm text-[#718298]">
+                  {value(
+                    profile?.admissionNumber,
+                  )}{" "}
+                  ·{" "}
+                  {student.email}
+                </p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  student.isActive
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-slate-100 text-slate-600"
-                }`}
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/students"
+                className="rounded-xl border border-[#d7e0ea] bg-white px-4 py-2.5 text-sm font-black text-[#42536b]"
               >
-                {student.isActive ? "Active account" : "Inactive account"}
-              </span>
-              {profile && (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {profile.status}
-                </span>
-              )}
+                Back to directory
+              </Link>
             </div>
           </div>
-
-          {current && (
-            <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              {current.program.name} ({current.program.code}) ·{" "}
-              {current.academicYear.name}
-              {current.semester ? ` · ${current.semester.name}` : ""}
-              {current.section ? ` · Section ${current.section.name}` : ""}
-              {current.rollNumber ? ` · Roll ${current.rollNumber}` : ""}
-            </p>
-          )}
         </section>
 
-        {profile && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">
-              Personal details
-            </h2>
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Date of birth" value={day(profile.dateOfBirth)} />
-              <Field label="Gender" value={profile.gender} />
-              <Field label="Blood group" value={profile.bloodGroup} />
-              <Field label="Nationality" value={profile.nationality} />
-              <Field label="Admission date" value={day(profile.admissionDate)} />
-              <Field
-                label="Address"
-                value={[
-                  profile.address,
-                  profile.city,
-                  profile.state,
-                  profile.postalCode,
+        {error ? (
+          <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {error}
+          </section>
+        ) : null}
+
+        {success ? (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+            {success}
+          </section>
+        ) : null}
+
+        <div className="grid gap-5 xl:grid-cols-2">
+          <Section
+            title="Personal information"
+            description="Core identity and demographic information."
+          >
+            <DataGrid
+              items={[
+                {
+                  label: "First name",
+                  value:
+                    student.firstName,
+                },
+                {
+                  label: "Last name",
+                  value:
+                    student.lastName,
+                },
+                {
+                  label: "Email",
+                  value:
+                    student.email,
+                },
+                {
+                  label: "Phone",
+                  value:
+                    student.phone,
+                },
+                {
+                  label: "Date of birth",
+                  value:
+                    formatDate(
+                      profile?.dateOfBirth,
+                    ),
+                },
+                {
+                  label: "Gender",
+                  value:
+                    profile?.gender,
+                },
+                {
+                  label: "Blood group",
+                  value:
+                    profile?.bloodGroup,
+                },
+                {
+                  label: "Nationality",
+                  value:
+                    profile?.nationality,
+                },
+                {
+                  label: "Admission date",
+                  value:
+                    formatDate(
+                      profile?.admissionDate,
+                    ),
+                },
+                {
+                  label: "Status",
+                  value:
+                    profile?.status,
+                },
+                {
+                  label: "Account status",
+                  value:
+                    student.isActive
+                      ? "Active"
+                      : "Inactive",
+                },
+                {
+                  label: "Admission number",
+                  value:
+                    profile?.admissionNumber,
+                },
+              ]}
+            />
+
+            <div className="mt-6 border-t border-[#edf0f4] pt-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                Address
+              </p>
+
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#334158]">
+                {[
+                  profile?.address,
+                  profile?.city,
+                  profile?.state,
+                  profile?.postalCode,
                 ]
                   .filter(Boolean)
-                  .join(", ")}
-              />
-              <Field label="Guardian" value={profile.guardianName} />
-              <Field label="Guardian phone" value={profile.guardianPhone} />
-              <Field label="Guardian email" value={profile.guardianEmail} />
-              <Field
-                label="Emergency contact"
-                value={
-                  profile.emergencyContactName
-                    ? `${profile.emergencyContactName} (${profile.emergencyContactPhone ?? "—"})`
-                    : null
-                }
-              />
-            </dl>
-          </section>
-        )}
+                  .join(", ") ||
+                  "No address recorded"}
+              </p>
+            </div>
+          </Section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-bold text-slate-900">
-            Enrolment history
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="py-2">Academic year</th>
-                  <th>Programme</th>
-                  <th>Semester</th>
-                  <th>Section</th>
-                  <th>Roll no.</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {enrollments.map((row) => (
-                  <tr key={row.id}>
-                    <td className="py-3 font-semibold text-slate-900">
-                      {row.academicYear.name}
-                      {row.academicYear.isCurrent && (
-                        <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                          Current
-                        </span>
-                      )}
-                    </td>
-                    <td className="text-slate-600">{row.program.name}</td>
-                    <td className="text-slate-600">
-                      {row.semester?.name || "—"}
-                    </td>
-                    <td className="text-slate-600">{row.section?.name || "—"}</td>
-                    <td className="text-slate-600">{row.rollNumber || "—"}</td>
-                    <td className="text-slate-600">{row.status}</td>
-                  </tr>
-                ))}
-                {enrollments.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-500">
-                      No enrolment records.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <Section
+            title="Current academic placement"
+            description="The student's current academic enrollment."
+          >
+            <DataGrid
+              items={[
+                {
+                  label: "Academic year",
+                  value:
+                    enrollment
+                      ?.academicYear
+                      ?.name,
+                },
+                {
+                  label: "Program",
+                  value:
+                    enrollment
+                      ?.program
+                      ?.name,
+                },
+                {
+                  label: "Program code",
+                  value:
+                    enrollment
+                      ?.program
+                      ?.code,
+                },
+                {
+                  label: "Semester",
+                  value:
+                    enrollment
+                      ?.semester
+                      ?.name,
+                },
+                {
+                  label: "Section",
+                  value:
+                    enrollment
+                      ?.section
+                      ?.name,
+                },
+                {
+                  label: "Roll number",
+                  value:
+                    enrollment?.rollNumber,
+                },
+                {
+                  label: "Enrollment status",
+                  value:
+                    enrollment?.status,
+                },
+                {
+                  label: "Enrolled on",
+                  value:
+                    formatDate(
+                      enrollment?.enrolledAt,
+                    ),
+                },
+              ]}
+            />
+          </Section>
+        </div>
+
+        <Section
+          title="Guardian and emergency information"
+          description="Family and emergency information stored on the student master record."
+        >
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl bg-[#f7f9fc] p-5">
+              <h3 className="font-black text-[#1b2940]">
+                Guardian
+              </h3>
+
+              <div className="mt-4">
+                <DataGrid
+                  items={[
+                    {
+                      label: "Name",
+                      value:
+                        profile?.guardianName,
+                    },
+                    {
+                      label: "Phone",
+                      value:
+                        profile?.guardianPhone,
+                    },
+                    {
+                      label: "Email",
+                      value:
+                        profile?.guardianEmail,
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f7f9fc] p-5">
+              <h3 className="font-black text-[#1b2940]">
+                Emergency contact
+              </h3>
+
+              <div className="mt-4">
+                <DataGrid
+                  items={[
+                    {
+                      label: "Name",
+                      value:
+                        profile?.emergencyContactName,
+                    },
+                    {
+                      label: "Phone",
+                      value:
+                        profile?.emergencyContactPhone,
+                    },
+                  ]}
+                />
+              </div>
+            </div>
           </div>
-        </section>
+        </Section>
 
-        {movements.length > 0 && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">
-              Movement history
-            </h2>
-            <ul className="space-y-3">
-              {movements.map((row) => (
-                <li
-                  key={row.id}
-                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm"
+        <Section
+          title="Parents and guardians linked to this student"
+          description="These relationships come from the institution's parent-student relationship table."
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[#718298]">
+              {parentLinks.length
+                ? `${parentLinks.length} linked parent account${
+                    parentLinks.length === 1
+                      ? ""
+                      : "s"
+                  }.`
+                : "No parent account is linked yet."}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowParentForm(
+                  (current) =>
+                    !current,
+                )
+              }
+              className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white"
+            >
+              {showParentForm
+                ? "Close"
+                : "Link parent"}
+            </button>
+          </div>
+
+          {showParentForm ? (
+            <form
+              onSubmit={linkParent}
+              className="mt-5 rounded-2xl border border-[#dfe7ef] bg-[#f8faff] p-5"
+            >
+              <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+                <label>
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                    Parent account
+                  </span>
+
+                  <select
+                    value={parentId}
+                    onChange={(event) =>
+                      setParentId(
+                        event.target.value,
+                      )
+                    }
+                    className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#334158] outline-none focus:border-[#2864e8]"
+                  >
+                    <option value="">
+                      Select parent
+                    </option>
+
+                    {availableParents.map(
+                      (parent) => (
+                        <option
+                          key={parent.id}
+                          value={parent.id}
+                        >
+                          {parent.firstName}{" "}
+                          {parent.lastName} —{" "}
+                          {parent.email}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+
+                <label>
+                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                    Relationship
+                  </span>
+
+                  <input
+                    value={
+                      relationship
+                    }
+                    onChange={(event) =>
+                      setRelationship(
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Mother / Father / Guardian"
+                    className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm text-[#334158] outline-none focus:border-[#2864e8]"
+                  />
+                </label>
+
+                <button
+                  disabled={
+                    savingLink ||
+                    !parentId
+                  }
+                  type="submit"
+                  className="rounded-xl bg-[#172033] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
                 >
-                  <p className="font-semibold text-slate-900">
-                    {row.requestType.replace("_", " ")} — {row.status}
-                  </p>
-                  <p className="mt-1 text-slate-600">
-                    {[
-                      row.targetProgram?.name,
-                      row.targetAcademicYear?.name,
-                      row.targetSection?.name,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "No target recorded"}
-                    {row.decidedAt ? ` · decided ${day(row.decidedAt)}` : ""}
-                  </p>
-                  {row.decisionNote && (
-                    <p className="mt-1 text-slate-500">{row.decisionNote}</p>
+                  {savingLink
+                    ? "Saving..."
+                    : "Link"}
+                </button>
+              </div>
+
+              {!availableParents.length ? (
+                <p className="mt-3 text-xs text-[#7c8ca0]">
+                  There are no unlinked parent accounts
+                  available. Create a PARENT account first
+                  if required.
+                </p>
+              ) : null}
+            </form>
+          ) : null}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {parentLinks.map(
+              (link) => (
+                <div
+                  key={`${link.parentId}:${link.studentId}`}
+                  className="rounded-2xl border border-[#e1e7ee] bg-[#fbfcfe] p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-black text-[#1b2940]">
+                        {link.parent.firstName}{" "}
+                        {link.parent.lastName}
+                      </h3>
+
+                      <p className="mt-1 text-xs text-[#7c8ca0]">
+                        {link.relationship ||
+                          "Parent / Guardian"}
+                      </p>
+
+                      <p className="mt-3 text-sm text-[#53647b]">
+                        {link.parent.email}
+                      </p>
+
+                      <p className="mt-1 text-sm text-[#53647b]">
+                        {link.parent.phone ||
+                          "No phone"}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        savingLink
+                      }
+                      onClick={() =>
+                        void removeParent(
+                          link,
+                        )
+                      }
+                      className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </Section>
+
+        <Section
+          title="Academic history"
+          description="Historical enrollments remain visible instead of being overwritten."
+        >
+          {student.enrollments?.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#edf0f4] text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                    <th className="px-3 py-3">
+                      Academic year
+                    </th>
+                    <th className="px-3 py-3">
+                      Program
+                    </th>
+                    <th className="px-3 py-3">
+                      Semester
+                    </th>
+                    <th className="px-3 py-3">
+                      Section
+                    </th>
+                    <th className="px-3 py-3">
+                      Roll
+                    </th>
+                    <th className="px-3 py-3">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {student.enrollments.map(
+                    (item) => (
+                      <tr
+                        key={item.id}
+                        className="border-b border-[#f0f2f5] last:border-0"
+                      >
+                        <td className="px-3 py-4 font-semibold text-[#334158]">
+                          {value(
+                            item
+                              .academicYear
+                              ?.name,
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 text-[#53647b]">
+                          {value(
+                            item
+                              .program
+                              ?.name,
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 text-[#53647b]">
+                          {value(
+                            item
+                              .semester
+                              ?.name,
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 text-[#53647b]">
+                          {value(
+                            item
+                              .section
+                              ?.name,
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 text-[#53647b]">
+                          {value(
+                            item.rollNumber,
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4">
+                          <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-black text-[#2864e8]">
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ),
                   )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-[#7c8ca0]">
+              No academic enrollment history is available.
+            </p>
+          )}
+        </Section>
       </main>
     </DashboardShell>
   );
