@@ -1,30 +1,36 @@
-import type { CanonicalRole } from "@/lib/authorization";
-import { normalizeRole } from "@/lib/authorization";
+import type { AuthUser } from "@/lib/auth";
 import {
+  normalizeRole,
+  type CanonicalRole,
+} from "@/lib/authorization";
+import {
+  canAccessRoute,
   navigationForRole,
   workspaceHome,
 } from "@/lib/navigation";
 
-/**
- * Compatibility adapter.
- *
- * There is intentionally no independent route table here anymore.
- * All route ownership comes from lib/navigation.ts.
- */
+function matchesRoute(
+  pathname: string,
+  route: string,
+): boolean {
+  return (
+    pathname === route ||
+    pathname.startsWith(
+      `${route}/`,
+    )
+  );
+}
 
 export function getAllowedRoutes(
   role: string,
 ): readonly string[] {
   const canonical =
-    normalizeRole(
-      role,
-    ) as CanonicalRole;
+    normalizeRole(role);
 
   return navigationForRole(
     canonical,
   ).map(
-    (item) =>
-      item.href,
+    (item) => item.href,
   );
 }
 
@@ -36,9 +42,9 @@ export function isRouteInWorkspace(
     role,
   ).some(
     (route) =>
-      pathname === route ||
-      pathname.startsWith(
-        `${route}/`,
+      matchesRoute(
+        pathname,
+        route,
       ),
   );
 }
@@ -46,16 +52,9 @@ export function isRouteInWorkspace(
 export function getWorkspaceHome(
   role: string,
 ): string {
-  const canonical =
-    normalizeRole(
-      role,
-    ) as CanonicalRole;
-
-  return (
-    workspaceHome([
-      canonical,
-    ]) || "/login"
-  );
+  return workspaceHome([
+    normalizeRole(role),
+  ]);
 }
 
 export function roleOwnsRoute(
@@ -65,5 +64,30 @@ export function roleOwnsRoute(
   return isRouteInWorkspace(
     role,
     pathname,
+  );
+}
+
+export function canRoleAccessRoute(
+  user: AuthUser,
+  role: string,
+  pathname: string,
+): boolean {
+  const canonical =
+    normalizeRole(
+      role,
+    ) as CanonicalRole;
+
+  return (
+    user.roles.some(
+      (userRole) =>
+        normalizeRole(
+          userRole,
+        ) === canonical,
+    ) &&
+    canAccessRoute(
+      user,
+      pathname,
+      [canonical],
+    )
   );
 }
