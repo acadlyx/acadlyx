@@ -25,7 +25,7 @@ type PeopleCard = {
   description: string;
   href: string;
   module: keyof AdminWorkspace["modules"];
-  icon: string;
+  code: string;
 };
 
 const PEOPLE_CARDS: PeopleCard[] = [
@@ -33,62 +33,113 @@ const PEOPLE_CARDS: PeopleCard[] = [
     key: "students",
     title: "Students",
     description:
-      "Student master records, academic enrolments, guardians, parent links and complete student profiles.",
+      "Student records, enrolments, guardians, parent relationships and academic information.",
     href: "/students",
     module: "students",
-    icon: "ST",
+    code: "ST",
   },
   {
     key: "faculty",
     title: "Faculty",
     description:
-      "Teaching staff, account details, contact information and faculty records.",
+      "Teaching staff records, contact information, accounts and professional details.",
     href: "/user-management?category=faculty",
     module: "users",
-    icon: "FC",
+    code: "FC",
   },
   {
     key: "administrators",
     title: "Administrators",
     description:
-      "Institution administration accounts and their account status.",
+      "Institution administration accounts, access status and user information.",
     href: "/user-management?category=administrators",
     module: "users",
-    icon: "AD",
+    code: "AD",
   },
   {
     key: "leadership",
     title: "Leadership",
     description:
-      "Chairman, director, dean, registrar and HOD records.",
+      "Leadership records including directors, deans, registrars and department heads.",
     href: "/user-management?category=leadership",
     module: "users",
-    icon: "LD",
+    code: "LD",
   },
   {
     key: "operations",
     title: "Operations",
     description:
-      "Accounts, HR, admissions, examination, library, placement and IT users.",
+      "Operational staff and institution users organised by their working responsibility.",
     href: "/user-management?category=operations",
     module: "users",
-    icon: "OP",
+    code: "OP",
   },
   {
     key: "parents",
     title: "Parents",
     description:
-      "Parent accounts and their relationships with students.",
+      "Parent accounts, linked students and relationship information.",
     href: "/user-management?category=parents",
     module: "parentLinks",
-    icon: "PR",
+    code: "PR",
   },
 ];
 
-function formatNumber(value: number | undefined) {
-  return new Intl.NumberFormat(
-    "en-IN",
-  ).format(value ?? 0);
+function formatNumber(value: number | undefined): string {
+  return new Intl.NumberFormat("en-IN").format(
+    value ?? 0,
+  );
+}
+
+function StatBlock({
+  label,
+  value,
+  code,
+}: {
+  label: string;
+  value: number | undefined;
+  code: string;
+}) {
+  return (
+    <div className="border border-[#d8cdbb] bg-[#fbf8f1] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#897d6d]">
+          {label}
+        </span>
+
+        <span className="text-[10px] font-black tracking-[0.12em] text-[#a58b65]">
+          {code}
+        </span>
+      </div>
+
+      <p className="mt-3 text-2xl font-black tracking-[-0.04em] text-[#29251f]">
+        {formatNumber(value)}
+      </p>
+    </div>
+  );
+}
+
+function PeopleCardSkeleton({
+  index,
+}: {
+  index: number;
+}) {
+  return (
+    <div
+      key={index}
+      className="border border-[#d8cdbb] bg-[#fbf8f1] p-5"
+    >
+      <div className="h-10 w-10 animate-pulse bg-[#e8dfd1]" />
+
+      <div className="mt-5 h-5 w-32 animate-pulse bg-[#e8dfd1]" />
+
+      <div className="mt-3 h-4 w-full animate-pulse bg-[#e8dfd1]" />
+
+      <div className="mt-2 h-4 w-4/5 animate-pulse bg-[#e8dfd1]" />
+
+      <div className="mt-6 h-3 w-24 animate-pulse bg-[#e8dfd1]" />
+    </div>
+  );
 }
 
 export function PeopleLanding() {
@@ -101,49 +152,44 @@ export function PeopleLanding() {
   const [error, setError] =
     useState("");
 
-  const load = useCallback(
-    async () => {
-      setLoading(true);
-      setError("");
+  const load = useCallback(async () => {
+    setError("");
 
-      try {
-        const user =
-          await getCurrentUser();
+    try {
+      const user = await getCurrentUser();
 
-        if (
-          !user.roles.includes(
-            "INSTITUTION_ADMIN",
-          )
-        ) {
-          setError(
-            "This workspace is not available for the current account.",
-          );
-          return;
-        }
-
-        const data =
-          await getAdminWorkspace();
-
-        setWorkspace(data);
-      } catch (reason) {
-        if (
-          reason instanceof
-          AuthRequiredError
-        ) {
-          return;
-        }
-
+      if (
+        !user.roles.includes(
+          "INSTITUTION_ADMIN",
+        )
+      ) {
         setError(
-          reason instanceof Error
-            ? reason.message
-            : "Unable to load People.",
+          "This workspace is not available for the current account.",
         );
-      } finally {
-        setLoading(false);
+        return;
       }
-    },
-    [],
-  );
+
+      const data =
+        await getAdminWorkspace();
+
+      setWorkspace(data);
+    } catch (reason) {
+      if (
+        reason instanceof
+        AuthRequiredError
+      ) {
+        return;
+      }
+
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to load People.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void load();
@@ -155,8 +201,7 @@ export function PeopleLanding() {
   const cards =
     PEOPLE_CARDS.filter(
       (card) =>
-        modules?.[card.module] ===
-        true,
+        modules?.[card.module] === true,
     );
 
   return (
@@ -167,136 +212,203 @@ export function PeopleLanding() {
         "INSTITUTION_ADMIN",
       ]}
     >
-      <main className="mx-auto max-w-[1320px] space-y-6 pb-12">
-        <section className="rounded-[30px] border border-[#dce5f0] bg-[#f7faff] p-6 shadow-[0_14px_40px_rgba(31,55,90,0.05)] sm:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <span className="inline-flex rounded-full border border-[#d7e4f7] bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[#2864e8]">
-                People directory
-              </span>
+      <main className="min-h-full bg-[#eee6d8] px-4 py-5 text-[#29251f] sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1400px]">
+          {/* PAGE HEADER */}
+          <section className="border border-[#d2c5b3] bg-[#f8f4eb]">
+            <div className="flex flex-col border-b border-[#d2c5b3] px-5 py-6 sm:px-7 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="border border-[#bca989] bg-[#eee3d0] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#705a3b]">
+                    People
+                  </span>
 
-              <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] text-[#152238] sm:text-4xl">
-                Manage people by responsibility.
-              </h1>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8d7b]">
+                    Institution administration
+                  </span>
+                </div>
 
-              <p className="mt-3 text-sm leading-6 text-[#6f8097] sm:text-[15px]">
-                Start with a people category instead
-                of browsing one large undifferentiated
-                institution user list.
-              </p>
-            </div>
+                <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] text-[#29251f] sm:text-4xl">
+                  People directory
+                </h1>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div className="rounded-2xl border border-[#dce5f0] bg-white px-4 py-3">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#94a2b5]">
-                  People
-                </p>
-                <p className="mt-1 text-xl font-black text-[#172033]">
-                  {formatNumber(
-                    workspace?.stats.users,
-                  )}
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#746a5c]">
+                  Manage people through their institution
+                  responsibility instead of one large
+                  undifferentiated user list.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-[#dce5f0] bg-white px-4 py-3">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#94a2b5]">
-                  Students
-                </p>
-                <p className="mt-1 text-xl font-black text-[#172033]">
-                  {formatNumber(
-                    workspace?.stats.students,
-                  )}
-                </p>
-              </div>
+              <div className="mt-5 flex items-center gap-2 lg:mt-0">
+                <div className="border border-[#d2c5b3] bg-[#eee6d8] px-3 py-2">
+                  <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#897d6d]">
+                    Workspace
+                  </span>
 
-              <div className="rounded-2xl border border-[#dce5f0] bg-white px-4 py-3 col-span-2 sm:col-span-1">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#94a2b5]">
-                  Faculty
-                </p>
-                <p className="mt-1 text-xl font-black text-[#172033]">
-                  {formatNumber(
-                    workspace?.stats.faculty,
-                  )}
-                </p>
+                  <p className="mt-1 text-xs font-black text-[#40382e]">
+                    Institution Admin
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
 
-        {error ? (
-          <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-            {error}
+            {/* SUMMARY STRIP */}
+            <div className="grid grid-cols-1 border-t-0 sm:grid-cols-3">
+              <StatBlock
+                label="People"
+                value={
+                  workspace?.stats.users
+                }
+                code="ALL"
+              />
+
+              <StatBlock
+                label="Students"
+                value={
+                  workspace?.stats.students
+                }
+                code="ST"
+              />
+
+              <StatBlock
+                label="Faculty"
+                value={
+                  workspace?.stats.faculty
+                }
+                code="FC"
+              />
+            </div>
           </section>
-        ) : null}
 
-        <section>
-          <div className="mb-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2864e8]">
-              People categories
-            </p>
+          {/* ERROR */}
+          {error ? (
+            <section className="mt-5 border border-[#d5bfa0] bg-[#f8efe1] px-5 py-4">
+              <div className="flex gap-3">
+                <div className="mt-0.5 h-5 w-5 shrink-0 border border-[#a8885f] bg-[#ead9bd] text-center text-[10px] font-black leading-5 text-[#634e31]">
+                  !
+                </div>
 
-            <h2 className="mt-1 text-2xl font-black tracking-[-0.03em] text-[#172033]">
-              Institution directory
-            </h2>
-          </div>
-
-          {loading ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map(
-                (item) => (
-                  <div
-                    key={item}
-                    className="h-[190px] animate-pulse rounded-[26px] border border-[#e1e8f0] bg-white"
-                  />
-                ),
-              )}
-            </div>
-          ) : cards.length === 0 ? (
-            <section className="rounded-[26px] border border-[#dfe7ef] bg-white p-8 text-center">
-              <h3 className="font-black text-[#172033]">
-                No people modules are enabled
-              </h3>
-
-              <p className="mt-2 text-sm text-[#77879b]">
-                The available People categories are
-                determined by the authenticated account's
-                backend capabilities.
-              </p>
-            </section>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {cards.map((card) => (
-                <Link
-                  key={card.key}
-                  href={card.href}
-                  className="group rounded-[26px] border border-[#dfe7ef] bg-white p-5 shadow-[0_8px_28px_rgba(25,45,75,0.035)] transition hover:-translate-y-1 hover:border-[#cbd9ed] hover:shadow-[0_18px_38px_rgba(25,45,75,0.08)]"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="grid h-12 w-12 place-items-center rounded-[17px] bg-[#edf3ff] text-xs font-black tracking-[0.08em] text-[#2864e8]">
-                      {card.icon}
-                    </div>
-
-                    <span className="text-xl text-[#bdc8d6] transition group-hover:translate-x-1 group-hover:text-[#2864e8]">
-                      →
-                    </span>
-                  </div>
-
-                  <h3 className="mt-5 text-lg font-black text-[#1b2940]">
-                    {card.title}
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-6 text-[#74859a]">
-                    {card.description}
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#634e31]">
+                    Workspace information
                   </p>
 
-                  <div className="mt-5 text-xs font-black uppercase tracking-[0.15em] text-[#2864e8]">
-                    Open category
-                  </div>
-                </Link>
-              ))}
+                  <p className="mt-1 text-sm text-[#776652]">
+                    {error}
+                  </p>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {/* CATEGORY HEADER */}
+          <section className="mt-8">
+            <div className="mb-4 flex flex-col gap-2 border-b border-[#d2c5b3] pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#9a7650]">
+                  Directory
+                </p>
+
+                <h2 className="mt-1 text-xl font-black tracking-[-0.025em] text-[#29251f]">
+                  People categories
+                </h2>
+              </div>
+
+              <p className="text-xs text-[#897d6d]">
+                Select a category to continue
+              </p>
             </div>
-          )}
-        </section>
+
+            {/* LOADING */}
+            {loading ? (
+              <div className="grid gap-px border border-[#d2c5b3] bg-[#d2c5b3] md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                ].map((item) => (
+                  <PeopleCardSkeleton
+                    key={item}
+                    index={item}
+                  />
+                ))}
+              </div>
+            ) : cards.length === 0 ? (
+              <section className="border border-[#d2c5b3] bg-[#f8f4eb] p-8">
+                <div className="max-w-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#9a7650]">
+                    Directory
+                  </p>
+
+                  <h3 className="mt-2 text-xl font-black text-[#29251f]">
+                    No People categories available
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-[#746a5c]">
+                    Available People categories are
+                    determined by the capabilities of the
+                    authenticated institution account.
+                  </p>
+                </div>
+              </section>
+            ) : (
+              <div className="grid gap-px border border-[#d2c5b3] bg-[#d2c5b3] md:grid-cols-2 xl:grid-cols-3">
+                {cards.map((card) => (
+                  <Link
+                    key={card.key}
+                    href={card.href}
+                    className="group min-h-[215px] bg-[#fbf8f1] p-5 transition-colors hover:bg-[#f4ede1]"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="grid h-11 w-11 place-items-center border border-[#c9b99f] bg-[#eee3d0] text-[11px] font-black tracking-[0.08em] text-[#705a3b]">
+                        {card.code}
+                      </div>
+
+                      <span className="border border-transparent px-2 py-1 text-sm font-black text-[#9b8b76] transition-colors group-hover:border-[#c9b99f] group-hover:bg-[#eee3d0] group-hover:text-[#604d32]">
+                        →
+                      </span>
+                    </div>
+
+                    <h3 className="mt-6 text-lg font-black tracking-[-0.025em] text-[#29251f]">
+                      {card.title}
+                    </h3>
+
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b5c]">
+                      {card.description}
+                    </p>
+
+                    <div className="mt-7 flex items-center justify-between border-t border-[#e0d6c8] pt-3">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[#8c7453]">
+                        Open category
+                      </span>
+
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#a29583]">
+                        {card.code}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* FOOTER INFORMATION */}
+          <section className="mt-6 border border-[#d2c5b3] bg-[#e7ddcd] px-5 py-4 sm:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-semibold text-[#6f6455]">
+                People are organised by responsibility to
+                keep administration workflows clear.
+              </p>
+
+              <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#927c5e]">
+                ACADLYX ERP
+              </span>
+            </div>
+          </section>
+        </div>
       </main>
     </DashboardShell>
   );
