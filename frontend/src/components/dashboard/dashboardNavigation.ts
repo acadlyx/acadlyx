@@ -1,11 +1,8 @@
 import type { CanonicalRole } from "@/lib/authorization";
-
 import {
-  NAVIGATION,
   navigationForRole,
-  primaryRole,
+  primaryRole as primaryNavigationRole,
   ROLE_LABELS,
-  workspaceHome,
 } from "@/lib/navigation";
 
 export interface NavigationItem {
@@ -51,6 +48,31 @@ export const ROLE_PRIORITY: CanonicalRole[] = [
   "CLUB_PRESIDENT",
 ];
 
+const HOME_BY_ROLE: Record<
+  CanonicalRole,
+  string
+> = {
+  SUPER_ADMIN: "/superadmin",
+  INSTITUTION_ADMIN: "/admin",
+  CHAIRMAN: "/chairman",
+  DIRECTOR: "/director",
+  DEAN: "/dean",
+  REGISTRAR: "/registrar",
+  HOD: "/hod",
+  FACULTY: "/faculty",
+  ACCOUNTS: "/accounts",
+  HR: "/hr",
+  ADMISSIONS: "/admissions",
+  EXAMINATION: "/examinations",
+  LIBRARIAN: "/library",
+  PLACEMENT: "/placements",
+  IT: "/it",
+  CMS: "/site-content",
+  STUDENT: "/student",
+  PARENT: "/parent",
+  CLUB_PRESIDENT: "/club-president",
+};
+
 export const WORKSPACE_META: Record<
   CanonicalRole,
   WorkspaceMeta
@@ -62,7 +84,7 @@ export const WORKSPACE_META: Record<
       "Institutions, platform administration and security",
     eyebrow:
       "Platform administration",
-    home: "/superadmin",
+    home: HOME_BY_ROLE.SUPER_ADMIN,
   },
 
   INSTITUTION_ADMIN: {
@@ -72,7 +94,8 @@ export const WORKSPACE_META: Record<
       "Institution setup, users and academic administration",
     eyebrow:
       "Institution administration",
-    home: "/admin",
+    home:
+      HOME_BY_ROLE.INSTITUTION_ADMIN,
   },
 
   CHAIRMAN: {
@@ -82,7 +105,7 @@ export const WORKSPACE_META: Record<
       "Institution-wide oversight and strategic visibility",
     eyebrow:
       "Management oversight",
-    home: "/chairman",
+    home: HOME_BY_ROLE.CHAIRMAN,
   },
 
   DIRECTOR: {
@@ -92,7 +115,7 @@ export const WORKSPACE_META: Record<
       "Institution-wide academic and operational oversight",
     eyebrow:
       "Institution leadership",
-    home: "/director",
+    home: HOME_BY_ROLE.DIRECTOR,
   },
 
   DEAN: {
@@ -102,7 +125,7 @@ export const WORKSPACE_META: Record<
       "School-level academic leadership and performance",
     eyebrow:
       "Academic leadership",
-    home: "/dean",
+    home: HOME_BY_ROLE.DEAN,
   },
 
   REGISTRAR: {
@@ -112,7 +135,7 @@ export const WORKSPACE_META: Record<
       "Official student and academic lifecycle management",
     eyebrow:
       "Student lifecycle",
-    home: "/registrar",
+    home: HOME_BY_ROLE.REGISTRAR,
   },
 
   HOD: {
@@ -122,7 +145,7 @@ export const WORKSPACE_META: Record<
       "Department operations, faculty and academic review",
     eyebrow:
       "Department leadership",
-    home: "/hod",
+    home: HOME_BY_ROLE.HOD,
   },
 
   FACULTY: {
@@ -132,7 +155,7 @@ export const WORKSPACE_META: Record<
       "Your assigned classes, attendance and assessment work",
     eyebrow:
       "Teaching workspace",
-    home: "/faculty",
+    home: HOME_BY_ROLE.FACULTY,
   },
 
   ACCOUNTS: {
@@ -142,7 +165,7 @@ export const WORKSPACE_META: Record<
       "Fees, invoices, collections and financial operations",
     eyebrow:
       "Finance operations",
-    home: "/accounts",
+    home: HOME_BY_ROLE.ACCOUNTS,
   },
 
   HR: {
@@ -152,7 +175,7 @@ export const WORKSPACE_META: Record<
       "Employees, leave and people administration",
     eyebrow:
       "People operations",
-    home: "/hr",
+    home: HOME_BY_ROLE.HR,
   },
 
   ADMISSIONS: {
@@ -162,7 +185,7 @@ export const WORKSPACE_META: Record<
       "Enquiries, applications, verification and admission",
     eyebrow:
       "Admissions operations",
-    home: "/admissions",
+    home: HOME_BY_ROLE.ADMISSIONS,
   },
 
   EXAMINATION: {
@@ -172,7 +195,7 @@ export const WORKSPACE_META: Record<
       "Examination scheduling, marks and result publication",
     eyebrow:
       "Examination operations",
-    home: "/examinations",
+    home: HOME_BY_ROLE.EXAMINATION,
   },
 
   LIBRARIAN: {
@@ -182,7 +205,7 @@ export const WORKSPACE_META: Record<
       "Catalogue, circulation, reservations and fines",
     eyebrow:
       "Library operations",
-    home: "/library",
+    home: HOME_BY_ROLE.LIBRARIAN,
   },
 
   PLACEMENT: {
@@ -192,7 +215,7 @@ export const WORKSPACE_META: Record<
       "Companies, drives, eligibility and placements",
     eyebrow:
       "Placement operations",
-    home: "/placements",
+    home: HOME_BY_ROLE.PLACEMENT,
   },
 
   IT: {
@@ -202,7 +225,7 @@ export const WORKSPACE_META: Record<
       "Technical operations, integrations and platform support",
     eyebrow:
       "Technology operations",
-    home: "/it",
+    home: HOME_BY_ROLE.IT,
   },
 
   CMS: {
@@ -212,7 +235,7 @@ export const WORKSPACE_META: Record<
       "Public website content and publishing",
     eyebrow:
       "Website management",
-    home: "/site-content",
+    home: HOME_BY_ROLE.CMS,
   },
 
   STUDENT: {
@@ -222,7 +245,7 @@ export const WORKSPACE_META: Record<
       "Your classes, progress, services and academic actions",
     eyebrow:
       "Student self-service",
-    home: "/student",
+    home: HOME_BY_ROLE.STUDENT,
   },
 
   PARENT: {
@@ -232,7 +255,7 @@ export const WORKSPACE_META: Record<
       "Your linked children, academic progress and communication",
     eyebrow:
       "Family self-service",
-    home: "/parent",
+    home: HOME_BY_ROLE.PARENT,
   },
 
   CLUB_PRESIDENT: {
@@ -242,9 +265,25 @@ export const WORKSPACE_META: Record<
       "Activities and events for your assigned student club",
     eyebrow:
       "Student club responsibility",
-    home: "/club-president",
+    home: HOME_BY_ROLE.CLUB_PRESIDENT,
   },
 };
+
+function toNavigationItem(
+  item: ReturnType<
+    typeof navigationForRole
+  >[number],
+): NavigationItem {
+  return {
+    label: item.label,
+    description:
+      `Open ${item.label.toLowerCase()}.`,
+    href: item.href,
+    icon: item.icon,
+    permissions:
+      item.permissions,
+  };
+}
 
 function toGroups(
   role: CanonicalRole,
@@ -255,34 +294,30 @@ function toGroups(
       NavigationItem[]
     >();
 
-  for (const entry of navigationForRole(
-    role,
-  )) {
-    const mapped: NavigationItem = {
-      label: entry.label,
-      description:
-        entry.description ||
-        `${entry.label} workspace`,
-      href: entry.href,
-      icon: entry.icon,
-      permissions:
-        entry.permissions
-          ? [...entry.permissions]
-          : undefined,
-    };
+  for (
+    const item of navigationForRole(role)
+  ) {
+    const group =
+      item.group ||
+      "Workspace";
+
+    const current =
+      groups.get(group) ||
+      [];
+
+    current.push(
+      toNavigationItem(item),
+    );
 
     groups.set(
-      entry.group,
-      [
-        ...(groups.get(
-          entry.group,
-        ) || []),
-        mapped,
-      ],
+      group,
+      current,
     );
   }
 
-  return [...groups.entries()].map(
+  return Array.from(
+    groups.entries(),
+  ).map(
     ([label, items]) => ({
       label,
       items,
@@ -306,13 +341,9 @@ export const ROLE_NAVIGATION =
 export function getPrimaryRole(
   roles: CanonicalRole[],
 ): CanonicalRole {
-  return primaryRole(
+  return primaryNavigationRole(
     roles,
   ) as CanonicalRole;
 }
 
-export {
-  NAVIGATION,
-  ROLE_LABELS,
-  workspaceHome,
-};
+export { ROLE_LABELS };
