@@ -1,3 +1,5 @@
-import { UserLifecycleManager } from "@/components/dashboard/UserLifecycleManager";
+import { PeopleLanding } from "@/components/dashboard/PeopleLanding";
 
-export default function Page() { return <UserLifecycleManager />; }
+export default function UserManagementPage() {
+  return <PeopleLanding />;
+}
