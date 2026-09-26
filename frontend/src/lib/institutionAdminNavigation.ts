@@ -1,8 +1,7 @@
 import type { AuthUser } from "./auth";
-
 import {
-  canUseNavigationItem,
-  navigationForRole,
+  canAccessRoute,
+  navigationForUser,
 } from "./navigation";
 
 export type InstitutionAdminNavItem = {
@@ -15,28 +14,16 @@ export type InstitutionAdminNavItem = {
 };
 
 /**
- * Compatibility adapter.
+ * Compatibility adapter only.
  *
- * Institution Admin navigation is no longer maintained separately.
- * The canonical registry lives in navigation.ts.
+ * Institution Admin navigation is owned exclusively by:
+ *
+ *   src/lib/navigation.ts
+ *
+ * This file deliberately contains no second navigation catalogue.
  */
-
-export const INSTITUTION_ADMIN_NAVIGATION =
-  navigationForRole(
-    "INSTITUTION_ADMIN",
-  ).map(
-    (item) => ({
-      label: item.label,
-      href: item.href,
-      icon: item.icon,
-      group: item.group,
-      permission:
-        item.permissions?.[0],
-      description:
-        item.description ||
-        `${item.label} workspace`,
-    }),
-  );
+export const INSTITUTION_ADMIN_NAVIGATION: readonly InstitutionAdminNavItem[] =
+  [];
 
 export function getInstitutionAdminNavigation(
   user:
@@ -45,35 +32,28 @@ export function getInstitutionAdminNavigation(
     | undefined,
 ): InstitutionAdminNavItem[] {
   if (!user) {
-    return INSTITUTION_ADMIN_NAVIGATION.filter(
-      (item) =>
-        !item.permission,
-    );
+    return [];
   }
 
-  return navigationForRole(
-    "INSTITUTION_ADMIN",
-  )
+  return navigationForUser(user)
     .filter(
       (item) =>
-        canUseNavigationItem(
-          user,
-          item,
+        item.roles.includes(
+          "INSTITUTION_ADMIN",
         ),
     )
-    .map(
-      (item) => ({
-        label: item.label,
-        href: item.href,
-        icon: item.icon,
-        group: item.group,
-        permission:
-          item.permissions?.[0],
-        description:
-          item.description ||
-          `${item.label} workspace`,
-      }),
-    );
+    .map((item) => ({
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      group:
+        item.group ||
+        "Workspace",
+      permission:
+        item.permissions?.[0],
+      description:
+        `Open ${item.label.toLowerCase()}.`,
+    }));
 }
 
 export function institutionAdminRouteAllowed(
@@ -83,27 +63,18 @@ export function institutionAdminRouteAllowed(
     | undefined,
   pathname: string,
 ): boolean {
-  if (!user) {
+  if (
+    !user ||
+    !user.roles.includes(
+      "INSTITUTION_ADMIN",
+    )
+  ) {
     return false;
   }
 
-  if (
-    pathname ===
-      "/account-security" ||
-    pathname.startsWith(
-      "/account-security/",
-    )
-  ) {
-    return true;
-  }
-
-  return getInstitutionAdminNavigation(
+  return canAccessRoute(
     user,
-  ).some(
-    (item) =>
-      pathname === item.href ||
-      pathname.startsWith(
-        `${item.href}/`,
-      ),
+    pathname,
+    ["INSTITUTION_ADMIN"],
   );
 }
