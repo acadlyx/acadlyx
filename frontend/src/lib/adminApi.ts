@@ -94,14 +94,30 @@ export interface AdminUserPhotoResponse {
   url: string;
 }
 
+export interface MyProfilePhotoResponse {
+  userId?: string;
+  url: string;
+}
+
+/**
+ * Institution Admin workspace.
+ *
+ * This uses the dedicated authenticated ERP workspace endpoint.
+ * It does not use the generic ERP workspace endpoint because
+ * that endpoint has different capability requirements.
+ */
 export async function getAdminWorkspace(): Promise<AdminWorkspace> {
-  const response = await authedFetch<
-    ApiEnvelope<AdminWorkspace>
-  >("/erp/me/workspace");
+  const response =
+    await authedFetch<ApiEnvelope<AdminWorkspace>>(
+      "/erp/me/workspace",
+    );
 
   return response.data;
 }
 
+/**
+ * List users belonging to the authenticated institution.
+ */
 export async function listAdminUsers(
   options?: {
     role?: string;
@@ -146,26 +162,28 @@ export async function listAdminUsers(
   return response.data.items || [];
 }
 
+/**
+ * Get one institution user.
+ */
 export async function getAdminUser(
   id: string,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}`,
+    await authedFetch<ApiEnvelope<AdminUser>>(
+      `/users/${encodeURIComponent(id)}`,
     );
 
   return response.data;
 }
 
+/**
+ * Create a user inside the authenticated institution.
+ */
 export async function createAdminUser(
   input: CreateAdminUserInput,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
+    await authedFetch<ApiEnvelope<AdminUser>>(
       "/users",
       {
         method: "POST",
@@ -176,6 +194,9 @@ export async function createAdminUser(
   return response.data;
 }
 
+/**
+ * Update institution user details.
+ */
 export async function updateAdminUser(
   id: string,
   input: Partial<{
@@ -188,10 +209,8 @@ export async function updateAdminUser(
   }>,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}`,
+    await authedFetch<ApiEnvelope<AdminUser>>(
+      `/users/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
         body: JSON.stringify(input),
@@ -201,15 +220,16 @@ export async function updateAdminUser(
   return response.data;
 }
 
+/**
+ * Activate or deactivate an institution user.
+ */
 export async function setAdminUserActive(
   id: string,
   isActive: boolean,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
-      ApiEnvelope<AdminUser>
-    >(
-      `/users/${id}/status`,
+    await authedFetch<ApiEnvelope<AdminUser>>(
+      `/users/${encodeURIComponent(id)}/status`,
       {
         method: "PATCH",
         body: JSON.stringify({
@@ -221,6 +241,9 @@ export async function setAdminUserActive(
   return response.data;
 }
 
+/**
+ * Batch profile-photo lookup for institution users.
+ */
 export async function getAdminUserPhotos(
   ids: string[],
 ): Promise<Record<string, string | null>> {
@@ -230,9 +253,7 @@ export async function getAdminUserPhotos(
 
   const response =
     await authedFetch<
-      ApiEnvelope<
-        Record<string, string | null>
-      >
+      ApiEnvelope<Record<string, string | null>>
     >(
       `/users/photos?ids=${encodeURIComponent(
         ids.join(","),
@@ -242,15 +263,42 @@ export async function getAdminUserPhotos(
   return response.data;
 }
 
+/**
+ * Upload an institution user's profile photo.
+ */
 export async function uploadAdminUserPhoto(
   id: string,
   dataUrl: string,
 ): Promise<AdminUserPhotoResponse> {
   const response =
-    await authedFetch<
-      ApiEnvelope<AdminUserPhotoResponse>
-    >(
-      `/users/${id}/photo`,
+    await authedFetch<ApiEnvelope<AdminUserPhotoResponse>>(
+      `/users/${encodeURIComponent(id)}/photo`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          dataUrl,
+        }),
+      },
+    );
+
+  return response.data;
+}
+
+/**
+ * Upload the authenticated user's own profile photo.
+ *
+ * Backend endpoint:
+ * POST /auth/account/photo
+ *
+ * Every authenticated user is allowed to update their own
+ * profile picture.
+ */
+export async function uploadMyProfilePhoto(
+  dataUrl: string,
+): Promise<MyProfilePhotoResponse> {
+  const response =
+    await authedFetch<ApiEnvelope<MyProfilePhotoResponse>>(
+      "/auth/account/photo",
       {
         method: "POST",
         body: JSON.stringify({
