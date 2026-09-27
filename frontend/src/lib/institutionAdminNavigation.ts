@@ -1,6 +1,6 @@
 import type { AuthUser } from "@/lib/auth";
 
-export type AdminNavItem = {
+export type InstitutionAdminNavItem = {
   label: string;
   href: string;
   icon: string;
@@ -12,14 +12,13 @@ export type AdminNavItem = {
   delete?: string[];
 };
 
-export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
+export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
   {
     label: "Overview",
     href: "/admin",
     icon: "⌂",
     group: "Workspace",
-    description:
-      "Institution-wide administrative command center.",
+    description: "Institution-wide administrative command center.",
     read: [],
   },
 
@@ -28,8 +27,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/users",
     icon: "♙",
     group: "People",
-    description:
-      "Manage institutional user accounts and access roles.",
+    description: "Manage institutional user accounts and access roles.",
     read: ["users.read"],
     create: ["users.create"],
     update: ["users.update"],
@@ -41,8 +39,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/students",
     icon: "◎",
     group: "People",
-    description:
-      "Manage student master records and enrolments.",
+    description: "Manage student master records and enrolments.",
     read: ["students.read"],
     create: ["students.create"],
     update: ["students.update"],
@@ -52,9 +49,8 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Departments",
     href: "/admin/departments",
     icon: "▦",
-    group: "Academic structure",
-    description:
-      "Manage departments and campus assignment.",
+    group: "Academic Structure",
+    description: "Manage departments and campus assignment.",
     read: ["departments.read"],
     create: ["departments.create"],
     update: ["departments.update"],
@@ -65,9 +61,8 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Programs",
     href: "/admin/programs",
     icon: "◈",
-    group: "Academic structure",
-    description:
-      "Manage programs, levels, duration and ownership.",
+    group: "Academic Structure",
+    description: "Manage programs, levels, duration and ownership.",
     read: ["programs.read"],
     create: ["programs.create"],
     update: ["programs.update"],
@@ -75,12 +70,11 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
-    label: "Academic years",
+    label: "Academic Years",
     href: "/admin/academic-years",
     icon: "◫",
-    group: "Academic structure",
-    description:
-      "Manage academic-year windows and the current year.",
+    group: "Academic Structure",
+    description: "Manage academic-year windows and the current year.",
     read: ["academic-years.read"],
     create: ["academic-years.create"],
     update: ["academic-years.update"],
@@ -90,9 +84,8 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Semesters",
     href: "/admin/semesters",
     icon: "◒",
-    group: "Academic structure",
-    description:
-      "Manage semester definitions under programs and years.",
+    group: "Academic Structure",
+    description: "Manage semester definitions under programs and years.",
     read: ["semesters.read"],
     create: ["semesters.create"],
     update: ["semesters.update"],
@@ -103,9 +96,8 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Sections",
     href: "/admin/sections",
     icon: "⊞",
-    group: "Academic structure",
-    description:
-      "Manage class sections and capacity.",
+    group: "Academic Structure",
+    description: "Manage class sections and capacity.",
     read: ["sections.read"],
     create: ["sections.create"],
     update: ["sections.update"],
@@ -116,9 +108,8 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Courses",
     href: "/admin/courses",
     icon: "▤",
-    group: "Academic structure",
-    description:
-      "Manage the institution course catalogue.",
+    group: "Academic Structure",
+    description: "Manage the institution course catalogue.",
     read: ["courses.read"],
     create: ["courses.create"],
     update: ["courses.update"],
@@ -126,12 +117,11 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
-    label: "Course offerings",
+    label: "Course Offerings",
     href: "/admin/course-offerings",
     icon: "◇",
-    group: "Academic structure",
-    description:
-      "Assign courses to semesters, sections and faculty.",
+    group: "Academic Structure",
+    description: "Assign courses to semesters, sections and faculty.",
     read: ["course-offerings.read"],
     create: ["course-offerings.create"],
     update: ["course-offerings.update"],
@@ -143,8 +133,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/campuses",
     icon: "⌂",
     group: "Institution",
-    description:
-      "Manage institution campuses and addresses.",
+    description: "Manage institution campuses and addresses.",
     read: ["campuses.read"],
     create: ["campuses.create"],
     update: ["campuses.update"],
@@ -156,8 +145,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/notices",
     icon: "◌",
     group: "Institution",
-    description:
-      "Publish, edit and remove institution notices.",
+    description: "Publish, edit and remove institution notices.",
     read: ["notices.read"],
     create: ["notices.manage"],
     update: ["notices.manage"],
@@ -169,8 +157,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/notifications",
     icon: "◉",
     group: "Institution",
-    description:
-      "Send targeted portal notifications to institutional users.",
+    description: "Send targeted portal notifications to institutional users.",
     read: ["notifications.read"],
     create: ["notices.manage"],
   },
@@ -180,8 +167,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/documents",
     icon: "▱",
     group: "Institution",
-    description:
-      "Manage student-facing document records.",
+    description: "Manage student-facing document records.",
     read: ["documents.read"],
     create: ["students.update"],
     delete: ["students.update"],
@@ -192,8 +178,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/calendar",
     icon: "◫",
     group: "Institution",
-    description:
-      "Create and maintain institutional calendar events.",
+    description: "Create and maintain institutional calendar events.",
     read: ["calendar.read"],
     create: ["calendar.manage"],
     update: ["calendar.manage"],
@@ -201,12 +186,11 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
-    label: "Parent links",
+    label: "Parent Links",
     href: "/admin/parent-links",
     icon: "♧",
     group: "Institution",
-    description:
-      "Connect parent accounts with student records.",
+    description: "Connect parent accounts with student records.",
     read: ["parent-links.read"],
     create: ["parent-links.manage"],
     delete: ["parent-links.manage"],
@@ -217,17 +201,10 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     href: "/admin/operations",
     icon: "⚙",
     group: "Institution",
-    description:
-      "Manage facilities, assets and operational requests.",
+    description: "Manage facilities, assets and operational requests.",
     read: ["operations.read"],
-    create: [
-      "operations.manage",
-      "maintenance.raise",
-    ],
-    update: [
-      "operations.manage",
-      "maintenance.raise",
-    ],
+    create: ["operations.manage", "maintenance.raise"],
+    update: ["operations.manage", "maintenance.raise"],
   },
 ];
 
@@ -235,102 +212,17 @@ export function hasAny(
   user: AuthUser | null,
   permissions: string[],
 ): boolean {
-  if (!permissions.length) {
+  if (permissions.length === 0) {
     return true;
   }
 
-  return permissions.some(
-    (permission) =>
-      user?.permissions.includes(
-        permission,
-      ),
+  return permissions.some((permission) =>
+    user?.permissions.includes(permission),
   );
 }
 
-export function canSee(
+export function canSeeInstitutionAdminNav(
   user: AuthUser | null,
-  item: AdminNavItem,
+  item: InstitutionAdminNavItem,
 ): boolean {
-  if (
-    !user?.roles.includes(
-      "INSTITUTION_ADMIN",
-    )
-  ) {
-    return false;
-  }
-
-  return Boolean(
-    hasAny(user, item.read) ||
-      hasAny(
-        user,
-        item.create || [],
-      ) ||
-      hasAny(
-        user,
-        item.update || [],
-      ) ||
-      hasAny(
-        user,
-        item.delete || [],
-      ),
-  );
-}
-
-export function getAdminNavigation(
-  user: AuthUser | null,
-): AdminNavItem[] {
-  return INSTITUTION_ADMIN_NAV.filter(
-    (item) =>
-      canSee(user, item),
-  );
-}
-
-export function findAdminNavItem(
-  pathname: string,
-): AdminNavItem | null {
-  return (
-    INSTITUTION_ADMIN_NAV
-      .filter(
-        (item) =>
-          pathname === item.href ||
-          pathname.startsWith(
-            `${item.href}/`,
-          ),
-      )
-      .sort(
-        (a, b) =>
-          b.href.length -
-          a.href.length,
-      )[0] || null
-  );
-}
-
-export function canAccessAdminPath(
-  user: AuthUser | null,
-  pathname: string,
-): boolean {
-  if (
-    !user?.roles.includes(
-      "INSTITUTION_ADMIN",
-    )
-  ) {
-    return false;
-  }
-
-  if (pathname === "/admin") {
-    return true;
-  }
-
-  const item =
-    findAdminNavItem(
-      pathname,
-    );
-
-  return Boolean(
-    item &&
-      canSee(
-        user,
-        item,
-      ),
-  );
-}
+  if (!user?.roles.includes("INSTITUTION_A_
