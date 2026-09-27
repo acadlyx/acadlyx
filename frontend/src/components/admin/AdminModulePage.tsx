@@ -20,12 +20,6 @@ import {
   type AdminNavItem,
 } from "@/lib/adminNavigation";
 
-const INPUT =
-  "w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50";
-
-const ACTION =
-  "rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-blue-600 disabled:opacity-50";
-
 type Row =
   Record<string, any> & {
     id?: string;
@@ -36,56 +30,94 @@ type Lookup = {
   name?: string;
   code?: string;
   number?: number;
+  programId?: string;
+  academicYearId?: string;
+  semesterId?: string;
+  isActive?: boolean;
+  isCurrent?: boolean;
 };
+
+type FieldType =
+  | "text"
+  | "email"
+  | "password"
+  | "number"
+  | "date"
+  | "datetime-local"
+  | "textarea"
+  | "select"
+  | "checkbox";
 
 type Field = {
   name: string;
   label: string;
-  type?:
-    | "text"
-    | "email"
-    | "password"
-    | "number"
-    | "date"
-    | "datetime-local"
-    | "textarea"
-    | "select"
-    | "checkbox";
+  type?: FieldType;
   required?: boolean;
   source?: string;
   options?: string[];
   hiddenOnEdit?: boolean;
+  colSpan?: 1 | 2;
+};
+
+type Filter = {
+  name: string;
+  label: string;
+  source?: string;
+  options?: string[];
 };
 
 type Resource = {
   title: string;
   description: string;
   endpoint: string;
+
   createEndpoint?: string;
+
   updateEndpoint?: (
     id: string,
   ) => string;
+
   deleteEndpoint?: (
     row: Row,
   ) => string;
+
   deleteMethod?:
     | "DELETE"
     | "PATCH";
+
   deleteBody?: (
     row: Row,
   ) => unknown;
+
   fields: Field[];
+
   columns: string[];
+
+  filters?: Filter[];
+
+  detailFields?: string[];
+
   canCreate?: (
     permissions: string[],
   ) => boolean;
+
   canUpdate?: (
     permissions: string[],
   ) => boolean;
+
   canDelete?: (
     permissions: string[],
   ) => boolean;
 };
+
+const INPUT =
+  "w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-50";
+
+const BUTTON =
+  "rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
+
+const SECONDARY =
+  "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50";
 
 function rowsOf(
   data: any,
@@ -113,7 +145,7 @@ function rowsOf(
   return [];
 }
 
-function show(
+function text(
   value: any,
 ): string {
   if (
@@ -140,16 +172,18 @@ function show(
     return (
       value.name ||
       value.code ||
-      JSON.stringify(value)
+      value.title ||
+      value.email ||
+      "—"
     );
   }
 
   return String(value);
 }
 
-function formatDate(
+function dateText(
   value: any,
-) {
+): string {
   if (!value) {
     return "—";
   }
@@ -176,9 +210,9 @@ function formatDate(
   );
 }
 
-function lookupLabel(
+function labelFor(
   item: Lookup,
-) {
+): string {
   if (
     item.code &&
     item.name
@@ -199,6 +233,117 @@ function lookupLabel(
     item.code ||
     item.id
   );
+}
+
+function displayColumn(
+  column: string,
+): string {
+  return column
+    .replace(
+      /([A-Z])/g,
+      " $1",
+    )
+    .replace(
+      /^./,
+      (value) =>
+        value.toUpperCase(),
+    );
+}
+
+function rowValue(
+  row: Row,
+  key: string,
+): any {
+  const direct =
+    row[key];
+
+  if (
+    direct !==
+    undefined
+  ) {
+    if (
+      key === "role" &&
+      Array.isArray(direct)
+    ) {
+      return (
+        direct[0]?.name ||
+        direct[0] ||
+        "—"
+      );
+    }
+
+    return direct;
+  }
+
+  const aliases: Record<
+    string,
+    string[]
+  > = {
+    department: [
+      "department",
+      "departmentName",
+    ],
+
+    program: [
+      "program",
+      "programName",
+    ],
+
+    academicYear: [
+      "academicYear",
+      "academicYearName",
+    ],
+
+    semester: [
+      "semester",
+      "semesterName",
+    ],
+
+    section: [
+      "section",
+      "sectionName",
+    ],
+
+    course: [
+      "course",
+      "courseName",
+    ],
+
+    role: [
+      "role",
+      "roleName",
+      "roles",
+    ],
+
+    faculty: [
+      "faculty",
+      "facultyName",
+    ],
+
+    parent: [
+      "parent",
+      "parentName",
+    ],
+
+    student: [
+      "student",
+      "studentName",
+    ],
+  };
+
+  for (
+    const alias of
+      aliases[key] || []
+  ) {
+    if (
+      row[alias] !==
+      undefined
+    ) {
+      return row[alias];
+    }
+  }
+
+  return undefined;
 }
 
 const LOOKUPS: Record<
@@ -243,19 +388,74 @@ const LOOKUPS: Record<
 
   assets:
     "/operations/assets?page=1&pageSize=500",
+
+  assetCategories:
+    "/operations/asset-categories",
 };
 
-function control(
-  field: Field,
-  value: any,
+function permission(
+  permissions: string[],
+  value: string,
+) {
+  return permissions.includes(
+    value,
+  );
+}
+
+function canAny(
+  permissions: string[],
+  values: string[],
+) {
+  return values.some(
+    (value) =>
+      permissions.includes(
+        value,
+      ),
+  );
+}
+
+function Header({
+  item,
+}: {
+  item: AdminNavItem;
+}) {
+  return (
+    <section className="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)] sm:p-8">
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-100/60 blur-3xl" />
+
+      <div className="relative">
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">
+          {item.group}
+        </p>
+
+        <h1 className="mt-2 text-3xl font-black tracking-[-0.045em] text-slate-950 sm:text-4xl">
+          {item.label}
+        </h1>
+
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
+          {item.description}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Control({
+  field,
+  value,
+  setValue,
+  lookups,
+}: {
+  field: Field;
+  value: any;
   setValue: (
     value: any,
-  ) => void,
+  ) => void;
   lookups: Record<
     string,
     Lookup[]
-  >,
-) {
+  >;
+}) {
   if (
     field.type ===
     "textarea"
@@ -265,10 +465,11 @@ function control(
         value={value ?? ""}
         onChange={(event) =>
           setValue(
-            event.target.value,
+            event.target
+              .value,
           )
         }
-        className={`${INPUT} min-h-28`}
+        className={`${INPUT} min-h-32 resize-y`}
       />
     );
   }
@@ -278,7 +479,7 @@ function control(
     "checkbox"
   ) {
     return (
-      <label className="flex h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold">
+      <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold">
         <input
           type="checkbox"
           checked={Boolean(
@@ -306,7 +507,8 @@ function control(
         value={value ?? ""}
         onChange={(event) =>
           setValue(
-            event.target.value,
+            event.target
+              .value,
           )
         }
         className={INPUT}
@@ -330,26 +532,25 @@ function control(
           ),
         )}
 
-        {field.source
-          ? lookups[
-              field.source
-            ]?.map(
-              (option) => (
-                <option
-                  key={
-                    option.id
-                  }
-                  value={
-                    option.id
-                  }
-                >
-                  {lookupLabel(
-                    option,
-                  )}
-                </option>
-              ),
-            )
-          : null}
+        {field.source &&
+          lookups[
+            field.source
+          ]?.map(
+            (option) => (
+              <option
+                key={
+                  option.id
+                }
+                value={
+                  option.id
+                }
+              >
+                {labelFor(
+                  option,
+                )}
+              </option>
+            ),
+          )}
       </select>
     );
   }
@@ -363,7 +564,8 @@ function control(
       value={value ?? ""}
       onChange={(event) =>
         setValue(
-          event.target.value,
+          event.target
+            .value,
         )
       }
       className={INPUT}
@@ -380,12 +582,55 @@ function resource(
     endpoint: string,
     fields: Field[],
     columns: string[],
+    filters: Filter[] = [],
+    detailFields = columns,
   ): Resource => ({
     title,
     description,
     endpoint,
     fields,
     columns,
+    filters,
+    detailFields,
+  });
+
+  const crud = (
+    base: string,
+    permissionKey: string,
+  ) => ({
+    updateEndpoint: (
+      id: string,
+    ) =>
+      `${base}/${id}`,
+
+    deleteEndpoint: (
+      row: Row,
+    ) =>
+      `${base}/${row.id}`,
+
+    canCreate: (
+      permissions: string[],
+    ) =>
+      permission(
+        permissions,
+        `${permissionKey}.create`,
+      ),
+
+    canUpdate: (
+      permissions: string[],
+    ) =>
+      permission(
+        permissions,
+        `${permissionKey}.update`,
+      ),
+
+    canDelete: (
+      permissions: string[],
+    ) =>
+      permission(
+        permissions,
+        `${permissionKey}.delete`,
+      ),
   });
 
   const map: Record<
@@ -395,8 +640,8 @@ function resource(
     users: {
       ...R(
         "Institution users",
-        "Manage institutional accounts and access roles.",
-        "/users?page=1&pageSize=200",
+        "Complete institutional account management, roles and account status.",
+        "/users?page=1&pageSize=500",
         [
           {
             name: "firstName",
@@ -421,7 +666,8 @@ function resource(
           },
           {
             name: "password",
-            label: "Temporary password",
+            label:
+              "Temporary password",
             type: "password",
             required: true,
             hiddenOnEdit: true,
@@ -457,11 +703,43 @@ function resource(
           "role",
           "isActive",
         ],
+        [
+          {
+            name: "role",
+            label: "Role",
+            options: [
+              "INSTITUTION_ADMIN",
+              "CHAIRMAN",
+              "DIRECTOR",
+              "DEAN",
+              "REGISTRAR",
+              "HOD",
+              "FACULTY",
+              "ACCOUNTS",
+              "HR",
+              "ADMISSIONS",
+              "EXAMINATION",
+              "LIBRARIAN",
+              "PLACEMENT",
+              "IT",
+              "PARENT",
+            ],
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
       updateEndpoint: (
         id,
-      ) => `/users/${id}`,
+      ) =>
+        `/users/${id}`,
 
       deleteEndpoint: (
         row,
@@ -475,18 +753,27 @@ function resource(
         isActive: false,
       }),
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "users.create",
         ),
 
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "users.update",
         ),
 
-      canDelete: (permissions) =>
-        permissions.includes(
+      canDelete: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "users.delete",
         ),
     },
@@ -494,8 +781,8 @@ function resource(
     departments: {
       ...R(
         "Departments",
-        "Manage departments and their campus assignment.",
-        "/departments?page=1&pageSize=200",
+        "Manage academic departments, campus ownership and status.",
+        "/departments?page=1&pageSize=500",
         [
           {
             name: "name",
@@ -512,6 +799,12 @@ function resource(
             label: "Campus",
             type: "select",
             source: "campuses",
+            required: true,
+          },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
           },
         ],
         [
@@ -520,39 +813,34 @@ function resource(
           "campus",
           "isActive",
         ],
+        [
+          {
+            name: "campusId",
+            label: "Campus",
+            source: "campuses",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/departments/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/departments/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "departments.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "departments.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "departments.delete",
-        ),
+      ...crud(
+        "/departments",
+        "departments",
+      ),
     },
 
     programs: {
       ...R(
         "Programs",
         "Manage programs, levels, duration and department ownership.",
-        "/programs?page=1&pageSize=200",
+        "/programs?page=1&pageSize=500",
         [
           {
             name: "departmentId",
@@ -578,50 +866,53 @@ function resource(
           },
           {
             name: "durationYears",
-            label: "Duration years",
+            label:
+              "Duration years",
             type: "number",
             required: true,
+          },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
           },
         ],
         [
           "name",
           "code",
           "level",
+          "durationYears",
           "department",
+          "isActive",
+        ],
+        [
+          {
+            name: "departmentId",
+            label: "Department",
+            source: "departments",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
         ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/programs/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/programs/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "programs.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "programs.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "programs.delete",
-        ),
+      ...crud(
+        "/programs",
+        "programs",
+      ),
     },
 
     "academic-years": {
       ...R(
         "Academic years",
-        "Manage academic-year boundaries and the current year.",
-        "/academic-years?page=1&pageSize=200",
+        "Manage academic-year windows and the institution's current year.",
+        "/academic-years?page=1&pageSize=500",
         [
           {
             name: "name",
@@ -652,6 +943,16 @@ function resource(
           "endDate",
           "isCurrent",
         ],
+        [
+          {
+            name: "isCurrent",
+            label: "Current",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
       updateEndpoint: (
@@ -659,13 +960,19 @@ function resource(
       ) =>
         `/academic-years/${id}`,
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "academic-years.create",
         ),
 
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "academic-years.update",
         ),
     },
@@ -673,8 +980,8 @@ function resource(
     semesters: {
       ...R(
         "Semesters",
-        "Manage semesters under programs and academic years.",
-        "/semesters?page=1&pageSize=200",
+        "Manage semester definitions under programs and academic years.",
+        "/semesters?page=1&pageSize=500",
         [
           {
             name: "programId",
@@ -711,46 +1018,54 @@ function resource(
             label: "End date",
             type: "date",
           },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
         ],
         [
           "name",
           "number",
           "program",
           "academicYear",
+          "startDate",
+          "endDate",
+          "isActive",
+        ],
+        [
+          {
+            name: "programId",
+            label: "Program",
+            source: "programs",
+          },
+          {
+            name: "academicYearId",
+            label: "Academic year",
+            source: "years",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
         ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/semesters/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/semesters/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "semesters.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "semesters.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "semesters.delete",
-        ),
+      ...crud(
+        "/semesters",
+        "semesters",
+      ),
     },
 
     sections: {
       ...R(
         "Sections",
-        "Manage sections and capacity.",
-        "/sections?page=1&pageSize=200",
+        "Manage class sections, semester assignment and capacity.",
+        "/sections?page=1&pageSize=500",
         [
           {
             name: "semesterId",
@@ -769,6 +1084,11 @@ function resource(
             label: "Capacity",
             type: "number",
           },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
         ],
         [
           "name",
@@ -776,39 +1096,34 @@ function resource(
           "capacity",
           "isActive",
         ],
+        [
+          {
+            name: "semesterId",
+            label: "Semester",
+            source: "semesters",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/sections/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/sections/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "sections.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "sections.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "sections.delete",
-        ),
+      ...crud(
+        "/sections",
+        "sections",
+      ),
     },
 
     courses: {
       ...R(
         "Courses",
-        "Manage the institutional course catalogue.",
-        "/courses?page=1&pageSize=200",
+        "Manage the institutional course catalogue, credits and department ownership.",
+        "/courses?page=1&pageSize=500",
         [
           {
             name: "departmentId",
@@ -838,46 +1153,47 @@ function resource(
             label: "Description",
             type: "textarea",
           },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
         ],
         [
           "code",
           "name",
           "credits",
           "department",
+          "isActive",
+        ],
+        [
+          {
+            name: "departmentId",
+            label: "Department",
+            source: "departments",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
         ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/courses/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/courses/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "courses.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "courses.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "courses.delete",
-        ),
+      ...crud(
+        "/courses",
+        "courses",
+      ),
     },
 
     "course-offerings": {
       ...R(
         "Course offerings",
-        "Assign courses to semesters, sections and faculty.",
-        "/course-offerings?page=1&pageSize=200",
+        "Assign courses to semesters, sections and faculty, with roster access from the same workspace.",
+        "/course-offerings?page=1&pageSize=500",
         [
           {
             name: "courseId",
@@ -906,6 +1222,11 @@ function resource(
             type: "select",
             source: "faculty",
           },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
         ],
         [
           "course",
@@ -914,39 +1235,49 @@ function resource(
           "faculty",
           "isActive",
         ],
+        [
+          {
+            name: "courseId",
+            label: "Course",
+            source: "courses",
+          },
+          {
+            name: "semesterId",
+            label: "Semester",
+            source: "semesters",
+          },
+          {
+            name: "sectionId",
+            label: "Section",
+            source: "sections",
+          },
+          {
+            name: "facultyId",
+            label: "Faculty",
+            source: "faculty",
+          },
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/course-offerings/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/course-offerings/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "course-offerings.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "course-offerings.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "course-offerings.delete",
-        ),
+      ...crud(
+        "/course-offerings",
+        "course-offerings",
+      ),
     },
 
     campuses: {
       ...R(
         "Campuses",
-        "Manage campuses, codes and addresses.",
-        "/campuses?page=1&pageSize=200",
+        "Manage campuses, codes, addresses and activation state.",
+        "/campuses?page=1&pageSize=500",
         [
           {
             name: "name",
@@ -963,6 +1294,11 @@ function resource(
             label: "Address",
             type: "textarea",
           },
+          {
+            name: "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
         ],
         [
           "name",
@@ -970,38 +1306,28 @@ function resource(
           "address",
           "isActive",
         ],
+        [
+          {
+            name: "isActive",
+            label: "Status",
+            options: [
+              "true",
+              "false",
+            ],
+          },
+        ],
       ),
 
-      updateEndpoint: (
-        id,
-      ) =>
-        `/campuses/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/campuses/${row.id}`,
-
-      canCreate: (permissions) =>
-        permissions.includes(
-          "campuses.create",
-        ),
-
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "campuses.update",
-        ),
-
-      canDelete: (permissions) =>
-        permissions.includes(
-          "campuses.delete",
-        ),
+      ...crud(
+        "/campuses",
+        "campuses",
+      ),
     },
 
     notices: {
       ...R(
         "Notices",
-        "Publish, edit and remove institution notices.",
+        "Create, target, publish and retire institution notices.",
         "/erp/notices?includeExpired=true",
         [
           {
@@ -1047,6 +1373,21 @@ function resource(
           "expiresAt",
           "createdAt",
         ],
+        [
+          {
+            name: "audience",
+            label: "Audience",
+            options: [
+              "ALL",
+              "STUDENT",
+              "FACULTY",
+              "PARENT",
+              "STAFF",
+              "HOD",
+              "MANAGEMENT",
+            ],
+          },
+        ],
       ),
 
       updateEndpoint: (
@@ -1059,18 +1400,27 @@ function resource(
       ) =>
         `/erp/notices/${row.id}`,
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "notices.manage",
         ),
 
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "notices.manage",
         ),
 
-      canDelete: (permissions) =>
-        permissions.includes(
+      canDelete: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "notices.manage",
         ),
     },
@@ -1078,8 +1428,8 @@ function resource(
     calendar: {
       ...R(
         "Calendar",
-        "Create and maintain institutional calendar events.",
-        "/calendar/events?page=1&pageSize=200",
+        "Manage institutional events with academic year, audience, type and date controls.",
+        "/calendar/events?page=1&pageSize=500",
         [
           {
             name: "title",
@@ -1126,13 +1476,47 @@ function resource(
               "STAFF",
             ],
           },
+          {
+            name: "academicYearId",
+            label: "Academic year",
+            type: "select",
+            source: "years",
+          },
         ],
         [
           "title",
           "eventType",
+          "audience",
           "startDate",
           "endDate",
-          "audience",
+        ],
+        [
+          {
+            name: "eventType",
+            label: "Type",
+            options: [
+              "HOLIDAY",
+              "EXAM",
+              "EVENT",
+              "DEADLINE",
+              "ACADEMIC",
+            ],
+          },
+          {
+            name: "audience",
+            label: "Audience",
+            options: [
+              "ALL",
+              "STUDENTS",
+              "FACULTY",
+              "STAFF",
+            ],
+          },
+          {
+            name: "academicYearId",
+            label: "Academic year",
+            source: "years",
+          },
         ],
       ),
 
@@ -1146,18 +1530,27 @@ function resource(
       ) =>
         `/calendar/events/${row.id}`,
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "calendar.manage",
         ),
 
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "calendar.manage",
         ),
 
-      canDelete: (permissions) =>
-        permissions.includes(
+      canDelete: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "calendar.manage",
         ),
     },
@@ -1165,7 +1558,7 @@ function resource(
     "parent-links": {
       ...R(
         "Parent links",
-        "Connect parent accounts with student records.",
+        "Connect parent accounts with student records and relationship type.",
         "/erp/parent-links",
         [
           {
@@ -1185,6 +1578,7 @@ function resource(
           {
             name: "relationship",
             label: "Relationship",
+            required: true,
           },
         ],
         [
@@ -1192,6 +1586,18 @@ function resource(
           "student",
           "relationship",
           "createdAt",
+        ],
+        [
+          {
+            name: "parentId",
+            label: "Parent",
+            source: "parents",
+          },
+          {
+            name: "studentId",
+            label: "Student",
+            source: "students",
+          },
         ],
       ),
 
@@ -1203,13 +1609,19 @@ function resource(
       ) =>
         `/erp/parent-links/${row.parentId}/${row.studentId}`,
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "parent-links.manage",
         ),
 
-      canDelete: (permissions) =>
-        permissions.includes(
+      canDelete: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "parent-links.manage",
         ),
     },
@@ -1217,8 +1629,8 @@ function resource(
     notifications: {
       ...R(
         "Notifications",
-        "Send targeted portal notifications. The backend exposes creation, not arbitrary deletion.",
-        "/portal/notifications?page=1&limit=100",
+        "Send targeted notifications and inspect notification history.",
+        "/portal/notifications?page=1&limit=200",
         [
           {
             name: "userId",
@@ -1245,13 +1657,23 @@ function resource(
           "readAt",
           "createdAt",
         ],
+        [
+          {
+            name: "userId",
+            label: "Recipient",
+            source: "users",
+          },
+        ],
       ),
 
       createEndpoint:
         "/portal/notifications",
 
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "notices.manage",
         ),
     },
@@ -1263,29 +1685,106 @@ function resource(
   );
 }
 
-function Header({
-  item,
+function Detail({
+  row,
+  fields,
+  onClose,
 }: {
-  item: AdminNavItem;
+  row: Row;
+  fields: string[];
+  onClose: () => void;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)] sm:p-8">
-      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-100/60 blur-3xl" />
+    <div
+      className="fixed inset-0 z-[110] bg-slate-950/50 p-4 backdrop-blur-sm"
+      onMouseDown={
+        onClose
+      }
+    >
+      <aside
+        className="ml-auto flex h-full max-w-xl flex-col overflow-hidden rounded-[30px] bg-white shadow-2xl"
+        onMouseDown={(
+          event,
+        ) =>
+          event.stopPropagation()
+        }
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 p-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+              Record details
+            </p>
 
-      <div className="relative">
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">
-          {item.group}
-        </p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">
+              {text(
+                row.name ||
+                  row.title ||
+                  row.email ||
+                  row.code ||
+                  row.id,
+              )}
+            </h3>
+          </div>
 
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.045em] text-slate-950 sm:text-4xl">
-          {item.label}
-        </h1>
+          <button
+            className={
+              SECONDARY
+            }
+            onClick={
+              onClose
+            }
+          >
+            Close
+          </button>
+        </div>
 
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-          {item.description}
-        </p>
-      </div>
-    </section>
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid gap-3">
+            {fields.map(
+              (field) => (
+                <div
+                  key={
+                    field
+                  }
+                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    {displayColumn(
+                      field,
+                    )}
+                  </p>
+
+                  <p className="mt-1 break-words text-sm font-bold text-slate-800">
+                    {field
+                      .toLowerCase()
+                      .includes(
+                        "date",
+                      ) ||
+                    field
+                      .toLowerCase()
+                      .endsWith(
+                        "at",
+                      )
+                      ? dateText(
+                          rowValue(
+                            row,
+                            field,
+                          ),
+                        )
+                      : text(
+                          rowValue(
+                            row,
+                            field,
+                          ),
+                        )}
+                  </p>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -1296,39 +1795,81 @@ function ResourceManager({
   def: Resource;
   permissions: string[];
 }) {
-  const [data, setData] =
-    useState<Row[]>([]);
+  const [
+    data,
+    setData,
+  ] = useState<Row[]>(
+    [],
+  );
 
-  const [lookups, setLookups] =
-    useState<
-      Record<
-        string,
-        Lookup[]
-      >
-    >({});
+  const [
+    lookups,
+    setLookups,
+  ] = useState<
+    Record<
+      string,
+      Lookup[]
+    >
+  >({});
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-  const [success, setSuccess] =
-    useState("");
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
 
-  const [open, setOpen] =
-    useState(false);
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
-  const [editing, setEditing] =
-    useState<Row | null>(
-      null,
-    );
+  const [
+    filters,
+    setFilters,
+  ] = useState<
+    Record<
+      string,
+      string
+    >
+  >({});
 
-  const [form, setForm] =
-    useState<Row>({});
+  const [
+    selected,
+    setSelected,
+  ] = useState<Row | null>(
+    null,
+  );
+
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const [
+    editing,
+    setEditing,
+  ] = useState<Row | null>(
+    null,
+  );
+
+  const [
+    form,
+    setForm,
+  ] = useState<Row>({});
 
   const canCreate =
     def.canCreate?.(
@@ -1352,7 +1893,9 @@ function ResourceManager({
           ...new Set(
             def.fields
               .map(
-                (field) =>
+                (
+                  field,
+                ) =>
                   field.source,
               )
               .filter(
@@ -1365,6 +1908,7 @@ function ResourceManager({
 
   async function load() {
     setLoading(true);
+    setError("");
 
     try {
       const response =
@@ -1392,7 +1936,7 @@ function ResourceManager({
   }
 
   async function loadLookups() {
-    const result =
+    const pairs =
       await Promise.all(
         sources.map(
           async (
@@ -1434,34 +1978,125 @@ function ResourceManager({
 
     setLookups(
       Object.fromEntries(
-        result,
+        pairs,
       ),
     );
   }
 
-  useEffect(() => {
-    void Promise.all([
-      load(),
-      loadLookups(),
-    ]);
-  }, [def.endpoint]);
+  useEffect(
+    () => {
+      void Promise.all([
+        load(),
+        loadLookups(),
+      ]);
+    },
+    [def.endpoint],
+  );
 
-  function openCreate() {
-    setEditing(null);
-    setForm({});
-    setError("");
-    setSuccess("");
-    setOpen(true);
-  }
+  const filtered =
+    useMemo(
+      () =>
+        data.filter(
+          (row) => {
+            const query =
+              search
+                .trim()
+                .toLowerCase();
 
-  function openEdit(
+            if (
+              query &&
+              !Object.values(
+                row,
+              ).some(
+                (value) =>
+                  text(
+                    value,
+                  )
+                    .toLowerCase()
+                    .includes(
+                      query,
+                    ),
+              )
+            ) {
+              return false;
+            }
+
+            return Object.entries(
+              filters,
+            ).every(
+              ([
+                key,
+                value,
+              ]) => {
+                if (!value) {
+                  return true;
+                }
+
+                const actual =
+                  rowValue(
+                    row,
+                    key,
+                  );
+
+                if (
+                  value ===
+                    "true" ||
+                  value ===
+                    "false"
+                ) {
+                  return (
+                    String(
+                      Boolean(
+                        actual,
+                      ),
+                    ) ===
+                    value
+                  );
+                }
+
+                if (
+                  typeof actual ===
+                  "object"
+                ) {
+                  return (
+                    String(
+                      actual?.id ||
+                        actual?.code ||
+                        actual?.name ||
+                        "",
+                    ) ===
+                    value
+                  );
+                }
+
+                return (
+                  text(
+                    actual,
+                  ) ===
+                  value
+                );
+              },
+            );
+          },
+        ),
+      [
+        data,
+        search,
+        filters,
+      ],
+    );
+
+  function normalize(
     row: Row,
   ) {
     const next = {
       ...row,
     };
 
-    for (const field of def.fields) {
+    for (
+      const field of
+        def.fields
+    ) {
       if (
         (
           field.type ===
@@ -1469,28 +2104,34 @@ function ResourceManager({
           field.type ===
             "datetime-local"
         ) &&
-        next[field.name]
+        next[
+          field.name
+        ]
       ) {
-        const dateValue =
+        const date =
           new Date(
-            next[field.name],
+            next[
+              field.name
+            ],
           );
 
         if (
           !Number.isNaN(
-            dateValue.getTime(),
+            date.getTime(),
           )
         ) {
-          next[field.name] =
+          next[
+            field.name
+          ] =
             field.type ===
             "datetime-local"
-              ? dateValue
+              ? date
                   .toISOString()
                   .slice(
                     0,
                     16,
                   )
-              : dateValue
+              : date
                   .toISOString()
                   .slice(
                     0,
@@ -1500,16 +2141,24 @@ function ResourceManager({
       }
     }
 
-    setEditing(
-      row,
-    );
+    return next;
+  }
 
-    setForm(
-      next,
-    );
-
+  function openCreate() {
+    setEditing(null);
+    setForm({});
     setError("");
-    setSuccess("");
+    setOpen(true);
+  }
+
+  function openEdit(
+    row: Row,
+  ) {
+    setEditing(row);
+    setForm(
+      normalize(row),
+    );
+    setError("");
     setOpen(true);
   }
 
@@ -1517,10 +2166,13 @@ function ResourceManager({
     const output: Row =
       {};
 
-    for (const field of def.fields) {
+    for (
+      const field of
+        def.fields
+    ) {
       if (
-        field.hiddenOnEdit &&
-        editing
+        editing &&
+        field.hiddenOnEdit
       ) {
         continue;
       }
@@ -1569,6 +2221,24 @@ function ResourceManager({
   ) {
     event.preventDefault();
 
+    for (
+      const field of
+        def.fields
+    ) {
+      if (
+        field.required &&
+        !form[
+          field.name
+        ]
+      ) {
+        setError(
+          `${field.label} is required.`,
+        );
+
+        return;
+      }
+    }
+
     setSaving(true);
     setError("");
 
@@ -1585,7 +2255,7 @@ function ResourceManager({
 
       if (!endpoint) {
         throw new Error(
-          "This module does not allow this operation.",
+          "This operation is not available.",
         );
       }
 
@@ -1637,7 +2307,7 @@ function ResourceManager({
 
     if (
       !window.confirm(
-        `Remove ${show(
+        `Remove ${text(
           row.name ||
             row.title ||
             row.email ||
@@ -1650,6 +2320,7 @@ function ResourceManager({
     }
 
     setSaving(true);
+    setError("");
 
     try {
       await authedFetch(
@@ -1692,70 +2363,210 @@ function ResourceManager({
 
   return (
     <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_14px_45px_rgba(15,23,42,0.06)]">
-      <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-            Data workspace
-          </p>
+      <div className="border-b border-slate-100 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Management workspace
+            </p>
 
-          <h2 className="mt-1 text-xl font-black text-slate-950">
-            {def.title}
-          </h2>
+            <h2 className="mt-1 text-xl font-black text-slate-950">
+              {def.title}
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {filtered.length} visible
+              {" "}
+              of{" "}
+              {data.length}
+              {" "}
+              records
+            </p>
+          </div>
+
+          {canCreate && (
+            <button
+              className={
+                BUTTON
+              }
+              onClick={
+                openCreate
+              }
+            >
+              + Create{" "}
+              {def.title.replace(
+                /s$/i,
+                "",
+              )}
+            </button>
+          )}
         </div>
 
-        {canCreate ? (
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_repeat(3,minmax(150px,220px))_auto]">
+          <input
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target
+                  .value,
+              )
+            }
+            placeholder={`Search ${def.title.toLowerCase()}…`}
+            className={INPUT}
+          />
+
+          {def.filters
+            ?.slice(0, 3)
+            .map(
+              (filter) => (
+                <select
+                  key={
+                    filter.name
+                  }
+                  value={
+                    filters[
+                      filter.name
+                    ] ||
+                    ""
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setFilters(
+                      (
+                        current,
+                      ) => ({
+                        ...current,
+                        [filter.name]:
+                          event
+                            .target
+                            .value,
+                      }),
+                    )
+                  }
+                  className={
+                    INPUT
+                  }
+                >
+                  <option value="">
+                    All{" "}
+                    {filter.label.toLowerCase()}
+                  </option>
+
+                  {filter.options?.map(
+                    (
+                      option,
+                    ) => (
+                      <option
+                        key={
+                          option
+                        }
+                        value={
+                          option
+                        }
+                      >
+                        {option.replaceAll(
+                          "_",
+                          " ",
+                        )}
+                      </option>
+                    ),
+                  )}
+
+                  {filter.source &&
+                    lookups[
+                      filter.source
+                    ]?.map(
+                      (
+                        option,
+                      ) => (
+                        <option
+                          key={
+                            option.id
+                          }
+                          value={
+                            option.id
+                          }
+                        >
+                          {labelFor(
+                            option,
+                          )}
+                        </option>
+                      ),
+                    )}
+                </select>
+              ),
+            )}
+
           <button
-            type="button"
-            onClick={openCreate}
-            className={ACTION}
+            className={
+              SECONDARY
+            }
+            onClick={() => {
+              setSearch("");
+              setFilters({});
+            }}
           >
-            + Create
+            Reset
           </button>
-        ) : null}
+        </div>
       </div>
 
-      {error ? (
+      {error && (
         <div className="mx-5 mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
           {error}
         </div>
-      ) : null}
+      )}
 
-      {success ? (
+      {success && (
         <div className="mx-5 mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
           {success}
         </div>
-      ) : null}
+      )}
 
       {loading ? (
-        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map(
+        <div className="grid gap-3 p-5 md:grid-cols-3">
+          {[
+            1,
+            2,
+            3,
+          ].map(
             (item) => (
               <div
                 key={item}
-                className="h-24 rounded-2xl bg-slate-100 animate-pulse"
+                className="h-24 animate-pulse rounded-2xl bg-slate-100"
               />
             ),
           )}
         </div>
-      ) : data.length ===
+      ) : filtered.length ===
         0 ? (
-        <div className="p-10 text-center text-sm text-slate-500">
-          No records found.
+        <div className="p-12 text-center">
+          <p className="font-black text-slate-800">
+            No records match the
+            current view.
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Clear the filters or
+            create a new record.
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
               <tr>
                 {def.columns.map(
                   (column) => (
                     <th
-                      key={column}
+                      key={
+                        column
+                      }
                       className="px-5 py-4"
                     >
-                      {column.replace(
-                        /([A-Z])/g,
-                        " $1",
+                      {displayColumn(
+                        column,
                       )}
                     </th>
                   ),
@@ -1768,7 +2579,7 @@ function ResourceManager({
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {data.map(
+              {filtered.map(
                 (
                   row,
                   index,
@@ -1788,7 +2599,7 @@ function ResourceManager({
                           key={
                             column
                           }
-                          className="px-5 py-4 font-medium text-slate-700"
+                          className="max-w-[260px] truncate px-5 py-4 font-medium text-slate-700"
                         >
                           {column
                             .toLowerCase()
@@ -1797,54 +2608,65 @@ function ResourceManager({
                             ) ||
                           column
                             .toLowerCase()
-                            .includes(
+                            .endsWith(
                               "at",
                             )
-                            ? formatDate(
-                                row[
-                                  column
-                                ],
+                            ? dateText(
+                                rowValue(
+                                  row,
+                                  column,
+                                ),
                               )
-                            : show(
-                                row[
-                                  column
-                                ],
+                            : text(
+                                rowValue(
+                                  row,
+                                  column,
+                                ),
                               )}
                         </td>
                       ),
                     )}
 
-                    <td className="px-5 py-4 text-right">
-                      {canUpdate ? (
+                    <td className="whitespace-nowrap px-5 py-4 text-right">
+                      <button
+                        className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
+                        onClick={() =>
+                          setSelected(
+                            row,
+                          )
+                        }
+                      >
+                        View
+                      </button>
+
+                      {canUpdate && (
                         <button
-                          type="button"
+                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
                           onClick={() =>
                             openEdit(
                               row,
                             )
                           }
-                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
                         >
                           Edit
                         </button>
-                      ) : null}
+                      )}
 
-                      {canDelete ? (
+                      {canDelete && (
                         <button
-                          type="button"
                           disabled={
                             saving
                           }
+                          className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
                           onClick={() =>
                             void remove(
                               row,
                             )
                           }
-                          className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
                         >
                           Remove
                         </button>
-                      ) : null}
+                      )}
                     </td>
                   </tr>
                 ),
@@ -1854,7 +2676,24 @@ function ResourceManager({
         </div>
       )}
 
-      {open ? (
+      {selected && (
+        <Detail
+          row={
+            selected
+          }
+          fields={
+            def.detailFields ||
+            def.columns
+          }
+          onClose={() =>
+            setSelected(
+              null,
+            )
+          }
+        />
+      )}
+
+      {open && (
         <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="mx-auto my-8 max-w-4xl overflow-hidden rounded-[30px] bg-slate-50 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
@@ -1871,40 +2710,49 @@ function ResourceManager({
               </div>
 
               <button
-                type="button"
+                className={
+                  SECONDARY
+                }
                 onClick={() =>
                   setOpen(
                     false,
                   )
                 }
-                className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-black"
               >
                 Close
               </button>
             </div>
 
             <form
-              onSubmit={save}
+              onSubmit={
+                save
+              }
               className="space-y-5 p-5 sm:p-6"
             >
               <div className="grid gap-4 md:grid-cols-2">
                 {def.fields
                   .filter(
-                    (field) =>
+                    (
+                      field,
+                    ) =>
                       !(
                         editing &&
                         field.hiddenOnEdit
                       ),
                   )
                   .map(
-                    (field) => (
+                    (
+                      field,
+                    ) => (
                       <label
                         key={
                           field.name
                         }
                         className={
+                          field.colSpan ===
+                            2 ||
                           field.type ===
-                          "textarea"
+                            "textarea"
                             ? "md:col-span-2"
                             : ""
                         }
@@ -1919,47 +2767,65 @@ function ResourceManager({
                             : ""}
                         </span>
 
-                        {control(
-                          field,
-                          form[
-                            field.name
-                          ],
-                          (
+                        <Control
+                          field={
+                            field
+                          }
+                          value={
+                            form[
+                              field.name
+                            ]
+                          }
+                          setValue={(
                             value,
                           ) =>
                             setForm(
                               (
-                                previous,
+                                current,
                               ) => ({
-                                ...previous,
+                                ...current,
                                 [field.name]:
                                   value,
                               }),
-                            ),
-                          lookups,
-                        )}
+                            )
+                          }
+                          lookups={
+                            lookups
+                          }
+                        />
                       </label>
                     ),
                   )}
               </div>
 
+              {error && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+                  {error}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <button
                   type="button"
+                  className={
+                    SECONDARY
+                  }
                   onClick={() =>
                     setOpen(
                       false,
                     )
                   }
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black"
                 >
                   Cancel
                 </button>
 
                 <button
-                  type="submit"
-                  disabled={saving}
-                  className={ACTION}
+                  disabled={
+                    saving
+                  }
+                  className={
+                    BUTTON
+                  }
                 >
                   {saving
                     ? "Saving…"
@@ -1971,8 +2837,472 @@ function ResourceManager({
             </form>
           </div>
         </div>
-      ) : null}
+      )}
     </section>
+  );
+}
+
+function Documents({
+  permissions,
+}: {
+  permissions: string[];
+}) {
+  const [
+    students,
+    setStudents,
+  ] = useState<
+    Lookup[]
+  >([]);
+
+  const [
+    student,
+    setStudent,
+  ] = useState("");
+
+  const [
+    documents,
+    setDocuments,
+  ] = useState<Row[]>(
+    [],
+  );
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    form,
+    setForm,
+  ] = useState({
+    title: "",
+    type: "",
+    url: "",
+  });
+
+  const canCreate =
+    canAny(
+      permissions,
+      [
+        "documents.manage",
+        "students.update",
+      ],
+    );
+
+  async function load() {
+    if (!student) {
+      setDocuments([]);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response =
+        await authedFetch<any>(
+          `/portal/documents/students/${student}`,
+        );
+
+      setDocuments(
+        rowsOf(
+          response.data,
+        ),
+      );
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to load documents.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(
+    () => {
+      void authedFetch<any>(
+        "/students?page=1&pageSize=500",
+      )
+        .then(
+          (response) =>
+            setStudents(
+              rowsOf(
+                response.data,
+              ) as Lookup[],
+            ),
+        )
+        .catch(() =>
+          setStudents(
+            [],
+          ),
+        );
+    },
+    [],
+  );
+
+  useEffect(
+    () => {
+      void load();
+    },
+    [student],
+  );
+
+  async function save(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (!student) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await authedFetch(
+        "/portal/documents",
+        {
+          method: "POST",
+          body:
+            JSON.stringify({
+              ownerId:
+                student,
+              ...form,
+            }),
+        },
+      );
+
+      setForm({
+        title: "",
+        type: "",
+        url: "",
+      });
+
+      await load();
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to create document.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(
+    id: string,
+  ) {
+    if (
+      !window.confirm(
+        "Delete this document?",
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await authedFetch(
+        `/portal/documents/${id}`,
+        {
+          method:
+            "DELETE",
+        },
+      );
+
+      await load();
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to delete document.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+          <label>
+            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Student
+            </span>
+
+            <select
+              value={student}
+              onChange={(event) =>
+                setStudent(
+                  event.target
+                    .value,
+                )
+              }
+              className={
+                INPUT
+              }
+            >
+              <option value="">
+                Select student
+              </option>
+
+              {students.map(
+                (
+                  studentItem,
+                ) => (
+                  <option
+                    key={
+                      studentItem.id
+                    }
+                    value={
+                      studentItem.id
+                    }
+                  >
+                    {labelFor(
+                      studentItem,
+                    )}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          {student && (
+            <div className="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-bold text-white">
+              {
+                documents.length
+              }{" "}
+              document
+              {documents.length ===
+              1
+                ? ""
+                : "s"}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {student &&
+        canCreate && (
+          <form
+            onSubmit={save}
+            className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm"
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              <input
+                required
+                placeholder="Title"
+                value={
+                  form.title
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setForm({
+                    ...form,
+                    title:
+                      event
+                        .target
+                        .value,
+                  })
+                }
+                className={
+                  INPUT
+                }
+              />
+
+              <input
+                required
+                placeholder="Type"
+                value={
+                  form.type
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setForm({
+                    ...form,
+                    type:
+                      event
+                        .target
+                        .value,
+                  })
+                }
+                className={
+                  INPUT
+                }
+              />
+
+              <input
+                required
+                type="url"
+                placeholder="Document URL"
+                value={
+                  form.url
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setForm({
+                    ...form,
+                    url:
+                      event
+                        .target
+                        .value,
+                  })
+                }
+                className={
+                  INPUT
+                }
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                disabled={
+                  saving
+                }
+                className={
+                  BUTTON
+                }
+              >
+                {saving
+                  ? "Adding…"
+                  : "Add document"}
+              </button>
+            </div>
+          </form>
+        )}
+
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+          {error}
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white">
+        {loading ? (
+          <div className="h-40 animate-pulse bg-slate-100" />
+        ) : documents.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <tr>
+                  <th className="px-5 py-4">
+                    Title
+                  </th>
+
+                  <th className="px-5 py-4">
+                    Type
+                  </th>
+
+                  <th className="px-5 py-4">
+                    Created
+                  </th>
+
+                  <th className="px-5 py-4 text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {documents.map(
+                  (
+                    document,
+                  ) => (
+                    <tr
+                      key={
+                        document.id
+                      }
+                    >
+                      <td className="px-5 py-4 font-bold">
+                        {text(
+                          document.title,
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {text(
+                          document.type,
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {dateText(
+                          document.createdAt,
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        <a
+                          href={
+                            document.url
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
+                        >
+                          Open
+                        </a>
+
+                        {canCreate &&
+                          document.id && (
+                            <button
+                              disabled={
+                                saving
+                              }
+                              onClick={() =>
+                                void remove(
+                                  document.id as string,
+                                )
+                              }
+                              className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
+                            >
+                              Delete
+                            </button>
+                          )}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-slate-500">
+            {student
+              ? "No documents for this student."
+              : "Select a student to manage documents."}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1984,21 +3314,56 @@ function Operations({
   const [
     tab,
     setTab,
-  ] =
-    useState<
-      "assets" | "facilities" | "maintenance"
-    >("assets");
+  ] = useState<
+    | "categories"
+    | "assets"
+    | "facilities"
+    | "maintenance"
+  >("assets");
 
   const definitions: Record<
-    string,
+    typeof tab,
     Resource
   > = {
+    categories: {
+      title:
+        "Asset categories",
+      description:
+        "Manage reusable categories used by the institutional asset register.",
+      endpoint:
+        "/operations/asset-categories",
+      fields: [
+        {
+          name: "name",
+          label: "Name",
+          required: true,
+        },
+        {
+          name: "code",
+          label: "Code",
+          required: true,
+        },
+      ],
+      columns: [
+        "name",
+        "code",
+        "assetCount",
+      ],
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
+          "operations.manage",
+        ),
+    },
+
     assets: {
       title: "Assets",
       description:
-        "Manage operational inventory.",
+        "Manage operational inventory and asset lifecycle.",
       endpoint:
-        "/operations/assets?page=1&pageSize=100",
+        "/operations/assets?page=1&pageSize=500",
       fields: [
         {
           name: "name",
@@ -2011,6 +3376,13 @@ function Operations({
           required: true,
         },
         {
+          name: "assetCategoryId",
+          label: "Category",
+          type: "select",
+          source:
+            "assetCategories",
+        },
+        {
           name: "campusId",
           label: "Campus",
           type: "select",
@@ -2020,7 +3392,8 @@ function Operations({
           name: "departmentId",
           label: "Department",
           type: "select",
-          source: "departments",
+          source:
+            "departments",
         },
         {
           name: "quantity",
@@ -2073,16 +3446,41 @@ function Operations({
         "condition",
         "location",
       ],
+      filters: [
+        {
+          name: "departmentId",
+          label: "Department",
+          source:
+            "departments",
+        },
+        {
+          name: "status",
+          label: "Status",
+          options: [
+            "IN_USE",
+            "IN_STORE",
+            "UNDER_REPAIR",
+            "RETIRED",
+            "LOST",
+          ],
+        },
+      ],
       updateEndpoint: (
         id,
       ) =>
         `/operations/assets/${id}`,
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "operations.manage",
         ),
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "operations.manage",
         ),
     },
@@ -2090,7 +3488,7 @@ function Operations({
     facilities: {
       title: "Facilities",
       description:
-        "Manage institution facilities.",
+        "Manage institutional facilities and capacity.",
       endpoint:
         "/operations/facilities",
       fields: [
@@ -2127,7 +3525,8 @@ function Operations({
           name: "campusId",
           label: "Campus",
           type: "select",
-          source: "campuses",
+          source:
+            "campuses",
         },
         {
           name: "location",
@@ -2141,32 +3540,55 @@ function Operations({
         "capacity",
         "location",
       ],
+      filters: [
+        {
+          name: "facilityType",
+          label: "Type",
+          options: [
+            "CLASSROOM",
+            "LAB",
+            "AUDITORIUM",
+            "LIBRARY",
+            "HOSTEL",
+            "SPORTS",
+            "OTHER",
+          ],
+        },
+      ],
       updateEndpoint: (
         id,
       ) =>
         `/operations/facilities/${id}`,
-      canCreate: (permissions) =>
-        permissions.includes(
+      canCreate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "operations.manage",
         ),
-      canUpdate: (permissions) =>
-        permissions.includes(
+      canUpdate: (
+        permissions,
+      ) =>
+        permission(
+          permissions,
           "operations.manage",
         ),
     },
 
     maintenance: {
-      title: "Maintenance",
+      title:
+        "Maintenance",
       description:
-        "Manage maintenance requests and status.",
+        "Manage maintenance requests, priorities, status and resolution notes.",
       endpoint:
-        "/operations/maintenance?page=1&pageSize=100",
+        "/operations/maintenance?page=1&pageSize=500",
       fields: [
         {
           name: "facilityId",
           label: "Facility",
           type: "select",
-          source: "facilities",
+          source:
+            "facilities",
         },
         {
           name: "assetId",
@@ -2211,7 +3633,8 @@ function Operations({
         },
         {
           name: "resolutionNote",
-          label: "Resolution note",
+          label:
+            "Resolution note",
           type: "textarea",
         },
       ],
@@ -2221,23 +3644,53 @@ function Operations({
         "status",
         "createdAt",
       ],
+      filters: [
+        {
+          name: "priority",
+          label: "Priority",
+          options: [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "URGENT",
+          ],
+        },
+        {
+          name: "status",
+          label: "Status",
+          options: [
+            "OPEN",
+            "ASSIGNED",
+            "IN_PROGRESS",
+            "RESOLVED",
+            "CLOSED",
+            "REJECTED",
+          ],
+        },
+      ],
       updateEndpoint: (
         id,
       ) =>
         `/operations/maintenance/${id}`,
-      canCreate: (permissions) =>
-        permissions.includes(
-          "operations.manage",
-        ) ||
-        permissions.includes(
-          "maintenance.raise",
+      canCreate: (
+        permissions,
+      ) =>
+        canAny(
+          permissions,
+          [
+            "operations.manage",
+            "maintenance.raise",
+          ],
         ),
-      canUpdate: (permissions) =>
-        permissions.includes(
-          "operations.manage",
-        ) ||
-        permissions.includes(
-          "maintenance.raise",
+      canUpdate: (
+        permissions,
+      ) =>
+        canAny(
+          permissions,
+          [
+            "operations.manage",
+            "maintenance.raise",
+          ],
         ),
     },
   };
@@ -2254,7 +3707,6 @@ function Operations({
           ]) => (
             <button
               key={key}
-              type="button"
               onClick={() =>
                 setTab(
                   key as typeof tab,
@@ -2288,340 +3740,6 @@ function Operations({
   );
 }
 
-function Documents({
-  permissions,
-}: {
-  permissions: string[];
-}) {
-  const [students, setStudents] =
-    useState<Lookup[]>([]);
-
-  const [student, setStudent] =
-    useState("");
-
-  const [documents, setDocuments] =
-    useState<Row[]>([]);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [form, setForm] =
-    useState({
-      title: "",
-      type: "",
-      url: "",
-    });
-
-  const canCreate =
-    permissions.includes(
-      "documents.manage",
-    ) ||
-    permissions.includes(
-      "students.update",
-    );
-
-  useEffect(() => {
-    void authedFetch<any>(
-      "/students?page=1&pageSize=500",
-    )
-      .then((response) =>
-        setStudents(
-          rowsOf(
-            response.data,
-          ) as Lookup[],
-        ),
-      )
-      .catch(() =>
-        setStudents([]),
-      );
-  }, []);
-
-  useEffect(() => {
-    if (!student) {
-      setDocuments([]);
-      return;
-    }
-
-    setLoading(true);
-
-    void authedFetch<any>(
-      `/portal/documents/students/${student}`,
-    )
-      .then((response) =>
-        setDocuments(
-          rowsOf(
-            response.data,
-          ),
-        ),
-      )
-      .catch(() =>
-        setDocuments([]),
-      )
-      .finally(() =>
-        setLoading(false),
-      );
-  }, [student]);
-
-  async function create(
-    event: FormEvent,
-  ) {
-    event.preventDefault();
-
-    if (!student) return;
-
-    await authedFetch(
-      "/portal/documents",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          ownerId: student,
-          ...form,
-        }),
-      },
-    );
-
-    setForm({
-      title: "",
-      type: "",
-      url: "",
-    });
-
-    const response =
-      await authedFetch<any>(
-        `/portal/documents/students/${student}`,
-      );
-
-    setDocuments(
-      rowsOf(
-        response.data,
-      ),
-    );
-  }
-
-  async function remove(
-    id: string,
-  ) {
-    if (
-      !window.confirm(
-        "Delete this document?",
-      )
-    ) {
-      return;
-    }
-
-    await authedFetch(
-      `/portal/documents/${id}`,
-      {
-        method: "DELETE",
-      },
-    );
-
-    setDocuments(
-      (current) =>
-        current.filter(
-          (document) =>
-            document.id !==
-            id,
-        ),
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-            Student
-          </span>
-
-          <select
-            value={student}
-            onChange={(event) =>
-              setStudent(
-                event.target.value,
-              )
-            }
-            className={INPUT}
-          >
-            <option value="">
-              Select student
-            </option>
-
-            {students.map(
-              (studentItem) => (
-                <option
-                  key={
-                    studentItem.id
-                  }
-                  value={
-                    studentItem.id
-                  }
-                >
-                  {lookupLabel(
-                    studentItem,
-                  )}
-                </option>
-              ),
-            )}
-          </select>
-        </label>
-      </section>
-
-      {student &&
-      canCreate ? (
-        <form
-          onSubmit={create}
-          className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm"
-        >
-          <div className="grid gap-4 md:grid-cols-3">
-            <input
-              required
-              placeholder="Title"
-              value={form.title}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  title:
-                    event.target
-                      .value,
-                })
-              }
-              className={INPUT}
-            />
-
-            <input
-              required
-              placeholder="Type"
-              value={form.type}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  type:
-                    event.target
-                      .value,
-                })
-              }
-              className={INPUT}
-            />
-
-            <input
-              required
-              type="url"
-              placeholder="Document URL"
-              value={form.url}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  url:
-                    event.target
-                      .value,
-                })
-              }
-              className={INPUT}
-            />
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              className={ACTION}
-            >
-              Add document
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white">
-        {loading ? (
-          <div className="h-40 animate-pulse bg-slate-100" />
-        ) : documents.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <tr>
-                  <th className="px-5 py-4">
-                    Title
-                  </th>
-                  <th className="px-5 py-4">
-                    Type
-                  </th>
-                  <th className="px-5 py-4">
-                    Created
-                  </th>
-                  <th className="px-5 py-4 text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {documents.map(
-                  (document) => (
-                    <tr
-                      key={
-                        document.id
-                      }
-                    >
-                      <td className="px-5 py-4 font-bold">
-                        {
-                          document.title
-                        }
-                      </td>
-
-                      <td className="px-5 py-4">
-                        {
-                          document.type
-                        }
-                      </td>
-
-                      <td className="px-5 py-4">
-                        {formatDate(
-                          document.createdAt,
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 text-right">
-                        <a
-                          href={
-                            document.url
-                          }
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
-                        >
-                          Open
-                        </a>
-
-                        {canCreate ? (
-                          <button
-                            type="button"
-                          onClick={() => {
-  if (!document.id) return;
-  void remove(document.id);
-}}
-                            className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-10 text-center text-sm text-slate-500">
-            Select a student to inspect documents.
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
 export function AdminModulePage({
   module,
 }: {
@@ -2635,38 +3753,49 @@ export function AdminModulePage({
   const [
     permissions,
     setPermissions,
-  ] = useState<string[]>(
+  ] = useState<
+    string[]
+  >([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  useEffect(
+    () => {
+      void import(
+        "@/lib/auth"
+      ).then(
+        ({
+          getCurrentUser,
+        }) =>
+          getCurrentUser({
+            background: true,
+          })
+            .then(
+              (
+                currentUser,
+              ) =>
+                setPermissions(
+                  currentUser.permissions,
+                ),
+            )
+            .finally(() =>
+              setLoading(
+                false,
+              ),
+            ),
+      );
+    },
     [],
   );
-
-  const [loading, setLoading] =
-    useState(true);
-
-  useEffect(() => {
-    void import(
-      "@/lib/auth"
-    ).then(
-      ({
-        getCurrentUser,
-      }) =>
-        getCurrentUser({
-          background: true,
-        })
-          .then((currentUser) =>
-            setPermissions(
-              currentUser.permissions,
-            ),
-          )
-          .finally(() =>
-            setLoading(false),
-          ),
-    );
-  }, []);
 
   if (!item) {
     return (
       <div className="rounded-[30px] border border-rose-200 bg-rose-50 p-8 font-black text-rose-700">
-        Unknown administration module.
+        Unknown administration
+        module.
       </div>
     );
   }
@@ -2674,9 +3803,11 @@ export function AdminModulePage({
   if (loading) {
     return (
       <div className="space-y-5">
-        <Header item={item} />
+        <Header
+          item={item}
+        />
 
-        <div className="h-96 rounded-[30px] bg-white animate-pulse" />
+        <div className="h-96 animate-pulse rounded-[30px] bg-white" />
       </div>
     );
   }
@@ -2687,7 +3818,9 @@ export function AdminModulePage({
   ) {
     return (
       <div className="space-y-5">
-        <Header item={item} />
+        <Header
+          item={item}
+        />
 
         <StudentManagement />
       </div>
@@ -2700,7 +3833,9 @@ export function AdminModulePage({
   ) {
     return (
       <div className="space-y-5">
-        <Header item={item} />
+        <Header
+          item={item}
+        />
 
         <Documents
           permissions={
@@ -2717,7 +3852,9 @@ export function AdminModulePage({
   ) {
     return (
       <div className="space-y-5">
-        <Header item={item} />
+        <Header
+          item={item}
+        />
 
         <Operations
           permissions={
@@ -2729,22 +3866,29 @@ export function AdminModulePage({
   }
 
   const definition =
-    resource(module);
+    resource(
+      module,
+    );
 
   if (!definition) {
     return (
       <div className="rounded-[30px] border border-slate-200 bg-white p-8">
-        No UI adapter configured.
+        No administration
+        adapter configured.
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <Header item={item} />
+      <Header
+        item={item}
+      />
 
       <ResourceManager
-        def={definition}
+        def={
+          definition
+        }
         permissions={
           permissions
         }
