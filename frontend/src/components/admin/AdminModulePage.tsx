@@ -7,35 +7,18 @@ import {
   useState,
 } from "react";
 
-import {
-  StudentManagement,
-} from "@/components/dashboard/StudentManagement";
-
-import {
-  authedFetch,
-} from "@/lib/auth";
-
+import { StudentManagement } from "@/components/dashboard/StudentManagement";
+import { authedFetch, getCurrentUser } from "@/lib/auth";
 import {
   findAdminNavItem,
   type AdminNavItem,
 } from "@/lib/adminNavigation";
 
-type Row =
-  Record<string, any> & {
-    id?: string;
-  };
-
-type Lookup = {
-  id: string;
-  name?: string;
-  code?: string;
-  number?: number;
-  programId?: string;
-  academicYearId?: string;
-  semesterId?: string;
-  isActive?: boolean;
-  isCurrent?: boolean;
+type Row = Record<string, any> & {
+  id?: string;
 };
+
+type Lookup = Row;
 
 type FieldType =
   | "text"
@@ -55,8 +38,7 @@ type Field = {
   required?: boolean;
   source?: string;
   options?: string[];
-  hiddenOnEdit?: boolean;
-  colSpan?: 1 | 2;
+  span?: 1 | 2;
 };
 
 type Filter = {
@@ -89,7 +71,9 @@ type Resource = {
     row: Row,
   ) => unknown;
 
-  fields: Field[];
+  createFields: Field[];
+
+  updateFields: Field[];
 
   columns: string[];
 
@@ -111,13 +95,145 @@ type Resource = {
 };
 
 const INPUT =
-  "w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-50";
+  "w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 caret-slate-900 outline-none placeholder:text-slate-400 transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:bg-slate-50 disabled:text-slate-500";
 
 const BUTTON =
   "rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
 
 const SECONDARY =
   "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50";
+
+const LOOKUPS: Record<
+  string,
+  string
+> = {
+  campuses:
+    "/campuses?page=1&pageSize=500",
+
+  departments:
+    "/departments?page=1&pageSize=500",
+
+  programs:
+    "/programs?page=1&pageSize=500",
+
+  years:
+    "/academic-years?page=1&pageSize=500",
+
+  semesters:
+    "/semesters?page=1&pageSize=500",
+
+  sections:
+    "/sections?page=1&pageSize=500",
+
+  courses:
+    "/courses?page=1&pageSize=500",
+
+  faculty:
+    "/users?page=1&pageSize=500&role=FACULTY",
+
+  users:
+    "/users?page=1&pageSize=500",
+
+  parents:
+    "/users?page=1&pageSize=500&role=PARENT",
+
+  students:
+    "/students?page=1&pageSize=500",
+
+  facilities:
+    "/operations/facilities",
+
+  assets:
+    "/operations/assets?page=1&pageSize=500",
+
+  assetCategories:
+    "/operations/asset-categories",
+};
+
+const ROLES = [
+  "INSTITUTION_ADMIN",
+  "CHAIRMAN",
+  "DIRECTOR",
+  "DEAN",
+  "REGISTRAR",
+  "HOD",
+  "FACULTY",
+  "ACCOUNTS",
+  "HR",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "PLACEMENT",
+  "IT",
+  "PARENT",
+];
+
+const AUDIENCES = [
+  "ALL",
+  "STUDENT",
+  "FACULTY",
+  "PARENT",
+  "STAFF",
+  "HOD",
+  "MANAGEMENT",
+];
+
+const CALENDAR_AUDIENCES = [
+  "ALL",
+  "STUDENTS",
+  "FACULTY",
+  "STAFF",
+];
+
+const EVENT_TYPES = [
+  "HOLIDAY",
+  "EXAM",
+  "EVENT",
+  "DEADLINE",
+  "ACADEMIC",
+];
+
+const ASSET_STATUSES = [
+  "IN_USE",
+  "IN_STORE",
+  "UNDER_REPAIR",
+  "RETIRED",
+  "LOST",
+];
+
+const CONDITIONS = [
+  "NEW",
+  "GOOD",
+  "FAIR",
+  "POOR",
+  "DAMAGED",
+];
+
+const FACILITY_TYPES = [
+  "CLASSROOM",
+  "LAB",
+  "AUDITORIUM",
+  "LIBRARY",
+  "HOSTEL",
+  "SPORTS",
+  "OTHER",
+];
+
+const MAINTENANCE_STATUS = [
+  "OPEN",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "RESOLVED",
+  "CLOSED",
+  "REJECTED",
+];
+
+const PRIORITIES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "URGENT",
+];
 
 function rowsOf(
   data: any,
@@ -165,15 +281,22 @@ function text(
       : "No";
   }
 
+  if (Array.isArray(value)) {
+    return value
+      .map(text)
+      .join(", ");
+  }
+
   if (
     typeof value ===
     "object"
   ) {
     return (
       value.name ||
-      value.code ||
       value.title ||
+      value.code ||
       value.email ||
+      value.id ||
       "—"
     );
   }
@@ -214,6 +337,22 @@ function labelFor(
   item: Lookup,
 ): string {
   if (
+    item.firstName ||
+    item.lastName
+  ) {
+    const name =
+      `${item.firstName || ""} ${
+        item.lastName || ""
+      }`.trim();
+
+    return item.email
+      ? `${name} — ${item.email}`
+      : name ||
+          item.id ||
+          "Unnamed";
+  }
+
+  if (
     item.code &&
     item.name
   ) {
@@ -230,8 +369,11 @@ function labelFor(
 
   return (
     item.name ||
+    item.title ||
+    item.email ||
     item.code ||
-    item.id
+    item.id ||
+    "Unnamed"
   );
 }
 
@@ -254,25 +396,11 @@ function rowValue(
   row: Row,
   key: string,
 ): any {
-  const direct =
-    row[key];
-
   if (
-    direct !==
+    row[key] !==
     undefined
   ) {
-    if (
-      key === "role" &&
-      Array.isArray(direct)
-    ) {
-      return (
-        direct[0]?.name ||
-        direct[0] ||
-        "—"
-      );
-    }
-
-    return direct;
+    return row[key];
   }
 
   const aliases: Record<
@@ -329,6 +457,21 @@ function rowValue(
       "student",
       "studentName",
     ],
+
+    campus: [
+      "campus",
+      "campusName",
+    ],
+
+    facility: [
+      "facility",
+      "facilityName",
+    ],
+
+    asset: [
+      "asset",
+      "assetName",
+    ],
   };
 
   for (
@@ -344,74 +487,6 @@ function rowValue(
   }
 
   return undefined;
-}
-
-const LOOKUPS: Record<
-  string,
-  string
-> = {
-  campuses:
-    "/campuses?page=1&pageSize=500",
-
-  departments:
-    "/departments?page=1&pageSize=500",
-
-  programs:
-    "/programs?page=1&pageSize=500",
-
-  years:
-    "/academic-years?page=1&pageSize=500",
-
-  semesters:
-    "/semesters?page=1&pageSize=500",
-
-  sections:
-    "/sections?page=1&pageSize=500",
-
-  courses:
-    "/courses?page=1&pageSize=500",
-
-  faculty:
-    "/users?page=1&pageSize=500&role=FACULTY",
-
-  users:
-    "/users?page=1&pageSize=500",
-
-  parents:
-    "/users?page=1&pageSize=500&role=PARENT",
-
-  students:
-    "/students?page=1&pageSize=500",
-
-  facilities:
-    "/operations/facilities",
-
-  assets:
-    "/operations/assets?page=1&pageSize=500",
-
-  assetCategories:
-    "/operations/asset-categories",
-};
-
-function permission(
-  permissions: string[],
-  value: string,
-) {
-  return permissions.includes(
-    value,
-  );
-}
-
-function canAny(
-  permissions: string[],
-  values: string[],
-) {
-  return values.some(
-    (value) =>
-      permissions.includes(
-        value,
-      ),
-  );
 }
 
 function Header({
@@ -440,7 +515,7 @@ function Header({
   );
 }
 
-function Control({
+function FieldControl({
   field,
   value,
   setValue,
@@ -479,7 +554,7 @@ function Control({
     "checkbox"
   ) {
     return (
-      <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold">
+      <label className="flex min-h-[50px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800">
         <input
           type="checkbox"
           checked={Boolean(
@@ -491,9 +566,12 @@ function Control({
                 .checked,
             )
           }
+          className="h-5 w-5 accent-blue-600"
         />
 
-        {field.label}
+        <span>
+          {field.label}
+        </span>
       </label>
     );
   }
@@ -573,1119 +651,1325 @@ function Control({
   );
 }
 
-function resource(
-  module: string,
-): Resource | null {
-  const R = (
-    title: string,
-    description: string,
-    endpoint: string,
-    fields: Field[],
-    columns: string[],
-    filters: Filter[] = [],
-    detailFields = columns,
-  ): Resource => ({
+function R(
+  title: string,
+  description: string,
+  endpoint: string,
+  createFields: Field[],
+  updateFields: Field[],
+  columns: string[],
+  filters: Filter[] = [],
+  detailFields = columns,
+): Resource {
+  return {
     title,
     description,
     endpoint,
-    fields,
+    createFields,
+    updateFields,
     columns,
     filters,
     detailFields,
-  });
+  };
+}
 
-  const crud = (
-    base: string,
-    permissionKey: string,
-  ) => ({
+function withCrud(
+  resource: Resource,
+  base: string,
+  permission: string,
+): Resource {
+  return {
+    ...resource,
+
     updateEndpoint: (
-      id: string,
+      id,
     ) =>
       `${base}/${id}`,
 
     deleteEndpoint: (
-      row: Row,
+      row,
     ) =>
       `${base}/${row.id}`,
 
     canCreate: (
-      permissions: string[],
+      permissions,
     ) =>
-      permission(
-        permissions,
-        `${permissionKey}.create`,
+      permissions.includes(
+        `${permission}.create`,
       ),
 
     canUpdate: (
-      permissions: string[],
+      permissions,
     ) =>
-      permission(
-        permissions,
-        `${permissionKey}.update`,
+      permissions.includes(
+        `${permission}.update`,
       ),
 
     canDelete: (
-      permissions: string[],
+      permissions,
     ) =>
-      permission(
-        permissions,
-        `${permissionKey}.delete`,
+      permissions.includes(
+        `${permission}.delete`,
       ),
-  });
-
-  const map: Record<
-    string,
-    Resource
-  > = {
-    users: {
-      ...R(
-        "Institution users",
-        "Complete institutional account management, roles and account status.",
-        "/users?page=1&pageSize=500",
-        [
-          {
-            name: "firstName",
-            label: "First name",
-            required: true,
-          },
-          {
-            name: "lastName",
-            label: "Last name",
-            required: true,
-          },
-          {
-            name: "email",
-            label: "Email",
-            type: "email",
-            required: true,
-            hiddenOnEdit: true,
-          },
-          {
-            name: "phone",
-            label: "Phone",
-          },
-          {
-            name: "password",
-            label:
-              "Temporary password",
-            type: "password",
-            required: true,
-            hiddenOnEdit: true,
-          },
-          {
-            name: "role",
-            label: "Role",
-            type: "select",
-            required: true,
-            options: [
-              "INSTITUTION_ADMIN",
-              "CHAIRMAN",
-              "DIRECTOR",
-              "DEAN",
-              "REGISTRAR",
-              "HOD",
-              "FACULTY",
-              "ACCOUNTS",
-              "HR",
-              "ADMISSIONS",
-              "EXAMINATION",
-              "LIBRARIAN",
-              "PLACEMENT",
-              "IT",
-              "PARENT",
-            ],
-          },
-        ],
-        [
-          "firstName",
-          "lastName",
-          "email",
-          "role",
-          "isActive",
-        ],
-        [
-          {
-            name: "role",
-            label: "Role",
-            options: [
-              "INSTITUTION_ADMIN",
-              "CHAIRMAN",
-              "DIRECTOR",
-              "DEAN",
-              "REGISTRAR",
-              "HOD",
-              "FACULTY",
-              "ACCOUNTS",
-              "HR",
-              "ADMISSIONS",
-              "EXAMINATION",
-              "LIBRARIAN",
-              "PLACEMENT",
-              "IT",
-              "PARENT",
-            ],
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      updateEndpoint: (
-        id,
-      ) =>
-        `/users/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/users/${row.id}/status`,
-
-      deleteMethod:
-        "PATCH",
-
-      deleteBody: () => ({
-        isActive: false,
-      }),
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "users.create",
-        ),
-
-      canUpdate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "users.update",
-        ),
-
-      canDelete: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "users.delete",
-        ),
-    },
-
-    departments: {
-      ...R(
-        "Departments",
-        "Manage academic departments, campus ownership and status.",
-        "/departments?page=1&pageSize=500",
-        [
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "code",
-            label: "Code",
-            required: true,
-          },
-          {
-            name: "campusId",
-            label: "Campus",
-            type: "select",
-            source: "campuses",
-            required: true,
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "code",
-          "campus",
-          "isActive",
-        ],
-        [
-          {
-            name: "campusId",
-            label: "Campus",
-            source: "campuses",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/departments",
-        "departments",
-      ),
-    },
-
-    programs: {
-      ...R(
-        "Programs",
-        "Manage programs, levels, duration and department ownership.",
-        "/programs?page=1&pageSize=500",
-        [
-          {
-            name: "departmentId",
-            label: "Department",
-            type: "select",
-            source: "departments",
-            required: true,
-          },
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "code",
-            label: "Code",
-            required: true,
-          },
-          {
-            name: "level",
-            label: "Level",
-            required: true,
-          },
-          {
-            name: "durationYears",
-            label:
-              "Duration years",
-            type: "number",
-            required: true,
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "code",
-          "level",
-          "durationYears",
-          "department",
-          "isActive",
-        ],
-        [
-          {
-            name: "departmentId",
-            label: "Department",
-            source: "departments",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/programs",
-        "programs",
-      ),
-    },
-
-    "academic-years": {
-      ...R(
-        "Academic years",
-        "Manage academic-year windows and the institution's current year.",
-        "/academic-years?page=1&pageSize=500",
-        [
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "startDate",
-            label: "Start date",
-            type: "date",
-            required: true,
-          },
-          {
-            name: "endDate",
-            label: "End date",
-            type: "date",
-            required: true,
-          },
-          {
-            name: "isCurrent",
-            label: "Current year",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "startDate",
-          "endDate",
-          "isCurrent",
-        ],
-        [
-          {
-            name: "isCurrent",
-            label: "Current",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      updateEndpoint: (
-        id,
-      ) =>
-        `/academic-years/${id}`,
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "academic-years.create",
-        ),
-
-      canUpdate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "academic-years.update",
-        ),
-    },
-
-    semesters: {
-      ...R(
-        "Semesters",
-        "Manage semester definitions under programs and academic years.",
-        "/semesters?page=1&pageSize=500",
-        [
-          {
-            name: "programId",
-            label: "Program",
-            type: "select",
-            source: "programs",
-            required: true,
-          },
-          {
-            name: "academicYearId",
-            label: "Academic year",
-            type: "select",
-            source: "years",
-            required: true,
-          },
-          {
-            name: "number",
-            label: "Number",
-            type: "number",
-            required: true,
-          },
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "startDate",
-            label: "Start date",
-            type: "date",
-          },
-          {
-            name: "endDate",
-            label: "End date",
-            type: "date",
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "number",
-          "program",
-          "academicYear",
-          "startDate",
-          "endDate",
-          "isActive",
-        ],
-        [
-          {
-            name: "programId",
-            label: "Program",
-            source: "programs",
-          },
-          {
-            name: "academicYearId",
-            label: "Academic year",
-            source: "years",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/semesters",
-        "semesters",
-      ),
-    },
-
-    sections: {
-      ...R(
-        "Sections",
-        "Manage class sections, semester assignment and capacity.",
-        "/sections?page=1&pageSize=500",
-        [
-          {
-            name: "semesterId",
-            label: "Semester",
-            type: "select",
-            source: "semesters",
-            required: true,
-          },
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "capacity",
-            label: "Capacity",
-            type: "number",
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "semester",
-          "capacity",
-          "isActive",
-        ],
-        [
-          {
-            name: "semesterId",
-            label: "Semester",
-            source: "semesters",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/sections",
-        "sections",
-      ),
-    },
-
-    courses: {
-      ...R(
-        "Courses",
-        "Manage the institutional course catalogue, credits and department ownership.",
-        "/courses?page=1&pageSize=500",
-        [
-          {
-            name: "departmentId",
-            label: "Department",
-            type: "select",
-            source: "departments",
-            required: true,
-          },
-          {
-            name: "code",
-            label: "Code",
-            required: true,
-          },
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "credits",
-            label: "Credits",
-            type: "number",
-            required: true,
-          },
-          {
-            name: "description",
-            label: "Description",
-            type: "textarea",
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "code",
-          "name",
-          "credits",
-          "department",
-          "isActive",
-        ],
-        [
-          {
-            name: "departmentId",
-            label: "Department",
-            source: "departments",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/courses",
-        "courses",
-      ),
-    },
-
-    "course-offerings": {
-      ...R(
-        "Course offerings",
-        "Assign courses to semesters, sections and faculty, with roster access from the same workspace.",
-        "/course-offerings?page=1&pageSize=500",
-        [
-          {
-            name: "courseId",
-            label: "Course",
-            type: "select",
-            source: "courses",
-            required: true,
-          },
-          {
-            name: "semesterId",
-            label: "Semester",
-            type: "select",
-            source: "semesters",
-            required: true,
-          },
-          {
-            name: "sectionId",
-            label: "Section",
-            type: "select",
-            source: "sections",
-            required: true,
-          },
-          {
-            name: "facultyId",
-            label: "Faculty",
-            type: "select",
-            source: "faculty",
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "course",
-          "semester",
-          "section",
-          "faculty",
-          "isActive",
-        ],
-        [
-          {
-            name: "courseId",
-            label: "Course",
-            source: "courses",
-          },
-          {
-            name: "semesterId",
-            label: "Semester",
-            source: "semesters",
-          },
-          {
-            name: "sectionId",
-            label: "Section",
-            source: "sections",
-          },
-          {
-            name: "facultyId",
-            label: "Faculty",
-            source: "faculty",
-          },
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/course-offerings",
-        "course-offerings",
-      ),
-    },
-
-    campuses: {
-      ...R(
-        "Campuses",
-        "Manage campuses, codes, addresses and activation state.",
-        "/campuses?page=1&pageSize=500",
-        [
-          {
-            name: "name",
-            label: "Name",
-            required: true,
-          },
-          {
-            name: "code",
-            label: "Code",
-            required: true,
-          },
-          {
-            name: "address",
-            label: "Address",
-            type: "textarea",
-          },
-          {
-            name: "isActive",
-            label: "Active",
-            type: "checkbox",
-          },
-        ],
-        [
-          "name",
-          "code",
-          "address",
-          "isActive",
-        ],
-        [
-          {
-            name: "isActive",
-            label: "Status",
-            options: [
-              "true",
-              "false",
-            ],
-          },
-        ],
-      ),
-
-      ...crud(
-        "/campuses",
-        "campuses",
-      ),
-    },
-
-    notices: {
-      ...R(
-        "Notices",
-        "Create, target, publish and retire institution notices.",
-        "/erp/notices?includeExpired=true",
-        [
-          {
-            name: "title",
-            label: "Title",
-            required: true,
-          },
-          {
-            name: "body",
-            label: "Body",
-            type: "textarea",
-            required: true,
-          },
-          {
-            name: "audience",
-            label: "Audience",
-            type: "select",
-            options: [
-              "ALL",
-              "STUDENT",
-              "FACULTY",
-              "PARENT",
-              "STAFF",
-              "HOD",
-              "MANAGEMENT",
-            ],
-          },
-          {
-            name: "departmentId",
-            label: "Department",
-            type: "select",
-            source: "departments",
-          },
-          {
-            name: "expiresAt",
-            label: "Expires",
-            type: "datetime-local",
-          },
-        ],
-        [
-          "title",
-          "audience",
-          "expiresAt",
-          "createdAt",
-        ],
-        [
-          {
-            name: "audience",
-            label: "Audience",
-            options: [
-              "ALL",
-              "STUDENT",
-              "FACULTY",
-              "PARENT",
-              "STAFF",
-              "HOD",
-              "MANAGEMENT",
-            ],
-          },
-        ],
-      ),
-
-      updateEndpoint: (
-        id,
-      ) =>
-        `/erp/notices/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/erp/notices/${row.id}`,
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "notices.manage",
-        ),
-
-      canUpdate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "notices.manage",
-        ),
-
-      canDelete: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "notices.manage",
-        ),
-    },
-
-    calendar: {
-      ...R(
-        "Calendar",
-        "Manage institutional events with academic year, audience, type and date controls.",
-        "/calendar/events?page=1&pageSize=500",
-        [
-          {
-            name: "title",
-            label: "Title",
-            required: true,
-          },
-          {
-            name: "description",
-            label: "Description",
-            type: "textarea",
-          },
-          {
-            name: "startDate",
-            label: "Start",
-            type: "datetime-local",
-            required: true,
-          },
-          {
-            name: "endDate",
-            label: "End",
-            type: "datetime-local",
-            required: true,
-          },
-          {
-            name: "eventType",
-            label: "Event type",
-            type: "select",
-            options: [
-              "HOLIDAY",
-              "EXAM",
-              "EVENT",
-              "DEADLINE",
-              "ACADEMIC",
-            ],
-          },
-          {
-            name: "audience",
-            label: "Audience",
-            type: "select",
-            options: [
-              "ALL",
-              "STUDENTS",
-              "FACULTY",
-              "STAFF",
-            ],
-          },
-          {
-            name: "academicYearId",
-            label: "Academic year",
-            type: "select",
-            source: "years",
-          },
-        ],
-        [
-          "title",
-          "eventType",
-          "audience",
-          "startDate",
-          "endDate",
-        ],
-        [
-          {
-            name: "eventType",
-            label: "Type",
-            options: [
-              "HOLIDAY",
-              "EXAM",
-              "EVENT",
-              "DEADLINE",
-              "ACADEMIC",
-            ],
-          },
-          {
-            name: "audience",
-            label: "Audience",
-            options: [
-              "ALL",
-              "STUDENTS",
-              "FACULTY",
-              "STAFF",
-            ],
-          },
-          {
-            name: "academicYearId",
-            label: "Academic year",
-            source: "years",
-          },
-        ],
-      ),
-
-      updateEndpoint: (
-        id,
-      ) =>
-        `/calendar/events/${id}`,
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/calendar/events/${row.id}`,
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "calendar.manage",
-        ),
-
-      canUpdate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "calendar.manage",
-        ),
-
-      canDelete: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "calendar.manage",
-        ),
-    },
-
-    "parent-links": {
-      ...R(
-        "Parent links",
-        "Connect parent accounts with student records and relationship type.",
-        "/erp/parent-links",
-        [
-          {
-            name: "parentId",
-            label: "Parent",
-            type: "select",
-            source: "parents",
-            required: true,
-          },
-          {
-            name: "studentId",
-            label: "Student",
-            type: "select",
-            source: "students",
-            required: true,
-          },
-          {
-            name: "relationship",
-            label: "Relationship",
-            required: true,
-          },
-        ],
-        [
-          "parent",
-          "student",
-          "relationship",
-          "createdAt",
-        ],
-        [
-          {
-            name: "parentId",
-            label: "Parent",
-            source: "parents",
-          },
-          {
-            name: "studentId",
-            label: "Student",
-            source: "students",
-          },
-        ],
-      ),
-
-      createEndpoint:
-        "/erp/parent-links",
-
-      deleteEndpoint: (
-        row,
-      ) =>
-        `/erp/parent-links/${row.parentId}/${row.studentId}`,
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "parent-links.manage",
-        ),
-
-      canDelete: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "parent-links.manage",
-        ),
-    },
-
-    notifications: {
-      ...R(
-        "Notifications",
-        "Send targeted notifications and inspect notification history.",
-        "/portal/notifications?page=1&limit=200",
-        [
-          {
-            name: "userId",
-            label: "Recipient",
-            type: "select",
-            source: "users",
-            required: true,
-          },
-          {
-            name: "title",
-            label: "Title",
-            required: true,
-          },
-          {
-            name: "body",
-            label: "Message",
-            type: "textarea",
-            required: true,
-          },
-        ],
-        [
-          "title",
-          "body",
-          "readAt",
-          "createdAt",
-        ],
-        [
-          {
-            name: "userId",
-            label: "Recipient",
-            source: "users",
-          },
-        ],
-      ),
-
-      createEndpoint:
-        "/portal/notifications",
-
-      canCreate: (
-        permissions,
-      ) =>
-        permission(
-          permissions,
-          "notices.manage",
-        ),
-    },
   };
-
-  return (
-    map[module] ||
-    null
-  );
 }
 
-function Detail({
+function resource(
+  module: string,
+): Resource | null {
+  switch (module) {
+    case "users":
+      return {
+        ...R(
+          "Institution users",
+          "Manage accounts, roles and active status. Account status is changed through the dedicated status endpoint.",
+          "/users?page=1&pageSize=500",
+
+          [
+            {
+              name: "firstName",
+              label:
+                "First name",
+              required: true,
+            },
+            {
+              name: "lastName",
+              label:
+                "Last name",
+              required: true,
+            },
+            {
+              name: "email",
+              label: "Email",
+              type: "email",
+              required: true,
+            },
+            {
+              name: "phone",
+              label: "Phone",
+            },
+            {
+              name: "password",
+              label:
+                "Temporary password",
+              type: "password",
+              required: true,
+            },
+            {
+              name: "role",
+              label: "Role",
+              type: "select",
+              options:
+                ROLES,
+              required: true,
+            },
+          ],
+
+          [
+            {
+              name: "firstName",
+              label:
+                "First name",
+            },
+            {
+              name: "lastName",
+              label:
+                "Last name",
+            },
+            {
+              name: "phone",
+              label: "Phone",
+            },
+            {
+              name: "role",
+              label: "Role",
+              type: "select",
+              options:
+                ROLES,
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "firstName",
+            "lastName",
+            "email",
+            "role",
+            "isActive",
+          ],
+
+          [
+            {
+              name: "role",
+              label: "Role",
+              options:
+                ROLES,
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+
+        updateEndpoint: (
+          id,
+        ) =>
+          `/users/${id}`,
+
+        deleteEndpoint: (
+          row,
+        ) =>
+          `/users/${row.id}/status`,
+
+        deleteMethod:
+          "PATCH",
+
+        deleteBody: () => ({
+          isActive: false,
+        }),
+
+        canCreate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "users.create",
+          ),
+
+        canUpdate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "users.update",
+          ),
+
+        canDelete: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "users.delete",
+          ),
+      };
+
+    case "departments":
+      return withCrud(
+        R(
+          "Departments",
+          "Manage departments and optional campus ownership. Active status is an update-only field.",
+          "/departments?page=1&pageSize=500",
+
+          [
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "code",
+              label: "Code",
+              required: true,
+            },
+            {
+              name: "campusId",
+              label: "Campus",
+              type: "select",
+              source:
+                "campuses",
+            },
+          ],
+
+          [
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "code",
+              label: "Code",
+            },
+            {
+              name: "campusId",
+              label: "Campus",
+              type: "select",
+              source:
+                "campuses",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "code",
+            "campus",
+            "isActive",
+          ],
+
+          [
+            {
+              name: "campusId",
+              label: "Campus",
+              source:
+                "campuses",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/departments",
+        "departments",
+      );
+
+    case "programs":
+      return withCrud(
+        R(
+          "Programs",
+          "Manage program identity, level, duration and department ownership.",
+          "/programs?page=1&pageSize=500",
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+              required: true,
+            },
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "code",
+              label: "Code",
+              required: true,
+            },
+            {
+              name: "level",
+              label: "Level",
+              required: true,
+            },
+            {
+              name:
+                "durationYears",
+              label:
+                "Duration years",
+              type: "number",
+              required: true,
+            },
+          ],
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+            },
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "code",
+              label: "Code",
+            },
+            {
+              name: "level",
+              label: "Level",
+            },
+            {
+              name:
+                "durationYears",
+              label:
+                "Duration years",
+              type: "number",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "code",
+            "level",
+            "durationYears",
+            "department",
+            "isActive",
+          ],
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              source:
+                "departments",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/programs",
+        "programs",
+      );
+
+    case "academic-years":
+      return withCrud(
+        R(
+          "Academic years",
+          "Manage academic-year windows and the institution's current year.",
+          "/academic-years?page=1&pageSize=500",
+
+          [
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "startDate",
+              label:
+                "Start date",
+              type: "date",
+              required: true,
+            },
+            {
+              name: "endDate",
+              label:
+                "End date",
+              type: "date",
+              required: true,
+            },
+            {
+              name: "isCurrent",
+              label:
+                "Current year",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "startDate",
+              label:
+                "Start date",
+              type: "date",
+            },
+            {
+              name: "endDate",
+              label:
+                "End date",
+              type: "date",
+            },
+            {
+              name: "isCurrent",
+              label:
+                "Current year",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "startDate",
+            "endDate",
+            "isCurrent",
+          ],
+
+          [
+            {
+              name: "isCurrent",
+              label: "Current",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/academic-years",
+        "academic-years",
+      );
+
+    case "semesters":
+      return withCrud(
+        R(
+          "Semesters",
+          "Create semesters under a program and academic year. Program and year define the relationship and are create-only.",
+          "/semesters?page=1&pageSize=500",
+
+          [
+            {
+              name: "programId",
+              label: "Program",
+              type: "select",
+              source:
+                "programs",
+              required: true,
+            },
+            {
+              name:
+                "academicYearId",
+              label:
+                "Academic year",
+              type: "select",
+              source:
+                "years",
+              required: true,
+            },
+            {
+              name: "number",
+              label: "Number",
+              type: "number",
+              required: true,
+            },
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "startDate",
+              label:
+                "Start date",
+              type: "date",
+            },
+            {
+              name: "endDate",
+              label:
+                "End date",
+              type: "date",
+            },
+          ],
+
+          [
+            {
+              name: "number",
+              label: "Number",
+              type: "number",
+            },
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "startDate",
+              label:
+                "Start date",
+              type: "date",
+            },
+            {
+              name: "endDate",
+              label:
+                "End date",
+              type: "date",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "number",
+            "program",
+            "academicYear",
+            "startDate",
+            "endDate",
+            "isActive",
+          ],
+
+          [
+            {
+              name: "programId",
+              label: "Program",
+              source:
+                "programs",
+            },
+            {
+              name:
+                "academicYearId",
+              label:
+                "Academic year",
+              source:
+                "years",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/semesters",
+        "semesters",
+      );
+
+    case "sections":
+      return withCrud(
+        R(
+          "Sections",
+          "Manage class sections and capacity. Semester assignment is create-only.",
+          "/sections?page=1&pageSize=500",
+
+          [
+            {
+              name:
+                "semesterId",
+              label:
+                "Semester",
+              type: "select",
+              source:
+                "semesters",
+              required: true,
+            },
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "capacity",
+              label: "Capacity",
+              type: "number",
+            },
+          ],
+
+          [
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "capacity",
+              label: "Capacity",
+              type: "number",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "semester",
+            "capacity",
+            "isActive",
+          ],
+
+          [
+            {
+              name:
+                "semesterId",
+              label:
+                "Semester",
+              source:
+                "semesters",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/sections",
+        "sections",
+      );
+
+    case "courses":
+      return withCrud(
+        R(
+          "Courses",
+          "Manage the institutional course catalogue. Active status is update-only.",
+          "/courses?page=1&pageSize=500",
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+              required: true,
+            },
+            {
+              name: "code",
+              label: "Code",
+              required: true,
+            },
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "credits",
+              label: "Credits",
+              type: "number",
+              required: true,
+            },
+            {
+              name:
+                "description",
+              label:
+                "Description",
+              type: "textarea",
+            },
+          ],
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+            },
+            {
+              name: "code",
+              label: "Code",
+            },
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "credits",
+              label: "Credits",
+              type: "number",
+            },
+            {
+              name:
+                "description",
+              label:
+                "Description",
+              type: "textarea",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "code",
+            "name",
+            "credits",
+            "department",
+            "isActive",
+          ],
+
+          [
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              source:
+                "departments",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/courses",
+        "courses",
+      );
+
+    case "course-offerings":
+      return withCrud(
+        R(
+          "Course offerings",
+          "Create an offering from course + semester + section. Once created, only faculty assignment and active state are editable.",
+          "/course-offerings?page=1&pageSize=500",
+
+          [
+            {
+              name: "courseId",
+              label: "Course",
+              type: "select",
+              source:
+                "courses",
+              required: true,
+            },
+            {
+              name:
+                "semesterId",
+              label:
+                "Semester",
+              type: "select",
+              source:
+                "semesters",
+              required: true,
+            },
+            {
+              name:
+                "sectionId",
+              label:
+                "Section",
+              type: "select",
+              source:
+                "sections",
+              required: true,
+            },
+            {
+              name:
+                "facultyId",
+              label:
+                "Faculty",
+              type: "select",
+              source:
+                "faculty",
+            },
+          ],
+
+          [
+            {
+              name:
+                "facultyId",
+              label:
+                "Faculty",
+              type: "select",
+              source:
+                "faculty",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "course",
+            "semester",
+            "section",
+            "faculty",
+            "isActive",
+          ],
+
+          [
+            {
+              name: "courseId",
+              label: "Course",
+              source:
+                "courses",
+            },
+            {
+              name:
+                "semesterId",
+              label:
+                "Semester",
+              source:
+                "semesters",
+            },
+            {
+              name:
+                "sectionId",
+              label:
+                "Section",
+              source:
+                "sections",
+            },
+            {
+              name:
+                "facultyId",
+              label:
+                "Faculty",
+              source:
+                "faculty",
+            },
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/course-offerings",
+        "course-offerings",
+      );
+
+    case "campuses":
+      return withCrud(
+        R(
+          "Campuses",
+          "Manage campus identity, code and address. Active status is update-only.",
+          "/campuses?page=1&pageSize=500",
+
+          [
+            {
+              name: "name",
+              label: "Name",
+              required: true,
+            },
+            {
+              name: "code",
+              label: "Code",
+              required: true,
+            },
+            {
+              name: "address",
+              label: "Address",
+              type: "textarea",
+            },
+          ],
+
+          [
+            {
+              name: "name",
+              label: "Name",
+            },
+            {
+              name: "code",
+              label: "Code",
+            },
+            {
+              name: "address",
+              label: "Address",
+              type: "textarea",
+            },
+            {
+              name: "isActive",
+              label: "Active",
+              type: "checkbox",
+            },
+          ],
+
+          [
+            "name",
+            "code",
+            "address",
+            "isActive",
+          ],
+
+          [
+            {
+              name: "isActive",
+              label: "Status",
+              options: [
+                "true",
+                "false",
+              ],
+            },
+          ],
+        ),
+        "/campuses",
+        "campuses",
+      );
+
+    case "notices":
+      return {
+        ...R(
+          "Notices",
+          "Publish institution notices with audience, department targeting and expiry.",
+          "/erp/notices?includeExpired=true",
+
+          [
+            {
+              name: "title",
+              label: "Title",
+              required: true,
+            },
+            {
+              name: "body",
+              label: "Body",
+              type: "textarea",
+              required: true,
+            },
+            {
+              name: "audience",
+              label: "Audience",
+              type: "select",
+              options:
+                AUDIENCES,
+            },
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+            },
+            {
+              name:
+                "expiresAt",
+              label: "Expires",
+              type: "datetime-local",
+            },
+          ],
+
+          [
+            {
+              name: "title",
+              label: "Title",
+            },
+            {
+              name: "body",
+              label: "Body",
+              type: "textarea",
+            },
+            {
+              name: "audience",
+              label: "Audience",
+              type: "select",
+              options:
+                AUDIENCES,
+            },
+            {
+              name:
+                "departmentId",
+              label:
+                "Department",
+              type: "select",
+              source:
+                "departments",
+            },
+            {
+              name:
+                "expiresAt",
+              label: "Expires",
+              type: "datetime-local",
+            },
+          ],
+
+          [
+            "title",
+            "audience",
+            "department",
+            "expiresAt",
+            "createdAt",
+          ],
+        ),
+
+        updateEndpoint: (
+          id,
+        ) =>
+          `/erp/notices/${id}`,
+
+        deleteEndpoint: (
+          row,
+        ) =>
+          `/erp/notices/${row.id}`,
+
+        canCreate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "notices.manage",
+          ),
+
+        canUpdate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "notices.manage",
+          ),
+
+        canDelete: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "notices.manage",
+          ),
+      };
+
+    case "calendar":
+      return {
+        ...R(
+          "Calendar",
+          "Manage institutional events without mixing create-only and update-only fields.",
+          "/calendar/events?page=1&pageSize=500",
+
+          [
+            {
+              name: "title",
+              label: "Title",
+              required: true,
+            },
+            {
+              name:
+                "description",
+              label:
+                "Description",
+              type: "textarea",
+            },
+            {
+              name:
+                "eventType",
+              label:
+                "Event type",
+              type: "select",
+              options:
+                EVENT_TYPES,
+            },
+            {
+              name:
+                "startDate",
+              label: "Start",
+              type: "datetime-local",
+              required: true,
+            },
+            {
+              name:
+                "endDate",
+              label: "End",
+              type: "datetime-local",
+              required: true,
+            },
+            {
+              name:
+                "academicYearId",
+              label:
+                "Academic year",
+              type: "select",
+              source:
+                "years",
+            },
+            {
+              name:
+                "audience",
+              label:
+                "Audience",
+              type: "select",
+              options:
+                CALENDAR_AUDIENCES,
+            },
+          ],
+
+          [
+            {
+              name: "title",
+              label: "Title",
+            },
+            {
+              name:
+                "description",
+              label:
+                "Description",
+              type: "textarea",
+            },
+            {
+              name:
+                "eventType",
+              label:
+                "Event type",
+              type: "select",
+              options:
+                EVENT_TYPES,
+            },
+            {
+              name:
+                "startDate",
+              label: "Start",
+              type: "datetime-local",
+            },
+            {
+              name:
+                "endDate",
+              label: "End",
+              type: "datetime-local",
+            },
+            {
+              name:
+                "academicYearId",
+              label:
+                "Academic year",
+              type: "select",
+              source:
+                "years",
+            },
+            {
+              name:
+                "audience",
+              label:
+                "Audience",
+              type: "select",
+              options:
+                CALENDAR_AUDIENCES,
+            },
+          ],
+
+          [
+            "title",
+            "eventType",
+            "audience",
+            "startDate",
+            "endDate",
+          ],
+        ),
+
+        updateEndpoint: (
+          id,
+        ) =>
+          `/calendar/events/${id}`,
+
+        deleteEndpoint: (
+          row,
+        ) =>
+          `/calendar/events/${row.id}`,
+
+        canCreate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "calendar.manage",
+          ),
+
+        canUpdate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "calendar.manage",
+          ),
+
+        canDelete: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "calendar.manage",
+          ),
+      };
+
+    case "parent-links":
+      return {
+        ...R(
+          "Parent links",
+          "Connect parent accounts to student records. Links are immutable after creation and can be removed.",
+          "/erp/parent-links?page=1&pageSize=500",
+
+          [
+            {
+              name:
+                "parentId",
+              label: "Parent",
+              type: "select",
+              source:
+                "parents",
+              required: true,
+            },
+            {
+              name:
+                "studentId",
+              label: "Student",
+              type: "select",
+              source:
+                "students",
+              required: true,
+            },
+            {
+              name:
+                "relationship",
+              label:
+                "Relationship",
+            },
+          ],
+
+          [],
+
+          [
+            "parent",
+            "student",
+            "relationship",
+            "createdAt",
+          ],
+        ),
+
+        createEndpoint:
+          "/erp/parent-links",
+
+        deleteEndpoint: (
+          row,
+        ) =>
+          `/erp/parent-links/${row.parentId}/${row.studentId}`,
+
+        canCreate: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "parent-links.manage",
+          ),
+
+        canDelete: (
+          permissions,
+        ) =>
+          permissions.includes(
+            "parent-links.manage",
+          ),
+      };
+
+    default:
+      return null;
+  }
+}
+
+function DetailDrawer({
   row,
   fields,
   onClose,
@@ -1696,7 +1980,7 @@ function Detail({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[110] bg-slate-950/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] bg-slate-950/55 p-4 backdrop-blur-sm"
       onMouseDown={
         onClose
       }
@@ -1727,6 +2011,7 @@ function Detail({
           </div>
 
           <button
+            type="button"
             className={
               SECONDARY
             }
@@ -1741,45 +2026,50 @@ function Detail({
         <div className="flex-1 overflow-y-auto p-6">
           <div className="grid gap-3">
             {fields.map(
-              (field) => (
-                <div
-                  key={
-                    field
-                  }
-                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    {displayColumn(
-                      field,
-                    )}
-                  </p>
+              (field) => {
+                const value =
+                  rowValue(
+                    row,
+                    field,
+                  );
 
-                  <p className="mt-1 break-words text-sm font-bold text-slate-800">
-                    {field
-                      .toLowerCase()
-                      .includes(
-                        "date",
-                      ) ||
-                    field
-                      .toLowerCase()
-                      .endsWith(
-                        "at",
-                      )
-                      ? dateText(
-                          rowValue(
-                            row,
-                            field,
-                          ),
-                        )
-                      : text(
-                          rowValue(
-                            row,
-                            field,
-                          ),
-                        )}
-                  </p>
-                </div>
-              ),
+                const isDate =
+                  field
+                    .toLowerCase()
+                    .includes(
+                      "date",
+                    ) ||
+                  field
+                    .toLowerCase()
+                    .endsWith(
+                      "at",
+                    );
+
+                return (
+                  <div
+                    key={
+                      field
+                    }
+                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      {displayColumn(
+                        field,
+                      )}
+                    </p>
+
+                    <p className="mt-1 break-words text-sm font-bold text-slate-800">
+                      {isDate
+                        ? dateText(
+                            value,
+                          )
+                        : text(
+                            value,
+                          )}
+                    </p>
+                  </div>
+                );
+              },
             )}
           </div>
         </div>
@@ -1886,24 +2176,32 @@ function ResourceManager({
       permissions,
     ) ?? false;
 
+  const fields =
+    editing
+      ? def.updateFields
+      : def.createFields;
+
   const sources =
     useMemo(
-      () =>
-        [
-          ...new Set(
-            def.fields
-              .map(
-                (
-                  field,
-                ) =>
-                  field.source,
-              )
-              .filter(
-                Boolean,
-              ) as string[],
-          ),
-        ],
-      [def.fields],
+      () => [
+        ...new Set(
+          [
+            ...def.createFields,
+            ...def.updateFields,
+          ]
+            .map(
+              (field) =>
+                field.source,
+            )
+            .filter(
+              Boolean,
+            ) as string[],
+        ),
+      ],
+      [
+        def.createFields,
+        def.updateFields,
+      ],
     );
 
   async function load() {
@@ -1964,7 +2262,7 @@ function ResourceManager({
                 source,
                 rowsOf(
                   response.data,
-                ) as Lookup[],
+                ),
               ] as const;
             } catch {
               return [
@@ -2056,13 +2354,14 @@ function ResourceManager({
 
                 if (
                   typeof actual ===
-                  "object"
+                    "object" &&
+                  actual
                 ) {
                   return (
                     String(
-                      actual?.id ||
-                        actual?.code ||
-                        actual?.name ||
+                      actual.id ||
+                        actual.code ||
+                        actual.name ||
                         "",
                     ) ===
                     value
@@ -2086,79 +2385,41 @@ function ResourceManager({
       ],
     );
 
-  function normalize(
-    row: Row,
-  ) {
-    const next = {
-      ...row,
-    };
-
-    for (
-      const field of
-        def.fields
-    ) {
-      if (
-        (
-          field.type ===
-            "date" ||
-          field.type ===
-            "datetime-local"
-        ) &&
-        next[
-          field.name
-        ]
-      ) {
-        const date =
-          new Date(
-            next[
-              field.name
-            ],
-          );
-
-        if (
-          !Number.isNaN(
-            date.getTime(),
-          )
-        ) {
-          next[
-            field.name
-          ] =
-            field.type ===
-            "datetime-local"
-              ? date
-                  .toISOString()
-                  .slice(
-                    0,
-                    16,
-                  )
-              : date
-                  .toISOString()
-                  .slice(
-                    0,
-                    10,
-                  );
-        }
-      }
-    }
-
-    return next;
-  }
-
   function openCreate() {
     setEditing(null);
     setForm({});
     setError("");
+    setSuccess("");
     setOpen(true);
   }
 
   function openEdit(
     row: Row,
   ) {
+    const next: Row =
+      {};
+
+    for (
+      const field of
+        def.updateFields
+    ) {
+      next[
+        field.name
+      ] =
+        rowValue(
+          row,
+          field.name,
+        ) ??
+        row[
+          field.name
+        ] ??
+        "";
+    }
+
     setEditing(row);
-    setForm(
-      normalize(row),
-    );
+    setForm(next);
     setError("");
+    setSuccess("");
     setOpen(true);
   }
 
@@ -2168,15 +2429,8 @@ function ResourceManager({
 
     for (
       const field of
-        def.fields
+        fields
     ) {
-      if (
-        editing &&
-        field.hiddenOnEdit
-      ) {
-        continue;
-      }
-
       let value =
         form[
           field.name
@@ -2185,7 +2439,9 @@ function ResourceManager({
       if (
         field.type ===
           "number" &&
-        value !== ""
+        value !== "" &&
+        value !==
+          undefined
       ) {
         value =
           Number(value);
@@ -2223,13 +2479,23 @@ function ResourceManager({
 
     for (
       const field of
-        def.fields
+        fields
     ) {
       if (
         field.required &&
-        !form[
-          field.name
-        ]
+        (
+          form[
+            field.name
+          ] ===
+            undefined ||
+          form[
+            field.name
+          ] ===
+            "" ||
+          form[
+            field.name
+          ] === null
+        )
       ) {
         setError(
           `${field.label} is required.`,
@@ -2375,17 +2641,18 @@ function ResourceManager({
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              {filtered.length} visible
-              {" "}
-              of{" "}
-              {data.length}
-              {" "}
+              {
+                filtered.length
+              }{" "}
+              visible of{" "}
+              {data.length}{" "}
               records
             </p>
           </div>
 
           {canCreate && (
             <button
+              type="button"
               className={
                 BUTTON
               }
@@ -2393,11 +2660,7 @@ function ResourceManager({
                 openCreate
               }
             >
-              + Create{" "}
-              {def.title.replace(
-                /s$/i,
-                "",
-              )}
+              + Create
             </button>
           )}
         </div>
@@ -2499,6 +2762,7 @@ function ResourceManager({
             )}
 
           <button
+            type="button"
             className={
               SECONDARY
             }
@@ -2526,11 +2790,7 @@ function ResourceManager({
 
       {loading ? (
         <div className="grid gap-3 p-5 md:grid-cols-3">
-          {[
-            1,
-            2,
-            3,
-          ].map(
+          {[1, 2, 3].map(
             (item) => (
               <div
                 key={item}
@@ -2594,14 +2854,15 @@ function ResourceManager({
                     {def.columns.map(
                       (
                         column,
-                      ) => (
-                        <td
-                          key={
-                            column
-                          }
-                          className="max-w-[260px] truncate px-5 py-4 font-medium text-slate-700"
-                        >
-                          {column
+                      ) => {
+                        const value =
+                          rowValue(
+                            row,
+                            column,
+                          );
+
+                        const isDate =
+                          column
                             .toLowerCase()
                             .includes(
                               "date",
@@ -2610,26 +2871,31 @@ function ResourceManager({
                             .toLowerCase()
                             .endsWith(
                               "at",
-                            )
-                            ? dateText(
-                                rowValue(
-                                  row,
-                                  column,
-                                ),
-                              )
-                            : text(
-                                rowValue(
-                                  row,
-                                  column,
-                                ),
-                              )}
-                        </td>
-                      ),
+                            );
+
+                        return (
+                          <td
+                            key={
+                              column
+                            }
+                            className="max-w-[260px] truncate px-5 py-4 font-medium text-slate-700"
+                          >
+                            {isDate
+                              ? dateText(
+                                  value,
+                                )
+                              : text(
+                                  value,
+                                )}
+                          </td>
+                        );
+                      },
                     )}
 
                     <td className="whitespace-nowrap px-5 py-4 text-right">
                       <button
-                        className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
+                        type="button"
+                        className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700"
                         onClick={() =>
                           setSelected(
                             row,
@@ -2641,7 +2907,8 @@ function ResourceManager({
 
                       {canUpdate && (
                         <button
-                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
+                          type="button"
+                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700"
                           onClick={() =>
                             openEdit(
                               row,
@@ -2654,6 +2921,7 @@ function ResourceManager({
 
                       {canDelete && (
                         <button
+                          type="button"
                           disabled={
                             saving
                           }
@@ -2677,7 +2945,7 @@ function ResourceManager({
       )}
 
       {selected && (
-        <Detail
+        <DetailDrawer
           row={
             selected
           }
@@ -2704,12 +2972,13 @@ function ResourceManager({
                     : "Create"}
                 </p>
 
-                <h3 className="mt-1 text-2xl font-black">
+                <h3 className="mt-1 text-2xl font-black text-slate-950">
                   {def.title}
                 </h3>
               </div>
 
               <button
+                type="button"
                 className={
                   SECONDARY
                 }
@@ -2730,33 +2999,23 @@ function ResourceManager({
               className="space-y-5 p-5 sm:p-6"
             >
               <div className="grid gap-4 md:grid-cols-2">
-                {def.fields
-                  .filter(
-                    (
-                      field,
-                    ) =>
-                      !(
-                        editing &&
-                        field.hiddenOnEdit
-                      ),
-                  )
-                  .map(
-                    (
-                      field,
-                    ) => (
-                      <label
-                        key={
-                          field.name
-                        }
-                        className={
-                          field.colSpan ===
-                            2 ||
-                          field.type ===
-                            "textarea"
-                            ? "md:col-span-2"
-                            : ""
-                        }
-                      >
+                {fields.map(
+                  (field) => (
+                    <label
+                      key={
+                        field.name
+                      }
+                      className={
+                        field.span ===
+                          2 ||
+                        field.type ===
+                          "textarea"
+                          ? "md:col-span-2"
+                          : ""
+                      }
+                    >
+                      {field.type !==
+                        "checkbox" && (
                         <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
                           {
                             field.label
@@ -2766,36 +3025,37 @@ function ResourceManager({
                             ? " *"
                             : ""}
                         </span>
+                      )}
 
-                        <Control
-                          field={
-                            field
-                          }
-                          value={
-                            form[
-                              field.name
-                            ]
-                          }
-                          setValue={(
-                            value,
-                          ) =>
-                            setForm(
-                              (
-                                current,
-                              ) => ({
-                                ...current,
-                                [field.name]:
-                                  value,
-                              }),
-                            )
-                          }
-                          lookups={
-                            lookups
-                          }
-                        />
-                      </label>
-                    ),
-                  )}
+                      <FieldControl
+                        field={
+                          field
+                        }
+                        value={
+                          form[
+                            field.name
+                          ]
+                        }
+                        setValue={(
+                          value,
+                        ) =>
+                          setForm(
+                            (
+                              current,
+                            ) => ({
+                              ...current,
+                              [field.name]:
+                                value,
+                            }),
+                          )
+                        }
+                        lookups={
+                          lookups
+                        }
+                      />
+                    </label>
+                  ),
+                )}
               </div>
 
               {error && (
@@ -2820,6 +3080,7 @@ function ResourceManager({
                 </button>
 
                 <button
+                  type="submit"
                   disabled={
                     saving
                   }
@@ -2890,13 +3151,9 @@ function Documents({
     url: "",
   });
 
-  const canCreate =
-    canAny(
-      permissions,
-      [
-        "documents.manage",
-        "students.update",
-      ],
+  const canManage =
+    permissions.includes(
+      "students.update",
     );
 
   async function load() {
@@ -2906,7 +3163,6 @@ function Documents({
     }
 
     setLoading(true);
-    setError("");
 
     try {
       const response =
@@ -2943,13 +3199,11 @@ function Documents({
             setStudents(
               rowsOf(
                 response.data,
-              ) as Lookup[],
+              ),
             ),
         )
         .catch(() =>
-          setStudents(
-            [],
-          ),
+          setStudents([]),
         );
     },
     [],
@@ -3049,66 +3303,47 @@ function Documents({
   return (
     <div className="space-y-5">
       <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
-          <label>
-            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Student
-            </span>
+        <label>
+          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+            Student
+          </span>
 
-            <select
-              value={student}
-              onChange={(event) =>
-                setStudent(
-                  event.target
-                    .value,
-                )
-              }
-              className={
-                INPUT
-              }
-            >
-              <option value="">
-                Select student
-              </option>
+          <select
+            value={student}
+            onChange={(event) =>
+              setStudent(
+                event.target
+                  .value,
+              )
+            }
+            className={INPUT}
+          >
+            <option value="">
+              Select student
+            </option>
 
-              {students.map(
-                (
-                  studentItem,
-                ) => (
-                  <option
-                    key={
-                      studentItem.id
-                    }
-                    value={
-                      studentItem.id
-                    }
-                  >
-                    {labelFor(
-                      studentItem,
-                    )}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-
-          {student && (
-            <div className="rounded-2xl bg-slate-950 px-5 py-4 text-sm font-bold text-white">
-              {
-                documents.length
-              }{" "}
-              document
-              {documents.length ===
-              1
-                ? ""
-                : "s"}
-            </div>
-          )}
-        </div>
+            {students.map(
+              (item) => (
+                <option
+                  key={
+                    item.id
+                  }
+                  value={
+                    item.id
+                  }
+                >
+                  {labelFor(
+                    item,
+                  )}
+                </option>
+              ),
+            )}
+          </select>
+        </label>
       </section>
 
       {student &&
-        canCreate && (
+        canManage && (
           <form
             onSubmit={save}
             className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm"
@@ -3241,19 +3476,19 @@ function Documents({
                         document.id
                       }
                     >
-                      <td className="px-5 py-4 font-bold">
+                      <td className="px-5 py-4 font-bold text-slate-800">
                         {text(
                           document.title,
                         )}
                       </td>
 
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-slate-600">
                         {text(
                           document.type,
                         )}
                       </td>
 
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 text-slate-600">
                         {dateText(
                           document.createdAt,
                         )}
@@ -3266,27 +3501,26 @@ function Documents({
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black"
+                          className="mr-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700"
                         >
                           Open
                         </a>
 
-                        {canCreate &&
-                          document.id && (
-                            <button
-                              disabled={
-                                saving
-                              }
-                              onClick={() =>
-                                void remove(
-                                  document.id as string,
-                                )
-                              }
-                              className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
-                            >
-                              Delete
-                            </button>
-                          )}
+                        {canManage && (
+                          <button
+                            disabled={
+                              saving
+                            }
+                            onClick={() =>
+                              void remove(
+                                document.id as string,
+                              )
+                            }
+                            className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ),
@@ -3301,6 +3535,358 @@ function Documents({
               : "Select a student to manage documents."}
           </div>
         )}
+      </section>
+    </div>
+  );
+}
+
+function Notifications({
+  permissions,
+}: {
+  permissions: string[];
+}) {
+  const [
+    users,
+    setUsers,
+  ] = useState<
+    Lookup[]
+  >([]);
+
+  const [
+    selected,
+    setSelected,
+  ] = useState<
+    string[]
+  >([]);
+
+  const [
+    history,
+    setHistory,
+  ] = useState<Row[]>(
+    [],
+  );
+
+  const [
+    form,
+    setForm,
+  ] = useState({
+    title: "",
+    body: "",
+  });
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const canSend =
+    permissions.includes(
+      "notices.manage",
+    );
+
+  async function loadHistory() {
+    try {
+      const response =
+        await authedFetch<any>(
+          "/portal/notifications?page=1&limit=200",
+        );
+
+      setHistory(
+        rowsOf(
+          response.data,
+        ),
+      );
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to load notification history.",
+      );
+    }
+  }
+
+  useEffect(
+    () => {
+      void Promise.all([
+        authedFetch<any>(
+          "/users?page=1&pageSize=500",
+        ).then(
+          (response) =>
+            setUsers(
+              rowsOf(
+                response.data,
+              ),
+            ),
+        ),
+        loadHistory(),
+      ]);
+    },
+    [],
+  );
+
+  async function send(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (!selected.length) {
+      setError(
+        "Select at least one recipient.",
+      );
+
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await authedFetch(
+        selected.length ===
+          1
+          ? "/portal/notifications"
+          : "/portal/notifications/bulk",
+        {
+          method: "POST",
+          body:
+            JSON.stringify(
+              selected.length ===
+                1
+                ? {
+                    userId:
+                      selected[0],
+                    ...form,
+                  }
+                : {
+                    userIds:
+                      selected,
+                    ...form,
+                  },
+            ),
+        },
+      );
+
+      setSelected([]);
+
+      setForm({
+        title: "",
+        body: "",
+      });
+
+      await loadHistory();
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to send notification.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <form
+        onSubmit={
+          send
+        }
+        className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div className="grid gap-4">
+          <label>
+            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Recipients
+            </span>
+
+            <select
+              multiple
+              value={
+                selected
+              }
+              onChange={(
+                event,
+              ) =>
+                setSelected(
+                  Array.from(
+                    (
+                      event.target as HTMLSelectElement
+                    )
+                      .selectedOptions,
+                    (
+                      option,
+                    ) =>
+                      option.value,
+                  ),
+                )
+              }
+              className={`${INPUT} min-h-44`}
+            >
+              {users.map(
+                (user) => (
+                  <option
+                    key={
+                      user.id
+                    }
+                    value={
+                      user.id
+                    }
+                  >
+                    {labelFor(
+                      user,
+                    )}
+                  </option>
+                ),
+              )}
+            </select>
+
+            <span className="mt-1 block text-xs text-slate-400">
+              Hold Command/Ctrl
+              to select multiple
+              recipients.
+            </span>
+          </label>
+
+          <input
+            required
+            placeholder="Notification title"
+            value={
+              form.title
+            }
+            onChange={(
+              event,
+            ) =>
+              setForm({
+                ...form,
+                title:
+                  event
+                    .target
+                    .value,
+              })
+            }
+            className={
+              INPUT
+            }
+          />
+
+          <textarea
+            required
+            placeholder="Message"
+            value={
+              form.body
+            }
+            onChange={(
+              event,
+            ) =>
+              setForm({
+                ...form,
+                body:
+                  event
+                    .target
+                    .value,
+              })
+            }
+            className={`${INPUT} min-h-32`}
+          />
+
+          <div className="flex justify-end">
+            <button
+              disabled={
+                !canSend ||
+                saving
+              }
+              className={
+                BUTTON
+              }
+            >
+              {saving
+                ? "Sending…"
+                : selected.length >
+                    1
+                  ? `Send to ${selected.length} users`
+                  : "Send notification"}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {error && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+          {error}
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 p-5">
+          <h2 className="font-black text-slate-950">
+            Notification history
+          </h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <tr>
+                <th className="px-5 py-4">
+                  Title
+                </th>
+
+                <th className="px-5 py-4">
+                  Message
+                </th>
+
+                <th className="px-5 py-4">
+                  Created
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {history.map(
+                (
+                  item,
+                  index,
+                ) => (
+                  <tr
+                    key={
+                      item.id ||
+                      index
+                    }
+                  >
+                    <td className="px-5 py-4 font-bold text-slate-800">
+                      {text(
+                        item.title,
+                      )}
+                    </td>
+
+                    <td className="max-w-xl px-5 py-4 text-slate-600">
+                      {text(
+                        item.body,
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-500">
+                      {dateText(
+                        item.createdAt,
+                      )}
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
@@ -3326,371 +3912,524 @@ function Operations({
     Resource
   > = {
     categories: {
-      title:
+      ...R(
         "Asset categories",
-      description:
-        "Manage reusable categories used by the institutional asset register.",
-      endpoint:
+        "Manage reusable asset categories.",
         "/operations/asset-categories",
-      fields: [
-        {
-          name: "name",
-          label: "Name",
-          required: true,
-        },
-        {
-          name: "code",
-          label: "Code",
-          required: true,
-        },
-      ],
-      columns: [
-        "name",
-        "code",
-        "assetCount",
-      ],
+
+        [
+          {
+            name: "name",
+            label: "Name",
+            required: true,
+          },
+          {
+            name: "code",
+            label: "Code",
+            required: true,
+          },
+        ],
+
+        [],
+
+        [
+          "name",
+          "code",
+        ],
+      ),
+
+      createEndpoint:
+        "/operations/asset-categories",
+
       canCreate: (
         permissions,
       ) =>
-        permission(
-          permissions,
+        permissions.includes(
           "operations.manage",
         ),
     },
 
     assets: {
-      title: "Assets",
-      description:
-        "Manage operational inventory and asset lifecycle.",
-      endpoint:
+      ...R(
+        "Assets",
+        "Manage institutional inventory. Asset tag, category and campus are create-only; operational fields are updateable.",
         "/operations/assets?page=1&pageSize=500",
-      fields: [
-        {
-          name: "name",
-          label: "Name",
-          required: true,
-        },
-        {
-          name: "assetTag",
-          label: "Asset tag",
-          required: true,
-        },
-        {
-          name: "assetCategoryId",
-          label: "Category",
-          type: "select",
-          source:
-            "assetCategories",
-        },
-        {
-          name: "campusId",
-          label: "Campus",
-          type: "select",
-          source: "campuses",
-        },
-        {
-          name: "departmentId",
-          label: "Department",
-          type: "select",
-          source:
-            "departments",
-        },
-        {
-          name: "quantity",
-          label: "Quantity",
-          type: "number",
-        },
-        {
-          name: "unitCost",
-          label: "Unit cost",
-          type: "number",
-        },
-        {
-          name: "location",
-          label: "Location",
-        },
-        {
-          name: "condition",
-          label: "Condition",
-          type: "select",
-          options: [
-            "NEW",
-            "GOOD",
-            "FAIR",
-            "POOR",
-            "DAMAGED",
-          ],
-        },
-        {
-          name: "status",
-          label: "Status",
-          type: "select",
-          options: [
-            "IN_USE",
-            "IN_STORE",
-            "UNDER_REPAIR",
-            "RETIRED",
-            "LOST",
-          ],
-        },
-        {
-          name: "notes",
-          label: "Notes",
-          type: "textarea",
-        },
-      ],
-      columns: [
-        "name",
-        "assetTag",
-        "status",
-        "condition",
-        "location",
-      ],
-      filters: [
-        {
-          name: "departmentId",
-          label: "Department",
-          source:
-            "departments",
-        },
-        {
-          name: "status",
-          label: "Status",
-          options: [
-            "IN_USE",
-            "IN_STORE",
-            "UNDER_REPAIR",
-            "RETIRED",
-            "LOST",
-          ],
-        },
-      ],
+
+        [
+          {
+            name: "name",
+            label: "Name",
+            required: true,
+          },
+          {
+            name:
+              "assetTag",
+            label:
+              "Asset tag",
+            required: true,
+          },
+          {
+            name:
+              "assetCategoryId",
+            label:
+              "Category",
+            type: "select",
+            source:
+              "assetCategories",
+          },
+          {
+            name:
+              "campusId",
+            label: "Campus",
+            type: "select",
+            source:
+              "campuses",
+          },
+          {
+            name:
+              "departmentId",
+            label:
+              "Department",
+            type: "select",
+            source:
+              "departments",
+          },
+          {
+            name:
+              "serialNumber",
+            label:
+              "Serial number",
+          },
+          {
+            name:
+              "location",
+            label:
+              "Location",
+          },
+          {
+            name:
+              "quantity",
+            label:
+              "Quantity",
+            type: "number",
+          },
+          {
+            name:
+              "unitCost",
+            label:
+              "Unit cost",
+            type: "number",
+          },
+          {
+            name:
+              "purchaseDate",
+            label:
+              "Purchase date",
+            type: "date",
+          },
+          {
+            name:
+              "warrantyEndsAt",
+            label:
+              "Warranty ends",
+            type: "date",
+          },
+          {
+            name:
+              "condition",
+            label:
+              "Condition",
+            type: "select",
+            options:
+              CONDITIONS,
+          },
+          {
+            name:
+              "status",
+            label: "Status",
+            type: "select",
+            options:
+              ASSET_STATUSES,
+          },
+          {
+            name:
+              "assignedToId",
+            label:
+              "Assigned to",
+            type: "select",
+            source:
+              "users",
+          },
+          {
+            name: "notes",
+            label: "Notes",
+            type: "textarea",
+          },
+        ],
+
+        [
+          {
+            name: "name",
+            label: "Name",
+          },
+          {
+            name:
+              "location",
+            label:
+              "Location",
+          },
+          {
+            name:
+              "quantity",
+            label:
+              "Quantity",
+            type: "number",
+          },
+          {
+            name:
+              "condition",
+            label:
+              "Condition",
+            type: "select",
+            options:
+              CONDITIONS,
+          },
+          {
+            name:
+              "status",
+            label: "Status",
+            type: "select",
+            options:
+              ASSET_STATUSES,
+          },
+          {
+            name:
+              "departmentId",
+            label:
+              "Department",
+            type: "select",
+            source:
+              "departments",
+          },
+          {
+            name:
+              "assignedToId",
+            label:
+              "Assigned to",
+            type: "select",
+            source:
+              "users",
+          },
+          {
+            name: "notes",
+            label: "Notes",
+            type: "textarea",
+          },
+        ],
+
+        [
+          "name",
+          "assetTag",
+          "status",
+          "condition",
+          "location",
+        ],
+
+        [
+          {
+            name:
+              "status",
+            label: "Status",
+            options:
+              ASSET_STATUSES,
+          },
+          {
+            name:
+              "condition",
+            label:
+              "Condition",
+            options:
+              CONDITIONS,
+          },
+        ],
+      ),
+
+      createEndpoint:
+        "/operations/assets",
+
       updateEndpoint: (
         id,
       ) =>
         `/operations/assets/${id}`,
+
       canCreate: (
         permissions,
       ) =>
-        permission(
-          permissions,
+        permissions.includes(
           "operations.manage",
         ),
+
       canUpdate: (
         permissions,
       ) =>
-        permission(
-          permissions,
+        permissions.includes(
           "operations.manage",
         ),
     },
 
     facilities: {
-      title: "Facilities",
-      description:
+      ...R(
+        "Facilities",
         "Manage institutional facilities and capacity.",
-      endpoint:
         "/operations/facilities",
-      fields: [
-        {
-          name: "name",
-          label: "Name",
-          required: true,
-        },
-        {
-          name: "code",
-          label: "Code",
-          required: true,
-        },
-        {
-          name: "facilityType",
-          label: "Type",
-          type: "select",
-          options: [
-            "CLASSROOM",
-            "LAB",
-            "AUDITORIUM",
-            "LIBRARY",
-            "HOSTEL",
-            "SPORTS",
-            "OTHER",
-          ],
-        },
-        {
-          name: "capacity",
-          label: "Capacity",
-          type: "number",
-        },
-        {
-          name: "campusId",
-          label: "Campus",
-          type: "select",
-          source:
-            "campuses",
-        },
-        {
-          name: "location",
-          label: "Location",
-        },
-      ],
-      columns: [
-        "name",
-        "code",
-        "facilityType",
-        "capacity",
-        "location",
-      ],
-      filters: [
-        {
-          name: "facilityType",
-          label: "Type",
-          options: [
-            "CLASSROOM",
-            "LAB",
-            "AUDITORIUM",
-            "LIBRARY",
-            "HOSTEL",
-            "SPORTS",
-            "OTHER",
-          ],
-        },
-      ],
+
+        [
+          {
+            name: "name",
+            label: "Name",
+            required: true,
+          },
+          {
+            name: "code",
+            label: "Code",
+            required: true,
+          },
+          {
+            name:
+              "facilityType",
+            label: "Type",
+            type: "select",
+            options:
+              FACILITY_TYPES,
+          },
+          {
+            name:
+              "capacity",
+            label:
+              "Capacity",
+            type: "number",
+          },
+          {
+            name:
+              "campusId",
+            label: "Campus",
+            type: "select",
+            source:
+              "campuses",
+          },
+          {
+            name:
+              "location",
+            label:
+              "Location",
+          },
+        ],
+
+        [
+          {
+            name: "name",
+            label: "Name",
+          },
+          {
+            name:
+              "facilityType",
+            label: "Type",
+            type: "select",
+            options:
+              FACILITY_TYPES,
+          },
+          {
+            name:
+              "capacity",
+            label:
+              "Capacity",
+            type: "number",
+          },
+          {
+            name:
+              "location",
+            label:
+              "Location",
+          },
+          {
+            name:
+              "isActive",
+            label: "Active",
+            type: "checkbox",
+          },
+        ],
+
+        [
+          "name",
+          "code",
+          "facilityType",
+          "capacity",
+          "location",
+        ],
+
+        [
+          {
+            name:
+              "facilityType",
+            label: "Type",
+            options:
+              FACILITY_TYPES,
+          },
+        ],
+      ),
+
+      createEndpoint:
+        "/operations/facilities",
+
       updateEndpoint: (
         id,
       ) =>
         `/operations/facilities/${id}`,
+
       canCreate: (
         permissions,
       ) =>
-        permission(
-          permissions,
+        permissions.includes(
           "operations.manage",
         ),
+
       canUpdate: (
         permissions,
       ) =>
-        permission(
-          permissions,
+        permissions.includes(
           "operations.manage",
         ),
     },
 
     maintenance: {
-      title:
+      ...R(
         "Maintenance",
-      description:
-        "Manage maintenance requests, priorities, status and resolution notes.",
-      endpoint:
+        "Raise and update maintenance requests. Creation and lifecycle updates use different backend contracts.",
         "/operations/maintenance?page=1&pageSize=500",
-      fields: [
-        {
-          name: "facilityId",
-          label: "Facility",
-          type: "select",
-          source:
-            "facilities",
-        },
-        {
-          name: "assetId",
-          label: "Asset",
-          type: "select",
-          source: "assets",
-        },
-        {
-          name: "title",
-          label: "Title",
-          required: true,
-        },
-        {
-          name: "description",
-          label: "Description",
-          type: "textarea",
-          required: true,
-        },
-        {
-          name: "priority",
-          label: "Priority",
-          type: "select",
-          options: [
-            "LOW",
-            "MEDIUM",
-            "HIGH",
-            "URGENT",
-          ],
-        },
-        {
-          name: "status",
-          label: "Status",
-          type: "select",
-          options: [
-            "OPEN",
-            "ASSIGNED",
-            "IN_PROGRESS",
-            "RESOLVED",
-            "CLOSED",
-            "REJECTED",
-          ],
-        },
-        {
-          name: "resolutionNote",
-          label:
-            "Resolution note",
-          type: "textarea",
-        },
-      ],
-      columns: [
-        "title",
-        "priority",
-        "status",
-        "createdAt",
-      ],
-      filters: [
-        {
-          name: "priority",
-          label: "Priority",
-          options: [
-            "LOW",
-            "MEDIUM",
-            "HIGH",
-            "URGENT",
-          ],
-        },
-        {
-          name: "status",
-          label: "Status",
-          options: [
-            "OPEN",
-            "ASSIGNED",
-            "IN_PROGRESS",
-            "RESOLVED",
-            "CLOSED",
-            "REJECTED",
-          ],
-        },
-      ],
+
+        [
+          {
+            name:
+              "facilityId",
+            label:
+              "Facility",
+            type: "select",
+            source:
+              "facilities",
+          },
+          {
+            name:
+              "assetId",
+            label: "Asset",
+            type: "select",
+            source:
+              "assets",
+          },
+          {
+            name: "title",
+            label: "Title",
+            required: true,
+          },
+          {
+            name:
+              "description",
+            label:
+              "Description",
+            type: "textarea",
+            required: true,
+          },
+          {
+            name:
+              "priority",
+            label:
+              "Priority",
+            type: "select",
+            options:
+              PRIORITIES,
+          },
+        ],
+
+        [
+          {
+            name: "status",
+            label: "Status",
+            type: "select",
+            options:
+              MAINTENANCE_STATUS,
+          },
+          {
+            name:
+              "assignedToId",
+            label:
+              "Assigned to",
+            type: "select",
+            source:
+              "users",
+          },
+          {
+            name:
+              "resolutionNote",
+            label:
+              "Resolution note",
+            type: "textarea",
+          },
+          {
+            name:
+              "priority",
+            label:
+              "Priority",
+            type: "select",
+            options:
+              PRIORITIES,
+          },
+        ],
+
+        [
+          "title",
+          "priority",
+          "status",
+          "createdAt",
+        ],
+
+        [
+          {
+            name:
+              "priority",
+            label:
+              "Priority",
+            options:
+              PRIORITIES,
+          },
+          {
+            name:
+              "status",
+            label: "Status",
+            options:
+              MAINTENANCE_STATUS,
+          },
+        ],
+      ),
+
+      createEndpoint:
+        "/operations/maintenance",
+
       updateEndpoint: (
         id,
       ) =>
         `/operations/maintenance/${id}`,
+
       canCreate: (
         permissions,
       ) =>
-        canAny(
-          permissions,
-          [
-            "operations.manage",
-            "maintenance.raise",
-          ],
+        permissions.includes(
+          "maintenance.raise",
         ),
+
       canUpdate: (
         permissions,
       ) =>
-        canAny(
-          permissions,
-          [
-            "operations.manage",
-            "maintenance.raise",
-          ],
+        permissions.includes(
+          "maintenance.raise",
         ),
     },
   };
@@ -3706,6 +4445,7 @@ function Operations({
             definition,
           ]) => (
             <button
+              type="button"
               key={key}
               onClick={() =>
                 setTab(
@@ -3764,29 +4504,20 @@ export function AdminModulePage({
 
   useEffect(
     () => {
-      void import(
-        "@/lib/auth"
-      ).then(
-        ({
-          getCurrentUser,
-        }) =>
-          getCurrentUser({
-            background: true,
-          })
-            .then(
-              (
-                currentUser,
-              ) =>
-                setPermissions(
-                  currentUser.permissions,
-                ),
-            )
-            .finally(() =>
-              setLoading(
-                false,
-              ),
+      void getCurrentUser({
+        background: true,
+      })
+        .then(
+          (user) =>
+            setPermissions(
+              user.permissions,
             ),
-      );
+        )
+        .finally(() =>
+          setLoading(
+            false,
+          ),
+        );
     },
     [],
   );
@@ -3848,6 +4579,25 @@ export function AdminModulePage({
 
   if (
     module ===
+    "notifications"
+  ) {
+    return (
+      <div className="space-y-5">
+        <Header
+          item={item}
+        />
+
+        <Notifications
+          permissions={
+            permissions
+          }
+        />
+      </div>
+    );
+  }
+
+  if (
+    module ===
     "operations"
   ) {
     return (
@@ -3872,7 +4622,7 @@ export function AdminModulePage({
 
   if (!definition) {
     return (
-      <div className="rounded-[30px] border border-slate-200 bg-white p-8">
+      <div className="rounded-[30px] border border-slate-200 bg-white p-8 text-slate-600">
         No administration
         adapter configured.
       </div>
