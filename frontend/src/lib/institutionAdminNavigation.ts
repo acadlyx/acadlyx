@@ -234,51 +234,73 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
 export function hasAny(
   user: AuthUser | null,
   permissions: string[],
-) {
-  return (
-    !permissions.length ||
-    permissions.some((permission) =>
-      user?.permissions.includes(permission),
-    )
+): boolean {
+  if (!permissions.length) {
+    return true;
+  }
+
+  return permissions.some(
+    (permission) =>
+      user?.permissions.includes(
+        permission,
+      ),
   );
 }
 
 export function canSee(
   user: AuthUser | null,
   item: AdminNavItem,
-) {
+): boolean {
+  if (
+    !user?.roles.includes(
+      "INSTITUTION_ADMIN",
+    )
+  ) {
+    return false;
+  }
+
   return Boolean(
-    user?.roles.includes("INSTITUTION_ADMIN") &&
-      (
-        hasAny(user, item.read) ||
-        hasAny(user, item.create || []) ||
-        hasAny(user, item.update || []) ||
-        hasAny(user, item.delete || [])
+    hasAny(user, item.read) ||
+      hasAny(
+        user,
+        item.create || [],
+      ) ||
+      hasAny(
+        user,
+        item.update || [],
+      ) ||
+      hasAny(
+        user,
+        item.delete || [],
       ),
   );
 }
 
 export function getAdminNavigation(
   user: AuthUser | null,
-) {
-  return INSTITUTION_ADMIN_NAV.filter((item) =>
-    canSee(user, item),
+): AdminNavItem[] {
+  return INSTITUTION_ADMIN_NAV.filter(
+    (item) =>
+      canSee(user, item),
   );
 }
 
 export function findAdminNavItem(
   pathname: string,
-) {
+): AdminNavItem | null {
   return (
     INSTITUTION_ADMIN_NAV
       .filter(
         (item) =>
           pathname === item.href ||
-          pathname.startsWith(`${item.href}/`),
+          pathname.startsWith(
+            `${item.href}/`,
+          ),
       )
       .sort(
         (a, b) =>
-          b.href.length - a.href.length,
+          b.href.length -
+          a.href.length,
       )[0] || null
   );
 }
@@ -286,7 +308,7 @@ export function findAdminNavItem(
 export function canAccessAdminPath(
   user: AuthUser | null,
   pathname: string,
-) {
+): boolean {
   if (
     !user?.roles.includes(
       "INSTITUTION_ADMIN",
@@ -300,9 +322,15 @@ export function canAccessAdminPath(
   }
 
   const item =
-    findAdminNavItem(pathname);
+    findAdminNavItem(
+      pathname,
+    );
 
   return Boolean(
-    item && canSee(user, item),
+    item &&
+      canSee(
+        user,
+        item,
+      ),
   );
 }
