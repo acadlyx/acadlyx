@@ -49,7 +49,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Departments",
     href: "/admin/departments",
     icon: "▦",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage departments and campus assignment.",
     read: ["departments.read"],
     create: ["departments.create"],
@@ -61,7 +61,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Programs",
     href: "/admin/programs",
     icon: "◈",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage programs, levels, duration and ownership.",
     read: ["programs.read"],
     create: ["programs.create"],
@@ -73,7 +73,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Academic Years",
     href: "/admin/academic-years",
     icon: "◫",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage academic-year windows and the current year.",
     read: ["academic-years.read"],
     create: ["academic-years.create"],
@@ -84,7 +84,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Semesters",
     href: "/admin/semesters",
     icon: "◒",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage semester definitions under programs and years.",
     read: ["semesters.read"],
     create: ["semesters.create"],
@@ -96,7 +96,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Sections",
     href: "/admin/sections",
     icon: "⊞",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage class sections and capacity.",
     read: ["sections.read"],
     create: ["sections.create"],
@@ -108,7 +108,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Courses",
     href: "/admin/courses",
     icon: "▤",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Manage the institution course catalogue.",
     read: ["courses.read"],
     create: ["courses.create"],
@@ -120,7 +120,7 @@ export const INSTITUTION_ADMIN_NAV: readonly InstitutionAdminNavItem[] = [
     label: "Course Offerings",
     href: "/admin/course-offerings",
     icon: "◇",
-    group: "Academic Structure",
+    group: "Academic structure",
     description: "Assign courses to semesters, sections and faculty.",
     read: ["course-offerings.read"],
     create: ["course-offerings.create"],
@@ -212,7 +212,7 @@ export function hasAny(
   user: AuthUser | null,
   permissions: string[],
 ): boolean {
-  if (permissions.length === 0) {
+  if (!permissions.length) {
     return true;
   }
 
@@ -221,8 +221,55 @@ export function hasAny(
   );
 }
 
-export function canSeeInstitutionAdminNav(
+export function canSee(
   user: AuthUser | null,
   item: InstitutionAdminNavItem,
 ): boolean {
-  if (!user?.roles.includes("INSTITUTION_A_
+  if (!user?.roles.includes("INSTITUTION_ADMIN")) {
+    return false;
+  }
+
+  return Boolean(
+    hasAny(user, item.read) ||
+      hasAny(user, item.create ?? []) ||
+      hasAny(user, item.update ?? []) ||
+      hasAny(user, item.delete ?? []),
+  );
+}
+
+export function getInstitutionAdminNavigation(
+  user: AuthUser | null,
+): InstitutionAdminNavItem[] {
+  return INSTITUTION_ADMIN_NAV.filter((item) => canSee(user, item));
+}
+
+export function findInstitutionAdminNavItem(
+  pathname: string,
+): InstitutionAdminNavItem | null {
+  return (
+    INSTITUTION_ADMIN_NAV
+      .filter(
+        (item) =>
+          pathname === item.href ||
+          pathname.startsWith(`${item.href}/`),
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0] ?? null
+  );
+}
+
+export function canAccessInstitutionAdminPath(
+  user: AuthUser | null,
+  pathname: string,
+): boolean {
+  if (!user?.roles.includes("INSTITUTION_ADMIN")) {
+    return false;
+  }
+
+  if (pathname === "/admin") {
+    return true;
+  }
+
+  const item = findInstitutionAdminNavItem(pathname);
+
+  return Boolean(item && canSee(user, item));
+}
