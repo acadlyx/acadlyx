@@ -2596,11 +2596,10 @@ function Documents({
                         {canCreate ? (
                           <button
                             type="button"
-                            onClick={() =>
-                              void remove(
-                                document.id,
-                              )
-                            }
+                          onClick={() => {
+  if (!document.id) return;
+  void remove(document.id);
+}}
                             className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-600"
                           >
                             Delete
