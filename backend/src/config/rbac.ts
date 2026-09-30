@@ -390,24 +390,17 @@ export const ROLE_PERMISSIONS: Record<
     "audit.read",
   ],
 
-  INSTITUTION_ADMIN: [
+    INSTITUTION_ADMIN: [
     /*
-     * Institutional administration only.
+     * Institution-wide administrative role.
      *
-     * Deliberately excluded:
-     * - fees / payments
-     * - assignments / marks
-     * - attendance operations
-     * - examinations / result processing
-     * - HR
-     * - admissions processing
-     * - library operations
-     * - placement operations
-     * - specialist financial / academic operations
+     * Institution Admin manages the institution's people,
+     * academic structure, institutional configuration and
+     * examination operations.
      *
-     * Institution Admin owns people, institutional structure and
-     * general administrative configuration.
+     * Platform-only permissions remain excluded.
      */
+
     "users.read",
     "users.create",
     "users.update",
@@ -460,6 +453,23 @@ export const ROLE_PERMISSIONS: Record<
 
     "parent-links.read",
     "parent-links.manage",
+
+    /*
+     * Examination administration.
+     *
+     * These permissions are already part of the canonical
+     * permission catalogue above and are required by the
+     * /examinations workspace and its backend APIs.
+     */
+    "exams.read",
+    "exams.manage",
+    "exams.approve",
+    "exams.invigilate",
+    "exams.revaluate",
+
+    "results.read",
+    "marks.read",
+    "marks.enter",
 
     "operations.read",
     "operations.manage",
