@@ -3,6 +3,12 @@
 import { RoleWorkspaceLanding } from "@/components/dashboard/RoleWorkspaceLanding";
 import type { CanonicalRole } from "@/lib/authorization";
 
-export function SpecialistDashboard({ role }: { role: CanonicalRole }) {
+interface SpecialistDashboardProps {
+  role: CanonicalRole;
+}
+
+export function SpecialistDashboard({
+  role,
+}: SpecialistDashboardProps) {
   return <RoleWorkspaceLanding role={role} />;
 }
