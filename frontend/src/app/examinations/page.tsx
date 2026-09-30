@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import EntityPicker from "@/components/common/EntityPicker";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
-import { DirectoryOption } from "@/lib/directoryApi";
 import {
   ExamRoom,
   ExamSchedule,
@@ -75,6 +74,7 @@ export default function ExaminationsPage() {
       setBusy(true);
       setError("");
       setNotice("");
+
       try {
         await fn();
       } catch (err) {
@@ -82,7 +82,10 @@ export default function ExaminationsPage() {
           router.replace("/login");
           return;
         }
-        setError(err instanceof Error ? err.message : "Something went wrong");
+
+        setError(
+          err instanceof Error ? err.message : "Something went wrong"
+        );
       } finally {
         setBusy(false);
       }
@@ -95,6 +98,7 @@ export default function ExaminationsPage() {
       listExamSessions({ page: 1 }),
       listExamRooms().catch(() => [] as ExamRoom[]),
     ]);
+
     setSessions(sessionList.items);
     setRooms(roomList);
   }, []);
@@ -117,7 +121,9 @@ export default function ExaminationsPage() {
   async function openMarks(scheduleId: string) {
     await run(async () => {
       const data = await getMarksSheet(scheduleId);
+
       setSheet(data);
+
       setDraft(
         Object.fromEntries(
           data.rows.map((row) => [
@@ -126,17 +132,25 @@ export default function ExaminationsPage() {
           ])
         )
       );
+
       setTab("marks");
     });
   }
 
   function marksPayload() {
     if (!sheet) return [];
+
     return sheet.rows.map((row) => {
       const raw = (draft[row.studentId] ?? "").trim().toUpperCase();
+
       if (raw === "AB") {
-        return { studentId: row.studentId, isAbsent: true, marksObtained: null };
+        return {
+          studentId: row.studentId,
+          isAbsent: true,
+          marksObtained: null,
+        };
       }
+
       return {
         studentId: row.studentId,
         isAbsent: false,
@@ -173,6 +187,7 @@ export default function ExaminationsPage() {
             {error}
           </p>
         )}
+
         {notice && (
           <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {notice}
@@ -198,6 +213,7 @@ export default function ExaminationsPage() {
               <h2 className="text-lg font-bold text-slate-900">
                 Examination sessions
               </h2>
+
               {sessions.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500">
                   No examination sessions yet.
@@ -214,24 +230,34 @@ export default function ExaminationsPage() {
                         <th className="pb-2" />
                       </tr>
                     </thead>
+
                     <tbody className="divide-y divide-slate-100">
                       {sessions.map((session) => (
                         <tr key={session.id}>
                           <td className="py-2 font-semibold text-slate-900">
                             {session.name}
                           </td>
+
                           <td className="py-2 text-slate-600">
                             {session.examType}
                           </td>
+
                           <td className="py-2 text-slate-600">
-                            {new Date(session.startsAt).toLocaleDateString()} —{" "}
-                            {new Date(session.endsAt).toLocaleDateString()}
+                            {new Date(
+                              session.startDate
+                            ).toLocaleDateString()}{" "}
+                            —{" "}
+                            {new Date(
+                              session.endDate
+                            ).toLocaleDateString()}
                           </td>
+
                           <td className="py-2">
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
                               {session.status}
                             </span>
                           </td>
+
                           <td className="py-2 text-right">
                             <button
                               type="button"
@@ -277,10 +303,12 @@ export default function ExaminationsPage() {
             onSave={() =>
               run(async () => {
                 if (!sheet) return;
+
                 await saveMarks(
                   sheet.schedule.id,
                   marksPayload()
                 );
+
                 setNotice("Marks saved successfully.");
                 await openMarks(sheet.schedule.id);
               })
@@ -288,9 +316,11 @@ export default function ExaminationsPage() {
             onApprove={() =>
               run(async () => {
                 if (!sheet) return;
+
                 await approveMarks(
                   sheet.schedule.id
                 );
+
                 setNotice("Marks approved successfully.");
                 await openMarks(sheet.schedule.id);
               })
@@ -321,6 +351,7 @@ function NewSessionForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
+
     onCreate({
       name: name.trim(),
       examType,
@@ -335,6 +366,7 @@ function NewSessionForm({
         <h2 className="text-lg font-bold text-slate-900">
           Create examination session
         </h2>
+
         <p className="mt-1 text-sm text-slate-500">
           Create the master examination window before scheduling individual
           papers.
@@ -349,6 +381,7 @@ function NewSessionForm({
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Session name
           </span>
+
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -362,6 +395,7 @@ function NewSessionForm({
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Type
           </span>
+
           <select
             value={examType}
             onChange={(event) => setExamType(event.target.value)}
@@ -380,6 +414,7 @@ function NewSessionForm({
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Starts
           </span>
+
           <input
             type="datetime-local"
             value={startsAt}
@@ -393,6 +428,7 @@ function NewSessionForm({
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Ends
           </span>
+
           <input
             type="datetime-local"
             value={endsAt}
@@ -480,6 +516,7 @@ function SessionWorkspace({
       onNotice(
         "Examination paper scheduled successfully."
       );
+
       onRefresh();
     });
   }
@@ -505,6 +542,7 @@ function SessionWorkspace({
       onNotice(
         "Examination room created successfully."
       );
+
       onRefresh();
     });
   }
@@ -517,9 +555,11 @@ function SessionWorkspace({
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Active session
             </p>
+
             <h2 className="mt-1 text-2xl font-bold text-slate-950">
               {session.name}
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               {session.examType} · {session.status}
             </p>
@@ -537,9 +577,11 @@ function SessionWorkspace({
                         session.id,
                         "SCHEDULED"
                       );
+
                       onNotice(
                         "Session moved to scheduled."
                       );
+
                       onRefresh();
                     })
                   }
@@ -559,9 +601,11 @@ function SessionWorkspace({
                         session.id,
                         "ACTIVE"
                       );
+
                       onNotice(
                         "Session activated."
                       );
+
                       onRefresh();
                     })
                   }
@@ -581,9 +625,11 @@ function SessionWorkspace({
                         session.id,
                         "COMPLETED"
                       );
+
                       onNotice(
                         "Session completed."
                       );
+
                       onRefresh();
                     })
                   }
@@ -619,6 +665,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Scheduled at
                 </span>
+
                 <input
                   type="datetime-local"
                   value={scheduledAt}
@@ -637,6 +684,7 @@ function SessionWorkspace({
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Duration
                   </span>
+
                   <input
                     type="number"
                     min="1"
@@ -654,6 +702,7 @@ function SessionWorkspace({
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Maximum marks
                   </span>
+
                   <input
                     type="number"
                     min="1"
@@ -672,6 +721,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Room
                 </span>
+
                 <select
                   value={roomId}
                   onChange={(event) =>
@@ -684,6 +734,7 @@ function SessionWorkspace({
                   <option value="">
                     Select later
                   </option>
+
                   {rooms.map((room) => (
                     <option
                       key={room.id}
@@ -720,6 +771,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Room name
                 </span>
+
                 <input
                   value={roomName}
                   onChange={(event) =>
@@ -737,6 +789,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Building
                 </span>
+
                 <input
                   value={building}
                   onChange={(event) =>
@@ -754,6 +807,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Floor
                 </span>
+
                 <input
                   value={floor}
                   onChange={(event) =>
@@ -771,6 +825,7 @@ function SessionWorkspace({
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Capacity
                 </span>
+
                 <input
                   type="number"
                   min="1"
@@ -805,6 +860,7 @@ function SessionWorkspace({
             <h3 className="text-base font-bold text-slate-900">
               Scheduled papers
             </h3>
+
             <p className="mt-1 text-sm text-slate-500">
               Manage seating, hall tickets and marks for each paper.
             </p>
@@ -890,6 +946,7 @@ function ScheduleCard({
             {schedule.courseOffering?.course?.name ??
               "Examination"}
           </h4>
+
           <p className="mt-1 text-xs text-slate-500">
             {new Date(
               schedule.scheduledAt
@@ -897,6 +954,7 @@ function ScheduleCard({
             · {schedule.durationMinutes} minutes ·{" "}
             {schedule.maxMarks} marks
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Status:{" "}
             <span className="font-semibold">
@@ -926,9 +984,11 @@ function ScheduleCard({
                     await allocateSeating(
                       schedule.id
                     );
+
                     onNotice(
                       "Seating allocated."
                     );
+
                     onRefresh();
                   })
                 }
@@ -945,9 +1005,11 @@ function ScheduleCard({
                     await generateHallTickets(
                       schedule.id
                     );
+
                     onNotice(
                       "Hall tickets generated."
                     );
+
                     onRefresh();
                   })
                 }
@@ -969,9 +1031,11 @@ function ScheduleCard({
                     await approveMarks(
                       schedule.id
                     );
+
                     onNotice(
                       "Marks approved."
                     );
+
                     onRefresh();
                   })
                 }
@@ -992,9 +1056,11 @@ function ScheduleCard({
                     await lockSchedule(
                       schedule.id
                     );
+
                     onNotice(
                       "Schedule locked."
                     );
+
                     onRefresh();
                   })
                 }
@@ -1015,9 +1081,11 @@ function ScheduleCard({
                     await publishResults(
                       schedule.id
                     );
+
                     onNotice(
                       "Results published."
                     );
+
                     onRefresh();
                   })
                 }
@@ -1035,6 +1103,7 @@ function ScheduleCard({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Room
             </span>
+
             <select
               value={roomId}
               onChange={(event) =>
@@ -1047,6 +1116,7 @@ function ScheduleCard({
               <option value="">
                 Select room
               </option>
+
               {rooms.map((room) => (
                 <option
                   key={room.id}
@@ -1063,6 +1133,7 @@ function ScheduleCard({
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Invigilator
             </span>
+
             <EntityPicker
               label=""
               value={invigilatorId}
@@ -1099,6 +1170,7 @@ function ScheduleCard({
                   onNotice(
                     "Schedule assignment saved."
                   );
+
                   onRefresh();
                 })
               }
@@ -1145,6 +1217,7 @@ function MarksWorkspace({
         <h2 className="text-lg font-bold text-slate-900">
           Marks entry
         </h2>
+
         <p className="mt-2 text-sm text-slate-500">
           Open a scheduled paper from the Sessions & schedules tab to
           enter marks.
@@ -1160,6 +1233,7 @@ function MarksWorkspace({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Marks sheet
           </p>
+
           <h2 className="mt-1 text-xl font-bold text-slate-950">
             {sheet.schedule.courseOffering?.course?.code ??
               "Course"}{" "}
@@ -1167,6 +1241,7 @@ function MarksWorkspace({
             {sheet.schedule.courseOffering?.course?.name ??
               "Examination"}
           </h2>
+
           <p className="mt-1 text-sm text-slate-500">
             Maximum marks:{" "}
             {sheet.schedule.maxMarks}
@@ -1205,9 +1280,11 @@ function MarksWorkspace({
               <th className="pb-3">
                 Student
               </th>
+
               <th className="pb-3">
                 Roll number
               </th>
+
               <th className="pb-3">
                 Marks
               </th>
@@ -1220,10 +1297,12 @@ function MarksWorkspace({
                 <td className="py-3 font-semibold text-slate-900">
                   {row.studentName}
                 </td>
+
                 <td className="py-3 text-slate-500">
                   {row.rollNumber ??
                     "—"}
                 </td>
+
                 <td className="py-3">
                   {canManage ? (
                     <input
