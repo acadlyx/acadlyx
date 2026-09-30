@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "./DashboardShell";
 import {
-  authedFetch,
   AuthRequiredError,
+  authedFetch,
 } from "@/lib/auth";
 
 type InstitutionRole =
   | "DIRECTOR"
   | "HOD"
-  | "PARENT"
-;
+  | "PARENT";
 
 type Notice = {
   id: string;
@@ -97,7 +96,6 @@ const roleConfig: Record<
       "Notices",
     ],
   },
-
 };
 
 function getNumber(
@@ -106,14 +104,10 @@ function getNumber(
 ): number {
   const value = stats[key];
 
-  if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
-  ) {
-    return 0;
-  }
-
-  return value;
+  return typeof value === "number" &&
+    Number.isFinite(value)
+    ? value
+    : 0;
 }
 
 function formatNumber(value: number): string {
@@ -178,10 +172,7 @@ function getStatCards(
     },
     {
       label: "Notifications",
-      value: getNumber(
-        stats,
-        "notifications",
-      ),
+      value: getNumber(stats, "notifications"),
     },
   ];
 }
@@ -309,7 +300,10 @@ function NoticesPanel({
         </div>
 
         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+            aria-hidden="true"
+          />
           Live
         </span>
       </div>
@@ -372,9 +366,7 @@ function NextActionsPanel({
           <button
             key={action.href}
             type="button"
-            onClick={() =>
-              onNavigate(action.href)
-            }
+            onClick={() => onNavigate(action.href)}
             className="group flex w-full items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/20"
           >
             <span className="min-w-0">
@@ -429,16 +421,11 @@ export function InstitutionRoleDashboard({
       data: Workspace;
     }>("/erp/me/workspace")
       .then((response) => {
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         setData(response.data);
       })
       .catch((requestError) => {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         if (
           requestError instanceof AuthRequiredError
@@ -485,9 +472,6 @@ export function InstitutionRoleDashboard({
       allowedRoles={[role]}
     >
       <div className="mx-auto w-full max-w-7xl">
-        {/* =====================================================
-            PAGE INTRO
-            ===================================================== */}
         <section className="mb-7">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
@@ -517,11 +501,11 @@ export function InstitutionRoleDashboard({
           </div>
         </section>
 
-        {/* =====================================================
-            ERROR
-            ===================================================== */}
         {error ? (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <div
+            role="alert"
+            className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4"
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-sm text-red-700">
                 !
@@ -550,9 +534,6 @@ export function InstitutionRoleDashboard({
           </div>
         ) : null}
 
-        {/* =====================================================
-            KPI CARDS
-            ===================================================== */}
         <section aria-label="Dashboard statistics">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {loading
@@ -572,9 +553,6 @@ export function InstitutionRoleDashboard({
           </div>
         </section>
 
-        {/* =====================================================
-            MAIN WORKSPACE
-            ===================================================== */}
         <div className="mt-6 grid gap-5 xl:grid-cols-[1.45fr_1fr]">
           <NoticesPanel
             notices={data?.notices ?? []}
@@ -586,9 +564,6 @@ export function InstitutionRoleDashboard({
           />
         </div>
 
-        {/* =====================================================
-            WORKSPACE FOOTER
-            ===================================================== */}
         <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold text-slate-800">
@@ -596,13 +571,15 @@ export function InstitutionRoleDashboard({
             </p>
 
             <p className="mt-1 text-xs text-slate-400">
-              Your available modules are controlled by your
-              authenticated role.
+              Your available modules are controlled by your authenticated role.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span
+              className="h-2 w-2 rounded-full bg-emerald-500"
+              aria-hidden="true"
+            />
 
             <span className="text-[11px] font-semibold text-slate-500">
               Workspace connected
@@ -613,4 +590,3 @@ export function InstitutionRoleDashboard({
     </DashboardShell>
   );
 }
-
