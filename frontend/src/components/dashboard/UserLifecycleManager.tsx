@@ -293,6 +293,7 @@ export function UserLifecycleManager() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial load only
   }, []);
 
   const counts = useMemo(() => {

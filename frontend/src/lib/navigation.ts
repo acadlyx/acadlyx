@@ -1,4 +1,4 @@
-import type { PermissionKey } from "@/lib/rbac";
+export type PermissionKey = string;
 
 export type NavigationItem = {
   label: string;
@@ -1108,6 +1108,16 @@ export function getNavigationForRoles(
       );
     }
   );
+}
+
+export function navigationForUser(
+  user: { roles: string[]; permissions: string[] } | null,
+): NavigationItem[] {
+  if (!user) {
+    return [];
+  }
+
+  return getNavigationForRoles(user.roles, user.permissions);
 }
 
 export function canAccessRoute(

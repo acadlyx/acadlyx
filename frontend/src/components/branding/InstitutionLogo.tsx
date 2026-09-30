@@ -19,8 +19,8 @@ function initials(name: string): string {
  */
 export function InstitutionLogo({ name, logoUrl, size = 40 }: InstitutionLogoProps) {
   if (logoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- Institution logos are user-uploaded and cannot use next/image
       <img
         src={logoUrl}
         alt={`${name} logo`}

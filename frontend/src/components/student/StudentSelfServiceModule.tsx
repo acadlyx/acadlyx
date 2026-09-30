@@ -38,6 +38,10 @@ import {
   listLeaveTypes,
   listMyLeaveRequests,
 } from "@/lib/leaveApi";
+import { getMyAttendance, getMyMarks } from "@/lib/academicsApi";
+import { getMyDocuments, getMyNotifications, getMyStudentPortal, PortalDocument, PortalNotification, StudentPortalData } from "@/lib/portalApi";
+import { getMyTimetable, StudentTimetableEntry } from "@/lib/studentApi";
+import { AttendanceSummaryData, InternalMarkEntry } from "@/types/academics";
 
 export type StudentModule =
   | "fees"
@@ -45,7 +49,13 @@ export type StudentModule =
   | "results"
   | "library"
   | "registration"
-  | "leave";
+  | "leave"
+  | "certificates"
+  | "attendance"
+  | "marks"
+  | "notifications"
+  | "profile"
+  | "timetable";
 
 const TITLES: Record<StudentModule, { title: string; subtitle: string }> = {
   fees: {
@@ -71,6 +81,30 @@ const TITLES: Record<StudentModule, { title: string; subtitle: string }> = {
   leave: {
     title: "My Leave",
     subtitle: "Your leave balances, requests and applications",
+  },
+  certificates: {
+    title: "My Certificates",
+    subtitle: "Your academic certificates and documents",
+  },
+  attendance: {
+    title: "My Attendance",
+    subtitle: "Your attendance across enrolled subjects",
+  },
+  marks: {
+    title: "My Marks",
+    subtitle: "Your internal marks and assessment components",
+  },
+  notifications: {
+    title: "My Notifications",
+    subtitle: "Institutional updates addressed to you",
+  },
+  profile: {
+    title: "My Profile",
+    subtitle: "Your personal and academic information",
+  },
+  timetable: {
+    title: "My Timetable",
+    subtitle: "Your weekly class schedule",
   },
 };
 
@@ -933,6 +967,283 @@ function LeaveView() {
   );
 }
 
+function CertificatesView({ user }: { user: AuthUser }) {
+  const [certificates, setCertificates] = useState<PortalDocument[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyDocuments()
+      .then((docs) => setCertificates(docs.filter((d) => d.type === "CERTIFICATE")))
+      .catch(() => setError("We could not load your certificates."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (certificates.length === 0) {
+    return <Empty>No certificates are available yet.</Empty>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {certificates.map((cert) => (
+        <div key={String(cert.id)} className="rounded-2xl border border-slate-100 p-4">
+          <p className="font-semibold text-slate-900">{String(cert.title)}</p>
+          <p className="mt-1 text-xs text-slate-500">{date(String(cert.createdAt))}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AttendanceView({ user }: { user: AuthUser }) {
+  const [data, setData] = useState<AttendanceSummaryData | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyAttendance()
+      .then(setData)
+      .catch(() => setError("We could not load your attendance."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (!data) {
+    return <Empty>Loading your attendance…</Empty>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card title="Overall attendance">
+        <p className="text-3xl font-black text-slate-950">{data.overallPercentage}%</p>
+        <p className="mt-1 text-sm text-slate-500">
+          {data.totalPresent}/{data.totalSessions} sessions attended
+        </p>
+      </Card>
+
+      <Card title="By subject">
+        {data.subjects.length === 0 ? (
+          <Empty>No attendance records yet.</Empty>
+        ) : (
+          <div className="space-y-4">
+            {data.subjects.map((subject) => (
+              <div key={subject.courseOfferingId}>
+                <p className="text-sm font-medium text-slate-700">
+                  {subject.courseCode} — {subject.courseName}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {subject.present}/{subject.total} sessions · {subject.percentage}%
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function MarksView({ user }: { user: AuthUser }) {
+  const [marks, setMarks] = useState<InternalMarkEntry[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyMarks()
+      .then(setMarks)
+      .catch(() => setError("We could not load your marks."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (marks.length === 0) {
+    return <Empty>No marks have been entered yet.</Empty>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {marks.map((mark) => (
+        <div key={mark.id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
+          <div>
+            <p className="font-semibold text-slate-900">{mark.component}</p>
+            <p className="text-xs text-slate-500">
+              {mark.courseOffering?.course.code} — {mark.courseOffering?.course.name}
+            </p>
+          </div>
+          <span className="font-bold text-slate-900">
+            {mark.marksObtained}/{mark.maxMarks}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NotificationsView({ user }: { user: AuthUser }) {
+  const [data, setData] = useState<{ items: PortalNotification[]; unread: number } | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyNotifications()
+      .then(setData)
+      .catch(() => setError("We could not load your notifications."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (!data) {
+    return <Empty>Loading your notifications…</Empty>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card title="Unread">
+        <p className="text-3xl font-black text-slate-950">{data.unread}</p>
+      </Card>
+
+      <Card title="Recent notifications">
+        {data.items.length === 0 ? (
+          <Empty>You have no notifications.</Empty>
+        ) : (
+          <div className="space-y-3">
+            {data.items.slice(0, 10).map((item) => (
+              <div key={item.id} className="rounded-2xl border border-slate-100 p-4">
+                <p className="font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-1 text-sm text-slate-600">{item.body}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {new Date(item.createdAt).toLocaleDateString("en-IN")}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function ProfileView({ user }: { user: AuthUser }) {
+  const [data, setData] = useState<StudentPortalData | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyStudentPortal()
+      .then(setData)
+      .catch(() => setError("We could not load your profile."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (!data) {
+    return <Empty>Loading your profile…</Empty>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <Card title="Personal information">
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Name</span>
+            <span className="text-sm font-medium text-slate-900">
+              {data.student.firstName} {data.student.lastName}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Email</span>
+            <span className="text-sm font-medium text-slate-900">{data.student.email}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Phone</span>
+            <span className="text-sm font-medium text-slate-900">
+              {data.student.phone || "Not provided"}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Academic information">
+        <div className="space-y-3">
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Program</span>
+            <span className="text-sm font-medium text-slate-900">
+              {data.enrollment?.program.name || "Not enrolled"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Academic year</span>
+            <span className="text-sm font-medium text-slate-900">
+              {data.enrollment?.academicYear.name || "Not assigned"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-500">Section</span>
+            <span className="text-sm font-medium text-slate-900">
+              {data.enrollment?.section?.name || "Not assigned"}
+            </span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TimetableView({ user }: { user: AuthUser }) {
+  const [entries, setEntries] = useState<StudentTimetableEntry[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getMyTimetable()
+      .then(setEntries)
+      .catch(() => setError("We could not load your timetable."));
+  }, [user.id]);
+
+  if (error) {
+    return <ErrorBox message={error} />;
+  }
+
+  if (entries.length === 0) {
+    return <Empty>No timetable has been published for your section.</Empty>;
+  }
+
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  return (
+    <div className="space-y-4">
+      {days.map((day, dayOfWeek) => {
+        const classes = entries.filter((entry) => entry.dayOfWeek === dayOfWeek);
+        if (classes.length === 0) return null;
+
+        return (
+          <Card key={day} title={day}>
+            <div className="space-y-3">
+              {classes.map((entry) => (
+                <div key={entry.id} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">
+                      {entry.course.code} — {entry.course.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {entry.startTime} – {entry.endTime} · {entry.room || "Room pending"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export function StudentSelfServiceModule({
   module,
 }: {
@@ -979,6 +1290,24 @@ export function StudentSelfServiceModule({
 
       case "leave":
         return <LeaveView />;
+
+      case "certificates":
+        return <CertificatesView user={user} />;
+
+      case "attendance":
+        return <AttendanceView user={user} />;
+
+      case "marks":
+        return <MarksView user={user} />;
+
+      case "notifications":
+        return <NotificationsView user={user} />;
+
+      case "profile":
+        return <ProfileView user={user} />;
+
+      case "timetable":
+        return <TimetableView user={user} />;
     }
   }, [module, user]);
 

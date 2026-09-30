@@ -5,7 +5,7 @@ import {
 } from "@/lib/authorization";
 import {
   canAccessRoute,
-  navigationForRole,
+  getNavigationForRoles,
   workspaceHome,
 } from "@/lib/navigation";
 
@@ -27,8 +27,8 @@ export function getAllowedRoutes(
   const canonical =
     normalizeRole(role);
 
-  return navigationForRole(
-    canonical,
+  return getNavigationForRoles(
+    [canonical],
   ).map(
     (item) => item.href,
   );
@@ -85,7 +85,6 @@ export function canRoleAccessRoute(
         ) === canonical,
     ) &&
     canAccessRoute(
-      user,
       pathname,
       [canonical],
     )

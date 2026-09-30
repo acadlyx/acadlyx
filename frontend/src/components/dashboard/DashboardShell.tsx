@@ -23,10 +23,10 @@ import {
   logout,
 } from "@/lib/auth";
 
+import { getPrimaryRole } from "@/lib/authority";
 import {
   canAccessRoute,
   navigationForUser,
-  primaryRole,
   ROLE_LABELS,
   workspaceHome,
 } from "@/lib/navigation";
@@ -194,7 +194,7 @@ function buildNavigation(
   ).map((item) => ({
     label: item.label,
     href: item.href,
-    icon: item.icon,
+    icon: item.icon ?? "home",
     group:
       item.group ||
       "Workspace",
@@ -305,11 +305,10 @@ export function DashboardShell({
 
     const allowed =
       canAccessRoute(
-        user,
         pathname,
-        allowedRolesKey
-          ? allowedRolesKey.split(",")
-          : undefined,
+        user?.roles ||
+          allowedRoles ||
+          [],
       );
 
     if (!allowed) {
@@ -331,7 +330,7 @@ export function DashboardShell({
   }, [pathname]);
 
   const role =
-    primaryRole(
+    getPrimaryRole(
       user?.roles ||
         allowedRoles ||
         [],
@@ -466,13 +465,13 @@ export function DashboardShell({
               </p>
 
               <p className="mt-0.5 text-[10px] text-slate-500">
-                {ROLE_LABELS[
-                  role
-                ] ||
-                  role.replace(
-                    /_/g,
-                    " ",
-                  )}
+                {role
+                  ? ROLE_LABELS[role] ||
+                    role.replace(
+                      /_/g,
+                      " ",
+                    )
+                  : "ACADLYX"}
               </p>
             </div>
 
@@ -525,14 +524,13 @@ export function DashboardShell({
 
             <div className="mt-1 flex items-center justify-between">
               <p className="truncate text-[15px] font-extrabold">
-                {ROLE_LABELS[
-                  role
-                ] ||
-                  role.replace(
-                    /_/g,
-                    " ",
-                  ) ||
-                  "ACADLYX"}
+                {role
+                  ? ROLE_LABELS[role] ||
+                    role.replace(
+                      /_/g,
+                      " ",
+                    )
+                  : "ACADLYX"}
               </p>
 
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />

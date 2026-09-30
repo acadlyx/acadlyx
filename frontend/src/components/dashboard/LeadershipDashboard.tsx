@@ -11,10 +11,8 @@ import {
 } from "@/lib/auth";
 import {
   hasAnyPermission,
-  normalizeRoles,
 } from "@/lib/authorization";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { getPrimaryRole } from "@/components/dashboard/dashboardNavigation";
 import { roleOwnsRoute } from "@/components/dashboard/roleRouteAccess";
 
 type LeadershipRole =

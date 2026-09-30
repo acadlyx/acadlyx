@@ -1,4 +1,3 @@
-```typescript
 import { apiUrl } from "./api";
 
 const ACCESS_TOKEN_KEY =
@@ -817,4 +816,3 @@ export async function authedFetch<T>(
 
   return res.json() as Promise<T>;
 }
-```

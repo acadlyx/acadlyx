@@ -1,7 +1,7 @@
 import type { CanonicalRole } from "@/lib/authorization";
+import { getPrimaryRole as getAuthorityPrimaryRole } from "@/lib/authority";
 import {
-  navigationForRole,
-  primaryRole as primaryNavigationRole,
+  getNavigationForRoles,
   ROLE_LABELS,
 } from "@/lib/navigation";
 
@@ -271,7 +271,7 @@ export const WORKSPACE_META: Record<
 
 function toNavigationItem(
   item: ReturnType<
-    typeof navigationForRole
+    typeof getNavigationForRoles
   >[number],
 ): NavigationItem {
   return {
@@ -279,7 +279,7 @@ function toNavigationItem(
     description:
       `Open ${item.label.toLowerCase()}.`,
     href: item.href,
-    icon: item.icon,
+    icon: item.icon ?? "home",
     permissions:
       item.permissions,
   };
@@ -295,7 +295,7 @@ function toGroups(
     >();
 
   for (
-    const item of navigationForRole(role)
+    const item of getNavigationForRoles([role])
   ) {
     const group =
       item.group ||
@@ -341,7 +341,7 @@ export const ROLE_NAVIGATION =
 export function getPrimaryRole(
   roles: CanonicalRole[],
 ): CanonicalRole {
-  return primaryNavigationRole(
+  return getAuthorityPrimaryRole(
     roles,
   ) as CanonicalRole;
 }

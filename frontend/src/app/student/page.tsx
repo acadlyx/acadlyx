@@ -329,7 +329,7 @@ function StudentDashboardContent({
           title="Upcoming exams"
           action={
             <Link
-              href="/examinations"
+              href="/student/examinations"
               className="text-xs font-bold text-blue-600"
             >
               Open examinations

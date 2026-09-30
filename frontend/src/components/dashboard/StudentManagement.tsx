@@ -260,6 +260,7 @@ export function StudentManagement({ onChanged }: Props) {
         setError(err instanceof Error ? err.message : "Unable to load student management.");
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial load only
   }, []);
 
   useEffect(() => {
