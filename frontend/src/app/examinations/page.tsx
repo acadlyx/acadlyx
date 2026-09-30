@@ -41,6 +41,7 @@ import {
 type Tab = "sessions" | "marks";
 
 const MANAGE_ROLES = [
+  "INSTITUTION_ADMIN",
   "DIRECTOR",
   "EXAMINATION",
 ];
@@ -65,7 +66,7 @@ export default function ExaminationsPage() {
 
   const canManage = roles.some((role) => MANAGE_ROLES.includes(role));
   const canApprove = roles.some((role) =>
-    ["DIRECTOR", "EXAMINATION"].includes(role)
+    ["INSTITUTION_ADMIN", "DIRECTOR", "EXAMINATION"].includes(role)
   );
 
   /** Wraps every mutation so errors surface instead of failing silently. */
@@ -218,19 +219,16 @@ export default function ExaminationsPage() {
                         <tr key={session.id}>
                           <td className="py-2 font-semibold text-slate-900">
                             {session.name}
-                            <span className="ml-2 text-xs text-slate-400">
-                              {session.code}
-                            </span>
                           </td>
                           <td className="py-2 text-slate-600">
                             {session.examType}
                           </td>
                           <td className="py-2 text-slate-600">
-                            {new Date(session.startDate).toLocaleDateString()} –{" "}
-                            {new Date(session.endDate).toLocaleDateString()}
+                            {new Date(session.startsAt).toLocaleDateString()} —{" "}
+                            {new Date(session.endsAt).toLocaleDateString()}
                           </td>
                           <td className="py-2">
-                            <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
                               {session.status}
                             </span>
                           </td>
@@ -238,9 +236,9 @@ export default function ExaminationsPage() {
                             <button
                               type="button"
                               onClick={() => void openSession(session.id)}
-                              className="text-sm font-semibold text-slate-900"
+                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
                             >
-                              Open →
+                              Open
                             </button>
                           </td>
                         </tr>
@@ -252,200 +250,52 @@ export default function ExaminationsPage() {
             </section>
 
             {active && (
-              <SessionDetail
+              <SessionWorkspace
                 session={active}
                 rooms={rooms}
+                busy={busy}
                 canManage={canManage}
                 canApprove={canApprove}
-                busy={busy}
-                onSchedule={(body) =>
-                  run(async () => {
-                    await createExamSchedule({
-                      ...body,
-                      examSessionId: active.id,
-                    });
-                    setActive(await getExamSession(active.id));
-                    setNotice("Paper scheduled");
-                  })
-                }
-                onSeating={(scheduleId, roomIds) =>
-                  run(async () => {
-                    const result = await allocateSeating(scheduleId, roomIds);
-                    setNotice(
-                      `Seated ${result.seated} students across ${result.rooms} room(s)`
-                    );
-                    setActive(await getExamSession(active.id));
-                  })
-                }
-                onHallTickets={() =>
-                  run(async () => {
-                    const result = await generateHallTickets(active.id);
-                    setNotice(
-                      `Issued ${result.issued} hall tickets; ${result.blocked} blocked for dues or shortage`
-                    );
-                  })
-                }
-                onStatus={(status) =>
-                  run(async () => {
-                    await setSessionStatus(active.id, status);
-                    setActive(await getExamSession(active.id));
-                    await reload();
-                  })
-                }
-                onOpenMarks={(scheduleId) => void openMarks(scheduleId)}
-                onLock={(scheduleId) =>
-                  run(async () => {
-                    await lockSchedule(scheduleId);
-                    setActive(await getExamSession(active.id));
-                    setNotice("Paper locked");
-                  })
-                }
-                onPublish={(scheduleId) =>
-                  run(async () => {
-                    const result = await publishResults(scheduleId);
-                    setActive(await getExamSession(active.id));
-                    setNotice(`Published ${result.published} results`);
-                  })
-                }
-              />
-            )}
-
-            {canManage && (
-              <NewRoomForm
-                rooms={rooms}
-                busy={busy}
-                onCreate={(body) =>
-                  run(async () => {
-                    await createExamRoom(body);
-                    setRooms(await listExamRooms());
-                    setNotice("Room added");
-                  })
-                }
+                onRefresh={() => void openSession(active.id)}
+                onOpenMarks={openMarks}
+                onRun={run}
+                onNotice={setNotice}
+                onError={setError}
               />
             )}
           </>
         )}
 
         {tab === "marks" && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            {!sheet ? (
-              <p className="text-sm text-slate-500">
-                Open a scheduled paper from a session to enter marks.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      {sheet.schedule.courseCode} — {sheet.schedule.courseName}
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Max {sheet.schedule.maxMarks} · pass{" "}
-                      {sheet.schedule.passMarks} · status{" "}
-                      {sheet.schedule.status}
-                    </p>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Enter a number, or <strong>AB</strong> for absent.
-                  </p>
-                </div>
-
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
-                      <tr>
-                        <th className="pb-2">Roll</th>
-                        <th className="pb-2">Student</th>
-                        <th className="pb-2">Exam attendance</th>
-                        <th className="pb-2">Marks</th>
-                        <th className="pb-2">State</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {sheet.rows.map((row) => (
-                        <tr key={row.studentId}>
-                          <td className="py-2 text-slate-500">
-                            {row.rollNumber ?? "—"}
-                          </td>
-                          <td className="py-2 font-medium text-slate-900">
-                            {row.firstName} {row.lastName}
-                          </td>
-                          <td className="py-2 text-slate-600">
-                            {row.examAttendance ?? "—"}
-                          </td>
-                          <td className="py-2">
-                            <input
-                              value={draft[row.studentId] ?? ""}
-                              disabled={
-                                row.status === "APPROVED" ||
-                                row.status === "PUBLISHED"
-                              }
-                              onChange={(event) =>
-                                setDraft((current) => ({
-                                  ...current,
-                                  [row.studentId]: event.target.value,
-                                }))
-                              }
-                              className="w-24 rounded-lg border border-slate-200 px-2 py-1 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="py-2 text-xs text-slate-500">
-                            {row.status}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      run(async () => {
-                        await saveMarks(sheet.schedule.id, marksPayload(), false);
-                        setNotice("Draft saved");
-                      })
-                    }
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-                  >
-                    Save draft
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      run(async () => {
-                        await saveMarks(sheet.schedule.id, marksPayload(), true);
-                        setSheet(await getMarksSheet(sheet.schedule.id));
-                        setNotice("Submitted for approval");
-                      })
-                    }
-                    className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
-                  >
-                    Submit for approval
-                  </button>
-                  {canApprove && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        run(async () => {
-                          const result = await approveMarks(sheet.schedule.id);
-                          setSheet(await getMarksSheet(sheet.schedule.id));
-                          setNotice(`Approved ${result.approved} entries`);
-                        })
-                      }
-                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white"
-                    >
-                      Approve
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
+          <MarksWorkspace
+            sheet={sheet}
+            draft={draft}
+            setDraft={setDraft}
+            busy={busy}
+            canManage={canManage}
+            canApprove={canApprove}
+            onSave={() =>
+              run(async () => {
+                if (!sheet) return;
+                await saveMarks(
+                  sheet.schedule.id,
+                  marksPayload()
+                );
+                setNotice("Marks saved successfully.");
+                await openMarks(sheet.schedule.id);
+              })
+            }
+            onApprove={() =>
+              run(async () => {
+                if (!sheet) return;
+                await approveMarks(
+                  sheet.schedule.id
+                );
+                setNotice("Marks approved successfully.");
+                await openMarks(sheet.schedule.id);
+              })
+            }
+          />
         )}
       </div>
     </DashboardShell>
@@ -457,413 +307,958 @@ function NewSessionForm({
   onCreate,
 }: {
   busy: boolean;
-  onCreate: (body: Record<string, unknown>) => void;
+  onCreate: (body: {
+    name: string;
+    examType: string;
+    startsAt: string;
+    endsAt: string;
+  }) => void;
 }) {
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    examType: "REGULAR",
-    startDate: "",
-    endDate: "",
-  });
+  const [name, setName] = useState("");
+  const [examType, setExamType] = useState("END_SEMESTER");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    onCreate(form);
-    setForm({ ...form, name: "", code: "" });
+    onCreate({
+      name: name.trim(),
+      examType,
+      startsAt,
+      endsAt,
+    });
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:grid-cols-5"
-    >
-      <label className="text-sm sm:col-span-2">
-        <span className="mb-1 block font-medium text-slate-600">Name</span>
-        <input
-          required
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="End Semester — Nov 2026"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2"
-        />
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium text-slate-600">Code</span>
-        <input
-          required
-          value={form.code}
-          onChange={(e) => setForm({ ...form, code: e.target.value })}
-          placeholder="ESE-NOV26"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2"
-        />
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium text-slate-600">Type</span>
-        <select
-          value={form.examType}
-          onChange={(e) => setForm({ ...form, examType: e.target.value })}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2"
-        >
-          {["REGULAR", "SUPPLEMENTARY", "IMPROVEMENT"].map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium text-slate-600">Start</span>
-        <input
-          required
-          type="date"
-          value={form.startDate}
-          onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2"
-        />
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium text-slate-600">End</span>
-        <input
-          required
-          type="date"
-          value={form.endDate}
-          onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-          className="w-full rounded-xl border border-slate-200 px-3 py-2"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:col-span-5 sm:w-48"
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-slate-900">
+          Create examination session
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Create the master examination window before scheduling individual
+          papers.
+        </p>
+      </div>
+
+      <form
+        onSubmit={submit}
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
-        Create session
-      </button>
-    </form>
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Session name
+          </span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            placeholder="End Semester Examination 2026"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Type
+          </span>
+          <select
+            value={examType}
+            onChange={(event) => setExamType(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+          >
+            <option value="END_SEMESTER">End Semester</option>
+            <option value="MID_SEMESTER">Mid Semester</option>
+            <option value="INTERNAL">Internal</option>
+            <option value="SUPPLEMENTARY">Supplementary</option>
+            <option value="BACKLOG">Backlog</option>
+            <option value="ENTRANCE">Entrance</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Starts
+          </span>
+          <input
+            type="datetime-local"
+            value={startsAt}
+            onChange={(event) => setStartsAt(event.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Ends
+          </span>
+          <input
+            type="datetime-local"
+            value={endsAt}
+            onChange={(event) => setEndsAt(event.target.value)}
+            required
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
+          />
+        </label>
+
+        <div className="md:col-span-2 xl:col-span-4">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? "Creating..." : "Create examination session"}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 
-function SessionDetail({
+function SessionWorkspace({
   session,
   rooms,
+  busy,
   canManage,
   canApprove,
-  busy,
-  onSchedule,
-  onSeating,
-  onHallTickets,
-  onStatus,
+  onRefresh,
   onOpenMarks,
-  onLock,
-  onPublish,
+  onRun,
+  onNotice,
+  onError,
 }: {
   session: ExamSession & { schedules: ExamSchedule[] };
   rooms: ExamRoom[];
+  busy: boolean;
   canManage: boolean;
   canApprove: boolean;
-  busy: boolean;
-  onSchedule: (body: Record<string, unknown>) => void;
-  onSeating: (scheduleId: string, roomIds: string[]) => void;
-  onHallTickets: () => void;
-  onStatus: (status: string) => void;
+  onRefresh: () => void;
   onOpenMarks: (scheduleId: string) => void;
-  onLock: (scheduleId: string) => void;
-  onPublish: (scheduleId: string) => void;
+  onRun: (
+    fn: () => Promise<void>
+  ) => Promise<void>;
+  onNotice: (message: string) => void;
+  onError: (message: string) => void;
 }) {
-  const [offering, setOffering] = useState<DirectoryOption | null>(null);
-  const [form, setForm] = useState({
-    examDate: "",
-    startTime: "10:00",
-    endTime: "13:00",
-    maxMarks: "100",
-    passMarks: "40",
-  });
-  const [roomChoice, setRoomChoice] = useState<Record<string, string>>({});
+  const [courseOfferingId, setCourseOfferingId] =
+    useState("");
+  const [scheduledAt, setScheduledAt] =
+    useState("");
+  const [durationMinutes, setDurationMinutes] =
+    useState("180");
+  const [maxMarks, setMaxMarks] =
+    useState("100");
+  const [roomId, setRoomId] =
+    useState("");
+  const [capacity, setCapacity] =
+    useState("60");
+  const [roomName, setRoomName] =
+    useState("");
+  const [building, setBuilding] =
+    useState("");
+  const [floor, setFloor] =
+    useState("");
+
+  async function createSchedule(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    await onRun(async () => {
+      await createExamSchedule({
+        sessionId: session.id,
+        courseOfferingId,
+        scheduledAt,
+        durationMinutes: Number(
+          durationMinutes
+        ),
+        maxMarks: Number(maxMarks),
+        roomId: roomId || undefined,
+      });
+
+      onNotice(
+        "Examination paper scheduled successfully."
+      );
+      onRefresh();
+    });
+  }
+
+  async function createRoom(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    await onRun(async () => {
+      await createExamRoom({
+        name: roomName.trim(),
+        building: building.trim(),
+        floor: floor.trim(),
+        capacity: Number(capacity),
+      });
+
+      setRoomName("");
+      setBuilding("");
+      setFloor("");
+      setCapacity("60");
+
+      onNotice(
+        "Examination room created successfully."
+      );
+      onRefresh();
+    });
+  }
 
   return (
-    <section className="space-y-5 rounded-3xl border border-indigo-200 bg-indigo-50/60 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Active session
+            </p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-950">
+              {session.name}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {session.examType} · {session.status}
+            </p>
+          </div>
+
+          {canManage && (
+            <div className="flex flex-wrap gap-2">
+              {session.status === "DRAFT" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void onRun(async () => {
+                      await setSessionStatus(
+                        session.id,
+                        "SCHEDULED"
+                      );
+                      onNotice(
+                        "Session moved to scheduled."
+                      );
+                      onRefresh();
+                    })
+                  }
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Publish schedule
+                </button>
+              )}
+
+              {session.status === "SCHEDULED" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void onRun(async () => {
+                      await setSessionStatus(
+                        session.id,
+                        "ACTIVE"
+                      );
+                      onNotice(
+                        "Session activated."
+                      );
+                      onRefresh();
+                    })
+                  }
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Activate
+                </button>
+              )}
+
+              {session.status === "ACTIVE" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void onRun(async () => {
+                      await setSessionStatus(
+                        session.id,
+                        "COMPLETED"
+                      );
+                      onNotice(
+                        "Session completed."
+                      );
+                      onRefresh();
+                    })
+                  }
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Complete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {canManage && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form
+            onSubmit={createSchedule}
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <h3 className="text-base font-bold text-slate-900">
+              Schedule examination paper
+            </h3>
+
+            <div className="mt-4 space-y-4">
+              <EntityPicker
+                label="Course offering"
+                value={courseOfferingId}
+                onChange={setCourseOfferingId}
+                entity="course-offering"
+              />
+
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Scheduled at
+                </span>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(event) =>
+                    setScheduledAt(
+                      event.target.value
+                    )
+                  }
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Duration
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={durationMinutes}
+                    onChange={(event) =>
+                      setDurationMinutes(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Maximum marks
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxMarks}
+                    onChange={(event) =>
+                      setMaxMarks(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Room
+                </span>
+                <select
+                  value={roomId}
+                  onChange={(event) =>
+                    setRoomId(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">
+                    Select later
+                  </option>
+                  {rooms.map((room) => (
+                    <option
+                      key={room.id}
+                      value={room.id}
+                    >
+                      {room.name} ·{" "}
+                      {room.building} ·{" "}
+                      {room.capacity} seats
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Schedule paper
+              </button>
+            </div>
+          </form>
+
+          <form
+            onSubmit={createRoom}
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <h3 className="text-base font-bold text-slate-900">
+              Add examination room
+            </h3>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Room name
+                </span>
+                <input
+                  value={roomName}
+                  onChange={(event) =>
+                    setRoomName(
+                      event.target.value
+                    )
+                  }
+                  required
+                  placeholder="Room 101"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Building
+                </span>
+                <input
+                  value={building}
+                  onChange={(event) =>
+                    setBuilding(
+                      event.target.value
+                    )
+                  }
+                  required
+                  placeholder="Main Block"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Floor
+                </span>
+                <input
+                  value={floor}
+                  onChange={(event) =>
+                    setFloor(
+                      event.target.value
+                    )
+                  }
+                  required
+                  placeholder="1"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Capacity
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  value={capacity}
+                  onChange={(event) =>
+                    setCapacity(
+                      event.target.value
+                    )
+                  }
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Add room
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Scheduled papers
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Manage seating, hall tickets and marks for each paper.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {session.schedules.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">
+            No papers have been scheduled for this session.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {session.schedules.map(
+              (schedule) => (
+                <ScheduleCard
+                  key={schedule.id}
+                  schedule={schedule}
+                  rooms={rooms}
+                  busy={busy}
+                  canManage={canManage}
+                  canApprove={canApprove}
+                  onRun={onRun}
+                  onRefresh={onRefresh}
+                  onOpenMarks={onOpenMarks}
+                  onNotice={onNotice}
+                  onError={onError}
+                />
+              )
+            )}
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function ScheduleCard({
+  schedule,
+  rooms,
+  busy,
+  canManage,
+  canApprove,
+  onRun,
+  onRefresh,
+  onOpenMarks,
+  onNotice,
+  onError,
+}: {
+  schedule: ExamSchedule;
+  rooms: ExamRoom[];
+  busy: boolean;
+  canManage: boolean;
+  canApprove: boolean;
+  onRun: (
+    fn: () => Promise<void>
+  ) => Promise<void>;
+  onRefresh: () => void;
+  onOpenMarks: (scheduleId: string) => void;
+  onNotice: (message: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [invigilatorId, setInvigilatorId] =
+    useState("");
+  const [roomId, setRoomId] =
+    useState(schedule.roomId ?? "");
+
+  return (
+    <article className="rounded-2xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">{session.name}</h2>
-          <p className="text-sm text-slate-600">
-            {session.status} · {session.schedules.length} paper(s)
+          <h4 className="font-semibold text-slate-900">
+            {schedule.courseOffering?.course?.code ??
+              "Course"}{" "}
+            —{" "}
+            {schedule.courseOffering?.course?.name ??
+              "Examination"}
+          </h4>
+          <p className="mt-1 text-xs text-slate-500">
+            {new Date(
+              schedule.scheduledAt
+            ).toLocaleString()}{" "}
+            · {schedule.durationMinutes} minutes ·{" "}
+            {schedule.maxMarks} marks
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Status:{" "}
+            <span className="font-semibold">
+              {schedule.status}
+            </span>
           </p>
         </div>
+
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onOpenMarks(schedule.id)
+            }
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+          >
+            Marks
+          </button>
+
           {canManage && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onHallTickets}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-            >
-              Generate hall tickets
-            </button>
-          )}
-          {canApprove &&
-            ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED"].includes(
-              session.status
-            ) && (
-              <select
-                value=""
+            <>
+              <button
+                type="button"
                 disabled={busy}
-                onChange={(event) =>
-                  event.target.value && onStatus(event.target.value)
+                onClick={() =>
+                  void onRun(async () => {
+                    await allocateSeating(
+                      schedule.id
+                    );
+                    onNotice(
+                      "Seating allocated."
+                    );
+                    onRefresh();
+                  })
                 }
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
               >
-                <option value="">Move status…</option>
-                {["SCHEDULED", "ONGOING", "COMPLETED", "PUBLISHED", "CANCELLED"].map(
-                  (status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  )
-                )}
-              </select>
+                Allocate seating
+              </button>
+
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void onRun(async () => {
+                    await generateHallTickets(
+                      schedule.id
+                    );
+                    onNotice(
+                      "Hall tickets generated."
+                    );
+                    onRefresh();
+                  })
+                }
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Hall tickets
+              </button>
+            </>
+          )}
+
+          {canApprove &&
+            schedule.status ===
+              "MARKS_SUBMITTED" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void onRun(async () => {
+                    await approveMarks(
+                      schedule.id
+                    );
+                    onNotice(
+                      "Marks approved."
+                    );
+                    onRefresh();
+                  })
+                }
+                className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                Approve
+              </button>
+            )}
+
+          {canApprove &&
+            schedule.status ===
+              "MARKS_APPROVED" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void onRun(async () => {
+                    await lockSchedule(
+                      schedule.id
+                    );
+                    onNotice(
+                      "Schedule locked."
+                    );
+                    onRefresh();
+                  })
+                }
+                className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                Lock
+              </button>
+            )}
+
+          {canApprove &&
+            schedule.status ===
+              "LOCKED" && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void onRun(async () => {
+                    await publishResults(
+                      schedule.id
+                    );
+                    onNotice(
+                      "Results published."
+                    );
+                    onRefresh();
+                  })
+                }
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                Publish results
+              </button>
             )}
         </div>
       </div>
 
       {canManage && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!offering) return;
-            onSchedule({
-              courseOfferingId: offering.id,
-              examDate: form.examDate,
-              startTime: form.startTime,
-              endTime: form.endTime,
-              maxMarks: Number(form.maxMarks),
-              passMarks: Number(form.passMarks),
-            });
-            setOffering(null);
-          }}
-          className="grid gap-3 rounded-2xl bg-white p-5 sm:grid-cols-6"
-        >
-          <div className="sm:col-span-2">
-            <EntityPicker
-              kind="courseOffering"
-              label="Course offering"
-              value={offering}
-              onChange={setOffering}
-              required
-            />
-          </div>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Date</span>
-            <input
-              required
-              type="date"
-              value={form.examDate}
-              onChange={(e) => setForm({ ...form, examDate: e.target.value })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            />
+        <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-3 md:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Room
+            </span>
+            <select
+              value={roomId}
+              onChange={(event) =>
+                setRoomId(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs"
+            >
+              <option value="">
+                Select room
+              </option>
+              {rooms.map((room) => (
+                <option
+                  key={room.id}
+                  value={room.id}
+                >
+                  {room.name} ·{" "}
+                  {room.capacity}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Start</span>
-            <input
-              required
-              type="time"
-              value={form.startTime}
-              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">End</span>
-            <input
-              required
-              type="time"
-              value={form.endTime}
-              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Max</span>
-              <input
-                required
-                value={form.maxMarks}
-                onChange={(e) => setForm({ ...form, maxMarks: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Pass</span>
-              <input
-                required
-                value={form.passMarks}
-                onChange={(e) => setForm({ ...form, passMarks: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2"
-              />
-            </label>
-          </div>
-          <button
-            type="submit"
-            disabled={busy || !offering}
-            className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:col-span-6 sm:w-48"
-          >
-            Schedule paper
-          </button>
-        </form>
-      )}
 
-      <div className="space-y-3">
-        {session.schedules.map((schedule) => (
-          <div
-            key={schedule.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4"
-          >
-            <div>
-              <p className="font-semibold text-slate-900">
-                {schedule.courseCode} — {schedule.courseName}
-              </p>
-              <p className="text-xs text-slate-500">
-                {new Date(schedule.examDate).toLocaleDateString()} ·{" "}
-                {schedule.startTime}–{schedule.endTime} · {schedule.status} ·{" "}
-                {schedule.seatCount} seat(s) · {schedule.markCount} mark(s)
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {canManage && rooms.length > 0 && (
-                <>
-                  <select
-                    value={roomChoice[schedule.id] ?? ""}
-                    onChange={(event) =>
-                      setRoomChoice((current) => ({
-                        ...current,
-                        [schedule.id]: event.target.value,
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    <option value="">Room…</option>
-                    {rooms.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.name} ({room.capacity})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={busy || !roomChoice[schedule.id]}
-                    onClick={() =>
-                      onSeating(schedule.id, [roomChoice[schedule.id]])
-                    }
-                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40"
-                  >
-                    Allocate seating
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => onOpenMarks(schedule.id)}
-                className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-              >
-                Marks
-              </button>
-              {canApprove && (
-                <>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onLock(schedule.id)}
-                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700"
-                  >
-                    Lock
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onPublish(schedule.id)}
-                    className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white"
-                  >
-                    Publish
-                  </button>
-                </>
-              )}
-            </div>
+          <label className="space-y-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Invigilator
+            </span>
+            <EntityPicker
+              label=""
+              value={invigilatorId}
+              onChange={setInvigilatorId}
+              entity="user"
+            />
+          </label>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              disabled={
+                busy ||
+                !roomId ||
+                !invigilatorId
+              }
+              onClick={() =>
+                void onRun(async () => {
+                  await createExamSchedule({
+                    sessionId:
+                      schedule.sessionId,
+                    courseOfferingId:
+                      schedule.courseOfferingId,
+                    scheduledAt:
+                      schedule.scheduledAt,
+                    durationMinutes:
+                      schedule.durationMinutes,
+                    maxMarks:
+                      schedule.maxMarks,
+                    roomId,
+                    invigilatorId,
+                  });
+
+                  onNotice(
+                    "Schedule assignment saved."
+                  );
+                  onRefresh();
+                })
+              }
+              className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              Save room & invigilator
+            </button>
           </div>
-        ))}
-      </div>
-    </section>
+        </div>
+      )}
+    </article>
   );
 }
 
-function NewRoomForm({
-  rooms,
+function MarksWorkspace({
+  sheet,
+  draft,
+  setDraft,
   busy,
-  onCreate,
+  canManage,
+  canApprove,
+  onSave,
+  onApprove,
 }: {
-  rooms: ExamRoom[];
+  sheet: {
+    schedule: ExamSchedule;
+    rows: MarksRow[];
+  } | null;
+  draft: Record<string, string>;
+  setDraft: React.Dispatch<
+    React.SetStateAction<
+      Record<string, string>
+    >
+  >;
   busy: boolean;
-  onCreate: (body: Record<string, unknown>) => void;
+  canManage: boolean;
+  canApprove: boolean;
+  onSave: () => void;
+  onApprove: () => void;
 }) {
-  const [form, setForm] = useState({ name: "", code: "", capacity: "60" });
+  if (!sheet) {
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">
+          Marks entry
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Open a scheduled paper from the Sessions & schedules tab to
+          enter marks.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-900">Examination rooms</h2>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onCreate({ ...form, capacity: Number(form.capacity) });
-          setForm({ name: "", code: "", capacity: "60" });
-        }}
-        className="mt-3 flex flex-wrap items-end gap-3"
-      >
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-600">Name</span>
-          <input
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-48 rounded-xl border border-slate-200 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-600">Code</span>
-          <input
-            required
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-            className="w-32 rounded-xl border border-slate-200 px-3 py-2"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-600">Capacity</span>
-          <input
-            required
-            value={form.capacity}
-            onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-            className="w-28 rounded-xl border border-slate-200 px-3 py-2"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-        >
-          Add room
-        </button>
-      </form>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Marks sheet
+          </p>
+          <h2 className="mt-1 text-xl font-bold text-slate-950">
+            {sheet.schedule.courseOffering?.course?.code ??
+              "Course"}{" "}
+            —{" "}
+            {sheet.schedule.courseOffering?.course?.name ??
+              "Examination"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Maximum marks:{" "}
+            {sheet.schedule.maxMarks}
+          </p>
+        </div>
 
-      {rooms.length > 0 && (
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {rooms.map((room) => (
-            <li
-              key={room.id}
-              className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+        <div className="flex gap-2">
+          {canManage && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onSave}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50"
             >
-              {room.name} · {room.capacity}
-            </li>
-          ))}
-        </ul>
-      )}
+              Save marks
+            </button>
+          )}
+
+          {canApprove && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onApprove}
+              className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              Approve marks
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr>
+              <th className="pb-3">
+                Student
+              </th>
+              <th className="pb-3">
+                Roll number
+              </th>
+              <th className="pb-3">
+                Marks
+              </th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-slate-100">
+            {sheet.rows.map((row) => (
+              <tr key={row.studentId}>
+                <td className="py-3 font-semibold text-slate-900">
+                  {row.studentName}
+                </td>
+                <td className="py-3 text-slate-500">
+                  {row.rollNumber ??
+                    "—"}
+                </td>
+                <td className="py-3">
+                  {canManage ? (
+                    <input
+                      value={
+                        draft[
+                          row.studentId
+                        ] ?? ""
+                      }
+                      onChange={(event) =>
+                        setDraft(
+                          (current) => ({
+                            ...current,
+                            [row.studentId]:
+                              event.target
+                                .value,
+                          })
+                        )
+                      }
+                      placeholder="Marks / AB"
+                      className="w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  ) : (
+                    <span className="font-semibold text-slate-700">
+                      {row.isAbsent
+                        ? "AB"
+                        : row.marksObtained ??
+                          "—"}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
