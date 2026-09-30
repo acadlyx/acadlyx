@@ -101,6 +101,12 @@ export const PERMISSIONS = [
   },
 
   {
+    key: "exams.manage",
+    module: "exams",
+    description: "Create, view, update, delete examinations and manage examination results",
+  },
+
+  {
     key: "site.manage",
     module: "site",
     description: "Manage the public institutional website",
@@ -270,7 +276,8 @@ export const PERMISSIONS = [
   },
 ] as const;
 
-export type PermissionKey = (typeof PERMISSIONS)[number]["key"];
+export type PermissionKey =
+  (typeof PERMISSIONS)[number]["key"];
 
 export const SYSTEM_ROLE_NAMES = [
   "SUPER_ADMIN",
@@ -284,7 +291,8 @@ export const SYSTEM_ROLE_NAMES = [
   "PARENT",
 ] as const;
 
-export type SystemRoleName = (typeof SYSTEM_ROLE_NAMES)[number];
+export type SystemRoleName =
+  (typeof SYSTEM_ROLE_NAMES)[number];
 
 const ACADEMIC_READ: PermissionKey[] = [
   "departments.read",
@@ -296,9 +304,10 @@ const ACADEMIC_READ: PermissionKey[] = [
   "course-offerings.read",
 ];
 
-const ALL_PERMISSIONS: PermissionKey[] = PERMISSIONS.map(
-  (permission) => permission.key
-);
+const ALL_PERMISSIONS: PermissionKey[] =
+  PERMISSIONS.map(
+    (permission) => permission.key
+  );
 
 /**
  * Default permissions for every built-in role.
@@ -333,12 +342,18 @@ const ALL_PERMISSIONS: PermissionKey[] = PERMISSIONS.map(
  * Services must additionally enforce tenant, department,
  * student, parent-child and other resource-level boundaries.
  */
-export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
+export const ROLE_PERMISSIONS: Record<
+  SystemRoleName,
+  PermissionKey[]
+> = {
   SUPER_ADMIN: [...ALL_PERMISSIONS],
 
-  INSTITUTION_ADMIN: ALL_PERMISSIONS.filter(
-    (permission) => permission !== "institutions.manage"
-  ),
+  INSTITUTION_ADMIN:
+    ALL_PERMISSIONS.filter(
+      (permission) =>
+        permission !==
+        "institutions.manage"
+    ),
 
   DIRECTOR: [
     "users.read",
@@ -350,6 +365,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
     "intelligence.read",
     "site.manage",
     "imports.manage",
+    "exams.manage",
     ...ACADEMIC_READ,
   ],
 
@@ -363,6 +379,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
     "intelligence.read",
     "site.manage",
     "imports.manage",
+    "exams.manage",
     ...ACADEMIC_READ,
   ],
 
@@ -374,6 +391,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
     "marks.read",
     "reports.read",
     "intelligence.read",
+    "exams.manage",
     ...ACADEMIC_READ,
     "sections.update",
     "course-offerings.update",
@@ -389,12 +407,13 @@ export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
     "assignments.review",
     "marks.read",
     "marks.enter",
+    "exams.manage",
     ...ACADEMIC_READ,
   ],
 
   STAFF: [
-    "users.read",
     "students.read",
+    "users.read",
     ...ACADEMIC_READ,
   ],
 
@@ -413,91 +432,3 @@ export const ROLE_PERMISSIONS: Record<SystemRoleName, PermissionKey[]> = {
     ...ACADEMIC_READ,
   ],
 };
-
-/**
- * Returns true when a role is a recognized ACADLYX system role.
- */
-export function isSystemRole(value: string): value is SystemRoleName {
-  return (SYSTEM_ROLE_NAMES as readonly string[]).includes(value);
-}
-
-/**
- * Returns the default permissions for a system role.
- *
- * A defensive copy is returned so callers cannot accidentally mutate
- * the central RBAC matrix.
- */
-export function getRolePermissions(
-  role: string
-): PermissionKey[] {
-  if (!isSystemRole(role)) {
-    return [];
-  }
-
-  return [...ROLE_PERMISSIONS[role]];
-}
-
-/**
- * Checks whether a role has a specific permission.
- */
-export function roleHasPermission(
-  role: string,
-  permission: string
-): permission is PermissionKey {
-  if (!isSystemRole(role)) {
-    return false;
-  }
-
-  return ROLE_PERMISSIONS[role].includes(permission as PermissionKey);
-}
-
-/**
- * Checks whether any of the supplied roles grants a permission.
- *
- * This is useful for users who have multiple roles.
- */
-export function rolesHavePermission(
-  roles: readonly string[],
-  permission: string
-): boolean {
-  return roles.some((role) => roleHasPermission(role, permission));
-}
-
-/**
- * Resolves the effective permission set for a multi-role user.
- *
- * The result is deduplicated.
- */
-export function getEffectivePermissions(
-  roles: readonly string[]
-): PermissionKey[] {
-  const permissions = new Set<PermissionKey>();
-
-  for (const role of roles) {
-    for (const permission of getRolePermissions(role)) {
-      permissions.add(permission);
-    }
-  }
-
-  return [...permissions];
-}
-
-/**
- * Platform-level permissions.
- *
- * These must never be granted merely because a user has an
- * institution-level administrative role.
- */
-export const PLATFORM_ONLY_PERMISSIONS: PermissionKey[] = [
-  "institutions.manage",
-];
-
-/**
- * Returns true when a permission is platform-only.
- */
-export function isPlatformPermission(
-  permission: string
-): permission is PermissionKey {
-  return PLATFORM_ONLY_PERMISSIONS.includes(permission as PermissionKey);
-}
-
