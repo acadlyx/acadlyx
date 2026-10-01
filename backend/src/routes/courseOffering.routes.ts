@@ -1,8 +1,14 @@
 import { Router } from "express";
 import * as courseOfferingController from "../controllers/courseOffering.controller";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
-import { validateBody, validateQuery } from "../middleware/validate";
+import {
+  authorize,
+  authorizeAnyPermission,
+} from "../middleware/authorize";
+import {
+  validateBody,
+  validateQuery,
+} from "../middleware/validate";
 import {
   createCourseOfferingSchema,
   listCourseOfferingsQuerySchema,
@@ -15,35 +21,60 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize("course-offerings.read"),
-  validateQuery(listCourseOfferingsQuerySchema),
+  authorizeAnyPermission(
+    "course-offerings.read",
+    "exams.manage"
+  ),
+  validateQuery(
+    listCourseOfferingsQuerySchema
+  ),
   courseOfferingController.list
 );
+
 router.get(
   "/:id",
-  authorize("course-offerings.read"),
+  authorizeAnyPermission(
+    "course-offerings.read",
+    "exams.manage"
+  ),
   courseOfferingController.getById
 );
+
 router.post(
   "/",
-  authorize("course-offerings.create"),
-  validateBody(createCourseOfferingSchema),
+  authorize(
+    "course-offerings.create"
+  ),
+  validateBody(
+    createCourseOfferingSchema
+  ),
   courseOfferingController.create
 );
+
 router.patch(
   "/:id",
-  authorize("course-offerings.update"),
-  validateBody(updateCourseOfferingSchema),
+  authorize(
+    "course-offerings.update"
+  ),
+  validateBody(
+    updateCourseOfferingSchema
+  ),
   courseOfferingController.update
 );
+
 router.delete(
   "/:id",
-  authorize("course-offerings.delete"),
+  authorize(
+    "course-offerings.delete"
+  ),
   courseOfferingController.deactivate
 );
+
 router.get(
   "/:id/roster",
-  authorize("students.read"),
+  authorize(
+    "students.read"
+  ),
   courseOfferingController.roster
 );
 
