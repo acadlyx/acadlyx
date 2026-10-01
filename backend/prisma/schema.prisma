@@ -78,6 +78,19 @@ model Institution {
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
 
+  programmeOutcomes       ProgrammeOutcome[]
+  courseOutcomes          CourseOutcome[]
+  courseOutcomeMappings   CourseOutcomeMapping[]
+  obeAssessments          ObeAssessment[]
+  obeAssessmentItems      ObeAssessmentItem[]
+  obeAssessmentScores     ObeAssessmentScore[]
+  obeAttainmentPolicies   ObeAttainmentPolicy[]
+  obeIndirectAssessments  ObeIndirectAssessment[]
+  obeCourseAttainments    ObeCourseAttainment[]
+  obeAttainmentRuns       ObeAttainmentRun[]
+  obeRunCourseOutcomes    ObeRunCourseOutcome[]
+  obeRunProgrammeOutcomes ObeRunProgrammeOutcome[]
+
   @@index([isActive])
   @@map("institutions")
 }
@@ -194,6 +207,15 @@ model User {
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
   certificates Certificate[] @relation("CertificateStudent")
+
+  obeMappingsCreated    CourseOutcomeMapping[] @relation("ObeMappingCreatedBy")
+  obeMappingsApproved   CourseOutcomeMapping[] @relation("ObeMappingApprovedBy")
+  obeAssessmentsCreated ObeAssessment[] @relation("ObeAssessmentCreatedBy")
+  obeScoresReceived     ObeAssessmentScore[] @relation("ObeScoreStudent")
+  obeScoresEntered      ObeAssessmentScore[] @relation("ObeScoreEnteredBy")
+  obeRunsCalculated     ObeAttainmentRun[] @relation("ObeRunCalculatedBy")
+  obeRunsApproved       ObeAttainmentRun[] @relation("ObeRunApprovedBy")
+
   passwordResetTokens PasswordResetToken[]
   mfaRecoveryCodes    MfaRecoveryCode[]
   mfaChallenges       MfaChallenge[]
@@ -417,6 +439,9 @@ model Program {
   updatedAt DateTime @updatedAt
 
   semesters Semester[]
+  programmeOutcomes ProgrammeOutcome[]
+  obeAttainmentRuns ObeAttainmentRun[]
+  obePolicies ObeAttainmentPolicy[]
 
   studentEnrollments StudentEnrollment[]
 
@@ -532,6 +557,7 @@ model Course {
   updatedAt DateTime @updatedAt
 
   courseOfferings CourseOffering[]
+  courseOutcomes CourseOutcome[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -573,6 +599,11 @@ model CourseOffering {
   internalMarks      InternalMark[]
   timetableEntries   TimetableEntry[]
   exams              Exam[]
+
+  obeAssessments         ObeAssessment[]
+  obeIndirectAssessments ObeIndirectAssessment[]
+  obeCourseAttainments   ObeCourseAttainment[]
+  obeRunCourseOutcomes   ObeRunCourseOutcome[]
 
   registrations CourseRegistration[]
 
@@ -1455,6 +1486,320 @@ model Certificate {
   @@map("certificates")
 }
 
+
+// ==========================================================
+// OUTCOME BASED EDUCATION (OBE)
+// ==========================================================
+
+model ProgrammeOutcome {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  type         String
+  code         String
+  title        String?
+  description  String
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  mappings   CourseOutcomeMapping[]
+  runResults ObeRunProgrammeOutcome[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([programId, type, code])
+  @@index([institutionId, programId, type])
+  @@map("programme_outcomes")
+}
+
+model CourseOutcome {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseId      String
+  course        Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  code         String
+  statement    String
+  bloomLevel   String?
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  mappings           CourseOutcomeMapping[]
+  assessmentItems    ObeAssessmentItem[]
+  indirectAssessments ObeIndirectAssessment[]
+  attainments        ObeCourseAttainment[]
+  runResults         ObeRunCourseOutcome[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, code])
+  @@index([institutionId, courseId])
+  @@map("course_outcomes")
+}
+
+model CourseOutcomeMapping {
+  id                 String           @id @default(uuid())
+  institutionId      String
+  institution        Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOutcomeId    String
+  courseOutcome      CourseOutcome    @relation(fields: [courseOutcomeId], references: [id], onDelete: Cascade)
+  programmeOutcomeId String
+  programmeOutcome   ProgrammeOutcome @relation(fields: [programmeOutcomeId], references: [id], onDelete: Cascade)
+
+  level       Int
+  remarks     String?
+  status      String   @default("DRAFT")
+  createdById String
+  createdBy   User     @relation("ObeMappingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById String?
+  approvedBy   User?   @relation("ObeMappingApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseOutcomeId, programmeOutcomeId])
+  @@index([institutionId])
+  @@index([programmeOutcomeId])
+  @@map("course_outcome_mappings")
+}
+
+model ObeAttainmentPolicy {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId     String?
+  program       Program?    @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  name                    String
+  scopeType               String  @default("INSTITUTION")
+  directWeight            Float   @default(1)
+  indirectWeight          Float   @default(0)
+  level1Threshold         Float   @default(60)
+  level2Threshold         Float   @default(70)
+  level3Threshold         Float   @default(80)
+  minimumPassingPercentage Float   @default(50)
+  isDefault               Boolean @default(false)
+  isActive                Boolean @default(true)
+  formulaVersion          String  @default("v1")
+
+  runs ObeAttainmentRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, isActive])
+  @@index([programId])
+  @@map("obe_attainment_policies")
+}
+
+model ObeAssessment {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+
+  name           String
+  type           String
+  maxMarks       Float
+  weightage      Float  @default(1)
+  assessmentDate DateTime?
+  sourceType     String?
+  sourceId       String?
+  status         String @default("DRAFT")
+
+  createdById String
+  createdBy   User @relation("ObeAssessmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items      ObeAssessmentItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, courseOfferingId])
+  @@index([sourceType, sourceId])
+  @@map("obe_assessments")
+}
+
+model ObeAssessmentItem {
+  id              String         @id @default(uuid())
+  institutionId   String
+  institution     Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  assessmentId    String
+  assessment      ObeAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  courseOutcomeId String
+  courseOutcome   CourseOutcome  @relation(fields: [courseOutcomeId], references: [id], onDelete: Restrict)
+
+  itemCode     String
+  description  String?
+  maxMarks     Float
+  displayOrder Int @default(0)
+
+  scores ObeAssessmentScore[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, itemCode])
+  @@index([institutionId, courseOutcomeId])
+  @@map("obe_assessment_items")
+}
+
+model ObeAssessmentScore {
+  id               String             @id @default(uuid())
+  institutionId    String
+  institution      Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  assessmentItemId String
+  assessmentItem   ObeAssessmentItem @relation(fields: [assessmentItemId], references: [id], onDelete: Cascade)
+  studentId        String
+  student          User               @relation("ObeScoreStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  marksObtained Float
+  isAbsent      Boolean @default(false)
+  remarks       String?
+  enteredById   String
+  enteredBy     User @relation("ObeScoreEnteredBy", fields: [enteredById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentItemId, studentId])
+  @@index([institutionId, studentId])
+  @@map("obe_assessment_scores")
+}
+
+model ObeIndirectAssessment {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOutcomeId  String
+  courseOutcome    CourseOutcome  @relation(fields: [courseOutcomeId], references: [id], onDelete: Restrict)
+
+  name            String
+  type            String
+  maxScore        Float
+  responseCount   Int    @default(0)
+  averageScore    Float?
+  normalizedScore Float?
+  weightage       Float  @default(1)
+  status          String @default("DRAFT")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, courseOfferingId, courseOutcomeId])
+  @@map("obe_indirect_assessments")
+}
+
+model ObeCourseAttainment {
+  id               String         @id @default(uuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOutcomeId  String
+  courseOutcome    CourseOutcome  @relation(fields: [courseOutcomeId], references: [id], onDelete: Restrict)
+  policyId         String?
+
+  directAttainment   Float?
+  indirectAttainment Float?
+  finalAttainment    Float?
+  attainmentLevel    Int?
+  studentCount          Int @default(0)
+  studentsAssessed      Int @default(0)
+  studentsMeetingTarget Int @default(0)
+  calculationStatus String @default("CALCULATED")
+  calculatedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseOfferingId, courseOutcomeId])
+  @@index([institutionId])
+  @@map("obe_course_attainments")
+}
+
+model ObeAttainmentRun {
+  id             String      @id @default(uuid())
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId      String
+  program        Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  academicYearId String
+  semesterId     String
+  policyId       String?
+  policy         ObeAttainmentPolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  name           String
+  status         String @default("DRAFT")
+  formulaVersion String @default("v1")
+  calculatedById String?
+  calculatedBy   User? @relation("ObeRunCalculatedBy", fields: [calculatedById], references: [id], onDelete: SetNull)
+  calculatedAt   DateTime?
+  approvedById   String?
+  approvedBy     User? @relation("ObeRunApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt     DateTime?
+
+  courseResults    ObeRunCourseOutcome[]
+  programmeResults ObeRunProgrammeOutcome[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, programId, academicYearId, semesterId])
+  @@map("obe_attainment_runs")
+}
+
+model ObeRunCourseOutcome {
+  id               String           @id @default(uuid())
+  institutionId    String
+  institution      Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  runId            String
+  run              ObeAttainmentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  courseOfferingId String
+  courseOffering   CourseOffering   @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  courseOutcomeId  String
+  courseOutcome    CourseOutcome    @relation(fields: [courseOutcomeId], references: [id], onDelete: Restrict)
+
+  directAttainment   Float?
+  indirectAttainment Float?
+  finalAttainment    Float?
+  attainmentLevel    Int?
+  studentCount          Int @default(0)
+  studentsAssessed      Int @default(0)
+  studentsMeetingTarget Int @default(0)
+
+  @@unique([runId, courseOfferingId, courseOutcomeId])
+  @@index([institutionId, courseOfferingId])
+  @@map("obe_run_course_outcomes")
+}
+
+model ObeRunProgrammeOutcome {
+  id                 String           @id @default(uuid())
+  institutionId      String
+  institution        Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  runId              String
+  run                ObeAttainmentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  programmeOutcomeId String
+  programmeOutcome   ProgrammeOutcome @relation(fields: [programmeOutcomeId], references: [id], onDelete: Restrict)
+
+  attainment             Float?
+  attainmentLevel        Int?
+  courseCount            Int @default(0)
+  contributingCourseCount Int @default(0)
+
+  @@unique([runId, programmeOutcomeId])
+  @@index([institutionId, programmeOutcomeId])
+  @@map("obe_run_programme_outcomes")
+}
 
 // ==========================================================
 // AUTHENTICATION HARDENING
