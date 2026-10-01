@@ -113,6 +113,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["exams.read"],
     group: "Academic",
   },
+  {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["obe.read"],
+    group: "Academic",
+  },
 
   {
     label: "Academic structure",
@@ -210,6 +218,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["CHAIRMAN"],
+    permissions: ["obe.read"],
+    group: "Oversight",
+  },
+  {
     label: "Operations oversight",
     href: "/operations",
     icon: "⚙",
@@ -258,6 +274,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["DIRECTOR"],
+    permissions: ["obe.read"],
+    group: "Academic",
+  },
+  {
     label: "Operations",
     href: "/operations",
     icon: "⚙",
@@ -279,6 +303,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▦",
     roles: ["DEAN"],
     permissions: ["departments.read"],
+    group: "Academic",
+  },
+  {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["DEAN"],
+    permissions: ["obe.read"],
     group: "Academic",
   },
   {
@@ -346,6 +378,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["HOD"],
+    permissions: ["obe.read"],
+    group: "Academic",
+  },
+  {
     label: "Examinations",
     href: "/examinations",
     icon: "◉",
@@ -391,6 +431,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▦",
     roles: ["FACULTY"],
     permissions: ["courses.read"],
+    group: "Teaching",
+  },
+  {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["FACULTY"],
+    permissions: ["obe.read"],
     group: "Teaching",
   },
   {
