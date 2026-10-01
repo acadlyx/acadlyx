@@ -21,7 +21,7 @@ import {
 } from "@/lib/academicsApi";
 
 import {
-  AssignmentData,
+  StudentAssignmentListItem,
 } from "@/types/academics";
 
 function Skeleton() {
@@ -56,7 +56,7 @@ export default function StudentAssignmentsPage() {
     assignments,
     setAssignments,
   ] = useState<
-    AssignmentData[]
+    StudentAssignmentListItem[]
   >([]);
 
   const [loading, setLoading] =
@@ -191,16 +191,10 @@ export default function StudentAssignmentsPage() {
                           href={`/student/assignments/${assignment.id}`}
                           className="font-semibold text-slate-900 hover:text-blue-600"
                         >
-                          {
-                            assignment
-                              .courseOffering
-                              .course
-                              .code
-                          }{" "}
+                          {assignment.courseCode}
+                          {" "}
                           —{" "}
-                          {
-                            assignment.title
-                          }
+                          {assignment.title}
                         </Link>
 
                         <p className="mt-1 text-xs text-slate-500">
@@ -219,10 +213,9 @@ export default function StudentAssignmentsPage() {
                             }
                           )}
                           {" · "}
-                          {
-                            assignment.maxMarks
-                          }{" "}
-                          marks
+                          {assignment.maxMarks != null
+                            ? `${assignment.maxMarks} marks`
+                            : "Assignment details available"}
                         </p>
                       </div>
 
