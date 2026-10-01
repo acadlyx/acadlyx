@@ -1,5 +1,5 @@
-import { PeopleLanding } from "@/components/dashboard/PeopleLanding";
+import { UserLifecycleManager } from "@/components/dashboard/UserLifecycleManager";
 
 export default function UserManagementPage() {
-  return <PeopleLanding />;
+  return <UserLifecycleManager />;
 }

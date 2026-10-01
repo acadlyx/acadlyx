@@ -6,10 +6,9 @@ interface SmartInsightsListProps {
 
 /**
  * "6 students below 75% attendance" / "4 haven't submitted
- * Assignment #3" style lines. The attendance line is a live
- * computation over real records; the assignment line is demo data
- * (see docs/PHASE-4.md) presented identically on purpose — the UI
- * doesn't need to editorialize which is which.
+ * Assignment #3" style lines. Both lines are live computations over
+ * tenant-scoped records returned by the faculty dashboard endpoint
+ * (see backend/src/controllers/faculty.controller.ts).
  */
 export function SmartInsightsList({ insights }: SmartInsightsListProps) {
   const lines: string[] = [];

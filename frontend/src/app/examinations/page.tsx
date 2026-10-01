@@ -51,20 +51,10 @@ type Tab = "sessions" | "marks";
  * returns on /auth/me, so the UI offers exactly the operations the
  * API will authorise. The backend remains the security boundary.
  */
-const EXAMS_READ = "exams.read";
 const EXAMS_MANAGE = "exams.manage";
 const EXAMS_APPROVE = "exams.approve";
 const MARKS_READ = "marks.read";
 const MARKS_ENTER = "marks.enter";
-
-const SESSION_STATUSES = [
-  "DRAFT",
-  "SCHEDULED",
-  "ONGOING",
-  "COMPLETED",
-  "PUBLISHED",
-  "CANCELLED",
-];
 
 const EXAM_TYPES = [
   "REGULAR",
@@ -86,24 +76,6 @@ function formatDate(value: string | Date | null | undefined) {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  });
-}
-
-function formatDateTime(value: string | Date | null | undefined) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -320,18 +292,12 @@ export default function ExaminationsPage() {
         session.status === "ONGOING"
     ).length;
 
-    const papers = sessions.reduce(
-      (total, session) => total,
-      0
-    );
-
     return {
       totalSessions: sessions.length,
       activeSessions,
       scheduledSessions,
       publishedSessions,
       rooms: rooms.length,
-      papers,
     };
   }, [sessions, rooms]);
 
