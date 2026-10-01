@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { StudentManagement } from "@/components/dashboard/StudentManagement";
+import { PeopleImportPanel } from "@/components/dashboard/PeopleImportPanel";
 import { authedFetch, getCurrentUser } from "@/lib/auth";
 import { findAdminNavItem, type AdminNavItem } from "@/lib/adminNavigation";
 
@@ -4250,6 +4251,21 @@ export function AdminModulePage({
         No administration
         adapter is configured
         for this module.
+      </div>
+    );
+  }
+
+  if (module === "users") {
+    return (
+      <div className="space-y-5">
+        <Header item={item} />
+
+        <PeopleImportPanel />
+
+        <ResourceManager
+          def={definition}
+          permissions={permissions}
+        />
       </div>
     );
   }
