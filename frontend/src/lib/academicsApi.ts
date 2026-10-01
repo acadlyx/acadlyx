@@ -1,6 +1,7 @@
 import { authedFetch } from "./auth";
 import {
   AssignmentData,
+  StudentAssignmentListItem,
   AttendanceSummaryData,
   InternalMarkEntry,
   RosterSubmissionRow,
@@ -27,11 +28,20 @@ export async function getMyMarks(): Promise<InternalMarkEntry[]> {
   return res.data;
 }
 
-export async function getMyAssignments(): Promise<AssignmentData[]> {
-  const res = await authedFetch<ApiEnvelope<AssignmentData[]>>(
+export async function getMyAssignments(): Promise<StudentAssignmentListItem[]> {
+  /*
+   * The student endpoint historically returned a compact dashboard shape.
+   * Keep the list API typed to the fields it actually needs so a partial
+   * response cannot crash the assignments page at render time. The backend
+   * now also returns the complete assignment shape, which is accepted by
+   * this wider list item type.
+   */
+  const res = await authedFetch<
+    ApiEnvelope<StudentAssignmentListItem[]>
+  >(
     "/students/me/assignments"
   );
-  return res.data;
+  return Array.isArray(res.data) ? res.data : [];
 }
 
 // ---------- Assignments (shared surface, role-scoped server-side) ----------
