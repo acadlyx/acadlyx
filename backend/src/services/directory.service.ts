@@ -315,7 +315,7 @@ export async function searchCourseOfferings(
     Prisma.sql`co."institutionId" = ${institutionId}`,
     Prisma.sql`co."isActive" = TRUE`,
     Prisma.sql`(
-      c."code" ILIKE ${like)
+      c."code" ILIKE ${like}
       OR c."name" ILIKE ${like}
       OR s."name" ILIKE ${like}
     )`,
