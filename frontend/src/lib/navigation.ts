@@ -354,22 +354,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
-    label: "Attendance",
-    href: "/attendance",
-    icon: "✓",
-    roles: ["HOD"],
-    permissions: ["attendance.read"],
-    group: "Academic",
-  },
-  {
-    label: "Assignments",
-    href: "/assignments",
-    icon: "▤",
-    roles: ["HOD"],
-    permissions: ["assignments.read"],
-    group: "Academic",
-  },
-  {
     label: "Learning",
     href: "/lms",
     icon: "▥",
@@ -403,7 +387,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "My courses",
-    href: "/courses",
+    href: "/faculty/courses",
     icon: "▦",
     roles: ["FACULTY"],
     permissions: ["courses.read"],
@@ -411,7 +395,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Attendance",
-    href: "/attendance",
+    href: "/faculty/attendance",
     icon: "✓",
     roles: ["FACULTY"],
     permissions: ["attendance.read"],
@@ -419,7 +403,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Assignments",
-    href: "/assignments",
+    href: "/faculty/assignments",
     icon: "▤",
     roles: ["FACULTY"],
     permissions: ["assignments.read"],
@@ -435,7 +419,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Marks",
-    href: "/marks",
+    href: "/faculty/marks",
     icon: "◎",
     roles: ["FACULTY"],
     permissions: ["marks.read"],
@@ -604,14 +588,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Overview",
-    href: "/cms",
+    href: "/site-content",
     icon: "⌂",
     roles: ["CMS"],
     group: "Workspace",
   },
   {
     label: "Website",
-    href: "/cms",
+    href: "/site-content",
     icon: "▤",
     roles: ["CMS"],
     permissions: ["site.manage"],
@@ -627,7 +611,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "My courses",
-    href: "/courses",
+    href: "/student/course-registration",
     icon: "▦",
     roles: ["STUDENT"],
     permissions: ["courses.read"],
@@ -635,7 +619,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Attendance",
-    href: "/attendance",
+    href: "/student/attendance",
     icon: "✓",
     roles: ["STUDENT"],
     permissions: ["attendance.read"],
@@ -643,7 +627,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Assignments",
-    href: "/assignments",
+    href: "/student/assignments",
     icon: "▤",
     roles: ["STUDENT"],
     permissions: ["assignments.read"],
@@ -828,14 +812,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Overview",
-    href: "/club",
+    href: "/club-president",
     icon: "⌂",
     roles: ["CLUB_PRESIDENT"],
     group: "Workspace",
   },
   {
     label: "Club",
-    href: "/club",
+    href: "/club-president",
     icon: "◎",
     roles: ["CLUB_PRESIDENT"],
     permissions: ["club.read"],
@@ -922,8 +906,7 @@ const NAMESPACE_OWNERS: Array<
 
   ["/it", ["IT"]],
 
-  ["/cms", ["CMS"]],
-
+  ["/site-content", ["SUPER_ADMIN", "CMS"]],
   ["/operations", [
     "INSTITUTION_ADMIN",
     "CHAIRMAN",
@@ -1090,7 +1073,7 @@ const NAMESPACE_OWNERS: Array<
     "STUDENT",
   ]],
 
-  ["/club", ["CLUB_PRESIDENT"]],
+  ["/club-president", ["CLUB_PRESIDENT"]],
 
   ["/account-security", [
     "SUPER_ADMIN",
@@ -1347,7 +1330,7 @@ export function workspaceHome(
       "CMS"
     )
   ) {
-    return "/cms";
+    return "/site-content";
   }
 
   if (
@@ -1371,7 +1354,7 @@ export function workspaceHome(
       "CLUB_PRESIDENT"
     )
   ) {
-    return "/club";
+    return "/club-president";
   }
 
   if (
