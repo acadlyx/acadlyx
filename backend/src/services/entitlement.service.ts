@@ -21,6 +21,33 @@ export async function provisionTenantEntitlements(
     })),
     skipDuplicates: true,
   });
+
+  // OBE always has an explicit configurable baseline policy. This is not
+  // presented as an AKTU-mandated formula; institutions should review and
+  // adjust it before using official attainment reports.
+  const existingObePolicy = await tx.obeAttainmentPolicy.findFirst({
+    where: { institutionId, isDefault: true, isActive: true },
+    select: { id: true },
+  });
+  if (!existingObePolicy) {
+    await tx.obeAttainmentPolicy.create({
+      data: {
+        institutionId,
+        name: "ACADLYX Default OBE Policy — Review Before Official Reporting",
+        scopeType: "INSTITUTION",
+        directWeight: 1,
+        indirectWeight: 0,
+        level1Threshold: 60,
+        level2Threshold: 70,
+        level3Threshold: 80,
+        minimumPassingPercentage: 50,
+        isDefault: true,
+        isActive: true,
+        formulaVersion: "v1",
+      },
+    });
+  }
+
   return subscription;
 }
 
