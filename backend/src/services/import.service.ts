@@ -103,6 +103,12 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
       try {
         if (type === "users") {
           const roleName = text(row.role) || "STAFF";
+          if (roleName === "STUDENT") {
+            throw new AppError(
+              "STUDENT accounts cannot be created through the generic users import. Use the students import so the StudentProfile and enrollment are created together.",
+              400
+            );
+          }
           await upsertUser(tx, institutionId, row, roleName);
         } else if (type === "campuses") {
           await tx.campus.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), address: text(row.address) || null, isActive: row.active === "" ? true : bool(row.active) }, create: { institutionId, code: text(row.code), name: text(row.name), address: text(row.address) || null, isActive: row.active === "" ? true : bool(row.active) } });
