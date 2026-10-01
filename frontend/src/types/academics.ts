@@ -20,6 +20,18 @@ export interface AssignmentCourseOfferingRef {
   section: { id: string; name: string };
 }
 
+export interface StudentAssignmentListItem {
+  id: string;
+  title: string;
+  dueDate: string;
+  courseCode: string;
+  maxMarks?: number;
+  status?: AssignmentStatus;
+  courseOffering?: AssignmentCourseOfferingRef;
+  submission?: AssignmentSubmissionData | null;
+  mySubmission?: AssignmentSubmissionData | null;
+}
+
 export interface AssignmentData {
   id: string;
   title: string;
