@@ -13,6 +13,7 @@ import {
 } from "next/navigation";
 
 import { DashboardShell } from "./DashboardShell";
+import { PeopleImportPanel } from "./PeopleImportPanel";
 
 import { AuthRequiredError } from "@/lib/auth";
 
@@ -551,6 +552,7 @@ export function UserLifecycleManager() {
       }
       allowedRoles={[
         "INSTITUTION_ADMIN",
+        "HOD",
       ]}
     >
       <main className="mx-auto max-w-[1320px] space-y-6 pb-10">
@@ -637,6 +639,8 @@ export function UserLifecycleManager() {
                 ),
               )}
             </section>
+
+            <PeopleImportPanel />
 
             <section className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-[#f8fafc] p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
