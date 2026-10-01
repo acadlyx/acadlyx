@@ -52,6 +52,7 @@ import askRoutes from "./routes/ask.routes";
 import erpRoutes from "./routes/erp.routes";
 import exportRoutes from "./routes/export.routes";
 import importRoutes from "./routes/import.routes";
+import peopleImportRoutes from "./routes/peopleImport.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
@@ -472,6 +473,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/imports`,
     importRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/people-imports`,
+    peopleImportRoutes
   );
 
   app.use(
