@@ -79,7 +79,7 @@ function clean(value?: string) {
   return trimmed ? trimmed : null;
 }
 
-async function getStudentOrThrow(
+async function getStudentRecordOrThrow(
   institutionId: string,
   userId: string
 ) {
@@ -103,9 +103,18 @@ async function getStudentOrThrow(
     throw new AppError("Student not found", 404);
   }
 
+  return student;
+}
+
+async function getStudentOrThrow(
+  institutionId: string,
+  userId: string
+) {
+  const student = await getStudentRecordOrThrow(institutionId, userId);
+
   if (!student.profile) {
     throw new AppError(
-      "Student master profile is missing for this account",
+      "Student master profile is missing for this account. Complete the master profile before enrollment.",
       409
     );
   }
@@ -479,7 +488,7 @@ export async function getStudent(
 ) {
   if (actor) await assertStudentReadAccess(institutionId, userId, actor);
   return serializeStudent(
-    await getStudentOrThrow(
+    await getStudentRecordOrThrow(
       institutionId,
       userId
     )
@@ -721,7 +730,7 @@ export async function updateStudent(
 ) {
   await assertStudentReadAccess(institutionId, userId, actor);
   const existing =
-    await getStudentOrThrow(
+    await getStudentRecordOrThrow(
       institutionId,
       userId
     );
@@ -736,8 +745,7 @@ export async function updateStudent(
 
   if (
     nextAdmission &&
-    nextAdmission !==
-      existing.profile!.admissionNumber
+    nextAdmission !== existing.profile?.admissionNumber
   ) {
     const duplicate =
       await prisma.studentProfile.findFirst({
@@ -831,7 +839,37 @@ export async function updateStudent(
           },
         });
 
-        await tx.studentProfile.update({
+        if (!existing.profile) {
+          if (!nextAdmission) {
+            throw new AppError(
+              "Student master profile is missing. Admission number is required to repair this account.",
+              409
+            );
+          }
+
+          await tx.studentProfile.create({
+            data: {
+              institutionId,
+              userId,
+              admissionNumber: nextAdmission,
+              dateOfBirth: input.dateOfBirth !== undefined ? parseDate(input.dateOfBirth) || null : null,
+              gender: input.gender !== undefined ? clean(input.gender) : null,
+              bloodGroup: input.bloodGroup !== undefined ? clean(input.bloodGroup) : null,
+              nationality: input.nationality !== undefined ? clean(input.nationality) : null,
+              address: input.address !== undefined ? clean(input.address) : null,
+              city: input.city !== undefined ? clean(input.city) : null,
+              state: input.state !== undefined ? clean(input.state) : null,
+              postalCode: input.postalCode !== undefined ? clean(input.postalCode) : null,
+              guardianName: input.guardianName !== undefined ? clean(input.guardianName) : null,
+              guardianPhone: input.guardianPhone !== undefined ? clean(input.guardianPhone) : null,
+              guardianEmail: input.guardianEmail !== undefined ? clean(input.guardianEmail) : null,
+              emergencyContactName: input.emergencyContactName !== undefined ? clean(input.emergencyContactName) : null,
+              emergencyContactPhone: input.emergencyContactPhone !== undefined ? clean(input.emergencyContactPhone) : null,
+              admissionDate: input.admissionDate !== undefined ? parseDate(input.admissionDate) || null : null,
+              status: input.status || "ACTIVE",
+            },
+          });
+        } else await tx.studentProfile.update({
           where: {
             userId,
           },
