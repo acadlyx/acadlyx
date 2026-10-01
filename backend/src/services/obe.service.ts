@@ -521,7 +521,6 @@ export async function calculateProgrammeAttainment(institutionId: string, user: 
     where: { institutionId, courseOfferingId: { in: offerings.map((x) => x.id) }, finalAttainment: { not: null } },
     select: { courseOfferingId: true, courseOutcomeId: true, finalAttainment: true },
   });
-  const offeringById = new Map(offerings.map((x) => [x.id, x.courseId]));
   const outcomes = await prisma.programmeOutcome.findMany({ where: { institutionId, programId: input.programId, isActive: true }, orderBy: [{ type: "asc" }, { displayOrder: "asc" }, { code: "asc" }] });
   if (!outcomes.length) throw new AppError("No PO/PSO definitions exist for this programme", 400);
 
