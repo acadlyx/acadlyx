@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   },
 
   { key: "imports.manage", module: "imports", description: "Import institutional data" },
+  { key: "people.import", module: "people", description: "Bulk import students, faculty and staff within authorized scope" },
   { key: "reports.read", module: "reports", description: "View reports within scope" },
   { key: "intelligence.read", module: "intelligence", description: "View institutional intelligence" },
 
@@ -420,6 +421,7 @@ export const ROLE_PERMISSIONS: Record<
     "students.read",
     "students.create",
     "students.update",
+    "people.import",
 
     ...ACADEMIC_READ,
 
@@ -661,6 +663,7 @@ export const ROLE_PERMISSIONS: Record<
   HOD: [
     "obe.read", "obe.manage", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
+    "people.import",
 
     "attendance.read",
     "attendance.approve",
