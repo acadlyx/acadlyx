@@ -433,6 +433,21 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["lms.read"],
     group: "Teaching",
   },
+  {
+    label: "Leave",
+    href: "/leave-management",
+    icon: "◫",
+    roles: ["FACULTY"],
+    permissions: ["leave.apply"],
+    group: "Workspace",
+  },
+  {
+    label: "Profile",
+    href: "/faculty/profile",
+    icon: "◉",
+    roles: ["FACULTY"],
+    group: "Account",
+  },
 
   {
     label: "Overview",
@@ -483,7 +498,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Leave",
-    href: "/leave",
+    href: "/leave-management",
     icon: "◫",
     roles: ["HR"],
     permissions: ["leave.read"],
@@ -651,11 +666,66 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Results",
-    href: "/student/examinations",
+    href: "/student/results",
     icon: "◎",
     roles: ["STUDENT"],
     permissions: ["results.read"],
     group: "Academic",
+  },
+  {
+    label: "Fees",
+    href: "/student/fees",
+    icon: "₹",
+    roles: ["STUDENT"],
+    permissions: ["fees.read"],
+    group: "Services",
+  },
+  {
+    label: "Library",
+    href: "/student/library",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["library.read"],
+    group: "Services",
+  },
+  {
+    label: "Leave",
+    href: "/student/leave",
+    icon: "◫",
+    roles: ["STUDENT"],
+    permissions: ["leave.apply"],
+    group: "Services",
+  },
+  {
+    label: "Certificates",
+    href: "/student/certificates",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["certificates.request"],
+    group: "Services",
+  },
+  {
+    label: "Calendar",
+    href: "/student/calendar",
+    icon: "◫",
+    roles: ["STUDENT"],
+    permissions: ["calendar.read"],
+    group: "Services",
+  },
+  {
+    label: "Notifications",
+    href: "/student/notifications",
+    icon: "◉",
+    roles: ["STUDENT"],
+    permissions: ["notifications.read"],
+    group: "Services",
+  },
+  {
+    label: "Profile",
+    href: "/student/profile",
+    icon: "◉",
+    roles: ["STUDENT"],
+    group: "Account",
   },
 
   {
@@ -696,6 +766,21 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["PARENT"],
     permissions: ["results.read"],
     group: "Academic",
+  },
+  {
+    label: "Children",
+    href: "/parent/children",
+    icon: "▤",
+    roles: ["PARENT"],
+    permissions: ["parent-portal.read"],
+    group: "Academic",
+  },
+  {
+    label: "Profile",
+    href: "/parent/profile",
+    icon: "◉",
+    roles: ["PARENT"],
+    group: "Account",
   },
 
   {
@@ -1066,11 +1151,9 @@ const NAMESPACE_OWNERS: Array<
 
   ["/employees", ["HR"]],
 
-  ["/leave", [
-    "HR",
+  ["/leave-management", [
     "FACULTY",
-    "HOD",
-    "STUDENT",
+    "HR",
   ]],
 
   ["/club-president", ["CLUB_PRESIDENT"]],
