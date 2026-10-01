@@ -96,6 +96,16 @@ export const PERMISSIONS = [
   { key: "course-offerings.update", module: "academics", description: "Update course offerings" },
   { key: "course-offerings.delete", module: "academics", description: "Close course offerings" },
 
+  { key: "obe.read", module: "obe", description: "View outcome based education data" },
+  { key: "obe.manage", module: "obe", description: "Manage OBE configuration and records within scope" },
+  { key: "obe.mapping.manage", module: "obe", description: "Create and update CO-PO/PSO mappings" },
+  { key: "obe.assessment.manage", module: "obe", description: "Manage OBE assessments and CO question mapping" },
+  { key: "obe.attainment.calculate", module: "obe", description: "Calculate CO and PO/PSO attainment" },
+  { key: "obe.attainment.approve", module: "obe", description: "Approve OBE mappings and attainment runs" },
+  { key: "obe.policy.manage", module: "obe", description: "Configure OBE attainment policies" },
+  { key: "obe.indirect.manage", module: "obe", description: "Manage indirect OBE evidence" },
+  { key: "obe.reports.read", module: "obe", description: "View OBE reports and analytics" },
+
   { key: "timetable.read", module: "timetable", description: "View timetables" },
   { key: "timetable.manage", module: "timetable", description: "Manage timetables" },
 
@@ -391,6 +401,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
     INSTITUTION_ADMIN: [
+    "obe.read", "obe.manage", "obe.reports.read", "obe.policy.manage",
     /*
      * Institution-wide administrative role.
      *
@@ -495,6 +506,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
     "reports.read",
@@ -511,6 +523,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "obe.read", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
     "reports.read",
@@ -543,6 +556,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DEAN: [
+    "obe.read", "obe.reports.read", "obe.attainment.approve",
     "students.read",
     "attendance.read",
     "assignments.read",
@@ -587,6 +601,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   REGISTRAR: [
+    "obe.read", "obe.reports.read",
     "students.read",
     "students.update",
 
@@ -644,6 +659,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HOD: [
+    "obe.read", "obe.manage", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
 
     "attendance.read",
@@ -704,6 +720,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   FACULTY: [
+    "obe.read", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.reports.read",
     "students.read",
 
     "attendance.read",
@@ -813,6 +830,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   EXAMINATION: [
+    "obe.read", "obe.assessment.manage", "obe.reports.read",
     "students.read",
 
     "exams.read",
@@ -902,6 +920,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   STUDENT: [
+    "obe.read",
     "attendance.read",
 
     "assignments.read",
