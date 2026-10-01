@@ -6,7 +6,7 @@ export const TENANT_FEATURES = [
   "analytics", "intelligence", "placements",
   "admissions", "hr", "leave", "library", "calendar", "registration",
   "promotions", "certificates", "audit",
-  "lms", "operations",
+  "lms", "operations", "obe",
 ] as const;
 
 export type TenantFeature = typeof TENANT_FEATURES[number];
