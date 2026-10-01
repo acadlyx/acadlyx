@@ -283,6 +283,32 @@ export default function StudentProfilePage({
   const [showParentForm, setShowParentForm] =
     useState(false);
 
+  const [showMasterProfileForm, setShowMasterProfileForm] =
+    useState(false);
+
+  const [savingMasterProfile, setSavingMasterProfile] =
+    useState(false);
+
+  const [masterProfileForm, setMasterProfileForm] =
+    useState({
+      admissionNumber: "",
+      dateOfBirth: "",
+      gender: "",
+      bloodGroup: "",
+      nationality: "",
+      address: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      guardianName: "",
+      guardianPhone: "",
+      guardianEmail: "",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+      admissionDate: "",
+      status: "ACTIVE",
+    });
+
   const [parentId, setParentId] =
     useState("");
 
@@ -371,6 +397,64 @@ export default function StudentProfilePage({
         !linkedIds.has(parent.id),
     );
   }, [parents, parentLinks]);
+
+  function openMasterProfileEditor() {
+    const profile = student?.profile;
+
+    setMasterProfileForm({
+      admissionNumber: profile?.admissionNumber || "",
+      dateOfBirth: profile?.dateOfBirth?.slice(0, 10) || "",
+      gender: profile?.gender || "",
+      bloodGroup: profile?.bloodGroup || "",
+      nationality: profile?.nationality || "",
+      address: profile?.address || "",
+      city: profile?.city || "",
+      state: profile?.state || "",
+      postalCode: profile?.postalCode || "",
+      guardianName: profile?.guardianName || "",
+      guardianPhone: profile?.guardianPhone || "",
+      guardianEmail: profile?.guardianEmail || "",
+      emergencyContactName: profile?.emergencyContactName || "",
+      emergencyContactPhone: profile?.emergencyContactPhone || "",
+      admissionDate: profile?.admissionDate?.slice(0, 10) || "",
+      status: profile?.status || "ACTIVE",
+    });
+    setShowMasterProfileForm(true);
+    setError("");
+    setSuccess("");
+  }
+
+  async function saveMasterProfile(event: React.FormEvent) {
+    event.preventDefault();
+
+    if (!masterProfileForm.admissionNumber.trim()) {
+      setError("Admission number is required to create the student master profile.");
+      return;
+    }
+
+    setSavingMasterProfile(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await authedFetch<Envelope<Student>>(`/students/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(masterProfileForm),
+      });
+
+      setShowMasterProfileForm(false);
+      setSuccess("Student master profile saved successfully. The student is now ready for enrollment.");
+      await load();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to save the student master profile.",
+      );
+    } finally {
+      setSavingMasterProfile(false);
+    }
+  }
 
   async function linkParent(
     event: React.FormEvent,
@@ -554,6 +638,14 @@ export default function StudentProfilePage({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={openMasterProfileEditor}
+                className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#1f56cc]"
+              >
+                {profile ? "Edit Master Profile" : "Complete Master Profile"}
+              </button>
+
               <Link
                 href="/students"
                 className="rounded-xl border border-[#d7e0ea] bg-white px-4 py-2.5 text-sm font-black text-[#42536b]"
@@ -573,6 +665,95 @@ export default function StudentProfilePage({
         {success ? (
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
             {success}
+          </section>
+        ) : null}
+
+        {showMasterProfileForm ? (
+          <section className="rounded-[24px] border border-[#bcd1ff] bg-[#f7faff] p-5 shadow-[0_8px_26px_rgba(25,45,75,0.05)] sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-[#172033]">
+                  {profile ? "Edit Master Profile" : "Complete Master Profile"}
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-[#7c8ca0]">
+                  Complete the authoritative student master record before enrollment. Admission number is required.
+                </p>
+              </div>
+              {!profile ? (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-800">
+                  Profile missing
+                </span>
+              ) : null}
+            </div>
+
+            <form onSubmit={saveMasterProfile} className="mt-6 space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["admissionNumber", "Admission number", "text"],
+                  ["dateOfBirth", "Date of birth", "date"],
+                  ["admissionDate", "Admission date", "date"],
+                  ["gender", "Gender", "text"],
+                  ["bloodGroup", "Blood group", "text"],
+                  ["nationality", "Nationality", "text"],
+                  ["city", "City", "text"],
+                  ["state", "State", "text"],
+                  ["postalCode", "Postal code", "text"],
+                  ["guardianName", "Guardian name", "text"],
+                  ["guardianPhone", "Guardian phone", "text"],
+                  ["guardianEmail", "Guardian email", "email"],
+                  ["emergencyContactName", "Emergency contact name", "text"],
+                  ["emergencyContactPhone", "Emergency contact phone", "text"],
+                ].map(([field, label, type]) => (
+                  <label key={field} className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7c8ca0]">
+                      {label}{field === "admissionNumber" ? " *" : ""}
+                    </span>
+                    <input
+                      type={type}
+                      value={masterProfileForm[field as keyof typeof masterProfileForm]}
+                      onChange={(event) =>
+                        setMasterProfileForm((current) => ({
+                          ...current,
+                          [field]: event.target.value,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-xl border border-[#d7e0ea] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#334158] outline-none transition focus:border-[#2864e8] focus:ring-2 focus:ring-[#2864e8]/10"
+                      required={field === "admissionNumber"}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#7c8ca0]">Address</span>
+                <textarea
+                  rows={3}
+                  value={masterProfileForm.address}
+                  onChange={(event) =>
+                    setMasterProfileForm((current) => ({ ...current, address: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-[#d7e0ea] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#334158] outline-none focus:border-[#2864e8] focus:ring-2 focus:ring-[#2864e8]/10"
+                />
+              </label>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-[#e3eaf3] pt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowMasterProfileForm(false)}
+                  disabled={savingMasterProfile}
+                  className="rounded-xl border border-[#d7e0ea] bg-white px-4 py-2.5 text-sm font-black text-[#42536b] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMasterProfile}
+                  className="rounded-xl bg-[#2864e8] px-5 py-2.5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingMasterProfile ? "Saving..." : "Save Master Profile"}
+                </button>
+              </div>
+            </form>
           </section>
         ) : null}
 
