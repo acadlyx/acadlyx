@@ -20,8 +20,7 @@ import {
  *    so they cannot be used to enumerate a tenant,
  *  - results are capped, and
  *  - the rows are filtered by the SAME scope rules the real endpoints
- *    use. An HOD searching students sees their department; a faculty
- *    member searching offerings sees the ones they teach.
+ *    use.
  *
  * A picker is a convenience, never an authorization decision: choosing
  * an id here does not grant access to it — the target service still
@@ -52,7 +51,7 @@ function requireSearch(search: string | undefined): string {
 
 /**
  * Students the caller is allowed to see.
- * Mirrors accessScope.assertCanViewStudent, expressed as a filter.
+ * Mirrors assertCanViewStudent, expressed as a filter.
  */
 export async function searchStudents(
   institutionId: string,
@@ -92,16 +91,12 @@ export async function searchStudents(
     )`,
   ];
 
-  if (
-    !isInstitutionWide(actor) &&
-    !actor.roles.includes("STAFF")
-  ) {
+  if (!isInstitutionWide(actor) && !actor.roles.includes("STAFF")) {
     if (actor.roles.includes("HOD")) {
-      const managed =
-        await getManagedDepartmentIds(
-          institutionId,
-          actor.id
-        );
+      const managed = await getManagedDepartmentIds(
+        institutionId,
+        actor.id
+      );
 
       if (managed.length === 0) {
         return [];
@@ -118,7 +113,6 @@ export async function searchStudents(
         )`
       );
     } else if (actor.roles.includes("FACULTY")) {
-      // Only students this faculty member actually teaches.
       conditions.push(
         Prisma.sql`EXISTS (
           SELECT 1
@@ -292,19 +286,23 @@ export async function searchUsers(
 /**
  * Course offerings within the caller's academic scope.
  *
- * Examination Cell is intentionally allowed to use the lookup through its
- * existing `exams.manage` permission. This is read-only lookup authority;
- * it does not grant course-offering create/update/delete authority.
+ * Examination Cell is a special read-only consumer of course offerings.
+ * It needs to SELECT an offering in order to schedule an examination,
+ * but it must NOT receive course-offering create/update/delete authority.
+ *
+ * Therefore `exams.manage` is accepted as an alternative authority for
+ * this LOOKUP ONLY.
  */
 export async function searchCourseOfferings(
   institutionId: string,
   actor: AuthenticatedUser,
   search: string | undefined
 ): Promise<DirectoryOption[]> {
-  if (
-    !actor.permissions.includes("course-offerings.read") &&
-    !actor.permissions.includes("exams.manage")
-  ) {
+  const canReadOfferings =
+    actor.permissions.includes("course-offerings.read") ||
+    actor.permissions.includes("exams.manage");
+
+  if (!canReadOfferings) {
     throw new AppError(
       "You are not authorized to look up course offerings",
       403
@@ -317,29 +315,36 @@ export async function searchCourseOfferings(
     Prisma.sql`co."institutionId" = ${institutionId}`,
     Prisma.sql`co."isActive" = TRUE`,
     Prisma.sql`(
-      c."code" ILIKE ${like}
+      c."code" ILIKE ${like)
       OR c."name" ILIKE ${like}
       OR s."name" ILIKE ${like}
     )`,
   ];
 
+  /*
+   * Examination Cell is intentionally institution-scoped here.
+   *
+   * It schedules official examinations across the institution and its
+   * existing `exams.manage` authority is already protected by the
+   * examination service before a schedule can be created.
+   *
+   * This branch ONLY controls the searchable directory result set.
+   * It does not authorize modification of the course offering.
+   */
   if (
+    actor.roles.includes("EXAMINATION") &&
+    actor.permissions.includes("exams.manage")
+  ) {
+    // Institution scope is already enforced by co.institutionId above.
+  } else if (
     !isInstitutionWide(actor) &&
     !actor.roles.includes("STAFF")
   ) {
-    if (actor.roles.includes("EXAMINATION")) {
-      /*
-       * Examination scheduling is institution-wide.
-       *
-       * The selected offering is still validated by the examination
-       * service before it can actually be scheduled.
-       */
-    } else if (actor.roles.includes("HOD")) {
-      const managed =
-        await getManagedDepartmentIds(
-          institutionId,
-          actor.id
-        );
+    if (actor.roles.includes("HOD")) {
+      const managed = await getManagedDepartmentIds(
+        institutionId,
+        actor.id
+      );
 
       if (managed.length === 0) {
         return [];
@@ -380,7 +385,9 @@ export async function searchCourseOfferings(
     JOIN "semesters" sem
       ON sem."id" = co."semesterId"
     ${andWhere(conditions)}
-    ORDER BY c."code" ASC
+    ORDER BY
+      c."code" ASC,
+      c."name" ASC
     LIMIT ${MAX_RESULTS}
   `);
 
