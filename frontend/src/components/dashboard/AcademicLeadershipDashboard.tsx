@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { PeopleImportPanel } from "@/components/dashboard/PeopleImportPanel";
 import {
   AuthRequiredError,
   isAuthenticated,
@@ -383,6 +384,8 @@ export function AcademicLeadershipDashboard({
             detail="Exam records for scoped offerings."
           />
         </section>
+
+        <PeopleImportPanel />
 
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
