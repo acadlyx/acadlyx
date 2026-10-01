@@ -296,13 +296,26 @@ export async function getMyUpcomingAssignments(
   });
   const byAssignment = new Map(submissions.map((s) => [s.assignmentId, s]));
 
-  return assignments.map((a) => ({
-    id: a.id,
-    courseCode: a.courseOffering.course.code,
-    title: a.title,
-    dueDate: a.dueDate,
-    submission: byAssignment.get(a.id) ?? null,
-  }));
+  return assignments.map((a) => {
+    const submission = byAssignment.get(a.id) ?? null;
+
+    /*
+     * Keep the compact dashboard fields for the student home page, but also
+     * return the complete assignment shape consumed by /student/assignments.
+     *
+     * Previously this endpoint returned only { id, courseCode, title,
+     * dueDate, submission }. The assignments page typed the response as
+     * AssignmentData[] and immediately read assignment.courseOffering.course,
+     * which was undefined and caused a client-side exception whenever at least
+     * one published assignment existed.
+     */
+    return {
+      ...a,
+      mySubmission: submission,
+      courseCode: a.courseOffering.course.code,
+      submission,
+    };
+  });
 }
 
 /** Percentage of this student's PUBLISHED assignments that have a submission on record. */
