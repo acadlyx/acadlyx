@@ -79,7 +79,7 @@ function clean(value?: string) {
   return trimmed ? trimmed : null;
 }
 
-async function getStudentRecordOrThrow(
+async function getStudentOrThrow(
   institutionId: string,
   userId: string
 ) {
@@ -106,12 +106,9 @@ async function getStudentRecordOrThrow(
   return student;
 }
 
-async function getStudentOrThrow(
-  institutionId: string,
-  userId: string
+function requireStudentProfile(
+  student: Prisma.UserGetPayload<{ include: typeof studentInclude }>
 ) {
-  const student = await getStudentRecordOrThrow(institutionId, userId);
-
   if (!student.profile) {
     throw new AppError(
       "Student master profile is missing for this account. Complete the master profile before enrollment.",
@@ -119,7 +116,7 @@ async function getStudentOrThrow(
     );
   }
 
-  return student;
+  return student.profile;
 }
 
 async function validateAcademicPlacement(
@@ -488,7 +485,7 @@ export async function getStudent(
 ) {
   if (actor) await assertStudentReadAccess(institutionId, userId, actor);
   return serializeStudent(
-    await getStudentRecordOrThrow(
+    await getStudentOrThrow(
       institutionId,
       userId
     )
@@ -730,7 +727,7 @@ export async function updateStudent(
 ) {
   await assertStudentReadAccess(institutionId, userId, actor);
   const existing =
-    await getStudentRecordOrThrow(
+    await getStudentOrThrow(
       institutionId,
       userId
     );
@@ -743,9 +740,17 @@ export async function updateStudent(
           .trim()
           .toUpperCase();
 
+  if (!existing.profile && !nextAdmission) {
+    throw new AppError(
+      "Admission number is required to create the student master profile",
+      400
+    );
+  }
+
   if (
     nextAdmission &&
-    nextAdmission !== existing.profile?.admissionNumber
+    nextAdmission !==
+      existing.profile?.admissionNumber
   ) {
     const duplicate =
       await prisma.studentProfile.findFirst({
@@ -839,180 +844,33 @@ export async function updateStudent(
           },
         });
 
-        if (!existing.profile) {
-          if (!nextAdmission) {
-            throw new AppError(
-              "Student master profile is missing. Admission number is required to repair this account.",
-              409
-            );
-          }
+        const profileData = {
+          admissionNumber: nextAdmission ?? existing.profile?.admissionNumber ?? "",
+          ...(input.dateOfBirth !== undefined ? { dateOfBirth: parseDate(input.dateOfBirth) || null } : {}),
+          ...(input.gender !== undefined ? { gender: clean(input.gender) } : {}),
+          ...(input.bloodGroup !== undefined ? { bloodGroup: clean(input.bloodGroup) } : {}),
+          ...(input.nationality !== undefined ? { nationality: clean(input.nationality) } : {}),
+          ...(input.address !== undefined ? { address: clean(input.address) } : {}),
+          ...(input.city !== undefined ? { city: clean(input.city) } : {}),
+          ...(input.state !== undefined ? { state: clean(input.state) } : {}),
+          ...(input.postalCode !== undefined ? { postalCode: clean(input.postalCode) } : {}),
+          ...(input.guardianName !== undefined ? { guardianName: clean(input.guardianName) } : {}),
+          ...(input.guardianPhone !== undefined ? { guardianPhone: clean(input.guardianPhone) } : {}),
+          ...(input.guardianEmail !== undefined ? { guardianEmail: clean(input.guardianEmail) } : {}),
+          ...(input.emergencyContactName !== undefined ? { emergencyContactName: clean(input.emergencyContactName) } : {}),
+          ...(input.emergencyContactPhone !== undefined ? { emergencyContactPhone: clean(input.emergencyContactPhone) } : {}),
+          ...(input.admissionDate !== undefined ? { admissionDate: parseDate(input.admissionDate) || null } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+        };
 
-          await tx.studentProfile.create({
-            data: {
-              institutionId,
-              userId,
-              admissionNumber: nextAdmission,
-              dateOfBirth: input.dateOfBirth !== undefined ? parseDate(input.dateOfBirth) || null : null,
-              gender: input.gender !== undefined ? clean(input.gender) : null,
-              bloodGroup: input.bloodGroup !== undefined ? clean(input.bloodGroup) : null,
-              nationality: input.nationality !== undefined ? clean(input.nationality) : null,
-              address: input.address !== undefined ? clean(input.address) : null,
-              city: input.city !== undefined ? clean(input.city) : null,
-              state: input.state !== undefined ? clean(input.state) : null,
-              postalCode: input.postalCode !== undefined ? clean(input.postalCode) : null,
-              guardianName: input.guardianName !== undefined ? clean(input.guardianName) : null,
-              guardianPhone: input.guardianPhone !== undefined ? clean(input.guardianPhone) : null,
-              guardianEmail: input.guardianEmail !== undefined ? clean(input.guardianEmail) : null,
-              emergencyContactName: input.emergencyContactName !== undefined ? clean(input.emergencyContactName) : null,
-              emergencyContactPhone: input.emergencyContactPhone !== undefined ? clean(input.emergencyContactPhone) : null,
-              admissionDate: input.admissionDate !== undefined ? parseDate(input.admissionDate) || null : null,
-              status: input.status || "ACTIVE",
-            },
-          });
-        } else await tx.studentProfile.update({
-          where: {
+        await tx.studentProfile.upsert({
+          where: { userId },
+          create: {
+            institutionId,
             userId,
+            ...profileData,
           },
-          data: {
-            ...(nextAdmission !==
-            undefined
-              ? {
-                  admissionNumber:
-                    nextAdmission,
-                }
-              : {}),
-            ...(input.dateOfBirth !==
-            undefined
-              ? {
-                  dateOfBirth:
-                    parseDate(
-                      input.dateOfBirth
-                    ) || null,
-                }
-              : {}),
-            ...(input.gender !==
-            undefined
-              ? {
-                  gender:
-                    clean(
-                      input.gender
-                    ),
-                }
-              : {}),
-            ...(input.bloodGroup !==
-            undefined
-              ? {
-                  bloodGroup:
-                    clean(
-                      input.bloodGroup
-                    ),
-                }
-              : {}),
-            ...(input.nationality !==
-            undefined
-              ? {
-                  nationality:
-                    clean(
-                      input.nationality
-                    ),
-                }
-              : {}),
-            ...(input.address !==
-            undefined
-              ? {
-                  address:
-                    clean(
-                      input.address
-                    ),
-                }
-              : {}),
-            ...(input.city !==
-            undefined
-              ? {
-                  city:
-                    clean(input.city),
-                }
-              : {}),
-            ...(input.state !==
-            undefined
-              ? {
-                  state:
-                    clean(
-                      input.state
-                    ),
-                }
-              : {}),
-            ...(input.postalCode !==
-            undefined
-              ? {
-                  postalCode:
-                    clean(
-                      input.postalCode
-                    ),
-                }
-              : {}),
-            ...(input.guardianName !==
-            undefined
-              ? {
-                  guardianName:
-                    clean(
-                      input.guardianName
-                    ),
-                }
-              : {}),
-            ...(input.guardianPhone !==
-            undefined
-              ? {
-                  guardianPhone:
-                    clean(
-                      input.guardianPhone
-                    ),
-                }
-              : {}),
-            ...(input.guardianEmail !==
-            undefined
-              ? {
-                  guardianEmail:
-                    clean(
-                      input.guardianEmail
-                    ),
-                }
-              : {}),
-            ...(input.emergencyContactName !==
-            undefined
-              ? {
-                  emergencyContactName:
-                    clean(
-                      input.emergencyContactName
-                    ),
-                }
-              : {}),
-            ...(input.emergencyContactPhone !==
-            undefined
-              ? {
-                  emergencyContactPhone:
-                    clean(
-                      input.emergencyContactPhone
-                    ),
-                }
-              : {}),
-            ...(input.admissionDate !==
-            undefined
-              ? {
-                  admissionDate:
-                    parseDate(
-                      input.admissionDate
-                    ) || null,
-                }
-              : {}),
-            ...(input.status !==
-            undefined
-              ? {
-                  status:
-                    input.status,
-                }
-              : {}),
-          },
+          update: profileData,
         });
 
         return tx.user.findFirstOrThrow({
@@ -1034,15 +892,13 @@ export async function updateStudent(
     metadata: {
       before: {
         admissionNumber:
-          existing.profile!
-            .admissionNumber,
+          existing.profile?.admissionNumber ?? null,
         email:
           existing.email,
       },
       after: {
         admissionNumber:
-          updated.profile!
-            .admissionNumber,
+          updated.profile?.admissionNumber ?? null,
         email:
           updated.email,
       },
@@ -1061,10 +917,11 @@ export async function enrollStudent(
   actor: AuthenticatedUser
 ) {
   await assertStudentReadAccess(institutionId, userId, actor);
-  await getStudentOrThrow(
+  const student = await getStudentOrThrow(
     institutionId,
     userId
   );
+  requireStudentProfile(student);
 
   const placement =
     await validateAcademicPlacement(
