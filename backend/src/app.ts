@@ -64,6 +64,7 @@ import operationsRoutes from "./routes/operations.routes";
 import securityRoutes from "./routes/security.routes";
 import subscriptionPlanRoutes from "./routes/subscriptionPlan.routes";
 import directoryRoutes from "./routes/directory.routes";
+import obeRoutes from "./routes/obe.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -269,6 +270,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/course-offerings`,
     courseOfferingRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/obe`,
+    obeRoutes
   );
 
   /*
