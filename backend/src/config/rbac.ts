@@ -455,21 +455,34 @@ export const ROLE_PERMISSIONS: Record<
     "parent-links.manage",
 
     /*
-     * Examination administration.
+     * Examination oversight (read-only).
      *
-     * These permissions are already part of the canonical
-     * permission catalogue above and are required by the
-     * /examinations workspace and its backend APIs.
+     * Institution Admin needs to *see* the examination lifecycle
+     * for institutional governance, which is what backs the
+     * "Examinations" navigation entry and the read endpoints
+     * (GET /examinations/sessions, /rooms, /schedules/:id,
+     * /sessions/:id/hall-ticket, /students/:studentId).
+     *
+     * Deliberately NOT granted — these are specialist operations
+     * owned by the EXAMINATION role (and approval by DIRECTOR):
+     *
+     *   exams.manage    create/patch sessions, rooms, schedules,
+     *                   seating, invigilator and hall-ticket
+     *                   allocation
+     *   exams.approve   session status, marks approval, schedule
+     *                   lock and result publication
+     *   exams.invigilate  invigilation duty / incident reporting
+     *   exams.revaluate  revaluation requests and decisions
+     *   marks.enter     entering student marks
+     *   results.read    result processing
+     *
+     * Granting these would let an institution administrator
+     * authorise and publish the same results they oversee, so the
+     * backend keeps the real security boundary here. The frontend
+     * /examinations workspace renders read-only for this role.
      */
     "exams.read",
-    "exams.manage",
-    "exams.approve",
-    "exams.invigilate",
-    "exams.revaluate",
-
-    "results.read",
     "marks.read",
-    "marks.enter",
 
     "operations.read",
     "operations.manage",
@@ -808,7 +821,23 @@ export const ROLE_PERMISSIONS: Record<
     "exams.invigilate",
     "exams.revaluate",
 
+    /*
+     * Exam-paper mark entry.
+     *
+     * `PUT /examinations/schedules/:id/marks` is gated by
+     * `marks.enter`, which is the only gate on that route (the
+     * service records enteredById and enforces workflow state:
+     * APPROVED/PUBLISHED marks are immutable, 409).
+     *
+     * Without this permission the Examination Cell could open the
+     * marks sheet but every save returned 403, so the
+     * marks -> approval -> publication lifecycle could never
+     * complete. Entering exam-paper marks is examination-cell
+     * work, which is why it is granted here and not to
+     * INSTITUTION_ADMIN.
+     */
     "marks.read",
+    "marks.enter",
 
     "results.read",
 

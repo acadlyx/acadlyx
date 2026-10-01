@@ -36,7 +36,26 @@ import {
 
 type Tab = "sessions" | "marks";
 
-const CONTROLLER_ROLES = ["EXAMINATION", "DIRECTOR"];
+/*
+ * Capability keys, mirrored 1:1 from the backend route gates in
+ * backend/src/routes/examination.routes.ts.
+ *
+ * The workspace used to decide visibility from a hardcoded role list
+ * ("EXAMINATION", "DIRECTOR"), which desynchronised from the API:
+ * a DIRECTOR was shown "New session", room, seating and hall-ticket
+ * controls that call `exams.manage` endpoints they do not hold, and
+ * an INSTITUTION_ADMIN was shown operator controls they must not have.
+ * Every save returned 403.
+ *
+ * These flags are derived from the permissions the backend already
+ * returns on /auth/me, so the UI offers exactly the operations the
+ * API will authorise. The backend remains the security boundary.
+ */
+const EXAMS_READ = "exams.read";
+const EXAMS_MANAGE = "exams.manage";
+const EXAMS_APPROVE = "exams.approve";
+const MARKS_READ = "marks.read";
+const MARKS_ENTER = "marks.enter";
 
 const SESSION_STATUSES = [
   "DRAFT",
@@ -128,7 +147,7 @@ export default function ExaminationsPage() {
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("sessions");
-  const [roles, setRoles] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [rooms, setRooms] = useState<ExamRoom[]>([]);
@@ -149,11 +168,16 @@ export default function ExaminationsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const canManage = roles.some((role) =>
-    CONTROLLER_ROLES.includes(role)
+  const can = useCallback(
+    (permission: string) =>
+      permissions.includes(permission),
+    [permissions]
   );
 
-  const canApprove = canManage;
+  const canManage = can(EXAMS_MANAGE);
+  const canApprove = can(EXAMS_APPROVE);
+  const canReadMarks = can(MARKS_READ);
+  const canEnterMarks = can(MARKS_ENTER);
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -198,7 +222,7 @@ export default function ExaminationsPage() {
     try {
       const user = await getCurrentUser();
 
-      setRoles(user?.roles ?? []);
+      setPermissions(user?.permissions ?? []);
 
       await reload();
     } catch (err) {
@@ -399,12 +423,14 @@ export default function ExaminationsPage() {
             Sessions & schedules
           </TabButton>
 
-          <TabButton
-            active={tab === "marks"}
-            onClick={() => setTab("marks")}
-          >
-            Marks & approvals
-          </TabButton>
+          {canReadMarks && (
+            <TabButton
+              active={tab === "marks"}
+              onClick={() => setTab("marks")}
+            >
+              Marks & approvals
+            </TabButton>
+          )}
         </section>
 
         {error && (
@@ -560,7 +586,7 @@ export default function ExaminationsPage() {
             sheet={sheet}
             draft={draft}
             busy={busy}
-            canManage={canManage}
+            canEnterMarks={canEnterMarks}
             canApprove={canApprove}
             setDraft={setDraft}
             onSave={() =>
@@ -1222,7 +1248,7 @@ function SessionWorkspace({
               Refresh
             </button>
 
-            {canManage && (
+            {canApprove && (
               <>
                 <button
                   type="button"
@@ -2045,7 +2071,7 @@ function MarksWorkspace({
   sheet,
   draft,
   busy,
-  canManage,
+  canEnterMarks,
   canApprove,
   setDraft,
   onSave,
@@ -2058,7 +2084,7 @@ function MarksWorkspace({
   } | null;
   draft: Record<string, string>;
   busy: boolean;
-  canManage: boolean;
+  canEnterMarks: boolean;
   canApprove: boolean;
   setDraft: React.Dispatch<
     React.SetStateAction<
@@ -2089,7 +2115,7 @@ function MarksWorkspace({
   }
 
   const editable =
-    canManage &&
+    canEnterMarks &&
     !["LOCKED", "RESULTS_PUBLISHED"].includes(
       sheet.schedule.status
     );

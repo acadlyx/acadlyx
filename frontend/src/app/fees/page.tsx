@@ -42,7 +42,7 @@ const money = (value: number) =>
 export default function FeesPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("invoices");
-  const [roles, setRoles] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<InvoiceSummary | null>(null);
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -59,12 +59,8 @@ export default function FeesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const canApprove = roles.some((role) =>
-    ["DIRECTOR", "ACCOUNTS"].includes(role)
-  );
-  const canCollect = roles.some((role) =>
-    ["ACCOUNTS"].includes(role)
-  );
+  const canApprove = permissions.includes("fees.approve");
+  const canCollect = permissions.includes("fees.pay");
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -99,7 +95,7 @@ export default function FeesPage() {
   useEffect(() => {
     void run(async () => {
       const user = await getCurrentUser();
-      setRoles(user?.roles ?? []);
+      setPermissions(user?.permissions ?? []);
       await loadInvoices();
     });
   }, [run, loadInvoices]);

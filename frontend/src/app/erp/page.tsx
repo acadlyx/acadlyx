@@ -250,7 +250,7 @@ useState("");
 const [success, setSuccess] =
 useState("");
 
-const [roles, setRoles] =
+const [permissions, setPermissions] =
 useState<string[]>([]);
 
 const [workspace, setWorkspace] =
@@ -331,11 +331,11 @@ const loadedTabs =
 useRef<Set<Tab>>(new Set());
 
 const can = (
-permissionRoles: string[]
+  requiredPermissions: string[]
 ) =>
-roles.some((role) =>
-permissionRoles.includes(role)
-);
+  requiredPermissions.some((permission) =>
+    permissions.includes(permission)
+  );
 
 const loadWorkspace = useCallback(async () => {
 setLoading(true);
@@ -348,7 +348,7 @@ try {
       getErpWorkspace(),
     ]);
 
-  setRoles(user.roles);
+  setPermissions(user.permissions);
 
   if (
     !user.institutionId &&
@@ -621,9 +621,7 @@ ACADLYX ERP
       <TimetableTab
         offerings={offerings}
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "HOD",
-          "STAFF",
+          "timetable.manage",
         ])}
         busy={busy}
         run={run}
@@ -634,11 +632,7 @@ ACADLYX ERP
       <NoticeTab
         departments={departments}
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "DIRECTOR",
-          "MANAGEMENT",
-          "HOD",
-          "STAFF",
+          "notices.manage",
         ])}
         busy={busy}
         run={run}
@@ -650,9 +644,7 @@ ACADLYX ERP
         offerings={offerings}
         students={students}
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "HOD",
-          "FACULTY",
+          "exams.manage",
         ])}
         busy={busy}
         run={run}
@@ -672,9 +664,8 @@ ACADLYX ERP
           feeStructures
         }
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "STAFF",
-          "SUPER_ADMIN",
+          "fees.manage",
+          "fees.pay",
         ])}
         busy={busy}
         run={run}
@@ -686,9 +677,7 @@ ACADLYX ERP
         parents={parents}
         students={students}
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "STAFF",
-          "SUPER_ADMIN",
+          "parent-links.manage",
         ])}
         busy={busy}
         run={run}
@@ -726,9 +715,7 @@ ACADLYX ERP
         students={students}
         documents={documents}
         canManage={can([
-          "INSTITUTION_ADMIN",
-          "STAFF",
-          "SUPER_ADMIN",
+          "students.update",
         ])}
         busy={busy}
         run={run}

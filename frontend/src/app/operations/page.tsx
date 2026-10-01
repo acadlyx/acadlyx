@@ -34,7 +34,7 @@ type Tab = "maintenance" | "assets" | "facilities";
 export default function OperationsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("maintenance");
-  const [roles, setRoles] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [summary, setSummary] = useState<OperationsSummary | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -44,9 +44,21 @@ export default function OperationsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const canManage = roles.some((role) =>
-    ["IT", "DIRECTOR"].includes(role)
-  );
+  /*
+   * Capabilities mirror the backend route gates 1:1
+   * (backend/src/routes/operations.routes.ts):
+   *
+   *   operations.manage   asset / facility registers (create + update)
+   *                       and maintenance triage (PATCH /maintenance/:id)
+   *   maintenance.raise   raising a maintenance request (POST /maintenance)
+   *
+   * The previous role-list gate (["IT", "DIRECTOR"]) was wrong in both
+   * directions: it hid the registers from INSTITUTION_ADMIN and it
+   * showed create/triage controls to DIRECTOR, who holds neither
+   * permission, producing 403s.
+   */
+  const canManage = permissions.includes("operations.manage");
+  const canRaise = permissions.includes("maintenance.raise");
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -79,7 +91,7 @@ export default function OperationsPage() {
   useEffect(() => {
     void run(async () => {
       const user = await getCurrentUser();
-      setRoles(user?.roles ?? []);
+      setPermissions(user?.permissions ?? []);
       const [ops] = await Promise.all([
         getOperationsSummary().catch(() => null),
         loadMaintenance(),
@@ -160,21 +172,22 @@ export default function OperationsPage() {
 
         {tab === "maintenance" && (
           <>
-            <RaiseRequestForm
-              facilities={facilities}
-              busy={busy}
-              onLoadFacilities={() =>
-                run(async () => setFacilities(await listFacilities({})))
-              }
-              onSubmit={(body) =>
-                run(async () => {
-                  await createMaintenance(body);
-                  await loadMaintenance();
-                  setNotice("Maintenance request raised");
-                })
-              }
-            />
-
+            {canRaise && (
+              <RaiseRequestForm
+                facilities={facilities}
+                busy={busy}
+                onLoadFacilities={() =>
+                  run(async () => setFacilities(await listFacilities({})))
+                }
+                onSubmit={(body) =>
+                  run(async () => {
+                    await createMaintenance(body);
+                    await loadMaintenance();
+                    setNotice("Maintenance request raised");
+                  })
+                }
+              />
+            )}
             <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-bold text-slate-900">

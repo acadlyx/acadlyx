@@ -98,14 +98,24 @@ export default function TimetablePage() {
           const user =
             await getCurrentUser();
 
+          /*
+           * Timetable is a read capability, not an institution-admin
+           * one. The old gate required the INSTITUTION_ADMIN role while
+           * every role that actually holds `timetable.read`
+           * (CHAIRMAN/DIRECTOR/DEAN/HOD/FACULTY/STUDENT/PARENT) was
+           * redirected to /login — and INSTITUTION_ADMIN, which has no
+           * timetable permission at all, was the only role let in.
+           */
           if (
-            !user.roles.includes(
-              "INSTITUTION_ADMIN",
+            !user.permissions.includes(
+              "timetable.read",
             )
           ) {
-            router.replace(
-              "/login",
+            setError(
+              "You do not have access to the institution timetable.",
             );
+
+            setLoading(false);
 
             return;
           }
@@ -247,7 +257,13 @@ export default function TimetablePage() {
       title="Timetable"
       subtitle="Institution schedules and course sessions"
       allowedRoles={[
-        "INSTITUTION_ADMIN",
+        "CHAIRMAN",
+        "DIRECTOR",
+        "DEAN",
+        "HOD",
+        "FACULTY",
+        "STUDENT",
+        "PARENT",
       ]}
     >
       <main className="mx-auto max-w-[1200px] space-y-5 pb-10">

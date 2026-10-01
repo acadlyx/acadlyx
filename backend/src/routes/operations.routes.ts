@@ -188,9 +188,23 @@ router.patch(
 
 // ---------- Maintenance ----------
 
+/*
+ * Reading the maintenance queue is a *read* capability.
+ *
+ * This was gated by `maintenance.raise`, which denied the queue to
+ * every role that oversees or triages it (DIRECTOR, CHAIRMAN, DEAN)
+ * and to the operations manager itself (IT) — none of whom hold
+ * `maintenance.raise` — so GET /operations/maintenance returned 403
+ * and the Operations page could not render the queue for them.
+ *
+ * Row visibility is already scoped in the service: only triagers
+ * (OPS_MANAGER_ROLES or operations.manage) see the whole queue;
+ * everyone else sees just the requests they raised or are assigned
+ * to.
+ */
 router.get(
   "/maintenance",
-  authorize("maintenance.raise"),
+  authorize("operations.read"),
   validateQuery(maintenanceListQuery),
   asyncHandler(async (req, res) => {
     const pagination = parsePagination(req);
@@ -227,9 +241,16 @@ router.post(
   )
 );
 
+/*
+ * Triaging a request (status, reassignment, reprioritisation) is an
+ * operations-management action. The service re-checks authority and
+ * additionally lets an assignee progress their own job, so this gate
+ * only has to admit the management capability — not every role that
+ * can raise a fault.
+ */
 router.patch(
   "/maintenance/:id",
-  authorize("maintenance.raise"),
+  authorize("operations.manage"),
   validateParams(idParams),
   validateBody(updateMaintenanceSchema),
   asyncHandler(async (req, res) =>

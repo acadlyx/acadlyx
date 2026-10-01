@@ -370,6 +370,22 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Learning",
+    href: "/lms",
+    icon: "▥",
+    roles: ["HOD"],
+    permissions: ["lms.read"],
+    group: "Academic",
+  },
+  {
+    label: "Timetable",
+    href: "/timetable",
+    icon: "◫",
+    roles: ["HOD"],
+    permissions: ["timetable.read"],
+    group: "Academic",
+  },
+  {
     label: "Reports",
     href: "/reports",
     icon: "▤",
@@ -423,6 +439,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "◎",
     roles: ["FACULTY"],
     permissions: ["marks.read"],
+    group: "Teaching",
+  },
+  {
+    label: "Learning",
+    href: "/lms",
+    icon: "▥",
+    roles: ["FACULTY"],
+    permissions: ["lms.read"],
     group: "Teaching",
   },
 
@@ -626,6 +650,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Learning",
+    href: "/lms",
+    icon: "▥",
+    roles: ["STUDENT"],
+    permissions: ["lms.read"],
+    group: "Academic",
+  },
+  {
     label: "Examinations",
     href: "/student/examinations",
     icon: "◉",
@@ -655,6 +687,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▦",
     roles: ["PARENT"],
     permissions: ["parent-portal.read"],
+    group: "Academic",
+  },
+  {
+    label: "Learning",
+    href: "/lms",
+    icon: "▥",
+    roles: ["PARENT"],
+    permissions: ["lms.read"],
     group: "Academic",
   },
   {
@@ -889,9 +929,18 @@ const NAMESPACE_OWNERS: Array<
     "CHAIRMAN",
     "DIRECTOR",
     "DEAN",
-    "REGISTRAR",
     "HOD",
     "IT",
+  ]],
+
+  ["/timetable", [
+    "CHAIRMAN",
+    "DIRECTOR",
+    "DEAN",
+    "HOD",
+    "FACULTY",
+    "STUDENT",
+    "PARENT",
   ]],
 
   ["/reports", [

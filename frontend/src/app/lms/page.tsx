@@ -36,6 +36,7 @@ type Tab = "content" | "quizzes";
 export default function LmsPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("content");
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [offering, setOffering] = useState<DirectoryOption | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -46,11 +47,17 @@ export default function LmsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const canAuthor = roles.some((role) =>
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD", "FACULTY"].includes(
-      role
-    )
-  );
+  /*
+   * Authoring is `lms.manage` on the backend (POST/PATCH/DELETE module,
+   * quiz, question routes in lms.routes.ts). The old hardcoded role
+   * list included SUPER_ADMIN, INSTITUTION_ADMIN, DIRECTOR and the
+   * legacy MANAGEMENT alias — none of which hold `lms.manage` — so
+   * those users were shown authoring controls that returned 403.
+   *
+   * Attempting a quiz requires `lms.attempt`; PARENT holds only
+   * `lms.read`, so it must not be treated as a candidate.
+   */
+  const canAuthor = permissions.includes("lms.manage");
   const isStudent = roles.includes("STUDENT");
 
   const run = useCallback(
@@ -76,6 +83,7 @@ export default function LmsPage() {
   useEffect(() => {
     void run(async () => {
       const user = await getCurrentUser();
+      setPermissions(user?.permissions ?? []);
       setRoles(user?.roles ?? []);
     });
   }, [run]);

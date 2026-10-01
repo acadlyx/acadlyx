@@ -90,23 +90,28 @@ export default function NoticesPage() {
           const user =
             await getCurrentUser();
 
+          /*
+           * This console publishes notices, so it is gated by the
+           * write capability (`notices.manage`), not by the
+           * INSTITUTION_ADMIN role. The old check sent every other
+           * authenticated role — including DEAN and HOD, who both hold
+           * notices.manage — to /login even though they are signed in.
+           */
           if (
-            !user.roles.includes(
-              "INSTITUTION_ADMIN",
+            !user.permissions.includes(
+              "notices.manage",
             )
           ) {
-            router.replace(
-              "/login",
+            setError(
+              "You do not have authority to publish notices.",
             );
+
+            setLoading(false);
 
             return;
           }
 
-          setCanManage(
-            user.permissions.includes(
-              "notices.manage",
-            ),
-          );
+          setCanManage(true);
 
           const [
             workspace,
@@ -233,6 +238,8 @@ export default function NoticesPage() {
       subtitle="Institution-wide communications"
       allowedRoles={[
         "INSTITUTION_ADMIN",
+        "DEAN",
+        "HOD",
       ]}
     >
       <main className="mx-auto max-w-[1100px] space-y-5 pb-10">
