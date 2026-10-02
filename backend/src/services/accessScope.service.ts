@@ -26,7 +26,6 @@ export function hasAnyRole(
 ): boolean {
   const canonical = getCanonicalRoleNames(actor.roles);
   return canonical.some((role) => roles.includes(role));
-  return canonical.some((role) => roles.includes(role));
 }
 
 export function isInstitutionWide(
