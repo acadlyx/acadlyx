@@ -166,7 +166,7 @@ async function assertFacultyEligible(institutionId: string, facultyId: string) {
 
 const include = {
   course: { select: { id: true, code: true, name: true, credits: true } },
-  section: { select: { id: true, name: true } },
+  section: { select: { id: true, name: true, capacity: true } },
   semester: {
     select: {
       id: true,
@@ -298,6 +298,26 @@ export async function createCourseOffering(
     await assertFacultyEligible(institutionId, input.facultyId);
   }
 
+  if (
+    input.capacity !== undefined &&
+    input.capacity !== null
+  ) {
+    const section = await prisma.section.findFirst({
+      where: {
+        id: input.sectionId,
+        institutionId,
+      },
+      select: { capacity: true },
+    });
+    if (section?.capacity !== null &&
+        input.capacity > section.capacity) {
+      throw new AppError(
+        "Offering capacity cannot exceed the section capacity",
+        400
+      );
+    }
+  }
+
   const existing = await prisma.courseOffering.findFirst({
     where: {
       institutionId,
@@ -314,7 +334,10 @@ export async function createCourseOffering(
   }
 
   return prisma.courseOffering.create({
-    data: { institutionId, ...input },
+    data: {
+      institutionId,
+      ...input,
+    },
     include,
   });
 }
@@ -328,6 +351,37 @@ export async function updateCourseOffering(
 
   if (input.facultyId) {
     await assertFacultyEligible(institutionId, input.facultyId);
+  }
+
+  if (input.capacity !== undefined && input.capacity !== null) {
+    const section = await prisma.section.findFirst({
+      where: {
+        id: current.sectionId,
+        institutionId,
+      },
+      select: { capacity: true },
+    });
+    if (section?.capacity !== null &&
+        input.capacity > section.capacity) {
+      throw new AppError(
+        "Offering capacity cannot exceed the section capacity",
+        400
+      );
+    }
+
+    const registrationCount = await prisma.courseRegistration.count({
+      where: {
+        courseOfferingId: id,
+        status: { in: ["ACTIVE", "PENDING"] },
+      },
+    });
+
+    if (input.capacity < registrationCount) {
+      throw new AppError(
+        "Offering capacity cannot be lower than its current registrations",
+        409
+      );
+    }
   }
 
   if (input.isActive === true && !current.isActive) {
@@ -351,9 +405,17 @@ export async function deactivateCourseOffering(
   institutionId: string,
   id: string
 ) {
-  await getCourseOfferingById(institutionId, id);
+  const offering = await getCourseOfferingById(institutionId, id);
+  if (!offering.isActive) {
+    return offering;
+  }
+
   return prisma.courseOffering.update({
     where: { id },
-    data: { isActive: false },
+    data: {
+      isActive: false,
+      registrationOpen: false,
+    },
+    include,
   });
 }
