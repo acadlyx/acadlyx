@@ -653,6 +653,27 @@ export async function createTimetableEntry(
  * ---------------------------------------------------------------------------
  */
 
+export async function listNotices(
+  includeExpired = false
+): Promise<ErpNotice[]> {
+  const cacheKey =
+    `erp:notices:${includeExpired ? "all" : "active"}`;
+
+  return cachedRequest(
+    cacheKey,
+    async () => {
+      const response =
+        await authedFetch<
+          ApiEnvelope<ErpNotice[]>
+        >(
+          `/erp/notices?includeExpired=${includeExpired ? "true" : "false"}`
+        );
+
+      return response.data;
+    }
+  );
+}
+
 export async function createNotice(
   input: {
     title: string;
@@ -676,6 +697,9 @@ export async function createNotice(
     );
 
   invalidateWorkspace();
+  invalidate((key) =>
+    key.startsWith("erp:notices:")
+  );
 
   return response.data;
 }
