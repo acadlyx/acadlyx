@@ -1014,20 +1014,22 @@ export default function StudentProfilePage({
                           : "No parent account is linked yet."}
                       </p>
           
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowParentForm(
-                            (current) =>
-                              !current,
-                          )
-                        }
-                        className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white"
-                      >
-                        {showParentForm
-                          ? "Close"
-                          : "Link parent"}
-                      </button>
+                      {permissions.includes("parent-links.manage") ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowParentForm(
+                              (current) =>
+                                !current,
+                            )
+                          }
+                          className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white"
+                        >
+                          {showParentForm
+                            ? "Close"
+                            : "Link parent"}
+                        </button>
+                      ) : null}
                     </div>
           
                     {showParentForm &&
