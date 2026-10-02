@@ -110,7 +110,7 @@ const ICONS: Record<string, string> = {
     "m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15",
 };
 
-function SvgIcon({
+export function SvgIcon({
   name,
   className = "h-[18px] w-[18px]",
 }: {
