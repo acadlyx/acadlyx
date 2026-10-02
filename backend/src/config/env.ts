@@ -196,17 +196,14 @@ export function assertAuthEnv(): void {
     );
   }
 
-  if (
-    isProduction &&
-    (
-      !env.cloudinaryUrl &&
-      (!env.cloudinaryCloudName ||
-        !env.cloudinaryApiKey ||
-        !env.cloudinaryApiSecret)
-    )
-  ) {
+  if (isProduction && env.storageProvider === "cloudinary" && (
+    !env.cloudinaryUrl &&
+    (!env.cloudinaryCloudName ||
+      !env.cloudinaryApiKey ||
+      !env.cloudinaryApiSecret)
+  )) {
     throw new Error(
-      "CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set in production."
+      "Cloudinary storage requires CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET in production."
     );
   }
 }
