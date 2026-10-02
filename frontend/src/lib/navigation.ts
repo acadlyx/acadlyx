@@ -1242,6 +1242,7 @@ export function navigationForUser(
 export function canAccessRoute(
   pathname: string,
   roles: string[],
+  permissions: string[] = [],
 ): boolean {
   const normalizedPath =
     pathname.replace(
@@ -1276,10 +1277,39 @@ export function canAccessRoute(
   const [, allowedRoles] =
     matchingNamespace;
 
-  return allowedRoles.some((role) => {
+  const roleAllowed = allowedRoles.some((role) => {
     const normalized = normalizeRoleName(role);
     return normalized !== null && normalizedRoles.includes(normalized);
   });
+
+  if (!roleAllowed) {
+    return false;
+  }
+
+  const permissionSet = new Set(permissions);
+  const matchingItems = ROLE_NAVIGATION
+    .filter((item) => {
+      const href = item.href.replace(/\/+$/, "") || "/";
+      return normalizedPath === href || normalizedPath.startsWith(href + "/");
+    })
+    .sort((a, b) => b.href.length - a.href.length);
+
+  const relevantItem = matchingItems.find((item) =>
+    !item.roles?.length ||
+    item.roles.some((role) => {
+      const normalized = normalizeRoleName(role);
+      return normalized !== null && normalizedRoles.includes(normalized);
+    }),
+  );
+
+  if (!relevantItem) {
+    return true;
+  }
+
+  return (
+    !relevantItem.permissions?.length ||
+    relevantItem.permissions.every((permission) => permissionSet.has(permission))
+  );
 }
 
 export function workspaceHome(
