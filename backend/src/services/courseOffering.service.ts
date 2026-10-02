@@ -110,6 +110,13 @@ async function assertOfferingAcademicIntegrity(
     loadSectionForInstitution(institutionId, sectionId),
   ]);
 
+  if (!section.semester) {
+    throw new AppError(
+      "sectionId is not linked to a valid semester",
+      400
+    );
+  }
+
   if (section.semesterId !== semester.id) {
     throw new AppError(
       "sectionId does not belong to the specified semesterId",
