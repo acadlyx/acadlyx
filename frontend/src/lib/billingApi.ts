@@ -42,6 +42,7 @@ export interface Payment {
 export async function listInvoices(params: {
   page?: number;
   studentId?: string;
+  departmentId?: string;
   status?: string;
   overdueOnly?: boolean;
   search?: string;
