@@ -1,5 +1,5 @@
 /**
- * ACADLYX demo seed data.
+ * DEVELOPMENT-ONLY ACADLYX demo seed data.
  *
  * Idempotent — safe to run multiple times (uses upsert / find-or-create).
  * Creates:
@@ -8,7 +8,8 @@
  *   - SUPER_ADMIN (platform role) + AIMT's institution roles
  *   - one demo user per required role
  *
- * Run with: npm run prisma:seed
+ * Run only in a non-production environment with: npm run prisma:seed:demo
+ * Production bootstrap is handled by prisma:seed:admin and never creates demo data.
  */
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
