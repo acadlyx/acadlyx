@@ -6,15 +6,6 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 
-const MANAGEMENT_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "MANAGEMENT",
-  "HOD",
-  "STAFF",
-];
-
 const STRUCTURE_STATUSES = [
   "DRAFT",
   "ACTIVE",
