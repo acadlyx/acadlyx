@@ -17,7 +17,7 @@ datasource db {
 // TENANT
 // ==========================================================
 
-/// A single institution (tenant). AIMT is the first row here,
+/// A single institution (tenant).
 /// not a special case in code.
 model Institution {
   id             String   @id @default(uuid())
