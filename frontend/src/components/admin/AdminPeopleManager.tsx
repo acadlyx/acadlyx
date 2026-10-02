@@ -1598,6 +1598,17 @@ function AdminPeopleManagerContent() {
                 </button>
               ) : null}
 
+              {canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => void softDelete(selected)}
+                  disabled={busyId === selected.id}
+                  className="rounded-[13px] border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-extrabold text-red-700 disabled:opacity-50"
+                >
+                  Delete user
+                </button>
+              ) : null}
+
               {canPermanentDelete ? (
                 <button
                   type="button"
