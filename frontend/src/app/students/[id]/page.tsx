@@ -13,6 +13,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   AuthRequiredError,
   authedFetch,
+  getCurrentUser,
 } from "@/lib/auth";
 
 type Lookup = {
@@ -262,6 +263,9 @@ export default function StudentProfilePage({
   const [student, setStudent] =
     useState<Student | null>(null);
 
+  const [permissions, setPermissions] =
+    useState<string[]>([]);
+
   const [parentLinks, setParentLinks] =
     useState<ParentLink[]>([]);
 
@@ -320,42 +324,54 @@ export default function StudentProfilePage({
     setError("");
 
     try {
-      const [
-        studentResponse,
-        parentResponse,
-        parentUsersResponse,
-      ] = await Promise.all([
-        authedFetch<Envelope<Student>>(
+      const currentUser = await getCurrentUser();
+      const nextPermissions = currentUser?.permissions ?? [];
+      setPermissions(nextPermissions);
+
+      const studentResponse =
+        await authedFetch<Envelope<Student>>(
           `/students/${encodeURIComponent(id)}`,
-        ),
+        );
 
-        authedFetch<Envelope<ParentLink[]>>(
-          `/erp/parent-links?studentId=${encodeURIComponent(
-            id,
-          )}`,
-        ),
+      setStudent(studentResponse.data || null);
 
-        authedFetch<
-          Envelope<
-            User[] | {
-              items: User[];
-            }
-          >
-        >(
-          "/users?role=PARENT&page=1&pageSize=200",
-        ),
-      ]);
+      const canReadParents =
+        nextPermissions.includes("parent-links.read") ||
+        nextPermissions.includes("parent-links.manage");
 
-      setStudent(
-        studentResponse.data || null,
-      );
+      const canManageParents =
+        nextPermissions.includes("parent-links.manage");
 
-      setParentLinks(
-        parentResponse.data || [],
-      );
+      const canListParents =
+        canManageParents &&
+        nextPermissions.includes("users.read");
+
+      const [parentResponse, parentUsersResponse] =
+        await Promise.all([
+          canReadParents
+            ? authedFetch<Envelope<ParentLink[]>>(
+                `/erp/parent-links?studentId=${encodeURIComponent(
+                  id,
+                )}`,
+              ).catch(() => null)
+            : Promise.resolve(null),
+          canListParents
+            ? authedFetch<
+                Envelope<
+                  User[] | {
+                    items: User[];
+                  }
+                >
+              >(
+                "/users?role=PARENT&page=1&pageSize=200",
+              ).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+
+      setParentLinks(parentResponse?.data || []);
 
       const parentData =
-        parentUsersResponse.data;
+        parentUsersResponse?.data;
 
       setParents(
         Array.isArray(parentData)
@@ -549,6 +565,8 @@ export default function StudentProfilePage({
         subtitle="Student record"
         allowedRoles={[
           "INSTITUTION_ADMIN",
+          "REGISTRAR",
+          "HOD",
         ]}
       >
         <ProfileSkeleton />
@@ -563,6 +581,8 @@ export default function StudentProfilePage({
         subtitle="Student record"
         allowedRoles={[
           "INSTITUTION_ADMIN",
+          "REGISTRAR",
+          "HOD",
         ]}
       >
         <main className="mx-auto max-w-[1000px] pb-12">
@@ -600,6 +620,8 @@ export default function StudentProfilePage({
       subtitle="Complete student master record"
       allowedRoles={[
         "INSTITUTION_ADMIN",
+        "REGISTRAR",
+        "HOD",
       ]}
     >
       <main className="mx-auto max-w-[1320px] space-y-5 pb-12">
@@ -638,13 +660,15 @@ export default function StudentProfilePage({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={openMasterProfileEditor}
-                className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#1f56cc]"
-              >
-                {profile ? "Edit Master Profile" : "Complete Master Profile"}
-              </button>
+              {permissions.includes("students.update") ? (
+                <button
+                  type="button"
+                  onClick={openMasterProfileEditor}
+                  className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-[#1f56cc]"
+                >
+                  {profile ? "Edit Master Profile" : "Complete Master Profile"}
+                </button>
+              ) : null}
 
               <Link
                 href="/students"
@@ -973,168 +997,174 @@ export default function StudentProfilePage({
           </div>
         </Section>
 
-        <Section
-          title="Parents and guardians linked to this student"
-          description="These relationships come from the institution's parent-student relationship table."
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-[#718298]">
-              {parentLinks.length
-                ? `${parentLinks.length} linked parent account${
-                    parentLinks.length === 1
-                      ? ""
-                      : "s"
-                  }.`
-                : "No parent account is linked yet."}
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowParentForm(
-                  (current) =>
-                    !current,
-                )
-              }
-              className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white"
-            >
-              {showParentForm
-                ? "Close"
-                : "Link parent"}
-            </button>
-          </div>
-
-          {showParentForm ? (
-            <form
-              onSubmit={linkParent}
-              className="mt-5 rounded-2xl border border-[#dfe7ef] bg-[#f8faff] p-5"
-            >
-              <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
-                <label>
-                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
-                    Parent account
-                  </span>
-
-                  <select
-                    value={parentId}
-                    onChange={(event) =>
-                      setParentId(
-                        event.target.value,
-                      )
-                    }
-                    className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#334158] outline-none focus:border-[#2864e8]"
+        {(permissions.includes("parent-links.read") ||
+          permissions.includes("parent-links.manage")) ? (
+                  <Section
+                    title="Parents and guardians linked to this student"
+                    description="These relationships come from the institution's parent-student relationship table."
                   >
-                    <option value="">
-                      Select parent
-                    </option>
-
-                    {availableParents.map(
-                      (parent) => (
-                        <option
-                          key={parent.id}
-                          value={parent.id}
-                        >
-                          {parent.firstName}{" "}
-                          {parent.lastName} —{" "}
-                          {parent.email}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-
-                <label>
-                  <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
-                    Relationship
-                  </span>
-
-                  <input
-                    value={
-                      relationship
-                    }
-                    onChange={(event) =>
-                      setRelationship(
-                        event.target.value,
-                      )
-                    }
-                    placeholder="Mother / Father / Guardian"
-                    className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm text-[#334158] outline-none focus:border-[#2864e8]"
-                  />
-                </label>
-
-                <button
-                  disabled={
-                    savingLink ||
-                    !parentId
-                  }
-                  type="submit"
-                  className="rounded-xl bg-[#172033] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
-                >
-                  {savingLink
-                    ? "Saving..."
-                    : "Link"}
-                </button>
-              </div>
-
-              {!availableParents.length ? (
-                <p className="mt-3 text-xs text-[#7c8ca0]">
-                  There are no unlinked parent accounts
-                  available. Create a PARENT account first
-                  if required.
-                </p>
-              ) : null}
-            </form>
-          ) : null}
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {parentLinks.map(
-              (link) => (
-                <div
-                  key={`${link.parentId}:${link.studentId}`}
-                  className="rounded-2xl border border-[#e1e7ee] bg-[#fbfcfe] p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-black text-[#1b2940]">
-                        {link.parent.firstName}{" "}
-                        {link.parent.lastName}
-                      </h3>
-
-                      <p className="mt-1 text-xs text-[#7c8ca0]">
-                        {link.relationship ||
-                          "Parent / Guardian"}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-[#718298]">
+                        {parentLinks.length
+                          ? `${parentLinks.length} linked parent account${
+                              parentLinks.length === 1
+                                ? ""
+                                : "s"
+                            }.`
+                          : "No parent account is linked yet."}
                       </p>
-
-                      <p className="mt-3 text-sm text-[#53647b]">
-                        {link.parent.email}
-                      </p>
-
-                      <p className="mt-1 text-sm text-[#53647b]">
-                        {link.parent.phone ||
-                          "No phone"}
-                      </p>
+          
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowParentForm(
+                            (current) =>
+                              !current,
+                          )
+                        }
+                        className="rounded-xl bg-[#2864e8] px-4 py-2.5 text-sm font-black text-white"
+                      >
+                        {showParentForm
+                          ? "Close"
+                          : "Link parent"}
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={
-                        savingLink
-                      }
-                      onClick={() =>
-                        void removeParent(
-                          link,
-                        )
-                      }
-                      className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ),
-            )}
-          </div>
-        </Section>
+          
+                    {showParentForm &&
+          permissions.includes("parent-links.manage") ? (
+                      <form
+                        onSubmit={linkParent}
+                        className="mt-5 rounded-2xl border border-[#dfe7ef] bg-[#f8faff] p-5"
+                      >
+                        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+                          <label>
+                            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                              Parent account
+                            </span>
+          
+                            <select
+                              value={parentId}
+                              onChange={(event) =>
+                                setParentId(
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#334158] outline-none focus:border-[#2864e8]"
+                            >
+                              <option value="">
+                                Select parent
+                              </option>
+          
+                              {availableParents.map(
+                                (parent) => (
+                                  <option
+                                    key={parent.id}
+                                    value={parent.id}
+                                  >
+                                    {parent.firstName}{" "}
+                                    {parent.lastName} —{" "}
+                                    {parent.email}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </label>
+          
+                          <label>
+                            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#98a6b7]">
+                              Relationship
+                            </span>
+          
+                            <input
+                              value={
+                                relationship
+                              }
+                              onChange={(event) =>
+                                setRelationship(
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="Mother / Father / Guardian"
+                              className="w-full rounded-xl border border-[#d7e0ea] bg-white px-3 py-2.5 text-sm text-[#334158] outline-none focus:border-[#2864e8]"
+                            />
+                          </label>
+          
+                          <button
+                            disabled={
+                              savingLink ||
+                              !parentId
+                            }
+                            type="submit"
+                            className="rounded-xl bg-[#172033] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                          >
+                            {savingLink
+                              ? "Saving..."
+                              : "Link"}
+                          </button>
+                        </div>
+          
+                        {!availableParents.length ? (
+                          <p className="mt-3 text-xs text-[#7c8ca0]">
+                            There are no unlinked parent accounts
+                            available. Create a PARENT account first
+                            if required.
+                          </p>
+                        ) : null}
+                      </form>
+                    ) : null}
+          
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      {parentLinks.map(
+                        (link) => (
+                          <div
+                            key={`${link.parentId}:${link.studentId}`}
+                            className="rounded-2xl border border-[#e1e7ee] bg-[#fbfcfe] p-4"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h3 className="font-black text-[#1b2940]">
+                                  {link.parent.firstName}{" "}
+                                  {link.parent.lastName}
+                                </h3>
+          
+                                <p className="mt-1 text-xs text-[#7c8ca0]">
+                                  {link.relationship ||
+                                    "Parent / Guardian"}
+                                </p>
+          
+                                <p className="mt-3 text-sm text-[#53647b]">
+                                  {link.parent.email}
+                                </p>
+          
+                                <p className="mt-1 text-sm text-[#53647b]">
+                                  {link.parent.phone ||
+                                    "No phone"}
+                                </p>
+                              </div>
+          
+                              <button
+                                type="button"
+                                disabled={
+                                  savingLink
+                                }
+                                onClick={() =>
+                                  void removeParent(
+                                    link,
+                                  )
+                                }
+                                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </Section>
+          
+          
+        ) : null}
 
         <Section
           title="Academic history"
