@@ -60,8 +60,7 @@ export function DashboardShell({
       cachedUser,
     );
 
-  const [authLoading, setAuthLoading] =
-    useState(!cachedUser);
+  const [, setAuthLoading] = useState(!cachedUser);
 
   const allowedRolesKey =
     allowedRoles?.join(",") || "";
@@ -171,28 +170,6 @@ export function DashboardShell({
             "Workspace",
         })),
       [user, workspaceRole],
-    );
-
-  const activeHref =
-    useMemo(
-      () =>
-        navigation
-          .filter((item) =>
-            matches(
-              pathname,
-              item.href,
-            ),
-          )
-          .sort(
-            (a, b) =>
-              b.href.length -
-              a.href.length,
-          )[0]?.href ||
-        null,
-      [
-        navigation,
-        pathname,
-      ],
     );
 
   const roles =
