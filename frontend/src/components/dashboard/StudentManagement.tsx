@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { AuthRequiredError, authedFetch } from "@/lib/auth";
+import { AuthRequiredError, authedFetch, getCurrentUser } from "@/lib/auth";
 
 type Lookup = {
   id: string;
@@ -158,6 +158,7 @@ function Section({
 
 export function StudentManagement({ onChanged }: Props) {
   const [students, setStudents] = useState<Student[]>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [programs, setPrograms] = useState<Lookup[]>([]);
   const [academicYears, setAcademicYears] = useState<Lookup[]>([]);
   const [semesters, setSemesters] = useState<Lookup[]>([]);
@@ -255,9 +256,15 @@ export function StudentManagement({ onChanged }: Props) {
   useEffect(() => {
     void (async () => {
       try {
+        const currentUser = await getCurrentUser();
+        setPermissions(currentUser?.permissions ?? []);
         await Promise.all([loadLookups(), loadStudents()]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load student management.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load student management.",
+        );
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial load only
@@ -518,12 +525,14 @@ export function StudentManagement({ onChanged }: Props) {
             Manage student identities, admission records, guardians and academic enrollment from one tenant-safe workspace.
           </p>
         </div>
-        <button
-          onClick={startCreate}
-          className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-        >
-          + Add Student
-        </button>
+        {permissions.includes("students.create") ? (
+          <button
+            onClick={startCreate}
+            className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            + Add Student
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -558,7 +567,11 @@ export function StudentManagement({ onChanged }: Props) {
           <div className="p-10 text-center">
             <p className="font-semibold text-slate-900">No students found</p>
             <p className="mt-1 text-sm text-slate-500">Create a student or adjust your filters.</p>
-            <button onClick={startCreate} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Add Student</button>
+            {permissions.includes("students.create") ? (
+              <button onClick={startCreate} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+                Add Student
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -599,8 +612,17 @@ export function StudentManagement({ onChanged }: Props) {
                       <td className="px-4 py-4">
                         <div className="flex justify-end gap-2">
                           <button onClick={() => void openStudent(student)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white">View</button>
-                          <button onClick={() => startEdit(student)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white">Edit</button>
-                          <button onClick={() => startEnrollment(student)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Enroll</button>
+                          {permissions.includes("students.update") ? (
+                            <button onClick={() => startEdit(student)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white">
+                              Edit
+                            </button>
+                          ) : null}
+                          {permissions.includes("students.create") ||
+                          permissions.includes("students.update") ? (
+                            <button onClick={() => startEnrollment(student)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
+                              Enroll
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
