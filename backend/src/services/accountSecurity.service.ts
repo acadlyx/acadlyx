@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { env } from "../config/env";
 import { AuthenticatedUser } from "../types/auth";
 import { comparePassword, hashPassword } from "../utils/password";
 import {
@@ -10,6 +11,7 @@ import {
   verifyTotp,
 } from "../utils/totp";
 import { recordAuditLog } from "./audit.service";
+import { sendEmail } from "./email.service";
 
 /**
  * Account security.
@@ -456,6 +458,16 @@ export async function requestPasswordReset(
     metadata: { outcome: "token_issued", expiresAt },
     ...meta,
   });
+
+  if (process.env.EMAIL_PROVIDER && process.env.EMAIL_PROVIDER !== "disabled") {
+    const resetUrl = `${env.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    await sendEmail({
+      to: email.trim().toLowerCase(),
+      subject: "Reset your ACADLYX password",
+      text: `Use this link to reset your ACADLYX password. It expires in ${RESET_TOKEN_TTL_MINUTES} minutes: ${resetUrl}`,
+      html: `<p>Use this link to reset your ACADLYX password.</p><p><a href="${resetUrl}">Reset password</a></p><p>This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p>`,
+    });
+  }
 
   return { token, expiresAt };
 }
