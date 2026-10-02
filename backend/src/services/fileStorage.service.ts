@@ -54,6 +54,7 @@ export interface StoredFile {
   module: string;
   referenceId: string | null;
   visibility: "public" | "private";
+  originalName: string;
 }
 
 function assertSafeFile(input: StorageUploadInput): void {
@@ -161,7 +162,23 @@ export async function storeFile(input: {
     }
   }
 
-  return created as StoredFile;
+  return {
+    id: created.id,
+    provider: created.provider,
+    publicId: created.publicId,
+    url: created.url,
+    secureUrl: created.url,
+    resourceType: created.resourceType,
+    size: created.size,
+    mimeType: created.mimeType,
+    folder: created.folder,
+    institutionId: created.institutionId,
+    ownerId: created.ownerId,
+    module: created.module,
+    referenceId: created.referenceId,
+    visibility: created.visibility as "public" | "private",
+    originalName: created.originalName,
+  };
 }
 
 export async function deleteFile(fileId: string, institutionId: string): Promise<void> {
@@ -197,7 +214,26 @@ export async function getFileDelivery(
     download,
   });
 
-  return { file: file as StoredFile, url };
+  return {
+    file: {
+      id: file.id,
+      provider: file.provider,
+      publicId: file.publicId,
+      url: file.url,
+      secureUrl: file.url,
+      resourceType: file.resourceType,
+      size: file.size,
+      mimeType: file.mimeType,
+      folder: file.folder,
+      institutionId: file.institutionId,
+      ownerId: file.ownerId,
+      module: file.module,
+      referenceId: file.referenceId,
+      visibility: file.visibility as "public" | "private",
+      originalName: file.originalName,
+    },
+    url,
+  };
 }
 
 export async function deleteFilesByReference(
