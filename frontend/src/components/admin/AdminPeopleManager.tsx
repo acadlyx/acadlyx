@@ -9,6 +9,8 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+
 import {
   AdminUser,
   UserDeletionRequest,
@@ -251,7 +253,7 @@ function Input({
   );
 }
 
-export function AdminPeopleManager() {
+function AdminPeopleManagerContent() {
   const searchParams =
     useSearchParams();
 
@@ -1849,5 +1851,18 @@ function Info({
         {value}
       </p>
     </div>
+  );
+}
+
+
+export function AdminPeopleManager() {
+  return (
+    <DashboardShell
+      title="People & Users"
+      subtitle="Institution-scoped administration"
+      allowedRoles={["INSTITUTION_ADMIN"]}
+    >
+      <AdminPeopleManagerContent />
+    </DashboardShell>
   );
 }
