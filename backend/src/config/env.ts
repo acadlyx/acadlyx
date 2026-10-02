@@ -29,6 +29,7 @@ interface EnvConfig {
   emailProvider: string;
   emailApiKey: string | undefined;
   emailFrom: string | undefined;
+  frontendUrl: string;
 
   paymentProvider: string;
   paymentKeyId: string | undefined;
@@ -130,6 +131,7 @@ export const env: EnvConfig = {
   emailProvider: (process.env.EMAIL_PROVIDER || "disabled").toLowerCase(),
   emailApiKey: process.env.EMAIL_API_KEY,
   emailFrom: process.env.EMAIL_FROM,
+  frontendUrl: (process.env.FRONTEND_URL || corsOrigins[0] || "http://localhost:3000").replace(/\/+$/, ""),
 
   paymentProvider: (process.env.PAYMENT_PROVIDER || "manual").toLowerCase(),
   paymentKeyId: process.env.PAYMENT_KEY_ID,
