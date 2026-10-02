@@ -38,7 +38,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
 
   {
     label: "Import & export",
-    href: "/imports",
+    href: "/admin/imports",
     icon: "download",
     group: "Administration",
     description:
