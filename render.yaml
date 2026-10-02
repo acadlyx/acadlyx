@@ -41,5 +41,11 @@ services:
         value: manual
       - key: PAYMENT_CURRENCY
         value: INR
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       - key: RBAC_SYNC_ON_BOOT
         value: "true"
