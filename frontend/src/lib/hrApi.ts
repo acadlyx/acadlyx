@@ -140,15 +140,22 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Employ
   return res.data;
 }
 
+export async function updateEmployee(
+  id: string,
+  input: Partial<CreateEmployeeInput> & { status?: EmployeeStatus }
+): Promise<Employee> {
+  const res = await authedFetch<ApiEnvelope<Employee>>("/hr/employees/" + id, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
 export async function updateEmployeeStatus(
   id: string,
   status: EmployeeStatus
 ): Promise<Employee> {
-  const res = await authedFetch<ApiEnvelope<Employee>>(`/hr/employees/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
-  return res.data;
+  return updateEmployee(id, { status });
 }
 
 export async function listDepartmentOptions(): Promise<DepartmentOption[]> {
