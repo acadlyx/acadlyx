@@ -150,6 +150,10 @@ export default function ObePage() {
     void loadSelected();
   }, [loadSelected]);
 
+  useEffect(() => {
+    if (isStudent && tab !== "attainment") setTab("attainment");
+  }, [isStudent, tab]);
+
   async function saveProgrammeOutcome() {
     if (!selectedOffering || !poCode.trim() || !poDescription.trim()) return;
     setWorking(true); setError(""); setMessage("");
