@@ -67,6 +67,7 @@ import subscriptionPlanRoutes from "./routes/subscriptionPlan.routes";
 import directoryRoutes from "./routes/directory.routes";
 import obeRoutes from "./routes/obe.routes";
 import fileStorageRoutes from "./routes/fileStorage.routes";
+import paymentWebhookRoutes from "./routes/paymentWebhook.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -169,6 +170,9 @@ export function createApp(): Application {
   app.use(
     express.json({
       limit: "8mb",
+      verify: (req, _res, buffer) => {
+        (req as typeof req & { rawBody?: string }).rawBody = buffer.toString("utf8");
+      },
     })
   );
 
@@ -503,6 +507,17 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/files`,
     fileStorageRoutes
+  );
+
+  /*
+   * PAYMENT WEBHOOKS
+   *
+   * Provider-authenticated callbacks do not use a user session. The
+   * endpoint verifies the raw-body HMAC before touching tenant billing.
+   */
+  app.use(
+    `${apiPrefix}/payment-webhooks`,
+    paymentWebhookRoutes
   );
 
   /*
