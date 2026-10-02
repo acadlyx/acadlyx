@@ -133,6 +133,35 @@ export async function updateProgram(
       input.departmentId,
       input.isActive !== false
     );
+
+    if (input.departmentId !== current.departmentId) {
+      const dependencies = await prisma.program.findFirst({
+        where: { id, institutionId },
+        select: {
+          semesters: {
+            where: { isActive: true },
+            select: { id: true },
+            take: 1,
+          },
+          studentEnrollments: {
+            where: { status: "ACTIVE" },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      });
+
+      if (
+        dependencies &&
+        (dependencies.semesters.length > 0 ||
+          dependencies.studentEnrollments.length > 0)
+      ) {
+        throw new AppError(
+          "Cannot move a program to another department while it has active semesters or student enrollments",
+          409
+        );
+      }
+    }
   }
 
   const nextCode = input.code?.trim().toUpperCase();
