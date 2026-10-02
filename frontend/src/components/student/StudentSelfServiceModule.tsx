@@ -12,7 +12,12 @@ import {
   isAuthenticated,
 } from "@/lib/auth";
 import { getStudentFees, StudentFeeSummary } from "@/lib/billingApi";
-import { getStudentExaminations } from "@/lib/examinationsApi";
+import {
+  getHallTicket,
+  getStudentExaminations,
+  HallTicketView,
+  printHallTicket,
+} from "@/lib/examinationsApi";
 import { getMyTranscript, Transcript } from "@/lib/gradesApi";
 import {
   LibraryBook,
@@ -260,7 +265,8 @@ function ExaminationsView({ user }: { user: AuthUser }) {
     upcoming: Array<Record<string, unknown>>;
     results: Array<Record<string, unknown>>;
   } | null>(null);
-
+  const [hallTickets, setHallTickets] = useState<Record<string, HallTicketView>>({});
+  const [ticketLoading, setTicketLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -284,76 +290,169 @@ function ExaminationsView({ user }: { user: AuthUser }) {
       ? String(value)
       : "—";
 
+  async function loadHallTicket(sessionId: string) {
+    setTicketLoading((current) => ({ ...current, [sessionId]: true }));
+    try {
+      const ticket = await getHallTicket(sessionId, user.id);
+      setHallTickets((current) => ({ ...current, [sessionId]: ticket }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load the hall ticket.");
+    } finally {
+      setTicketLoading((current) => ({ ...current, [sessionId]: false }));
+    }
+  }
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card title="Upcoming examinations">
-        {data.upcoming.length === 0 ? (
-          <Empty>
-            No upcoming examinations are currently published for you.
-          </Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.upcoming.map((exam, index) => (
-              <div
-                key={String(exam.examScheduleId ?? index)}
-                className="rounded-2xl border border-slate-100 p-4"
-              >
-                <p className="font-bold">
-                  {text(exam.courseName ?? exam.courseCode)}
-                </p>
+    <>
+      <style jsx global>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .print-hall-ticket, .print-hall-ticket * { visibility: visible !important; }
+          .print-hall-ticket { position: relative !important; margin: 0 !important; border: 0 !important; box-shadow: none !important; }
+        }
+      `}</style>
+      <div className="space-y-5">
+        <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Upcoming examinations">
+          {data.upcoming.length === 0 ? (
+            <Empty>
+              No upcoming examinations are currently published for you.
+            </Empty>
+          ) : (
+            <div className="space-y-3">
+              {data.upcoming.map((exam, index) => {
+                const sessionId = text(exam.examSessionId);
+                const ticket = hallTickets[sessionId];
+                const loading = Boolean(ticketLoading[sessionId]);
+                return (
+                  <div
+                    key={String(exam.examScheduleId ?? index)}
+                    className="rounded-2xl border border-slate-100 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold">
+                          {text(exam.courseName ?? exam.courseCode)}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {text(exam.examDate)} · {text(exam.startTime)}–
+                          {text(exam.endTime)}
+                        </p>
+                        {exam.roomName ? (
+                          <p className="mt-1 text-sm text-slate-600">
+                            Room: {text(exam.roomName)}
+                          </p>
+                        ) : null}
+                        {exam.seatNumber ? (
+                          <p className="mt-1 text-sm font-semibold text-slate-700">
+                            Seat: {text(exam.seatNumber)}
+                          </p>
+                        ) : null}
+                      </div>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {text(exam.examDate)} · {text(exam.startTime)}–
-                  {text(exam.endTime)}
-                </p>
+                      {sessionId !== "—" ? (
+                        <button
+                          type="button"
+                          onClick={() => void loadHallTicket(sessionId)}
+                          disabled={loading}
+                          className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {loading ? "Loading…" : ticket ? "Refresh admit card" : "View admit card"}
+                        </button>
+                      ) : null}
+                    </div>
 
-                {exam.roomName ? (
-                  <p className="mt-1 text-sm text-slate-600">
-                    Room: {text(exam.roomName)}
-                  </p>
-                ) : null}
+                    {ticket ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 print-hall-ticket">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                              ACADLYX Examination Hall Ticket
+                            </p>
+                            <p className="mt-1 text-lg font-black text-slate-950">
+                              {ticket.session.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Serial {ticket.ticket.serialNumber}
+                            </p>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-black ${ticket.ticket.status === "ISSUED" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                            {ticket.ticket.status}
+                          </span>
+                        </div>
 
-                {exam.seatNumber ? (
-                  <p className="mt-1 text-sm font-semibold text-slate-700">
-                    Seat: {text(exam.seatNumber)}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+                        {ticket.ticket.status !== "ISSUED" ? (
+                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                            {ticket.ticket.blockedReason || "This hall ticket is not currently valid for examination entry."}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mt-4 space-y-2">
+                              {ticket.papers.map((paper) => (
+                                <div key={paper.examScheduleId} className="rounded-xl bg-white p-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="font-bold text-slate-900">
+                                      {paper.courseCode} — {paper.courseName}
+                                    </p>
+                                    <p className="text-xs font-bold text-indigo-700">
+                                      Seat {paper.seatNumber}
+                                    </p>
+                                  </div>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {new Date(paper.examDate).toLocaleDateString("en-IN")} · {paper.startTime}–{paper.endTime} · {paper.roomName}{paper.building ? ` · ${paper.building}` : ""}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={printHallTicket}
+                              className="mt-3 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                            >
+                              Print / Save PDF
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
-      <Card title="Published results">
-        {data.results.length === 0 ? (
-          <Empty>
-            No published examination results are available yet.
-          </Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.results.map((result, index) => (
-              <div
-                key={`${String(result.courseCode ?? "")}-${index}`}
-                className="flex items-center justify-between rounded-2xl bg-slate-50 p-4"
-              >
-                <div>
-                  <p className="font-semibold">
-                    {text(result.courseName ?? result.courseCode)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {text(result.sessionName)}
-                  </p>
+        <Card title="Published results">
+          {data.results.length === 0 ? (
+            <Empty>
+              No published examination results are available yet.
+            </Empty>
+          ) : (
+            <div className="space-y-3">
+              {data.results.map((result, index) => (
+                <div
+                  key={`${String(result.courseCode ?? "")}-${index}`}
+                  className="flex items-center justify-between rounded-2xl bg-slate-50 p-4"
+                >
+                  <div>
+                    <p className="font-semibold">
+                      {text(result.courseName ?? result.courseCode)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {text(result.sessionName)}
+                    </p>
+                  </div>
+                  <span className="font-bold">
+                    {text(result.marksObtained)}
+                  </span>
                 </div>
-
-                <span className="font-bold">
-                  {text(result.marksObtained)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        </div>
+      </div>
+    </>
   );
 }
 
