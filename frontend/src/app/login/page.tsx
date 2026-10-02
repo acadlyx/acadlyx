@@ -5,31 +5,10 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { completeMfaLogin, login } from "@/lib/auth";
 import { apiUrl } from "@/lib/api";
+import { workspaceHome } from "@/lib/navigation";
 
 function getDashboardRoute(roles: string[]): string {
-  const normalized = new Set(roles.map((role) => role.trim().toUpperCase()));
-
-  if (normalized.has("SUPER_ADMIN")) return "/superadmin";
-  if (normalized.has("INSTITUTION_ADMIN")) return "/admin";
-  if (normalized.has("CHAIRMAN") || normalized.has("MANAGEMENT")) return "/chairman";
-  if (normalized.has("DIRECTOR")) return "/director";
-  if (normalized.has("DEAN")) return "/dean";
-  if (normalized.has("REGISTRAR")) return "/registrar";
-  if (normalized.has("HOD")) return "/hod";
-  if (normalized.has("FACULTY")) return "/faculty";
-  if (normalized.has("ACCOUNTS") || normalized.has("STAFF")) return "/accounts";
-  if (normalized.has("HR")) return "/hr";
-  if (normalized.has("ADMISSIONS")) return "/admissions";
-  if (normalized.has("EXAMINATION")) return "/examinations";
-  if (normalized.has("LIBRARIAN")) return "/library";
-  if (normalized.has("PLACEMENT")) return "/placements";
-  if (normalized.has("IT")) return "/it";
-  if (normalized.has("CMS")) return "/site-content";
-  if (normalized.has("STUDENT")) return "/student";
-  if (normalized.has("PARENT")) return "/parent";
-  if (normalized.has("CLUB_PRESIDENT")) return "/club-president";
-
-  return "/login";
+  return workspaceHome(roles);
 }
 
 export default function LoginPage() {
