@@ -19,7 +19,11 @@ import {
 } from "../utils/sqlScope";
 import { recordAuditLog } from "./audit.service";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
+import {
+  assertCanViewStudent,
+  getManagedDepartmentIds,
+  isInstitutionWide,
+} from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 
 /**
@@ -164,10 +168,53 @@ async function assertCanActOnSchedule(
     schedule.courseOfferingId
   );
   if (actor.roles.includes("HOD")) {
-    // HOD authority is already department-scoped by the offering lookup
-    // plus the department access rows checked in accessScope.
-    if (isInstitutionWide(actor)) return;
+    const managedDepartmentIds = await getManagedDepartmentIds(
+      institutionId,
+      actor.id
+    );
+
+    if (managedDepartmentIds.length === 0) {
+      throw new AppError(
+        "No department scope is assigned to this HOD",
+        403
+      );
+    }
+
+    const courseOffering = await prisma.courseOffering.findFirst({
+      where: {
+        id: schedule.courseOfferingId,
+        institutionId,
+      },
+      select: {
+        course: {
+          select: {
+            departmentId: true,
+          },
+        },
+      },
+    });
+
+    if (!courseOffering) {
+      throw new AppError(
+        "Course offering not found in this institution",
+        404
+      );
+    }
+
+    if (
+      !managedDepartmentIds.includes(
+        courseOffering.course.departmentId
+      )
+    ) {
+      throw new AppError(
+        "This examination schedule is outside your department scope",
+        403
+      );
+    }
+
+    return;
   }
+
   assertOwnsCourseOffering(actor, offering.facultyId);
 }
 
