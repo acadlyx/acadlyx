@@ -27,18 +27,7 @@ type FeeStructureStatus =
 function assertCanManageFees(
   actor: AuthenticatedUser
 ): void {
-  if (
-    actor.roles.includes("SUPER_ADMIN")
-  ) {
-    return;
-  }
-
-  const allowed = actor.roles.some(
-    (role) =>
-      MANAGEMENT_ROLES.includes(role)
-  );
-
-  if (!allowed) {
+  if (!actor.permissions.includes("fees.manage")) {
     throw new AppError(
       "You are not authorized to manage fee structures",
       403
