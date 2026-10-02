@@ -159,3 +159,22 @@ The remaining work is primarily:
 - Supabase backup/restore verification.
 
 No percentage higher than the evidence supports should be reported until those gates are actually executed.
+
+
+## 11. Exact files changed in the latest hardening pass
+
+- backend/prisma/seed.ts
+- backend/src/middleware/errorHandler.ts
+- backend/src/services/siteContent.service.ts
+- backend/src/services/import.service.ts
+- backend/src/services/peopleImport.service.ts
+- frontend/src/app/erp/page.tsx
+- PRODUCTION_READINESS_REPORT.md
+
+Earlier production-hardening work already present on this branch includes the centralized storage layer, profile-photo system, academic-structure integrity protections, performance hardening, production CI/smoke checks, Node 24 frontend runtime configuration, and duplicate workflow removal.
+
+## 12. Latest repository verification state
+
+The last verified green CI run was GitHub Actions run 37066480835 before the latest hardening commits. Its backend, frontend and production smoke jobs all completed successfully.
+
+The latest branch status after the hardening commits currently reports a Vercel status failure whose target explicitly points to the account build-rate-limit upgrade page. This must not be interpreted as an application build error. A fresh application CI run is still required to verify the latest code itself.
