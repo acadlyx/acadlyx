@@ -8,12 +8,31 @@
   --acadlyx-primary-soft: #eff6ff;
   --acadlyx-accent: #06b6d4;
 
-  --acadlyx-surface: #ffffff;
   --acadlyx-background: #eef3f8;
+  --acadlyx-surface: #ffffff;
+  --acadlyx-surface-soft: #f7f9fb;
+
   --acadlyx-border: #dbe4ee;
+  --acadlyx-border-strong: #cbd7e5;
 
   --acadlyx-text: #172033;
   --acadlyx-muted: #64748b;
+  --acadlyx-subtle: #94a3b8;
+
+  --acadlyx-radius-sm: 12px;
+  --acadlyx-radius-md: 16px;
+  --acadlyx-radius-lg: 20px;
+  --acadlyx-radius-xl: 26px;
+  --acadlyx-radius-2xl: 30px;
+
+  --acadlyx-shadow-sm:
+    0 4px 14px rgba(15, 23, 42, 0.045);
+
+  --acadlyx-shadow-md:
+    0 10px 30px rgba(15, 23, 42, 0.065);
+
+  --acadlyx-shadow-lg:
+    0 18px 48px rgba(15, 23, 42, 0.1);
 }
 
 html {
@@ -25,7 +44,6 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-
   color: var(--acadlyx-text);
 
   background:
@@ -43,6 +61,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 button,
 a,
 input,
@@ -58,7 +80,8 @@ a {
     border-color 140ms ease,
     color 140ms ease,
     box-shadow 140ms ease,
-    transform 140ms ease;
+    transform 140ms ease,
+    opacity 140ms ease;
 }
 
 button:focus-visible,
@@ -70,20 +93,210 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+button:disabled {
+  cursor: not-allowed;
+}
+
 ::selection {
   background: #dbeafe;
   color: #1e3a8a;
 }
 
-/*
- * ---------------------------------------------------------------------------
- * LEGACY BLACK BUTTON NORMALIZATION
- * ---------------------------------------------------------------------------
- *
- * A number of older ERP pages still contain bg-slate-950.
- * Visually normalize those old buttons without forcing every page to be
- * rewritten immediately.
- */
+/* -------------------------------------------------------------------------- */
+/* ACADLYX STANDARD SURFACES                                                  */
+/* -------------------------------------------------------------------------- */
+
+@layer components {
+  .acadlyx-page {
+    width: 100%;
+    max-width: 1680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .acadlyx-card {
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-xl);
+    background: var(--acadlyx-surface);
+    box-shadow: var(--acadlyx-shadow-sm);
+  }
+
+  .acadlyx-card-soft {
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-lg);
+    background: var(--acadlyx-surface-soft);
+  }
+
+  .acadlyx-section {
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-xl);
+    background: #ffffff;
+    padding: 20px;
+    box-shadow: var(--acadlyx-shadow-sm);
+  }
+
+  .acadlyx-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-md);
+    background: #ffffff;
+    padding: 10px 13px;
+    color: var(--acadlyx-text);
+    font-size: 14px;
+  }
+
+  .acadlyx-input::placeholder {
+    color: var(--acadlyx-subtle);
+  }
+
+  .acadlyx-input:hover {
+    border-color: var(--acadlyx-border-strong);
+  }
+
+  .acadlyx-input:focus {
+    border-color: #60a5fa;
+    box-shadow:
+      0 0 0 3px
+      rgba(96, 165, 250, 0.14);
+    outline: none;
+  }
+
+  .acadlyx-button-primary {
+    min-height: 42px;
+    border-radius: var(--acadlyx-radius-md);
+    background: var(--acadlyx-primary);
+    padding: 9px 16px;
+    color: white;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .acadlyx-button-primary:hover {
+    background: var(--acadlyx-primary-dark);
+    box-shadow:
+      0 8px 18px
+      rgba(37, 99, 235, 0.18);
+  }
+
+  .acadlyx-button-secondary {
+    min-height: 42px;
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-md);
+    background: white;
+    padding: 9px 16px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .acadlyx-button-secondary:hover {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+    color: #1d4ed8;
+  }
+
+  .acadlyx-button-danger {
+    min-height: 42px;
+    border-radius: var(--acadlyx-radius-md);
+    background: #dc2626;
+    padding: 9px 16px;
+    color: white;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .acadlyx-button-danger:hover {
+    background: #b91c1c;
+  }
+
+  .acadlyx-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    background: rgba(15, 23, 42, 0.34);
+    padding: 16px;
+    backdrop-filter: blur(3px);
+  }
+
+  .acadlyx-modal {
+    width: 100%;
+    max-width: 720px;
+    overflow: hidden;
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-2xl);
+    background: #f8fafc;
+    box-shadow: var(--acadlyx-shadow-lg);
+  }
+
+  .acadlyx-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--acadlyx-border);
+    background: #ffffff;
+    padding: 20px;
+  }
+
+  .acadlyx-modal-body {
+    padding: 20px;
+  }
+
+  .acadlyx-modal-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    border-top: 1px solid var(--acadlyx-border);
+    background: #ffffff;
+    padding: 16px 20px;
+  }
+
+  .acadlyx-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--acadlyx-border);
+    border-radius: var(--acadlyx-radius-lg);
+    background: white;
+    box-shadow: var(--acadlyx-shadow-sm);
+  }
+
+  .acadlyx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .acadlyx-table th {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .acadlyx-table th,
+  .acadlyx-table td {
+    border-bottom: 1px solid #e8eef5;
+    padding: 13px 14px;
+    vertical-align: middle;
+  }
+
+  .acadlyx-table tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* LEGACY BLACK BUTTON NORMALIZATION                                           */
+/* -------------------------------------------------------------------------- */
 
 button.bg-slate-950,
 a.bg-slate-950,
@@ -110,11 +323,20 @@ a[class~="hover:bg-slate-800"]:hover {
     var(--acadlyx-primary-dark) !important;
 }
 
-/*
- * ---------------------------------------------------------------------------
- * SCROLLBARS
- * ---------------------------------------------------------------------------
- */
+/* -------------------------------------------------------------------------- */
+/* LEGACY LARGE RADIUS NORMALIZATION                                          */
+/* -------------------------------------------------------------------------- */
+
+.acadlyx-popup,
+.acadlyx-dialog,
+.acadlyx-drawer {
+  border-radius:
+    var(--acadlyx-radius-xl);
+}
+
+/* -------------------------------------------------------------------------- */
+/* SCROLLBARS                                                                 */
+/* -------------------------------------------------------------------------- */
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -134,11 +356,9 @@ a[class~="hover:bg-slate-800"]:hover {
   background: #aab8c8;
 }
 
-/*
- * ---------------------------------------------------------------------------
- * FAST LIGHTWEIGHT LOADING
- * ---------------------------------------------------------------------------
- */
+/* -------------------------------------------------------------------------- */
+/* LOADING                                                                     */
+/* -------------------------------------------------------------------------- */
 
 @keyframes acadlyx-shimmer {
   0% {
@@ -173,7 +393,6 @@ a[class~="hover:bg-slate-800"]:hover {
 
 .acadlyx-loading {
   min-height: 120px;
-
   display: grid;
   place-items: center;
 }
@@ -181,9 +400,7 @@ a[class~="hover:bg-slate-800"]:hover {
 .acadlyx-loading-dot {
   width: 8px;
   height: 8px;
-
   border-radius: 999px;
-
   background:
     var(--acadlyx-primary);
 
@@ -215,25 +432,19 @@ a[class~="hover:bg-slate-800"]:hover {
   from {
     transform:
       translateX(-7px);
-
-    opacity:
-      0.55;
+    opacity: 0.55;
   }
 
   to {
     transform:
       translateX(7px);
-
-    opacity:
-      1;
+    opacity: 1;
   }
 }
 
-/*
- * ---------------------------------------------------------------------------
- * MEDIA / TABLE SAFETY
- * ---------------------------------------------------------------------------
- */
+/* -------------------------------------------------------------------------- */
+/* MEDIA SAFETY                                                               */
+/* -------------------------------------------------------------------------- */
 
 img,
 svg,
@@ -243,30 +454,49 @@ canvas {
 }
 
 table {
-  border-collapse: collapse;
+  max-width: 100%;
 }
 
-/*
- * ---------------------------------------------------------------------------
- * ACCESSIBILITY
- * ---------------------------------------------------------------------------
- */
+textarea {
+  resize: vertical;
+}
+
+/* -------------------------------------------------------------------------- */
+/* REDUCED MOTION                                                             */
+/* -------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
   *,
   *::before,
   *::after {
-    animation-duration:
-      0.01ms !important;
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
-    animation-iteration-count:
-      1 !important;
+/* -------------------------------------------------------------------------- */
+/* MOBILE DASHBOARD SPACING                                                   */
+/* -------------------------------------------------------------------------- */
 
-    transition-duration:
-      0.01ms !important;
+@media (max-width: 767px) {
+  .acadlyx-modal-backdrop {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .acadlyx-modal {
+    margin-top: 20px;
+    border-radius: 22px;
+  }
+
+  .acadlyx-modal-header,
+  .acadlyx-modal-body {
+    padding: 16px;
+  }
+
+  .acadlyx-modal-footer {
+    padding: 14px 16px;
   }
 }
