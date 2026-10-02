@@ -230,15 +230,15 @@ export async function uploadProfilePhoto(
   };
 }
 
+const MAX_PROFILE_PHOTO_BYTES = 5 * 1024 * 1024;
+
 export async function uploadProfilePhotoDataUrl(
   userId: string,
   dataUrl: string
 ): Promise<ProfilePhoto> {
   if (
-    typeof dataUrl !==
-      "string" ||
-    dataUrl.length >
-      1_900_000
+    typeof dataUrl !== "string" ||
+    dataUrl.length > Math.ceil(MAX_PROFILE_PHOTO_BYTES * 1.4)
   ) {
     throw new AppError(
       "Profile photo is too large",
@@ -266,6 +266,20 @@ export async function uploadProfilePhotoDataUrl(
       match[2],
       "base64"
     );
+
+  if (buffer.length === 0) {
+    throw new AppError(
+      "Profile photo cannot be empty",
+      400
+    );
+  }
+
+  if (buffer.length > MAX_PROFILE_PHOTO_BYTES) {
+    throw new AppError(
+      "Profile photo must be 5 MB or smaller",
+      413
+    );
+  }
 
   const file =
     {
