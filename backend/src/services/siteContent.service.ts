@@ -47,20 +47,16 @@ const DEFAULT_SITE_CONTENT = {
 
     stats: [
       {
-        label: "Core workspaces",
-        value: "07",
-      },
-      {
-        label: "Role-aware access",
+        label: "Access model",
         value: "RBAC",
       },
       {
-        label: "Institution scope",
-        value: "100%",
+        label: "Tenant scope",
+        value: "Isolated",
       },
       {
-        label: "Connected modules",
-        value: "20+",
+        label: "Configuration",
+        value: "Institutional",
       },
     ],
 
