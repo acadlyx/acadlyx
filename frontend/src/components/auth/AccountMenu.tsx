@@ -429,6 +429,45 @@ export function AccountMenu() {
     }
   }
 
+  async function removePhoto() {
+    if (!photoUrl || photoBusy) {
+      return;
+    }
+
+    setPhotoBusy(true);
+    setMessage("");
+
+    try {
+      await authedFetch<{
+        success: true;
+        data: {
+          userId: string;
+          url: null;
+        };
+      }>("/auth/account/photo", {
+        method: "DELETE",
+      });
+
+      setPhotoUrl(null);
+      setMessage(
+        "Profile picture removed successfully.",
+      );
+    } catch (error) {
+      if (error instanceof AuthRequiredError) {
+        router.replace("/login");
+        return;
+      }
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove profile picture.",
+      );
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   async function savePassword(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -616,20 +655,31 @@ export function AccountMenu() {
                 }
               />
 
-              <button
-                type="button"
-                disabled={
-                  photoBusy
-                }
-                onClick={() =>
-                  photoInputRef.current?.click()
-                }
-                className="mt-4 w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15 disabled:opacity-50"
-              >
-                {photoBusy
-                  ? "Uploading…"
-                  : "Change profile picture"}
-              </button>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={photoBusy}
+                  onClick={() =>
+                    photoInputRef.current?.click()
+                  }
+                  className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15 disabled:opacity-50"
+                >
+                  {photoBusy
+                    ? "Working…"
+                    : "Change profile picture"}
+                </button>
+
+                {photoUrl && (
+                  <button
+                    type="button"
+                    disabled={photoBusy}
+                    onClick={removePhoto}
+                    className="w-full rounded-xl border border-red-300/30 bg-red-500/10 px-3 py-2.5 text-xs font-bold text-red-100 hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    Remove picture
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="p-5">
