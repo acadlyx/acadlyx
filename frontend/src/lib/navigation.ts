@@ -930,6 +930,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "DEAN",
       "DIRECTOR",
       "CHAIRMAN",
+      "REGISTRAR",
       "STUDENT",
     ],
   ],
@@ -1008,10 +1009,17 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     "/students",
     [
       "INSTITUTION_ADMIN",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
       "REGISTRAR",
       "HOD",
       "FACULTY",
-      "STAFF",
+      "ACCOUNTS",
+      "ADMISSIONS",
+      "EXAMINATION",
+      "LIBRARIAN",
+      "PLACEMENT",
     ],
   ],
 
@@ -1021,6 +1029,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     "/calendar",
     [
       "INSTITUTION_ADMIN",
+      "CHAIRMAN",
       "DIRECTOR",
       "DEAN",
       "REGISTRAR",
@@ -1094,6 +1103,9 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     [
       "ADMISSIONS",
       "REGISTRAR",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
     ],
   ],
 
