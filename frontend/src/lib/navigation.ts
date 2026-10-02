@@ -98,6 +98,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "People",
   },
   {
+    label: "Import / Export",
+    href: "/imports",
+    icon: "⇅",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["imports.manage"],
+    group: "Administration",
+  },
+  {
     label: "Students",
     href: "/students",
     icon: "◎",
@@ -262,6 +270,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["DIRECTOR"],
     permissions: ["reports.read"],
+    group: "Oversight",
+  },
+  {
+    label: "Import / Export",
+    href: "/imports",
+    icon: "⇅",
+    roles: ["DIRECTOR"],
+    permissions: ["imports.manage"],
     group: "Oversight",
   },
   {
@@ -497,14 +513,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Teaching",
   },
   {
-    label: "Notices",
-    href: "/notices",
-    icon: "◌",
-    roles: ["FACULTY"],
-    permissions: ["notices.read"],
-    group: "Workspace",
-  },
-  {
     label: "Leave",
     href: "/leave-management",
     icon: "◫",
@@ -606,6 +614,15 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["IT"],
     group: "Workspace",
+  },
+
+  {
+    label: "Import / Export",
+    href: "/imports",
+    icon: "⇅",
+    roles: ["IT"],
+    permissions: ["imports.manage"],
+    group: "Operations",
   },
 
   {
@@ -767,62 +784,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["PARENT"],
     group: "Workspace",
-  },
-  {
-    label: "Notices",
-    href: "/notices",
-    icon: "◌",
-    roles: ["PARENT"],
-    permissions: ["notices.read"],
-    group: "Workspace",
-  },
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: "◉",
-    roles: ["PARENT"],
-    permissions: ["notifications.read"],
-    group: "Workspace",
-  },
-  {
-    label: "Calendar",
-    href: "/calendar",
-    icon: "◫",
-    roles: ["PARENT"],
-    permissions: ["calendar.read"],
-    group: "Workspace",
-  },
-  {
-    label: "Timetable",
-    href: "/timetable",
-    icon: "◫",
-    roles: ["PARENT"],
-    permissions: ["timetable.read"],
-    group: "Academic",
-  },
-  {
-    label: "Attendance",
-    href: "/attendance",
-    icon: "◉",
-    roles: ["PARENT"],
-    permissions: ["attendance.read"],
-    group: "Academic",
-  },
-  {
-    label: "Marks",
-    href: "/marks",
-    icon: "◎",
-    roles: ["PARENT"],
-    permissions: ["marks.read"],
-    group: "Academic",
-  },
-  {
-    label: "Fees",
-    href: "/fees",
-    icon: "₹",
-    roles: ["PARENT"],
-    permissions: ["fees.read"],
-    group: "Finance",
   },
 
   {
@@ -1067,24 +1028,10 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     "/notices",
     [
       "INSTITUTION_ADMIN",
-      "DIRECTOR",
-      "MANAGEMENT",
       "DEAN",
-      "REGISTRAR",
       "HOD",
-      "FACULTY",
-      "ACCOUNTS",
-      "HR",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
-      "PLACEMENT",
-      "IT",
-      "STAFF",
       "STUDENT",
-      "PARENT",
     ],
-
   ],
 
   [
