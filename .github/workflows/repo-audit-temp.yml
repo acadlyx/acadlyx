@@ -1,0 +1,33 @@
+name: ACADLYX Temporary Repository Audit
+on:
+  push:
+    branches:
+      - production-upgrade-2026-09-20
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Audit repository
+        run: |
+          set +e
+          echo "=== ROOT ==="
+          find . -maxdepth 2 -type f | sort | head -300
+          echo "=== FLAGGED TERMS ==="
+          grep -RniE --exclude-dir=.git --exclude='package-lock.json' --exclude='*.map' 'TODO|FIXME|mock|demo|placeholder|hardcoded|temporary|fallback|fake|sample|static|seed-only|coming soon|not implemented|deferred' frontend backend scripts docs 2>/dev/null | head -1500
+          echo "=== AIMT SOURCE REFERENCES ==="
+          grep -RniE --exclude-dir=.git --exclude='package-lock.json' 'AIMT|aimt' frontend backend scripts 2>/dev/null | head -1000
+          echo "=== PRODUCTION SEED/BUILD CONFIG ==="
+          cat backend/package.json
+          cat frontend/package.json
+          cat render.yaml
+          echo "=== ROUTES ==="
+          find backend/src/routes -type f | sort
+          echo "=== SERVICES ==="
+          find backend/src/services -type f | sort
+          echo "=== FRONTEND APP ROUTES ==="
+          find frontend/src/app -type f | sort
