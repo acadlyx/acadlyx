@@ -183,4 +183,17 @@ export function assertAuthEnv(): void {
       "CORS_ORIGIN cannot contain * in production."
     );
   }
+
+  if (
+    isProduction &&
+    (
+      !env.cloudinaryCloudName ||
+      !env.cloudinaryApiKey ||
+      !env.cloudinaryApiSecret
+    )
+  ) {
+    throw new Error(
+      "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set in production."
+    );
+  }
 }
