@@ -48,6 +48,11 @@ router.get(
   userController.listDeleted,
 );
 
+router.post("/:id/reset-password", authorize("users.update"), userController.issuePasswordReset);
+router.post("/:id/force-password-change", authorize("users.update"), userController.forcePasswordChange);
+router.post("/:id/revoke-sessions", authorize("users.update"), userController.revokeSessions);
+router.post("/:id/unlock", authorize("users.update"), userController.unlock);
+
 router.get(
   "/:id/lifecycle",
   authorize("users.read"),
