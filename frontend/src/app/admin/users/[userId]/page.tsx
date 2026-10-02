@@ -5,6 +5,10 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   getAdminUserLifecycle,
+  forceAdminUserPasswordChange,
+  revokeAdminUserSessions,
+  unlockAdminUser,
+  adminResetUserPassword,
   AdminUserLifecycle,
 } from "@/lib/adminApi";
 
@@ -33,6 +37,8 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 export default function AdminUserDetailsPage({ params }: { params: { userId: string } }) {
   const [user, setUser] = useState<AdminUserLifecycle | null>(null);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     getAdminUserLifecycle(params.userId).then(setUser).catch((e) => setError(e instanceof Error ? e.message : "Unable to load user."));
   }, [params.userId]);
@@ -83,6 +89,7 @@ export default function AdminUserDetailsPage({ params }: { params: { userId: str
                 </div>
               )) : <p className="text-sm text-slate-500">No student enrollment records.</p>}
             </div></Card>
+            {message ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div> : null}
             <Card title="Account & login security">
               <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Login email" value={user.authentication.loginEmail}/><Field label="Account ID" value={user.authentication.accountId}/>
@@ -92,6 +99,12 @@ export default function AdminUserDetailsPage({ params }: { params: { userId: str
                 <Field label="Lock status" value={user.authentication.lockedUntil ? `Locked until ${date(user.authentication.lockedUntil)}` : "Not locked"}/><Field label="Active sessions" value={user.authentication.activeSessionCount}/>
                 <Field label="Force password change" value={user.authentication.forcePasswordChange ? "Required" : "No"}/>
               </dl>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" disabled={busy} onClick={async () => { if (!window.confirm("Send a password-reset link to this user's login email?")) return; setBusy(true); try { await adminResetUserPassword(user.id); setMessage("Password reset link issued through the configured email provider."); } catch (e) { setError(e instanceof Error ? e.message : "Unable to issue password reset."); } finally { setBusy(false); } }} className="acadlyx-button-secondary">Reset password</button>
+              <button type="button" disabled={busy} onClick={async () => { if (!window.confirm("Force this user to change their password at next login?")) return; setBusy(true); try { await forceAdminUserPasswordChange(user.id); setMessage("Password change required on next login."); } catch (e) { setError(e instanceof Error ? e.message : "Unable to force password change."); } finally { setBusy(false); } }} className="acadlyx-button-secondary">Force password change</button>
+              <button type="button" disabled={busy} onClick={async () => { if (!window.confirm("Revoke all active sessions for this user?")) return; setBusy(true); try { await revokeAdminUserSessions(user.id); setMessage("All active sessions revoked."); } catch (e) { setError(e instanceof Error ? e.message : "Unable to revoke sessions."); } finally { setBusy(false); } }} className="acadlyx-button-secondary">Revoke sessions</button>
+              {user.authentication.lockedUntil ? <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await unlockAdminUser(user.id); setMessage("Account unlocked."); setUser(await getAdminUserLifecycle(user.id)); } catch (e) { setError(e instanceof Error ? e.message : "Unable to unlock account."); } finally { setBusy(false); } }} className="acadlyx-button-secondary">Unlock account</button> : null}
+            </div>
               <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">Authentication secrets are intentionally never returned: no password, password hash, access token, refresh token, MFA secret, recovery code, API key, or session secret is exposed.</p>
             </Card>
             {user.deletedAt ? <Card title="Deletion & recovery"><dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
