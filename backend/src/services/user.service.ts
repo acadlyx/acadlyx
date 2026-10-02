@@ -187,7 +187,9 @@ export async function listUsers(params: {
   isActive?: boolean;
   scopeInstitutionId?: string | null;
 }) {
-  const where: Prisma.UserWhereInput = {};
+  const where: Prisma.UserWhereInput = {
+    deletedAt: null,
+  };
 
   /*
    * scopeInstitutionId is authoritative when supplied.
@@ -330,6 +332,7 @@ export async function getUserById(
   const user = await prisma.user.findFirst({
     where: {
       id,
+      deletedAt: null,
       ...(scopeInstitutionId !== undefined &&
       scopeInstitutionId !== null
         ? {
