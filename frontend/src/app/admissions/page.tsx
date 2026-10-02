@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
+import { AuthRequiredError, getCurrentUser, isAuthenticated } from "@/lib/auth";
 import {
   ADMISSION_STATUSES,
   AdmissionApplication,
@@ -12,6 +12,7 @@ import {
   ProgramOption,
   changeAdmissionStatus,
   createAdmissionApplication,
+  updateAdmissionApplication,
   listAcademicYearOptions,
   listAdmissionApplications,
   listProgramOptions,
@@ -58,12 +59,16 @@ export default function AdmissionsPage() {
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [items, setItems] = useState<AdmissionApplication[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<AdmissionStatus | "">("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
 
   const [programs, setPrograms] = useState<ProgramOption[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
@@ -76,15 +81,19 @@ export default function AdmissionsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [list, programOptions, yearOptions] = await Promise.all([
+      const [currentUser, list, programOptions, yearOptions] = await Promise.all([
+        getCurrentUser(),
         listAdmissionApplications({
           page,
           search: search || undefined,
           status: status || undefined,
+          programId: programFilter || undefined,
+          academicYearId: yearFilter || undefined,
         }),
         programs.length ? Promise.resolve(programs) : listProgramOptions(),
         academicYears.length ? Promise.resolve(academicYears) : listAcademicYearOptions(),
       ]);
+      setUserPermissions(currentUser?.permissions ?? []);
       setItems(list.items);
       setSummary(list.summary);
       setTotalPages(list.totalPages);
@@ -100,7 +109,7 @@ export default function AdmissionsPage() {
       setState("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, status, router]);
+  }, [page, search, status, programFilter, yearFilter, router]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -110,7 +119,7 @@ export default function AdmissionsPage() {
     load();
   }, [load, router]);
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
     if (!form.firstName || !form.lastName || !form.email || !form.programId || !form.academicYearId) {
@@ -119,7 +128,22 @@ export default function AdmissionsPage() {
     }
     setSubmitting(true);
     try {
-      await createAdmissionApplication({
+      if (editingId) {
+        await updateAdmissionApplication(editingId, {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone || undefined,
+          guardianName: form.guardianName || undefined,
+          guardianPhone: form.guardianPhone || undefined,
+          previousInstitution: form.previousInstitution || undefined,
+          previousPercentage: form.previousPercentage ? Number(form.previousPercentage) : undefined,
+          remarks: form.remarks || undefined,
+          programId: form.programId,
+          academicYearId: form.academicYearId,
+        });
+      } else {
+        await createAdmissionApplication({
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
@@ -133,8 +157,10 @@ export default function AdmissionsPage() {
         remarks: form.remarks || undefined,
         programId: form.programId,
         academicYearId: form.academicYearId,
-      });
+        });
+      }
       setForm(emptyForm);
+      setEditingId(null);
       setShowForm(false);
       setPage(1);
       await load();
@@ -143,6 +169,32 @@ export default function AdmissionsPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function startEdit(app: AdmissionApplication) {
+    setEditingId(app.id);
+    setForm({
+      firstName: app.firstName,
+      lastName: app.lastName,
+      email: app.email,
+      phone: app.phone ?? "",
+      guardianName: app.guardianName ?? "",
+      guardianPhone: app.guardianPhone ?? "",
+      previousInstitution: app.previousInstitution ?? "",
+      previousPercentage: app.previousPercentage == null ? "" : String(app.previousPercentage),
+      remarks: app.remarks ?? app.notes ?? "",
+      programId: app.programId ?? "",
+      academicYearId: app.academicYearId ?? "",
+    });
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function handleNew() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setFormError("");
+    setShowForm((v) => !v);
   }
 
   async function handleStatusChange(id: string, next: AdmissionStatus) {
@@ -173,10 +225,7 @@ export default function AdmissionsPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setShowForm((v) => !v);
-              setFormError("");
-            }}
+            onClick={handleNew}
             className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
           >
             {showForm ? "Close" : "New admission"}
@@ -213,13 +262,13 @@ export default function AdmissionsPage() {
 
             {showForm && (
               <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8">
-                <h2 className="text-2xl font-black text-slate-950">New admission application</h2>
+                <h2 className="text-2xl font-black text-slate-950">{editingId ? "Edit admission application" : "New admission application"}</h2>
                 {formError && (
                   <p className="mt-3 rounded-xl bg-red-100 px-3 py-2 text-sm font-semibold text-red-700">
                     {formError}
                   </p>
                 )}
-                <form onSubmit={handleCreate} className="mt-6 grid gap-4 sm:grid-cols-2">
+                <form onSubmit={handleSubmit} className="mt-6 grid gap-4 sm:grid-cols-2">
                   <Field label="First name *">
                     <input
                       className="input"
@@ -328,7 +377,7 @@ export default function AdmissionsPage() {
                       disabled={submitting}
                       className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
                     >
-                      {submitting ? "Submitting…" : "Submit application"}
+                      {submitting ? "Saving…" : editingId ? "Save changes" : "Submit application"}
                     </button>
                   </div>
                 </form>
@@ -345,6 +394,34 @@ export default function AdmissionsPage() {
                 placeholder="Search by name, email, application number…"
                 className="input sm:w-80"
               />
+              <select
+                value={programFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setProgramFilter(e.target.value);
+                }}
+                className="input sm:w-56"
+              >
+                <option value="">All programs</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setYearFilter(e.target.value);
+                }}
+                className="input sm:w-56"
+              >
+                <option value="">All academic years</option>
+                {academicYears.map((y) => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
               <select
                 value={status}
                 onChange={(e) => {
@@ -403,6 +480,15 @@ export default function AdmissionsPage() {
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-5 py-4">
+                          {userPermissions.includes("admissions.manage") && !["ENROLLED", "REJECTED", "WITHDRAWN"].includes(app.status) ? (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(app)}
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
                           {NEXT_STATUS[app.status].length > 0 ? (
                             <select
                               defaultValue=""
