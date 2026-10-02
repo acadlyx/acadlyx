@@ -154,10 +154,27 @@ function normalizeIcon(icon?: string) {
     return "book";
   }
 
+  if (
+    normalized.includes("notification") ||
+    normalized.includes("bell")
+  ) {
+    return "bell";
+  }
+
+  if (
+    normalized.includes("student") ||
+    normalized.includes("class") ||
+    normalized.includes("people")
+  ) {
+    return "people";
+  }
+
   return "grid";
 }
 
-function groupNavigation(items: UnifiedNavItem[]) {
+function groupNavigation(
+  items: UnifiedNavItem[],
+) {
   const groups = new Map<
     string,
     UnifiedNavItem[]
@@ -329,6 +346,11 @@ export function UnifiedDashboardFrame({
     [navigation],
   );
 
+  const desktopSidebarWidth =
+    collapsed
+      ? SIDEBAR_COLLAPSED_WIDTH
+      : SIDEBAR_WIDTH;
+
   function toggleSidebar() {
     setCollapsed((current) => {
       const next = !current;
@@ -352,9 +374,11 @@ export function UnifiedDashboardFrame({
 
   return (
     <div className="min-h-screen bg-[#07111f] text-slate-100">
-      {/* HEADER */}
+      {/* =========================================================
+          HEADER
+         ========================================================= */}
       <header
-        className="fixed inset-x-0 top-0 z-[80] border-b border-slate-700/70 bg-[#182536]/[0.97] shadow-[0_4px_24px_rgba(2,8,23,0.14)] backdrop-blur-xl"
+        className="fixed inset-x-0 top-0 z-[100] border-b border-slate-700/70 bg-[#182536]/[0.97] shadow-[0_4px_24px_rgba(2,8,23,0.14)] backdrop-blur-xl"
         style={{
           height: HEADER_HEIGHT,
         }}
@@ -502,19 +526,23 @@ export function UnifiedDashboardFrame({
         </div>
       </header>
 
-      {/* MOBILE OVERLAY */}
+      {/* =========================================================
+          MOBILE OVERLAY
+         ========================================================= */}
       {mobileOpen ? (
         <button
           type="button"
           aria-label="Close navigation"
           onClick={closeMobileSidebar}
-          className="fixed inset-0 z-[85] bg-slate-950/60 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-[105] bg-slate-950/60 backdrop-blur-[2px] lg:hidden"
         />
       ) : null}
 
-      {/* SIDEBAR */}
+      {/* =========================================================
+          SIDEBAR
+         ========================================================= */}
       <aside
-        className={`fixed left-0 bottom-0 z-[90] border-r border-slate-800/90 bg-[#061525] shadow-[8px_0_30px_rgba(2,8,23,0.18)] transition-[width,transform] duration-200 ease-out ${
+        className={`fixed left-0 bottom-0 z-[110] border-r border-slate-800/90 bg-[#061525] shadow-[8px_0_30px_rgba(2,8,23,0.18)] transition-[width,transform] duration-200 ease-out ${
           collapsed
             ? "lg:w-[76px]"
             : "lg:w-[264px]"
@@ -775,19 +803,30 @@ export function UnifiedDashboardFrame({
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
+      {/* =========================================================
+          MAIN CONTENT
+         ========================================================= */}
       <main
-        className="min-h-screen transition-[padding-left] duration-200 ease-out"
+        className="min-h-screen"
         style={{
           paddingTop: HEADER_HEIGHT,
         }}
       >
+        {/*
+          IMPORTANT:
+          Do NOT construct a Tailwind class such as:
+
+          lg:pl-[${collapsed}px]
+
+          Tailwind cannot reliably generate dynamic arbitrary
+          values. Use explicit static classes below.
+        */}
         <div
-          className={`min-h-[calc(100vh-72px)] transition-[padding-left] duration-200 ease-out lg:pl-[${
+          className={
             collapsed
-              ? SIDEBAR_COLLAPSED_WIDTH
-              : SIDEBAR_WIDTH
-          }px]`}
+              ? "min-h-[calc(100vh-72px)] lg:pl-[76px]"
+              : "min-h-[calc(100vh-72px)] lg:pl-[264px]"
+          }
         >
           <div className="min-h-[calc(100vh-72px)] overflow-x-hidden bg-[radial-gradient(circle_at_72%_0%,rgba(37,99,235,0.07),transparent_30rem),linear-gradient(135deg,#f7faff,#eef4fa,#f8fbff)]">
             <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
