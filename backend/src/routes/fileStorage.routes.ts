@@ -8,6 +8,13 @@ const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/octet-stream") {
+      cb(new Error("Generic binary MIME type is not accepted; provide the actual file type."));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 router.use(authenticate);
