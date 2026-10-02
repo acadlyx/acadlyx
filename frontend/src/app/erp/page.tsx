@@ -126,7 +126,7 @@ description:
 ];
 
 const inputClass =
-"w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus focus focus";
+"w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100";
 
 const labelClass =
 "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
@@ -556,7 +556,7 @@ ACADLYX ERP
       </div>
     )}
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
         "users",
         "students",
