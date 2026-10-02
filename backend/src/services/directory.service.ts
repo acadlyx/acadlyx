@@ -91,7 +91,7 @@ export async function searchStudents(
     )`,
   ];
 
-  if (!isInstitutionWide(actor) && !actor.roles.includes("STAFF")) {
+  if (!isInstitutionWide(actor)) {
     if (actor.roles.includes("HOD")) {
       const managed = await getManagedDepartmentIds(
         institutionId,
