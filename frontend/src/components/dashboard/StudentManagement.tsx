@@ -526,7 +526,7 @@ export function StudentManagement({ onChanged }: Props) {
         </button>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -638,7 +638,7 @@ export function StudentManagement({ onChanged }: Props) {
               </Section>
 
               <Section title="Personal information">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                   <Field label="Date of birth"><input type="date" value={form.dateOfBirth} onChange={(e) => setField("dateOfBirth", e.target.value)} className={inputClass()} /></Field>
                   <Field label="Gender"><select value={form.gender} onChange={(e) => setField("gender", e.target.value)} className={inputClass()}><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></Field>
                   <Field label="Blood group"><input value={form.bloodGroup} onChange={(e) => setField("bloodGroup", e.target.value)} className={inputClass()} /></Field>
@@ -647,7 +647,7 @@ export function StudentManagement({ onChanged }: Props) {
               </Section>
 
               <Section title="Address">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
                   <Field label="Address"><input value={form.address} onChange={(e) => setField("address", e.target.value)} className={inputClass()} /></Field>
                   <Field label="City"><input value={form.city} onChange={(e) => setField("city", e.target.value)} className={inputClass()} /></Field>
                   <Field label="State"><input value={form.state} onChange={(e) => setField("state", e.target.value)} className={inputClass()} /></Field>
@@ -666,7 +666,7 @@ export function StudentManagement({ onChanged }: Props) {
               </Section>
 
               <Section title="Academic placement" description="The API verifies that program, academic year, semester and section belong to the same institution and hierarchy.">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   <Field label="Program" required><select required value={form.programId} onChange={(e) => setForm((p) => ({ ...p, programId: e.target.value, semesterId: "", sectionId: "" }))} className={inputClass()}><option value="">Select program</option>{programs.map((x) => <option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select></Field>
                   <Field label="Academic year" required><select required value={form.academicYearId} onChange={(e) => setForm((p) => ({ ...p, academicYearId: e.target.value, semesterId: "", sectionId: "" }))} className={inputClass()}><option value="">Select year</option>{academicYears.map((x) => <option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select></Field>
                   <Field label="Semester" required><select required value={form.semesterId} onChange={(e) => setForm((p) => ({ ...p, semesterId: e.target.value, sectionId: "" }))} className={inputClass()}><option value="">Select semester</option>{filteredSemesters.map((x) => <option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select></Field>
