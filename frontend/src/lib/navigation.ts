@@ -436,7 +436,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Student movement",
-    href: "/student-movement",
+    href: "/student-promotion",
     icon: "⇅",
     roles: ["REGISTRAR"],
     permissions: ["promotions.read"],
@@ -444,7 +444,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/registrar/examinations",
+    href: "/examinations",
     icon: "◉",
     roles: ["REGISTRAR"],
     permissions: ["exams.read"],
