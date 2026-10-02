@@ -888,6 +888,46 @@ export async function getParentChildren(
   }));
 }
 
+async function enrollmentSectionIdForStudent(
+  institutionId: string,
+  studentId: string
+): Promise<string | null> {
+  const enrollment = await getStudentEnrollment(institutionId, studentId);
+  return enrollment?.sectionId ?? null;
+}
+
+async function getStudentSectionCourseOfferings(
+  institutionId: string,
+  sectionId: string
+) {
+  return prisma.courseOffering.findMany({
+    where: {
+      institutionId,
+      sectionId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      courseId: true,
+      course: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          credits: true,
+          department: {
+            select: { id: true, name: true, code: true },
+          },
+        },
+      },
+      faculty: {
+        select: { id: true, firstName: true, lastName: true },
+      },
+    },
+    orderBy: { course: { code: "asc" } },
+  });
+}
+
 export async function getStudentPortal(
   institutionId: string,
   actor: PortalActor,
@@ -934,6 +974,8 @@ export async function getStudentPortal(
     exams,
     documents,
     notifications,
+    courseOfferings,
+    parents,
   ] = await Promise.all([
     getStudentEnrollment(
       institutionId,
@@ -969,6 +1011,33 @@ export async function getStudentPortal(
       1,
       10
     ),
+    enrollmentSectionIdForStudent(institutionId, studentId).then(
+      (sectionId) =>
+        sectionId
+          ? getStudentSectionCourseOfferings(institutionId, sectionId)
+          : []
+    ),
+    prisma.parentStudentLink.findMany({
+      where: {
+        institutionId,
+        studentId,
+        parent: { isActive: true },
+      },
+      select: {
+        relationship: true,
+        createdAt: true,
+        parent: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   return {
@@ -1008,6 +1077,12 @@ export async function getStudentPortal(
     exams,
     documents,
     notifications,
+    courseOfferings,
+    parents: parents.map((link) => ({
+      relationship: link.relationship,
+      linkedAt: link.createdAt,
+      parent: link.parent,
+    })),
   };
 }
 
