@@ -26,6 +26,7 @@ import {
   listMyLoans,
   reserveBook,
   returnLoan,
+  updateBook,
 } from "@/lib/libraryApi";
 
 type ViewState = "loading" | "ready" | "error";
@@ -78,6 +79,7 @@ export default function LibraryPage() {
   const [myFine, setMyFine] = useState(0);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyBook);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -144,6 +146,28 @@ export default function LibraryPage() {
     load();
   }, [load, router]);
 
+  function startEditBook(book: LibraryBook) {
+    setEditingBookId(book.id);
+    setForm({
+      title: book.title,
+      author: book.author,
+      isbn: book.isbn ?? "",
+      category: book.category ?? "",
+      publisher: book.publisher ?? "",
+      shelfLocation: book.shelfLocation ?? "",
+      totalCopies: String(book.totalCopies),
+    });
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function handleNewBook() {
+    setEditingBookId(null);
+    setForm(emptyBook);
+    setFormError("");
+    setShowForm((v) => !v);
+  }
+
   async function handleCreateBook(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
@@ -153,16 +177,29 @@ export default function LibraryPage() {
     }
     setSubmitting(true);
     try {
-      await createBook({
-        title: form.title,
-        author: form.author,
-        isbn: form.isbn || undefined,
-        category: form.category || undefined,
-        publisher: form.publisher || undefined,
-        shelfLocation: form.shelfLocation || undefined,
-        totalCopies: Number(form.totalCopies) || 1,
-      });
+      if (editingBookId) {
+        await updateBook(editingBookId, {
+          title: form.title,
+          author: form.author,
+          isbn: form.isbn || undefined,
+          category: form.category || undefined,
+          publisher: form.publisher || undefined,
+          shelfLocation: form.shelfLocation || undefined,
+          totalCopies: Number(form.totalCopies) || 1,
+        });
+      } else {
+        await createBook({
+          title: form.title,
+          author: form.author,
+          isbn: form.isbn || undefined,
+          category: form.category || undefined,
+          publisher: form.publisher || undefined,
+          shelfLocation: form.shelfLocation || undefined,
+          totalCopies: Number(form.totalCopies) || 1,
+        });
+      }
       setForm(emptyBook);
+      setEditingBookId(null);
       setShowForm(false);
       await load();
     } catch (err) {
@@ -298,7 +335,7 @@ export default function LibraryPage() {
               {canManage && (
                 <button
                   type="button"
-                  onClick={() => setShowForm((v) => !v)}
+                  onClick={handleNewBook}
                   className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
                 >
                   {showForm ? "Cancel" : "Add book"}
@@ -343,7 +380,7 @@ export default function LibraryPage() {
                     disabled={submitting}
                     className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   >
-                    {submitting ? "Saving…" : "Save book"}
+                    {submitting ? "Saving…" : editingBookId ? "Save changes" : "Save book"}
                   </button>
                   {formError && (
                     <span className="text-sm text-red-600">{formError}</span>
@@ -395,16 +432,38 @@ export default function LibraryPage() {
                             </button>
                           )}
                           {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIssueFor(book);
-                                setBorrower(null);
-                              }}
-                              className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
-                            >
-                              Issue
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditBook(book)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+                              >
+                                Edit
+                              </button>
+                              {book.isActive && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    run(async () => {
+                                      await updateBook(book.id, { isActive: false });
+                                    })
+                                  }
+                                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                                >
+                                  Archive
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIssueFor(book);
+                                  setBorrower(null);
+                                }}
+                                className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                              >
+                                Issue
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
