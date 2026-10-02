@@ -240,9 +240,40 @@ function Content({
               value={String(data.documents.length)}
             />
           </Card>
+
+          <Card title="Parents & guardians">
+            {data.parents.length === 0 ? (
+              <p className="py-3 text-sm text-slate-500">
+                No linked parent or guardian account is available.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {data.parents.map((link) => (
+                  <div
+                    key={link.parent.id}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-4"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {link.parent.firstName} {link.parent.lastName}
+                        </p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          {link.relationship || "Parent / guardian"}
+                        </p>
+                      </div>
+                      <div className="text-left text-sm text-slate-600 sm:text-right">
+                        <p>{link.parent.email}</p>
+                        {link.parent.phone ? <p>{link.parent.phone}</p> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </section>
       </>
-    );
   }
 
   if (view === "fees") {
