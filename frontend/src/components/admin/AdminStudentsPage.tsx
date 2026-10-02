@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import { StudentManagement } from "@/components/dashboard/StudentManagement";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 import {
   AuthRequiredError,
@@ -14,7 +15,7 @@ import {
   getCurrentUser,
 } from "@/lib/auth";
 
-export function AdminStudentsPage() {
+function AdminStudentsPageContent() {
   const [user, setUser] =
     useState<AuthUser | null>(
       () =>
@@ -149,5 +150,18 @@ export function AdminStudentsPage() {
 
       <StudentManagement />
     </main>
+  );
+}
+
+
+export function AdminStudentsPage() {
+  return (
+    <DashboardShell
+      title="Students"
+      subtitle="Institution-scoped administration"
+      allowedRoles={["INSTITUTION_ADMIN"]}
+    >
+      <AdminStudentsPageContent />
+    </DashboardShell>
   );
 }
