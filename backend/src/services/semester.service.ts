@@ -24,6 +24,9 @@ async function assertProgramInInstitution(
   if (!program) {
     throw new AppError("programId does not belong to this institution", 400);
   }
+  if (!program.isActive) {
+    throw new AppError("Cannot use an inactive program", 400);
+  }
 }
 
 async function assertAcademicYearInInstitution(
@@ -39,6 +42,7 @@ async function assertAcademicYearInInstitution(
       400
     );
   }
+  return year;
 }
 
 const include = {
@@ -116,7 +120,29 @@ export async function createSemester(
   input: CreateSemesterInput
 ) {
   await assertProgramInInstitution(institutionId, input.programId);
-  await assertAcademicYearInInstitution(institutionId, input.academicYearId);
+  const academicYear = await assertAcademicYearInInstitution(
+    institutionId,
+    input.academicYearId
+  );
+
+  if (input.startDate && input.startDate < academicYear.startDate) {
+    throw new AppError(
+      "Semester start date cannot be before the academic year starts",
+      400
+    );
+  }
+  if (input.endDate && input.endDate > academicYear.endDate) {
+    throw new AppError(
+      "Semester end date cannot be after the academic year ends",
+      400
+    );
+  }
+  if (input.startDate && input.endDate && input.endDate <= input.startDate) {
+    throw new AppError(
+      "Semester end date must be after its start date",
+      400
+    );
+  }
   await assertNumberAvailable(
     institutionId,
     input.programId,
@@ -136,6 +162,32 @@ export async function updateSemester(
   input: UpdateSemesterInput
 ) {
   const current = await getSemesterById(institutionId, id);
+  const academicYear = await assertAcademicYearInInstitution(
+    institutionId,
+    current.academicYearId
+  );
+
+  const nextStartDate = input.startDate ?? current.startDate;
+  const nextEndDate = input.endDate ?? current.endDate;
+
+  if (nextStartDate && nextStartDate < academicYear.startDate) {
+    throw new AppError(
+      "Semester start date cannot be before the academic year starts",
+      400
+    );
+  }
+  if (nextEndDate && nextEndDate > academicYear.endDate) {
+    throw new AppError(
+      "Semester end date cannot be after the academic year ends",
+      400
+    );
+  }
+  if (nextStartDate && nextEndDate && nextEndDate <= nextStartDate) {
+    throw new AppError(
+      "Semester end date must be after its start date",
+      400
+    );
+  }
 
   if (input.number !== undefined) {
     await assertNumberAvailable(
