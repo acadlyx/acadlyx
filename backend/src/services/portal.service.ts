@@ -5,6 +5,7 @@ import {
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
+import { getCanonicalRoleNames } from "../config/rbac";
 
 type PortalActor = {
   id: string;
@@ -15,9 +16,9 @@ const managementRoles = new Set([
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
+  "CHAIRMAN",
   "HOD",
-  "STAFF",
+  "ACCOUNTS",
 ]);
 
 function assertActor(actor: PortalActor): void {
@@ -27,7 +28,7 @@ function assertActor(actor: PortalActor): void {
 }
 
 function isManagement(actor: PortalActor): boolean {
-  return actor.roles.some((role) => managementRoles.has(role));
+  return getCanonicalRoleNames(actor.roles).some((role) => managementRoles.has(role));
 }
 
 function isParent(actor: PortalActor): boolean {
