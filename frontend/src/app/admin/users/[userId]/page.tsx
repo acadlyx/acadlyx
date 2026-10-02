@@ -34,14 +34,15 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return <div><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-sm font-medium text-slate-900 break-words">{value || "—"}</dd></div>;
 }
 
-export default function AdminUserDetailsPage({ params }: { params: { userId: string } }) {
+export default function AdminUserDetailsPage({ params }: { params: Promise<{ userId: string }> }) {
+  const [userId, setUserId] = useState("");
   const [user, setUser] = useState<AdminUserLifecycle | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    getAdminUserLifecycle(params.userId).then(setUser).catch((e) => setError(e instanceof Error ? e.message : "Unable to load user."));
-  }, [params.userId]);
+    getAdminUserLifecycle(userId).then(setUser).catch((e) => setError(e instanceof Error ? e.message : "Unable to load user."));
+  }, [userId]);
 
   return (
     <DashboardShell title="User details" subtitle="Authorized profile and safe account metadata.">
