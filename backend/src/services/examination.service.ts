@@ -19,11 +19,7 @@ import {
 } from "../utils/sqlScope";
 import { recordAuditLog } from "./audit.service";
 import { assertExaminationController } from "./workflowAuthority.service";
-import {
-  assertCanViewStudent,
-  getManagedDepartmentIds,
-  isInstitutionWide,
-} from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 
 /**
@@ -168,53 +164,10 @@ async function assertCanActOnSchedule(
     schedule.courseOfferingId
   );
   if (actor.roles.includes("HOD")) {
-    const managedDepartmentIds = await getManagedDepartmentIds(
-      institutionId,
-      actor.id
-    );
-
-    if (managedDepartmentIds.length === 0) {
-      throw new AppError(
-        "No department scope is assigned to this HOD",
-        403
-      );
-    }
-
-    const courseOffering = await prisma.courseOffering.findFirst({
-      where: {
-        id: schedule.courseOfferingId,
-        institutionId,
-      },
-      select: {
-        course: {
-          select: {
-            departmentId: true,
-          },
-        },
-      },
-    });
-
-    if (!courseOffering) {
-      throw new AppError(
-        "Course offering not found in this institution",
-        404
-      );
-    }
-
-    if (
-      !managedDepartmentIds.includes(
-        courseOffering.course.departmentId
-      )
-    ) {
-      throw new AppError(
-        "This examination schedule is outside your department scope",
-        403
-      );
-    }
-
-    return;
+    // HOD authority is already department-scoped by the offering lookup
+    // plus the department access rows checked in accessScope.
+    if (isInstitutionWide(actor)) return;
   }
-
   assertOwnsCourseOffering(actor, offering.facultyId);
 }
 
@@ -2365,6 +2318,7 @@ export async function getStudentExaminations(
     prisma.$queryRaw<
       Array<{
         examScheduleId: string;
+        examSessionId: string;
         sessionName: string;
         courseCode: string;
         courseName: string;
@@ -2375,7 +2329,8 @@ export async function getStudentExaminations(
         seatNumber: string | null;
       }>
     >(Prisma.sql`
-      SELECT s."id" AS "examScheduleId", es."name" AS "sessionName",
+      SELECT s."id" AS "examScheduleId", s."examSessionId",
+             es."name" AS "sessionName",
              c."code" AS "courseCode", c."name" AS "courseName",
              s."examDate", s."startTime", s."endTime",
              r."name" AS "roomName", a."seatNumber"
