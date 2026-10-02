@@ -131,7 +131,8 @@ export async function updateCourse(
   if (input.isActive === true) {
     await assertDepartmentInInstitution(
       institutionId,
-      input.departmentId ?? current.departmentId
+      input.departmentId ?? current.departmentId,
+      true
     );
   }
 
@@ -144,6 +145,9 @@ export async function updateCourse(
       ...(nextCode !== undefined ? { code: nextCode } : {}),
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.credits !== undefined ? { credits: input.credits } : {}),
+      ...(input.description !== undefined
+        ? { description: input.description?.trim() || null }
+        : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     },
     include,
@@ -152,6 +156,31 @@ export async function updateCourse(
 
 /** Soft delete — preserves history for any CourseOffering referencing this course. */
 export async function deactivateCourse(institutionId: string, id: string) {
-  await getCourseById(institutionId, id);
-  return prisma.course.update({ where: { id }, data: { isActive: false } });
+  const course = await getCourseById(institutionId, id);
+
+  if (!course.isActive) {
+    return course;
+  }
+
+  const activeOffering = await prisma.courseOffering.findFirst({
+    where: {
+      institutionId,
+      courseId: id,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  if (activeOffering) {
+    throw new AppError(
+      "Deactivate the course's active course offerings before deactivating the course",
+      409
+    );
+  }
+
+  return prisma.course.update({
+    where: { id },
+    data: { isActive: false },
+    include,
+  });
 }
