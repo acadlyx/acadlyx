@@ -1,5 +1,5 @@
-import { UserLifecycleManager } from "@/components/dashboard/UserLifecycleManager";
+import { AdminPeopleManager } from "@/components/admin/AdminPeopleManager";
 
 export default function AdminUsersPage() {
-  return <UserLifecycleManager />;
+  return <AdminPeopleManager />;
 }
