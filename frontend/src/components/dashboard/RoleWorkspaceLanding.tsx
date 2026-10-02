@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { AccessNotice } from "@/components/dashboard/AccessNotice";
+import { SvgIcon } from "@/components/dashboard/UnifiedDashboardFrame";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 import {
@@ -277,7 +278,7 @@ export function RoleWorkspaceLanding({
                     >
                       <div className="flex items-start gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-base shadow-sm ring-1 ring-slate-200">
-                          {item.icon}
+                          <SvgIcon name={item.icon} className="h-5 w-5" />
                         </span>
 
                         <div className="min-w-0">
