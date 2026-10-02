@@ -647,7 +647,6 @@ export default function IntelligencePage() {
       title="Institution Intelligence"
       subtitle="Academic, operational and career intelligence"
       allowedRoles={[
-        "SUPER_ADMIN",
         "CHAIRMAN",
         "DIRECTOR",
         "DEAN",
