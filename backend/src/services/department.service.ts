@@ -46,7 +46,8 @@ const departmentInclude = {
 
 async function assertCampusInInstitution(
   institutionId: string,
-  campusId: string
+  campusId: string,
+  requireActive = false
 ): Promise<void> {
   const campus =
     await prisma.campus.findFirst(
@@ -58,6 +59,7 @@ async function assertCampusInInstitution(
 
         select: {
           id: true,
+          isActive: true,
         },
       }
     );
@@ -67,6 +69,10 @@ async function assertCampusInInstitution(
       "campusId does not belong to this institution",
       400
     );
+  }
+
+  if (requireActive && !campus.isActive) {
+    throw new AppError("Cannot use an inactive campus", 400);
   }
 }
 
@@ -198,7 +204,8 @@ export async function createDepartment(
   ) {
     await assertCampusInInstitution(
       institutionId,
-      input.campusId
+      input.campusId,
+      true
     );
   }
 
@@ -255,7 +262,8 @@ export async function updateDepartment(
   ) {
     await assertCampusInInstitution(
       institutionId,
-      input.campusId
+      input.campusId,
+      input.isActive !== false
     );
   }
 
