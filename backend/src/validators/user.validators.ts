@@ -74,6 +74,12 @@ export const createUserSchema =
 
     role:
       roleNameSchema,
+
+    departmentIds:
+      z
+        .array(z.string().uuid())
+        .max(50)
+        .optional(),
   });
 
 export const updateUserSchema =
@@ -111,6 +117,20 @@ export const updateUserSchema =
 
     role:
       roleNameSchema.optional(),
+
+    email:
+      z
+        .string()
+        .trim()
+        .email()
+        .max(200)
+        .optional(),
+
+    departmentIds:
+      z
+        .array(z.string().uuid())
+        .max(50)
+        .optional(),
   });
 
 export const listUsersQuerySchema =
