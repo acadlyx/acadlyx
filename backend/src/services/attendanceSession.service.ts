@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
+import { getCanonicalRoleNames } from "../config/rbac";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -301,8 +302,8 @@ export async function listSessions(
       : {}),
   };
 
-  const institutionWideRoles = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"];
-  if (user.roles.some((role) => institutionWideRoles.includes(role))) {
+  const institutionWideRoles = new Set(["CHAIRMAN", "DIRECTOR", "DEAN", "REGISTRAR"]);
+  if (getCanonicalRoleNames(user.roles).some((role) => institutionWideRoles.has(role))) {
     // Institution-wide reporting scope.
   } else if (user.roles.includes("FACULTY")) {
     if (filters.facultyId && filters.facultyId !== user.id) {
