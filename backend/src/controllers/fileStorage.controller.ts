@@ -9,6 +9,8 @@ import {
 } from "../services/fileStorage.service";
 
 const MODULE_PERMISSIONS: Record<string, string[]> = {
+  "profile-photos": ["users.update"],
+
   site: ["site.manage"],
   students: ["students.create", "students.update"],
   faculty: ["users.update"],
