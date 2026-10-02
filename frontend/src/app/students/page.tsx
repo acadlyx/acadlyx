@@ -73,7 +73,7 @@ export default function StudentsPage() {
         "INSTITUTION_ADMIN",
       ]}
     >
-      <main className="mx-auto max-w-[1400px] space-y-5 pb-10">
+      <div className="mx-auto w-full max-w-[1400px] space-y-5 pb-10">
         <section className="rounded-[30px] border border-[#dce5f0] bg-[#f7faff] p-6 shadow-[0_12px_34px_rgba(25,45,75,0.04)] sm:p-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -174,7 +174,7 @@ export default function StudentsPage() {
         </section>
 
         <StudentManagement />
-      </main>
+      </div>
     </DashboardShell>
   );
 }
