@@ -305,3 +305,5 @@ export function AdminPortal() {
         </>
       )}
     </div>
+    </DashboardShell>
+  );
