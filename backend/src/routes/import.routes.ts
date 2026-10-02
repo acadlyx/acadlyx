@@ -4,6 +4,7 @@ import * as controller from "../controllers/import.controller";
 import { authenticate } from "../middleware/authenticate";
 import { requireFeature } from "../middleware/requireFeature";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
+import { IMPORT_PERMISSION_BY_TYPE } from "../services/import.service";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -40,7 +41,7 @@ function authorizeImportType(
   res: Parameters<import("express").RequestHandler>[1],
   next: Parameters<import("express").RequestHandler>[2]
 ) {
-  const permission = IMPORT_TYPE_PERMISSIONS[req.params.type];
+  const permission = IMPORT_PERMISSION_BY_TYPE[req.params.type as keyof typeof IMPORT_PERMISSION_BY_TYPE];
   const user = requireAuthenticatedUser(req);
 
   if (!permission) {
