@@ -99,7 +99,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Import / Export",
-    href: "/imports",
+    href: "/admin/imports",
     icon: "⇅",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["imports.manage"],
@@ -210,7 +210,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/chairman/obe",
     icon: "◎",
     roles: ["CHAIRMAN"],
     permissions: ["obe.read"],
@@ -258,7 +258,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Import / Export",
-    href: "/imports",
+    href: "/director/imports",
     icon: "⇅",
     roles: ["DIRECTOR"],
     permissions: ["imports.manage"],
@@ -266,7 +266,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/examinations",
+    href: "/director/examinations",
     icon: "◉",
     roles: ["DIRECTOR"],
     permissions: ["exams.read"],
@@ -274,7 +274,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/director/obe",
     icon: "◎",
     roles: ["DIRECTOR"],
     permissions: ["obe.read"],
@@ -306,7 +306,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/dean/obe",
     icon: "◎",
     roles: ["DEAN"],
     permissions: ["obe.read"],
@@ -314,7 +314,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/examinations",
+    href: "/dean/examinations",
     icon: "◉",
     roles: ["DEAN"],
     permissions: ["exams.read"],
@@ -386,7 +386,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/hod/obe",
     icon: "◎",
     roles: ["HOD"],
     permissions: ["obe.read"],
@@ -394,7 +394,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/examinations",
+    href: "/hod/examinations",
     icon: "◉",
     roles: ["HOD"],
     permissions: ["exams.read"],
@@ -450,7 +450,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/faculty/obe",
     icon: "◎",
     roles: ["FACULTY"],
     permissions: ["obe.read"],
@@ -474,7 +474,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/examinations",
+    href: "/faculty/examinations",
     icon: "◉",
     roles: ["FACULTY"],
     permissions: ["exams.read"],
@@ -521,7 +521,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Fees",
-    href: "/fees",
+    href: "/accounts/fees",
     icon: "₹",
     roles: ["ACCOUNTS"],
     permissions: ["fees.read"],
@@ -602,7 +602,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Import / Export",
-    href: "/imports",
+    href: "/it/imports",
     icon: "⇅",
     roles: ["IT"],
     permissions: ["imports.manage"],
