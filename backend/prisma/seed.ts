@@ -48,6 +48,12 @@ const DEMO_USERS: Array<{
 ];
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "The development/demo seed is blocked in production. Use npm run prisma:seed:admin for platform bootstrap."
+    );
+  }
+
   console.log("Seeding ACADLYX demo data...");
 
   // --- Institution ---
