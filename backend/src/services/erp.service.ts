@@ -1985,21 +1985,21 @@ export async function listTimetableEntries(
       ...(filters.courseOfferingId
         ? { courseOfferingId: filters.courseOfferingId }
         : {}),
-      ...(actor.roles.includes("HOD")
+      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
         ? {
             courseOffering: {
-              course: {
-                departmentId: {
-                  in: hodDepartmentIds,
-                },
-              },
-            },
-          }
-        : {}),
-      ...(actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              facultyId: actor.id,
+              ...(actor.roles.includes("HOD")
+                ? {
+                    course: {
+                      departmentId: {
+                        in: hodDepartmentIds,
+                      },
+                    },
+                  }
+                : {}),
+              ...(actor.roles.includes("FACULTY")
+                ? { facultyId: actor.id }
+                : {}),
             },
           }
         : {}),
@@ -2247,264 +2247,49 @@ export async function deleteTimetableEntry(
 export async function listNotices(
   institutionId: string,
   actor: AuthenticatedUser,
-  includeExpired = false
+  includeExpired = true
 ) {
-  const actorRoles = getCanonicalRoleNames(actor.roles);
-
-  const canRead =
-    actorRoles.some((role) =>
-      [
-        "SUPER_ADMIN",
-        "INSTITUTION_ADMIN",
-        "CHAIRMAN",
-        "DIRECTOR",
-        "MANAGEMENT",
-        "DEAN",
-        "REGISTRAR",
-        "HOD",
-        "FACULTY",
-        "ACCOUNTS",
-        "HR",
-        "ADMISSIONS",
-        "EXAMINATION",
-        "LIBRARIAN",
-        "PLACEMENT",
-        "IT",
-        "STAFF",
-        "STUDENT",
-        "PARENT",
-      ].includes(role)
-    );
-
-  if (!canRead) {
-    throw new AppError(
-      "Not authorized to view notices",
-      403
-    );
-  }
-
-  const now = new Date();
-
-  const institutionWideRoles = [
-    "SUPER_ADMIN",
+  assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "CHAIRMAN",
     "DIRECTOR",
     "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
+    "HOD",
     "STAFF",
-  ];
-
-  const isInstitutionWide = actorRoles.some((role) =>
-    institutionWideRoles.includes(role)
-  );
-
-  let departmentIds: string[] = [];
-
-  if (actorRoles.includes("HOD")) {
-    departmentIds = await getHodDepartmentIds(
-      institutionId,
-      actor
-    );
-  }
-
-  if (actorRoles.includes("FACULTY")) {
-    const offerings = await prisma.courseOffering.findMany({
-      where: {
-        institutionId,
-        facultyId: actor.id,
-        isActive: true,
-      },
-      select: {
-        course: {
-          select: {
-            departmentId: true,
-          },
-        },
-      },
-    });
-
-    departmentIds.push(
-      ...offerings
-        .map((item) => item.course.departmentId)
-        .filter(Boolean)
-    );
-  }
-
-  if (actorRoles.includes("STUDENT")) {
-    const enrollments = await prisma.studentEnrollment.findMany({
-      where: {
-        institutionId,
-        userId: actor.id,
-        status: "ACTIVE",
-      },
-      select: {
-        program: {
-          select: {
-            departmentId: true,
-          },
-        },
-      },
-    });
-
-    departmentIds.push(
-      ...enrollments
-        .map((item) => item.program.departmentId)
-        .filter(Boolean)
-    );
-  }
-
-  if (actorRoles.includes("PARENT")) {
-    const links = await prisma.parentStudentLink.findMany({
-      where: {
-        institutionId,
-        parentId: actor.id,
-      },
-      select: {
-        student: {
-          select: {
-            studentEnrollments: {
-              where: {
-                institutionId,
-                status: "ACTIVE",
-              },
-              select: {
-                program: {
-                  select: {
-                    departmentId: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    for (const link of links) {
-      for (const enrollment of link.student.studentEnrollments) {
-        departmentIds.push(
-          enrollment.program.departmentId
-        );
-      }
-    }
-  }
-
-  departmentIds = Array.from(
-    new Set(departmentIds)
-  );
-
-  const audienceValues = new Set<string>([
-    "ALL",
   ]);
 
-  if (actorRoles.includes("STUDENT")) {
-    audienceValues.add("STUDENTS");
-    audienceValues.add("STUDENT");
-  }
-
-  if (actorRoles.includes("PARENT")) {
-    audienceValues.add("PARENTS");
-    audienceValues.add("PARENT");
-  }
-
-  if (actorRoles.includes("FACULTY")) {
-    audienceValues.add("FACULTY");
-    audienceValues.add("TEACHERS");
-  }
-
-  if (
-    actorRoles.some((role) =>
-      [
-        "ACCOUNTS",
-        "HR",
-        "ADMISSIONS",
-        "EXAMINATION",
-        "LIBRARIAN",
-        "PLACEMENT",
-        "IT",
-        "STAFF",
-      ].includes(role)
-    )
-  ) {
-    audienceValues.add("STAFF");
-  }
-
-  if (
-    actorRoles.some((role) =>
-      [
-        "INSTITUTION_ADMIN",
-        "CHAIRMAN",
-        "DIRECTOR",
-        "MANAGEMENT",
-        "DEAN",
-        "REGISTRAR",
-        "HOD",
-      ].includes(role)
-    )
-  ) {
-    audienceValues.add("ADMIN");
-    audienceValues.add("LEADERSHIP");
-    audienceValues.add("FACULTY");
-    audienceValues.add("STAFF");
-    audienceValues.add("STUDENTS");
-    audienceValues.add("PARENTS");
-  }
-
-  const where: Prisma.NoticeWhereInput = {
+  const now = new Date();
+  const hodDepartmentIds = await getHodDepartmentIds(
     institutionId,
-    publishedAt: {
-      lte: now,
-    },
-    ...(includeExpired
-      ? {}
-      : {
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: now } },
-          ],
-        }),
-  };
-
-  if (isInstitutionWide) {
-    where.audience = {
-      in: Array.from(audienceValues),
-    };
-  } else if (departmentIds.length > 0) {
-    where.OR = [
-      {
-        departmentId: null,
-        audience: {
-          in: Array.from(audienceValues),
-        },
-      },
-      {
-        departmentId: {
-          in: departmentIds,
-        },
-      },
-    ];
-  } else {
-    where.departmentId = null;
-    where.audience = {
-      in: Array.from(audienceValues),
-    };
-  }
+    actor
+  );
 
   return prisma.notice.findMany({
-    where,
-    orderBy: [
-      { publishedAt: "desc" },
-      { createdAt: "desc" },
-    ],
+    where: {
+      institutionId,
+      ...(includeExpired
+        ? {}
+        : {
+            OR: [
+              { expiresAt: null },
+              { expiresAt: { gt: now } },
+            ],
+          }),
+      ...(actor.roles.includes("HOD")
+        ? {
+            OR: [
+              { departmentId: null },
+              {
+                departmentId: {
+                  in: hodDepartmentIds,
+                },
+              },
+            ],
+          }
+        : {}),
+    },
+    orderBy: {
+      publishedAt: "desc",
+    },
   });
 }
 
@@ -2674,21 +2459,21 @@ export async function listExams(
       ...(courseOfferingId
         ? { courseOfferingId }
         : {}),
-      ...(actor.roles.includes("HOD")
+      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
         ? {
             courseOffering: {
-              course: {
-                departmentId: {
-                  in: hodDepartmentIds,
-                },
-              },
-            },
-          }
-        : {}),
-      ...(actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              facultyId: actor.id,
+              ...(actor.roles.includes("HOD")
+                ? {
+                    course: {
+                      departmentId: {
+                        in: hodDepartmentIds,
+                      },
+                    },
+                  }
+                : {}),
+              ...(actor.roles.includes("FACULTY")
+                ? { facultyId: actor.id }
+                : {}),
             },
           }
         : {}),
