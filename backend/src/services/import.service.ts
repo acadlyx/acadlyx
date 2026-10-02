@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { normalizeRoleName } from "../config/rbac";
 import { hashPassword } from "../utils/password";
 
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
@@ -68,9 +69,23 @@ function assertImportPermission(
   }
 }
 
-async function findOrCreateRole(tx: Prisma.TransactionClient, institutionId: string, name: string) {
-  const role = await tx.role.findFirst({ where: { institutionId, name } });
-  if (!role) throw new AppError(`Role ${name} is not configured for this institution`, 400);
+async function findOrCreateRole(
+  tx: Prisma.TransactionClient,
+  institutionId: string,
+  name: string
+) {
+  const normalizedName = normalizeRoleName(name) || name.trim().toUpperCase();
+  const role = await tx.role.findFirst({
+    where: { institutionId, name: normalizedName },
+  });
+
+  if (!role) {
+    throw new AppError(
+      `Role ${normalizedName} is not configured for this institution`,
+      400
+    );
+  }
+
   return role;
 }
 
@@ -135,7 +150,7 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
       const row = rows[i];
       try {
         if (type === "users") {
-          const roleName = text(row.role) || "STAFF";
+          const roleName = text(row.role) || "ACCOUNTS";
           if (roleName === "STUDENT") {
             throw new AppError(
               "STUDENT accounts cannot be created through the generic users import. Use the students import so the StudentProfile and enrollment are created together.",
