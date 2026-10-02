@@ -43,6 +43,42 @@ router.use(
 );
 
 router.get(
+  "/deleted",
+  authorize("users.read"),
+  userController.listDeleted,
+);
+
+router.get(
+  "/:id/lifecycle",
+  authorize("users.read"),
+  userController.lifecycleDetails,
+);
+
+router.post(
+  "/:id/deactivate",
+  authorize("users.update"),
+  userController.deactivateLifecycle,
+);
+
+router.post(
+  "/:id/reactivate",
+  authorize("users.update"),
+  userController.reactivateLifecycle,
+);
+
+router.post(
+  "/:id/delete",
+  authorize("users.delete"),
+  userController.softDeleteLifecycle,
+);
+
+router.post(
+  "/:id/recover",
+  authorize("users.update"),
+  userController.recoverLifecycle,
+);
+
+router.get(
   "/",
   authorize(
     "users.read",
