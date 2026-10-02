@@ -402,7 +402,6 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
     INSTITUTION_ADMIN: [
-    "obe.read", "obe.manage", "obe.reports.read", "obe.policy.manage",
     /*
      * Institution-wide administrative role.
      *
@@ -495,9 +494,6 @@ export const ROLE_PERMISSIONS: Record<
      * backend keeps the real security boundary here. The frontend
      * /examinations workspace renders read-only for this role.
      */
-    "exams.read",
-    "marks.read",
-
     "operations.read",
     "operations.manage",
     "maintenance.raise",
