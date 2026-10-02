@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { v2 as cloudinary } from "cloudinary";
 import { AppError } from "../middleware/errorHandler";
 import * as institutionService from "../services/institution.service";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -9,7 +8,7 @@ import {
   UpdateInstitutionInput,
 } from "../validators/institution.validators";
 import * as entitlementService from "../services/entitlement.service";
-import { env } from "../config/env";
+import { storeFile } from "../services/fileStorage.service";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 
 function requireSuperAdmin(req: Request): void {
@@ -135,14 +134,29 @@ export const uploadLogo = asyncHandler(async (req: Request, res: Response) => {
   requireSuperAdmin(req);
   if (!req.file) throw new AppError("Logo image is required", 400);
   assertSafeImageUpload(req.file);
-  if (!env.cloudinaryCloudName || !env.cloudinaryApiKey || !env.cloudinaryApiSecret) {
-    throw new AppError("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.", 503);
-  }
-  cloudinary.config({ cloud_name: env.cloudinaryCloudName, api_key: env.cloudinaryApiKey, api_secret: env.cloudinaryApiSecret });
-  const result = await new Promise<any>((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream({ folder: "acadlyx/tenant-logos", resource_type: "image" }, (error, value) => error ? reject(error) : resolve(value));
-    stream.end(req.file!.buffer);
+
+  const stored = await storeFile({
+    institutionId: req.params.id,
+    module: "site",
+    buffer: req.file.buffer,
+    filename: req.file.originalname,
+    mimeType: req.file.mimetype,
+    visibility: "public",
+    resourceType: "image",
+    referenceId: req.params.id,
   });
-  const institution = await institutionService.updateInstitution(req.params.id, { logoUrl: result.secure_url });
-  res.status(201).json({ success: true, data: institution });
+
+  const institution = await institutionService.updateInstitution(req.params.id, {
+    logoUrl: stored.secureUrl,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: institution,
+    file: {
+      id: stored.id,
+      url: stored.secureUrl,
+      publicId: stored.publicId,
+    },
+  });
 });
