@@ -13,7 +13,11 @@ import {
   nextSequenceNumber,
   requireTenantRow,
 } from "../utils/sqlScope";
-import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
+import {
+  assertCanViewStudent,
+  getManagedDepartmentIds,
+  isInstitutionWide,
+} from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 import { assertFeeApprovalAuthority } from "./workflowAuthority.service";
 import { getPaymentGateway, paymentCurrency } from "./payments/gateway";
