@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -161,34 +160,17 @@ export function AdminPortal() {
           </p>
 
           <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-            Everything you are authorized to operate,
-            in one place.
+            Your institution workspace, organized by responsibility.
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
-            Every workspace below is permission-driven.
-            Move between modules without losing the
-            mounted admin shell.
+            Use the sections below to access authorized administrative functions without leaving your workspace.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2.5">
-            {user?.permissions.includes(
-              "users.read",
-            ) ? (
-              <Link
-                href="/admin/users"
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-              >
-                Manage people
-              </Link>
-            ) : null}
-
-            <Link
-              href="/account-security"
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black"
-            >
-              Security
-            </Link>
+            <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white/90">
+              Institution administration
+            </span>
           </div>
         </div>
       </section>
