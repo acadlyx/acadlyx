@@ -450,6 +450,7 @@ export const generateInvoicesSchema = z.object({
 export const invoiceListQuery = z.object({
   ...pageQuery,
   studentId: optionalUuid,
+  departmentId: optionalUuid,
   status: z
     .enum(["PENDING", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"])
     .optional(),
