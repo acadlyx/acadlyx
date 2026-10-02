@@ -427,6 +427,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Academic masters",
+    href: "/erp",
+    icon: "▦",
+    roles: ["REGISTRAR"],
+    permissions: ["academic-years.read"],
+    group: "Academic",
+  },
+  {
     label: "Course registration",
     href: "/course-registration",
     icon: "▦",
