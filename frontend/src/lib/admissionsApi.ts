@@ -237,6 +237,24 @@ body: JSON.stringify(input),
 return res.data;
 }
 
+export interface UpdateAdmissionApplicationInput extends Partial<CreateAdmissionApplicationInput> {
+  notes?: string;
+}
+
+export async function updateAdmissionApplication(
+  id: string,
+  input: UpdateAdmissionApplicationInput,
+): Promise<AdmissionApplication> {
+  const res = await authedFetch<ApiEnvelope<AdmissionApplication>>(
+    `/admissions/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+  return res.data;
+}
+
 export async function changeAdmissionStatus(
 id: string,
 status: AdmissionStatus,
