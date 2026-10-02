@@ -1245,6 +1245,214 @@ export async function getMyWorkspace(
     };
   }
 
+  /*
+   * SPECIALIST WORKSPACES
+   *
+   * Specialists use focused KPI summaries at the workspace root. Detail
+   * screens remain the source of truth and enforce their own permissions.
+   */
+  const canonicalRoles = getCanonicalRoleNames(actor.roles);
+
+  if (canonicalRoles.includes("ACCOUNTS")) {
+    const [students, invoices, payments, invoiceTotals] =
+      await Promise.all([
+        prisma.user.count({
+          where: {
+            institutionId,
+            isActive: true,
+            userRoles: { some: { role: { name: "STUDENT" } } },
+          },
+        }),
+        prisma.feeInvoice.count({ where: { institutionId } }),
+        prisma.feePayment.count({ where: { institutionId } }),
+        prisma.feeInvoice.aggregate({
+          where: { institutionId },
+          _sum: { amount: true, paidAmount: true },
+        }),
+      ]);
+
+    return {
+      workspaceType: "ACCOUNTS",
+      stats: {
+        students,
+        invoices,
+        payments,
+        outstanding: Math.max(
+          0,
+          Number(invoiceTotals._sum.amount ?? 0) -
+            Number(invoiceTotals._sum.paidAmount ?? 0)
+        ),
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("HR")) {
+    const [employees, activeEmployees, pendingLeave] = await Promise.all([
+      prisma.employeeProfile.count({ where: { institutionId } }),
+      prisma.employeeProfile.count({
+        where: { institutionId, status: "ACTIVE" },
+      }),
+      prisma.leaveRequest.count({
+        where: { institutionId, status: "PENDING" },
+      }),
+    ]);
+
+    return {
+      workspaceType: "HR",
+      stats: {
+        employees,
+        activeEmployees,
+        pendingLeave,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("ADMISSIONS")) {
+    const [applications, submitted, selected, enrolled] = await Promise.all([
+      prisma.admissionApplication.count({
+        where: { institutionId },
+      }),
+      prisma.admissionApplication.count({
+        where: { institutionId, status: "SUBMITTED" },
+      }),
+      prisma.admissionApplication.count({
+        where: { institutionId, status: "SELECTED" },
+      }),
+      prisma.admissionApplication.count({
+        where: { institutionId, status: "ENROLLED" },
+      }),
+    ]);
+
+    return {
+      workspaceType: "ADMISSIONS",
+      stats: {
+        applications,
+        submitted,
+        selected,
+        enrolled,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("EXAMINATION")) {
+    const [exams, upcomingExams, results] = await Promise.all([
+      prisma.exam.count({ where: { institutionId } }),
+      prisma.exam.count({
+        where: {
+          institutionId,
+          examDate: { gte: now },
+        },
+      }),
+      prisma.examResult.count({ where: { institutionId } }),
+    ]);
+
+    return {
+      workspaceType: "EXAMINATION",
+      stats: {
+        exams,
+        upcomingExams,
+        results,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("LIBRARIAN")) {
+    const [books, issued, overdue] = await Promise.all([
+      prisma.libraryBook.count({
+        where: { institutionId, isActive: true },
+      }),
+      prisma.libraryIssue.count({
+        where: { institutionId, status: "ISSUED" },
+      }),
+      prisma.libraryIssue.count({
+        where: {
+          institutionId,
+          status: "ISSUED",
+          dueDate: { lt: now },
+        },
+      }),
+    ]);
+
+    return {
+      workspaceType: "LIBRARIAN",
+      stats: {
+        books,
+        issued,
+        overdue,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("PLACEMENT")) {
+    const [opportunities, applications] = await Promise.all([
+      prisma.opportunity.count({
+        where: { institutionId, isActive: true },
+      }),
+      prisma.application.count({
+        where: { institutionId },
+      }),
+    ]);
+
+    return {
+      workspaceType: "PLACEMENT",
+      stats: {
+        opportunities,
+        applications,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("IT")) {
+    const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const [users, activeUsers, recentAuditEvents] = await Promise.all([
+      prisma.user.count({ where: { institutionId } }),
+      prisma.user.count({ where: { institutionId, isActive: true } }),
+      prisma.auditLog.count({
+        where: {
+          institutionId,
+          createdAt: { gte: since },
+        },
+      }),
+    ]);
+
+    return {
+      workspaceType: "IT",
+      stats: {
+        users,
+        activeUsers,
+        recentAuditEvents,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("CMS")) {
+    const [notices, notifications] = await Promise.all([
+      prisma.notice.count({ where: { institutionId } }),
+      prisma.notification.count({ where: { institutionId } }),
+    ]);
+
+    return {
+      workspaceType: "CMS",
+      stats: {
+        notices,
+        notifications,
+      },
+    };
+  }
+
+  if (canonicalRoles.includes("CLUB_PRESIDENT")) {
+    const notifications = await prisma.notification.count({
+      where: { institutionId, userId: actor.id },
+    });
+
+    return {
+      workspaceType: "CLUB_PRESIDENT",
+      stats: {
+        notifications,
+      },
+    };
+  }
+
   throw new AppError(
     "No supported ERP workspace is assigned to this user",
     403
