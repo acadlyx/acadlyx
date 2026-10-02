@@ -453,6 +453,21 @@ export function UnifiedDashboardFrame({
   }, [pathname]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("acadlyx-drawer-open", mobileOpen);
+    return () => document.body.classList.remove("acadlyx-drawer-open");
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
+  useEffect(() => {
     const handler = () => {
       setMobileOpen(false);
       setUserMenuOpen(false);
@@ -514,7 +529,7 @@ export function UnifiedDashboardFrame({
     };
 
   return (
-    <div className="min-h-screen bg-[#e4eaf2]">
+    <div className="acadlyx-app-shell min-h-screen">
       {/* =========================================================
           DESKTOP HEADER
          ========================================================= */}
@@ -682,7 +697,7 @@ export function UnifiedDashboardFrame({
           onClick={() =>
             setMobileOpen(false)
           }
-          className="fixed inset-0 z-[70] bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-[70] bg-slate-950/35 lg:hidden"
         />
       ) : null}
 
@@ -869,7 +884,7 @@ export function UnifiedDashboardFrame({
           }}
         >
           <div className="min-h-[calc(100vh-72px)] min-w-0 overflow-x-clip bg-[#eee7dc]">
-            <div className="mx-auto w-full min-w-0 max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
+            <div className="acadlyx-page-container">
               {children}
             </div>
           </div>
