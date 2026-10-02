@@ -1123,10 +1123,45 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ],
 
   [
+    "/course-registration",
+    [
+      "REGISTRAR",
+      "HOD",
+      "DEAN",
+      "DIRECTOR",
+      "STUDENT",
+    ],
+  ],
+
+  [
+    "/student-promotion",
+    [
+      "REGISTRAR",
+      "HOD",
+      "DEAN",
+      "DIRECTOR",
+    ],
+  ],
+
+  [
     "/certificates",
     [
       "REGISTRAR",
       "STUDENT",
+    ],
+  ],
+
+  [
+    "/results",
+    [
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STUDENT",
+      "PARENT",
     ],
   ],
 
@@ -1177,10 +1212,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "STUDENT",
     ],
   ],
-
-  ["/accounts", ["ACCOUNTS"]],
-
-  ["/hr", ["HR"]],
 
   ["/employees", ["HR"]],
 
