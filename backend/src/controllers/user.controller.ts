@@ -493,3 +493,24 @@ export const recoverLifecycle = asyncHandler(async (req: Request, res: Response)
   const data = await userLifecycleService.recoverUser(req.params.id, actor, reason);
   res.status(200).json({ success: true, data });
 });
+
+
+export const forcePasswordChange = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  res.status(200).json({ success: true, data: await userLifecycleService.forcePasswordChange(req.params.id, actor) });
+});
+
+export const revokeSessions = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  res.status(200).json({ success: true, data: await userLifecycleService.revokeUserSessions(req.params.id, actor) });
+});
+
+export const unlock = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  res.status(200).json({ success: true, data: await userLifecycleService.unlockUser(req.params.id, actor) });
+});
+
+export const issuePasswordReset = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  res.status(200).json({ success: true, data: await userLifecycleService.issuePasswordReset(req.params.id, actor) });
+});
