@@ -48,7 +48,7 @@ export function StudentNotificationsPage() {
   };
 
   return <DashboardShell title="Notifications" subtitle="Institutional updates addressed to you" allowedRoles={["STUDENT"]}>
-    <main className="mx-auto max-w-4xl space-y-4">
+    <main className="acadlyx-page-container">
       {loading && <div className="space-y-3"><div className="h-16 animate-pulse rounded-lg bg-slate-200" /><div className="h-32 animate-pulse rounded-lg bg-slate-200" /></div>}
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}<button onClick={() => load(data?.pagination.page)} className="ml-3 font-semibold underline">Retry</button></div>}
       {!loading && data && <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
