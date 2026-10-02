@@ -523,7 +523,6 @@ export const ROLE_PERMISSIONS: Record<
 
   DIRECTOR: [
     "obe.read", "obe.reports.read", "obe.attainment.approve",
-    "imports.manage",
     ...LEADERSHIP_READ,
 
     "reports.read",
@@ -905,7 +904,6 @@ export const ROLE_PERMISSIONS: Record<
   IT: [
     "users.read",
     "users.update",
-    "imports.manage",
 
     "reports.read",
     "audit.read",
