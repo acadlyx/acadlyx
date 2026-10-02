@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { INSTITUTION_WIDE_ROLES } from "./accessScope.service";
 
 export const EXPORT_TYPES = [
   "students",
@@ -31,12 +32,17 @@ export type ExportFormat = "xlsx" | "csv";
 type Row = Record<string, string | number | boolean | null>;
 
 function assertExportAccess(actor: AuthenticatedUser) {
-  if (
-    actor.roles.includes("SUPER_ADMIN") ||
-    actor.permissions.includes("imports.manage") ||
-    actor.permissions.includes("reports.read")
-  ) return;
-  throw new AppError("Export permission required", 403);
+  const roles = new Set(actor.roles.map((role) => role.toUpperCase()));
+  const isInstitutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
+
+  if (isInstitutionWide && actor.permissions.includes("reports.read")) {
+    return;
+  }
+
+  throw new AppError(
+    "This export requires institution-wide reporting authority. Use the scoped attendance export for faculty or HOD reporting.",
+    403,
+  );
 }
 
 function clean(value: unknown): string | number | boolean | null {
