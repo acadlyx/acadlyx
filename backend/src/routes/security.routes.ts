@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { env } from "../config/env";
 
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
@@ -44,7 +45,7 @@ router.post(
      * from the admin console. With MAIL_ENABLED=true it is emailed and
      * the response carries nothing exploitable.
      */
-    const exposeToken = process.env.MAIL_ENABLED !== "true";
+    const exposeToken = env.emailProvider === "disabled";
 
     sendOk(res, {
       message:
@@ -163,7 +164,7 @@ router.post(
     );
     sendOk(res, {
       expiresAt: issued.expiresAt,
-      ...(process.env.MAIL_ENABLED !== "true" && issued.token
+      ...(env.emailProvider === "disabled" && issued.token
         ? { resetToken: issued.token }
         : {}),
     });
