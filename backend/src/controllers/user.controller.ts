@@ -477,13 +477,14 @@ export const softDeleteLifecycle = asyncHandler(async (req: Request, res: Respon
 
 export const listDeleted = asyncHandler(async (req: Request, res: Response) => {
   const actor = requireUserManagementRole(req);
-  const page = Math.max(1, Number(req.query.page) || 1);
-  const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+  const pagination = parsePagination(req);
+  const page = pagination.page;
+  const pageSize = pagination.pageSize;
   const role = typeof req.query.role === "string" ? req.query.role : undefined;
   const search = typeof req.query.search === "string" ? req.query.search : undefined;
   const expiringSoon = req.query.expiringSoon === "true";
   const result = await userLifecycleService.listDeletedUsers(actor, { page, pageSize, role, search, expiringSoon });
-  res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, { page, pageSize }) });
+  res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, pagination) });
 });
 
 export const recoverLifecycle = asyncHandler(async (req: Request, res: Response) => {
