@@ -1020,7 +1020,8 @@ function AdminPeopleManagerContent() {
       : "People";
 
   return (
-    <div className="flex justify-end"><Link href="/admin/users/deleted" className="acadlyx-button-secondary">Deleted Users</Link></div><div className="mx-auto max-w-[1320px] space-y-6 pb-10">
+    <div className="mx-auto max-w-[1320px] space-y-6 pb-10">
+      <div className="flex justify-end"><Link href="/admin/users/deleted" className="acadlyx-button-secondary">Deleted Users</Link></div>
       {error ? (
         <div className="flex items-center justify-between gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
