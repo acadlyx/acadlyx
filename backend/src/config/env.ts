@@ -25,6 +25,16 @@ interface EnvConfig {
   cloudinaryApiSecret: string | undefined;
   storageProvider: string;
   storageSignedUrlTtlSeconds: number;
+
+  emailProvider: string;
+  emailApiKey: string | undefined;
+  emailFrom: string | undefined;
+
+  paymentProvider: string;
+  paymentKeyId: string | undefined;
+  paymentKeySecret: string | undefined;
+  paymentWebhookSecret: string | undefined;
+  paymentCurrency: string;
 }
 
 function normalizeOrigin(value: string): string {
@@ -116,6 +126,16 @@ export const env: EnvConfig = {
 
   storageSignedUrlTtlSeconds:
     positiveInteger(process.env.STORAGE_SIGNED_URL_TTL_SECONDS, 900),
+
+  emailProvider: (process.env.EMAIL_PROVIDER || "disabled").toLowerCase(),
+  emailApiKey: process.env.EMAIL_API_KEY,
+  emailFrom: process.env.EMAIL_FROM,
+
+  paymentProvider: (process.env.PAYMENT_PROVIDER || "manual").toLowerCase(),
+  paymentKeyId: process.env.PAYMENT_KEY_ID,
+  paymentKeySecret: process.env.PAYMENT_KEY_SECRET,
+  paymentWebhookSecret: process.env.PAYMENT_WEBHOOK_SECRET,
+  paymentCurrency: process.env.PAYMENT_CURRENCY || "INR",
 };
 
 export const isProduction =
@@ -193,6 +213,24 @@ export function assertAuthEnv(): void {
   if (isProduction && corsOrigins.some((origin) => origin === "*")) {
     throw new Error(
       "CORS_ORIGIN cannot contain * in production."
+    );
+  }
+
+  if (isProduction && env.emailProvider !== "disabled" && (!env.emailApiKey || !env.emailFrom)) {
+    throw new Error(
+      "Configured email provider requires EMAIL_API_KEY and EMAIL_FROM in production."
+    );
+  }
+
+  if (isProduction && env.paymentProvider !== "manual" && env.paymentProvider !== "razorpay") {
+    throw new Error(
+      `Unsupported production payment provider: ${env.paymentProvider}. Currently supported online provider: razorpay.`
+    );
+  }
+
+  if (isProduction && env.paymentProvider === "razorpay" && (!env.paymentKeyId || !env.paymentKeySecret || !env.paymentWebhookSecret)) {
+    throw new Error(
+      "Razorpay production payments require PAYMENT_KEY_ID, PAYMENT_KEY_SECRET and PAYMENT_WEBHOOK_SECRET."
     );
   }
 
