@@ -297,7 +297,7 @@ export default function ObePage() {
     <DashboardShell
       title="Outcome Based Education"
       subtitle="CO–PO/PSO mapping, assessment evidence and attainment"
-      allowedRoles={["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "EXAMINATION", "STUDENT"]}
+      allowedRoles={["CHAIRMAN", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "EXAMINATION", "STUDENT"]}
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
