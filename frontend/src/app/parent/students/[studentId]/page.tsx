@@ -189,7 +189,7 @@ export default function ParentStudentPortalPage() {
   } = data;
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
+    <main className="acadlyx-page-container">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <Link
