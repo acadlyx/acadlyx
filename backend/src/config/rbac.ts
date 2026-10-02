@@ -556,6 +556,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DEAN: [
+    "fees.read",
     "obe.read", "obe.reports.read", "obe.attainment.approve",
     "students.read",
     "attendance.read",
@@ -659,6 +660,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HOD: [
+    "fees.read",
     "obe.read", "obe.manage", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
     "people.import",
