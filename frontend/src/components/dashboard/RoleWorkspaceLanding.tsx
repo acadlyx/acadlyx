@@ -159,16 +159,6 @@ export function RoleWorkspaceLanding({
     router,
   ]);
 
-  if (
-    currentRole &&
-    currentRole !== role
-  ) {
-    return null;
-  }
-
-  const meta =
-    WORKSPACE_META[role];
-
   const [workspaceStats, setWorkspaceStats] =
     useState<Record<string, number>>({});
 
@@ -207,6 +197,16 @@ export function RoleWorkspaceLanding({
   const statEntries = Object.entries(workspaceStats)
     .filter(([, value]) => Number.isFinite(Number(value)))
     .slice(0, 6);
+
+  if (
+    currentRole &&
+    currentRole !== role
+  ) {
+    return null;
+  }
+
+  const meta =
+    WORKSPACE_META[role];
 
   const available =
     user
