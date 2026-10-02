@@ -18,6 +18,11 @@ export const INSTITUTION_WIDE_ROLES = [
   "CHAIRMAN",
   "DEAN",
   "REGISTRAR",
+  "ACCOUNTS",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "PLACEMENT",
 ];
 
 export function hasAnyRole(
