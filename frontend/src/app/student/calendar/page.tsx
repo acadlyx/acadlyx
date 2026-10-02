@@ -44,7 +44,7 @@ export default function StudentCalendarPage() {
   const chosenEvents = selected ? eventsByDate[selected] || [] : [];
 
   return <DashboardShell title="Academic Calendar" subtitle="Published examinations and academic dates" allowedRoles={["STUDENT"]}>
-    <main className="mx-auto max-w-5xl space-y-4">
+    <main className="acadlyx-page-container">
       {loading && <div className="h-96 animate-pulse rounded-lg bg-slate-200" />}
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}<button onClick={load} className="ml-3 font-semibold underline">Retry</button></div>}
       {!loading && !error && <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
