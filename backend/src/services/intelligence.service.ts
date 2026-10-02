@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -44,12 +45,28 @@ export async function getStudentIntelligence(institutionId: string, studentId: s
 
 export async function getInstitutionInsights(institutionId: string, filters: { departmentId?: string; programId?: string; semesterId?: string; from?: Date; to?: Date } = {}) {
   const enrollmentWhere = { institutionId, ...(filters.programId ? { programId: filters.programId } : {}), ...(filters.departmentId ? { program: { departmentId: filters.departmentId } } : {}), ...(filters.semesterId ? { section: { semesterId: filters.semesterId } } : {}) };
+  const assignmentWhere: Prisma.AssignmentWhereInput = {
+    institutionId,
+    status: "PUBLISHED",
+    dueDate: { lt: new Date() },
+    submissions: { none: {} },
+    ...(filters.departmentId
+      ? { courseOffering: { course: { departmentId: filters.departmentId } } }
+      : {}),
+    ...(filters.programId
+      ? { courseOffering: { section: { semester: { programId: filters.programId } } } }
+      : {}),
+    ...(filters.semesterId
+      ? { courseOffering: { section: { semesterId: filters.semesterId } } }
+      : {}),
+  };
+
   const [students, departments, faculty, attendance, pendingAssignments] = await Promise.all([
     prisma.studentEnrollment.count({ where: enrollmentWhere }),
     prisma.department.count({ where: { institutionId, ...(filters.departmentId ? { id: filters.departmentId } : {}) } }),
-    prisma.user.count({ where: { institutionId, facultyCourseOfferings: { some: filters.departmentId ? { course: { departmentId: filters.departmentId } } : {} } } }),
-    prisma.attendanceRecord.groupBy({ by: ["status"], where: { attendanceSession: { institutionId, ...(filters.departmentId ? { courseOffering: { course: { departmentId: filters.departmentId } } } : {}), ...((filters.from || filters.to) ? { sessionDate: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}) } }, _count: { _all: true } }),
-    prisma.assignment.count({ where: { institutionId, status: "PUBLISHED", dueDate: { lt: new Date() }, submissions: { none: {} } } }),
+    prisma.user.count({ where: { institutionId, facultyCourseOfferings: { some: filters.departmentId ? { course: { departmentId: filters.departmentId } } : filters.programId ? { semester: { programId: filters.programId } } : filters.semesterId ? { semesterId: filters.semesterId } : {} } } }),
+    prisma.attendanceRecord.groupBy({ by: ["status"], where: { attendanceSession: { institutionId, ...(filters.departmentId ? { courseOffering: { course: { departmentId: filters.departmentId } } } : {}), ...(filters.programId ? { courseOffering: { semester: { programId: filters.programId } } } : {}), ...(filters.semesterId ? { courseOffering: { semesterId: filters.semesterId } } : {}), ...((filters.from || filters.to) ? { sessionDate: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}) } }, _count: { _all: true } }),
+    prisma.assignment.count({ where: assignmentWhere }),
   ]);
   const totalAttendance = attendance.reduce((n, x) => n + x._count._all, 0);
   const present = attendance.find(x => x.status === "PRESENT")?._count._all || 0;
