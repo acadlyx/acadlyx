@@ -218,8 +218,8 @@ const ROLE_META: Record<LeadershipRole, RoleMeta> = {
       {
         label: "Enrollment",
         description:
-          "Open authorized enrollment and student-lifecycle workflows.",
-        href: "/enrollment",
+          "Open authorized registration and student-lifecycle workflows.",
+        href: "/course-registration",
         permissions: ["registration.manage", "students.update"],
       },
       {
