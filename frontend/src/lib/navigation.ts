@@ -867,15 +867,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
-    label: "Club",
-    href: "/club-president",
-    icon: "◎",
-    roles: ["CLUB_PRESIDENT"],
-    permissions: ["club.read"],
-    group: "Club",
-  },
-
-  {
     label: "Account security",
     href: "/account-security",
     icon: "◉",
