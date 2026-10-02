@@ -26,8 +26,6 @@ export type DashboardNavigationItem = {
   children?: DashboardNavigationItem[];
 };
 
-export type UnifiedNavItem = DashboardNavigationItem;
-
 type UnifiedDashboardFrameProps = {
   children: ReactNode;
   navigation?: DashboardNavigationItem[];
@@ -37,11 +35,6 @@ type UnifiedDashboardFrameProps = {
   userRole?: string;
   userEmail?: string;
   institutionName?: string;
-  activeHref?: string | null;
-  homeHref?: string;
-  workspaceLabel?: string;
-  roleLabel?: string;
-  loading?: boolean;
   logoUrl?: string | null;
   onSignOut?: () => void | Promise<void>;
 };
@@ -207,7 +200,7 @@ function NavigationIcon({
         "grid h-10 w-10 shrink-0 place-items-center rounded-[13px] transition",
         active
           ? "bg-white/15 text-white"
-          : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600",
+          : "bg-white/5 text-slate-400 group-hover:bg-blue-500/15 group-hover:text-blue-200",
       ].join(" ")}
     >
       <SvgIcon
@@ -244,7 +237,7 @@ function NavigationItem({
         "group relative flex min-h-[52px] items-center gap-3 rounded-[15px] px-2.5 transition-all duration-150",
         active
           ? "bg-blue-600 text-white shadow-[0_8px_22px_rgba(37,99,235,0.22)]"
-          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+          : "text-slate-300 hover:bg-white/10 hover:text-white",
         collapsed
           ? "justify-center"
           : "justify-start",
@@ -267,7 +260,7 @@ function NavigationItem({
                 "rounded-full px-2 py-0.5 text-[10px] font-bold",
                 active
                   ? "bg-white/15 text-white"
-                  : "bg-blue-50 text-blue-700",
+                  : "bg-blue-500/15 text-blue-200",
               ].join(" ")}
             >
               {item.badge}
@@ -318,11 +311,11 @@ function BrandMark({
 
       {!collapsed ? (
         <div className="min-w-0">
-          <div className="truncate text-[16px] font-extrabold tracking-tight text-slate-950">
+          <div className="truncate text-[16px] font-extrabold tracking-tight text-white">
             ACADLYX
           </div>
 
-          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
             Education Platform
           </div>
         </div>
@@ -356,7 +349,7 @@ function UserAvatar({
   }, [userName]);
 
   return (
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-[12px] font-bold text-blue-700">
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-500/15 text-[12px] font-bold text-blue-200">
       {initials}
     </span>
   );
@@ -371,11 +364,6 @@ export function UnifiedDashboardFrame({
   userRole,
   userEmail,
   institutionName,
-  activeHref,
-  homeHref = "/",
-  workspaceLabel,
-  roleLabel,
-  loading = false,
   logoUrl,
   onSignOut,
 }: UnifiedDashboardFrameProps) {
@@ -470,12 +458,10 @@ export function UnifiedDashboardFrame({
 
   const activeItem =
     allNavigation.find((item) =>
-      activeHref
-        ? item.href === activeHref
-        : matchesPath(
-            pathname,
-            item.href,
-          ),
+      matchesPath(
+        pathname,
+        item.href,
+      ),
     );
 
   const sidebarWidth =
@@ -495,12 +481,12 @@ export function UnifiedDashboardFrame({
     };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#e4eaf2]">
       {/* =========================================================
           DESKTOP HEADER
          ========================================================= */}
       <header
-        className="fixed inset-x-0 top-0 z-[60] h-[72px] border-b border-slate-200/90 bg-white/95 shadow-[0_2px_14px_rgba(15,23,42,0.04)] backdrop-blur"
+        className="fixed inset-x-0 top-0 z-[60] h-[72px] border-b border-white/10 bg-[#0b1324]/96 shadow-[0_2px_14px_rgba(15,23,42,0.04)] backdrop-blur"
       >
         <div className="flex h-full items-center justify-between px-3 sm:px-5 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -509,7 +495,7 @@ export function UnifiedDashboardFrame({
               onClick={() =>
                 setMobileOpen(true)
               }
-              className="grid h-10 w-10 place-items-center rounded-[12px] text-slate-600 hover:bg-slate-100 lg:hidden"
+              className="grid h-10 w-10 place-items-center rounded-[12px] text-slate-300 hover:bg-white/10 lg:hidden"
               aria-label="Open navigation"
             >
               <SvgIcon name="menu" />
@@ -523,32 +509,25 @@ export function UnifiedDashboardFrame({
             </div>
 
             <div className="min-w-0">
-              {workspaceLabel ? (
-                <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  {workspaceLabel}
-                </p>
-              ) : null}
               {title ? (
-                <div className="truncate text-[15px] font-bold text-slate-900 sm:text-[16px]">
+                <div className="truncate text-[15px] font-bold text-white sm:text-[16px]">
                   {title}
                 </div>
               ) : activeItem ? (
-                <div className="truncate text-[15px] font-bold text-slate-900 sm:text-[16px]">
+                <div className="truncate text-[15px] font-bold text-white sm:text-[16px]">
                   {activeItem.label}
                 </div>
               ) : (
-                <div className="truncate text-[15px] font-bold text-slate-900">
+                <div className="truncate text-[15px] font-bold text-white">
                   ACADLYX
                 </div>
               )}
 
               {(subtitle ||
-                institutionName ||
-                loading) ? (
-                <div className="hidden truncate text-[11px] font-medium text-slate-400 sm:block">
-                  {loading
-                    ? "Loading workspace…"
-                    : subtitle || institutionName}
+                institutionName) ? (
+                <div className="hidden truncate text-[11px] font-medium text-slate-500 sm:block">
+                  {subtitle ||
+                    institutionName}
                 </div>
               ) : null}
             </div>
@@ -562,7 +541,7 @@ export function UnifiedDashboardFrame({
                   (value) => !value,
                 )
               }
-              className="hidden h-10 w-10 place-items-center rounded-[12px] text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:grid"
+              className="hidden h-10 w-10 place-items-center rounded-[12px] text-slate-300 hover:bg-white/10 hover:text-white lg:grid"
               title={
                 collapsed
                   ? "Show sidebar"
@@ -589,7 +568,7 @@ export function UnifiedDashboardFrame({
                       !value,
                   )
                 }
-                className="flex items-center gap-2 rounded-[13px] px-1.5 py-1.5 hover:bg-slate-100"
+                className="flex items-center gap-2 rounded-[13px] px-1.5 py-1.5 hover:bg-white/10"
                 aria-expanded={
                   userMenuOpen
                 }
@@ -599,13 +578,13 @@ export function UnifiedDashboardFrame({
                 />
 
                 <span className="hidden max-w-[180px] text-left md:block">
-                  <span className="block truncate text-[12px] font-bold text-slate-800">
+                  <span className="block truncate text-[12px] font-bold text-white">
                     {userName ||
                       "User"}
                   </span>
 
                   <span className="block truncate text-[10px] font-medium text-slate-400">
-                    {roleLabel || userRole ||
+                    {userRole ||
                       "Account"}
                   </span>
                 </span>
@@ -622,15 +601,15 @@ export function UnifiedDashboardFrame({
               </button>
 
               {userMenuOpen ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[280px] overflow-hidden rounded-[18px] border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,23,42,0.14)]">
-                  <div className="rounded-[14px] bg-slate-50 p-3">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[280px] overflow-hidden rounded-[18px] border border-slate-200 bg-[#101a2d] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.32)]">
+                  <div className="rounded-[14px] bg-white/5 p-3">
                     <div className="flex items-center gap-3">
                       <UserAvatar
                         userName={userName}
                       />
 
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-bold text-slate-900">
+                        <div className="truncate text-[13px] font-bold text-white">
                           {userName ||
                             "User"}
                         </div>
@@ -643,7 +622,7 @@ export function UnifiedDashboardFrame({
                     </div>
 
                     {userRole ? (
-                      <div className="mt-2 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-500">
+                      <div className="mt-2 rounded-lg bg-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-slate-300">
                         {userRole}
                       </div>
                     ) : null}
@@ -651,7 +630,7 @@ export function UnifiedDashboardFrame({
 
                   <Link
                     href="/account-security"
-                    className="mt-2 flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                    className="mt-2 flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-[12px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white"
                     onClick={() =>
                       setUserMenuOpen(
                         false,
@@ -670,7 +649,7 @@ export function UnifiedDashboardFrame({
                     onClick={
                       handleSignOut
                     }
-                    className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-left text-[12px] font-semibold text-red-600 hover:bg-red-50"
+                    className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-left text-[12px] font-semibold text-red-600 hover:bg-red-500/10"
                   >
                     <SvgIcon
                       name="logout"
@@ -704,7 +683,7 @@ export function UnifiedDashboardFrame({
          ========================================================= */}
       <aside
         className={[
-          "fixed bottom-0 left-0 top-[72px] z-[75] border-r border-slate-200 bg-white transition-all duration-200 ease-out",
+          "fixed bottom-0 left-0 top-[72px] z-[75] border-r border-white/10 bg-[#0b1324] transition-all duration-200 ease-out",
           mobileOpen
             ? "translate-x-0"
             : "-translate-x-full lg:translate-x-0",
@@ -715,7 +694,7 @@ export function UnifiedDashboardFrame({
       >
         <div className="flex h-full flex-col">
           {/* Mobile header */}
-          <div className="flex h-[62px] items-center justify-between border-b border-slate-100 px-3 lg:hidden">
+          <div className="flex h-[62px] items-center justify-between border-b border-white/10 px-3 lg:hidden">
             <BrandMark
               logoUrl={logoUrl}
               collapsed={false}
@@ -726,7 +705,7 @@ export function UnifiedDashboardFrame({
               onClick={() =>
                 setMobileOpen(false)
               }
-              className="grid h-9 w-9 place-items-center rounded-[11px] text-slate-500 hover:bg-slate-100"
+              className="grid h-9 w-9 place-items-center rounded-[11px] text-slate-300 hover:bg-white/10"
               aria-label="Close navigation"
             >
               <SvgIcon
@@ -748,10 +727,10 @@ export function UnifiedDashboardFrame({
                         key={item}
                         className="flex h-12 items-center gap-3 rounded-[14px] px-2.5"
                       >
-                        <div className="h-10 w-10 shrink-0 rounded-[13px] bg-slate-100" />
+                        <div className="h-10 w-10 shrink-0 rounded-[13px] bg-white/10" />
 
                         {!collapsed ? (
-                          <div className="h-3 flex-1 rounded bg-slate-100" />
+                          <div className="h-3 flex-1 rounded bg-white/10" />
                         ) : null}
                       </div>
                     ),
@@ -773,7 +752,7 @@ export function UnifiedDashboardFrame({
                           {group}
                         </div>
                       ) : (
-                        <div className="mb-2 h-px bg-slate-100" />
+                        <div className="mb-2 h-px bg-white/10" />
                       )}
 
                       <div className="space-y-1">
@@ -805,7 +784,7 @@ export function UnifiedDashboardFrame({
           </div>
 
           {/* Bottom controls */}
-          <div className="border-t border-slate-100 p-2.5">
+          <div className="border-t border-white/10 p-2.5">
             <button
               type="button"
               onClick={() =>
@@ -815,7 +794,7 @@ export function UnifiedDashboardFrame({
                 )
               }
               className={[
-                "hidden w-full items-center rounded-[14px] py-2.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:flex",
+                "hidden w-full items-center rounded-[14px] py-2.5 text-[11px] font-semibold text-slate-500 hover:bg-white/10 hover:text-white lg:flex",
                 collapsed
                   ? "justify-center"
                   : "gap-3 px-2.5",
@@ -844,14 +823,14 @@ export function UnifiedDashboardFrame({
                 handleSignOut
               }
               className={[
-                "group mt-1 flex w-full items-center rounded-[14px] py-2.5 text-[11px] font-semibold text-red-600 hover:bg-red-50",
+                "group mt-1 flex w-full items-center rounded-[14px] py-2.5 text-[11px] font-semibold text-red-600 hover:bg-red-500/10",
                 collapsed
                   ? "justify-center"
                   : "gap-3 px-2.5",
               ].join(" ")}
               title="Sign out"
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-red-50 group-hover:bg-red-100">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-red-500/10 group-hover:bg-red-500/100/20">
                 <SvgIcon
                   name="logout"
                   className="h-4 w-4"
@@ -897,7 +876,7 @@ export function UnifiedDashboardFrame({
               `${sidebarWidth}px`,
           }}
         >
-          <div className="min-h-[calc(100vh-72px)] overflow-x-hidden bg-[radial-gradient(circle_at_72%_0%,rgba(37,99,235,0.07),transparent_30rem),linear-gradient(135deg,#f7faff,#eef4fa,#f8fbff)]">
+          <div className="min-h-[calc(100vh-72px)] overflow-x-hidden bg-[radial-gradient(circle_at_72%_0%,rgba(37,99,235,0.10),transparent_30rem),linear-gradient(135deg,#edf2f8,#e3eaf3,#f0f4f9)]">
             <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
               {children}
             </div>
