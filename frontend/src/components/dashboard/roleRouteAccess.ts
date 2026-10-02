@@ -5,7 +5,7 @@ import {
 } from "@/lib/authorization";
 import {
   canAccessRoute,
-  getNavigationForRoles,
+  ROLE_NAVIGATION,
   workspaceHome,
 } from "@/lib/navigation";
 
@@ -24,14 +24,15 @@ function matchesRoute(
 export function getAllowedRoutes(
   role: string,
 ): readonly string[] {
-  const canonical =
-    normalizeRole(role);
+  const canonical = normalizeRole(role);
 
-  return getNavigationForRoles(
-    [canonical],
-  ).map(
-    (item) => item.href,
-  );
+  return ROLE_NAVIGATION
+    .filter((item) =>
+      item.roles?.some(
+        (itemRole) => normalizeRole(itemRole) === canonical,
+      ),
+    )
+    .map((item) => item.href);
 }
 
 export function isRouteInWorkspace(
@@ -87,6 +88,7 @@ export function canRoleAccessRoute(
     canAccessRoute(
       pathname,
       [canonical],
+      user.permissions,
     )
   );
 }
