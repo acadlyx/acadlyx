@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 
 import Link from "next/link";
@@ -421,6 +422,9 @@ export function UnifiedDashboardFrame({
     setUserMenuOpen,
   ] = useState(false);
 
+  const mobileCloseRef = useRef<HTMLButtonElement | null>(null);
+  const mobilePreviousFocus = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     try {
       const stored =
@@ -454,7 +458,15 @@ export function UnifiedDashboardFrame({
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.body.classList.toggle("acadlyx-drawer-open", mobileOpen);
+    if (mobileOpen) {
+      mobilePreviousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.body.classList.add("acadlyx-drawer-open");
+      requestAnimationFrame(() => mobileCloseRef.current?.focus());
+    } else {
+      document.body.classList.remove("acadlyx-drawer-open");
+      mobilePreviousFocus.current?.focus();
+      mobilePreviousFocus.current = null;
+    }
     return () => document.body.classList.remove("acadlyx-drawer-open");
   }, [mobileOpen]);
 
@@ -741,6 +753,7 @@ export function UnifiedDashboardFrame({
             </button>
 
             <button
+              ref={mobileCloseRef}
               type="button"
               onClick={() =>
                 setMobileOpen(false)
