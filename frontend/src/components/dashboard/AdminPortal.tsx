@@ -7,8 +7,6 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-
 import {
   AuthRequiredError,
   AuthUser,
@@ -25,7 +23,8 @@ import {
   getAdminNavigation,
 } from "@/lib/adminNavigation";
 
-import DataTransferActions from "@/components/dashboard/DataTransferActions";
+import Link from "next/link";
+import { SvgIcon } from "@/components/dashboard/UnifiedDashboardFrame";
 
 const METRICS: [
   string,
@@ -240,22 +239,23 @@ export function AdminPortal() {
           </section>
 
           <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#315c4a]">
                   Data operations
                 </p>
-                <h2 className="mt-1 text-2xl font-black tracking-[-0.035em]">Import & export</h2>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Move institution data in validated spreadsheet formats without leaving the admin dashboard.</p>
+                <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-slate-900">Import & export</h2>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+                  Import or export institutional records from one dedicated data workspace.
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <DataTransferActions type="users" compact />
-                <DataTransferActions type="students" compact />
-                <DataTransferActions type="faculty" compact />
-                <DataTransferActions type="departments" compact />
-                <DataTransferActions type="programs" compact />
-                <DataTransferActions type="courses" compact />
-              </div>
+              <Link
+                href="/imports"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#315c4a] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#244638]"
+              >
+                <SvgIcon name="download" className="h-4 w-4" />
+                Open data operations
+              </Link>
             </div>
           </section>
 
@@ -278,7 +278,7 @@ export function AdminPortal() {
                   >
                     <div className="flex gap-3">
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-lg font-black text-blue-600">
-                        {item.icon}
+                        <SvgIcon name={item.icon} className="h-5 w-5" />
                       </span>
 
                       <div>
