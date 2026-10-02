@@ -185,6 +185,22 @@ router.post(
 );
 
 router.get(
+  "/:id/departments",
+  authorize(
+    "users.read",
+  ),
+  userController.getDepartments,
+);
+
+router.put(
+  "/:id/departments",
+  authorize(
+    "users.update",
+  ),
+  userController.updateDepartments,
+);
+
+router.get(
   "/:id",
   authorize(
     "users.read",
