@@ -9,6 +9,29 @@ import { hashPassword } from "../utils/password";
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
 export type ImportType = typeof IMPORT_TYPES[number];
 
+export const IMPORT_PERMISSION_BY_TYPE: Record<ImportType, string> = {
+  users: "users.create",
+  students: "students.create",
+  faculty: "users.create",
+  campuses: "campuses.create",
+  departments: "departments.create",
+  programs: "programs.create",
+  "academic-years": "academic-years.create",
+  semesters: "semesters.create",
+  sections: "sections.create",
+  courses: "courses.create",
+  "course-offerings": "course-offerings.create",
+  exams: "exams.manage",
+  marks: "marks.enter",
+  attendance: "attendance.mark",
+  fees: "fees.manage",
+  "fee-payments": "fees.pay",
+  "fee-structures": "fees.manage",
+  notices: "notices.manage",
+  timetable: "timetable.manage",
+  "parent-links": "parent-links.manage",
+};
+
 type Row = Record<string, any>;
 
 function text(v: any): string { return String(v ?? "").trim(); }
@@ -31,8 +54,18 @@ export function preview(buffer: Buffer, type: ImportType) {
   return { ...parsed, type, sample: parsed.rows.slice(0, 10) };
 }
 
-function assertImportRole(actor: AuthenticatedUser) {
-  if (!actor.permissions.includes("imports.manage")) throw new AppError("Spreadsheet import permission required", 403);
+function assertImportPermission(
+  actor: AuthenticatedUser,
+  type: ImportType
+) {
+  const permission = IMPORT_PERMISSION_BY_TYPE[type];
+
+  if (!permission || !actor.permissions.includes(permission)) {
+    throw new AppError(
+      "You are not authorized to import this data type",
+      403
+    );
+  }
 }
 
 async function findOrCreateRole(tx: Prisma.TransactionClient, institutionId: string, name: string) {
@@ -91,7 +124,7 @@ async function resolveOffering(tx: Prisma.TransactionClient, institutionId: stri
 }
 
 export async function commit(buffer: Buffer, type: ImportType, institutionId: string, actor: AuthenticatedUser) {
-  assertImportRole(actor);
+  assertImportPermission(actor, type);
   const rows = parseWorkbook(buffer).rows;
   if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
   let imported = 0;
