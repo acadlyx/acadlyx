@@ -235,15 +235,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
-    label: "Audit",
-    href: "/reports",
-    icon: "▤",
-    roles: ["CHAIRMAN"],
-    permissions: ["audit.read"],
-    group: "Oversight",
-  },
-
-  {
     label: "Overview",
     href: "/director",
     icon: "⌂",
