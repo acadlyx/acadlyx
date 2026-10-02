@@ -37,6 +37,16 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
+    label: "Import & export",
+    href: "/imports",
+    icon: "download",
+    group: "Administration",
+    description:
+      "Import or export institutional records using validated spreadsheet files.",
+    read: ["imports.manage"],
+  },
+
+  {
     label: "Students",
     href: "/admin/students",
     icon: "student",
