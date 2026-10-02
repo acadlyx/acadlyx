@@ -130,6 +130,13 @@ export function RoleWorkspaceLanding({
             user.roles,
           );
 
+        // A user may hold multiple authorized workspaces. Keep the
+        // requested workspace when the account actually owns it instead
+        // of always redirecting to the primary role.
+        if (canonicalRoles.includes(role)) {
+          return role;
+        }
+
         return getPrimaryRole(
           canonicalRoles,
         );
