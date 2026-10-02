@@ -935,6 +935,8 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ],
 
   ["/it", ["IT"]],
+  ["/imports", ["INSTITUTION_ADMIN", "DIRECTOR", "IT"]],
+  ["/examination", ["EXAMINATION"]],
   ["/site-content", ["SUPER_ADMIN", "CMS"]],
 
   [
