@@ -15,6 +15,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   AuthRequiredError,
   AuthUser,
+  authedFetch,
   getCachedCurrentUser,
   getCurrentUser,
 } from "@/lib/auth";
@@ -167,6 +168,45 @@ export function RoleWorkspaceLanding({
 
   const meta =
     WORKSPACE_META[role];
+
+  const [workspaceStats, setWorkspaceStats] =
+    useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!user || !currentRole) {
+      return;
+    }
+
+    let mounted = true;
+
+    authedFetch<{
+      success: true;
+      data: {
+        stats?: Record<string, number>;
+      };
+    }>("/erp/me/workspace")
+      .then((response) => {
+        if (mounted) {
+          setWorkspaceStats(response.data.stats ?? {});
+        }
+      })
+      .catch((err) => {
+        if (
+          mounted &&
+          err instanceof AuthRequiredError
+        ) {
+          router.replace("/login");
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentRole, router, user]);
+
+  const statEntries = Object.entries(workspaceStats)
+    .filter(([, value]) => Number.isFinite(Number(value)))
+    .slice(0, 6);
 
   const available =
     user
@@ -324,6 +364,34 @@ export function RoleWorkspaceLanding({
             </div>
           </div>
         </section>
+
+        {statEntries.length > 0 ? (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                Live snapshot
+              </p>
+              <h3 className="mt-1 text-xl font-black text-slate-900">
+                Current workspace activity
+              </h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {statEntries.map(([key, value]) => (
+                <div
+                  key={key}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">
+                    {key.replaceAll(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ")}
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-slate-900">
+                    {Number(value).toLocaleString("en-IN")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5">
