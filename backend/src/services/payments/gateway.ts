@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 import { AppError } from "../../middleware/errorHandler";
+import { env } from "../../config/env";
 
 /**
  * Payment gateway abstraction.
@@ -129,17 +130,55 @@ class HmacGateway implements PaymentGateway {
   }): Promise<GatewayOrder> {
     if (!this.isConfigured) requireCredentials(this.name);
 
-    /*
-     * The provider's order-creation HTTP call belongs here. It is the one
-     * place that needs live credentials, so it is isolated: everything
-     * else in the fee module — invoicing, receipts, refunds,
-     * reconciliation — works without ever reaching the network.
-     */
-    throw new AppError(
-      `The ${this.name} adapter needs live API credentials to create a checkout order. ` +
-        "Add the provider SDK call in services/payments/gateway.ts once credentials are provisioned.",
-      503
-    );
+    if (this.name !== "razorpay") {
+      throw new AppError(
+        `Online provider "${this.name}" is not implemented. Configure PAYMENT_PROVIDER=razorpay or manual.`,
+        503
+      );
+    }
+
+    if (!this.isConfigured) requireCredentials(this.name);
+
+    const response = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(`${this.keyId}:${this.keySecret}`).toString("base64"),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: Math.round(input.amount * 100),
+        currency: input.currency,
+        receipt: input.reference.slice(0, 40),
+        notes: input.notes,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "provider error");
+      throw new AppError(`Razorpay order creation failed: ${detail.slice(0, 300)}`, 502);
+    }
+
+    const data = (await response.json()) as {
+      id?: string;
+      amount?: number;
+      currency?: string;
+      created_at?: number;
+    };
+
+    if (!data.id || typeof data.amount !== "number" || !data.currency) {
+      throw new AppError("Razorpay returned an invalid order response", 502);
+    }
+
+    return {
+      provider: "razorpay",
+      orderId: data.id,
+      amount: data.amount / 100,
+      currency: data.currency,
+      publicKey: this.keyId || null,
+      expiresAt: null,
+    };
   }
 
   async verifyCallback(payload: {
