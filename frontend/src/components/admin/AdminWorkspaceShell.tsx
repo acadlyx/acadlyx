@@ -11,10 +11,8 @@ import {
   useRouter,
 } from "next/navigation";
 
-import {
-  UnifiedDashboardFrame,
-  UnifiedNavItem,
-} from "@/components/dashboard/UnifiedDashboardFrame";
+import { UnifiedDashboardFrame } from "@/components/dashboard/UnifiedDashboardFrame";
+import type { DashboardNavigationItem } from "@/components/dashboard/UnifiedDashboardFrame";
 
 import {
   AuthRequiredError,
@@ -119,7 +117,7 @@ export function AdminWorkspaceShell({
   ]);
 
   const navigation =
-    useMemo<UnifiedNavItem[]>(
+    useMemo<DashboardNavigationItem[]>(
       () =>
         getAdminNavigation(
           user,
@@ -152,18 +150,12 @@ export function AdminWorkspaceShell({
       }
       subtitle="ACADLYX • Institution administration"
       navigation={navigation}
-      activeHref={
-        active?.href || null
-      }
-      homeHref="/admin"
-      workspaceLabel="Institution Admin"
       userName={
         user
           ? `${user.firstName} ${user.lastName}`.trim()
           : "Workspace"
       }
-      roleLabel="Institution Admin"
-      loading={loading}
+      userRole="Institution Admin"
       onSignOut={signOut}
     >
       {children}
