@@ -101,7 +101,10 @@ export const get = async (req: Request, res: Response): Promise<void> => {
     const modulePermissions = MODULE_PERMISSIONS[result.file.module] ?? ["documents.read"];
     const canRead = modulePermissions.some((permission) => req.user!.permissions.includes(permission));
     const isOwner = result.file.ownerId === req.user!.id;
-    if (!canRead && !isOwner) throw new AppError("You are not allowed to access this file", 403);
+    const publicSiteAsset = result.file.module === "site" && result.file.visibility === "public";
+    if (!publicSiteAsset && !canRead && !isOwner) {
+      throw new AppError("You are not allowed to access this file", 403);
+    }
   }
 
   res.json({
