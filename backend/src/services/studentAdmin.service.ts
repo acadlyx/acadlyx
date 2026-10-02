@@ -264,17 +264,22 @@ async function getStudentAccessScope(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<Prisma.UserWhereInput> {
-  const unrestricted = [
+  const canonicalRoles = getCanonicalRoleNames(actor.roles);
+  const unrestricted = new Set([
     "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
+    "CHAIRMAN",
     "DIRECTOR",
-    "MANAGEMENT",
-    "STAFF",
-  ];
+    "DEAN",
+    "REGISTRAR",
+    "ACCOUNTS",
+    "ADMISSIONS",
+    "EXAMINATION",
+  ]);
 
-  if (actor.roles.some((role) => unrestricted.includes(role))) return {};
+  if (canonicalRoles.some((role) => unrestricted.has(role))) return {};
 
-  if (actor.roles.includes("HOD")) {
+  if (canonicalRoles.includes("HOD")) {
     const accesses = await prisma.departmentAccess.findMany({
       where: { userId: actor.id, department: { institutionId } },
       select: { departmentId: true },
@@ -291,7 +296,7 @@ async function getStudentAccessScope(
     };
   }
 
-  if (actor.roles.includes("FACULTY")) {
+  if (canonicalRoles.includes("FACULTY")) {
     const offerings = await prisma.courseOffering.findMany({
       where: { institutionId, facultyId: actor.id, isActive: true },
       select: { sectionId: true, semesterId: true },
@@ -304,7 +309,7 @@ async function getStudentAccessScope(
     return { studentEnrollments: { some: { institutionId, OR: pairs } } };
   }
 
-  if (actor.roles.includes("STUDENT")) return { id: actor.id };
+  if (canonicalRoles.includes("STUDENT")) return { id: actor.id };
 
   throw new AppError("Student access is not available for this role", 403);
 }
