@@ -652,11 +652,60 @@ export async function listInvoices(
   institutionId: string,
   actor: AuthenticatedUser,
   pagination: PaginationParams,
-  filters: { studentId?: string; status?: string; overdueOnly?: boolean; search?: string }
+  filters: { studentId?: string; departmentId?: string; status?: string; overdueOnly?: boolean; search?: string }
 ) {
   const conditions: Prisma.Sql[] = [
     Prisma.sql`i."institutionId" = ${institutionId}`,
   ];
+
+  if (filters.departmentId) {
+    const canonicalRoles = getCanonicalRoleNames(actor.roles);
+    if (canonicalRoles.includes("HOD")) {
+      const managed = await getManagedDepartmentIds(institutionId, actor.id);
+      if (!managed.includes(filters.departmentId)) {
+        throw new AppError("This department is outside your authorized scope", 403);
+      }
+    } else if (!isInstitutionWide(actor) && !actor.permissions.includes("fees.manage")) {
+      throw new AppError("You are not authorized to filter fee records by department", 403);
+    }
+
+    const department = await prisma.department.findFirst({
+      where: {
+        id: filters.departmentId,
+        institutionId,
+      },
+      select: { id: true },
+    });
+    if (!department) {
+      throw new AppError("Department not found in this institution", 404);
+    }
+
+    conditions.push(
+      Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "student_enrollments" e
+        JOIN "programs" p ON p."id" = e."programId"
+        WHERE e."institutionId" = ${institutionId}
+          AND e."userId" = i."studentId"
+          AND p."departmentId" = ${filters.departmentId}
+      )`
+    );
+  } else if (getCanonicalRoleNames(actor.roles).includes("HOD")) {
+    const managed = await getManagedDepartmentIds(institutionId, actor.id);
+    if (managed.length === 0) {
+      throw new AppError("You have no department scope assigned", 403);
+    }
+    conditions.push(
+      Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "student_enrollments" e
+        JOIN "programs" p ON p."id" = e."programId"
+        WHERE e."institutionId" = ${institutionId}
+          AND e."userId" = i."studentId"
+          AND p."departmentId" IN (${Prisma.join(managed)})
+      )`
+    );
+  }
 
   if (filters.studentId) {
     await assertCanViewStudent(institutionId, actor, filters.studentId);
