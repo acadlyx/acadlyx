@@ -10,8 +10,8 @@ const MANAGEMENT_ROLES = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "DIRECTOR",
-  "MANAGEMENT",
-  "STAFF",
+  "CHAIRMAN",
+  "ACCOUNTS",
 ];
 
 /** Evaluated per call: a module-level constant would freeze the weekday at process start. */
@@ -1265,7 +1265,7 @@ export async function createTimetableEntry(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   if (
@@ -1406,9 +1406,9 @@ export async function createNotice(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   if (!input.title?.trim()) {
@@ -1702,7 +1702,7 @@ export async function createInvoice(
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   if (!input.title?.trim()) {
@@ -1797,7 +1797,7 @@ export async function recordPayment(
    */
   if (
     !actor.roles.some((role) =>
-      ["INSTITUTION_ADMIN", "STAFF"].includes(role)
+      ["INSTITUTION_ADMIN", "ACCOUNTS"].includes(role)
     )
   ) {
     throw new AppError(
@@ -1871,7 +1871,7 @@ export async function linkParent(
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   if (parentId === studentId) {
@@ -1965,9 +1965,9 @@ export async function listTimetableEntries(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
     "FACULTY",
   ]);
 
@@ -2060,7 +2060,7 @@ export async function updateTimetableEntry(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const existing = await prisma.timetableEntry.findFirst({
@@ -2205,7 +2205,7 @@ export async function deleteTimetableEntry(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const existing = await prisma.timetableEntry.findFirst({
@@ -2252,9 +2252,9 @@ export async function listNotices(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const now = new Date();
@@ -2308,9 +2308,9 @@ export async function updateNotice(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const existing = await prisma.notice.findFirst({
@@ -2396,9 +2396,9 @@ export async function deleteNotice(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const existing = await prisma.notice.findFirst({
@@ -2442,9 +2442,9 @@ export async function listExams(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
+    "CHAIRMAN",
     "HOD",
-    "STAFF",
+    "ACCOUNTS",
     "FACULTY",
   ]);
 
@@ -2584,9 +2584,9 @@ export async function getExamDetails(
     !hasAnyRole(actor, [
       "INSTITUTION_ADMIN",
       "DIRECTOR",
-      "MANAGEMENT",
+      "CHAIRMAN",
       "HOD",
-      "STAFF",
+      "ACCOUNTS",
       "FACULTY",
     ])
   ) {
@@ -2781,8 +2781,8 @@ export async function listFeeInvoices(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
-    "STAFF",
+    "CHAIRMAN",
+    "ACCOUNTS",
   ]);
 
   return prisma.feeInvoice.findMany({
@@ -2859,8 +2859,8 @@ export async function getFeeInvoice(
       [
         "INSTITUTION_ADMIN",
         "DIRECTOR",
-        "MANAGEMENT",
-        "STAFF",
+        "CHAIRMAN",
+        "ACCOUNTS",
         "PARENT",
       ].includes(role)
     )
@@ -2898,7 +2898,7 @@ export async function updateFeeInvoice(
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const invoice = await prisma.feeInvoice.findFirst({
@@ -2976,7 +2976,7 @@ export async function deleteFeeInvoice(
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const invoice = await prisma.feeInvoice.findFirst({
@@ -3027,8 +3027,8 @@ export async function listParentLinks(
   assertRole(actor, [
     "INSTITUTION_ADMIN",
     "DIRECTOR",
-    "MANAGEMENT",
-    "STAFF",
+    "CHAIRMAN",
+    "ACCOUNTS",
   ]);
 
   return prisma.parentStudentLink.findMany({
@@ -3076,7 +3076,7 @@ export async function deleteParentLink(
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
-    "STAFF",
+    "ACCOUNTS",
   ]);
 
   const existing = await prisma.parentStudentLink.findFirst({
