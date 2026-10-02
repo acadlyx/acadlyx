@@ -205,6 +205,24 @@ export async function softDeleteUser(
   const target = await targetOrThrow(id, actor);
   if (target.deletedAt) throw new AppError("User is already deleted", 409);
 
+  const targetRoles = target.userRoles.map((x) => x.role.name);
+  if (targetRoles.includes("SUPER_ADMIN")) {
+    if (!actor.roles.includes("SUPER_ADMIN")) {
+      throw new AppError("Only SUPER_ADMIN may delete a SUPER_ADMIN account", 403);
+    }
+    const otherSuperAdmins = await prisma.user.count({
+      where: {
+        id: { not: target.id },
+        isActive: true,
+        deletedAt: null,
+        userRoles: { some: { role: { name: "SUPER_ADMIN" } } },
+      },
+    });
+    if (otherSuperAdmins === 0) {
+      throw new AppError("The last active SUPER_ADMIN account cannot be deleted", 400);
+    }
+  }
+
   const now = new Date();
   const deadline = deadlineFromDeletedAt(now);
 
