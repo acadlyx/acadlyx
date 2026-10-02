@@ -31,13 +31,13 @@ export default function DataTransferActions({ type, compact = false }: { type: D
   }
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "rounded-xl border border-slate-200 bg-slate-50 p-3"}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "rounded-2xl border border-slate-300 bg-slate-100/80 p-3"}`}>
       <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void onFile(file); }} />
-      <button type="button" disabled={busy} onClick={() => inputRef.current?.click()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">
+      <button type="button" disabled={busy} onClick={() => inputRef.current?.click()} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">
         {busy ? "Importing…" : `Import ${labels[type]}`}
       </button>
-      <button type="button" disabled={busy} onClick={() => void exportData(type, "xlsx").catch((e) => setMessage(e.message))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Export XLSX</button>
-      <button type="button" disabled={busy} onClick={() => void exportData(type, "csv").catch((e) => setMessage(e.message))} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">Export CSV</button>
+      <button type="button" disabled={busy} onClick={() => void exportData(type, "xlsx").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export XLSX</button>
+      <button type="button" disabled={busy} onClick={() => void exportData(type, "csv").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export CSV</button>
       {message && <span className="basis-full text-xs text-slate-500">{message}</span>}
     </div>
   );
