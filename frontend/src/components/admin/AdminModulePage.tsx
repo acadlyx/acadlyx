@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { StudentManagement } from "@/components/dashboard/StudentManagement";
 import { PeopleImportPanel } from "@/components/dashboard/PeopleImportPanel";
+import DataTransferActions from "@/components/dashboard/DataTransferActions";
+import type { DataType } from "@/lib/dataTransferApi";
 import { authedFetch, getCurrentUser } from "@/lib/auth";
 import { findAdminNavItem, type AdminNavItem } from "@/lib/adminNavigation";
 
@@ -38,6 +40,7 @@ type Filter = {
 };
 
 type Resource = {
+  dataType?: DataType;
   title: string;
   description: string;
   endpoint: string;
@@ -331,6 +334,27 @@ function rowValue(
   }
 
   return undefined;
+}
+
+function transferTypeForEndpoint(endpoint: string): DataType | null {
+  const value = endpoint.toLowerCase();
+  if (value.includes("/users")) return "users";
+  if (value.includes("/students")) return "students";
+  if (value.includes("faculty")) return "faculty";
+  if (value.includes("campus")) return "campuses";
+  if (value.includes("department")) return "departments";
+  if (value.includes("program")) return "programs";
+  if (value.includes("academic-year")) return "academic-years";
+  if (value.includes("semester")) return "semesters";
+  if (value.includes("section")) return "sections";
+  if (value.includes("course-offering")) return "course-offerings";
+  if (value.includes("/courses")) return "courses";
+  if (value.includes("timetable")) return "timetable";
+  if (value.includes("notices")) return "notices";
+  if (value.includes("attendance")) return "attendance";
+  if (value.includes("marks")) return "marks";
+  if (value.includes("fees")) return "fees";
+  return null;
 }
 
 function permission(
@@ -2461,6 +2485,16 @@ function ResourceManager({
             Reset
           </button>
         </div>
+
+        {transferTypeForEndpoint(def.endpoint) ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 p-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">Data transfer</p>
+              <p className="mt-1 text-xs font-semibold text-slate-600">Import validated records or export the current resource.</p>
+            </div>
+            <DataTransferActions type={transferTypeForEndpoint(def.endpoint)!} compact />
+          </div>
+        ) : null}
       </div>
 
       {error && (
