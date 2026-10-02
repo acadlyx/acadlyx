@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
-import { storeFile, deleteFile } from "./fileStorage.service";
+import { storeFile, deleteFile, getFileDelivery } from "./fileStorage.service";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 
 export interface ProfilePhoto {
@@ -27,7 +27,8 @@ export async function getProfilePhoto(userId: string): Promise<ProfilePhoto | nu
   });
 
   if (!file) return null;
-  return { userId, url: file.url, publicId: file.publicId, fileId: file.id };
+  const delivery = await getFileDelivery(file.id, user.institutionId);
+  return { userId, url: delivery.url, publicId: file.publicId, fileId: file.id };
 }
 
 export async function getProfilePhotos(userIds: string[]): Promise<Map<string, ProfilePhoto>> {
@@ -42,9 +43,10 @@ export async function getProfilePhotos(userIds: string[]): Promise<Map<string, P
 
   for (const file of files) {
     if (!file.ownerId || result.has(file.ownerId)) continue;
+    const delivery = await getFileDelivery(file.id, file.institutionId);
     result.set(file.ownerId, {
       userId: file.ownerId,
-      url: file.url,
+      url: delivery.url,
       publicId: file.publicId,
       fileId: file.id,
     });
