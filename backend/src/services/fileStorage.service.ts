@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
@@ -89,23 +88,36 @@ export async function storeFile(input: {
     if (!previous) throw new AppError("File to replace was not found in this institution", 404);
   }
 
-  const created = await prisma.fileAsset.create({
-    data: {
-      provider: uploaded.provider,
-      publicId: uploaded.publicId,
-      url: uploaded.secureUrl,
-      resourceType: uploaded.resourceType,
-      size: uploaded.bytes,
-      mimeType: uploaded.mimeType,
-      folder: uploaded.folder,
-      institutionId: input.institutionId,
-      ownerId: input.ownerId ?? null,
-      module: input.module,
-      referenceId: input.referenceId ?? null,
-      visibility: uploaded.visibility,
-      originalName: input.filename,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.fileAsset.create({
+      data: {
+        provider: uploaded.provider,
+        publicId: uploaded.publicId,
+        url: uploaded.secureUrl,
+        resourceType: uploaded.resourceType,
+        size: uploaded.bytes,
+        mimeType: uploaded.mimeType,
+        folder: uploaded.folder,
+        institutionId: input.institutionId,
+        ownerId: input.ownerId ?? null,
+        module: input.module,
+        referenceId: input.referenceId ?? null,
+        visibility: uploaded.visibility,
+        originalName: input.filename,
+      },
+    });
+  } catch (error) {
+    try {
+      await provider().delete({
+        publicId: uploaded.publicId,
+        resourceType: uploaded.resourceType,
+      });
+    } catch {
+      // Best-effort cleanup; a later reconciliation can remove a rare provider orphan.
+    }
+    throw error;
+  }
 
   if (previous) {
     await prisma.fileAsset.delete({ where: { id: previous.id } });
@@ -118,7 +130,6 @@ export async function storeFile(input: {
       }
     } catch {
       // Metadata replacement succeeds even if provider cleanup temporarily fails.
-      // The old provider object can be removed by a later storage reconciliation job.
     }
   }
 
