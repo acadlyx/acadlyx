@@ -502,6 +502,13 @@ export async function requestPermanentDeletion(
     target,
   );
 
+  if (!target.deletedAt || !target.recoveryDeadline || target.recoveryDeadline.getTime() > Date.now()) {
+    throw new AppError(
+      "Permanent deletion is available only for users whose 90-day recovery window has expired.",
+      409,
+    );
+  }
+
   /*
    * SUPER_ADMIN is the platform authority.
    * No second approval is required.
