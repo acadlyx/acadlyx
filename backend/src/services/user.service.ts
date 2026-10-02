@@ -878,6 +878,9 @@ export async function updateUser(
     );
   }
 
+  const resolvedTargetRoleName: string =
+    targetRoleName;
+
   if (input.email !== undefined) {
     const normalizedEmail = input.email.trim().toLowerCase();
 
@@ -1164,7 +1167,7 @@ export async function updateUser(
           tx,
           id,
           existing.institutionId,
-          input.role,
+          resolvedTargetRoleName,
           input.departmentIds,
         );
 
@@ -1232,7 +1235,7 @@ export async function updateUser(
         tx,
         id,
         existing.institutionId,
-        targetRoleName,
+        resolvedTargetRoleName,
         input.departmentIds,
       );
 
