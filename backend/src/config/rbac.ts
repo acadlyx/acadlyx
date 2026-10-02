@@ -422,6 +422,7 @@ export const ROLE_PERMISSIONS: Record<
     "students.create",
     "students.update",
     "people.import",
+    "imports.manage",
 
     ...ACADEMIC_READ,
 
@@ -526,6 +527,7 @@ export const ROLE_PERMISSIONS: Record<
 
   DIRECTOR: [
     "obe.read", "obe.reports.read", "obe.attainment.approve",
+    "imports.manage",
     ...LEADERSHIP_READ,
 
     "reports.read",
@@ -649,7 +651,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "documents.read",
@@ -754,7 +755,6 @@ export const ROLE_PERMISSIONS: Record<
     "results.read",
 
     "notifications.read",
-    "notices.read",
     "documents.read",
 
     "leave.apply",
@@ -786,7 +786,6 @@ export const ROLE_PERMISSIONS: Record<
     "users.read",
 
     "notifications.read",
-    "notices.read",
 
     "documents.read",
 
@@ -810,7 +809,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "documents.read",
@@ -829,7 +827,6 @@ export const ROLE_PERMISSIONS: Record<
     "documents.manage",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "reports.read",
@@ -870,7 +867,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "documents.read",
@@ -886,7 +882,6 @@ export const ROLE_PERMISSIONS: Record<
     "library.manage",
 
     "notifications.read",
-    "notices.read",
 
     "reports.read",
 
@@ -901,7 +896,6 @@ export const ROLE_PERMISSIONS: Record<
     "reports.read",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "documents.read",
@@ -913,6 +907,7 @@ export const ROLE_PERMISSIONS: Record<
   IT: [
     "users.read",
     "users.update",
+    "imports.manage",
 
     "reports.read",
     "audit.read",
@@ -921,7 +916,6 @@ export const ROLE_PERMISSIONS: Record<
     "operations.manage",
 
     "notifications.read",
-    "notices.read",
     "notifications.manage",
 
     "documents.read",
@@ -955,7 +949,6 @@ export const ROLE_PERMISSIONS: Record<
     "fees.read",
 
     "notifications.read",
-    "notices.read",
 
     "documents.read",
 
@@ -1001,7 +994,6 @@ export const ROLE_PERMISSIONS: Record<
     "parent-portal.read",
 
     "notifications.read",
-    "notices.read",
 
     "documents.read",
 
