@@ -87,7 +87,7 @@ export default function ImportsPage() {
   }, [availableTypes, type]);
 
   return (
-    <DashboardShell title="Data Import & Export" subtitle="Bulk ERP data operations" allowedRoles={["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "IT"]}>
+    <DashboardShell title="Data Import & Export" subtitle="Bulk ERP data operations" allowedRoles={["INSTITUTION_ADMIN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "EXAMINATION", "HR"]}>
       <div className="mx-auto max-w-6xl space-y-6">
         {authError ? (
           <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
