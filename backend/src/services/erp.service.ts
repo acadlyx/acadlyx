@@ -2371,7 +2371,7 @@ export async function listNotices(
       select: {
         student: {
           select: {
-            enrollments: {
+            studentEnrollments: {
               where: {
                 institutionId,
                 status: "ACTIVE",
@@ -2390,7 +2390,7 @@ export async function listNotices(
     });
 
     for (const link of links) {
-      for (const enrollment of link.student.enrollments) {
+      for (const enrollment of link.student.studentEnrollments) {
         departmentIds.push(
           enrollment.program.departmentId
         );
