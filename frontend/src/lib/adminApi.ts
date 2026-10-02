@@ -700,3 +700,32 @@ export async function listDeletedAdminUsers(options?: {
   );
   return { items: response.data, total: response.meta?.total ?? response.data.length };
 }
+
+export async function adminResetUserPassword(id: string) {
+  const response = await authedFetch<ApiEnvelope<{ userId: string; delivered: boolean; expiresAt: string | null }>>(
+    `/users/${encodeURIComponent(id)}/reset-password`,
+    { method: "POST" },
+  );
+  return response.data;
+}
+export async function forceAdminUserPasswordChange(id: string) {
+  const response = await authedFetch<ApiEnvelope<{ userId: string; forcePasswordChange: boolean }>>(
+    `/users/${encodeURIComponent(id)}/force-password-change`,
+    { method: "POST" },
+  );
+  return response.data;
+}
+export async function revokeAdminUserSessions(id: string) {
+  const response = await authedFetch<ApiEnvelope<{ userId: string; revoked: number }>>(
+    `/users/${encodeURIComponent(id)}/revoke-sessions`,
+    { method: "POST" },
+  );
+  return response.data;
+}
+export async function unlockAdminUser(id: string) {
+  const response = await authedFetch<ApiEnvelope<{ userId: string; unlocked: boolean }>>(
+    `/users/${encodeURIComponent(id)}/unlock`,
+    { method: "POST" },
+  );
+  return response.data;
+}
