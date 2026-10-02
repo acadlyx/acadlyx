@@ -134,6 +134,7 @@ router.get(
       pagination,
       {
         studentId: req.query.studentId as string | undefined,
+        departmentId: req.query.departmentId as string | undefined,
         status: req.query.status as string | undefined,
         overdueOnly: req.query.overdueOnly === "true",
         search: searchTerm(req.query.search),
