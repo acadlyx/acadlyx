@@ -314,12 +314,9 @@ export const setActive = asyncHandler(
       );
     }
 
-    const updated =
-      await userService.setUserActive(
-        req.params.id,
-        req.body.isActive,
-        actor,
-      );
+    const updated = req.body.isActive
+      ? await userLifecycleService.reactivateUser(req.params.id, actor)
+      : await userLifecycleService.deactivateUser(req.params.id, actor);
 
     res.status(200).json({
       success: true,
