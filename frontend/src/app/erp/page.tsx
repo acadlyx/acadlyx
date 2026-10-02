@@ -556,7 +556,7 @@ ACADLYX ERP
       </div>
     )}
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
       {[
         "users",
         "students",
@@ -594,7 +594,7 @@ ACADLYX ERP
           onClick={() =>
             setTab(item.id)
           }
-          className={`whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold ${
+          className={`whitespace-normal sm:whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold ${
             tab === item.id
               ? "bg-slate-950 text-white"
               : "text-slate-600 hover:bg-slate-100"
