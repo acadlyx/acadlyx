@@ -3,6 +3,7 @@ import { AppError } from "../middleware/errorHandler";
 
 import * as userService from "../services/user.service";
 import * as userDeletionService from "../services/userDeletion.service";
+import * as userLifecycleService from "../services/userLifecycle.service";
 
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -446,3 +447,51 @@ export const rejectPermanentDeletion =
       });
     },
   );
+
+
+export const lifecycleDetails = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const data = await userLifecycleService.getUserLifecycleDetails(req.params.id, actor);
+  res.status(200).json({ success: true, data });
+});
+
+export const deactivateLifecycle = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : undefined;
+  const note = typeof req.body?.note === "string" ? req.body.note : undefined;
+  const data = await userLifecycleService.deactivateUser(req.params.id, actor, reason, note);
+  res.status(200).json({ success: true, data });
+});
+
+export const reactivateLifecycle = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : undefined;
+  const data = await userLifecycleService.reactivateUser(req.params.id, actor, reason);
+  res.status(200).json({ success: true, data });
+});
+
+export const softDeleteLifecycle = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : "";
+  const note = typeof req.body?.note === "string" ? req.body.note : undefined;
+  const data = await userLifecycleService.softDeleteUser(req.params.id, actor, reason, note);
+  res.status(200).json({ success: true, data });
+});
+
+export const listDeleted = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+  const role = typeof req.query.role === "string" ? req.query.role : undefined;
+  const search = typeof req.query.search === "string" ? req.query.search : undefined;
+  const expiringSoon = req.query.expiringSoon === "true";
+  const result = await userLifecycleService.listDeletedUsers(actor, { page, pageSize, role, search, expiringSoon });
+  res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, { page, pageSize }) });
+});
+
+export const recoverLifecycle = asyncHandler(async (req: Request, res: Response) => {
+  const actor = requireUserManagementRole(req);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : undefined;
+  const data = await userLifecycleService.recoverUser(req.params.id, actor, reason);
+  res.status(200).json({ success: true, data });
+});
