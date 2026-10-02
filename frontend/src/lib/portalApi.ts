@@ -158,6 +158,39 @@ export interface PortalNotification {
   createdAt: string;
 }
 
+export interface PortalCourseOffering {
+  id: string;
+  courseId: string;
+  course: {
+    id: string;
+    code: string;
+    name: string;
+    credits: number;
+    department: {
+      id: string;
+      name: string;
+      code: string;
+    } | null;
+  };
+  faculty: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}
+
+export interface StudentParentLink {
+  relationship: string | null;
+  linkedAt: string;
+  parent: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+  };
+}
+
 export interface StudentPortalData {
   student: {
     id: string;
@@ -184,6 +217,8 @@ export interface StudentPortalData {
     };
     unread: number;
   };
+  courseOfferings: PortalCourseOffering[];
+  parents: StudentParentLink[];
 }
 
 export interface ParentChild {
