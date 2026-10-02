@@ -23,6 +23,7 @@ import {
   rejectAdminUserDeletionRequest,
   requestAdminUserPermanentDeletion,
   setAdminUserActive,
+  deleteAdminUser,
 } from "@/lib/adminApi";
 
 import {
@@ -618,6 +619,29 @@ function AdminPeopleManagerContent() {
     }
   }
 
+
+  async function softDelete(person: AdminUser) {
+    if (!canDelete) return;
+    if (!window.confirm(`Move ${person.firstName} ${person.lastName} to the Deleted Users recycle bin? The account will be disabled and recoverable for 90 days.`)) return;
+    const reason = window.prompt("Required deletion reason:", "")?.trim();
+    if (!reason) {
+      setError("A deletion reason is required.");
+      return;
+    }
+    setBusyId(person.id);
+    setError("");
+    try {
+      await deleteAdminUser(person.id, reason);
+      setUsers((current) => current.filter((item) => item.id !== person.id));
+      setSelected(null);
+      setMessage("User moved to Deleted Users. The 90-day recovery period has started.");
+    } catch (reasonError) {
+      setError(reasonError instanceof Error ? reasonError.message : "Unable to delete user.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function permanentlyDelete(
     person: AdminUser,
   ) {
@@ -996,7 +1020,7 @@ function AdminPeopleManagerContent() {
       : "People";
 
   return (
-    <div className="mx-auto max-w-[1320px] space-y-6 pb-10">
+    <div className="flex justify-end"><Link href="/admin/users/deleted" className="acadlyx-button-secondary">Deleted Users</Link></div><div className="mx-auto max-w-[1320px] space-y-6 pb-10">
       {error ? (
         <div className="flex items-center justify-between gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
