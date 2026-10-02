@@ -60,7 +60,6 @@ export function DashboardShell({
       cachedUser,
     );
 
-  const [, setAuthLoading] = useState(!cachedUser);
 
   const allowedRolesKey =
     allowedRoles?.join(",") || "";
@@ -73,7 +72,6 @@ export function DashboardShell({
 
     if (cached) {
       setUser(cached);
-      setAuthLoading(false);
     }
 
     getCurrentUser({
