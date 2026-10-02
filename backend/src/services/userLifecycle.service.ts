@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
+import { adminIssueResetToken, clearFailedLogins } from "./accountSecurity.service";
 
 const RECOVERY_DAYS = 90;
 const MANAGEMENT_ROLES = new Set(["SUPER_ADMIN", "INSTITUTION_ADMIN"]);
@@ -449,4 +450,67 @@ export async function cleanupExpiredDeletedUsers(limit = 50) {
   }
 
   return { scanned: candidates.length, permanentlyDeleted, retained };
+}
+
+
+export async function forcePasswordChange(id: string, actor: AuthenticatedUser) {
+  assertManager(actor);
+  const target = await targetOrThrow(id, actor);
+  await prisma.user.update({ where: { id: target.id }, data: { mustChangePassword: true } });
+  await prisma.refreshToken.updateMany({ where: { userId: target.id, revokedAt: null }, data: { revokedAt: new Date() } });
+  await recordAuditLog({
+    institutionId: target.institutionId,
+    userId: actor.id,
+    action: "PASSWORD_RESET_FORCED",
+    entityType: "User",
+    entityId: target.id,
+    metadata: { sessionsRevoked: true },
+  });
+  return { userId: target.id, forcePasswordChange: true };
+}
+
+export async function revokeUserSessions(id: string, actor: AuthenticatedUser) {
+  assertManager(actor);
+  const target = await targetOrThrow(id, actor);
+  const result = await prisma.refreshToken.updateMany({
+    where: { userId: target.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  await recordAuditLog({
+    institutionId: target.institutionId,
+    userId: actor.id,
+    action: "SESSIONS_REVOKED",
+    entityType: "User",
+    entityId: target.id,
+    metadata: { revoked: result.count },
+  });
+  return { userId: target.id, revoked: result.count };
+}
+
+export async function unlockUser(id: string, actor: AuthenticatedUser) {
+  assertManager(actor);
+  const target = await targetOrThrow(id, actor);
+  await clearFailedLogins(target.id);
+  await recordAuditLog({
+    institutionId: target.institutionId,
+    userId: actor.id,
+    action: "ACCOUNT_UNLOCKED",
+    entityType: "User",
+    entityId: target.id,
+  });
+  return { userId: target.id, unlocked: true };
+}
+
+export async function issuePasswordReset(id: string, actor: AuthenticatedUser) {
+  assertManager(actor);
+  const target = await targetOrThrow(id, actor);
+  if (!target.institutionId) {
+    throw new AppError("Platform account password reset must use the platform security workflow", 403);
+  }
+  const result = await adminIssueResetToken(target.institutionId, actor, target.id, {});
+  return {
+    userId: target.id,
+    delivered: true,
+    expiresAt: result.expiresAt ?? null,
+  };
 }
