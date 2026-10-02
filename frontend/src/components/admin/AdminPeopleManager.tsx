@@ -16,6 +16,8 @@ import {
   createAdminUser,
   listAdminUserDeletionRequests,
   listAdminUsers,
+  listAdminDepartments,
+  updateAdminUser,
   rejectAdminUserDeletionRequest,
   requestAdminUserPermanentDeletion,
   setAdminUserActive,
@@ -313,6 +315,25 @@ export function AdminPeopleManager() {
     setCreating,
   ] = useState(false);
 
+  const [
+    editing,
+    setEditing,
+  ] = useState(false);
+
+  const [
+    savingEdit,
+    setSavingEdit,
+  ] = useState(false);
+
+  const [
+    departments,
+    setDepartments,
+  ] = useState<Array<{
+    id: string;
+    name: string;
+    code?: string | null;
+  }>>([]);
+
   const [error, setError] =
     useState("");
 
@@ -421,6 +442,14 @@ export function AdminPeopleManager() {
         });
 
       setUsers(people);
+
+      if (canUpdate) {
+        try {
+          setDepartments(await listAdminDepartments());
+        } catch {
+          setDepartments([]);
+        }
+      }
 
       try {
         setRequests(
@@ -748,6 +777,61 @@ export function AdminPeopleManager() {
     }
   }
 
+  async function savePerson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canUpdate || !selected) {
+      return;
+    }
+
+    setSavingEdit(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const form = new FormData(event.currentTarget);
+      const role = String(form.get("role") || "").toUpperCase();
+      const departmentId = String(form.get("departmentId") || "").trim();
+
+      const departmentIds =
+        role === "HOD"
+          ? departmentId
+            ? [departmentId]
+            : []
+          : [];
+
+      if (role === "HOD" && departmentIds.length !== 1) {
+        throw new Error("Select the department assigned to this HOD.");
+      }
+
+      const updated = await updateAdminUser(selected.id, {
+        firstName: String(form.get("firstName") || "").trim(),
+        lastName: String(form.get("lastName") || "").trim(),
+        email: String(form.get("email") || "").trim(),
+        phone: String(form.get("phone") || "").trim(),
+        role,
+        departmentIds,
+      });
+
+      setUsers((current) =>
+        current.map((person) =>
+          person.id === updated.id ? updated : person,
+        ),
+      );
+      setSelected(updated);
+      setEditing(false);
+      setMessage("User details updated successfully.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to update the user.",
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function createPerson(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -780,6 +864,14 @@ export function AdminPeopleManager() {
       ) {
         throw new Error(
           "Select a valid institutional role.",
+        );
+      }
+
+      const departmentId = String(form.get("departmentId") || "").trim();
+
+      if (role === "HOD" && !departmentId) {
+        throw new Error(
+          "Select the department assigned to this HOD.",
         );
       }
 
@@ -821,6 +913,10 @@ export function AdminPeopleManager() {
             ),
 
           role,
+          departmentIds:
+            role === "HOD"
+              ? [String(form.get("departmentId") || "").trim()].filter(Boolean)
+              : [],
         });
 
       setUsers(
@@ -1442,6 +1538,16 @@ export function AdminPeopleManager() {
               {canUpdate ? (
                 <button
                   type="button"
+                  onClick={() => setEditing(true)}
+                  className="rounded-[13px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white"
+                >
+                  Edit user
+                </button>
+              ) : null}
+
+              {canUpdate ? (
+                <button
+                  type="button"
                   onClick={() =>
                     void toggleActive(
                       selected,
@@ -1497,6 +1603,88 @@ export function AdminPeopleManager() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {editing && selected ? (
+        <div className="fixed inset-0 z-[90] overflow-y-auto bg-slate-950/30 p-4 backdrop-blur-sm">
+          <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
+                  Edit user
+                </p>
+                <h2 className="mt-1 text-xl font-black">Update account</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={savePerson} className="space-y-4 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">First name *</span>
+                  <input name="firstName" defaultValue={selected.firstName} required className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Last name *</span>
+                  <input name="lastName" defaultValue={selected.lastName} required className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Email *</span>
+                  <input name="email" type="email" defaultValue={selected.email} required className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Phone</span>
+                  <input name="phone" defaultValue={selected.phone || ""} className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Role *</span>
+                  <select
+                    name="role"
+                    defaultValue={selected.roles[0]?.name || ""}
+                    required
+                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
+                  >
+                    {CREATION_ROLES.map((role) => (
+                      <option key={role} value={role}>{roleLabel(role)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">HOD department</span>
+                  <select
+                    name="departmentId"
+                    defaultValue={selected.departmentAccesses?.[0]?.departmentId || ""}
+                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code ? `${department.code} — ` : ""}{department.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+                Department assignment is used for HOD data scoping. An HOD must have exactly one department. Changing the user away from HOD removes HOD department access.
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <button type="button" onClick={() => setEditing(false)} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
+                <button type="submit" disabled={savingEdit} className="rounded-[13px] bg-blue-600 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-50">
+                  {savingEdit ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}
@@ -1584,19 +1772,29 @@ export function AdminPeopleManager() {
                     {CREATION_ROLES.map(
                       (role) => (
                         <option
-                          key={
-                            role
-                          }
-                          value={
-                            role
-                          }
+                          key={role}
+                          value={role}
                         >
-                          {roleLabel(
-                            role,
-                          )}
+                          {roleLabel(role)}
                         </option>
                       ),
                     )}
+                  </select>
+                </label>
+
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">HOD department</span>
+                  <select
+                    name="departmentId"
+                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
+                    defaultValue=""
+                  >
+                    <option value="">Select department for HOD</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code ? `${department.code} — ` : ""}{department.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
