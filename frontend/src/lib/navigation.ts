@@ -1,5 +1,15 @@
 export type PermissionKey = string;
 
+const ROLE_ALIASES: Record<string, string> = {
+  MANAGEMENT: "CHAIRMAN",
+  STAFF: "ACCOUNTS",
+};
+
+function normalizeRoleName(role: string): string {
+  const normalized = role.trim().toUpperCase();
+  return ROLE_ALIASES[normalized] ?? normalized;
+}
+
 export type NavigationItem = {
   label: string;
   href: string;
