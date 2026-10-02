@@ -176,6 +176,7 @@ async function getTarget(
         lastName: true,
         email: true,
         isActive: true,
+        deletedAt: null,
 
         userRoles: {
           select: {
@@ -264,6 +265,20 @@ async function deleteUserPermanently(
     actor,
     target,
   );
+
+  if (!target.deletedAt || !target.recoveryDeadline) {
+    throw new AppError(
+      "Permanent deletion is only available after the 90-day recovery window. Soft-delete the account first.",
+      409,
+    );
+  }
+
+  if (target.recoveryDeadline.getTime() > Date.now()) {
+    throw new AppError(
+      "The 90-day recovery window has not expired yet. Recover or retain the account until the deadline.",
+      409,
+    );
+  }
 
   const targetRoleName =
     targetRole(
