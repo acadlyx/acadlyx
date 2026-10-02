@@ -216,7 +216,7 @@ export function DashboardShell({
       }
       onSignOut={signOut}
     >
-      <div className="space-y-5">
+      <div className="acadlyx-workspace-content">
         {children}
       </div>
     </UnifiedDashboardFrame>
