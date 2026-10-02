@@ -1,349 +1,133 @@
-import { Prisma } from "@prisma/client";
-import { v2 as cloudinary } from "cloudinary";
-
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
-import { env } from "../config/env";
+import { storeFile, deleteFile } from "./fileStorage.service";
 import { assertSafeImageUpload } from "../utils/imageUpload";
-
-function configureCloudinary() {
-  if (
-    !env.cloudinaryCloudName ||
-    !env.cloudinaryApiKey ||
-    !env.cloudinaryApiSecret
-  ) {
-    throw new AppError(
-      "Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.",
-      503
-    );
-  }
-
-  cloudinary.config({
-    cloud_name:
-      env.cloudinaryCloudName,
-    api_key:
-      env.cloudinaryApiKey,
-    api_secret:
-      env.cloudinaryApiSecret,
-  });
-}
 
 export interface ProfilePhoto {
   userId: string;
   url: string;
   publicId: string;
+  fileId?: string;
 }
 
-export async function getProfilePhoto(
-  userId: string
-): Promise<ProfilePhoto | null> {
-  const rows =
-    await prisma.$queryRaw<
-      ProfilePhoto[]
-    >(
-      Prisma.sql`
-        SELECT
-          "userId",
-          "url",
-          "publicId"
-        FROM
-          "user_profile_photos"
-        WHERE
-          "userId" = ${userId}
-        LIMIT 1
-      `
-    );
+export async function getProfilePhoto(userId: string): Promise<ProfilePhoto | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { institutionId: true },
+  });
+  if (!user?.institutionId) return null;
 
-  return rows[0] ?? null;
+  const file = await prisma.fileAsset.findFirst({
+    where: {
+      institutionId: user.institutionId,
+      ownerId: userId,
+      module: "profile-photos",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!file) return null;
+  return { userId, url: file.url, publicId: file.publicId, fileId: file.id };
 }
 
-export async function getProfilePhotos(
-  userIds: string[]
-): Promise<Map<string, ProfilePhoto>> {
-  const uniqueIds = [
-    ...new Set(
-      userIds
-    ),
-  ].filter(Boolean);
+export async function getProfilePhotos(userIds: string[]): Promise<Map<string, ProfilePhoto>> {
+  const result = new Map<string, ProfilePhoto>();
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (!ids.length) return result;
 
-  const result =
-    new Map<
-      string,
-      ProfilePhoto
-    >();
+  const files = await prisma.fileAsset.findMany({
+    where: { ownerId: { in: ids }, module: "profile-photos" },
+    orderBy: { createdAt: "desc" },
+  });
 
-  if (!uniqueIds.length) {
-    return result;
+  for (const file of files) {
+    if (!file.ownerId || result.has(file.ownerId)) continue;
+    result.set(file.ownerId, {
+      userId: file.ownerId,
+      url: file.url,
+      publicId: file.publicId,
+      fileId: file.id,
+    });
   }
-
-  const rows =
-    await prisma.$queryRaw<
-      ProfilePhoto[]
-    >(
-      Prisma.sql`
-        SELECT
-          "userId",
-          "url",
-          "publicId"
-        FROM
-          "user_profile_photos"
-        WHERE
-          "userId" IN (
-            ${Prisma.join(
-              uniqueIds
-            )}
-          )
-      `
-    );
-
-  for (const row of rows) {
-    result.set(
-      row.userId,
-      row
-    );
-  }
-
   return result;
 }
 
 export async function uploadProfilePhoto(
   userId: string,
-  file: Express.Multer.File
+  file: Express.Multer.File,
 ): Promise<ProfilePhoto> {
-  assertSafeImageUpload(
-    file
-  );
+  assertSafeImageUpload(file);
 
-  configureCloudinary();
-
-  const existing =
-    await getProfilePhoto(
-      userId
-    );
-
-  const uploaded =
-    await new Promise<{
-      secure_url: string;
-      public_id: string;
-    }>(
-      (
-        resolve,
-        reject
-      ) => {
-        const stream =
-          cloudinary.uploader.upload_stream(
-            {
-              folder:
-                "acadlyx/profile-photos",
-              resource_type:
-                "image",
-              overwrite:
-                true,
-            },
-            (
-              error,
-              value
-            ) => {
-              if (
-                error ||
-                !value?.secure_url ||
-                !value?.public_id
-              ) {
-                reject(
-                  error ??
-                    new Error(
-                      "Profile photo upload failed"
-                    )
-                );
-
-                return;
-              }
-
-              resolve(
-                value as {
-                  secure_url: string;
-                  public_id: string;
-                }
-              );
-            }
-          );
-
-        stream.end(
-          file.buffer
-        );
-      }
-    );
-
-  await prisma.$executeRaw(
-    Prisma.sql`
-      INSERT INTO
-        "user_profile_photos"
-        (
-          "userId",
-          "url",
-          "publicId",
-          "createdAt",
-          "updatedAt"
-        )
-      VALUES
-        (
-          ${userId},
-          ${uploaded.secure_url},
-          ${uploaded.public_id},
-          NOW(),
-          NOW()
-        )
-      ON CONFLICT
-        ("userId")
-      DO UPDATE SET
-        "url" =
-          EXCLUDED."url",
-        "publicId" =
-          EXCLUDED."publicId",
-        "updatedAt" =
-          NOW()
-    `
-  );
-
-  if (
-    existing?.publicId &&
-    existing.publicId !==
-      uploaded.public_id
-  ) {
-    await cloudinary.uploader.destroy(
-      existing.publicId,
-      {
-        resource_type:
-          "image",
-        invalidate:
-          true,
-      }
-    );
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { institutionId: true },
+  });
+  if (!user?.institutionId) {
+    throw new AppError("A profile photo requires an institution-scoped account", 400);
   }
+
+  const existing = await getProfilePhoto(userId);
+  const stored = await storeFile({
+    institutionId: user.institutionId,
+    module: "profile-photos",
+    buffer: file.buffer,
+    filename: file.originalname,
+    mimeType: file.mimetype,
+    ownerId: userId,
+    visibility: "private",
+    resourceType: "image",
+    replaceFileId: existing?.fileId,
+  });
 
   return {
     userId,
-    url:
-      uploaded.secure_url,
-    publicId:
-      uploaded.public_id,
+    url: stored.url,
+    publicId: stored.publicId,
+    fileId: stored.id,
   };
 }
 
 const MAX_PROFILE_PHOTO_BYTES = 5 * 1024 * 1024;
 
-export async function uploadProfilePhotoDataUrl(
-  userId: string,
-  dataUrl: string
-): Promise<ProfilePhoto> {
-  if (
-    typeof dataUrl !== "string" ||
-    dataUrl.length > Math.ceil(MAX_PROFILE_PHOTO_BYTES * 1.4)
-  ) {
-    throw new AppError(
-      "Profile photo is too large",
-      413
-    );
+export async function uploadProfilePhotoDataUrl(userId: string, dataUrl: string): Promise<ProfilePhoto> {
+  if (typeof dataUrl !== "string" || dataUrl.length > Math.ceil(MAX_PROFILE_PHOTO_BYTES * 1.4)) {
+    throw new AppError("Profile photo is too large", 413);
   }
 
-  const match =
-    dataUrl.match(
-      /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/
-    );
-
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
   if (!match) {
-    throw new AppError(
-      "Profile photo must be a JPEG, PNG, WebP, or GIF data URL",
-      415
-    );
+    throw new AppError("Profile photo must be a JPEG, PNG, WebP, or GIF data URL", 415);
   }
 
-  const mime =
-    match[1];
-
-  const buffer =
-    Buffer.from(
-      match[2],
-      "base64"
-    );
-
-  if (buffer.length === 0) {
-    throw new AppError(
-      "Profile photo cannot be empty",
-      400
-    );
-  }
-
+  const buffer = Buffer.from(match[2], "base64");
+  if (!buffer.length) throw new AppError("Profile photo cannot be empty", 400);
   if (buffer.length > MAX_PROFILE_PHOTO_BYTES) {
-    throw new AppError(
-      "Profile photo must be 5 MB or smaller",
-      413
-    );
+    throw new AppError("Profile photo must be 5 MB or smaller", 413);
   }
 
-  const file =
-    {
-      fieldname:
-        "file",
-      originalname:
-        `profile-photo.${
-          mime.split(
-            "/"
-          )[1]
-        }`,
-      encoding:
-        "7bit",
-      mimetype:
-        mime,
-      size:
-        buffer.length,
-      destination:
-        "",
-      filename:
-        "profile-photo",
-      path:
-        "",
-      buffer,
-      stream:
-        undefined,
-    } as unknown as Express.Multer.File;
-
-  return uploadProfilePhoto(
-    userId,
-    file
-  );
+  return uploadProfilePhoto(userId, {
+    fieldname: "file",
+    originalname: `profile-photo.${match[1].split("/")[1]}`,
+    encoding: "7bit",
+    mimetype: match[1],
+    size: buffer.length,
+    destination: "",
+    filename: "profile-photo",
+    path: "",
+    buffer,
+    stream: undefined,
+  } as unknown as Express.Multer.File);
 }
 
-export async function deleteProfilePhoto(
-  userId: string
-): Promise<void> {
-  configureCloudinary();
+export async function deleteProfilePhoto(userId: string): Promise<void> {
+  const existing = await getProfilePhoto(userId);
+  if (!existing?.fileId) return;
 
-  const existing =
-    await getProfilePhoto(
-      userId
-    );
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { institutionId: true },
+  });
+  if (!user?.institutionId) return;
 
-  if (!existing) {
-    return;
-  }
-
-  await prisma.$executeRaw(
-    Prisma.sql`
-      DELETE FROM
-        "user_profile_photos"
-      WHERE
-        "userId" = ${userId}
-    `
-  );
-
-  await cloudinary.uploader.destroy(
-    existing.publicId,
-    {
-      resource_type:
-        "image",
-      invalidate:
-        true,
-    }
-  );
+  await deleteFile(existing.fileId, user.institutionId);
 }
