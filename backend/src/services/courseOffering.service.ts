@@ -316,7 +316,7 @@ export async function createCourseOffering(
       },
       select: { capacity: true },
     });
-    if (section?.capacity !== null &&
+    if (section && section.capacity !== null &&
         input.capacity > section.capacity) {
       throw new AppError(
         "Offering capacity cannot exceed the section capacity",
@@ -368,7 +368,7 @@ export async function updateCourseOffering(
       },
       select: { capacity: true },
     });
-    if (section?.capacity !== null &&
+    if (section && section.capacity !== null &&
         input.capacity > section.capacity) {
       throw new AppError(
         "Offering capacity cannot exceed the section capacity",
