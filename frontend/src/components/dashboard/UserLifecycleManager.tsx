@@ -1,28 +1,44 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   FormEvent,
   useEffect,
   useMemo,
   useState,
 } from "react";
+
 import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
 
-import { DashboardShell } from "./DashboardShell";
-import { PeopleImportPanel } from "./PeopleImportPanel";
+import {
+  DashboardShell,
+} from "./DashboardShell";
 
-import { AuthRequiredError } from "@/lib/auth";
+import {
+  PeopleImportPanel,
+} from "./PeopleImportPanel";
+
+import {
+  AuthRequiredError,
+  getCurrentUser,
+} from "@/lib/auth";
 
 import {
   AdminUser,
   AdminWorkspace,
+  UserDeletionRequest,
+
+  approveAdminUserDeletionRequest,
   createAdminUser,
   getAdminWorkspace,
+  listAdminUserDeletionRequests,
   listAdminUsers,
+  rejectAdminUserDeletionRequest,
+  requestAdminUserPermanentDeletion,
   setAdminUserActive,
 } from "@/lib/adminApi";
 
@@ -34,10 +50,22 @@ type Category =
   | "operations"
   | "parents";
 
-const ROLES: Record<Category, string[]> = {
-  students: ["STUDENT"],
-  faculty: ["FACULTY"],
-  administrators: ["INSTITUTION_ADMIN"],
+const ROLES: Record<
+  Category,
+  string[]
+> = {
+  students: [
+    "STUDENT",
+  ],
+
+  faculty: [
+    "FACULTY",
+  ],
+
+  administrators: [
+    "INSTITUTION_ADMIN",
+  ],
+
   leadership: [
     "CHAIRMAN",
     "DIRECTOR",
@@ -45,6 +73,7 @@ const ROLES: Record<Category, string[]> = {
     "REGISTRAR",
     "HOD",
   ],
+
   operations: [
     "ACCOUNTS",
     "HR",
@@ -54,7 +83,10 @@ const ROLES: Record<Category, string[]> = {
     "PLACEMENT",
     "IT",
   ],
-  parents: ["PARENT"],
+
+  parents: [
+    "PARENT",
+  ],
 };
 
 const CREATION_ROLES = [
@@ -82,52 +114,105 @@ const META: Array<{
   color: string;
 }> = [
   {
-    key: "students",
-    label: "Students",
+    key:
+      "students",
+
+    label:
+      "Students",
+
     description:
       "Student records, enrolments, guardians and academic history.",
-    href: "/students",
-    color: "from-blue-600 to-indigo-600",
+
+    href:
+      "/students",
+
+    color:
+      "from-blue-600 to-indigo-600",
   },
+
   {
-    key: "faculty",
-    label: "Faculty",
+    key:
+      "faculty",
+
+    label:
+      "Faculty",
+
     description:
       "Teaching accounts, contact details and account status.",
-    href: "/user-management?category=faculty",
-    color: "from-violet-600 to-fuchsia-600",
+
+    href:
+      "/user-management?category=faculty",
+
+    color:
+      "from-violet-600 to-fuchsia-600",
   },
+
   {
-    key: "administrators",
-    label: "Administrators",
+    key:
+      "administrators",
+
+    label:
+      "Administrators",
+
     description:
       "Institution administrators responsible for the tenant workspace.",
-    href: "/user-management?category=administrators",
-    color: "from-cyan-600 to-blue-600",
+
+    href:
+      "/user-management?category=administrators",
+
+    color:
+      "from-cyan-600 to-blue-600",
   },
+
   {
-    key: "leadership",
-    label: "Leadership",
+    key:
+      "leadership",
+
+    label:
+      "Leadership",
+
     description:
       "Chairman, director, dean, registrar and HOD accounts.",
-    href: "/user-management?category=leadership",
-    color: "from-amber-500 to-orange-600",
+
+    href:
+      "/user-management?category=leadership",
+
+    color:
+      "from-amber-500 to-orange-600",
   },
+
   {
-    key: "operations",
-    label: "Operations",
+    key:
+      "operations",
+
+    label:
+      "Operations",
+
     description:
       "Accounts, HR, admissions, examinations, library, placement and IT.",
-    href: "/user-management?category=operations",
-    color: "from-emerald-600 to-teal-600",
+
+    href:
+      "/user-management?category=operations",
+
+    color:
+      "from-emerald-600 to-teal-600",
   },
+
   {
-    key: "parents",
-    label: "Parents",
+    key:
+      "parents",
+
+    label:
+      "Parents",
+
     description:
       "Parent accounts linked to the institution's students.",
-    href: "/user-management?category=parents",
-    color: "from-rose-500 to-pink-600",
+
+    href:
+      "/user-management?category=parents",
+
+    color:
+      "from-rose-500 to-pink-600",
   },
 ];
 
@@ -135,17 +220,33 @@ const DEFAULT_ROLE: Record<
   Category,
   string
 > = {
-  students: "FACULTY",
-  faculty: "FACULTY",
-  administrators: "INSTITUTION_ADMIN",
-  leadership: "HOD",
-  operations: "ACCOUNTS",
-  parents: "FACULTY",
+  students:
+    "FACULTY",
+
+  faculty:
+    "FACULTY",
+
+  administrators:
+    "INSTITUTION_ADMIN",
+
+  leadership:
+    "HOD",
+
+  operations:
+    "ACCOUNTS",
+
+  parents:
+    "FACULTY",
 };
 
-function roleLabel(role: string) {
+function roleLabel(
+  role: string,
+) {
   return role
-    .replace(/_/g, " ")
+    .replace(
+      /_/g,
+      " ",
+    )
     .toLowerCase()
     .replace(
       /\b\w/g,
@@ -154,11 +255,14 @@ function roleLabel(role: string) {
     );
 }
 
-function initials(user: AdminUser) {
+function initials(
+  user: AdminUser,
+) {
   return (
     `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`
-      .toUpperCase() || "?"
-  );
+  )
+    .toUpperCase() ||
+    "?";
 }
 
 function getCategory(
@@ -167,7 +271,8 @@ function getCategory(
   return value &&
     META.some(
       (item) =>
-        item.key === value,
+        item.key ===
+        value,
     )
     ? (value as Category)
     : null;
@@ -177,14 +282,18 @@ function inCategory(
   users: AdminUser[],
   category: Category,
 ) {
-  const roles = new Set(
-    ROLES[category],
-  );
+  const roles =
+    new Set(
+      ROLES[category],
+    );
 
   return users.filter(
     (user) =>
-      user.roles.some((role) =>
-        roles.has(role.name),
+      user.roles.some(
+        (role) =>
+          roles.has(
+            role.name,
+          ),
       ),
   );
 }
@@ -192,65 +301,135 @@ function inCategory(
 function formatDate(
   value?: string,
 ) {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
     return "—";
   }
 
   return date.toLocaleDateString(
     "en-IN",
     {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
+      day:
+        "2-digit",
+
+      month:
+        "short",
+
+      year:
+        "numeric",
     },
   );
 }
 
 export function UserLifecycleManager() {
-  const router = useRouter();
+  const router =
+    useRouter();
+
   const searchParams =
     useSearchParams();
 
-  const category = getCategory(
-    searchParams.get(
-      "category",
-    ),
-  );
-
-  const [users, setUsers] =
-    useState<AdminUser[]>([]);
-
-  const [workspace, setWorkspace] =
-    useState<AdminWorkspace | null>(
-      null,
+  const category =
+    getCategory(
+      searchParams.get(
+        "category",
+      ),
     );
 
-  const [selected, setSelected] =
-    useState<AdminUser | null>(
-      null,
-    );
+  const [
+    users,
+    setUsers,
+  ] =
+    useState<
+      AdminUser[]
+    >([]);
 
-  const [loading, setLoading] =
+  const [
+    workspace,
+    setWorkspace,
+  ] =
+    useState<
+      AdminWorkspace | null
+    >(null);
+
+  const [
+    selected,
+    setSelected,
+  ] =
+    useState<
+      AdminUser | null
+    >(null);
+
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [error, setError] =
+  const [
+    error,
+    setError,
+  ] =
     useState("");
 
-  const [query, setQuery] =
+  const [
+    query,
+    setQuery,
+  ] =
     useState("");
 
-  const [showCreate, setShowCreate] =
+  const [
+    showCreate,
+    setShowCreate,
+  ] =
     useState(false);
 
-  const [creating, setCreating] =
+  const [
+    creating,
+    setCreating,
+  ] =
     useState(false);
 
-  const [pending, setPending] =
-    useState<string | null>(null);
+  const [
+    pending,
+    setPending,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const [
+    deletionRequests,
+    setDeletionRequests,
+  ] =
+    useState<
+      UserDeletionRequest[]
+    >([]);
+
+  const [
+    actorRoles,
+    setActorRoles,
+  ] =
+    useState<
+      string[]
+    >([]);
+
+  const [
+    approvalPending,
+    setApprovalPending,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   async function load() {
     setLoading(true);
@@ -260,17 +439,47 @@ export function UserLifecycleManager() {
       const [
         workspaceData,
         people,
-      ] = await Promise.all([
-        getAdminWorkspace(),
-        listAdminUsers(),
-      ]);
+        currentUser,
+      ] =
+        await Promise.all([
+          getAdminWorkspace(),
+
+          listAdminUsers(),
+
+          getCurrentUser(),
+        ]);
 
       setWorkspace(
         workspaceData,
       );
 
-      setUsers(people);
-    } catch (reason) {
+      setUsers(
+        people,
+      );
+
+      setActorRoles(
+        currentUser.roles,
+      );
+
+      if (
+        currentUser.permissions.includes(
+          "users.read",
+        )
+      ) {
+        const requests =
+          await listAdminUserDeletionRequests();
+
+        setDeletionRequests(
+          requests,
+        );
+      } else {
+        setDeletionRequests(
+          [],
+        );
+      }
+    } catch (
+      reason
+    ) {
       if (
         reason instanceof
         AuthRequiredError
@@ -283,7 +492,8 @@ export function UserLifecycleManager() {
       }
 
       setError(
-        reason instanceof Error
+        reason instanceof
+          Error
           ? reason.message
           : "Unable to load people.",
       );
@@ -294,89 +504,112 @@ export function UserLifecycleManager() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial load only
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const counts = useMemo(() => {
-    const result: Record<
-      Category,
-      number
-    > = {
-      students:
-        workspace?.stats.students ||
-        0,
-      faculty:
-        workspace?.stats.faculty ||
-        0,
-      administrators: 0,
-      leadership: 0,
-      operations: 0,
-      parents: 0,
-    };
+  const counts =
+    useMemo(() => {
+      const result: Record<
+        Category,
+        number
+      > = {
+        students:
+          workspace?.stats
+            .students ||
+          0,
 
-    (
-      Object.keys(
-        result,
-      ) as Category[]
-    )
-      .filter(
-        (key) =>
-          key !== "students" &&
-          key !== "faculty",
+        faculty:
+          workspace?.stats
+            .faculty ||
+          0,
+
+        administrators:
+          0,
+
+        leadership:
+          0,
+
+        operations:
+          0,
+
+        parents:
+          0,
+      };
+
+      (
+        Object.keys(
+          result,
+        ) as Category[]
       )
-      .forEach((key) => {
-        result[key] =
-          inCategory(
-            users,
-            key,
-          ).length;
-      });
+        .filter(
+          (key) =>
+            key !==
+              "students" &&
+            key !==
+              "faculty",
+        )
+        .forEach(
+          (key) => {
+            result[key] =
+              inCategory(
+                users,
+                key,
+              ).length;
+          },
+        );
 
-    return result;
-  }, [
-    users,
-    workspace,
-  ]);
-
-  const visible = useMemo(() => {
-    if (!category) {
-      return [];
-    }
-
-    const term =
-      query
-        .trim()
-        .toLowerCase();
-
-    return inCategory(
+      return result;
+    }, [
       users,
-      category,
-    ).filter((user) => {
-      if (!term) {
-        return true;
+      workspace,
+    ]);
+
+  const visible =
+    useMemo(() => {
+      if (!category) {
+        return [];
       }
 
-      return [
-        user.firstName,
-        user.lastName,
-        user.email,
-        user.phone || "",
-        user.roles
-          .map(
-            (role) =>
-              role.name,
-          )
-          .join(" "),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(term);
-    });
-  }, [
-    category,
-    query,
-    users,
-  ]);
+      const term =
+        query
+          .trim()
+          .toLowerCase();
+
+      return inCategory(
+        users,
+        category,
+      ).filter(
+        (user) => {
+          if (!term) {
+            return true;
+          }
+
+          return [
+            user.firstName,
+            user.lastName,
+            user.email,
+            user.phone ||
+              "",
+            user.roles
+              .map(
+                (role) =>
+                  role.name,
+              )
+              .join(" "),
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(
+              term,
+            );
+        },
+      );
+    }, [
+      category,
+      query,
+      users,
+    ]);
 
   async function toggle(
     user: AdminUser,
@@ -389,8 +622,12 @@ export function UserLifecycleManager() {
         `${
           next
             ? "Reactivate"
-            : "Deactivate"
-        } ${user.firstName} ${user.lastName}?`,
+            : "Delete"
+        } ${user.firstName} ${user.lastName}?${
+          next
+            ? ""
+            : "\n\nThis keeps the account in the database and marks it inactive."
+        }`,
       )
     ) {
       return;
@@ -409,31 +646,218 @@ export function UserLifecycleManager() {
           next,
         );
 
-      setUsers((current) =>
-        current.map((item) =>
-          item.id === updated.id
-            ? {
-                ...item,
-                ...updated,
-              }
-            : item,
-        ),
+      setUsers(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              updated.id
+                ? {
+                    ...item,
+                    ...updated,
+                  }
+                : item,
+          ),
       );
 
       setSelected(
         (current) =>
-          current?.id === updated.id
+          current?.id ===
+          updated.id
             ? updated
             : current,
       );
-    } catch (reason) {
+    } catch (
+      reason
+    ) {
       setError(
-        reason instanceof Error
+        reason instanceof
+          Error
           ? reason.message
           : "Unable to change account status.",
       );
     } finally {
       setPending(null);
+    }
+  }
+
+  async function permanentlyDelete(
+    user: AdminUser,
+  ) {
+    const confirmed =
+      window.confirm(
+        `Permanently delete ${user.firstName} ${user.lastName}?\n\nThis removes the account from the database. This action cannot be undone. If your authority requires approval, a deletion request will be submitted instead.`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const reason =
+      window.prompt(
+        "Optional reason for permanent deletion:",
+        "",
+      ) ||
+      undefined;
+
+    setPending(
+      user.id,
+    );
+
+    setError("");
+
+    try {
+      const result =
+        await requestAdminUserPermanentDeletion(
+          user.id,
+          reason,
+        );
+
+      if (
+        result.permanentlyDeleted
+      ) {
+        setUsers(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                user.id,
+            ),
+        );
+
+        setSelected(
+          null,
+        );
+
+        setDeletionRequests(
+          (current) =>
+            current.filter(
+              (request) =>
+                request.targetUserId !==
+                user.id,
+            ),
+        );
+      } else {
+        const requests =
+          await listAdminUserDeletionRequests();
+
+        setDeletionRequests(
+          requests,
+        );
+
+        setSelected(
+          null,
+        );
+      }
+
+      window.alert(
+        result.message ||
+          (result.permanentlyDeleted
+            ? "User permanently deleted."
+            : "Permanent deletion request submitted for approval."),
+      );
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to process permanent deletion.",
+      );
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function reviewDeletionRequest(
+    request: UserDeletionRequest,
+    action:
+      | "approve"
+      | "reject",
+  ) {
+    if (
+      !request.canApprove
+    ) {
+      return;
+    }
+
+    const actionLabel =
+      action ===
+      "approve"
+        ? "permanently delete"
+        : "reject the permanent deletion of";
+
+    if (
+      !window.confirm(
+        `${
+          action ===
+          "approve"
+            ? "Approve"
+            : "Reject"
+        } this request to ${actionLabel} ${request.targetUser.firstName} ${request.targetUser.lastName}?`,
+      )
+    ) {
+      return;
+    }
+
+    setApprovalPending(
+      request.id,
+    );
+
+    setError("");
+
+    try {
+      if (
+        action ===
+        "approve"
+      ) {
+        await approveAdminUserDeletionRequest(
+          request.id,
+        );
+
+        setUsers(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                request.targetUserId,
+            ),
+        );
+      } else {
+        await rejectAdminUserDeletionRequest(
+          request.id,
+        );
+      }
+
+      const requests =
+        await listAdminUserDeletionRequests();
+
+      setDeletionRequests(
+        requests,
+      );
+
+      if (
+        selected?.id ===
+        request.targetUserId
+      ) {
+        setSelected(
+          null,
+        );
+      }
+    } catch (
+      reason
+    ) {
+      setError(
+        reason instanceof
+          Error
+          ? reason.message
+          : "Unable to review the deletion request.",
+      );
+    } finally {
+      setApprovalPending(
+        null,
+      );
     }
   }
 
@@ -453,13 +877,16 @@ export function UserLifecycleManager() {
 
       const role =
         String(
-          form.get("role") ||
+          form.get(
+            "role",
+          ) ||
             "",
         ).toUpperCase();
 
       if (
         !CREATION_ROLES.includes(
-          role as (typeof CREATION_ROLES)[number],
+          role as
+            (typeof CREATION_ROLES)[number],
         )
       ) {
         throw new Error(
@@ -473,35 +900,40 @@ export function UserLifecycleManager() {
             String(
               form.get(
                 "firstName",
-              ) || "",
+              ) ||
+                "",
             ).trim(),
 
           lastName:
             String(
               form.get(
                 "lastName",
-              ) || "",
+              ) ||
+                "",
             ).trim(),
 
           email:
             String(
               form.get(
                 "email",
-              ) || "",
+              ) ||
+                "",
             ).trim(),
 
           phone:
             String(
               form.get(
                 "phone",
-              ) || "",
+              ) ||
+                "",
             ).trim(),
 
           password:
             String(
               form.get(
                 "password",
-              ) || "",
+              ) ||
+                "",
             ),
 
           role,
@@ -518,12 +950,17 @@ export function UserLifecycleManager() {
         created,
       );
 
-      setShowCreate(false);
+      setShowCreate(
+        false,
+      );
 
       event.currentTarget.reset();
-    } catch (reason) {
+    } catch (
+      reason
+    ) {
       setError(
-        reason instanceof Error
+        reason instanceof
+          Error
           ? reason.message
           : "Unable to create the account.",
       );
@@ -558,7 +995,9 @@ export function UserLifecycleManager() {
       <main className="mx-auto max-w-[1320px] space-y-6 pb-10">
         {error ? (
           <div className="flex items-center justify-between gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <span>{error}</span>
+            <span>
+              {error}
+            </span>
 
             <button
               onClick={() =>
@@ -569,6 +1008,163 @@ export function UserLifecycleManager() {
               Retry
             </button>
           </div>
+        ) : null}
+
+        {deletionRequests.some(
+          (request) =>
+            request.canApprove &&
+            request.status ===
+              "PENDING",
+        ) ? (
+          <section className="rounded-[26px] border border-amber-200 bg-amber-50 p-5 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                  DELETION APPROVALS
+                </p>
+
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  Permanent deletion requests
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  These requests require your higher-authority approval before the account can be removed permanently.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-amber-700">
+                {
+                  deletionRequests.filter(
+                    (request) =>
+                      request.canApprove &&
+                      request.status ===
+                        "PENDING",
+                  ).length
+                }{" "}
+                pending
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {deletionRequests
+                .filter(
+                  (request) =>
+                    request.canApprove &&
+                    request.status ===
+                      "PENDING",
+                )
+                .map(
+                  (request) => (
+                    <div
+                      key={
+                        request.id
+                      }
+                      className="rounded-[20px] border border-amber-200 bg-white p-4"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="font-extrabold text-slate-950">
+                            {
+                              request
+                                .targetUser
+                                .firstName
+                            }{" "}
+                            {
+                              request
+                                .targetUser
+                                .lastName
+                            }
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {
+                              request
+                                .targetUser
+                                .email
+                            }{" "}
+                            ·{" "}
+                            {roleLabel(
+                              request
+                                .targetUser
+                                .role,
+                            )}
+                          </p>
+
+                          <p className="mt-2 text-xs text-slate-500">
+                            Requested by{" "}
+                            <span className="font-bold text-slate-700">
+                              {
+                                request
+                                  .requester
+                                  .firstName
+                              }{" "}
+                              {
+                                request
+                                  .requester
+                                  .lastName
+                              }
+                            </span>{" "}
+                            (
+                            {roleLabel(
+                              request
+                                .requester
+                                .role,
+                            )}
+                            )
+                          </p>
+
+                          {request.reason ? (
+                            <p className="mt-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                              Reason:{" "}
+                              {
+                                request.reason
+                              }
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            onClick={() =>
+                              void reviewDeletionRequest(
+                                request,
+                                "reject",
+                              )
+                            }
+                            disabled={
+                              approvalPending ===
+                              request.id
+                            }
+                            className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-xs font-extrabold text-slate-700 disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              void reviewDeletionRequest(
+                                request,
+                                "approve",
+                              )
+                            }
+                            disabled={
+                              approvalPending ===
+                              request.id
+                            }
+                            className="rounded-[13px] bg-red-600 px-4 py-2.5 text-xs font-extrabold text-white disabled:opacity-50"
+                          >
+                            {approvalPending ===
+                            request.id
+                              ? "Processing…"
+                              : "Approve permanent delete"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                )}
+            </div>
+          </section>
         ) : null}
 
         {!category ? (
@@ -591,8 +1187,12 @@ export function UserLifecycleManager() {
               {META.map(
                 (item) => (
                   <Link
-                    key={item.key}
-                    href={item.href}
+                    key={
+                      item.key
+                    }
+                    href={
+                      item.href
+                    }
                     className="group relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
                   >
                     <div
@@ -601,7 +1201,10 @@ export function UserLifecycleManager() {
 
                     <div className="flex items-start justify-between">
                       <span className="grid h-12 w-12 place-items-center rounded-[17px] bg-slate-100 text-lg font-black text-slate-700">
-                        {item.label[0]}
+                        {
+                          item
+                            .label[0]
+                        }
                       </span>
 
                       <span className="rounded-full bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-500">
@@ -614,21 +1217,30 @@ export function UserLifecycleManager() {
                     </div>
 
                     <p className="mt-5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                      {item.key}
+                      {
+                        item.key
+                      }
                     </p>
 
                     <h2 className="mt-1 text-xl font-black text-slate-950">
-                      {item.label}
+                      {
+                        item.label
+                      }
                     </h2>
 
                     <p className="mt-2 min-h-[48px] text-sm leading-6 text-slate-500">
-                      {item.description}
+                      {
+                        item.description
+                      }
                     </p>
 
                     <div className="mt-5 flex justify-between text-sm font-extrabold text-blue-600">
                       <span>
                         Open{" "}
-                        {item.label.toLowerCase()}
+                        {
+                          item.label
+                        .toLowerCase()
+                        }
                       </span>
 
                       <span className="transition group-hover:translate-x-1">
@@ -659,7 +1271,9 @@ export function UserLifecycleManager() {
 
               <button
                 onClick={() =>
-                  setShowCreate(true)
+                  setShowCreate(
+                    true,
+                  )
                 }
                 className="rounded-[14px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-blue-700"
               >
@@ -684,12 +1298,18 @@ export function UserLifecycleManager() {
               <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h1 className="text-2xl font-black">
-                    {pageTitle}
+                    {
+                      pageTitle
+                    }
                   </h1>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    {visible.length} matching account
-                    {visible.length === 1
+                    {
+                      visible.length
+                    }{" "}
+                    matching account
+                    {visible.length ===
+                    1
                       ? ""
                       : "s"}
                   </p>
@@ -697,10 +1317,15 @@ export function UserLifecycleManager() {
 
                 <div className="flex gap-2">
                   <input
-                    value={query}
-                    onChange={(event) =>
+                    value={
+                      query
+                    }
+                    onChange={(
+                      event,
+                    ) =>
                       setQuery(
-                        event.target
+                        event
+                          .target
                           .value,
                       )
                     }
@@ -731,17 +1356,26 @@ export function UserLifecycleManager() {
               {loading ? (
                 Array.from({
                   length: 6,
-                }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-36 animate-pulse rounded-[22px] bg-white"
-                  />
-                ))
+                }).map(
+                  (
+                    _,
+                    index,
+                  ) => (
+                    <div
+                      key={
+                        index
+                      }
+                      className="h-36 animate-pulse rounded-[22px] bg-white"
+                    />
+                  ),
+                )
               ) : visible.length ? (
                 visible.map(
                   (person) => (
                     <button
-                      key={person.id}
+                      key={
+                        person.id
+                      }
                       onClick={() =>
                         setSelected(
                           person,
@@ -831,12 +1465,18 @@ export function UserLifecycleManager() {
                     </p>
 
                     <h2 className="mt-1 text-xl font-black">
-                      {selected.firstName}{" "}
-                      {selected.lastName}
+                      {
+                        selected.firstName
+                      }{" "}
+                      {
+                        selected.lastName
+                      }
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      {selected.email}
+                      {
+                        selected.email
+                      }
                     </p>
                   </div>
                 </div>
@@ -856,7 +1496,9 @@ export function UserLifecycleManager() {
               <div className="grid gap-3 p-5 sm:grid-cols-2">
                 <Info
                   label="Email"
-                  value={selected.email}
+                  value={
+                    selected.email
+                  }
                 />
 
                 <Info
@@ -877,7 +1519,9 @@ export function UserLifecycleManager() {
                             role.name,
                           ),
                       )
-                      .join(", ") ||
+                      .join(
+                        ", ",
+                      ) ||
                     "—"
                   }
                 />
@@ -906,7 +1550,7 @@ export function UserLifecycleManager() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white p-5">
                 <button
                   onClick={() =>
                     void toggle(
@@ -927,9 +1571,38 @@ export function UserLifecycleManager() {
                   selected.id
                     ? "Saving…"
                     : selected.isActive
-                      ? "Deactivate"
+                      ? "Delete"
                       : "Reactivate"}
                 </button>
+
+                {actorRoles.includes(
+                  "SUPER_ADMIN",
+                ) ||
+                actorRoles.includes(
+                  "INSTITUTION_ADMIN",
+                ) ? (
+                  <button
+                    onClick={() =>
+                      void permanentlyDelete(
+                        selected,
+                      )
+                    }
+                    disabled={
+                      pending ===
+                      selected.id
+                    }
+                    className="rounded-[13px] border border-red-300 bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
+                  >
+                    {pending ===
+                    selected.id
+                      ? "Processing…"
+                      : actorRoles.includes(
+                            "SUPER_ADMIN",
+                          )
+                        ? "Permanently Delete"
+                        : "Permanent Delete"}
+                  </button>
+                ) : null}
 
                 <button
                   onClick={() =>
@@ -1034,8 +1707,12 @@ export function UserLifecycleManager() {
                       {CREATION_ROLES.map(
                         (role) => (
                           <option
-                            key={role}
-                            value={role}
+                            key={
+                              role
+                            }
+                            value={
+                              role
+                            }
                           >
                             {roleLabel(
                               role,
@@ -1115,7 +1792,9 @@ function Input({
     <label>
       <span className="mb-1.5 block text-xs font-bold text-slate-600">
         {fieldLabel}
-        {required ? " *" : ""}
+        {required
+          ? " *"
+          : ""}
       </span>
 
       <input
