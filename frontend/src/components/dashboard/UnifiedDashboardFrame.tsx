@@ -519,7 +519,7 @@ export function UnifiedDashboardFrame({
           DESKTOP HEADER
          ========================================================= */}
       <header
-        className="fixed inset-x-0 top-0 z-[60] h-[72px] border-b border-white/10 bg-[#0b1324]/96 shadow-[0_2px_14px_rgba(15,23,42,0.04)] backdrop-blur"
+        className="fixed inset-x-0 top-0 z-[60] h-[72px] border-b border-[#d8d0c4] bg-[#fbf8f2] shadow-[0_2px_14px_rgba(70,55,40,0.08)]"
       >
         <div className="flex h-full items-center justify-between px-3 sm:px-5 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -528,7 +528,7 @@ export function UnifiedDashboardFrame({
               onClick={() =>
                 setMobileOpen(true)
               }
-              className="grid h-10 w-10 place-items-center rounded-[12px] text-slate-300 hover:bg-white/10 lg:hidden"
+              className="grid h-10 w-10 place-items-center rounded-[12px] text-slate-700 hover:bg-[#eee7dc] lg:hidden"
               aria-label="Open navigation"
             >
               <SvgIcon name="menu" />
@@ -543,7 +543,7 @@ export function UnifiedDashboardFrame({
 
             <div className="min-w-0">
               {title ? (
-                <div className="truncate text-[15px] font-bold text-white sm:text-[16px]">
+                <div className="truncate text-[15px] font-bold text-slate-900 sm:text-[16px]">
                   {title}
                 </div>
               ) : activeItem ? (
@@ -551,14 +551,14 @@ export function UnifiedDashboardFrame({
                   {activeItem.label}
                 </div>
               ) : (
-                <div className="truncate text-[15px] font-bold text-white">
+                <div className="truncate text-[15px] font-bold text-slate-900">
                   ACADLYX
                 </div>
               )}
 
               {(subtitle ||
                 institutionName) ? (
-                <div className="hidden truncate text-[11px] font-medium text-slate-500 sm:block">
+                <div className="hidden truncate text-[11px] font-medium text-slate-600 sm:block">
                   {subtitle ||
                     institutionName}
                 </div>
@@ -567,31 +567,6 @@ export function UnifiedDashboardFrame({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setCollapsed(
-                  (value) => !value,
-                )
-              }
-              className="hidden h-10 w-10 place-items-center rounded-[12px] text-slate-300 hover:bg-white/10 hover:text-white lg:grid"
-              title={
-                collapsed
-                  ? "Show sidebar"
-                  : "Hide sidebar"
-              }
-              aria-label={
-                collapsed
-                  ? "Show sidebar"
-                  : "Hide sidebar"
-              }
-            >
-              <SvgIcon
-                name="menu"
-                className="h-[18px] w-[18px]"
-              />
-            </button>
-
             <div className="relative">
               <button
                 type="button"
@@ -601,7 +576,7 @@ export function UnifiedDashboardFrame({
                       !value,
                   )
                 }
-                className="flex items-center gap-2 rounded-[13px] px-1.5 py-1.5 hover:bg-white/10"
+                className="flex items-center gap-2 rounded-[13px] px-1.5 py-1.5 hover:bg-[#eee7dc]"
                 aria-expanded={
                   userMenuOpen
                 }
@@ -611,7 +586,7 @@ export function UnifiedDashboardFrame({
                 />
 
                 <span className="hidden max-w-[180px] text-left md:block">
-                  <span className="block truncate text-[12px] font-bold text-white">
+                  <span className="block truncate text-[12px] font-bold text-slate-900">
                     {userName ||
                       "User"}
                   </span>
@@ -726,19 +701,34 @@ export function UnifiedDashboardFrame({
         }}
       >
         <div className="flex h-full flex-col">
-          {/* Mobile header */}
-          <div className="flex h-[62px] items-center justify-between border-b border-white/10 px-3 lg:hidden">
+          {/* Sidebar header / mobile header */}
+          <div className="flex h-[62px] items-center justify-between border-b border-white/10 px-3">
             <BrandMark
               logoUrl={logoUrl}
-              collapsed={false}
+              collapsed={collapsed}
             />
+
+            <button
+              type="button"
+              onClick={() =>
+                setCollapsed((value) => !value)
+              }
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-slate-200 hover:bg-white/10 hover:text-white"
+              title={collapsed ? "Show sidebar" : "Collapse sidebar"}
+              aria-label={collapsed ? "Show sidebar" : "Collapse sidebar"}
+            >
+              <SvgIcon
+                name="menu"
+                className="h-5 w-5"
+              />
+            </button>
 
             <button
               type="button"
               onClick={() =>
                 setMobileOpen(false)
               }
-              className="grid h-9 w-9 place-items-center rounded-[11px] text-slate-300 hover:bg-white/10"
+              className="grid h-9 w-9 place-items-center rounded-[11px] text-slate-300 hover:bg-white/10 lg:hidden"
               aria-label="Close navigation"
             >
               <SvgIcon
@@ -749,6 +739,7 @@ export function UnifiedDashboardFrame({
           </div>
 
           {/* Navigation */}
+
           <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4">
             {groupedNavigation.length ===
             0 ? (
@@ -818,38 +809,6 @@ export function UnifiedDashboardFrame({
 
           {/* Bottom controls */}
           <div className="border-t border-white/10 p-2.5">
-            <button
-              type="button"
-              onClick={() =>
-                setCollapsed(
-                  (value) =>
-                    !value,
-                )
-              }
-              className={[
-                "hidden w-full items-center rounded-[14px] py-2.5 text-[11px] font-semibold text-slate-500 hover:bg-white/10 hover:text-white lg:flex",
-                collapsed
-                  ? "justify-center"
-                  : "gap-3 px-2.5",
-              ].join(" ")}
-              title={
-                collapsed
-                  ? "Show sidebar"
-                  : "Hide sidebar"
-              }
-            >
-              <SvgIcon
-                name="menu"
-                className="h-4 w-4"
-              />
-
-              {!collapsed ? (
-                <span>
-                  Hide sidebar
-                </span>
-              ) : null}
-            </button>
-
             <button
               type="button"
               onClick={
