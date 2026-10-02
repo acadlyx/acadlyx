@@ -122,6 +122,7 @@ export function DashboardShell({
       !canAccessRoute(
         pathname,
         roles,
+        user?.permissions || [],
       )
     ) {
       router.replace(
