@@ -160,8 +160,7 @@ export default function FacultyAssignmentDetailPage() {
   const submittedCount = rows.filter((r) => r.submission).length;
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
-      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+    <main className="acadlyx-page-container"><div className="acadlyx-workspace-content">
         <Link href="/faculty/assignments" className="text-xs font-medium text-slate-500 hover:text-slate-800">
           ← Back to assignments
         </Link>
