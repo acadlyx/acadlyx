@@ -890,7 +890,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Outcome Based Education",
-    href: "/obe",
+    href: "/student/obe",
     icon: "◎",
     roles: ["STUDENT"],
     permissions: ["obe.read"],
