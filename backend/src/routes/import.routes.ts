@@ -34,31 +34,37 @@ const IMPORT_TYPE_PERMISSIONS: Record<string, string> = {
 router.use(
   authenticate,
   requireFeature("import_export"),
-  authorize("imports.manage"),
-  (req, res, next) => {
-    const permission = IMPORT_TYPE_PERMISSIONS[req.params.type];
-    const user = requireAuthenticatedUser(req);
-
-    if (!permission) {
-      res.status(404).json({
-        success: false,
-        error: { code: "IMPORT_TYPE_NOT_FOUND", message: "Unsupported import type" },
-      });
-      return;
-    }
-
-    if (!user.permissions.includes(permission)) {
-      res.status(403).json({
-        success: false,
-        error: { code: "FORBIDDEN", message: "You are not authorized to import this data type" },
-      });
-      return;
-    }
-
-    next();
-  }
+  authorize("imports.manage")
 );
-router.post("/:type/preview", upload.single("file"), controller.preview);
-router.post("/:type/commit", upload.single("file"), controller.commit);
+
+function authorizeImportType(
+  req: Parameters<import("express").RequestHandler>[0],
+  res: Parameters<import("express").RequestHandler>[1],
+  next: Parameters<import("express").RequestHandler>[2]
+) {
+  const permission = IMPORT_TYPE_PERMISSIONS[req.params.type];
+  const user = requireAuthenticatedUser(req);
+
+  if (!permission) {
+    res.status(404).json({
+      success: false,
+      error: { code: "IMPORT_TYPE_NOT_FOUND", message: "Unsupported import type" },
+    });
+    return;
+  }
+
+  if (!user.permissions.includes(permission)) {
+    res.status(403).json({
+      success: false,
+      error: { code: "FORBIDDEN", message: "You are not authorized to import this data type" },
+    });
+    return;
+  }
+
+  next();
+}
+
+router.post("/:type/preview", upload.single("file"), authorizeImportType, controller.preview);
+router.post("/:type/commit", upload.single("file"), authorizeImportType, controller.commit);
 export default router;
 
