@@ -284,6 +284,19 @@ export async function listUsers(params: {
             },
           },
         },
+        departmentAccesses: {
+          select: {
+            departmentId: true,
+            scope: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+        },
       },
     }),
 
@@ -298,6 +311,12 @@ export async function listUsers(params: {
       roles: user.userRoles.map(
         (binding) => binding.role
       ),
+      departmentAccesses: user.departmentAccesses.map((access) => ({
+        departmentId: access.departmentId,
+        departmentName: access.department.name,
+        departmentCode: access.department.code,
+        scope: access.scope,
+      })),
       userRoles: undefined,
     })),
     total,
@@ -349,6 +368,20 @@ export async function getUserById(
           },
         },
       },
+      departmentAccesses: {
+        select: {
+          departmentId: true,
+          scope: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              isActive: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -366,6 +399,199 @@ export async function getUserById(
     ),
     userRoles: undefined,
   };
+}
+
+async function validateDepartmentIds(
+  departmentIds: string[] | undefined,
+  institutionId: string | null,
+  roleName: string,
+) {
+  const ids = Array.from(new Set(departmentIds || []));
+
+  if (departmentIds !== undefined && roleName === "HOD" && ids.length !== 1) {
+    throw new AppError(
+      "An HOD must be assigned to exactly one department",
+      400,
+    );
+  }
+
+  if (departmentIds !== undefined && roleName !== "HOD" && ids.length > 0) {
+    throw new AppError(
+      "Department access can only be assigned to HOD accounts",
+      400,
+    );
+  }
+
+  if (ids.length === 0) {
+    return ids;
+  }
+
+  if (!institutionId) {
+    throw new AppError(
+      "Department access requires an institution-scoped user",
+      400,
+    );
+  }
+
+  const departments = await prisma.department.findMany({
+    where: {
+      id: { in: ids },
+      institutionId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (departments.length !== ids.length) {
+    throw new AppError(
+      "One or more selected departments do not belong to the user's institution or are inactive",
+      400,
+    );
+  }
+
+  return ids;
+}
+
+async function syncDepartmentAccess(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  institutionId: string | null,
+  roleName: string,
+  departmentIds: string[] | undefined,
+) {
+  if (roleName !== "HOD") {
+    await tx.departmentAccess.deleteMany({
+      where: { userId },
+    });
+    return;
+  }
+
+  if (departmentIds === undefined) {
+    const existing = await tx.departmentAccess.count({
+      where: { userId },
+    });
+
+    if (existing === 0) {
+      throw new AppError(
+        "An HOD must have a department assigned",
+        400,
+      );
+    }
+
+    return;
+  }
+
+  const ids = await validateDepartmentIds(
+    departmentIds,
+    institutionId,
+    roleName,
+  );
+
+  await tx.departmentAccess.deleteMany({
+    where: { userId },
+  });
+
+  if (ids.length) {
+    await tx.departmentAccess.createMany({
+      data: ids.map((departmentId) => ({
+        userId,
+        departmentId,
+        scope: "HOD",
+      })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+export async function getUserDepartmentAccess(
+  id: string,
+  actor: AuthenticatedUser,
+) {
+  const institutionId = isSuperAdmin(actor)
+    ? null
+    : await requireActorInstitution(actor);
+
+  const user = await getScopedUserOrThrow(
+    id,
+    institutionId,
+  );
+
+  return prisma.departmentAccess.findMany({
+    where: { userId: user.id },
+    orderBy: {
+      department: {
+        name: "asc",
+      },
+    },
+    select: {
+      departmentId: true,
+      scope: true,
+      department: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          isActive: true,
+        },
+      },
+    },
+  });
+}
+
+export async function setUserDepartmentAccess(
+  id: string,
+  departmentIds: string[],
+  actor: AuthenticatedUser,
+) {
+  const institutionId = isSuperAdmin(actor)
+    ? null
+    : await requireActorInstitution(actor);
+
+  const existing = await getScopedUserOrThrow(
+    id,
+    institutionId,
+  );
+
+  const currentRole = existing.userRoles[0]?.role?.name;
+
+  if (currentRole !== "HOD") {
+    throw new AppError(
+      "Department assignment is only available for HOD accounts",
+      400,
+    );
+  }
+
+  await validateDepartmentIds(
+    departmentIds,
+    existing.institutionId,
+    currentRole,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await syncDepartmentAccess(
+      tx,
+      id,
+      existing.institutionId,
+      currentRole,
+      departmentIds,
+    );
+  });
+
+  await recordAuditLog({
+    institutionId: existing.institutionId,
+    userId: actor.id,
+    action: "user.department_access.update",
+    entityType: "User",
+    entityId: id,
+    metadata: {
+      role: currentRole,
+      departmentIds,
+    },
+  });
+
+  return getUserDepartmentAccess(id, actor);
 }
 
 export async function createUser(
@@ -531,6 +757,19 @@ export async function createUser(
     targetInstitutionId
   );
 
+  if (input.role === "HOD" && (!input.departmentIds || input.departmentIds.length !== 1)) {
+    throw new AppError(
+      "An HOD account must be created with exactly one department assigned",
+      400,
+    );
+  }
+
+  await validateDepartmentIds(
+    input.departmentIds,
+    targetInstitutionId,
+    input.role,
+  );
+
   const passwordHash =
     await hashPassword(input.password);
 
@@ -560,6 +799,14 @@ export async function createUser(
             roleId: role.id,
           },
         });
+
+        await syncDepartmentAccess(
+          tx,
+          created.id,
+          targetInstitutionId,
+          input.role,
+          input.departmentIds,
+        );
 
         return created;
       }
@@ -620,6 +867,35 @@ export async function updateUser(
 
   const currentRole =
     existing.userRoles[0]?.role;
+
+  const targetRoleName =
+    input.role ?? currentRole?.name;
+
+  if (!targetRoleName) {
+    throw new AppError(
+      "Target user has no valid role",
+      400,
+    );
+  }
+
+  if (input.email !== undefined) {
+    const normalizedEmail = input.email.trim().toLowerCase();
+
+    const duplicate = await prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new AppError(
+        "A user with this email already exists",
+        409,
+      );
+    }
+  }
 
   if (
     currentRole?.name ===
@@ -792,6 +1068,19 @@ export async function updateUser(
         existing.institutionId
       );
 
+    if (input.role === "HOD" && currentRole?.name !== "HOD" && (!input.departmentIds || input.departmentIds.length !== 1)) {
+      throw new AppError(
+        "Changing a user to HOD requires exactly one department assignment",
+        400,
+      );
+    }
+
+    await validateDepartmentIds(
+      input.departmentIds,
+      existing.institutionId,
+      input.role,
+    );
+
     await prisma.$transaction(
       async (tx) => {
         await tx.user.update({
@@ -820,6 +1109,12 @@ export async function updateUser(
               ? {
                   phone:
                     input.phone || null,
+                }
+              : {}),
+
+            ...(input.email !== undefined
+              ? {
+                  email: input.email.trim().toLowerCase(),
                 }
               : {}),
 
@@ -865,6 +1160,14 @@ export async function updateUser(
           });
         }
 
+        await syncDepartmentAccess(
+          tx,
+          id,
+          existing.institutionId,
+          input.role,
+          input.departmentIds,
+        );
+
         if (input.isActive === false) {
           await tx.refreshToken.updateMany({
             where: {
@@ -879,11 +1182,12 @@ export async function updateUser(
       }
     );
   } else {
-    await prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: {
+          id,
+        },
+        data: {
         ...(input.firstName !==
         undefined
           ? {
@@ -908,6 +1212,12 @@ export async function updateUser(
             }
           : {}),
 
+        ...(input.email !== undefined
+          ? {
+              email: input.email.trim().toLowerCase(),
+            }
+          : {}),
+
         ...(input.isActive !==
         undefined
           ? {
@@ -915,11 +1225,19 @@ export async function updateUser(
                 input.isActive,
             }
           : {}),
-      },
-    });
+        },
+      });
 
-    if (input.isActive === false) {
-      await prisma.refreshToken.updateMany({
+      await syncDepartmentAccess(
+        tx,
+        id,
+        existing.institutionId,
+        targetRoleName,
+        input.departmentIds,
+      );
+
+      if (input.isActive === false) {
+        await tx.refreshToken.updateMany({
         where: {
           userId: id,
           revokedAt: null,
@@ -927,8 +1245,9 @@ export async function updateUser(
         data: {
           revokedAt: new Date(),
         },
-      });
-    }
+        });
+      }
+    });
   }
 
   await recordAuditLog({
