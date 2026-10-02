@@ -114,22 +114,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "People",
   },
   {
-    label: "Examinations",
-    href: "/examinations",
-    icon: "✍",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["exams.read"],
-    group: "Academic",
-  },
-  {
-    label: "Outcome Based Education",
-    href: "/obe",
-    icon: "◎",
-    roles: ["INSTITUTION_ADMIN"],
-    permissions: ["obe.read"],
-    group: "Academic",
-  },
-  {
     label: "Academic structure",
     href: "/admin",
     icon: "▦",
@@ -906,7 +890,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   [
     "/examinations",
     [
-      "INSTITUTION_ADMIN",
       "EXAMINATION",
       "FACULTY",
       "HOD",
@@ -1056,6 +1039,20 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "ACCOUNTS",
       "STUDENT",
       "PARENT",
+    ],
+  ],
+
+  [
+    "/obe",
+    [
+      "EXAMINATION",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STUDENT",
+      "CHAIRMAN",
     ],
   ],
 
