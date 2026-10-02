@@ -149,7 +149,16 @@ export default function StudentTimetablePage() {
   }
 
   return (
-    <DashboardShell
+    <>
+      <style jsx global>{`
+        @media print {
+          body { background: white !important; }
+          aside, nav, header { display: none !important; }
+          main { margin: 0 !important; padding: 0 !important; }
+          .print-hidden { display: none !important; }
+        }
+      `}</style>
+      <DashboardShell
       title="Timetable"
       subtitle="Your weekly classes, rooms and faculty"
       allowedRoles={[
@@ -157,7 +166,7 @@ export default function StudentTimetablePage() {
       ]}
     >
       <div className="space-y-5 pb-10">
-        <section className="rounded-[24px] border border-[#dfe7ee] bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-6">
+        <section className="print-hidden rounded-[24px] border border-[#dfe7ee] bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2864e8]">
@@ -176,15 +185,22 @@ export default function StudentTimetablePage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                void load()
-              }
-              className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:bg-[#f7f9fb]"
-            >
-              Refresh
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:bg-[#f7f9fb] print:hidden"
+              >
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:bg-[#f7f9fb] print:hidden"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </section>
 
@@ -234,10 +250,14 @@ export default function StudentTimetablePage() {
                   </div>
 
                   {DAYS.map(
-                    (day) => (
+                    (day, dayIndex) => (
                       <div
                         key={day}
-                        className="border-r border-[#e8edf2] px-3 py-3 text-center text-xs font-black text-[#334155]"
+                        className={`border-r border-[#e8edf2] px-3 py-3 text-center text-xs font-black ${
+                          new Date().getDay() === dayIndex
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-[#334155]"
+                        }`}
                       >
                         {day}
                       </div>
@@ -335,6 +355,7 @@ export default function StudentTimetablePage() {
           )}
         </section>
       </div>
-    </DashboardShell>
+      </DashboardShell>
+    </>
   );
 }
