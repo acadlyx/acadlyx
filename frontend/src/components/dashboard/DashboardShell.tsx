@@ -19,7 +19,7 @@ import {
   logout,
 } from "@/lib/auth";
 
-import { getPrimaryRole } from "@/lib/authority";
+import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
 
 import {
   canAccessRoute,
@@ -83,7 +83,6 @@ export function DashboardShell({
         }
 
         setUser(current);
-        setAuthLoading(false);
       })
       .catch((error) => {
         if (!alive) {
@@ -98,7 +97,7 @@ export function DashboardShell({
           return;
         }
 
-        setAuthLoading(false);
+        
       });
 
     return () => {
@@ -115,6 +114,18 @@ export function DashboardShell({
       user.roles?.length
         ? user.roles
         : allowedRoles || [];
+
+    if (allowedRoles?.length) {
+      const canonicalRoles = getCanonicalRoles(roles);
+      const pageAllowed = allowedRoles.some((role) =>
+        canonicalRoles.includes(normalizeRole(role)),
+      );
+
+      if (!pageAllowed) {
+        router.replace(workspaceHome(roles));
+        return;
+      }
+    }
 
     if (
       !canAccessRoute(
