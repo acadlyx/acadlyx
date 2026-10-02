@@ -22,6 +22,23 @@ function provider(): FileStorageProvider {
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
+const MODULE_MIME_ALLOWLIST: Record<string, readonly string[]> = {
+  site: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
+  "profile-photos": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  students: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"],
+  faculty: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"],
+  admissions: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  assignments: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
+  notices: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  examinations: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  certificates: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  results: ["application/pdf", "text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  documents: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
+  lms: ["application/pdf", "image/jpeg", "image/png", "image/webp", "video/mp4", "audio/mpeg", "application/zip"],
+  library: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+  operations: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
+};
+
 export interface StoredFile {
   id: string;
   provider: string;
@@ -74,6 +91,9 @@ export async function storeFile(input: {
   };
 
   assertSafeFile(storageInput);
+  const allowed = MODULE_MIME_ALLOWLIST[input.module];
+  if (!allowed) throw new AppError("Unsupported storage module", 400);
+  validateAllowedMime(input.mimeType, allowed);
   const uploaded = await provider().upload(storageInput);
 
   let previous: { id: string; provider: string; publicId: string; resourceType: string } | null = null;
@@ -182,6 +202,10 @@ export async function deleteFilesByReference(
     select: { id: true },
   });
   for (const file of files) await deleteFile(file.id, institutionId);
+}
+
+export function allowedMimeTypesForModule(module: string): readonly string[] {
+  return MODULE_MIME_ALLOWLIST[module] ?? [];
 }
 
 export function validateAllowedMime(
