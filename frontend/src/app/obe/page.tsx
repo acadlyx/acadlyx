@@ -84,7 +84,9 @@ export default function ObePage() {
     [offerings, selectedOfferingId]
   );
 
-  const canEditMapping = can(user, "obe.mapping.manage");
+  const normalizedRole = user?.roles?.[0]?.toUpperCase() ?? "";
+  const isStudent = normalizedRole === "STUDENT";
+  const canEditMapping = !isStudent && can(user, "obe.mapping.manage");
   const canManageAssessment = can(user, "obe.assessment.manage");
   const canCalculate = can(user, "obe.attainment.calculate");
 
@@ -286,12 +288,14 @@ export default function ObePage() {
     finally { setWorking(false); }
   }
 
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "outcomes", label: "Course Outcomes" },
-    { id: "mapping", label: "CO–PO / PSO Mapping" },
-    { id: "assessments", label: "Assessments" },
-    { id: "attainment", label: "CO Attainment" },
-  ];
+  const tabs: Array<{ id: Tab; label: string }> = isStudent
+    ? [{ id: "attainment", label: "My Outcome Attainment" }]
+    : [
+        { id: "outcomes", label: "Course Outcomes" },
+        { id: "mapping", label: "CO–PO / PSO Mapping" },
+        { id: "assessments", label: "Assessments" },
+        { id: "attainment", label: "CO Attainment" },
+      ];
 
   return (
     <DashboardShell
@@ -303,7 +307,7 @@ export default function ObePage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">Academic outcomes</p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-acadlyx-primary">Academic outcomes</p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">OBE workspace</h1>
               <p className="mt-2 max-w-3xl text-sm text-slate-500">Configure course outcomes, map them to programme outcomes, connect assessment questions to COs, enter evidence and calculate attainment. Authority remains role and scope controlled by the API.</p>
             </div>
