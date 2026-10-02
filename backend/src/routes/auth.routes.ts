@@ -30,6 +30,7 @@ import {
 } from "../middleware/errorHandler";
 
 import {
+  deleteProfilePhoto,
   getProfilePhoto,
   uploadProfilePhotoDataUrl,
 } from "../services/profilePhoto.service";
@@ -194,6 +195,39 @@ router.post(
     } catch (
       error
     ) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/account/photo",
+  authenticate,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      if (!req.user) {
+        throw new AppError(
+          "Authentication required",
+          401
+        );
+      }
+
+      await deleteProfilePhoto(
+        req.user.id
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          userId: req.user.id,
+          url: null,
+        },
+      });
+    } catch (error) {
       next(error);
     }
   }
