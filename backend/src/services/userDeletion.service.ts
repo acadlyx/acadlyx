@@ -176,7 +176,8 @@ async function getTarget(
         lastName: true,
         email: true,
         isActive: true,
-        deletedAt: null,
+        deletedAt: true,
+        recoveryDeadline: true,
 
         userRoles: {
           select: {
@@ -412,8 +413,7 @@ async function hasHigherApprover(
     await prisma.user.findFirst({
       where: {
         isActive: true,
-        deletedAt: true,
-        recoveryDeadline: true,
+        deletedAt: null,
 
         userRoles: {
           some: {
