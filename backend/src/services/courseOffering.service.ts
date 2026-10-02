@@ -372,7 +372,7 @@ export async function updateCourseOffering(
     const registrationCount = await prisma.courseRegistration.count({
       where: {
         courseOfferingId: id,
-        status: { in: ["ACTIVE", "PENDING"] },
+        status: "ACTIVE",
       },
     });
 
