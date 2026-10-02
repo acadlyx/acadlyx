@@ -233,7 +233,7 @@ function NavigationIcon({
         "grid h-10 w-10 shrink-0 place-items-center rounded-[13px] transition",
         active
           ? "bg-white/15 text-white"
-          : "bg-white/5 text-slate-400 group-hover:bg-blue-500/15 group-hover:text-blue-200",
+          : "bg-white/5 text-[#aeb8c5] group-hover:bg-blue-500/15 group-hover:text-[#dbe7f5]",
       ].join(" ")}
     >
       <SvgIcon
@@ -270,7 +270,7 @@ function NavigationItem({
         "group relative flex min-h-[52px] items-center gap-3 rounded-[15px] px-2.5 transition-all duration-150",
         active
           ? "bg-blue-600 text-white shadow-[0_8px_22px_rgba(37,99,235,0.22)]"
-          : "text-slate-300 hover:bg-white/10 hover:text-white",
+          : "text-[#d1d8e1] hover:bg-white/10 hover:text-white",
         collapsed
           ? "justify-center"
           : "justify-start",
@@ -348,7 +348,7 @@ function BrandMark({
             ACADLYX
           </div>
 
-          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9ca8b6]">
             Education Platform
           </div>
         </div>
@@ -382,7 +382,7 @@ function UserAvatar({
   }, [userName]);
 
   return (
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-500/15 text-[12px] font-bold text-blue-200">
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-500/15 text-[12px] font-bold text-[#cfe0f2]">
       {initials}
     </span>
   );
@@ -622,7 +622,7 @@ export function UnifiedDashboardFrame({
                             "User"}
                         </div>
 
-                        <div className="truncate text-[11px] text-slate-500">
+                        <div className="truncate text-[11px] text-[#a8b2bf]">
                           {userEmail ||
                             ""}
                         </div>
@@ -715,7 +715,7 @@ export function UnifiedDashboardFrame({
               onClick={() =>
                 setCollapsed((value) => !value)
               }
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-slate-200 hover:bg-white/10 hover:text-white"
+              className="hidden h-9 w-9 shrink-0 place-items-center rounded-[11px] text-slate-200 hover:bg-white/10 hover:text-white lg:grid"
               title={collapsed ? "Show sidebar" : "Collapse sidebar"}
               aria-label={collapsed ? "Show sidebar" : "Collapse sidebar"}
             >
@@ -774,7 +774,7 @@ export function UnifiedDashboardFrame({
                       key={group}
                     >
                       {!collapsed ? (
-                        <div className="mb-2 px-2 text-[9px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
+                        <div className="mb-2 px-2 text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#aeb8c5]">
                           {group}
                         </div>
                       ) : (
