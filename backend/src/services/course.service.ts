@@ -15,7 +15,8 @@ export interface ListFilters extends PaginationParams {
 
 async function assertDepartmentInInstitution(
   institutionId: string,
-  departmentId: string
+  departmentId: string,
+  requireActive = false
 ) {
   const department = await prisma.department.findFirst({
     where: { id: departmentId, institutionId },
@@ -25,6 +26,9 @@ async function assertDepartmentInInstitution(
       "departmentId does not belong to this institution",
       400
     );
+  }
+  if (requireActive && !department.isActive) {
+    throw new AppError("Cannot use an inactive department", 400);
   }
 }
 
@@ -76,7 +80,7 @@ export async function createCourse(
   institutionId: string,
   input: CreateCourseInput
 ) {
-  await assertDepartmentInInstitution(institutionId, input.departmentId);
+  await assertDepartmentInInstitution(institutionId, input.departmentId, true);
 
   const code = input.code.trim().toUpperCase();
   const name = input.name.trim();
