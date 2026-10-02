@@ -844,7 +844,17 @@ export default function TimetablePage() {
    */
 
   return (
-    <DashboardShell
+    <>
+      <style jsx global>{`
+        @media print {
+          body { background: white !important; }
+          aside, nav, header { display: none !important; }
+          main { margin: 0 !important; padding: 0 !important; }
+          .print-hidden { display: none !important; }
+          .print-timetable { break-inside: avoid; }
+        }
+      `}</style>
+      <DashboardShell
       title="Timetable"
       subtitle="Dynamic weekly class scheduling"
       allowedRoles={[
@@ -883,9 +893,19 @@ export default function TimetablePage() {
               <button
                 type="button"
                 onClick={() =>
+                  window.print()
+                }
+                className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:border-[#b9c8d8] hover:bg-[#f7f9fb] print:hidden"
+              >
+                Print
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
                   void load()
                 }
-                className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:border-[#b9c8d8] hover:bg-[#f7f9fb]"
+                className="rounded-xl border border-[#d9e2ea] bg-white px-4 py-2.5 text-sm font-extrabold text-[#334155] hover:border-[#b9c8d8] hover:bg-[#f7f9fb] print:hidden"
               >
                 Refresh
               </button>
@@ -906,6 +926,7 @@ export default function TimetablePage() {
         </section>
 
         {/* MESSAGES */}
+        <div className="print-hidden">
         {error ? (
           <div className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
             {error}
@@ -917,9 +938,10 @@ export default function TimetablePage() {
             {success}
           </div>
         ) : null}
+        </div>
 
         {/* FILTERS */}
-        <section className="rounded-[24px] border border-[#dfe7ee] bg-white p-4 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-5">
+        <section className="print-hidden rounded-[24px] border border-[#dfe7ee] bg-white p-4 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label>
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[#7b8b9e]">
@@ -1147,7 +1169,7 @@ export default function TimetablePage() {
         </section>
 
         {/* CALENDAR */}
-        <section className="overflow-hidden rounded-[24px] border border-[#dfe7ee] bg-white shadow-[0_8px_28px_rgba(20,32,50,0.04)]">
+        <section className="print-timetable overflow-hidden rounded-[24px] border border-[#dfe7ee] bg-white shadow-[0_8px_28px_rgba(20,32,50,0.04)]">
           <div className="border-b border-[#e8edf2] px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -1217,10 +1239,14 @@ export default function TimetablePage() {
                   </div>
 
                   {DAYS.map(
-                    (day) => (
+                    (day, dayIndex) => (
                       <div
                         key={day}
-                        className="border-r border-[#e8edf2] px-3 py-3 text-center text-xs font-black text-[#334155]"
+                        className={`border-r border-[#e8edf2] px-3 py-3 text-center text-xs font-black ${
+                          new Date().getDay() === dayIndex
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-[#334155]"
+                        }`}
                       >
                         {day}
                       </div>
@@ -1645,6 +1671,7 @@ export default function TimetablePage() {
           </div>
         ) : null}
       </div>
-    </DashboardShell>
+      </DashboardShell>
+    </>
   );
 }
