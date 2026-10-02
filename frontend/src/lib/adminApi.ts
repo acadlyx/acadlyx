@@ -571,3 +571,132 @@ export async function uploadMyProfilePhoto(
 
   return response.data;
 }
+
+export interface AdminUserLifecycle {
+  id: string;
+  institutionId?: string | null;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  isActive: boolean;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deletionReason?: string | null;
+  deletionNote?: string | null;
+  recoveryDeadline?: string | null;
+  permanentlyDeletedAt?: string | null;
+  lastLoginAt?: string | null;
+  passwordChangedAt?: string | null;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+  institution?: { id: string; name: string; slug: string } | null;
+  roles: AdminUserRole[];
+  departmentAccesses?: Array<{
+    departmentId: string;
+    scope?: string;
+    department: { id: string; name: string; code: string; isActive?: boolean };
+  }>;
+  profile?: Record<string, unknown> | null;
+  studentEnrollments?: Array<Record<string, unknown>>;
+  authentication: {
+    loginEmail: string;
+    accountId: string;
+    accountStatus: "ACTIVE" | "INACTIVE" | "DELETED";
+    emailVerificationStatus: string;
+    mfaEnabled: boolean;
+    lastLogin: string | null;
+    lastLoginIp: string | null;
+    lastPasswordChange: string | null;
+    failedLoginCount: number;
+    lockedUntil: string | null;
+    activeSessionCount: number;
+    accountCreatedAt: string;
+    passwordResetAvailable: boolean;
+    forcePasswordChange: boolean;
+    sessionDevice: { userAgent: string | null; createdAt: string } | null;
+  };
+}
+
+export interface DeletedAdminUser extends AdminUser {
+  deletedAt: string;
+  deletedBy?: string | null;
+  deletionReason?: string | null;
+  deletionNote?: string | null;
+  recoveryDeadline?: string | null;
+  daysRemaining: number;
+  deletedByUser?: { id: string; firstName: string; lastName: string; email: string } | null;
+}
+
+export async function getAdminUserLifecycle(id: string): Promise<AdminUserLifecycle> {
+  const response = await authedFetch<ApiEnvelope<AdminUserLifecycle>>(
+    `/users/${encodeURIComponent(id)}/lifecycle`,
+  );
+  return response.data;
+}
+
+export async function deactivateAdminUser(
+  id: string,
+  reason: string,
+  note?: string,
+): Promise<{ id: string; isActive: boolean }> {
+  const response = await authedFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
+    `/users/${encodeURIComponent(id)}/deactivate`,
+    { method: "POST", body: JSON.stringify({ reason, note }) },
+  );
+  return response.data;
+}
+
+export async function reactivateAdminUser(
+  id: string,
+  reason?: string,
+): Promise<{ id: string; isActive: boolean }> {
+  const response = await authedFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
+    `/users/${encodeURIComponent(id)}/reactivate`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+  return response.data;
+}
+
+export async function deleteAdminUser(
+  id: string,
+  reason: string,
+  note?: string,
+): Promise<{ id: string; deletedAt: string; recoveryDeadline: string }> {
+  const response = await authedFetch<ApiEnvelope<{ id: string; deletedAt: string; recoveryDeadline: string }>>(
+    `/users/${encodeURIComponent(id)}/delete`,
+    { method: "POST", body: JSON.stringify({ reason, note }) },
+  );
+  return response.data;
+}
+
+export async function recoverAdminUser(
+  id: string,
+  reason?: string,
+): Promise<AdminUserLifecycle> {
+  const response = await authedFetch<ApiEnvelope<AdminUserLifecycle>>(
+    `/users/${encodeURIComponent(id)}/recover`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+  return response.data;
+}
+
+export async function listDeletedAdminUsers(options?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: string;
+  expiringSoon?: boolean;
+}): Promise<{ items: DeletedAdminUser[]; total: number }> {
+  const params = new URLSearchParams();
+  params.set("page", String(options?.page ?? 1));
+  params.set("pageSize", String(options?.pageSize ?? 25));
+  if (options?.search) params.set("search", options.search);
+  if (options?.role) params.set("role", options.role);
+  if (options?.expiringSoon) params.set("expiringSoon", "true");
+  const response = await authedFetch<ApiEnvelope<DeletedAdminUser[]> & { meta?: { total?: number } }>(
+    `/users/deleted?${params.toString()}`,
+  );
+  return { items: response.data, total: response.meta?.total ?? response.data.length };
+}
