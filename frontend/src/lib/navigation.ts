@@ -121,7 +121,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["obe.read"],
     group: "Academic",
   },
-
   {
     label: "Academic structure",
     href: "/admin",
@@ -330,6 +329,16 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
 
+  /* ADDED: Dean Notices */
+  {
+    label: "Notices",
+    href: "/notices",
+    icon: "◌",
+    roles: ["DEAN"],
+    permissions: ["notices.read"],
+    group: "Institution",
+  },
+
   {
     label: "Overview",
     href: "/registrar",
@@ -416,6 +425,16 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["HOD"],
     permissions: ["reports.read"],
     group: "Oversight",
+  },
+
+  /* ADDED: HOD Notices */
+  {
+    label: "Notices",
+    href: "/notices",
+    icon: "◌",
+    roles: ["HOD"],
+    permissions: ["notices.read"],
+    group: "Institution",
   },
 
   {
@@ -512,22 +531,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["fees.read"],
     group: "Finance",
   },
-  {
-    label: "Payments",
-    href: "/payments",
-    icon: "₹",
-    roles: ["ACCOUNTS"],
-    permissions: ["fees.read"],
-    group: "Finance",
-  },
-  {
-    label: "Reports",
-    href: "/reports",
-    icon: "▤",
-    roles: ["ACCOUNTS"],
-    permissions: ["reports.read"],
-    group: "Finance",
-  },
 
   {
     label: "Overview",
@@ -545,7 +548,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "People",
   },
   {
-    label: "Leave",
+    label: "Leave management",
     href: "/leave-management",
     icon: "◫",
     roles: ["HR"],
@@ -568,14 +571,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["admissions.read"],
     group: "Admissions",
   },
-  {
-    label: "Admissions",
-    href: "/admissions",
-    icon: "▦",
-    roles: ["ADMISSIONS"],
-    permissions: ["admissions.read"],
-    group: "Admissions",
-  },
 
   {
     label: "Overview",
@@ -583,22 +578,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["EXAMINATION"],
     group: "Workspace",
-  },
-  {
-    label: "Examinations",
-    href: "/examinations",
-    icon: "◉",
-    roles: ["EXAMINATION"],
-    permissions: ["exams.read"],
-    group: "Examinations",
-  },
-  {
-    label: "Results",
-    href: "/examinations",
-    icon: "◎",
-    roles: ["EXAMINATION"],
-    permissions: ["results.read"],
-    group: "Examinations",
   },
 
   {
@@ -608,14 +587,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["LIBRARIAN"],
     group: "Workspace",
   },
-  {
-    label: "Library",
-    href: "/library",
-    icon: "▤",
-    roles: ["LIBRARIAN"],
-    permissions: ["library.read"],
-    group: "Library",
-  },
 
   {
     label: "Overview",
@@ -623,14 +594,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["PLACEMENT"],
     group: "Workspace",
-  },
-  {
-    label: "Placements",
-    href: "/placements",
-    icon: "▤",
-    roles: ["PLACEMENT"],
-    permissions: ["placements.read"],
-    group: "Placements",
   },
 
   {
@@ -640,14 +603,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["IT"],
     group: "Workspace",
   },
-  {
-    label: "Operations",
-    href: "/operations",
-    icon: "⚙",
-    roles: ["IT"],
-    permissions: ["operations.read"],
-    group: "IT",
-  },
 
   {
     label: "Overview",
@@ -655,14 +610,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["CMS"],
     group: "Workspace",
-  },
-  {
-    label: "Website",
-    href: "/site-content",
-    icon: "▤",
-    roles: ["CMS"],
-    permissions: ["site.manage"],
-    group: "CMS",
   },
 
   {
@@ -672,109 +619,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["STUDENT"],
     group: "Workspace",
   },
-  {
-    label: "My courses",
-    href: "/student/course-registration",
-    icon: "▦",
-    roles: ["STUDENT"],
-    permissions: ["courses.read"],
-    group: "Academic",
-  },
-  {
-    label: "Attendance",
-    href: "/student/attendance",
-    icon: "✓",
-    roles: ["STUDENT"],
-    permissions: ["attendance.read"],
-    group: "Academic",
-  },
-  {
-    label: "Assignments",
-    href: "/student/assignments",
-    icon: "▤",
-    roles: ["STUDENT"],
-    permissions: ["assignments.read"],
-    group: "Academic",
-  },
-  {
-    label: "Learning",
-    href: "/lms",
-    icon: "▥",
-    roles: ["STUDENT"],
-    permissions: ["lms.read"],
-    group: "Academic",
-  },
-  {
-    label: "Examinations",
-    href: "/student/examinations",
-    icon: "◉",
-    roles: ["STUDENT"],
-    permissions: ["exams.read"],
-    group: "Academic",
-  },
-  {
-    label: "Results",
-    href: "/student/results",
-    icon: "◎",
-    roles: ["STUDENT"],
-    permissions: ["results.read"],
-    group: "Academic",
-  },
-  {
-    label: "Fees",
-    href: "/student/fees",
-    icon: "₹",
-    roles: ["STUDENT"],
-    permissions: ["fees.read"],
-    group: "Services",
-  },
-  {
-    label: "Library",
-    href: "/student/library",
-    icon: "▤",
-    roles: ["STUDENT"],
-    permissions: ["library.read"],
-    group: "Services",
-  },
-  {
-    label: "Leave",
-    href: "/student/leave",
-    icon: "◫",
-    roles: ["STUDENT"],
-    permissions: ["leave.apply"],
-    group: "Services",
-  },
-  {
-    label: "Certificates",
-    href: "/student/certificates",
-    icon: "▤",
-    roles: ["STUDENT"],
-    permissions: ["certificates.request"],
-    group: "Services",
-  },
-  {
-    label: "Calendar",
-    href: "/student/calendar",
-    icon: "◫",
-    roles: ["STUDENT"],
-    permissions: ["calendar.read"],
-    group: "Services",
-  },
-  {
-    label: "Notifications",
-    href: "/student/notifications",
-    icon: "◉",
-    roles: ["STUDENT"],
-    permissions: ["notifications.read"],
-    group: "Services",
-  },
-  {
-    label: "Profile",
-    href: "/student/profile",
-    icon: "◉",
-    roles: ["STUDENT"],
-    group: "Account",
-  },
 
   {
     label: "Overview",
@@ -782,109 +626,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["PARENT"],
     group: "Workspace",
-  },
-  {
-    label: "Child academics",
-    href: "/parent",
-    icon: "▦",
-    roles: ["PARENT"],
-    permissions: ["parent-portal.read"],
-    group: "Academic",
-  },
-  {
-    label: "Learning",
-    href: "/lms",
-    icon: "▥",
-    roles: ["PARENT"],
-    permissions: ["lms.read"],
-    group: "Academic",
-  },
-  {
-    label: "Attendance",
-    href: "/parent",
-    icon: "✓",
-    roles: ["PARENT"],
-    permissions: ["attendance.read"],
-    group: "Academic",
-  },
-  {
-    label: "Results",
-    href: "/parent",
-    icon: "◎",
-    roles: ["PARENT"],
-    permissions: ["results.read"],
-    group: "Academic",
-  },
-  {
-    label: "Children",
-    href: "/parent/children",
-    icon: "▤",
-    roles: ["PARENT"],
-    permissions: ["parent-portal.read"],
-    group: "Academic",
-  },
-  {
-    label: "Profile",
-    href: "/parent/profile",
-    icon: "◉",
-    roles: ["PARENT"],
-    group: "Account",
-  },
-
-  {
-    label: "Overview",
-    href: "/chairman",
-    icon: "⌂",
-    roles: ["CHAIRMAN"],
-    group: "Workspace",
-  },
-  {
-    label: "Intelligence",
-    href: "/intelligence",
-    icon: "✦",
-    roles: ["CHAIRMAN"],
-    permissions: ["intelligence.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Reports",
-    href: "/reports",
-    icon: "▤",
-    roles: ["CHAIRMAN"],
-    permissions: ["reports.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Financial oversight",
-    href: "/fees",
-    icon: "₹",
-    roles: ["CHAIRMAN"],
-    permissions: ["fees.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Academic oversight",
-    href: "/examinations",
-    icon: "◉",
-    roles: ["CHAIRMAN"],
-    permissions: ["exams.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Operations oversight",
-    href: "/operations",
-    icon: "⚙",
-    roles: ["CHAIRMAN"],
-    permissions: ["operations.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Audit",
-    href: "/reports",
-    icon: "▤",
-    roles: ["CHAIRMAN"],
-    permissions: ["audit.read"],
-    group: "Oversight",
   },
 
   {
@@ -988,9 +729,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 ];
 
-const NAMESPACE_OWNERS: Array<
-  [string, string[]]
-> = [
+const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/superadmin", ["SUPER_ADMIN"]],
   ["/admin", ["INSTITUTION_ADMIN"]],
   ["/student", ["STUDENT"]],
@@ -998,10 +737,7 @@ const NAMESPACE_OWNERS: Array<
   ["/parent", ["PARENT"]],
   ["/chairman", ["CHAIRMAN"]],
   ["/director", ["DIRECTOR"]],
-  [
-    "/management",
-    ["CHAIRMAN", "DIRECTOR"],
-  ],
+  ["/management", ["CHAIRMAN", "DIRECTOR"]],
   ["/dean", ["DEAN"]],
   ["/registrar", ["REGISTRAR"]],
   ["/hod", ["HOD"]],
@@ -1022,176 +758,149 @@ const NAMESPACE_OWNERS: Array<
     ],
   ],
 
+  ["/library", ["LIBRARIAN", "STUDENT", "FACULTY", "HOD"]],
+  ["/placements", ["PLACEMENT", "STUDENT"]],
+  ["/it", ["IT"]],
+  ["/site-content", ["SUPER_ADMIN", "CMS"]],
+
   [
-    "/library",
+    "/operations",
     [
-      "LIBRARIAN",
-      "STUDENT",
+      "INSTITUTION_ADMIN",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "HOD",
+      "IT",
+    ],
+  ],
+
+  [
+    "/timetable",
+    [
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "HOD",
       "FACULTY",
+      "STUDENT",
+      "PARENT",
+    ],
+  ],
+
+  [
+    "/reports",
+    [
+      "INSTITUTION_ADMIN",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "ACCOUNTS",
+      "HR",
+      "ADMISSIONS",
+      "EXAMINATION",
+      "PLACEMENT",
+    ],
+  ],
+
+  [
+    "/intelligence",
+    [
+      "INSTITUTION_ADMIN",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "ACCOUNTS",
+      "HR",
+      "ADMISSIONS",
+      "EXAMINATION",
+      "PLACEMENT",
+    ],
+  ],
+
+  [
+    "/students",
+    [
+      "INSTITUTION_ADMIN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STAFF",
+    ],
+  ],
+
+  ["/user-management", ["INSTITUTION_ADMIN"]],
+
+  [
+    "/calendar",
+    [
+      "INSTITUTION_ADMIN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STUDENT",
+      "PARENT",
+    ],
+  ],
+
+  [
+    "/notices",
+    [
+      "INSTITUTION_ADMIN",
+      "DEAN",
       "HOD",
     ],
   ],
 
   [
-    "/placements",
-    ["PLACEMENT", "STUDENT"],
+    "/notifications",
+    [
+      "INSTITUTION_ADMIN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STUDENT",
+      "PARENT",
+    ],
   ],
 
-  ["/it", ["IT"]],
+  ["/fees", ["CHAIRMAN", "DIRECTOR", "ACCOUNTS", "STUDENT", "PARENT"]],
 
-  ["/site-content", ["SUPER_ADMIN", "CMS"]],
-  ["/operations", [
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "HOD",
-    "IT",
-  ]],
+  ["/payments", ["ACCOUNTS", "STUDENT", "PARENT"]],
 
-  ["/timetable", [
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-    "PARENT",
-  ]],
+  ["/admissions", ["ADMISSIONS", "REGISTRAR"]],
 
-  ["/reports", [
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "PLACEMENT",
-  ]],
+  ["/applications", ["ADMISSIONS"]],
 
-  ["/intelligence", [
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "PLACEMENT",
-  ]],
+  ["/certificates", ["REGISTRAR", "STUDENT"]],
 
-  ["/students", [
-    "INSTITUTION_ADMIN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "STAFF",
-  ]],
+  ["/assignments", ["FACULTY", "HOD", "STUDENT"]],
 
-  ["/user-management", [
-    "INSTITUTION_ADMIN",
-  ]],
+  ["/attendance", ["FACULTY", "HOD", "STUDENT"]],
 
-  ["/calendar", [
-    "INSTITUTION_ADMIN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-    "PARENT",
-  ]],
+  ["/marks", ["FACULTY", "HOD", "STUDENT"]],
 
-  ["/notices", [
-    "INSTITUTION_ADMIN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-    "PARENT",
-  ]],
+  ["/courses", ["FACULTY", "HOD", "STUDENT"]],
 
-  ["/notifications", [
-    "INSTITUTION_ADMIN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-    "PARENT",
-  ]],
-
-  ["/fees", [
-    "CHAIRMAN",
-    "DIRECTOR",
-    "ACCOUNTS",
-    "STUDENT",
-    "PARENT",
-  ]],
-
-  ["/payments", [
-    "ACCOUNTS",
-    "STUDENT",
-    "PARENT",
-  ]],
-
-  ["/admissions", [
-    "ADMISSIONS",
-    "REGISTRAR",
-  ]],
-
-  ["/applications", [
-    "ADMISSIONS",
-  ]],
-
-  ["/certificates", [
-    "REGISTRAR",
-    "STUDENT",
-  ]],
-
-  ["/assignments", [
-    "FACULTY",
-    "HOD",
-    "STUDENT",
-  ]],
-
-  ["/attendance", [
-    "FACULTY",
-    "HOD",
-    "STUDENT",
-  ]],
-
-  ["/marks", [
-    "FACULTY",
-    "HOD",
-    "STUDENT",
-  ]],
-
-  ["/courses", [
-    "FACULTY",
-    "HOD",
-    "STUDENT",
-  ]],
-
-  ["/academics", [
-    "INSTITUTION_ADMIN",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-  ]],
+  [
+    "/academics",
+    [
+      "INSTITUTION_ADMIN",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "STUDENT",
+    ],
+  ],
 
   ["/accounts", ["ACCOUNTS"]],
 
@@ -1199,49 +908,50 @@ const NAMESPACE_OWNERS: Array<
 
   ["/employees", ["HR"]],
 
-  ["/leave-management", [
-    "FACULTY",
-    "HR",
-  ]],
+  ["/leave-management", ["FACULTY", "HR"]],
 
   ["/club-president", ["CLUB_PRESIDENT"]],
 
-  ["/account-security", [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
-    "CMS",
-    "STUDENT",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "MANAGEMENT",
-    "STAFF",
-  ]],
+  [
+    "/account-security",
+    [
+      "SUPER_ADMIN",
+      "INSTITUTION_ADMIN",
+      "CHAIRMAN",
+      "DIRECTOR",
+      "DEAN",
+      "REGISTRAR",
+      "HOD",
+      "FACULTY",
+      "ACCOUNTS",
+      "HR",
+      "ADMISSIONS",
+      "EXAMINATION",
+      "LIBRARIAN",
+      "PLACEMENT",
+      "IT",
+      "CMS",
+      "STUDENT",
+      "PARENT",
+      "CLUB_PRESIDENT",
+      "MANAGEMENT",
+      "STAFF",
+    ],
+  ],
 ];
 
 export function getNavigationForRoles(
   roles: string[],
-  permissions: string[] = []
+  permissions: string[] = [],
 ): NavigationItem[] {
   const roleSet = new Set(
     roles.map((role) =>
-      role.toUpperCase()
-    )
+      role.toUpperCase(),
+    ),
   );
+
   const permissionSet = new Set(
-    permissions
+    permissions,
   );
 
   return ROLE_NAVIGATION.filter(
@@ -1251,8 +961,8 @@ export function getNavigationForRoles(
         item.roles.length === 0 ||
         item.roles.some((role) =>
           roleSet.has(
-            role.toUpperCase()
-          )
+            role.toUpperCase(),
+          ),
         );
 
       const permissionAllowed =
@@ -1261,41 +971,47 @@ export function getNavigationForRoles(
         item.permissions.every(
           (permission) =>
             permissionSet.has(
-              permission
-            )
+              permission,
+            ),
         );
 
       return (
         roleAllowed &&
         permissionAllowed
       );
-    }
+    },
   );
 }
 
 export function navigationForUser(
-  user: { roles: string[]; permissions: string[] } | null,
+  user: {
+    roles: string[];
+    permissions: string[];
+  } | null,
 ): NavigationItem[] {
   if (!user) {
     return [];
   }
 
-  return getNavigationForRoles(user.roles, user.permissions);
+  return getNavigationForRoles(
+    user.roles,
+    user.permissions,
+  );
 }
 
 export function canAccessRoute(
   pathname: string,
-  roles: string[]
+  roles: string[],
 ): boolean {
   const normalizedPath =
     pathname.replace(
       /\/+$/,
-      ""
+      "",
     ) || "/";
 
   const normalizedRoles =
     roles.map((role) =>
-      role.toUpperCase()
+      role.toUpperCase(),
     );
 
   const matchingNamespace =
@@ -1304,13 +1020,13 @@ export function canAccessRoute(
         ([prefix]) =>
           normalizedPath === prefix ||
           normalizedPath.startsWith(
-            `${prefix}/`
-          )
+            `${prefix}/`,
+          ),
       )
       .sort(
         (a, b) =>
           b[0].length -
-          a[0].length
+          a[0].length,
       )[0];
 
   if (!matchingNamespace) {
@@ -1323,22 +1039,22 @@ export function canAccessRoute(
   return allowedRoles.some(
     (role) =>
       normalizedRoles.includes(
-        role.toUpperCase()
-      )
+        role.toUpperCase(),
+      ),
   );
 }
 
 export function workspaceHome(
-  roles: string[]
+  roles: string[],
 ): string {
   const normalizedRoles =
     roles.map((role) =>
-      role.toUpperCase()
+      role.toUpperCase(),
     );
 
   if (
     normalizedRoles.includes(
-      "SUPER_ADMIN"
+      "SUPER_ADMIN",
     )
   ) {
     return "/superadmin";
@@ -1346,7 +1062,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "INSTITUTION_ADMIN"
+      "INSTITUTION_ADMIN",
     )
   ) {
     return "/admin";
@@ -1354,7 +1070,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "CHAIRMAN"
+      "CHAIRMAN",
     )
   ) {
     return "/chairman";
@@ -1362,7 +1078,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "DIRECTOR"
+      "DIRECTOR",
     )
   ) {
     return "/director";
@@ -1370,7 +1086,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "DEAN"
+      "DEAN",
     )
   ) {
     return "/dean";
@@ -1378,7 +1094,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "REGISTRAR"
+      "REGISTRAR",
     )
   ) {
     return "/registrar";
@@ -1386,7 +1102,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "HOD"
+      "HOD",
     )
   ) {
     return "/hod";
@@ -1394,7 +1110,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "FACULTY"
+      "FACULTY",
     )
   ) {
     return "/faculty";
@@ -1402,7 +1118,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "ACCOUNTS"
+      "ACCOUNTS",
     )
   ) {
     return "/accounts";
@@ -1410,7 +1126,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "HR"
+      "HR",
     )
   ) {
     return "/hr";
@@ -1418,7 +1134,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "ADMISSIONS"
+      "ADMISSIONS",
     )
   ) {
     return "/admissions";
@@ -1426,7 +1142,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "EXAMINATION"
+      "EXAMINATION",
     )
   ) {
     return "/examinations";
@@ -1434,7 +1150,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "LIBRARIAN"
+      "LIBRARIAN",
     )
   ) {
     return "/library";
@@ -1442,7 +1158,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "PLACEMENT"
+      "PLACEMENT",
     )
   ) {
     return "/placements";
@@ -1450,7 +1166,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "IT"
+      "IT",
     )
   ) {
     return "/it";
@@ -1458,7 +1174,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "CMS"
+      "CMS",
     )
   ) {
     return "/site-content";
@@ -1466,7 +1182,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "STUDENT"
+      "STUDENT",
     )
   ) {
     return "/student";
@@ -1474,7 +1190,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "PARENT"
+      "PARENT",
     )
   ) {
     return "/parent";
@@ -1482,7 +1198,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "CLUB_PRESIDENT"
+      "CLUB_PRESIDENT",
     )
   ) {
     return "/club-president";
@@ -1490,7 +1206,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "MANAGEMENT"
+      "MANAGEMENT",
     )
   ) {
     return "/management";
@@ -1498,7 +1214,7 @@ export function workspaceHome(
 
   if (
     normalizedRoles.includes(
-      "STAFF"
+      "STAFF",
     )
   ) {
     return "/staff";
