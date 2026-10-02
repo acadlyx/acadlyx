@@ -274,6 +274,7 @@ function Content({
           </Card>
         </section>
       </>
+    );
   }
 
   if (view === "fees") {
