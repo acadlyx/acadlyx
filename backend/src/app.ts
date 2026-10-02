@@ -160,16 +160,21 @@ export function createApp(): Application {
     })
   );
 
+  /*
+   * Profile photos are sent as base64 data URLs by the web client.
+   * A 5 MB binary image expands when base64 encoded, so the JSON parser
+   * must allow enough headroom for the authenticated photo endpoint.
+   */
   app.use(
     express.json({
-      limit: "2mb",
+      limit: "8mb",
     })
   );
 
   app.use(
     express.urlencoded({
       extended: true,
-      limit: "2mb",
+      limit: "8mb",
     })
   );
 
