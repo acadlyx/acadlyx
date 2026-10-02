@@ -177,18 +177,13 @@ export function errorHandler(
   logger.error(
     `${req.method} ${req.originalUrl} -> ${statusCode}`,
     {
-      requestId:
-        res.locals.requestId,
-
-      message:
-        err.message,
-
-      stack:
-        err.stack,
-
-      ...(prismaCode
+      requestId: res.locals.requestId,
+      errorName: err.name,
+      ...(prismaCode ? { prismaCode } : {}),
+      ...(!isProduction
         ? {
-            prismaCode,
+            message: err.message,
+            stack: err.stack,
           }
         : {}),
     },
