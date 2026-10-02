@@ -547,7 +547,7 @@ export function UnifiedDashboardFrame({
                   {title}
                 </div>
               ) : activeItem ? (
-                <div className="truncate text-[15px] font-bold text-white sm:text-[16px]">
+                <div className="truncate text-[15px] font-bold text-slate-900 sm:text-[16px]">
                   {activeItem.label}
                 </div>
               ) : (
@@ -697,7 +697,9 @@ export function UnifiedDashboardFrame({
             : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
         style={{
-          width: sidebarWidth,
+          width: mobileOpen
+            ? "min(264px, calc(100vw - 16px))"
+            : `${sidebarWidth}px`,
         }}
       >
         <div className="flex h-full flex-col">
@@ -860,16 +862,14 @@ export function UnifiedDashboardFrame({
           which Tailwind cannot reliably compile.
         */}
         <div
-          className="min-h-[calc(100vh-72px)] transition-[padding-left] duration-200 ease-out"
+          className="min-h-[calc(100vh-72px)] min-w-0 transition-[padding-left] duration-200 ease-out lg:pl-[var(--acadlyx-sidebar-width)]"
           style={{
-            paddingLeft:
-              `var(--acadlyx-sidebar-width)`,
             ["--acadlyx-sidebar-width" as string]:
               `${sidebarWidth}px`,
           }}
         >
-          <div className="min-h-[calc(100vh-72px)] overflow-x-hidden bg-[radial-gradient(circle_at_72%_0%,rgba(37,99,235,0.10),transparent_30rem),linear-gradient(135deg,#edf2f8,#e3eaf3,#f0f4f9)]">
-            <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
+          <div className="min-h-[calc(100vh-72px)] min-w-0 overflow-x-clip bg-[#eee7dc]">
+            <div className="mx-auto w-full min-w-0 max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
               {children}
             </div>
           </div>
