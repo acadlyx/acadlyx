@@ -46,7 +46,7 @@ async function assertDepartmentScope(
   courseOfferingId?: string,
   departmentId?: string
 ): Promise<void> {
-  if (!actor.roles.includes("HOD")) {
+  if (!hasAnyRole(actor, ["HOD"])) {
     return;
   }
 
@@ -91,6 +91,9 @@ async function assertDepartmentScope(
       where: {
         userId: actor.id,
         departmentId: scopedDepartmentId,
+        department: {
+          institutionId,
+        },
       },
     });
 
