@@ -384,7 +384,10 @@ export async function updateCourseOffering(
     }
   }
 
-  if (input.isActive === true && !current.isActive) {
+  if (
+    (input.isActive === true && !current.isActive) ||
+    input.registrationOpen === true
+  ) {
     await assertOfferingAcademicIntegrity(
       institutionId,
       current.courseId,
@@ -393,9 +396,14 @@ export async function updateCourseOffering(
     );
   }
 
+  const data = {
+    ...input,
+    ...(input.isActive === false ? { registrationOpen: false } : {}),
+  };
+
   return prisma.courseOffering.update({
     where: { id },
-    data: input,
+    data,
     include,
   });
 }
