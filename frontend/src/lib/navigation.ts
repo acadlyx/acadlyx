@@ -257,14 +257,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
-    label: "Import / Export",
-    href: "/director/imports",
-    icon: "⇅",
-    roles: ["DIRECTOR"],
-    permissions: ["imports.manage"],
-    group: "Oversight",
-  },
-  {
     label: "Examinations",
     href: "/director/examinations",
     icon: "◉",
@@ -616,14 +608,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
 
-  {
-    label: "Import / Export",
-    href: "/it/imports",
-    icon: "⇅",
-    roles: ["IT"],
-    permissions: ["imports.manage"],
-    group: "Operations",
-  },
 
   {
     label: "Overview",
