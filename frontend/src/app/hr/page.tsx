@@ -16,6 +16,7 @@ import {
   listDepartmentOptions,
   listEligibleUsers,
   listEmployees,
+  updateEmployee,
   updateEmployeeStatus,
 } from "@/lib/hrApi";
 
@@ -44,6 +45,8 @@ export default function HrPage() {
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [items, setItems] = useState<Employee[]>([]);
   const [summary, setSummary] = useState<{ byStatus: Record<string, number>; departments: number }>({
     byStatus: {},
@@ -53,6 +56,8 @@ export default function HrPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<EmployeeStatus | "">("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentType | "">("");
 
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
@@ -66,10 +71,18 @@ export default function HrPage() {
   const load = useCallback(async () => {
     try {
       const [list, deptOptions, eligible] = await Promise.all([
-        listEmployees({ page, search: search || undefined, status: status || undefined }),
+        listEmployees({
+          page,
+          search: search || undefined,
+          status: status || undefined,
+          departmentId: departmentFilter || undefined,
+          employmentType: employmentTypeFilter || undefined,
+        }),
         departments.length ? Promise.resolve(departments) : listDepartmentOptions(),
         listEligibleUsers(),
       ]);
+      const currentUser = await import("@/lib/auth").then(({ getCurrentUser }) => getCurrentUser());
+      setUserPermissions(currentUser?.permissions ?? []);
       setItems(list.items);
       setSummary(list.summary);
       setTotalPages(list.totalPages);
@@ -85,7 +98,7 @@ export default function HrPage() {
       setState("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, status, router]);
+  }, [page, search, status, departmentFilter, employmentTypeFilter, router]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -104,16 +117,28 @@ export default function HrPage() {
     }
     setSubmitting(true);
     try {
-      await createEmployee({
-        userId: form.userId,
-        employeeCode: form.employeeCode,
-        departmentId: form.departmentId || undefined,
-        designation: form.designation,
-        employmentType: form.employmentType,
-        joiningDate: form.joiningDate,
-        qualification: form.qualification || undefined,
-      });
+      if (editingId) {
+        await updateEmployee(editingId, {
+          employeeCode: form.employeeCode,
+          departmentId: form.departmentId || undefined,
+          designation: form.designation,
+          employmentType: form.employmentType,
+          joiningDate: form.joiningDate,
+          qualification: form.qualification || undefined,
+        });
+      } else {
+        await createEmployee({
+          userId: form.userId,
+          employeeCode: form.employeeCode,
+          departmentId: form.departmentId || undefined,
+          designation: form.designation,
+          employmentType: form.employmentType,
+          joiningDate: form.joiningDate,
+          qualification: form.qualification || undefined,
+        });
+      }
       setForm(emptyForm);
+      setEditingId(null);
       setShowForm(false);
       setPage(1);
       await load();
@@ -122,6 +147,28 @@ export default function HrPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function startEdit(emp: Employee) {
+    setEditingId(emp.id);
+    setForm({
+      userId: emp.user.id,
+      employeeCode: emp.employeeCode,
+      departmentId: emp.department?.id ?? "",
+      designation: emp.designation,
+      employmentType: emp.employmentType,
+      joiningDate: new Date(emp.joiningDate).toISOString().slice(0, 10),
+      qualification: emp.qualification ?? "",
+    });
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function handleNew() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setFormError("");
+    setShowForm((v) => !v);
   }
 
   async function handleStatusChange(id: string, next: EmployeeStatus) {
@@ -135,7 +182,7 @@ export default function HrPage() {
   }
 
   return (
-    <DashboardShell title="HR Management" subtitle="Employee records and departments">
+    <DashboardShell title="HR Management" subtitle="Employee records and departments" allowedRoles={["HR"]}>
       <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -152,10 +199,7 @@ export default function HrPage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setShowForm((v) => !v);
-              setFormError("");
-            }}
+            onClick={handleNew}
             className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
           >
             {showForm ? "Close" : "Add employee"}
@@ -187,7 +231,7 @@ export default function HrPage() {
 
             {showForm && (
               <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8">
-                <h2 className="text-2xl font-black text-slate-950">Add employee</h2>
+                <h2 className="text-2xl font-black text-slate-950">{editingId ? "Edit employee" : "Add employee"}</h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Only user accounts with a staff-type role and no existing employee record show
                   up below.
@@ -205,6 +249,7 @@ export default function HrPage() {
                   <form onSubmit={handleCreate} className="mt-6 grid gap-4 sm:grid-cols-2">
                     <Field label="User *">
                       <select
+                        disabled={Boolean(editingId)}
                         className="input"
                         value={form.userId}
                         onChange={(e) => setForm({ ...form, userId: e.target.value })}
@@ -283,7 +328,7 @@ export default function HrPage() {
                         disabled={submitting}
                         className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
                       >
-                        {submitting ? "Saving…" : "Save employee"}
+                        {submitting ? "Saving…" : editingId ? "Save changes" : "Save employee"}
                       </button>
                     </div>
                   </form>
@@ -301,6 +346,30 @@ export default function HrPage() {
                 placeholder="Search by name, email, code, designation…"
                 className="input sm:w-80"
               />
+              <select
+                value={departmentFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setDepartmentFilter(e.target.value);
+                }}
+                className="input sm:w-64"
+              >
+                <option value="">All departments</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+                ))}
+              </select>
+              <select
+                value={employmentTypeFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setEmploymentTypeFilter(e.target.value as EmploymentType | "");
+                }}
+                className="input sm:w-52"
+              >
+                <option value="">All employment types</option>
+                {EMPLOYMENT_TYPES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+              </select>
               <select
                 value={status}
                 onChange={(e) => {
