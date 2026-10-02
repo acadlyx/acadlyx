@@ -958,7 +958,7 @@ async function settlePayment(
          ${input.reference ?? null}, ${input.method}, 'SUCCESS',
          ${input.provider ?? null}, ${input.providerOrderId ?? null},
          ${input.providerPaymentId ?? null}, ${input.providerSignature ?? null},
-         ${receiptNumber}, ${actor.id}, ${invoice.studentId}, ${input.notes ?? null})
+         ${receiptNumber}, ${actor?.id ?? null}, ${invoice.studentId}, ${input.notes ?? null})
     `;
 
     const paidAmount = round2(invoice.paidAmount + input.amount);
