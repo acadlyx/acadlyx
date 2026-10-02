@@ -176,5 +176,38 @@ export async function updateProgram(
 
 export async function deactivateProgram(institutionId: string, id: string) {
   await getProgramById(institutionId, id);
-  return prisma.program.update({ where: { id }, data: { isActive: false } });
+
+  const dependencies = await prisma.program.findFirst({
+    where: { id, institutionId },
+    select: {
+      semesters: {
+        where: { isActive: true },
+        select: { id: true },
+        take: 1,
+      },
+      studentEnrollments: {
+        where: { status: "ACTIVE" },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (
+    dependencies &&
+    (
+      dependencies.semesters.length > 0 ||
+      dependencies.studentEnrollments.length > 0
+    )
+  ) {
+    throw new AppError(
+      "Deactivate the program's active semesters and resolve active student enrollments before deactivating the program",
+      409
+    );
+  }
+
+  return prisma.program.update({
+    where: { id },
+    data: { isActive: false },
+  });
 }
