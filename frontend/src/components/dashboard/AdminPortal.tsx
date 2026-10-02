@@ -25,6 +25,7 @@ import {
 
 import Link from "next/link";
 import { SvgIcon } from "@/components/dashboard/UnifiedDashboardFrame";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 const METRICS: [
   string,
@@ -150,7 +151,12 @@ export function AdminPortal() {
     );
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-5 pb-10">
+    <DashboardShell
+      title="Institution Administration"
+      subtitle="People, academic structure and institutional operations"
+      allowedRoles={["INSTITUTION_ADMIN"]}
+    >
+    <div className="mx-auto w-full max-w-[1500px] space-y-5 pb-10">
       <section className="relative overflow-hidden rounded-[32px] bg-[#07111f] p-6 text-white shadow-[0_25px_80px_rgba(15,23,42,.18)] sm:p-9">
         <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-blue-500/25 blur-3xl" />
 
@@ -299,5 +305,3 @@ export function AdminPortal() {
         </>
       )}
     </div>
-  );
-}
