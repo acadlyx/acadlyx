@@ -3,36 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --acadlyx-primary: #2563eb;
-  --acadlyx-primary-dark: #1d4ed8;
-  --acadlyx-primary-soft: #eff6ff;
-  --acadlyx-accent: #06b6d4;
+  --acadlyx-primary: #315c4a;
+  --acadlyx-primary-dark: #244638;
+  --acadlyx-primary-soft: #edf3ee;
+  --acadlyx-accent: #9a6b3f;
 
-  --acadlyx-background: #e4eaf2;
-  --acadlyx-surface: #f4f7fb;
-  --acadlyx-surface-soft: #e9eef5;
+  --acadlyx-background: #eee7dc;
+  --acadlyx-surface: #fbf8f2;
+  --acadlyx-surface-soft: #f4eee4;
 
-  --acadlyx-border: #dbe4ee;
-  --acadlyx-border-strong: #cbd7e5;
+  --acadlyx-border: #ddd3c4;
+  --acadlyx-border-strong: #c9bca9;
 
-  --acadlyx-text: #172033;
-  --acadlyx-muted: #64748b;
-  --acadlyx-subtle: #94a3b8;
+  --acadlyx-text: #25221e;
+  --acadlyx-muted: #665f56;
+  --acadlyx-subtle: #8b8175;
 
-  --acadlyx-radius-sm: 12px;
-  --acadlyx-radius-md: 16px;
-  --acadlyx-radius-lg: 20px;
-  --acadlyx-radius-xl: 26px;
-  --acadlyx-radius-2xl: 30px;
+  --acadlyx-radius-sm: 8px;
+  --acadlyx-radius-md: 10px;
+  --acadlyx-radius-lg: 12px;
+  --acadlyx-radius-xl: 14px;
+  --acadlyx-radius-2xl: 16px;
 
-  --acadlyx-shadow-sm:
-    0 4px 14px rgba(15, 23, 42, 0.045);
-
-  --acadlyx-shadow-md:
-    0 10px 30px rgba(15, 23, 42, 0.065);
-
-  --acadlyx-shadow-lg:
-    0 18px 48px rgba(15, 23, 42, 0.1);
+  --acadlyx-shadow-sm: 0 2px 10px rgba(54, 45, 35, 0.055);
+  --acadlyx-shadow-md: 0 8px 24px rgba(54, 45, 35, 0.075);
+  --acadlyx-shadow-lg: 0 16px 40px rgba(54, 45, 35, 0.12);
 }
 
 html {
@@ -45,19 +40,8 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--acadlyx-text);
-
-  background:
-    radial-gradient(
-      circle at 0 0,
-      rgba(37, 99, 235, 0.045),
-      transparent 28rem
-    ),
-    var(--acadlyx-background);
-
-  font-feature-settings:
-    "rlig" 1,
-    "calt" 1;
-
+  background: var(--acadlyx-background);
+  font-feature-settings: "rlig" 1, "calt" 1;
   text-rendering: optimizeLegibility;
 }
 
@@ -293,15 +277,14 @@ button:disabled {
 button.bg-slate-950,
 a.bg-slate-950,
 [role="button"].bg-slate-950 {
-  background-color:
-    var(--acadlyx-primary) !important;
+  background-color: var(--acadlyx-primary) !important;
+  color: #ffffff !important;
 }
 
 button.bg-slate-950:hover,
 a.bg-slate-950:hover,
 [role="button"].bg-slate-950:hover {
-  background-color:
-    var(--acadlyx-primary-dark) !important;
+  background-color: var(--acadlyx-primary-dark) !important;
 }
 
 button[class~="bg-slate-950"][class~="text-white"],
@@ -530,4 +513,92 @@ form {
 
 @media (max-width: 1023px) {
   .acadlyx-page { max-width: none; }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* ACADLYX VISUAL CONSISTENCY SAFETY NET                                      */
+/* -------------------------------------------------------------------------- */
+
+@layer utilities {
+  /* Beige ERP canvas and readable surfaces. */
+  .bg-white { background-color: var(--acadlyx-surface) !important; }
+  .bg-slate-50 { background-color: var(--acadlyx-surface-soft) !important; }
+  .bg-slate-100 { background-color: #ece4d8 !important; }
+  .border-slate-200 { border-color: var(--acadlyx-border) !important; }
+  .border-slate-100 { border-color: #e7dfd4 !important; }
+
+  /* Prevent accidental light-surface + white-text combinations. */
+  .bg-white.text-white,
+  .bg-slate-50.text-white,
+  .bg-slate-100.text-white,
+  .bg-white .text-white,
+  .bg-slate-50 .text-white,
+  .bg-slate-100 .text-white {
+    color: var(--acadlyx-text) !important;
+  }
+
+  /* Keep primary/dark action controls readable. */
+  .bg-slate-950.text-white,
+  .bg-slate-900.text-white,
+  .bg-slate-800.text-white,
+  .bg-indigo-600.text-white,
+  .bg-blue-600.text-white {
+    color: #ffffff !important;
+  }
+
+  /* Legacy gray text becomes readable on the beige system. */
+  .text-slate-950 { color: #25221e !important; }
+  .text-slate-900 { color: #2e2a25 !important; }
+  .text-slate-800 { color: #39342d !important; }
+  .text-slate-700 { color: #4d463e !important; }
+  .text-slate-600 { color: #625a51 !important; }
+  .text-slate-500 { color: #71685e !important; }
+  .text-slate-400 { color: #857b70 !important; }
+  .text-slate-300 { color: #9a9085 !important; }
+
+  /* Inputs always retain a clear foreground/background pair. */
+  input,
+  textarea,
+  select {
+    color: var(--acadlyx-text);
+    background-color: var(--acadlyx-surface);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #8b8175;
+    opacity: 1;
+  }
+}
+
+/* Shared ERP building blocks should feel consistent even in legacy pages. */
+.acadlyx-card,
+.acadlyx-section,
+.acadlyx-table-wrap {
+  background: var(--acadlyx-surface);
+  border-color: var(--acadlyx-border);
+}
+
+.acadlyx-table th {
+  background: var(--acadlyx-surface-soft);
+  color: #665f56;
+}
+
+.acadlyx-button-secondary {
+  background: var(--acadlyx-surface);
+  border-color: var(--acadlyx-border);
+  color: #39342d;
+}
+
+.acadlyx-button-secondary:hover {
+  background: #f7f1e8;
+  border-color: var(--acadlyx-border-strong);
+  color: var(--acadlyx-primary-dark);
+}
+
+/* Never allow a white-on-white / white-on-beige action label. */
+button[class*="bg-white"][class*="text-white"],
+a[class*="bg-white"][class*="text-white"] {
+  color: var(--acadlyx-text) !important;
 }
