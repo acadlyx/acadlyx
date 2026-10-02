@@ -1189,7 +1189,7 @@ export function getNavigationForRoles(
 ): NavigationItem[] {
   const roleSet = new Set(
     roles.map((role) =>
-      role.toUpperCase(),
+      normalizeRoleName(role),
     ),
   );
 
@@ -1254,7 +1254,7 @@ export function canAccessRoute(
 
   const normalizedRoles =
     roles.map((role) =>
-      role.toUpperCase(),
+      normalizeRoleName(role),
     );
 
   const matchingNamespace =
