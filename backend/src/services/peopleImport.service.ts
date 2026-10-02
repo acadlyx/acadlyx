@@ -578,9 +578,10 @@ async function upsertUser(
     },
   });
 
-  const password =
-    text(row.password) ||
-    `${roleName.toLowerCase()}@123`;
+  const password = text(row.password);
+  if (!existing && password.length < 12) {
+    throw new AppError("New imported users require a password of at least 12 characters", 400);
+  }
 
   const user = existing
     ? await tx.user.update({
