@@ -79,6 +79,37 @@ test("institution admin retains institutional administration capabilities", () =
   }
 });
 
+test("institution admin stays out of specialist operational domains", () => {
+  const forbidden = [
+    "fees.manage",
+    "fees.pay",
+    "fees.refund",
+    "fees.approve",
+    "assignments.create",
+    "assignments.review",
+    "exams.manage",
+    "exams.approve",
+    "exams.invigilate",
+    "exams.revaluate",
+    "marks.enter",
+    "attendance.mark",
+    "attendance.approve",
+    "attendance.lock",
+    "hr.manage",
+    "library.manage",
+    "placement.manage",
+    "payroll.manage",
+  ];
+
+  for (const permission of forbidden) {
+    assert.equal(
+      hasPermission(["INSTITUTION_ADMIN"], permission),
+      false,
+      `Institution Admin must not receive ${permission}`,
+    );
+  }
+});
+
 test("leadership marks readers match their documented read permissions", () => {
   for (const role of ["CHAIRMAN", "DIRECTOR", "DEAN"]) {
     assert.equal(
