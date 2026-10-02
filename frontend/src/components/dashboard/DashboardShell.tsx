@@ -9,7 +9,7 @@ import {
 
 import {
   UnifiedDashboardFrame,
-  UnifiedNavItem,
+  DashboardNavigationItem,
 } from "./UnifiedDashboardFrame";
 import { DashboardDataTransferActions } from "./DashboardDataTransferActions";
 
@@ -139,7 +139,7 @@ export function DashboardShell({
   ]);
 
   const navigation =
-    useMemo<UnifiedNavItem[]>(
+    useMemo<DashboardNavigationItem[]>(
       () =>
         navigationForUser(
           user,
@@ -184,9 +184,6 @@ export function DashboardShell({
   const role =
     getPrimaryRole(roles);
 
-  const homeHref =
-    workspaceHome(roles);
-
   async function signOut() {
     await logout();
     router.replace("/login");
@@ -197,23 +194,12 @@ export function DashboardShell({
       title={title}
       subtitle={subtitle}
       navigation={navigation}
-      activeHref={activeHref}
-      homeHref={homeHref}
-      workspaceLabel={
-        role
-          ? ROLE_LABELS[role] ||
-            role.replace(
-              /_/g,
-              " ",
-            )
-          : "Workspace"
-      }
       userName={
         user
           ? `${user.firstName} ${user.lastName}`.trim()
           : "Workspace"
       }
-      roleLabel={
+      userRole={
         role
           ? ROLE_LABELS[role] ||
             role.replace(
@@ -222,7 +208,6 @@ export function DashboardShell({
             )
           : undefined
       }
-      loading={authLoading}
       onSignOut={signOut}
     >
       <div className="space-y-4">
@@ -232,3 +217,4 @@ export function DashboardShell({
     </UnifiedDashboardFrame>
   );
 }
+
