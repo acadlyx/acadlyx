@@ -197,13 +197,15 @@ export default function HrPage() {
               user account with an employment profile.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleNew}
-            className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
-          >
-            {showForm ? "Close" : "Add employee"}
-          </button>
+          {userPermissions.includes("hr.manage") ? (
+            <button
+              type="button"
+              onClick={handleNew}
+              className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              {showForm ? "Close" : "Add employee"}
+            </button>
+          ) : null}
         </section>
 
         {state === "loading" && <p className="text-sm text-slate-400">Loading HR records…</p>}
