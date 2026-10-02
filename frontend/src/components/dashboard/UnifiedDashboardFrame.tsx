@@ -81,15 +81,11 @@ const ICONS: Record<string, string> = {
 };
 
 function normalizeIcon(icon?: string) {
-  if (!icon) {
-    return "home";
-  }
+  if (!icon) return "home";
 
   const normalized = icon.toLowerCase();
 
-  if (ICONS[normalized]) {
-    return normalized;
-  }
+  if (ICONS[normalized]) return normalized;
 
   if (
     normalized.includes("notice") ||
@@ -154,42 +150,18 @@ function normalizeIcon(icon?: string) {
     return "book";
   }
 
-  if (
-    normalized.includes("notification") ||
-    normalized.includes("bell")
-  ) {
-    return "bell";
-  }
-
-  if (
-    normalized.includes("student") ||
-    normalized.includes("class") ||
-    normalized.includes("people")
-  ) {
-    return "people";
-  }
-
   return "grid";
 }
 
-function groupNavigation(
-  items: UnifiedNavItem[],
-) {
-  const groups = new Map<
-    string,
-    UnifiedNavItem[]
-  >();
+function groupNavigation(items: UnifiedNavItem[]) {
+  const groups = new Map<string, UnifiedNavItem[]>();
 
   for (const item of items) {
     const group =
-      item.group?.trim() ||
-      "Workspace";
+      item.group?.trim() || "Workspace";
 
-    const current =
-      groups.get(group) || [];
-
+    const current = groups.get(group) || [];
     current.push(item);
-
     groups.set(group, current);
   }
 
@@ -205,12 +177,8 @@ function NavIcon({
   active: boolean;
   collapsed: boolean;
 }) {
-  const iconName =
-    normalizeIcon(item.icon);
-
-  const path =
-    ICONS[iconName] ||
-    ICONS.grid;
+  const iconName = normalizeIcon(item.icon);
+  const path = ICONS[iconName] || ICONS.grid;
 
   return (
     <span
@@ -306,31 +274,25 @@ export function UnifiedDashboardFrame({
   loading?: boolean;
   onSignOut: () => void | Promise<void>;
 }) {
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
-
-  const [collapsed, setCollapsed] =
-    useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
-      const saved =
+      setCollapsed(
         window.localStorage.getItem(
           SIDEBAR_STORAGE_KEY,
-        );
-
-      setCollapsed(saved === "true");
+        ) === "true",
+      );
     } catch {
       setCollapsed(false);
     }
   }, []);
 
   useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = mobileOpen
+      ? "hidden"
+      : "";
 
     return () => {
       document.body.style.overflow = "";
@@ -346,11 +308,6 @@ export function UnifiedDashboardFrame({
     [navigation],
   );
 
-  const desktopSidebarWidth =
-    collapsed
-      ? SIDEBAR_COLLAPSED_WIDTH
-      : SIDEBAR_WIDTH;
-
   function toggleSidebar() {
     setCollapsed((current) => {
       const next = !current;
@@ -361,7 +318,7 @@ export function UnifiedDashboardFrame({
           String(next),
         );
       } catch {
-        // Ignore unavailable storage.
+        // Storage can be unavailable in private/restricted contexts.
       }
 
       return next;
@@ -372,25 +329,21 @@ export function UnifiedDashboardFrame({
     setMobileOpen(false);
   }
 
+  const desktopSidebarWidth = collapsed
+    ? SIDEBAR_COLLAPSED_WIDTH
+    : SIDEBAR_WIDTH;
+
   return (
     <div className="min-h-screen bg-[#07111f] text-slate-100">
-      {/* =========================================================
-          HEADER
-         ========================================================= */}
       <header
         className="fixed inset-x-0 top-0 z-[100] border-b border-slate-700/70 bg-[#182536]/[0.97] shadow-[0_4px_24px_rgba(2,8,23,0.14)] backdrop-blur-xl"
-        style={{
-          height: HEADER_HEIGHT,
-        }}
+        style={{ height: HEADER_HEIGHT }}
       >
         <div className="flex h-full items-center px-3 sm:px-5 lg:px-6">
-          {/* Mobile menu */}
           <button
             type="button"
             onClick={() =>
-              setMobileOpen(
-                (value) => !value,
-              )
+              setMobileOpen((value) => !value)
             }
             className="mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-[12px] border border-slate-600 bg-slate-800/80 text-slate-200 lg:hidden"
             aria-label={
@@ -398,7 +351,6 @@ export function UnifiedDashboardFrame({
                 ? "Close navigation"
                 : "Open navigation"
             }
-            aria-expanded={mobileOpen}
           >
             <svg
               viewBox="0 0 24 24"
@@ -418,11 +370,9 @@ export function UnifiedDashboardFrame({
             </svg>
           </button>
 
-          {/* Brand */}
           <Link
             href={homeHref}
             className="flex min-w-0 shrink-0 items-center gap-3"
-            aria-label="ACADLYX workspace home"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[#050b16] ring-1 ring-white/10">
               <Image
@@ -446,7 +396,6 @@ export function UnifiedDashboardFrame({
             </span>
           </Link>
 
-          {/* Page title */}
           <div className="ml-4 hidden min-w-0 border-l border-slate-600/80 pl-4 md:block lg:ml-5 lg:pl-5">
             <p className="truncate text-[14px] font-extrabold text-white">
               {title}
@@ -459,7 +408,6 @@ export function UnifiedDashboardFrame({
             ) : null}
           </div>
 
-          {/* Desktop sidebar toggle */}
           <button
             type="button"
             onClick={toggleSidebar}
@@ -485,7 +433,6 @@ export function UnifiedDashboardFrame({
               className="h-[18px] w-[18px]"
             >
               <path d="M4 6h16M4 12h16M4 18h16" />
-
               <path
                 d={
                   collapsed
@@ -496,7 +443,6 @@ export function UnifiedDashboardFrame({
             </svg>
           </button>
 
-          {/* User area */}
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <div className="hidden min-w-0 text-right xl:block">
               <p className="max-w-[180px] truncate text-xs font-extrabold text-white">
@@ -504,8 +450,7 @@ export function UnifiedDashboardFrame({
               </p>
 
               <p className="mt-0.5 max-w-[180px] truncate text-[10px] text-slate-400">
-                {roleLabel ||
-                  workspaceLabel}
+                {roleLabel || workspaceLabel}
               </p>
             </div>
 
@@ -515,9 +460,7 @@ export function UnifiedDashboardFrame({
 
             <button
               type="button"
-              onClick={() =>
-                void onSignOut()
-              }
+              onClick={() => void onSignOut()}
               className="hidden rounded-[12px] border border-slate-600 bg-slate-800/80 px-3 py-2.5 text-xs font-extrabold text-slate-200 hover:bg-slate-700 hover:text-white sm:block"
             >
               Sign out
@@ -526,9 +469,6 @@ export function UnifiedDashboardFrame({
         </div>
       </header>
 
-      {/* =========================================================
-          MOBILE OVERLAY
-         ========================================================= */}
       {mobileOpen ? (
         <button
           type="button"
@@ -538,25 +478,26 @@ export function UnifiedDashboardFrame({
         />
       ) : null}
 
-      {/* =========================================================
-          SIDEBAR
-         ========================================================= */}
       <aside
         className={`fixed left-0 bottom-0 z-[110] border-r border-slate-800/90 bg-[#061525] shadow-[8px_0_30px_rgba(2,8,23,0.18)] transition-[width,transform] duration-200 ease-out ${
-          collapsed
-            ? "lg:w-[76px]"
-            : "lg:w-[264px]"
-        } ${
           mobileOpen
-            ? "w-[264px] translate-x-0"
-            : "w-[264px] -translate-x-full"
-        } lg:translate-x-0`}
+            ? "translate-x-0"
+            : "-translate-x-full"
+        } w-[264px] lg:translate-x-0`}
         style={{
           top: HEADER_HEIGHT,
+          width:
+            typeof window === "undefined"
+              ? undefined
+              : undefined,
         }}
       >
-        <div className="flex h-full min-h-0 flex-col">
-          {/* Workspace identity */}
+        <div
+          className="flex h-full min-h-0 flex-col"
+          style={{
+            width: desktopSidebarWidth,
+          }}
+        >
           <div
             className={`shrink-0 border-b border-slate-800/80 ${
               collapsed
@@ -573,14 +514,13 @@ export function UnifiedDashboardFrame({
             >
               {collapsed ? (
                 <span
-                  className="grid h-10 w-10 place-items-center rounded-[12px] bg-blue-600 text-sm font-black text-white shadow-[0_7px_18px_rgba(37,99,235,0.22)]"
+                  className="grid h-10 w-10 place-items-center rounded-[12px] bg-blue-600 text-sm font-black text-white"
                   title={workspaceLabel}
                 >
                   {workspaceLabel
                     .trim()
                     .charAt(0)
-                    .toUpperCase() ||
-                    "A"}
+                    .toUpperCase() || "A"}
                 </span>
               ) : (
                 <>
@@ -593,116 +533,97 @@ export function UnifiedDashboardFrame({
                       {workspaceLabel}
                     </p>
 
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* Navigation */}
           <nav
             className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-800"
             aria-label="Workspace navigation"
           >
-            {loading &&
-            navigation.length === 0 ? (
-              <SkeletonSidebar
-                collapsed={collapsed}
-              />
+            {loading && navigation.length === 0 ? (
+              <SkeletonSidebar collapsed={collapsed} />
             ) : groups.length > 0 ? (
               <div className="space-y-5">
-                {groups.map(
-                  ([group, items]) => (
-                    <section
-                      key={group}
-                    >
-                      {!collapsed ? (
-                        <p className="mb-1.5 px-2 text-[8px] font-black uppercase tracking-[0.22em] text-slate-500">
-                          {group}
-                        </p>
-                      ) : null}
+                {groups.map(([group, items]) => (
+                  <section key={group}>
+                    {!collapsed ? (
+                      <p className="mb-1.5 px-2 text-[8px] font-black uppercase tracking-[0.22em] text-slate-500">
+                        {group}
+                      </p>
+                    ) : null}
 
-                      <div className="space-y-0.5">
-                        {items.map(
-                          (item) => {
-                            const isActive =
-                              activeHref ===
-                              item.href;
+                    <div className="space-y-0.5">
+                      {items.map((item) => {
+                        const isActive =
+                          activeHref === item.href;
 
-                            return (
-                              <Link
-                                key={`${group}:${item.href}`}
-                                href={item.href}
-                                onClick={
-                                  closeMobileSidebar
-                                }
-                                title={
-                                  collapsed
-                                    ? item.label
-                                    : undefined
-                                }
-                                className={`group relative flex min-h-[46px] items-center rounded-[13px] text-[13px] font-bold transition ${
-                                  collapsed
-                                    ? "justify-center px-1.5"
-                                    : "gap-2.5 px-2"
-                                } ${
-                                  isActive
-                                    ? "bg-blue-600 text-white shadow-[0_7px_18px_rgba(37,99,235,0.18)]"
-                                    : "text-slate-300 hover:bg-slate-800/75 hover:text-white"
-                                }`}
-                                aria-current={
-                                  isActive
-                                    ? "page"
-                                    : undefined
-                                }
-                              >
+                        return (
+                          <Link
+                            key={`${group}:${item.href}`}
+                            href={item.href}
+                            onClick={closeMobileSidebar}
+                            title={
+                              collapsed
+                                ? item.label
+                                : undefined
+                            }
+                            className={`group relative flex min-h-[46px] items-center rounded-[13px] text-[13px] font-bold transition ${
+                              collapsed
+                                ? "justify-center px-1.5"
+                                : "gap-2.5 px-2"
+                            } ${
+                              isActive
+                                ? "bg-blue-600 text-white shadow-[0_7px_18px_rgba(37,99,235,0.18)]"
+                                : "text-slate-300 hover:bg-slate-800/75 hover:text-white"
+                            }`}
+                            aria-current={
+                              isActive
+                                ? "page"
+                                : undefined
+                            }
+                          >
+                            {isActive ? (
+                              <span className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-r-full bg-white/90" />
+                            ) : null}
+
+                            <NavIcon
+                              item={item}
+                              active={isActive}
+                              collapsed={collapsed}
+                            />
+
+                            {!collapsed ? (
+                              <>
+                                <span className="min-w-0 flex-1 truncate">
+                                  {item.label}
+                                </span>
+
                                 {isActive ? (
-                                  <span className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-r-full bg-white/90" />
+                                  <span className="mr-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
                                 ) : null}
-
-                                <NavIcon
-                                  item={item}
-                                  active={
-                                    isActive
-                                  }
-                                  collapsed={
-                                    collapsed
-                                  }
-                                />
-
-                                {!collapsed ? (
-                                  <>
-                                    <span className="min-w-0 flex-1 truncate">
-                                      {
-                                        item.label
-                                      }
-                                    </span>
-
-                                    {isActive ? (
-                                      <span className="mr-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
-                                    ) : null}
-                                  </>
-                                ) : null}
-                              </Link>
-                            );
-                          },
-                        )}
-                      </div>
-                    </section>
-                  ),
-                )}
+                              </>
+                            ) : null}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
               <div className="rounded-[16px] border border-slate-800 bg-slate-900/50 p-3">
                 {!collapsed ? (
                   <>
                     <p className="text-xs font-bold text-slate-200">
-                      Workspace loading
+                      No accessible modules
                     </p>
 
                     <p className="mt-1 text-[10px] leading-4 text-slate-500">
-                      Authorized modules will appear here automatically.
+                      Your authorized modules will appear here.
                     </p>
                   </>
                 ) : (
@@ -712,7 +633,6 @@ export function UnifiedDashboardFrame({
             )}
           </nav>
 
-          {/* Bottom controls */}
           <div
             className={`shrink-0 border-t border-slate-800/90 ${
               collapsed
@@ -728,18 +648,8 @@ export function UnifiedDashboardFrame({
                   ? "justify-center px-1.5"
                   : "gap-2.5 px-2"
               }`}
-              title={
-                collapsed
-                  ? "Show sidebar"
-                  : "Hide sidebar"
-              }
-              aria-label={
-                collapsed
-                  ? "Show sidebar"
-                  : "Hide sidebar"
-              }
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-blue-500/10 text-blue-300 group-hover:bg-blue-500/15">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-blue-500/10 text-blue-300">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -750,7 +660,6 @@ export function UnifiedDashboardFrame({
                   className="h-[17px] w-[17px]"
                 >
                   <path d="M4 6h16M4 12h16M4 18h16" />
-
                   <path
                     d={
                       collapsed
@@ -770,18 +679,14 @@ export function UnifiedDashboardFrame({
 
             <button
               type="button"
-              onClick={() =>
-                void onSignOut()
-              }
+              onClick={() => void onSignOut()}
               className={`group mt-1 flex min-h-[46px] w-full items-center rounded-[13px] text-left text-[13px] font-bold text-slate-300 hover:bg-red-500/10 hover:text-red-300 ${
                 collapsed
                   ? "justify-center px-1.5"
                   : "gap-2.5 px-2"
               }`}
-              title="Sign out"
-              aria-label="Sign out"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-red-500/10 text-red-300 group-hover:bg-red-500/15">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-red-500/10 text-red-300">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
@@ -803,30 +708,19 @@ export function UnifiedDashboardFrame({
         </div>
       </aside>
 
-      {/* =========================================================
-          MAIN CONTENT
-         ========================================================= */}
       <main
-        className="min-h-screen"
-        style={{
-          paddingTop: HEADER_HEIGHT,
-        }}
+        className="min-h-screen transition-[padding-left] duration-200 ease-out"
+        style={{ paddingTop: HEADER_HEIGHT }}
       >
-        {/*
-          IMPORTANT:
-          Do NOT construct a Tailwind class such as:
-
-          lg:pl-[${collapsed}px]
-
-          Tailwind cannot reliably generate dynamic arbitrary
-          values. Use explicit static classes below.
-        */}
         <div
-          className={
-            collapsed
-              ? "min-h-[calc(100vh-72px)] lg:pl-[76px]"
-              : "min-h-[calc(100vh-72px)] lg:pl-[264px]"
-          }
+          className="min-h-[calc(100vh-72px)] transition-[padding-left] duration-200 ease-out"
+          style={{
+            paddingLeft:
+              typeof window !== "undefined" &&
+              window.innerWidth >= 1024
+                ? desktopSidebarWidth
+                : 0,
+          }}
         >
           <div className="min-h-[calc(100vh-72px)] overflow-x-hidden bg-[radial-gradient(circle_at_72%_0%,rgba(37,99,235,0.07),transparent_30rem),linear-gradient(135deg,#f7faff,#eef4fa,#f8fbff)]">
             <div className="mx-auto w-full max-w-[1680px] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
