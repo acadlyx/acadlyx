@@ -74,7 +74,7 @@ export async function createAcademicYear(
       data: { institutionId, ...input, name },
     });
 
-    if (input.isCurrent) {
+    if (input.isCurrent === true) {
       await tx.academicYear.updateMany({
         where: {
           institutionId,
@@ -94,16 +94,18 @@ export async function updateAcademicYear(
   id: string,
   input: UpdateAcademicYearInput
 ) {
-  await getAcademicYearById(institutionId, id);
+  const current = await getAcademicYearById(institutionId, id);
+  const nextStartDate = input.startDate ?? current.startDate;
+  const nextEndDate = input.endDate ?? current.endDate;
 
-  if (input.startDate && input.endDate && input.startDate >= input.endDate) {
+  if (nextStartDate >= nextEndDate) {
     throw new AppError(
       "Academic year end date must be after its start date",
       400
     );
   }
 
-  if (input.name) {
+  if (input.name && input.name.trim() !== current.name) {
     const nameTaken = await prisma.academicYear.findFirst({
       where: { institutionId, name: input.name, NOT: { id } },
     });
@@ -123,6 +125,8 @@ export async function updateAcademicYear(
         ...(input.name !== undefined
           ? { name: input.name.trim() }
           : {}),
+        startDate: nextStartDate,
+        endDate: nextEndDate,
       },
     });
 
