@@ -252,7 +252,7 @@ export async function updateDepartment(
   id: string,
   input: UpdateDepartmentInput
 ) {
-  const current = await getDepartmentById(
+  await getDepartmentById(
     institutionId,
     id
   );
