@@ -1119,6 +1119,35 @@ export async function confirmPaymentOrder(
   );
 }
 
+
+/**
+ * Settles a trusted provider webhook without inventing a human actor.
+ * The provider payment id is the idempotency key; duplicate deliveries
+ * therefore return the already-recorded payment instead of creating a
+ * second receipt.
+ */
+export async function settleProviderWebhook(
+  institutionId: string,
+  input: {
+    invoiceId: string;
+    amount: number;
+    provider: string;
+    providerOrderId: string;
+    providerPaymentId: string;
+    providerSignature?: string;
+  }
+) {
+  return settlePayment(institutionId, null, {
+    invoiceId: input.invoiceId,
+    amount: input.amount,
+    method: "ONLINE",
+    provider: input.provider,
+    providerOrderId: input.providerOrderId,
+    providerPaymentId: input.providerPaymentId,
+    providerSignature: input.providerSignature,
+  }, {});
+}
+
 export async function getReceipt(
   institutionId: string,
   actor: AuthenticatedUser,
