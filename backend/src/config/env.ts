@@ -19,9 +19,12 @@ interface EnvConfig {
 
   bcryptSaltRounds: number;
 
+  cloudinaryUrl: string | undefined;
   cloudinaryCloudName: string | undefined;
   cloudinaryApiKey: string | undefined;
   cloudinaryApiSecret: string | undefined;
+  storageProvider: string;
+  storageSignedUrlTtlSeconds: number;
 }
 
 function normalizeOrigin(value: string): string {
@@ -96,6 +99,9 @@ export const env: EnvConfig = {
       10
     ),
 
+  cloudinaryUrl:
+    process.env.CLOUDINARY_URL,
+
   cloudinaryCloudName:
     process.env.CLOUDINARY_CLOUD_NAME,
 
@@ -104,6 +110,12 @@ export const env: EnvConfig = {
 
   cloudinaryApiSecret:
     process.env.CLOUDINARY_API_SECRET,
+
+  storageProvider:
+    process.env.STORAGE_PROVIDER || "cloudinary",
+
+  storageSignedUrlTtlSeconds:
+    positiveInteger(process.env.STORAGE_SIGNED_URL_TTL_SECONDS, 900),
 };
 
 export const isProduction =
@@ -187,13 +199,14 @@ export function assertAuthEnv(): void {
   if (
     isProduction &&
     (
-      !env.cloudinaryCloudName ||
-      !env.cloudinaryApiKey ||
-      !env.cloudinaryApiSecret
+      !env.cloudinaryUrl &&
+      (!env.cloudinaryCloudName ||
+        !env.cloudinaryApiKey ||
+        !env.cloudinaryApiSecret)
     )
   ) {
     throw new Error(
-      "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set in production."
+      "CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be set in production."
     );
   }
 }
