@@ -81,7 +81,7 @@ test("institution admin retains institutional administration capabilities", () =
 });
 
 test("institution admin stays out of specialist operational domains", () => {
-  const forbidden = [
+  const forbidden: PermissionKey[] = [
     "fees.manage",
     "fees.pay",
     "fees.refund",
