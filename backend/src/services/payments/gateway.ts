@@ -123,10 +123,11 @@ class HmacGateway implements PaymentGateway {
     return createHmac("sha256", secret).update(payload).digest("hex");
   }
 
-  async createOrder(_input: {
+  async createOrder(input: {
     amount: number;
     currency: string;
     reference: string;
+    notes?: Record<string, string>;
   }): Promise<GatewayOrder> {
     if (!this.isConfigured) requireCredentials(this.name);
 
@@ -217,23 +218,23 @@ let cached: PaymentGateway | null = null;
 export function getPaymentGateway(): PaymentGateway {
   if (cached) return cached;
 
-  const provider = (process.env.PAYMENT_PROVIDER || "manual").toLowerCase();
+  const provider = env.paymentProvider;
 
   cached =
     provider === "manual"
       ? new ManualGateway()
       : new HmacGateway(
           provider,
-          process.env.PAYMENT_KEY_ID,
-          process.env.PAYMENT_KEY_SECRET,
-          process.env.PAYMENT_WEBHOOK_SECRET
+          env.paymentKeyId,
+          env.paymentKeySecret,
+          env.paymentWebhookSecret
         );
 
   return cached;
 }
 
 export function paymentCurrency(): string {
-  return process.env.PAYMENT_CURRENCY || "INR";
+  return env.paymentCurrency;
 }
 
 /** Test seam: clears the memoised adapter. */
