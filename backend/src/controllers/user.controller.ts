@@ -255,6 +255,46 @@ export const update = asyncHandler(
   },
 );
 
+
+export const getDepartments = asyncHandler(
+  async (req: Request, res: Response) => {
+    const actor = requireUserManagementRole(req);
+
+    const data = await userService.getUserDepartmentAccess(
+      req.params.id,
+      actor,
+    );
+
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  },
+);
+
+export const updateDepartments = asyncHandler(
+  async (req: Request, res: Response) => {
+    const actor = requireUserManagementRole(req);
+
+    const departmentIds = req.body?.departmentIds;
+
+    if (!Array.isArray(departmentIds) || !departmentIds.every((id) => typeof id === "string")) {
+      throw new AppError("departmentIds must be an array of department IDs", 400);
+    }
+
+    const data = await userService.setUserDepartmentAccess(
+      req.params.id,
+      departmentIds,
+      actor,
+    );
+
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  },
+);
+
 export const setActive = asyncHandler(
   async (
     req: Request,
