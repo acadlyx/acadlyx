@@ -25,6 +25,8 @@ import {
   getAdminNavigation,
 } from "@/lib/adminNavigation";
 
+import DataTransferActions from "@/components/dashboard/DataTransferActions";
+
 const METRICS: [
   string,
   keyof AdminWorkspace["stats"],
@@ -252,6 +254,26 @@ export function AdminPortal() {
                 </div>
               ),
             )}
+          </section>
+
+          <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                  Data operations
+                </p>
+                <h2 className="mt-1 text-2xl font-black tracking-[-0.035em]">Import & export</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Move institution data in validated spreadsheet formats without leaving the admin dashboard.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <DataTransferActions type="users" compact />
+                <DataTransferActions type="students" compact />
+                <DataTransferActions type="faculty" compact />
+                <DataTransferActions type="departments" compact />
+                <DataTransferActions type="programs" compact />
+                <DataTransferActions type="courses" compact />
+              </div>
+            </div>
           </section>
 
           <section className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
