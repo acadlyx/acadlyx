@@ -5,6 +5,7 @@ import {
   ROLE_PERMISSIONS,
   hasPermission,
   normalizeRoleName,
+  type PermissionKey,
 } from "../config/rbac";
 
 test("legacy management aliases normalize to canonical roles", () => {
@@ -15,7 +16,7 @@ test("legacy management aliases normalize to canonical roles", () => {
 test("institution admin is not a specialist operator", () => {
   const permissions = ROLE_PERMISSIONS.INSTITUTION_ADMIN;
 
-  const forbidden = [
+  const forbidden: PermissionKey[] = [
     "fees.manage",
     "fees.pay",
     "fees.refund",
@@ -37,7 +38,7 @@ test("institution admin is not a specialist operator", () => {
 
   for (const permission of forbidden) {
     assert.equal(
-      permissions.includes(permission as never),
+      permissions.includes(permission),
       false,
       `INSTITUTION_ADMIN must not have ${permission}`,
     );
@@ -45,7 +46,7 @@ test("institution admin is not a specialist operator", () => {
 });
 
 test("institution admin retains institutional administration capabilities", () => {
-  const required = [
+  const required: PermissionKey[] = [
     "users.read",
     "users.create",
     "users.update",
@@ -72,7 +73,7 @@ test("institution admin retains institutional administration capabilities", () =
 
   for (const permission of required) {
     assert.equal(
-      hasPermission(["INSTITUTION_ADMIN"], permission as never),
+      hasPermission(["INSTITUTION_ADMIN"], permission),
       true,
       `INSTITUTION_ADMIN should retain ${permission}`,
     );
