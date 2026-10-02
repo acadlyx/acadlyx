@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm ci && npm run render:build
+    buildCommand: npm run render:build
     startCommand: npm start
     healthCheckPath: /api/v1/health
     autoDeploy: true
