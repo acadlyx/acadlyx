@@ -870,7 +870,7 @@ export async function cancelInvoice(
  */
 async function settlePayment(
   institutionId: string,
-  actor: AuthenticatedUser,
+  actor: AuthenticatedUser | null,
   input: {
     invoiceId: string;
     amount: number;
@@ -912,6 +912,31 @@ async function settlePayment(
         `Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}`,
         400
       );
+    }
+
+    if (input.providerPaymentId) {
+      const existing = await tx.$queryRaw<
+        Array<{ id: string; invoiceId: string; amount: number; receiptNumber: string | null; status: string }>
+      >(Prisma.sql`
+        SELECT "id", "invoiceId", "amount", "receiptNumber", "status"
+        FROM "fee_payments"
+        WHERE "institutionId" = ${institutionId}
+          AND "provider" = ${input.provider ?? null}
+          AND "providerPaymentId" = ${input.providerPaymentId}
+        LIMIT 1
+      `);
+      if (existing[0]) {
+        if (existing[0].invoiceId !== input.invoiceId || Math.abs(existing[0].amount - input.amount) > 0.009) {
+          throw new AppError("Provider payment is already associated with a different invoice or amount", 409);
+        }
+        return {
+          paymentId: existing[0].id,
+          receiptNumber: existing[0].receiptNumber,
+          paidAmount: invoice.paidAmount,
+          status: existing[0].status === "SUCCESS" ? statusFor(invoice) : existing[0].status,
+          invoice,
+        };
+      }
     }
 
     const year = new Date().getUTCFullYear();
@@ -962,7 +987,7 @@ async function settlePayment(
 
   await recordAuditLog({
     institutionId,
-    userId: actor.id,
+    userId: actor?.id,
     action: "fees.payment_recorded",
     entityType: "FeePayment",
     entityId: result.paymentId,
