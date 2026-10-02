@@ -321,6 +321,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Department Fees",
+    href: "/dean/fees",
+    icon: "₹",
+    roles: ["DEAN"],
+    permissions: ["fees.read"],
+    group: "Finance",
+  },
+  {
     label: "Reports",
     href: "/reports",
     icon: "▤",
@@ -399,6 +407,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["HOD"],
     permissions: ["exams.read"],
     group: "Academic",
+  },
+  {
+    label: "Department Fees",
+    href: "/hod/fees",
+    icon: "₹",
+    roles: ["HOD"],
+    permissions: ["fees.read"],
+    group: "Finance",
   },
   {
     label: "Learning",
