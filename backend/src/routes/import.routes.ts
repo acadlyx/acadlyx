@@ -2,7 +2,6 @@ import { Router } from "express";
 import multer from "multer";
 import * as controller from "../controllers/import.controller";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
 
@@ -33,8 +32,7 @@ const IMPORT_TYPE_PERMISSIONS: Record<string, string> = {
 
 router.use(
   authenticate,
-  requireFeature("import_export"),
-  authorize("imports.manage")
+  requireFeature("import_export")
 );
 
 function authorizeImportType(
