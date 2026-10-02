@@ -592,14 +592,14 @@ form {
   }
 
   /* Legacy gray text becomes readable on the beige system. */
-  .text-slate-950 { color: #25221e !important; }
-  .text-slate-900 { color: #2e2a25 !important; }
-  .text-slate-800 { color: #39342d !important; }
-  .text-slate-700 { color: #4d463e !important; }
-  .text-slate-600 { color: #625a51 !important; }
-  .text-slate-500 { color: #71685e !important; }
-  .text-slate-400 { color: #7a7066 !important; }
-  .text-slate-300 { color: #61594f !important; }
+  .text-slate-950 { color: #020617 !important; }
+  .text-slate-900 { color: #0f172a !important; }
+  .text-slate-800 { color: #1e293b !important; }
+  .text-slate-700 { color: #334155 !important; }
+  .text-slate-600 { color: #475569 !important; }
+  .text-slate-500 { color: #64748b !important; }
+  .text-slate-400 { color: #94a3b8 !important; }
+  .text-slate-300 { color: #cbd5e1 !important; }
 
   /* Inputs always retain a clear foreground/background pair. */
   input,
