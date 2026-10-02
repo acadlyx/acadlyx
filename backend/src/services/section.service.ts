@@ -135,6 +135,31 @@ export async function updateSection(
 
 /** Soft delete — preserves history for any CourseOffering referencing this section. */
 export async function deactivateSection(institutionId: string, id: string) {
-  await getSectionById(institutionId, id);
-  return prisma.section.update({ where: { id }, data: { isActive: false } });
+  const section = await getSectionById(institutionId, id);
+
+  if (!section.isActive) {
+    return section;
+  }
+
+  const activeOffering = await prisma.courseOffering.findFirst({
+    where: {
+      institutionId,
+      sectionId: id,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  if (activeOffering) {
+    throw new AppError(
+      "Deactivate the section's active course offerings before deactivating the section",
+      409
+    );
+  }
+
+  return prisma.section.update({
+    where: { id },
+    data: { isActive: false },
+    include,
+  });
 }
