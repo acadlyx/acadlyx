@@ -93,7 +93,7 @@ export async function listMarks(
   user: AuthenticatedUser,
   filters: ListFilters
 ) {
-  const institutionWideReaders = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT"];
+  const institutionWideReaders = ["CHAIRMAN", "DIRECTOR", "DEAN"];
   const where: Prisma.InternalMarkWhereInput = {
     institutionId,
     ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
