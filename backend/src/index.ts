@@ -8,6 +8,11 @@ assertAuthEnv();
 const app = createApp();
 
 const server = app.listen(env.port, () => {
+  // Keep HTTP connections reusable on Render/Vercel instead of repeatedly
+  // paying TCP/TLS setup costs for authenticated API traffic.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 70_000;
+
   logger.info(`ACADLYX API running on http://localhost:${env.port}`);
   logger.info(`Health check: http://localhost:${env.port}/api/${env.apiVersion}/health`);
 
