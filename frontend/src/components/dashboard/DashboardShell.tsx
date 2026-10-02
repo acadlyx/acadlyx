@@ -136,11 +136,46 @@ export function DashboardShell({
     allowedRolesKey,
   ]);
 
+  const workspaceRole =
+    useMemo(() => {
+      if (!user) {
+        return null;
+      }
+
+      const normalizedUserRoles =
+        user.roles.map((role) =>
+          role.toUpperCase(),
+        );
+
+      if (allowedRoles?.length) {
+        const allowed =
+          allowedRoles.find((role) =>
+            normalizedUserRoles.includes(
+              role.toUpperCase(),
+            ),
+          );
+
+        if (allowed) {
+          return allowed;
+        }
+      }
+
+      return getPrimaryRole(
+        user.roles,
+      );
+    }, [allowedRolesKey, user]);
+
   const navigation =
     useMemo<DashboardNavigationItem[]>(
       () =>
         navigationForUser(
-          user,
+          workspaceRole
+            ? {
+                roles: [workspaceRole],
+                permissions:
+                  user?.permissions || [],
+              }
+            : user,
         ).map((item) => ({
           label: item.label,
           href: item.href,
@@ -149,7 +184,7 @@ export function DashboardShell({
             item.group ||
             "Workspace",
         })),
-      [user],
+      [user, workspaceRole],
     );
 
   const activeHref =
