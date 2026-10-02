@@ -529,7 +529,9 @@ export async function listRegistrations(
     prisma.courseRegistration.count({ where }),
     prisma.courseRegistration.groupBy({
       by: ["status"],
-      where: { institutionId },
+      where: {
+        ...where,
+      },
       _count: { _all: true },
     }),
   ]);
