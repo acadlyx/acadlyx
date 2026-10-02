@@ -227,7 +227,7 @@ export default function TakeAttendancePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+      <div className="acadlyx-page-container">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">
             {session.courseOffering.course.code} —{" "}
