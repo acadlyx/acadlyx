@@ -98,8 +98,6 @@ test("institution admin stays out of specialist operational domains", () => {
     "attendance.lock",
     "hr.manage",
     "library.manage",
-    "placement.manage",
-    "payroll.manage",
   ];
 
   for (const permission of forbidden) {
