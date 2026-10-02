@@ -136,34 +136,20 @@ export function DashboardShell({
     allowedRolesKey,
   ]);
 
+  /*
+   * The sidebar belongs to the authenticated workspace, not to the
+   * individual page being viewed. allowedRoles is only a route guard. Using it to derive navigation
+   * caused the sidebar to change whenever a user opened a page whose
+   * wrapper declared a different allowed role.
+   */
   const workspaceRole =
     useMemo(() => {
       if (!user) {
         return null;
       }
 
-      const normalizedUserRoles =
-        user.roles.map((role) =>
-          role.toUpperCase(),
-        );
-
-      if (allowedRoles?.length) {
-        const allowed =
-          allowedRoles.find((role) =>
-            normalizedUserRoles.includes(
-              role.toUpperCase(),
-            ),
-          );
-
-        if (allowed) {
-          return allowed;
-        }
-      }
-
-      return getPrimaryRole(
-        user.roles,
-      );
-    }, [allowedRolesKey, user]);
+      return getPrimaryRole(user.roles);
+    }, [user]);
 
   const navigation =
     useMemo<DashboardNavigationItem[]>(
