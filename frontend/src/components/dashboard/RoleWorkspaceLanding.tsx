@@ -360,7 +360,7 @@ export function RoleWorkspaceLanding({
                           className="flex items-start gap-3 rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50"
                         >
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-600">
-                            {item.icon}
+                            <SvgIcon name={item.icon} className="h-4 w-4" />
                           </span>
 
                           <span className="min-w-0">
