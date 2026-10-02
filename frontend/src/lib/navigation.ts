@@ -977,19 +977,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
 
   [
     "/intelligence",
-    [
-      "INSTITUTION_ADMIN",
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-      "REGISTRAR",
-      "HOD",
-      "ACCOUNTS",
-      "HR",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "PLACEMENT",
-    ],
+    ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD"],
   ],
 
   [
@@ -1212,11 +1200,10 @@ export function getNavigationForRoles(
       const roleAllowed =
         !item.roles ||
         item.roles.length === 0 ||
-        item.roles.some((role) =>
-          roleSet.has(
-            role.toUpperCase(),
-          ),
-        );
+        item.roles.some((role) => {
+          const normalized = normalizeRoleName(role);
+          return normalized !== null && roleSet.has(normalized);
+        });
 
       const permissionAllowed =
         !item.permissions ||
@@ -1289,20 +1276,20 @@ export function canAccessRoute(
   const [, allowedRoles] =
     matchingNamespace;
 
-  return allowedRoles.some(
-    (role) =>
-      normalizedRoles.includes(
-        role.toUpperCase(),
-      ),
-  );
+  return allowedRoles.some((role) => {
+    const normalized = normalizeRoleName(role);
+    return normalized !== null && normalizedRoles.includes(normalized);
+  });
 }
 
 export function workspaceHome(
   roles: string[],
 ): string {
-  const normalizedRoles =
-    roles.map((role) =>
-      role.toUpperCase(),
+  const normalizedRoles = roles
+    .map((role) => normalizeRoleName(role))
+    .filter(
+      (role): role is NonNullable<ReturnType<typeof normalizeRoleName>> =>
+        role !== null,
     );
 
   if (
