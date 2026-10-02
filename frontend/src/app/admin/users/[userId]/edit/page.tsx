@@ -6,15 +6,22 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { getAdminUser, updateAdminUser, AdminUser } from "@/lib/adminApi";
 
-export default function AdminEditUserPage({ params }: { params: { userId: string } }) {
+export default function AdminEditUserPage({ params }: { params: Promise<{ userId: string }> }) {
   const router = useRouter();
+  const [userId, setUserId] = useState("");
   const [user, setUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getAdminUser(params.userId).then(setUser).catch((e) => setError(e instanceof Error ? e.message : "Unable to load user."));
-  }, [params.userId]);
+    let cancelled = false;
+    params.then(({ userId: resolvedId }) => {
+      if (cancelled) return;
+      setUserId(resolvedId);
+      return getAdminUser(resolvedId).then((value) => { if (!cancelled) setUser(value); });
+    }).catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load user."); });
+    return () => { cancelled = true; };
+  }, [params]);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -38,7 +45,7 @@ export default function AdminEditUserPage({ params }: { params: { userId: string
   return (
     <DashboardShell title="Edit user" subtitle="Edit only fields permitted by the existing RBAC hierarchy.">
       <main className="acadlyx-page-container acadlyx-workspace-content">
-        <div className="mb-5"><Link href={`/admin/users/${params.userId}`} className="text-sm font-semibold text-indigo-700">← User details</Link></div>
+        <div className="mb-5"><Link href={`/admin/users/${userId}`} className="text-sm font-semibold text-indigo-700">← User details</Link></div>
         <header className="acadlyx-page-header"><div><p className="acadlyx-eyebrow">USER MANAGEMENT</p><h1 className="acadlyx-page-title">Edit user</h1><p className="acadlyx-page-description">Role escalation and sensitive lifecycle operations remain server-authorized.</p></div></header>
         {error ? <div className="acadlyx-error-state mb-5">{error}</div> : null}
         {!user ? <div className="acadlyx-loading-state">Loading user…</div> : (
