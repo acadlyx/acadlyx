@@ -16,8 +16,9 @@
   --acadlyx-border-strong: #c9bca9;
 
   --acadlyx-text: #25221e;
-  --acadlyx-muted: #665f56;
-  --acadlyx-subtle: #8b8175;
+  --acadlyx-muted: #5b534a;
+  --acadlyx-subtle: #746b61;
+  --acadlyx-on-primary: #ffffff;
 
   --acadlyx-radius-sm: 8px;
   --acadlyx-radius-md: 10px;
@@ -165,7 +166,7 @@ button:disabled {
     border-radius: var(--acadlyx-radius-md);
     background: var(--acadlyx-surface);
     padding: 9px 16px;
-    color: #334155;
+    color: #39342d;
     font-size: 13px;
     font-weight: 800;
   }
@@ -253,7 +254,7 @@ button:disabled {
 
   .acadlyx-table th {
     background: #f8fafc;
-    color: #64748b;
+    color: #665f56;
     font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.12em;
@@ -515,6 +516,35 @@ form {
   .acadlyx-page { max-width: none; }
 }
 
+/* Mobile safety: flex/grid children must be allowed to shrink. */
+@media (max-width: 767px) {
+  .acadlyx-page,
+  .acadlyx-card,
+  .acadlyx-section,
+  .acadlyx-table-wrap {
+    max-width: 100%;
+  }
+
+  .acadlyx-section { padding: 16px; }
+
+  .acadlyx-modal-header,
+  .acadlyx-modal-footer { gap: 10px; }
+
+  .acadlyx-modal-footer > button,
+  .acadlyx-modal-footer > a {
+    flex: 1 1 140px;
+  }
+
+  table { width: max-content; min-width: 100%; }
+
+  [class*="flex"] > input,
+  [class*="flex"] > select,
+  [class*="flex"] > textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* ACADLYX VISUAL CONSISTENCY SAFETY NET                                      */
@@ -543,8 +573,22 @@ form {
   .bg-slate-900.text-white,
   .bg-slate-800.text-white,
   .bg-indigo-600.text-white,
-  .bg-blue-600.text-white {
+  .bg-blue-600.text-white,
+  .bg-\\[\\#07111f\\].text-white {
     color: #ffffff !important;
+  }
+
+  /* Strong readable text on light ERP surfaces. */
+  .bg-white .text-slate-400,
+  .bg-slate-50 .text-slate-400,
+  .bg-slate-100 .text-slate-400 {
+    color: #6f665d !important;
+  }
+
+  .bg-white .text-slate-500,
+  .bg-slate-50 .text-slate-500,
+  .bg-slate-100 .text-slate-500 {
+    color: #5f574e !important;
   }
 
   /* Legacy gray text becomes readable on the beige system. */
@@ -554,8 +598,8 @@ form {
   .text-slate-700 { color: #4d463e !important; }
   .text-slate-600 { color: #625a51 !important; }
   .text-slate-500 { color: #71685e !important; }
-  .text-slate-400 { color: #857b70 !important; }
-  .text-slate-300 { color: #9a9085 !important; }
+  .text-slate-400 { color: #7a7066 !important; }
+  .text-slate-300 { color: #61594f !important; }
 
   /* Inputs always retain a clear foreground/background pair. */
   input,
