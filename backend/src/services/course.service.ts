@@ -112,6 +112,24 @@ export async function updateCourse(
 
   if (input.departmentId) {
     await assertDepartmentInInstitution(institutionId, input.departmentId);
+
+    if (input.departmentId !== current.departmentId) {
+      const activeOffering = await prisma.courseOffering.findFirst({
+        where: {
+          institutionId,
+          courseId: id,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      if (activeOffering) {
+        throw new AppError(
+          "Cannot move a course to another department while it has active course offerings",
+          409
+        );
+      }
+    }
   }
 
   const nextCode = input.code?.trim().toUpperCase();
