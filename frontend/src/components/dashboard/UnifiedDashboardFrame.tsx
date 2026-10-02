@@ -707,7 +707,7 @@ export function UnifiedDashboardFrame({
           <div className="flex h-[62px] items-center justify-between border-b border-white/10 px-3">
             <BrandMark
               logoUrl={logoUrl}
-              collapsed={collapsed}
+              collapsed={mobileOpen ? false : collapsed}
             />
 
             <button
@@ -791,7 +791,7 @@ export function UnifiedDashboardFrame({
                                 pathname
                               }
                               collapsed={
-                                collapsed
+                                mobileOpen ? false : collapsed
                               }
                               onNavigate={() =>
                                 setMobileOpen(
