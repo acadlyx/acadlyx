@@ -41,6 +41,8 @@ services:
         value: manual
       - key: PAYMENT_CURRENCY
         value: INR
+      - key: CLOUDINARY_URL
+        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
