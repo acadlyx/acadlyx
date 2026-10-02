@@ -372,7 +372,7 @@ model AuditLog {
 // Semester, so a course taught across multiple semesters produces
 // multiple CourseOffering rows, not overwritten history.
 
-/// A physical/administrative campus. Optional today (AIMT is single-
+/// A physical/administrative campus. Optional today (
 /// campus) but modeled from the start so multi-campus institutions
 /// don't require a schema change later.
 model Campus {
