@@ -100,6 +100,7 @@ export const cloudinaryProvider: FileStorageProvider = {
         resource_type: resourceType,
         type: "authenticated",
         attachment: true,
+        expires_at: Math.floor(Date.now() / 1000) + env.storageSignedUrlTtlSeconds,
       });
     }
 
