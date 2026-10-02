@@ -66,6 +66,7 @@ model Institution {
   siteContents          SiteContent[]
   subscription          TenantSubscription?
   featureEntitlements   TenantFeatureEntitlement[]
+  files                 FileAsset[]
 
   admissionApplications AdmissionApplication[]
   employeeProfiles EmployeeProfile[]
@@ -1195,6 +1196,32 @@ model Notification {
   @@map("notifications")
 }
 
+
+model FileAsset {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  ownerId       String?
+  provider      String
+  publicId      String
+  url           String
+  resourceType  String
+  size          Int
+  mimeType      String
+  folder        String
+  module        String
+  referenceId   String?
+  originalName  String
+  visibility    String      @default("private")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([institutionId, module])
+  @@index([institutionId, ownerId])
+  @@index([institutionId, module, referenceId])
+  @@unique([provider, publicId])
+  @@map("file_assets")
+}
 
 // ==========================================================
 // PUBLIC WEBSITE CMS
