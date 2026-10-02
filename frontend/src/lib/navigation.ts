@@ -101,7 +101,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "People",
-    href: "/user-management",
+    href: "/admin/users",
     icon: "♙",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["users.read"],
@@ -117,7 +117,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/admin/students",
     icon: "◎",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["students.read"],
@@ -125,7 +125,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Academic structure",
-    href: "/admin",
+    href: "/admin/departments",
     icon: "▦",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["departments.read"],
@@ -133,7 +133,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Campuses",
-    href: "/admin",
+    href: "/admin/campuses",
     icon: "⌂",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["campuses.read"],
@@ -141,7 +141,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Notices",
-    href: "/notices",
+    href: "/admin/notices",
     icon: "◌",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["notices.read"],
@@ -149,7 +149,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Calendar",
-    href: "/calendar",
+    href: "/admin/calendar",
     icon: "◫",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["calendar.read"],
@@ -157,7 +157,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Notifications",
-    href: "/notifications",
+    href: "/admin/notifications",
     icon: "◉",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["notifications.read"],
@@ -165,7 +165,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Operations",
-    href: "/operations",
+    href: "/admin/operations",
     icon: "⚙",
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["operations.read"],
