@@ -344,7 +344,7 @@ export async function recoverUser(id: string, actor: AuthenticatedUser, reason?:
     throw new AppError("The 90-day recovery period has expired", 410);
   }
 
-  const updated = await prisma.user.update({
+  await prisma.user.update({
     where: { id: target.id },
     data: {
       isActive: true,
