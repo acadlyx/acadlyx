@@ -305,6 +305,7 @@ export default function ExaminationsPage() {
     <DashboardShell
       title="Examination Cell"
       subtitle="Examination control, scheduling, seating, admit cards, marks and result publication"
+      allowedRoles={["EXAMINATION", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "CHAIRMAN", "STUDENT"]}
     >
       <div className="mx-auto max-w-7xl space-y-6 pb-12">
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white shadow-xl">
