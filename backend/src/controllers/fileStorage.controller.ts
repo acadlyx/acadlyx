@@ -5,7 +5,7 @@ import {
   deleteFile,
   getFileDelivery,
   storeFile,
-  validateAllowedMime,
+  allowedMimeTypesForModule,
 } from "../services/fileStorage.service";
 
 const MODULE_PERMISSIONS: Record<string, string[]> = {
@@ -65,9 +65,8 @@ export const upload = async (req: Request, res: Response): Promise<void> => {
     throw new AppError("This file type is not allowed", 415);
   }
 
-  validateAllowedMime(req.file.mimetype, [
-    req.file.mimetype,
-  ]);
+  const allowed = allowedMimeTypesForModule(module);
+  if (!allowed.length) throw new AppError("Unsupported storage module", 400);
 
   const visibility = req.body?.visibility === "public" ? "public" : "private";
   if (visibility === "public" && !["site"].includes(module)) {
