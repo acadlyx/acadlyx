@@ -150,7 +150,7 @@ export function AdminWorkspaceShell({
         active?.label ||
         "Admin Command Center"
       }
-      subtitle="Institution administration"
+      subtitle="ACADLYX • Institution administration"
       navigation={navigation}
       activeHref={
         active?.href || null
