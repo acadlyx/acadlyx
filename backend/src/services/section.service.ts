@@ -15,13 +15,17 @@ export interface ListFilters extends PaginationParams {
 
 async function assertSemesterInInstitution(
   institutionId: string,
-  semesterId: string
+  semesterId: string,
+  requireActive = false
 ) {
   const semester = await prisma.semester.findFirst({
     where: { id: semesterId, institutionId },
   });
   if (!semester) {
     throw new AppError("semesterId does not belong to this institution", 400);
+  }
+  if (requireActive && !semester.isActive) {
+    throw new AppError("Cannot use an inactive semester", 400);
   }
   return semester;
 }
@@ -80,7 +84,7 @@ export async function createSection(
   institutionId: string,
   input: CreateSectionInput
 ) {
-  await assertSemesterInInstitution(institutionId, input.semesterId);
+  await assertSemesterInInstitution(institutionId, input.semesterId, true);
 
   const existing = await prisma.section.findFirst({
     where: {
