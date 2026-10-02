@@ -97,7 +97,10 @@ async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, r
   if (existing && existing.institutionId !== institutionId) {
     throw new AppError(`Email ${email} already belongs to another institution`, 409);
   }
-  const password = text(row.password) || `${roleName.toLowerCase()}@123`;
+  const password = text(row.password);
+  if (!existing && password.length < 12) {
+    throw new AppError("New imported users require a password of at least 12 characters", 400);
+  }
   const user = existing
     ? await tx.user.update({ where: { id: existing.id }, data: { firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
     : await tx.user.create({ data: { institutionId, email, passwordHash: await hashPassword(password), firstName: text(row.firstname) || "User", lastName: text(row.lastname), phone: text(row.phone) || null } });
@@ -193,7 +196,8 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
         } else if (type === "students") {
           const user = await upsertUser(tx, institutionId, row, "STUDENT");
           const program = await resolveProgram(tx, institutionId, row);
-          const yearName = text(row.academicyear) || "2026-2027";
+          const yearName = text(row.academicyear);
+          if (!yearName) throw new AppError("Academic year is required for student imports", 400);
           const year = await tx.academicYear.findFirst({ where: { institutionId, name: yearName } });
           if (!year) throw new AppError(`Academic year not found: ${yearName}`, 400);
           let sectionId: string | null = null;
