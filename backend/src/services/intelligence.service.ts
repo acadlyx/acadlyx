@@ -118,7 +118,40 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
 }
 
 export async function getAtRiskStudents(institutionId: string, departmentIds?: string[], limit = 20) {
-  const enrollments = await prisma.studentEnrollment.findMany({ where: { institutionId, ...(departmentIds ? { program: { departmentId: { in: departmentIds } } } : {}) }, select: { userId: true }, take: limit * 3 });
-  const rows = await Promise.all(enrollments.map(e => getStudentIntelligence(institutionId, e.userId)));
-  return rows.filter((x): x is NonNullable<typeof x> => !!x).filter(x => x.risk === "CRITICAL" || x.risk === "HIGH").sort((a, b) => a.scores.academicHealth - b.scores.academicHealth).slice(0, limit);
+  const safeLimit = Math.min(Math.max(Math.trunc(limit) || 20, 1), 50);
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      institutionId,
+      ...(departmentIds
+        ? { program: { departmentId: { in: departmentIds } } }
+        : {}),
+    },
+    select: { userId: true },
+    take: safeLimit * 3,
+    distinct: ["userId"],
+  });
+
+  // Keep the expensive intelligence queries below the DB connection-pool
+  // ceiling. The old Promise.all could fan out 5 queries per student at once.
+  const rows: NonNullable<Awaited<ReturnType<typeof getStudentIntelligence>>>[] = [];
+  const concurrency = 4;
+
+  for (let index = 0; index < enrollments.length; index += concurrency) {
+    const batch = enrollments.slice(index, index + concurrency);
+    const results = await Promise.all(
+      batch.map((enrollment) =>
+        getStudentIntelligence(institutionId, enrollment.userId)
+      )
+    );
+    rows.push(
+      ...results.filter(
+        (row): row is NonNullable<typeof row> => !!row
+      )
+    );
+  }
+
+  return rows
+    .filter((x) => x.risk === "CRITICAL" || x.risk === "HIGH")
+    .sort((a, b) => a.scores.academicHealth - b.scores.academicHealth)
+    .slice(0, safeLimit);
 }
