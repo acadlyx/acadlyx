@@ -26,6 +26,8 @@ export type DashboardNavigationItem = {
   children?: DashboardNavigationItem[];
 };
 
+export type UnifiedNavItem = DashboardNavigationItem;
+
 type UnifiedDashboardFrameProps = {
   children: ReactNode;
   navigation?: DashboardNavigationItem[];
@@ -35,6 +37,11 @@ type UnifiedDashboardFrameProps = {
   userRole?: string;
   userEmail?: string;
   institutionName?: string;
+  activeHref?: string | null;
+  homeHref?: string;
+  workspaceLabel?: string;
+  roleLabel?: string;
+  loading?: boolean;
   logoUrl?: string | null;
   onSignOut?: () => void | Promise<void>;
 };
@@ -364,6 +371,11 @@ export function UnifiedDashboardFrame({
   userRole,
   userEmail,
   institutionName,
+  activeHref,
+  homeHref = "/",
+  workspaceLabel,
+  roleLabel,
+  loading = false,
   logoUrl,
   onSignOut,
 }: UnifiedDashboardFrameProps) {
@@ -458,10 +470,12 @@ export function UnifiedDashboardFrame({
 
   const activeItem =
     allNavigation.find((item) =>
-      matchesPath(
-        pathname,
-        item.href,
-      ),
+      activeHref
+        ? item.href === activeHref
+        : matchesPath(
+            pathname,
+            item.href,
+          ),
     );
 
   const sidebarWidth =
@@ -509,6 +523,11 @@ export function UnifiedDashboardFrame({
             </div>
 
             <div className="min-w-0">
+              {workspaceLabel ? (
+                <p className="mb-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  {workspaceLabel}
+                </p>
+              ) : null}
               {title ? (
                 <div className="truncate text-[15px] font-bold text-slate-900 sm:text-[16px]">
                   {title}
@@ -524,10 +543,12 @@ export function UnifiedDashboardFrame({
               )}
 
               {(subtitle ||
-                institutionName) ? (
+                institutionName ||
+                loading) ? (
                 <div className="hidden truncate text-[11px] font-medium text-slate-400 sm:block">
-                  {subtitle ||
-                    institutionName}
+                  {loading
+                    ? "Loading workspace…"
+                    : subtitle || institutionName}
                 </div>
               ) : null}
             </div>
@@ -584,7 +605,7 @@ export function UnifiedDashboardFrame({
                   </span>
 
                   <span className="block truncate text-[10px] font-medium text-slate-400">
-                    {userRole ||
+                    {roleLabel || userRole ||
                       "Account"}
                   </span>
                 </span>
