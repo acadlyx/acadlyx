@@ -113,6 +113,10 @@ export function assertAuthEnv(): void {
   const missingDatabase =
     !process.env.DATABASE_URL;
 
+  const missingCorsOrigin =
+    !process.env.CORS_ORIGIN ||
+    corsOrigins.length === 0;
+
   const missingAccessSecret =
     !process.env.JWT_ACCESS_SECRET;
 
@@ -130,7 +134,7 @@ export function assertAuthEnv(): void {
 
   if (
     isProduction &&
-    (!process.env.CORS_ORIGIN || corsOrigins.length === 0)
+    missingCorsOrigin
   ) {
     throw new Error(
       "CORS_ORIGIN must be set in production."
@@ -161,16 +165,22 @@ export function assertAuthEnv(): void {
     );
   }
 
-  if (
-    !isProduction &&
-    (
-      missingAccessSecret ||
-      missingRefreshSecret
-    )
-  ) {
+  if (!isProduction && (missingAccessSecret || missingRefreshSecret)) {
     // eslint-disable-next-line no-console
     console.warn(
       "[WARN] JWT_ACCESS_SECRET/JWT_REFRESH_SECRET not set — using insecure defaults for local development only."
+    );
+  }
+
+  if (isProduction && env.bcryptSaltRounds < 12) {
+    throw new Error(
+      "BCRYPT_SALT_ROUNDS must be at least 12 in production."
+    );
+  }
+
+  if (isProduction && corsOrigins.some((origin) => origin === "*")) {
+    throw new Error(
+      "CORS_ORIGIN cannot contain * in production."
     );
   }
 }
