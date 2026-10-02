@@ -16,7 +16,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Overview",
     href: "/admin",
-    icon: "⌂",
+    icon: "home",
     group: "Workspace",
     description:
       "Institution-wide administrative command center.",
@@ -26,7 +26,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Users",
     href: "/admin/users",
-    icon: "♙",
+    icon: "people",
     group: "People",
     description:
       "Manage institutional user accounts and access roles.",
@@ -39,7 +39,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Students",
     href: "/admin/students",
-    icon: "◎",
+    icon: "student",
     group: "People",
     description:
       "Manage student master records and enrolments.",
@@ -51,7 +51,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Departments",
     href: "/admin/departments",
-    icon: "▦",
+    icon: "academic",
     group: "Academic structure",
     description:
       "Manage departments and campus assignment.",
@@ -64,7 +64,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Programs",
     href: "/admin/programs",
-    icon: "◈",
+    icon: "academic",
     group: "Academic structure",
     description:
       "Manage programs, levels, duration and ownership.",
@@ -77,7 +77,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Academic years",
     href: "/admin/academic-years",
-    icon: "◫",
+    icon: "calendar",
     group: "Academic structure",
     description:
       "Manage academic-year windows and the current year.",
@@ -89,7 +89,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Semesters",
     href: "/admin/semesters",
-    icon: "◒",
+    icon: "academic",
     group: "Academic structure",
     description:
       "Manage semester definitions under programs and years.",
@@ -102,7 +102,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Sections",
     href: "/admin/sections",
-    icon: "⊞",
+    icon: "people",
     group: "Academic structure",
     description:
       "Manage class sections and capacity.",
@@ -115,7 +115,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Courses",
     href: "/admin/courses",
-    icon: "▤",
+    icon: "document",
     group: "Academic structure",
     description:
       "Manage the institution course catalogue.",
@@ -128,7 +128,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Course offerings",
     href: "/admin/course-offerings",
-    icon: "◇",
+    icon: "academic",
     group: "Academic structure",
     description:
       "Assign courses to semesters, sections and faculty.",
@@ -141,7 +141,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Campuses",
     href: "/admin/campuses",
-    icon: "⌂",
+    icon: "home",
     group: "Institution",
     description:
       "Manage institution campuses and addresses.",
@@ -154,7 +154,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Notices",
     href: "/admin/notices",
-    icon: "◌",
+    icon: "notice",
     group: "Institution",
     description:
       "Publish, edit and remove institution notices.",
@@ -167,7 +167,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Notifications",
     href: "/admin/notifications",
-    icon: "◉",
+    icon: "bell",
     group: "Institution",
     description:
       "Send targeted portal notifications to institutional users.",
@@ -178,7 +178,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Documents",
     href: "/admin/documents",
-    icon: "▱",
+    icon: "document",
     group: "Institution",
     description:
       "Manage student-facing document records.",
@@ -190,7 +190,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Calendar",
     href: "/admin/calendar",
-    icon: "◫",
+    icon: "calendar",
     group: "Institution",
     description:
       "Create and maintain institutional calendar events.",
@@ -203,7 +203,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Parent links",
     href: "/admin/parent-links",
-    icon: "♧",
+    icon: "people",
     group: "Institution",
     description:
       "Connect parent accounts with student records.",
@@ -215,7 +215,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   {
     label: "Operations",
     href: "/admin/operations",
-    icon: "⚙",
+    icon: "settings",
     group: "Institution",
     description:
       "Manage facilities, assets and operational requests.",
