@@ -79,6 +79,47 @@ test("institution admin retains institutional administration capabilities", () =
   }
 });
 
+test("leadership marks readers match their documented read permissions", () => {
+  for (const role of ["CHAIRMAN", "DIRECTOR", "DEAN"]) {
+    assert.equal(
+      hasPermission([role], "marks.read"),
+      true,
+      `${role} should be able to read marks`,
+    );
+  }
+
+  assert.equal(
+    hasPermission(["INSTITUTION_ADMIN"], "marks.read"),
+    false,
+  );
+});
+
+test("accounts fee management is permission-driven", () => {
+  assert.equal(
+    hasPermission(["ACCOUNTS"], "fees.manage"),
+    true,
+  );
+  assert.equal(
+    hasPermission(["HOD"], "fees.manage"),
+    false,
+  );
+});
+
+test("people import is limited to roles with people.import", () => {
+  assert.equal(
+    hasPermission(["INSTITUTION_ADMIN"], "people.import"),
+    true,
+  );
+  assert.equal(
+    hasPermission(["HOD"], "people.import"),
+    true,
+  );
+  assert.equal(
+    hasPermission(["DIRECTOR"], "people.import"),
+    false,
+  );
+});
+
 test("super admin remains platform-scoped rather than inheriting specialist operations", () => {
   assert.equal(
     hasPermission(["SUPER_ADMIN"], "institutions.manage"),
