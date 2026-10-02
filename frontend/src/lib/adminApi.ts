@@ -23,6 +23,12 @@ export interface AdminUser {
   createdAt?: string;
   updatedAt?: string;
   roles: AdminUserRole[];
+  departmentAccesses?: Array<{
+    departmentId: string;
+    departmentName: string;
+    departmentCode?: string | null;
+    scope?: string;
+  }>;
 }
 
 export interface UserDeletionRequest {
@@ -155,6 +161,7 @@ export interface CreateAdminUserInput {
   phone?: string;
   password: string;
   role: string;
+  departmentIds?: string[];
 }
 
 export interface AdminUserPhotoResponse {
@@ -305,6 +312,7 @@ export async function updateAdminUser(
     phone: string;
     isActive: boolean;
     role: string;
+    departmentIds: string[];
   }>,
 ): Promise<AdminUser> {
   const response =
@@ -326,6 +334,25 @@ export async function updateAdminUser(
     );
 
   return response.data;
+}
+
+export interface AdminDepartment {
+  id: string;
+  name: string;
+  code?: string | null;
+  isActive?: boolean;
+}
+
+export async function listAdminDepartments(): Promise<AdminDepartment[]> {
+  const response = await authedFetch<
+    ApiEnvelope<AdminDepartment[] | { items: AdminDepartment[] }>
+  >(
+    "/departments?page=1&pageSize=500&isActive=true",
+  );
+
+  return Array.isArray(response.data)
+    ? response.data
+    : response.data.items || [];
 }
 
 /**
