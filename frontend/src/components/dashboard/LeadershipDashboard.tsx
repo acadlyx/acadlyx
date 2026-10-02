@@ -128,7 +128,7 @@ const ROLE_META: Record<LeadershipRole, RoleMeta> = {
         description:
           "Review admissions activity available to Director oversight.",
         href: "/admissions",
-        permissions: ["admissions.manage"],
+        permissions: ["admissions.read"],
       },
       {
         label: "Examinations",
@@ -255,7 +255,7 @@ const ROLE_META: Record<LeadershipRole, RoleMeta> = {
         description:
           "Open the academic administration area available to the Registrar.",
         href: "/erp",
-        permissions: ["academic-masters.read", "students.read"],
+        permissions: ["academic-years.read", "students.read"],
       },
     ],
   },
