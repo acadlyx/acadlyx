@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthRequiredError, authedFetch, getCurrentUser } from "@/lib/auth";
 
 type Lookup = {
@@ -216,42 +216,57 @@ export function StudentManagement({ onChanged }: Props) {
     status: "ACTIVE",
   });
 
-  async function loadLookups() {
+  const loadLookups = useCallback(async () => {
     const [p, y, s, sec] = await Promise.all([
       authedFetch<ListResponse<Lookup>>("/programs?page=1&pageSize=100"),
       authedFetch<ListResponse<Lookup>>("/academic-years?page=1&pageSize=100"),
       authedFetch<ListResponse<Lookup>>("/semesters?page=1&pageSize=500"),
       authedFetch<ListResponse<Lookup>>("/sections?page=1&pageSize=500"),
     ]);
+
     setPrograms(p.data || []);
     setAcademicYears(y.data || []);
     setSemesters(s.data || []);
     setSections(sec.data || []);
-  }
+  }, []);
 
-  async function loadStudents() {
+  const loadStudents = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const params = new URLSearchParams({
         page: "1",
         pageSize: "100",
       });
+
       if (search.trim()) params.set("search", search.trim());
       if (statusFilter) params.set("status", statusFilter);
       if (programFilter) params.set("programId", programFilter);
       if (semesterFilter) params.set("semesterId", semesterFilter);
       if (sectionFilter) params.set("sectionId", sectionFilter);
 
-      const response = await authedFetch<ListResponse<Student>>(`/students?${params.toString()}`);
+      const response = await authedFetch<ListResponse<Student>>(
+        `/students?${params.toString()}`,
+      );
       setStudents(response.data || []);
     } catch (err) {
       if (err instanceof AuthRequiredError) throw err;
-      setError(err instanceof Error ? err.message : "Unable to load students.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load students.",
+      );
     } finally {
       setLoading(false);
     }
-  }
+  }, [
+    search,
+    statusFilter,
+    programFilter,
+    semesterFilter,
+    sectionFilter,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -267,15 +282,15 @@ export function StudentManagement({ onChanged }: Props) {
         );
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Initial load only
-  }, []);
+  }, [loadLookups, loadStudents]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadStudents();
     }, 250);
+
     return () => window.clearTimeout(timer);
-  }, [search, statusFilter, programFilter, semesterFilter, sectionFilter]);
+  }, [loadStudents]);
 
   const filteredSemesters = useMemo(
     () =>
