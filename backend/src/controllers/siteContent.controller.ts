@@ -1,10 +1,9 @@
 import { Request, Response } from "express";
-import { v2 as cloudinary } from "cloudinary";
 import { prisma } from "../lib/prisma";
+import { storeFile } from "../services/fileStorage.service";
 import * as site from "../services/siteContent.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
-import { env } from "../config/env";
 import { AppError } from "../middleware/errorHandler";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 
@@ -185,81 +184,34 @@ export const update = asyncHandler(
  * Only users with the dedicated CMS capability may upload.
  */
 export const upload = asyncHandler(
-  async (
-    req: Request,
-    res: Response
-  ) => {
+  async (req: Request, res: Response) => {
     assertCanManageSiteContent(req);
+    const institutionId = requireInstitution(req);
 
     if (!req.file) {
-      throw new AppError(
-        "Image file is required",
-        400
-      );
+      throw new AppError("Image file is required", 400);
     }
 
-    assertSafeImageUpload(
-      req.file
-    );
+    assertSafeImageUpload(req.file);
 
-    if (
-      !env.cloudinaryCloudName ||
-      !env.cloudinaryApiKey ||
-      !env.cloudinaryApiSecret
-    ) {
-      throw new AppError(
-        "Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.",
-        503
-      );
-    }
-
-    cloudinary.config({
-      cloud_name:
-        env.cloudinaryCloudName,
-      api_key:
-        env.cloudinaryApiKey,
-      api_secret:
-        env.cloudinaryApiSecret,
+    const stored = await storeFile({
+      institutionId,
+      module: "site",
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mimeType: req.file.mimetype,
+      ownerId: req.user!.id,
+      visibility: "public",
+      resourceType: "image",
     });
-
-    const result =
-      await new Promise<any>(
-        (
-          resolve,
-          reject
-        ) => {
-          const stream =
-            cloudinary.uploader.upload_stream(
-              {
-                folder:
-                  "acadlyx/site",
-              },
-              (
-                error,
-                value
-              ) => {
-                if (error) {
-                  reject(error);
-                  return;
-                }
-
-                resolve(value);
-              }
-            );
-
-          stream.end(
-            req.file!.buffer
-          );
-        }
-      );
 
     res.status(201).json({
       success: true,
       data: {
-        url:
-          result.secure_url,
-        publicId:
-          result.public_id,
+        id: stored.id,
+        url: stored.secureUrl,
+        publicId: stored.publicId,
+        provider: stored.provider,
       },
     });
   }
