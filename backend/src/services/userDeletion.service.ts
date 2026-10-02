@@ -412,6 +412,8 @@ async function hasHigherApprover(
     await prisma.user.findFirst({
       where: {
         isActive: true,
+        deletedAt: true,
+        recoveryDeadline: true,
 
         userRoles: {
           some: {
