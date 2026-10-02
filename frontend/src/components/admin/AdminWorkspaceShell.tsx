@@ -30,6 +30,9 @@ import {
   AdminNavItem,
 } from "@/lib/adminNavigation";
 
+const SIDEBAR_STORAGE_KEY =
+  "acadlyx-dashboard-sidebar-collapsed";
+
 function groups(
   items: AdminNavItem[],
 ) {
@@ -41,26 +44,77 @@ function groups(
 
   for (const item of items) {
     map.set(item.group, [
-      ...(map.get(item.group) || []),
+      ...(map.get(item.group) ||
+        []),
       item,
     ]);
   }
 
-  return [...map.entries()];
+  return [
+    ...map.entries(),
+  ];
 }
 
-function Skeleton() {
+function AdminIcon({
+  item,
+  active,
+}: {
+  item: AdminNavItem;
+  active: boolean;
+}) {
+  return (
+    <span
+      className={`grid h-10 w-10 shrink-0 place-items-center rounded-[13px] text-sm font-black transition ${
+        active
+          ? "bg-white/15 text-white"
+          : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600"
+      }`}
+    >
+      {item.icon}
+    </span>
+  );
+}
+
+function Skeleton({
+  collapsed,
+}: {
+  collapsed: boolean;
+}) {
   return (
     <div
       className="space-y-5"
       aria-hidden="true"
     >
-      {[1, 2, 3].map((item) => (
-        <div
-          key={item}
-          className="h-12 rounded-2xl bg-white/10 animate-pulse"
-        />
-      ))}
+      {[1, 2, 3].map(
+        (group) => (
+          <div key={group}>
+            {!collapsed ? (
+              <div className="mx-3 h-2 w-16 rounded bg-slate-200" />
+            ) : null}
+
+            <div className="mt-3 space-y-2">
+              {[1, 2].map(
+                (item) => (
+                  <div
+                    key={item}
+                    className={`flex h-12 items-center gap-3 ${
+                      collapsed
+                        ? "justify-center"
+                        : "px-3"
+                    }`}
+                  >
+                    <div className="h-10 w-10 rounded-[13px] bg-slate-200" />
+
+                    {!collapsed ? (
+                      <div className="h-3 flex-1 rounded bg-slate-200" />
+                    ) : null}
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }
@@ -82,13 +136,54 @@ export function AdminWorkspaceShell({
         getCachedCurrentUser(),
     );
 
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
+  const [
+    mobileOpen,
+    setMobileOpen,
+  ] = useState(false);
+
+  const [
+    collapsed,
+    setCollapsed,
+  ] = useState(false);
 
   const [loading, setLoading] =
     useState(
       !getCachedCurrentUser(),
     );
+
+  useEffect(() => {
+    try {
+      const stored =
+        window.localStorage.getItem(
+          SIDEBAR_STORAGE_KEY,
+        );
+
+      if (stored === "true") {
+        setCollapsed(true);
+      }
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  function toggleSidebar() {
+    setCollapsed(
+      (current) => {
+        const next = !current;
+
+        try {
+          window.localStorage.setItem(
+            SIDEBAR_STORAGE_KEY,
+            String(next),
+          );
+        } catch {
+          // Ignore storage failures.
+        }
+
+        return next;
+      },
+    );
+  }
 
   useEffect(() => {
     let alive = true;
@@ -106,13 +201,17 @@ export function AdminWorkspaceShell({
         Boolean(cached),
     })
       .then((currentUser) => {
-        if (!alive) return;
+        if (!alive) {
+          return;
+        }
 
         setUser(currentUser);
         setLoading(false);
       })
       .catch((error) => {
-        if (!alive) return;
+        if (!alive) {
+          return;
+        }
 
         if (
           error instanceof
@@ -121,6 +220,7 @@ export function AdminWorkspaceShell({
           router.replace(
             "/login",
           );
+
           return;
         }
 
@@ -132,8 +232,17 @@ export function AdminWorkspaceShell({
     };
   }, [router]);
 
+  /*
+   * IMPORTANT:
+   *
+   * This remains the authorization gate.
+   * Hiding an item in the UI never grants access.
+   * The backend remains authoritative.
+   */
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
     if (
       !canAccessAdminPath(
@@ -171,15 +280,18 @@ export function AdminWorkspaceShell({
 
   async function signOut() {
     await logout();
+
     router.replace(
       "/login",
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#07111f]">
-      <header className="fixed inset-x-0 top-0 z-[70] h-[76px] border-b border-white/10 bg-[#081322]/90 text-white backdrop-blur-2xl">
+    <div className="min-h-screen bg-[#eef3f8] text-slate-900">
+      {/* Unified header */}
+      <header className="fixed inset-x-0 top-0 z-[70] h-[74px] border-b border-slate-200/90 bg-white/95 backdrop-blur-xl">
         <div className="flex h-full items-center gap-3 px-3 sm:px-5 lg:px-7">
+          {/* Mobile toggle */}
           <button
             type="button"
             onClick={() =>
@@ -188,7 +300,7 @@ export function AdminWorkspaceShell({
                   !value,
               )
             }
-            className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5 lg:hidden"
+            className="grid h-10 w-10 place-items-center rounded-[13px] border border-slate-200 bg-white text-slate-700 shadow-sm lg:hidden"
             aria-label={
               mobileOpen
                 ? "Close navigation"
@@ -200,11 +312,12 @@ export function AdminWorkspaceShell({
               : "☰"}
           </button>
 
+          {/* Brand */}
           <Link
             href="/admin"
-            className="flex items-center gap-3"
+            className="flex min-w-0 items-center gap-3"
           >
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[13px] bg-slate-950">
               <Image
                 src="/branding/acadlyx-logo.png"
                 alt="ACADLYX"
@@ -215,49 +328,88 @@ export function AdminWorkspaceShell({
               />
             </span>
 
-            <span className="hidden sm:block">
-              <b className="block text-[13px] tracking-[0.16em]">
+            <span className="hidden min-w-0 sm:block">
+              <b className="block truncate text-[13px] tracking-[0.12em] text-slate-950">
                 ACADLYX
               </b>
 
-              <small className="text-[9px] uppercase tracking-[0.18em] text-slate-400">
-                Admin command center
+              <small className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Education ERP
               </small>
             </span>
           </Link>
 
-          <div className="hidden border-l border-white/10 pl-5 md:block">
-            <p className="text-sm font-black">
+          {/* Current module */}
+          <div className="ml-2 hidden min-w-0 border-l border-slate-200 pl-4 md:block lg:ml-3 lg:pl-5">
+            <p className="truncate text-sm font-extrabold text-slate-900">
               {active?.label ||
-                "Institution Admin"}
+                "Admin Command Center"}
             </p>
 
-            <p className="text-[10px] uppercase tracking-widest text-slate-400">
+            <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">
               Institution administration
             </p>
           </div>
 
+          {/* Desktop toggle */}
+          <button
+            type="button"
+            onClick={
+              toggleSidebar
+            }
+            className="ml-2 hidden h-10 w-10 place-items-center rounded-[13px] border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-600 lg:grid"
+            aria-label={
+              collapsed
+                ? "Show sidebar"
+                : "Hide sidebar"
+            }
+            title={
+              collapsed
+                ? "Show sidebar"
+                : "Hide sidebar"
+            }
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              className="h-[18px] w-[18px]"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16" />
+
+              <path
+                d={
+                  collapsed
+                    ? "M9 8l4 4-4 4"
+                    : "M15 8l-4 4 4 4"
+                }
+              />
+            </svg>
+          </button>
+
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden text-right xl:block">
-              <p className="text-xs font-bold">
+              <p className="text-xs font-extrabold text-slate-900">
                 {user
                   ? `${user.firstName} ${user.lastName}`.trim()
                   : "Workspace"}
               </p>
 
-              <p className="text-[10px] text-slate-400">
+              <p className="mt-0.5 text-[10px] text-slate-500">
                 Institution Admin
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5">
+            <div className="rounded-[14px] border border-slate-200 bg-white shadow-sm">
               <AccountMenu />
             </div>
 
             <button
               type="button"
               onClick={signOut}
-              className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-black"
+              className="hidden rounded-[14px] border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-extrabold text-slate-700 shadow-sm hover:bg-slate-50 sm:block"
             >
               Sign out
             </button>
@@ -265,6 +417,7 @@ export function AdminWorkspaceShell({
         </div>
       </header>
 
+      {/* Mobile overlay */}
       {mobileOpen ? (
         <button
           type="button"
@@ -272,35 +425,68 @@ export function AdminWorkspaceShell({
           onClick={() =>
             setMobileOpen(false)
           }
-          className="fixed inset-0 z-[55] bg-slate-950/70 lg:hidden"
+          className="fixed inset-0 z-[55] bg-slate-950/20 backdrop-blur-[1px] lg:hidden"
         />
       ) : null}
 
+      {/* Unified admin sidebar */}
       <aside
-        className={`fixed bottom-0 left-0 top-[76px] z-[60] w-[292px] border-r border-white/10 bg-[#091525] text-white transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed bottom-0 left-0 top-[74px] z-[60] border-r border-slate-200 bg-[#f7f9fb] shadow-[8px_0_28px_rgba(15,23,42,0.035)] transition-[width,transform] duration-200 ${
+          collapsed
+            ? "w-[88px]"
+            : "w-[282px]"
+        } ${
           mobileOpen
             ? "translate-x-0"
             : "-translate-x-full"
-        }`}
+        } lg:translate-x-0`}
       >
         <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
-          <div className="mb-5 rounded-[24px] border border-white/10 bg-gradient-to-br from-blue-600/25 to-cyan-400/10 p-4">
-            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-blue-200">
-              Live workspace
-            </p>
+          {/* Workspace card */}
+          <div
+            className={`mb-4 rounded-[20px] border border-slate-200 bg-white shadow-sm ${
+              collapsed
+                ? "p-2"
+                : "px-4 py-4"
+            }`}
+          >
+            {collapsed ? (
+              <div
+                className="grid place-items-center"
+                title="Institution Admin"
+              >
+                <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-blue-600 text-xs font-black text-white">
+                  A
+                </span>
+              </div>
+            ) : (
+              <>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  Workspace
+                </p>
 
-            <div className="mt-2 flex items-center justify-between">
-              <p className="text-sm font-black">
-                Institution Admin
-              </p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="truncate text-[15px] font-extrabold text-slate-900">
+                    Institution Admin
+                  </p>
 
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.8)]" />
-            </div>
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" />
+                </div>
+              </>
+            )}
           </div>
 
-          <nav className="flex-1 space-y-6">
-            {loading && !user ? (
-              <Skeleton />
+          <nav
+            className="flex-1 space-y-6 pb-5"
+            aria-label="Admin navigation"
+          >
+            {loading &&
+            !user ? (
+              <Skeleton
+                collapsed={
+                  collapsed
+                }
+              />
             ) : (
               groups(
                 navigation,
@@ -309,11 +495,19 @@ export function AdminWorkspaceShell({
                   <section
                     key={group}
                   >
-                    <p className="px-3 text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">
-                      {group}
-                    </p>
+                    {!collapsed ? (
+                      <p className="px-3 text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">
+                        {group}
+                      </p>
+                    ) : null}
 
-                    <div className="mt-2 space-y-1">
+                    <div
+                      className={`mt-2 space-y-1 ${
+                        collapsed
+                          ? "space-y-2"
+                          : ""
+                      }`}
+                    >
                       {items.map(
                         (item) => {
                           const isActive =
@@ -331,32 +525,47 @@ export function AdminWorkspaceShell({
                               href={
                                 item.href
                               }
-                              className={`group flex min-h-[54px] items-center gap-3 rounded-[18px] px-3 text-sm font-black ${
+                              onClick={() =>
+                                setMobileOpen(
+                                  false,
+                                )
+                              }
+                              title={
+                                collapsed
+                                  ? item.label
+                                  : undefined
+                              }
+                              className={`group flex min-h-[52px] items-center rounded-[16px] text-sm font-bold transition ${
+                                collapsed
+                                  ? "justify-center px-2"
+                                  : "gap-3 px-2.5 pr-3"
+                              } ${
                                 isActive
-                                  ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg"
-                                  : "text-slate-400 hover:bg-white/[.06] hover:text-white"
+                                  ? "bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.18)]"
+                                  : "text-slate-600 hover:bg-white hover:text-slate-950"
                               }`}
                             >
-                              <span
-                                className={`grid h-10 w-10 place-items-center rounded-[14px] text-base ${
+                              <AdminIcon
+                                item={
+                                  item
+                                }
+                                active={
                                   isActive
-                                    ? "bg-white/15"
-                                    : "bg-white/[.05]"
-                                }`}
-                              >
-                                {
-                                  item.icon
                                 }
-                              </span>
+                              />
 
-                              <span className="min-w-0 flex-1 truncate">
-                                {
-                                  item.label
-                                }
-                              </span>
+                              {!collapsed ? (
+                                <>
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {
+                                      item.label
+                                    }
+                                  </span>
 
-                              {isActive ? (
-                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                  {isActive ? (
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/90" />
+                                  ) : null}
+                                </>
                               ) : null}
                             </Link>
                           );
@@ -369,15 +578,72 @@ export function AdminWorkspaceShell({
             )}
           </nav>
 
-          <p className="border-t border-white/10 px-3 pt-3 text-[10px] leading-5 text-slate-500">
-            Sidebar visibility follows the authenticated permission set.
-            Server-side authorization remains authoritative.
-          </p>
+          {/* Sidebar controls */}
+          <div className="border-t border-slate-200 pt-3">
+            <button
+              type="button"
+              onClick={
+                toggleSidebar
+              }
+              className={`flex min-h-[50px] w-full items-center rounded-[16px] text-left text-sm font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 ${
+                collapsed
+                  ? "justify-center"
+                  : "gap-3 px-2.5"
+              }`}
+              title={
+                collapsed
+                  ? "Show sidebar"
+                  : "Hide sidebar"
+              }
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-blue-50 text-blue-600">
+                {collapsed
+                  ? "→"
+                  : "←"}
+              </span>
+
+              {!collapsed ? (
+                <span>
+                  Hide sidebar
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                signOut
+              }
+              className={`mt-1 flex min-h-[50px] w-full items-center rounded-[16px] text-left text-sm font-bold text-slate-600 hover:bg-red-50 hover:text-red-700 ${
+                collapsed
+                  ? "justify-center"
+                  : "gap-3 px-2.5"
+              }`}
+              title="Sign out"
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-[13px] bg-red-50 text-red-500">
+                ↪
+              </span>
+
+              {!collapsed ? (
+                <span>
+                  Sign out
+                </span>
+              ) : null}
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className="min-h-screen bg-[radial-gradient(circle_at_70%_0%,rgba(37,99,235,.13),transparent_30rem),linear-gradient(135deg,#f7faff,#eef4fa,#f8fbff)] pt-[76px] lg:pl-[292px]">
-        <div className="min-h-[calc(100vh-76px)] px-3 py-4 sm:px-5 lg:px-7 lg:py-7">
+      {/* Unified page surface */}
+      <main
+        className={`min-h-screen pt-[74px] transition-[padding] duration-200 ${
+          collapsed
+            ? "lg:pl-[88px]"
+            : "lg:pl-[282px]"
+        }`}
+      >
+        <div className="min-h-[calc(100vh-74px)] bg-[radial-gradient(circle_at_70%_0%,rgba(37,99,235,.08),transparent_30rem),linear-gradient(135deg,#f7faff,#eef4fa,#f8fbff)] px-3 py-4 sm:px-5 sm:py-6 lg:px-7 lg:py-7">
           {children}
         </div>
       </main>
