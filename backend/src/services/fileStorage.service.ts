@@ -64,6 +64,9 @@ function assertSafeFile(input: StorageUploadInput): void {
 }
 
 export function buildTenantFolder(institutionId: string, module: string, ownerId?: string): string {
+  if (!institutionId || !/^[A-Za-z0-9_-]+$/.test(institutionId)) {
+    throw new AppError("Invalid institution identifier", 400);
+  }
   const safeModule = module.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
   const safeOwner = ownerId ? `/${ownerId}` : "";
   return `acadlyx/${institutionId}/${safeModule}${safeOwner}`;
