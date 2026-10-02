@@ -1,6 +1,6 @@
 ALTER TABLE "users"
   ADD COLUMN "deletedAt" TIMESTAMP(3),
-  ADD COLUMN "deletedBy" UUID,
+  ADD COLUMN "deletedBy" TEXT,
   ADD COLUMN "deletionReason" TEXT,
   ADD COLUMN "deletionNote" TEXT,
   ADD COLUMN "recoveryDeadline" TIMESTAMP(3),
