@@ -66,6 +66,7 @@ import securityRoutes from "./routes/security.routes";
 import subscriptionPlanRoutes from "./routes/subscriptionPlan.routes";
 import directoryRoutes from "./routes/directory.routes";
 import obeRoutes from "./routes/obe.routes";
+import fileStorageRoutes from "./routes/fileStorage.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -496,6 +497,12 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/site-content`,
     siteContentRoutes
+  );
+
+  /* Centralized provider-agnostic tenant file storage. */
+  app.use(
+    `${apiPrefix}/files`,
+    fileStorageRoutes
   );
 
   /*
