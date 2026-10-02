@@ -996,7 +996,7 @@ function AdminPeopleManagerContent() {
       : "People";
 
   return (
-    <main className="mx-auto max-w-[1320px] space-y-6 pb-10">
+    <div className="mx-auto max-w-[1320px] space-y-6 pb-10">
       {error ? (
         <div className="flex items-center justify-between gap-3 rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span>{error}</span>
@@ -1830,7 +1830,7 @@ function AdminPeopleManagerContent() {
           </div>
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }
 
