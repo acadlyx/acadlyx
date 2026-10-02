@@ -8,9 +8,9 @@
   --acadlyx-primary-soft: #eff6ff;
   --acadlyx-accent: #06b6d4;
 
-  --acadlyx-background: #eef3f8;
-  --acadlyx-surface: #ffffff;
-  --acadlyx-surface-soft: #f7f9fb;
+  --acadlyx-background: #e4eaf2;
+  --acadlyx-surface: #f4f7fb;
+  --acadlyx-surface-soft: #e9eef5;
 
   --acadlyx-border: #dbe4ee;
   --acadlyx-border-strong: #cbd7e5;
@@ -126,7 +126,7 @@ button:disabled {
   .acadlyx-section {
     border: 1px solid var(--acadlyx-border);
     border-radius: var(--acadlyx-radius-xl);
-    background: #ffffff;
+    background: var(--acadlyx-surface);
     padding: 20px;
     box-shadow: var(--acadlyx-shadow-sm);
   }
@@ -136,7 +136,7 @@ button:disabled {
     min-height: 44px;
     border: 1px solid var(--acadlyx-border);
     border-radius: var(--acadlyx-radius-md);
-    background: #ffffff;
+    background: var(--acadlyx-surface);
     padding: 10px 13px;
     color: var(--acadlyx-text);
     font-size: 14px;
@@ -179,7 +179,7 @@ button:disabled {
     min-height: 42px;
     border: 1px solid var(--acadlyx-border);
     border-radius: var(--acadlyx-radius-md);
-    background: white;
+    background: var(--acadlyx-surface);
     padding: 9px 16px;
     color: #334155;
     font-size: 13px;
@@ -235,7 +235,7 @@ button:disabled {
     justify-content: space-between;
     gap: 16px;
     border-bottom: 1px solid var(--acadlyx-border);
-    background: #ffffff;
+    background: var(--acadlyx-surface);
     padding: 20px;
   }
 
@@ -249,7 +249,7 @@ button:disabled {
     justify-content: flex-end;
     gap: 8px;
     border-top: 1px solid var(--acadlyx-border);
-    background: #ffffff;
+    background: var(--acadlyx-surface);
     padding: 16px 20px;
   }
 
@@ -257,7 +257,7 @@ button:disabled {
     overflow-x: auto;
     border: 1px solid var(--acadlyx-border);
     border-radius: var(--acadlyx-radius-lg);
-    background: white;
+    background: var(--acadlyx-surface);
     box-shadow: var(--acadlyx-shadow-sm);
   }
 
@@ -517,4 +517,17 @@ form {
     max-width: 100% !important;
     border-radius: 22px !important;
   }
+}
+
+
+/* ACADLYX unified visual layer: reduce stark white surfaces across legacy modules. */
+@layer utilities {
+  .bg-white { background-color: var(--acadlyx-surface) !important; }
+  .bg-slate-50 { background-color: var(--acadlyx-surface-soft) !important; }
+  .border-slate-200 { border-color: var(--acadlyx-border) !important; }
+  .border-slate-100 { border-color: #dfe6ef !important; }
+}
+
+@media (max-width: 1023px) {
+  .acadlyx-page { max-width: none; }
 }
