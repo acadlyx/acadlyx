@@ -39,18 +39,18 @@ const router =
   Router();
 
 router.use(
-  authenticate
+  authenticate,
 );
 
 router.get(
   "/",
   authorize(
-    "users.read"
+    "users.read",
   ),
   validateQuery(
-    listUsersQuerySchema
+    listUsersQuerySchema,
   ),
-  userController.list
+  userController.list,
 );
 
 /**
@@ -62,18 +62,18 @@ router.get(
 router.get(
   "/photos",
   authorize(
-    "users.read"
+    "users.read",
   ),
   async (
     req,
     res,
-    next
+    next,
   ) => {
     try {
       if (!req.user) {
         throw new AppError(
           "Authentication required",
-          401
+          401,
         );
       }
 
@@ -83,10 +83,8 @@ router.get(
           ? req.query.ids
               .split(",")
               .map(
-                (
-                  id
-                ) =>
-                  id.trim()
+                (id) =>
+                  id.trim(),
               )
               .filter(Boolean)
               .slice(0, 100)
@@ -97,7 +95,7 @@ router.get(
           {
             where:
               req.user.roles.includes(
-                "SUPER_ADMIN"
+                "SUPER_ADMIN",
               )
                 ? {
                     id: {
@@ -108,6 +106,7 @@ router.get(
                     id: {
                       in: ids,
                     },
+
                     institutionId:
                       req.user
                         .institutionId,
@@ -116,40 +115,35 @@ router.get(
             select: {
               id: true,
             },
-          }
+          },
         );
 
       const allowedIds =
         targets.map(
-          (
-            target
-          ) =>
-            target.id
+          (target) =>
+            target.id,
         );
 
       const photos =
         await getProfilePhotos(
-          allowedIds
+          allowedIds,
         );
 
       const data =
         Object.fromEntries(
           allowedIds.map(
-            (
-              id
-            ) => [
+            (id) => [
               id,
               photos.get(
-                id
+                id,
               )?.url ??
                 null,
-            ]
-          )
+            ],
+          ),
         );
 
       res.json({
-        success:
-          true,
+        success: true,
         data,
       });
     } catch (
@@ -157,45 +151,97 @@ router.get(
     ) {
       next(error);
     }
-  }
+  },
+);
+
+/**
+ * Permanent-deletion approval queue.
+ *
+ * The backend decides which requests the authenticated authority
+ * may approve. The frontend never chooses the approver.
+ */
+router.get(
+  "/permanent-deletion-requests",
+  authorize(
+    "users.read",
+  ),
+  userController.listPermanentDeletionRequests,
+);
+
+router.post(
+  "/permanent-deletion-requests/:requestId/approve",
+  authorize(
+    "users.read",
+  ),
+  userController.approvePermanentDeletion,
+);
+
+router.post(
+  "/permanent-deletion-requests/:requestId/reject",
+  authorize(
+    "users.read",
+  ),
+  userController.rejectPermanentDeletion,
 );
 
 router.get(
   "/:id",
   authorize(
-    "users.read"
+    "users.read",
   ),
-  userController.getById
+  userController.getById,
 );
 
 router.post(
   "/",
   authorize(
-    "users.create"
+    "users.create",
   ),
   validateBody(
-    createUserSchema
+    createUserSchema,
   ),
-  userController.create
+  userController.create,
 );
 
 router.patch(
   "/:id",
   authorize(
-    "users.update"
+    "users.update",
   ),
   validateBody(
-    updateUserSchema
+    updateUserSchema,
   ),
-  userController.update
+  userController.update,
 );
 
+/**
+ * Normal Delete action.
+ *
+ * This is a SOFT DELETE:
+ * User remains in the database but becomes inactive.
+ */
 router.patch(
   "/:id/status",
   authorize(
-    "users.delete"
+    "users.delete",
   ),
-  userController.setActive
+  userController.setActive,
+);
+
+/**
+ * Permanent deletion.
+ *
+ * SUPER_ADMIN deletes immediately.
+ *
+ * Other user-management authorities create a permanent-deletion
+ * approval request.
+ */
+router.post(
+  "/:id/permanent-delete",
+  authorize(
+    "users.delete",
+  ),
+  userController.requestPermanentDeletion,
 );
 
 /**
@@ -208,18 +254,18 @@ router.patch(
 router.post(
   "/:id/photo",
   authorize(
-    "users.update"
+    "users.update",
   ),
   async (
     req,
     res,
-    next
+    next,
   ) => {
     try {
       if (!req.user) {
         throw new AppError(
           "Authentication required",
-          401
+          401,
         );
       }
 
@@ -232,7 +278,7 @@ router.post(
       ) {
         throw new AppError(
           "Profile photo is required",
-          400
+          400,
         );
       }
 
@@ -243,29 +289,31 @@ router.post(
               id:
                 req.params.id,
             },
+
             select: {
               id: true,
+
               institutionId:
                 true,
             },
-          }
+          },
         );
 
       if (!target) {
         throw new AppError(
           "User not found",
-          404
+          404,
         );
       }
 
       const superAdmin =
         req.user.roles.includes(
-          "SUPER_ADMIN"
+          "SUPER_ADMIN",
         );
 
       const institutionAdmin =
         req.user.roles.includes(
-          "INSTITUTION_ADMIN"
+          "INSTITUTION_ADMIN",
         );
 
       if (
@@ -274,7 +322,7 @@ router.post(
       ) {
         throw new AppError(
           "This account cannot edit user profile photos",
-          403
+          403,
         );
       }
 
@@ -285,19 +333,18 @@ router.post(
       ) {
         throw new AppError(
           "You cannot edit a user outside your institution",
-          403
+          403,
         );
       }
 
       const photo =
         await uploadProfilePhotoDataUrl(
           target.id,
-          dataUrl
+          dataUrl,
         );
 
       res.status(200).json({
-        success:
-          true,
+        success: true,
         data: photo,
       });
     } catch (
@@ -305,24 +352,24 @@ router.post(
     ) {
       next(error);
     }
-  }
+  },
 );
 
 router.delete(
   "/:id/photo",
   authorize(
-    "users.update"
+    "users.update",
   ),
   async (
     req,
     res,
-    next
+    next,
   ) => {
     try {
       if (!req.user) {
         throw new AppError(
           "Authentication required",
-          401
+          401,
         );
       }
 
@@ -333,29 +380,31 @@ router.delete(
               id:
                 req.params.id,
             },
+
             select: {
               id: true,
+
               institutionId:
                 true,
             },
-          }
+          },
         );
 
       if (!target) {
         throw new AppError(
           "User not found",
-          404
+          404,
         );
       }
 
       const superAdmin =
         req.user.roles.includes(
-          "SUPER_ADMIN"
+          "SUPER_ADMIN",
         );
 
       const institutionAdmin =
         req.user.roles.includes(
-          "INSTITUTION_ADMIN"
+          "INSTITUTION_ADMIN",
         );
 
       if (
@@ -364,7 +413,7 @@ router.delete(
       ) {
         throw new AppError(
           "This account cannot edit user profile photos",
-          403
+          403,
         );
       }
 
@@ -375,17 +424,17 @@ router.delete(
       ) {
         throw new AppError(
           "You cannot edit a user outside your institution",
-          403
+          403,
         );
       }
 
       await deleteProfilePhoto(
-        target.id
+        target.id,
       );
 
       res.status(200).json({
-        success:
-          true,
+        success: true,
+
         data: {
           userId:
             target.id,
@@ -396,7 +445,7 @@ router.delete(
     ) {
       next(error);
     }
-  }
+  },
 );
 
 export default router;
