@@ -1,36 +1,13 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-import { AppError } from "../../middleware/errorHandler";
 import { env } from "../../config/env";
-
-/**
- * Payment gateway abstraction.
- *
- * ACADLYX never calls a specific provider from a domain service. The fee
- * module asks for "the configured gateway" and receives an adapter that
- * satisfies this interface, so swapping Razorpay for Stripe, PayU or a
- * bank's own hosted page is a configuration change and an adapter file,
- * not a change to billing logic.
- *
- * Configure with:
- *   PAYMENT_PROVIDER = manual | razorpay | stripe
- *   PAYMENT_KEY_ID
- *   PAYMENT_KEY_SECRET
- *   PAYMENT_WEBHOOK_SECRET
- *   PAYMENT_CURRENCY (default INR)
- *
- * With PAYMENT_PROVIDER unset the platform runs in `manual` mode: cash,
- * cheque, NEFT and counter payments are recorded by staff and every
- * online-only endpoint fails with a clear configuration error rather
- * than pretending to have taken money.
- */
+import { AppError } from "../../middleware/errorHandler";
 
 export interface GatewayOrder {
   provider: string;
   orderId: string;
   amount: number;
   currency: string;
-  /** Safe to expose to the browser — never the secret. */
   publicKey: string | null;
   expiresAt: Date | null;
 }
@@ -41,6 +18,17 @@ export interface GatewayVerification {
   orderId: string;
   amount: number;
   verified: boolean;
+}
+
+export interface GatewayWebhookPayment {
+  provider: string;
+  paymentId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  invoiceId: string | null;
+  institutionId: string | null;
 }
 
 export interface PaymentGateway {
@@ -59,6 +47,7 @@ export interface PaymentGateway {
     amount: number;
   }): Promise<GatewayVerification>;
   verifyWebhook(rawBody: string, signature: string): boolean;
+  parseWebhook(rawBody: string): Promise<GatewayWebhookPayment | null>;
 }
 
 function requireCredentials(provider: string): never {
@@ -68,7 +57,6 @@ function requireCredentials(provider: string): never {
   );
 }
 
-/** Constant-time comparison that tolerates length mismatch. */
 function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -76,11 +64,6 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-/**
- * Offline mode. Staff record cash/cheque/NEFT receipts; there is no
- * hosted checkout, so order creation fails loudly instead of silently
- * producing an unusable order.
- */
 class ManualGateway implements PaymentGateway {
   readonly name = "manual";
   readonly isConfigured = true;
@@ -99,14 +82,12 @@ class ManualGateway implements PaymentGateway {
   verifyWebhook(): boolean {
     return false;
   }
+
+  async parseWebhook(): Promise<GatewayWebhookPayment | null> {
+    return null;
+  }
 }
 
-/**
- * HMAC-signature gateway covering the Razorpay-style contract
- * (`orderId|paymentId` signed with the API secret). Stripe and PayU use
- * the same shape with a different concatenation, which is why the
- * signing payload is the only provider-specific part.
- */
 class HmacGateway implements PaymentGateway {
   constructor(
     readonly name: string,
@@ -123,6 +104,26 @@ class HmacGateway implements PaymentGateway {
     return createHmac("sha256", secret).update(payload).digest("hex");
   }
 
+  private authorizationHeader(): string {
+    if (!this.keyId || !this.keySecret) requireCredentials(this.name);
+    return "Basic " + Buffer.from(`${this.keyId}:${this.keySecret}`).toString("base64");
+  }
+
+  private async razorpayGet<T>(path: string): Promise<T> {
+    if (!this.isConfigured) requireCredentials(this.name);
+    const response = await fetch(`https://api.razorpay.com/v1/${path}`, {
+      headers: {
+        Authorization: this.authorizationHeader(),
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "provider error");
+      throw new AppError(`Razorpay API request failed: ${detail.slice(0, 300)}`, 502);
+    }
+    return (await response.json()) as T;
+  }
+
   async createOrder(input: {
     amount: number;
     currency: string;
@@ -130,7 +131,6 @@ class HmacGateway implements PaymentGateway {
     notes?: Record<string, string>;
   }): Promise<GatewayOrder> {
     if (!this.isConfigured) requireCredentials(this.name);
-
     if (this.name !== "razorpay") {
       throw new AppError(
         `Online provider "${this.name}" is not implemented. Configure PAYMENT_PROVIDER=razorpay or manual.`,
@@ -138,14 +138,14 @@ class HmacGateway implements PaymentGateway {
       );
     }
 
-    if (!this.isConfigured) requireCredentials(this.name);
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new AppError("Payment amount must be greater than zero", 400);
+    }
 
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
-        Authorization:
-          "Basic " +
-          Buffer.from(`${this.keyId}:${this.keySecret}`).toString("base64"),
+        Authorization: this.authorizationHeader(),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -195,21 +195,118 @@ class HmacGateway implements PaymentGateway {
       this.keySecret as string
     );
 
+    if (!safeEqual(expected, payload.signature)) {
+      return {
+        provider: this.name,
+        paymentId: payload.paymentId,
+        orderId: payload.orderId,
+        amount: payload.amount,
+        verified: false,
+      };
+    }
+
+    if (this.name === "razorpay") {
+      const payment = await this.razorpayGet<{
+        id?: string;
+        order_id?: string;
+        amount?: number;
+        currency?: string;
+        status?: string;
+      }>(`payments/${encodeURIComponent(payload.paymentId)}`);
+
+      const expectedAmount = Math.round(payload.amount * 100);
+      const verified =
+        payment.id === payload.paymentId &&
+        payment.order_id === payload.orderId &&
+        payment.status === "captured" &&
+        payment.amount === expectedAmount;
+
+      return {
+        provider: "razorpay",
+        paymentId: payload.paymentId,
+        orderId: payload.orderId,
+        amount: payload.amount,
+        verified,
+      };
+    }
+
     return {
       provider: this.name,
       paymentId: payload.paymentId,
       orderId: payload.orderId,
       amount: payload.amount,
-      verified: safeEqual(expected, payload.signature),
+      verified: true,
     };
   }
 
   verifyWebhook(rawBody: string, signature: string): boolean {
     if (!this.webhookSecret) return false;
-    return safeEqual(
-      this.signature(rawBody, this.webhookSecret),
-      signature
-    );
+    return safeEqual(this.signature(rawBody, this.webhookSecret), signature);
+  }
+
+  async parseWebhook(rawBody: string): Promise<GatewayWebhookPayment | null> {
+    if (this.name !== "razorpay") return null;
+
+    let body: {
+      event?: string;
+      payload?: {
+        payment?: {
+          entity?: {
+            id?: string;
+            order_id?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+          };
+        };
+      };
+    };
+
+    try {
+      body = JSON.parse(rawBody) as typeof body;
+    } catch {
+      throw new AppError("Invalid payment webhook payload", 400);
+    }
+
+    if (!["payment.captured", "payment.authorized"].includes(body.event || "")) {
+      return null;
+    }
+
+    const payment = body.payload?.payment?.entity;
+    if (
+      !payment?.id ||
+      !payment.order_id ||
+      typeof payment.amount !== "number" ||
+      !payment.currency
+    ) {
+      throw new AppError("Payment webhook is missing required payment fields", 400);
+    }
+
+    const order = await this.razorpayGet<{
+      id?: string;
+      amount?: number;
+      currency?: string;
+      notes?: Record<string, string>;
+    }>(`orders/${encodeURIComponent(payment.order_id)}`);
+
+    if (
+      order.id !== payment.order_id ||
+      order.amount !== payment.amount ||
+      order.currency !== payment.currency
+    ) {
+      throw new AppError("Payment webhook does not match the provider order", 409);
+    }
+
+    return {
+      provider: "razorpay",
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      amount: payment.amount / 100,
+      currency: payment.currency,
+      status: payment.status || "captured",
+      invoiceId: order.notes?.invoiceId || null,
+      institutionId: order.notes?.institutionId || null,
+    };
   }
 }
 
@@ -218,13 +315,11 @@ let cached: PaymentGateway | null = null;
 export function getPaymentGateway(): PaymentGateway {
   if (cached) return cached;
 
-  const provider = env.paymentProvider;
-
   cached =
-    provider === "manual"
+    env.paymentProvider === "manual"
       ? new ManualGateway()
       : new HmacGateway(
-          provider,
+          env.paymentProvider,
           env.paymentKeyId,
           env.paymentKeySecret,
           env.paymentWebhookSecret
@@ -237,7 +332,6 @@ export function paymentCurrency(): string {
   return env.paymentCurrency;
 }
 
-/** Test seam: clears the memoised adapter. */
 export function resetPaymentGateway(): void {
   cached = null;
 }
