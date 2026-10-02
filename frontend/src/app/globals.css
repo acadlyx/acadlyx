@@ -646,3 +646,46 @@ button[class*="bg-white"][class*="text-white"],
 a[class*="bg-white"][class*="text-white"] {
   color: var(--acadlyx-text) !important;
 }
+
+
+/* Final shared table/action consistency pass */
+@layer components {
+  .acadlyx-table tbody tr {
+    transition: background-color 140ms ease;
+  }
+
+  .acadlyx-table tbody tr:hover {
+    background: #f7f1e8;
+  }
+
+  .acadlyx-table tbody td {
+    color: var(--acadlyx-text);
+  }
+
+  .acadlyx-button-primary:disabled,
+  .acadlyx-button-secondary:disabled,
+  .acadlyx-button-danger:disabled {
+    opacity: 0.55;
+    box-shadow: none;
+  }
+
+  .acadlyx-button-primary:focus-visible,
+  .acadlyx-button-secondary:focus-visible,
+  .acadlyx-button-danger:focus-visible {
+    outline: 2px solid #315c4a;
+    outline-offset: 2px;
+  }
+}
+
+@media (max-width: 640px) {
+  .acadlyx-table th,
+  .acadlyx-table td {
+    padding: 11px 12px;
+  }
+
+  .acadlyx-button-primary,
+  .acadlyx-button-secondary,
+  .acadlyx-button-danger {
+    min-height: 44px;
+  }
+}
