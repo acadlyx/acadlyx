@@ -328,8 +328,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["reports.read"],
     group: "Oversight",
   },
-
-  /* ADDED: Dean Notices */
   {
     label: "Notices",
     href: "/notices",
@@ -426,8 +424,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["reports.read"],
     group: "Oversight",
   },
-
-  /* ADDED: HOD Notices */
   {
     label: "Notices",
     href: "/notices",
@@ -612,12 +608,149 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
 
+  /*
+   * ============================================================
+   * STUDENT WORKSPACE
+   * ============================================================
+   */
+
   {
     label: "Overview",
     href: "/student",
     icon: "⌂",
     roles: ["STUDENT"],
     group: "Workspace",
+  },
+  {
+    label: "Notices",
+    href: "/notices",
+    icon: "◌",
+    roles: ["STUDENT"],
+    permissions: ["notices.read"],
+    group: "Workspace",
+  },
+  {
+    label: "Notifications",
+    href: "/student/notifications",
+    icon: "◉",
+    roles: ["STUDENT"],
+    permissions: ["notifications.read"],
+    group: "Workspace",
+  },
+  {
+    label: "Calendar",
+    href: "/student/calendar",
+    icon: "◫",
+    roles: ["STUDENT"],
+    permissions: ["calendar.read"],
+    group: "Workspace",
+  },
+
+  {
+    label: "Timetable",
+    href: "/student/timetable",
+    icon: "◫",
+    roles: ["STUDENT"],
+    permissions: ["timetable.read"],
+    group: "Academic",
+  },
+  {
+    label: "Assignments",
+    href: "/student/assignments",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["assignments.read"],
+    group: "Academic",
+  },
+  {
+    label: "Attendance",
+    href: "/student/attendance",
+    icon: "◉",
+    roles: ["STUDENT"],
+    permissions: ["attendance.read"],
+    group: "Academic",
+  },
+  {
+    label: "Marks",
+    href: "/student/marks",
+    icon: "◎",
+    roles: ["STUDENT"],
+    permissions: ["marks.read"],
+    group: "Academic",
+  },
+  {
+    label: "Examinations",
+    href: "/student/examinations",
+    icon: "✍",
+    roles: ["STUDENT"],
+    permissions: ["exams.read"],
+    group: "Academic",
+  },
+  {
+    label: "Results",
+    href: "/student/results",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["results.read"],
+    group: "Academic",
+  },
+  {
+    label: "Outcome Based Education",
+    href: "/obe",
+    icon: "◎",
+    roles: ["STUDENT"],
+    permissions: ["obe.read"],
+    group: "Academic",
+  },
+  {
+    label: "Course Registration",
+    href: "/student/course-registration",
+    icon: "▦",
+    roles: ["STUDENT"],
+    permissions: ["registration.submit"],
+    group: "Academic",
+  },
+
+  {
+    label: "Fees",
+    href: "/student/fees",
+    icon: "₹",
+    roles: ["STUDENT"],
+    permissions: ["fees.read"],
+    group: "Finance",
+  },
+
+  {
+    label: "Library",
+    href: "/student/library",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["library.read"],
+    group: "Services",
+  },
+  {
+    label: "Leave",
+    href: "/student/leave",
+    icon: "◫",
+    roles: ["STUDENT"],
+    permissions: ["leave.apply"],
+    group: "Services",
+  },
+  {
+    label: "Certificates",
+    href: "/student/certificates",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["certificates.request"],
+    group: "Services",
+  },
+
+  {
+    label: "Profile",
+    href: "/student/profile",
+    icon: "♙",
+    roles: ["STUDENT"],
+    group: "Account",
   },
 
   {
@@ -755,11 +888,28 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "DEAN",
       "DIRECTOR",
       "CHAIRMAN",
+      "STUDENT",
     ],
   ],
 
-  ["/library", ["LIBRARIAN", "STUDENT", "FACULTY", "HOD"]],
-  ["/placements", ["PLACEMENT", "STUDENT"]],
+  [
+    "/library",
+    [
+      "LIBRARIAN",
+      "STUDENT",
+      "FACULTY",
+      "HOD",
+    ],
+  ],
+
+  [
+    "/placements",
+    [
+      "PLACEMENT",
+      "STUDENT",
+    ],
+  ],
+
   ["/it", ["IT"]],
   ["/site-content", ["SUPER_ADMIN", "CMS"]],
 
@@ -855,6 +1005,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "INSTITUTION_ADMIN",
       "DEAN",
       "HOD",
+      "STUDENT",
     ],
   ],
 
@@ -872,23 +1023,82 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  ["/fees", ["CHAIRMAN", "DIRECTOR", "ACCOUNTS", "STUDENT", "PARENT"]],
+  [
+    "/fees",
+    [
+      "CHAIRMAN",
+      "DIRECTOR",
+      "ACCOUNTS",
+      "STUDENT",
+      "PARENT",
+    ],
+  ],
 
-  ["/payments", ["ACCOUNTS", "STUDENT", "PARENT"]],
+  [
+    "/payments",
+    [
+      "ACCOUNTS",
+      "STUDENT",
+      "PARENT",
+    ],
+  ],
 
-  ["/admissions", ["ADMISSIONS", "REGISTRAR"]],
+  [
+    "/admissions",
+    [
+      "ADMISSIONS",
+      "REGISTRAR",
+    ],
+  ],
 
-  ["/applications", ["ADMISSIONS"]],
+  [
+    "/applications",
+    ["ADMISSIONS"],
+  ],
 
-  ["/certificates", ["REGISTRAR", "STUDENT"]],
+  [
+    "/certificates",
+    [
+      "REGISTRAR",
+      "STUDENT",
+    ],
+  ],
 
-  ["/assignments", ["FACULTY", "HOD", "STUDENT"]],
+  [
+    "/assignments",
+    [
+      "FACULTY",
+      "HOD",
+      "STUDENT",
+    ],
+  ],
 
-  ["/attendance", ["FACULTY", "HOD", "STUDENT"]],
+  [
+    "/attendance",
+    [
+      "FACULTY",
+      "HOD",
+      "STUDENT",
+    ],
+  ],
 
-  ["/marks", ["FACULTY", "HOD", "STUDENT"]],
+  [
+    "/marks",
+    [
+      "FACULTY",
+      "HOD",
+      "STUDENT",
+    ],
+  ],
 
-  ["/courses", ["FACULTY", "HOD", "STUDENT"]],
+  [
+    "/courses",
+    [
+      "FACULTY",
+      "HOD",
+      "STUDENT",
+    ],
+  ],
 
   [
     "/academics",
@@ -908,9 +1118,18 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
 
   ["/employees", ["HR"]],
 
-  ["/leave-management", ["FACULTY", "HR"]],
+  [
+    "/leave-management",
+    [
+      "FACULTY",
+      "HR",
+    ],
+  ],
 
-  ["/club-president", ["CLUB_PRESIDENT"]],
+  [
+    "/club-president",
+    ["CLUB_PRESIDENT"],
+  ],
 
   [
     "/account-security",
