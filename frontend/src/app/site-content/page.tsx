@@ -7,11 +7,8 @@ import {
 } from "react";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import {
-  authedFetch,
-  getAccessToken,
-} from "@/lib/auth";
-import { apiUrl } from "@/lib/api";
+import { authedFetch } from "@/lib/auth";
+import { uploadFile } from "@/lib/fileStorage";
 
 interface Feature {
   eyebrow: string;
@@ -659,87 +656,25 @@ export default function SiteContentPage() {
     event: ChangeEvent<HTMLInputElement>,
     path: string,
   ) {
-    const file =
-      event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     setBusy(true);
     setMsg("");
 
     try {
-      const token =
-        getAccessToken();
+      const stored = await uploadFile(file, "site", {
+        visibility: "public",
+      });
 
-      if (!token) {
-        throw new Error(
-          "Your session has expired. Please sign in again.",
-        );
+      if (!stored.url) {
+        throw new Error("Upload completed but no media URL was returned.");
       }
 
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        file,
-      );
-
-      const response =
-        await fetch(
-          apiUrl(
-            "/site-content/media",
-          ),
-          {
-            method: "POST",
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-            body: formData,
-          },
-        );
-
-      const body =
-        (await response.json()) as {
-          data?: {
-            url?: string;
-          };
-          error?: {
-            message?: string;
-          };
-        };
-
-      if (!response.ok) {
-        throw new Error(
-          body.error?.message ||
-            "Upload failed.",
-        );
-      }
-
-      const uploadedUrl =
-        body.data?.url;
-
-      if (!uploadedUrl) {
-        throw new Error(
-          "Upload completed but no media URL was returned.",
-        );
-      }
-
-      setValue(
-        path,
-        uploadedUrl,
-      );
-
-      setMsg(
-        "Image uploaded. Save & publish to make it live.",
-      );
+      setValue(path, stored.url);
+      setMsg("Image uploaded. Save & publish to make it live.");
     } catch (error) {
-      setMsg(
-        getErrorMessage(error),
-      );
+      setMsg(getErrorMessage(error));
     } finally {
       setBusy(false);
       event.target.value = "";
