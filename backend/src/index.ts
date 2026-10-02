@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { assertAuthEnv, env } from "./config/env";
 import { syncAllTenantAccess } from "./services/rbacSync.service";
 import { logger } from "./utils/logger";
+import { cleanupExpiredDeletedUsers } from "./services/userLifecycle.service";
 
 assertAuthEnv();
 
