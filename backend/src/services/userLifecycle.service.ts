@@ -510,7 +510,7 @@ export async function issuePasswordReset(id: string, actor: AuthenticatedUser) {
   const result = await adminIssueResetToken(target.institutionId, actor, target.id, {});
   return {
     userId: target.id,
-    delivered: true,
+    delivered: Boolean(process.env.EMAIL_PROVIDER && process.env.EMAIL_PROVIDER !== "disabled"),
     expiresAt: result.expiresAt ?? null,
   };
 }
