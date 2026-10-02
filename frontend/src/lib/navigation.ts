@@ -624,6 +624,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["fees.read"],
     group: "Finance",
   },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["ACCOUNTS"],
+    permissions: ["reports.read"],
+    group: "Finance",
+  },
 
   {
     label: "Overview",
@@ -648,6 +656,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["leave.read"],
     group: "People",
   },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["HR"],
+    permissions: ["reports.read"],
+    group: "People",
+  },
 
   {
     label: "Overview",
@@ -664,6 +680,22 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["admissions.read"],
     group: "Admissions",
   },
+  {
+    label: "Students",
+    href: "/students",
+    icon: "◎",
+    roles: ["ADMISSIONS"],
+    permissions: ["students.read"],
+    group: "Admissions",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["ADMISSIONS"],
+    permissions: ["reports.read"],
+    group: "Admissions",
+  },
 
   {
     label: "Overview",
@@ -671,6 +703,30 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["EXAMINATION"],
     group: "Workspace",
+  },
+  {
+    label: "Exam operations",
+    href: "/examination",
+    icon: "◉",
+    roles: ["EXAMINATION"],
+    permissions: ["exams.read"],
+    group: "Examinations",
+  },
+  {
+    label: "Outcome Based Education",
+    href: "/examination/obe",
+    icon: "◎",
+    roles: ["EXAMINATION"],
+    permissions: ["obe.read"],
+    group: "Examinations",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["EXAMINATION"],
+    permissions: ["reports.read"],
+    group: "Examinations",
   },
 
   {
@@ -680,6 +736,22 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["LIBRARIAN"],
     group: "Workspace",
   },
+  {
+    label: "Students",
+    href: "/students",
+    icon: "◎",
+    roles: ["LIBRARIAN"],
+    permissions: ["students.read"],
+    group: "Circulation",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["LIBRARIAN"],
+    permissions: ["reports.read"],
+    group: "Circulation",
+  },
 
   {
     label: "Overview",
@@ -688,6 +760,22 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["PLACEMENT"],
     group: "Workspace",
   },
+  {
+    label: "Students",
+    href: "/students",
+    icon: "◎",
+    roles: ["PLACEMENT"],
+    permissions: ["students.read"],
+    group: "Placement",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["PLACEMENT"],
+    permissions: ["reports.read"],
+    group: "Placement",
+  },
 
   {
     label: "Overview",
@@ -695,6 +783,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["IT"],
     group: "Workspace",
+  },
+  {
+    label: "Operations",
+    href: "/operations",
+    icon: "⚙",
+    roles: ["IT"],
+    permissions: ["operations.read"],
+    group: "Technology",
   },
 
 
@@ -848,6 +944,22 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/student/profile",
     icon: "♙",
     roles: ["STUDENT"],
+    group: "Account",
+  },
+  {
+    label: "Academic record",
+    href: "/student/academic",
+    icon: "▦",
+    roles: ["STUDENT"],
+    permissions: ["courses.read"],
+    group: "Account",
+  },
+  {
+    label: "Documents",
+    href: "/student/documents",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["documents.read"],
     group: "Account",
   },
 
