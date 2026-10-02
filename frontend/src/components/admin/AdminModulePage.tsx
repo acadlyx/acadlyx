@@ -7,6 +7,7 @@ import DataTransferActions from "@/components/dashboard/DataTransferActions";
 import type { DataType } from "@/lib/dataTransferApi";
 import { authedFetch, getCurrentUser } from "@/lib/auth";
 import { findAdminNavItem, type AdminNavItem } from "@/lib/adminNavigation";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Row = Record<string, any> & { id?: string };
 type Lookup = Row;
@@ -4141,7 +4142,7 @@ function Operations({
   );
 }
 
-export function AdminModulePage({
+function AdminModuleContent({
   module,
 }: {
   module: string;
@@ -4319,5 +4320,18 @@ export function AdminModulePage({
         }
       />
     </div>
+  );
+}
+
+
+export function AdminModulePage({ module }: { module: string }) {
+  return (
+    <DashboardShell
+      title="Institution Administration"
+      subtitle="Manage authorized institutional modules and records"
+      allowedRoles={["INSTITUTION_ADMIN"]}
+    >
+      <AdminModuleContent module={module} />
+    </DashboardShell>
   );
 }
