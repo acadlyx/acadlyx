@@ -224,11 +224,8 @@ const DASHBOARD_PRIORITY = [
 export function normalizeRole(
   role: string
 ): string {
-  return (
-    ROLE_ALIASES[
-      role
-    ] ?? role
-  );
+  const normalized = role.trim().toUpperCase();
+  return ROLE_ALIASES[normalized] ?? normalized;
 }
 
 export function getCanonicalRoles(
