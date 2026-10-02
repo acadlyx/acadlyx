@@ -782,62 +782,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Overview",
-    href: "/management",
-    icon: "⌂",
-    roles: ["MANAGEMENT"],
-    group: "Workspace",
-  },
-  {
-    label: "Intelligence",
-    href: "/intelligence",
-    icon: "✦",
-    roles: ["MANAGEMENT"],
-    permissions: ["intelligence.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Reports",
-    href: "/reports",
-    icon: "▤",
-    roles: ["MANAGEMENT"],
-    permissions: ["reports.read"],
-    group: "Oversight",
-  },
-  {
-    label: "Examinations",
-    href: "/examinations",
-    icon: "◉",
-    roles: ["MANAGEMENT"],
-    permissions: ["exams.read"],
-    group: "Academic",
-  },
-  {
-    label: "Operations",
-    href: "/operations",
-    icon: "⚙",
-    roles: ["MANAGEMENT"],
-    permissions: ["operations.read"],
-    group: "Institution",
-  },
-
-  {
-    label: "Overview",
-    href: "/staff",
-    icon: "⌂",
-    roles: ["STAFF"],
-    group: "Workspace",
-  },
-  {
-    label: "Students",
-    href: "/students",
-    icon: "◎",
-    roles: ["STAFF"],
-    permissions: ["students.read"],
-    group: "People",
-  },
-
-  {
-    label: "Overview",
     href: "/club-president",
     icon: "⌂",
     roles: ["CLUB_PRESIDENT"],
