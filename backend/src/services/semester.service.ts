@@ -202,11 +202,57 @@ export async function updateSemester(
   return prisma.semester.update({ where: { id }, data: input, include });
 }
 
+async function assertSemesterCanDeactivate(
+  institutionId: string,
+  id: string
+) {
+  const dependencies = await prisma.semester.findFirst({
+    where: { id, institutionId },
+    select: {
+      sections: {
+        where: { isActive: true },
+        select: { id: true },
+        take: 1,
+      },
+      courseOfferings: {
+        where: { isActive: true },
+        select: { id: true },
+        take: 1,
+      },
+      studentEnrollments: {
+        where: { status: "ACTIVE" },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (
+    dependencies &&
+    (dependencies.sections.length > 0 ||
+      dependencies.courseOfferings.length > 0 ||
+      dependencies.studentEnrollments.length > 0)
+  ) {
+    throw new AppError(
+      "Deactivate the semester's active sections, course offerings, and student enrollments before deactivating the semester",
+      409
+    );
+  }
+}
+
 /** Soft delete — preserves history for anything scheduled under this semester. */
 export async function deactivateSemester(institutionId: string, id: string) {
-  await getSemesterById(institutionId, id);
+  const semester = await getSemesterById(institutionId, id);
+
+  if (!semester.isActive) {
+    return semester;
+  }
+
+  await assertSemesterCanDeactivate(institutionId, id);
+
   return prisma.semester.update({
     where: { id },
     data: { isActive: false },
+    include,
   });
 }
