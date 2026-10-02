@@ -94,8 +94,6 @@ export async function storeFile(input: {
   const allowed = MODULE_MIME_ALLOWLIST[input.module];
   if (!allowed) throw new AppError("Unsupported storage module", 400);
   validateAllowedMime(input.mimeType, allowed);
-  const uploaded = await provider().upload(storageInput);
-
   let previous: { id: string; provider: string; publicId: string; resourceType: string } | null = null;
   if (input.replaceFileId) {
     previous = await prisma.fileAsset.findFirst({
@@ -106,6 +104,13 @@ export async function storeFile(input: {
       select: { id: true, provider: true, publicId: true, resourceType: true },
     });
     if (!previous) throw new AppError("File to replace was not found in this institution", 404);
+  }
+
+  let uploaded: StorageObject;
+  try {
+    uploaded = await provider().upload(storageInput);
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : "File upload failed", 502);
   }
 
   let created;
