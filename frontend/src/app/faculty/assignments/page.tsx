@@ -105,8 +105,8 @@ export default function FacultyAssignmentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-16">
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+    <main className="acadlyx-page-container">
+      <div className="acadlyx-workspace-content">
         <Link href="/faculty" className="text-xs font-medium text-slate-500 hover:text-slate-800">
           ← Back to dashboard
         </Link>
