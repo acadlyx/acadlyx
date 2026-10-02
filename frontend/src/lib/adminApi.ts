@@ -25,6 +25,66 @@ export interface AdminUser {
   roles: AdminUserRole[];
 }
 
+export interface UserDeletionRequest {
+  id: string;
+  institutionId?: string | null;
+  targetUserId?: string | null;
+
+  targetUser: {
+    id?: string | null;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  };
+
+  requester: {
+    id?: string | null;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  };
+
+  approver?: {
+    id?: string | null;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  } | null;
+
+  status:
+    | "PENDING"
+    | "APPROVED"
+    | "REJECTED";
+
+  reason?: string | null;
+
+  createdAt: string;
+  reviewedAt?: string | null;
+
+  canApprove: boolean;
+}
+
+export interface PermanentDeletionResult {
+  userId?: string;
+
+  requestId?: string;
+
+  targetUserId?: string;
+
+  targetEmail?: string;
+
+  targetRole?: string;
+
+  status?: "PENDING";
+
+  permanentlyDeleted?: boolean;
+
+  message?: string;
+}
+
 export interface AdminWorkspaceStats {
   users: number;
   students: number;
@@ -49,6 +109,7 @@ export interface AdminWorkspaceStats {
   auditLogs: number;
   usersWithProfilePhoto: number;
   usersMissingProfilePhoto: number;
+
   [key: string]: number;
 }
 
@@ -72,13 +133,19 @@ export interface AdminWorkspaceModules {
   parentLinks: boolean;
   audit: boolean;
   maintenance: boolean;
+
   [key: string]: boolean;
 }
 
 export interface AdminWorkspace {
-  workspaceType: "INSTITUTION_ADMIN";
-  stats: AdminWorkspaceStats;
-  modules: AdminWorkspaceModules;
+  workspaceType:
+    "INSTITUTION_ADMIN";
+
+  stats:
+    AdminWorkspaceStats;
+
+  modules:
+    AdminWorkspaceModules;
 }
 
 export interface CreateAdminUserInput {
@@ -101,14 +168,13 @@ export interface MyProfilePhotoResponse {
 
 /**
  * Institution Admin workspace.
- *
- * This uses the dedicated authenticated ERP workspace endpoint.
- * It does not use the generic ERP workspace endpoint because
- * that endpoint has different capability requirements.
  */
-export async function getAdminWorkspace(): Promise<AdminWorkspace> {
+export async function getAdminWorkspace():
+  Promise<AdminWorkspace> {
   const response =
-    await authedFetch<ApiEnvelope<AdminWorkspace>>(
+    await authedFetch<
+      ApiEnvelope<AdminWorkspace>
+    >(
       "/erp/me/workspace",
     );
 
@@ -125,19 +191,32 @@ export async function listAdminUsers(
     pageSize?: number;
   },
 ): Promise<AdminUser[]> {
-  const params = new URLSearchParams();
+  const params =
+    new URLSearchParams();
 
-  params.set("page", "1");
+  params.set(
+    "page",
+    "1",
+  );
+
   params.set(
     "pageSize",
-    String(options?.pageSize ?? 200),
+    String(
+      options?.pageSize ??
+        200,
+    ),
   );
 
   if (options?.role) {
-    params.set("role", options.role);
+    params.set(
+      "role",
+      options.role,
+    );
   }
 
-  if (options?.search?.trim()) {
+  if (
+    options?.search?.trim()
+  ) {
     params.set(
       "search",
       options.search.trim(),
@@ -147,19 +226,28 @@ export async function listAdminUsers(
   const response =
     await authedFetch<
       ApiEnvelope<
-        AdminUser[] | {
-          items: AdminUser[];
-        }
+        | AdminUser[]
+        | {
+            items:
+              AdminUser[];
+          }
       >
     >(
       `/users?${params.toString()}`,
     );
 
-  if (Array.isArray(response.data)) {
+  if (
+    Array.isArray(
+      response.data,
+    )
+  ) {
     return response.data;
   }
 
-  return response.data.items || [];
+  return (
+    response.data.items ||
+    []
+  );
 }
 
 /**
@@ -169,8 +257,12 @@ export async function getAdminUser(
   id: string,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<ApiEnvelope<AdminUser>>(
-      `/users/${encodeURIComponent(id)}`,
+    await authedFetch<
+      ApiEnvelope<AdminUser>
+    >(
+      `/users/${encodeURIComponent(
+        id,
+      )}`,
     );
 
   return response.data;
@@ -183,11 +275,18 @@ export async function createAdminUser(
   input: CreateAdminUserInput,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<ApiEnvelope<AdminUser>>(
+    await authedFetch<
+      ApiEnvelope<AdminUser>
+    >(
       "/users",
       {
-        method: "POST",
-        body: JSON.stringify(input),
+        method:
+          "POST",
+
+        body:
+          JSON.stringify(
+            input,
+          ),
       },
     );
 
@@ -209,11 +308,20 @@ export async function updateAdminUser(
   }>,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<ApiEnvelope<AdminUser>>(
-      `/users/${encodeURIComponent(id)}`,
+    await authedFetch<
+      ApiEnvelope<AdminUser>
+    >(
+      `/users/${encodeURIComponent(
+        id,
+      )}`,
       {
-        method: "PATCH",
-        body: JSON.stringify(input),
+        method:
+          "PATCH",
+
+        body:
+          JSON.stringify(
+            input,
+          ),
       },
     );
 
@@ -221,20 +329,131 @@ export async function updateAdminUser(
 }
 
 /**
- * Activate or deactivate an institution user.
+ * Normal Delete action.
+ *
+ * This is a soft delete:
+ * the user remains in the database and isActive becomes false.
  */
 export async function setAdminUserActive(
   id: string,
   isActive: boolean,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<ApiEnvelope<AdminUser>>(
-      `/users/${encodeURIComponent(id)}/status`,
+    await authedFetch<
+      ApiEnvelope<AdminUser>
+    >(
+      `/users/${encodeURIComponent(
+        id,
+      )}/status`,
       {
-        method: "PATCH",
-        body: JSON.stringify({
-          isActive,
-        }),
+        method:
+          "PATCH",
+
+        body:
+          JSON.stringify({
+            isActive,
+          }),
+      },
+    );
+
+  return response.data;
+}
+
+/**
+ * Request permanent deletion of a user.
+ *
+ * SUPER_ADMIN receives an immediate permanent deletion response.
+ * Other authorities receive a PENDING approval request.
+ */
+export async function requestAdminUserPermanentDeletion(
+  id: string,
+  reason?: string,
+): Promise<PermanentDeletionResult> {
+  const response =
+    await authedFetch<
+      ApiEnvelope<PermanentDeletionResult>
+    >(
+      `/users/${encodeURIComponent(
+        id,
+      )}/permanent-delete`,
+      {
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            reason:
+              reason?.trim() ||
+              undefined,
+          }),
+      },
+    );
+
+  return response.data;
+}
+
+/**
+ * Load permanent-deletion requests visible to the current authority.
+ */
+export async function listAdminUserDeletionRequests():
+  Promise<UserDeletionRequest[]> {
+  const response =
+    await authedFetch<
+      ApiEnvelope<
+        UserDeletionRequest[]
+      >
+    >(
+      "/users/permanent-deletion-requests",
+    );
+
+  return response.data;
+}
+
+/**
+ * Approve a pending permanent-deletion request.
+ */
+export async function approveAdminUserDeletionRequest(
+  requestId: string,
+): Promise<PermanentDeletionResult> {
+  const response =
+    await authedFetch<
+      ApiEnvelope<PermanentDeletionResult>
+    >(
+      `/users/permanent-deletion-requests/${encodeURIComponent(
+        requestId,
+      )}/approve`,
+      {
+        method:
+          "POST",
+      },
+    );
+
+  return response.data;
+}
+
+/**
+ * Reject a pending permanent-deletion request.
+ */
+export async function rejectAdminUserDeletionRequest(
+  requestId: string,
+): Promise<{
+  requestId: string;
+  status: "REJECTED";
+}> {
+  const response =
+    await authedFetch<
+      ApiEnvelope<{
+        requestId: string;
+        status:
+          "REJECTED";
+      }>
+    >(
+      `/users/permanent-deletion-requests/${encodeURIComponent(
+        requestId,
+      )}/reject`,
+      {
+        method:
+          "POST",
       },
     );
 
@@ -246,14 +465,24 @@ export async function setAdminUserActive(
  */
 export async function getAdminUserPhotos(
   ids: string[],
-): Promise<Record<string, string | null>> {
+): Promise<
+  Record<
+    string,
+    string | null
+  >
+> {
   if (!ids.length) {
     return {};
   }
 
   const response =
     await authedFetch<
-      ApiEnvelope<Record<string, string | null>>
+      ApiEnvelope<
+        Record<
+          string,
+          string | null
+        >
+      >
     >(
       `/users/photos?ids=${encodeURIComponent(
         ids.join(","),
@@ -271,13 +500,20 @@ export async function uploadAdminUserPhoto(
   dataUrl: string,
 ): Promise<AdminUserPhotoResponse> {
   const response =
-    await authedFetch<ApiEnvelope<AdminUserPhotoResponse>>(
-      `/users/${encodeURIComponent(id)}/photo`,
+    await authedFetch<
+      ApiEnvelope<AdminUserPhotoResponse>
+    >(
+      `/users/${encodeURIComponent(
+        id,
+      )}/photo`,
       {
-        method: "POST",
-        body: JSON.stringify({
-          dataUrl,
-        }),
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            dataUrl,
+          }),
       },
     );
 
@@ -286,24 +522,23 @@ export async function uploadAdminUserPhoto(
 
 /**
  * Upload the authenticated user's own profile photo.
- *
- * Backend endpoint:
- * POST /auth/account/photo
- *
- * Every authenticated user is allowed to update their own
- * profile picture.
  */
 export async function uploadMyProfilePhoto(
   dataUrl: string,
 ): Promise<MyProfilePhotoResponse> {
   const response =
-    await authedFetch<ApiEnvelope<MyProfilePhotoResponse>>(
+    await authedFetch<
+      ApiEnvelope<MyProfilePhotoResponse>
+    >(
       "/auth/account/photo",
       {
-        method: "POST",
-        body: JSON.stringify({
-          dataUrl,
-        }),
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            dataUrl,
+          }),
       },
     );
 
