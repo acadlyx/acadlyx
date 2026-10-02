@@ -171,7 +171,7 @@ export default function ParentDashboardPage() {
   }
 
   return (
-    <DashboardShell title="Parent Workspace" subtitle="Your child’s academic progress" allowedRoles={["PARENT"]}><div className="min-h-full rounded-3xl bg-slate-50 pb-16 shadow-sm ring-1 ring-slate-200/70">
+    <DashboardShell title="Parent Workspace" subtitle="Your child’s academic progress" allowedRoles={["PARENT"]}><div className="w-full pb-10">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
