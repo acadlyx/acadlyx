@@ -16,6 +16,11 @@ const server = app.listen(env.port, () => {
 
   logger.info(`ACADLYX API running on http://localhost:${env.port}`);
   logger.info(`Health check: http://localhost:${env.port}/api/${env.apiVersion}/health`);
+  void cleanupExpiredDeletedUsers().catch((error) => logger.error("Initial deleted-user cleanup failed", { error }));
+  const lifecycleCleanup = setInterval(() => {
+    void cleanupExpiredDeletedUsers().catch((error) => logger.error("Scheduled deleted-user cleanup failed", { error }));
+  }, 6 * 60 * 60 * 1000);
+  lifecycleCleanup.unref();
 
   // Reconcile the canonical RBAC catalogue + default entitlements with every
   // existing tenant. Non-blocking: the API is already serving traffic.
