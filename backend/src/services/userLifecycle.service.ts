@@ -177,7 +177,7 @@ export async function reactivateUser(id: string, actor: AuthenticatedUser, reaso
   const target = await targetOrThrow(id, actor);
   if (target.deletedAt) throw new AppError("Recover the deleted user before reactivating the account", 409);
 
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: target.id },
     data: { isActive: true },
   });
