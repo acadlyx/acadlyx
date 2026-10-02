@@ -11,6 +11,7 @@ import {
   UnifiedDashboardFrame,
   UnifiedNavItem,
 } from "./UnifiedDashboardFrame";
+import { DashboardDataTransferActions } from "./DashboardDataTransferActions";
 
 import {
   AuthRequiredError,
@@ -224,7 +225,10 @@ export function DashboardShell({
       loading={authLoading}
       onSignOut={signOut}
     >
-      {children}
+      <div className="space-y-4">
+        <DashboardDataTransferActions user={user} />
+        {children}
+      </div>
     </UnifiedDashboardFrame>
   );
 }
