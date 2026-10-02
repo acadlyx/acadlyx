@@ -311,6 +311,12 @@ export async function getHallTicket(
   return res.data;
 }
 
+export function printHallTicket() {
+  if (typeof window !== "undefined") {
+    window.print();
+  }
+}
+
 export async function recordExamAttendance(
   scheduleId: string,
   entries: Array<{
