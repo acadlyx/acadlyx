@@ -425,9 +425,17 @@ function AdminPeopleManagerContent() {
       ),
     );
 
+  const isSuperAdmin =
+    Boolean(
+      user?.roles.includes(
+        "SUPER_ADMIN",
+      ),
+    );
+
   const canPermanentDelete =
     canDelete &&
-    isInstitutionAdmin;
+    (isInstitutionAdmin ||
+      isSuperAdmin);
 
   async function loadPeople() {
     if (!canRead) {
