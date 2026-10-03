@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import * as studentController from "../controllers/student.controller";
 import * as studentAdminController from "../controllers/studentAdmin.controller";
+import * as studentSetupController from "../controllers/studentSetup.controller";
 
 import { authenticate } from "../middleware/authenticate";
 import { requireFeature } from "../middleware/requireFeature";
@@ -83,6 +84,12 @@ router.get(
   "/:id/enrollments",
   authorize("students.read"),
   studentAdminController.enrollments
+);
+
+router.post(
+  "/:id/complete-setup",
+  authorize("students.update"),
+  studentSetupController.completeSetup
 );
 
 router.get(
