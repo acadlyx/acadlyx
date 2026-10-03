@@ -1,117 +1,154 @@
-/* ACADLYX global contrast correction for authenticated shell.
- * Keep the warm beige ERP surface while ensuring sidebar/header text meets
- * strong readability targets across desktop, tablet and mobile.
+/* ACADLYX authenticated-shell contrast baseline.
+ * Keep the warm institutional palette while making navigation and account
+ * metadata readable against their actual surfaces. These rules intentionally
+ * use direct shell selectors so they remain effective even when module-level
+ * Tailwind utilities differ.
  */
 
-/* Dark sidebar: use near-white primary text and clearly separated muted text. */
+/* ================================================================
+   DARK SIDEBAR
+   ================================================================ */
 .acadlyx-app-shell aside {
-  color: #f8fafc;
+  color: #f8fafc !important;
 }
 
-.acadlyx-app-shell aside nav a {
+.acadlyx-app-shell aside nav a,
+.acadlyx-app-shell aside nav a:visited {
   color: #f1f5f9 !important;
 }
 
-.acadlyx-app-shell aside nav a:hover {
-  color: #ffffff !important;
-}
-
+.acadlyx-app-shell aside nav a:hover,
+.acadlyx-app-shell aside nav a:focus-visible,
 .acadlyx-app-shell aside nav a[aria-current="page"] {
   color: #ffffff !important;
 }
 
+/* The label is a direct flex child of every navigation link. */
+.acadlyx-app-shell aside nav a > span {
+  color: inherit !important;
+}
+
+.acadlyx-app-shell aside nav a > span:first-child {
+  color: #e2e8f0 !important;
+}
+
+.acadlyx-app-shell aside nav a:hover > span:first-child,
+.acadlyx-app-shell aside nav a:focus-visible > span:first-child,
+.acadlyx-app-shell aside nav a[aria-current="page"] > span:first-child {
+  color: #ffffff !important;
+}
+
+.acadlyx-app-shell aside nav a[aria-current="page"] > span:first-child {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Group headings and supporting navigation metadata. */
 .acadlyx-app-shell aside nav section > div:first-child {
   color: #dbe4ee !important;
 }
 
-/* Navigation icon containers and icons remain readable in both states. */
-.acadlyx-app-shell aside nav a > span:first-child {
-  color: #dbe5ef !important;
-}
-
-.acadlyx-app-shell aside nav a[aria-current="page"] > span:first-child {
-  color: #ffffff !important;
-  background-color: rgba(255, 255, 255, 0.16) !important;
-}
-
-.acadlyx-app-shell aside nav a:hover > span:first-child {
-  color: #ffffff !important;
-}
-
-/* Sidebar badges need sufficient contrast against the dark navigation surface. */
-.acadlyx-app-shell aside nav a:not([aria-current="page"]) span[class*="bg-blue-500"] {
+.acadlyx-app-shell aside nav a span[class*="bg-blue-500"] {
   color: #dbeafe !important;
 }
 
-/* Sidebar controls and mobile close button. */
-.acadlyx-app-shell aside button {
-  color: #e2e8f0 !important;
-}
-
-.acadlyx-app-shell aside button:hover {
+.acadlyx-app-shell aside nav a[aria-current="page"] span[class*="bg-blue-500"] {
   color: #ffffff !important;
 }
 
-/* Brand subtitle was too faint against the dark sidebar. */
+/* Sidebar brand and controls. */
 .acadlyx-app-shell aside .text-\[10px\] {
   color: #cbd5e1 !important;
 }
 
-/* Header is a light beige surface: keep all profile metadata dark enough. */
-.acadlyx-app-shell header {
-  color: #1f2937;
-}
-
-.acadlyx-app-shell header > div > div:last-child > div > button {
-  color: #1f2937 !important;
-}
-
-.acadlyx-app-shell header > div > div:last-child > div > button:hover {
-  color: #111827 !important;
-}
-
-/* User name and role in the authenticated profile control. */
-.acadlyx-app-shell header > div > div:last-child > div > button > span:nth-child(2) > span:first-child {
-  color: #111827 !important;
-}
-
-.acadlyx-app-shell header > div > div:last-child > div > button > span:nth-child(2) > span:last-child {
-  color: #4b5563 !important;
-  font-weight: 650;
-}
-
-.acadlyx-app-shell header > div > div:last-child > div > button > svg {
-  color: #4b5563 !important;
-}
-
-/* Avatar initials remain dark enough against the pale blue avatar surface. */
-.acadlyx-app-shell header > div > div:last-child > div > button > span:first-child {
-  color: #1e3a5f !important;
-  background-color: #dbeafe !important;
-}
-
-/* Profile dropdown stays dark, but all secondary text is lifted from slate-400. */
-.acadlyx-app-shell header [class*="bg-[#101a2d]"] {
-  color: #f8fafc;
-}
-
-.acadlyx-app-shell header [class*="bg-[#101a2d]"] .text-\[\#a8b2bf\] {
-  color: #d1d9e2 !important;
-}
-
-.acadlyx-app-shell header [class*="bg-[#101a2d]"] .text-slate-300 {
+.acadlyx-app-shell aside button {
   color: #e2e8f0 !important;
 }
 
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-400 {
+.acadlyx-app-shell aside button:hover,
+.acadlyx-app-shell aside button:focus-visible {
+  color: #ffffff !important;
+}
+
+.acadlyx-app-shell aside .text-red-600 {
+  color: #fecaca !important;
+}
+
+.acadlyx-app-shell aside .text-red-600:hover {
+  color: #fee2e2 !important;
+}
+
+/* ================================================================
+   LIGHT TOP BAR / USER PROFILE
+   ================================================================ */
+.acadlyx-app-shell header {
+  color: #1f2937 !important;
+}
+
+.acadlyx-app-shell header button,
+.acadlyx-app-shell header a {
+  color: #1f2937 !important;
+}
+
+.acadlyx-app-shell header button:hover,
+.acadlyx-app-shell header button:focus-visible,
+.acadlyx-app-shell header a:hover,
+.acadlyx-app-shell header a:focus-visible {
+  color: #111827 !important;
+}
+
+/* User name, role and chevron in the authenticated profile control. */
+.acadlyx-app-shell header .text-slate-900 {
+  color: #111827 !important;
+}
+
+.acadlyx-app-shell header .text-slate-600 {
+  color: #475569 !important;
+}
+
+.acadlyx-app-shell header .text-slate-400 {
+  color: #475569 !important;
+}
+
+.acadlyx-app-shell header [class*="text-[#a8b2bf"] {
+  color: #d1d9e2 !important;
+}
+
+.acadlyx-app-shell header .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+.acadlyx-app-shell header .text-slate-400,
+.acadlyx-app-shell header .text-slate-500 {
   color: #cbd5e1 !important;
 }
 
-/* Strong, visible keyboard focus for the shell. */
+/* The profile avatar is a pale blue circle: use a dark ink color. */
+.acadlyx-app-shell header button > span:first-child {
+  color: #1e3a5f !important;
+}
+
+/* Profile dropdown remains dark and therefore uses light text. */
+.acadlyx-app-shell header [class*="bg-[#101a2d"] {
+  color: #f8fafc !important;
+}
+
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-\[\#a8b2bf\] {
+  color: #d1d9e2 !important;
+}
+
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-red-600 {
+  color: #fecaca !important;
+}
+
+/* Strong keyboard focus for the authenticated shell. */
 .acadlyx-app-shell aside a:focus-visible,
 .acadlyx-app-shell aside button:focus-visible,
 .acadlyx-app-shell header button:focus-visible,
 .acadlyx-app-shell header a:focus-visible {
-  outline: 2px solid #9cc5ad !important;
+  outline: 2px solid #1d4ed8 !important;
   outline-offset: 2px;
 }
