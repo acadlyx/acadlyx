@@ -1,18 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   getHallTicket,
-  getStudentExaminations,
+  listStudentHallTickets,
   HallTicketView,
 } from "@/lib/examinationsApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
-
-function text(value: unknown) {
-  return typeof value === "string" || typeof value === "number" ? String(value) : "—";
-}
 
 function printAdmitCard() {
   if (typeof window !== "undefined") window.print();
@@ -20,8 +16,7 @@ function printAdmitCard() {
 
 export default function StudentAdmitCardsPage() {
   const router = useRouter();
-  const [sessions, setSessions] = useState<string[]>([]);
-  const [tickets, setTickets] = useState<Record<string, HallTicketView>>({});
+  const [tickets, setTickets] = useState<HallTicketView[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -36,27 +31,7 @@ export default function StudentAdmitCardsPage() {
         return;
       }
 
-      const data = await getStudentExaminations(user.id);
-      const ids = Array.from(
-        new Set(
-          data.upcoming
-            .map((exam) => text(exam.examSessionId))
-            .filter((id) => id !== "—"),
-        ),
-      );
-      setSessions(ids);
-
-      const results = await Promise.allSettled(
-        ids.map(async (sessionId) => [sessionId, await getHallTicket(sessionId, user.id)] as const),
-      );
-
-      const next: Record<string, HallTicketView> = {};
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          next[result.value[0]] = result.value[1];
-        }
-      }
-      setTickets(next);
+      setTickets(await listStudentHallTickets(user.id));
     } catch (reason) {
       if (reason instanceof AuthRequiredError) {
         router.replace("/login");
@@ -72,18 +47,17 @@ export default function StudentAdmitCardsPage() {
     void load();
   }, [load]);
 
-  const available = useMemo(
-    () => sessions.map((id) => tickets[id]).filter(Boolean),
-    [sessions, tickets],
-  );
-
   async function refreshTicket(sessionId: string) {
     setBusy(sessionId);
     setError("");
     try {
       const user = await getCurrentUser();
       const ticket = await getHallTicket(sessionId, user.id);
-      setTickets((current) => ({ ...current, [sessionId]: ticket }));
+      setTickets((current) =>
+        current.map((item) =>
+          item.session.id === sessionId ? ticket : item,
+        ),
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load this admit card.");
     } finally {
@@ -113,7 +87,7 @@ export default function StudentAdmitCardsPage() {
               </p>
               <h1 className="mt-1 text-2xl font-black text-slate-950">My Admit Cards</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Only examination sessions for which a hall ticket has been issued and released to you are shown here.
+                Published admit cards appear here as soon as the examination cell releases them.
               </p>
             </div>
             <button
@@ -139,15 +113,15 @@ export default function StudentAdmitCardsPage() {
               <div key={item} className="h-56 animate-pulse rounded-3xl bg-slate-200" />
             ))}
           </div>
-        ) : available.length === 0 ? (
+        ) : tickets.length === 0 ? (
           <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <h2 className="text-lg font-black text-slate-900">No released admit cards</h2>
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
-              Your examination cell has not released an admit card for an upcoming examination yet.
+              Your examination cell has not released an admit card for you yet. Once it is issued and its release time has arrived, it will appear here.
             </p>
           </section>
         ) : (
-          available.map((ticket) => (
+          tickets.map((ticket) => (
             <article
               key={ticket.ticket.id}
               className="acadlyx-admit-card-print overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
