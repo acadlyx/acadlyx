@@ -545,6 +545,276 @@ export async function listRegistrations(
   };
 }
 
+
+/**
+ * HOD bulk course assignment.
+ *
+ * This is the operational path for compulsory/department-managed course
+ * assignment. Unlike student self-service registration, assignments made
+ * by an authorised HOD are immediately APPROVED, so the student can enter
+ * the academic roster without a second manual approval step.
+ *
+ * Every student/offering pair is checked against the student's active
+ * semester + section and the HOD's managed department scope.
+ */
+export async function bulkAssignCourses(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: {
+    studentIds: string[];
+    courseOfferingIds: string[];
+  },
+  meta: Meta
+) {
+  if (!actor.roles.includes("HOD")) {
+    throw new AppError("Only an HOD may use bulk course assignment", 403);
+  }
+
+  const studentIds = Array.from(new Set(input.studentIds));
+  const courseOfferingIds = Array.from(new Set(input.courseOfferingIds));
+
+  const [students, offerings] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        id: { in: studentIds },
+        institutionId,
+        isActive: true,
+        userRoles: {
+          some: {
+            role: { name: "STUDENT", institutionId },
+          },
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        studentEnrollments: {
+          where: { institutionId, status: "ACTIVE" },
+          orderBy: { enrolledAt: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            programId: true,
+            academicYearId: true,
+            semesterId: true,
+            sectionId: true,
+            program: { select: { departmentId: true } },
+          },
+        },
+      },
+    }),
+    prisma.courseOffering.findMany({
+      where: {
+        id: { in: courseOfferingIds },
+        institutionId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        semesterId: true,
+        sectionId: true,
+        capacity: true,
+        course: {
+          select: {
+            id: true,
+            code: true,
+            credits: true,
+            departmentId: true,
+          },
+        },
+        section: { select: { capacity: true } },
+      },
+    }),
+  ]);
+
+  if (students.length !== studentIds.length) {
+    throw new AppError("One or more selected students are not available in this institution", 404);
+  }
+  if (offerings.length !== courseOfferingIds.length) {
+    throw new AppError("One or more selected course offerings are not available", 404);
+  }
+
+  for (const offering of offerings) {
+    await assertApproverScope(institutionId, actor, offering.course.departmentId);
+  }
+
+  const studentById = new Map(students.map((student) => [student.id, student]));
+  const offeringById = new Map(offerings.map((offering) => [offering.id, offering]));
+
+  for (const studentId of studentIds) {
+    const student = studentById.get(studentId)!;
+    const enrollment = student.studentEnrollments[0];
+
+    if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
+      throw new AppError(
+        `${student.firstName} ${student.lastName} has no active semester/section enrollment`,
+        422
+      );
+    }
+
+    for (const courseOfferingId of courseOfferingIds) {
+      const offering = offeringById.get(courseOfferingId)!;
+
+      if (
+        enrollment.semesterId !== offering.semesterId ||
+        enrollment.sectionId !== offering.sectionId
+      ) {
+        throw new AppError(
+          `${student.firstName} ${student.lastName} is not enrolled in the semester/section for ${offering.course.code}`,
+          422
+        );
+      }
+
+      if (enrollment.program?.departmentId !== offering.course.departmentId) {
+        throw new AppError(
+          `${student.firstName} ${student.lastName} is outside the department scope of ${offering.course.code}`,
+          403
+        );
+      }
+    }
+  }
+
+  const results = await prisma.$transaction(async (tx) => {
+    const assigned: Prisma.CourseRegistrationGetPayload<{ include: typeof include }>[] = [];
+
+    for (const studentId of studentIds) {
+      for (const courseOfferingId of courseOfferingIds) {
+        const offering = offeringById.get(courseOfferingId)!;
+
+        const existing = await tx.courseRegistration.findUnique({
+          where: {
+            studentId_courseOfferingId: {
+              studentId,
+              courseOfferingId,
+            },
+          },
+          include,
+        });
+
+        if (existing?.status === "APPROVED") {
+          assigned.push(existing);
+          continue;
+        }
+
+        const duplicateCourse = await tx.courseRegistration.findFirst({
+          where: {
+            institutionId,
+            studentId,
+            status: { in: ["REQUESTED", "APPROVED"] },
+            id: existing ? { not: existing.id } : undefined,
+            courseOffering: {
+              courseId: offering.course.id,
+              semesterId: offering.semesterId,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (duplicateCourse) {
+          throw new AppError(
+            `Student is already registered for ${offering.course.code} in this semester`,
+            409
+          );
+        }
+
+        const activeCredits = await tx.courseRegistration.findMany({
+          where: {
+            institutionId,
+            studentId,
+            status: { in: ["REQUESTED", "APPROVED"] },
+            id: existing ? { not: existing.id } : undefined,
+            courseOffering: { semesterId: offering.semesterId },
+          },
+          select: {
+            courseOffering: {
+              select: { course: { select: { credits: true } } },
+            },
+          },
+        });
+
+        const currentCredits = activeCredits.reduce(
+          (sum, row) => sum + row.courseOffering.course.credits,
+          0
+        );
+
+        if (currentCredits + offering.course.credits > MAX_CREDITS_PER_SEMESTER) {
+          throw new AppError(
+            `Credit limit exceeded for selected student: ${currentCredits} registered, limit is ${MAX_CREDITS_PER_SEMESTER}`,
+            422
+          );
+        }
+
+        const limit = seatLimit(offering);
+        if (limit !== null) {
+          const approvedCount = await tx.courseRegistration.count({
+            where: {
+              courseOfferingId,
+              status: "APPROVED",
+              ...(existing ? { id: { not: existing.id } } : {}),
+            },
+          });
+
+          if (approvedCount >= limit) {
+            throw new AppError(
+              `Course offering ${offering.course.code} is already full`,
+              409
+            );
+          }
+        }
+
+        const saved = existing
+          ? await tx.courseRegistration.update({
+              where: { id: existing.id },
+              data: {
+                status: "APPROVED",
+                decidedById: actor.id,
+                decidedAt: new Date(),
+                remarks: "Assigned and approved by HOD",
+              },
+              include,
+            })
+          : await tx.courseRegistration.create({
+              data: {
+                institutionId,
+                studentId,
+                courseOfferingId,
+                status: "APPROVED",
+                decidedById: actor.id,
+                decidedAt: new Date(),
+                remarks: "Assigned and approved by HOD",
+              },
+              include,
+            });
+
+        assigned.push(saved);
+      }
+    }
+
+    return assigned;
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "registration.bulk_assign",
+    entityType: "CourseRegistration",
+    metadata: {
+      studentIds,
+      courseOfferingIds,
+      assignedCount: results.length,
+    },
+    ...meta,
+  });
+
+  return {
+    assignedCount: results.length,
+    studentsCount: studentIds.length,
+    coursesCount: courseOfferingIds.length,
+    items: results,
+  };
+}
+
 export async function updateOfferingCapacity(
   institutionId: string,
   actor: AuthenticatedUser,
