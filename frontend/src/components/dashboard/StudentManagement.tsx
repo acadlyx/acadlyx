@@ -2,6 +2,7 @@
 
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthRequiredError, authedFetch, getCurrentUser } from "@/lib/auth";
+import { deleteAdminUser } from "@/lib/adminApi";
 
 type Lookup = {
   id: string;
@@ -461,6 +462,47 @@ export function StudentManagement({ onChanged }: Props) {
     }
   }
 
+  async function softDeleteStudent(student: Student) {
+    if (!permissions.includes("users.delete")) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Move ${student.firstName} ${student.lastName} to Deleted Users? The account will be disabled and recoverable for 90 days.`,
+    );
+    if (!confirmed) return;
+
+    const reason = window.prompt("Required deletion reason:", "")?.trim();
+    if (!reason) {
+      setError("A deletion reason is required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await deleteAdminUser(student.id, reason);
+      setStudents((current) =>
+        current.filter((item) => item.id !== student.id),
+      );
+      setSelected(null);
+      setSuccess(
+        "Student moved to Deleted Users. The 90-day recovery period has started.",
+      );
+      await onChanged?.();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to delete student.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function openStudent(student: Student) {
     setError("");
     try {
@@ -636,6 +678,15 @@ export function StudentManagement({ onChanged }: Props) {
                           permissions.includes("students.update") ? (
                             <button onClick={() => startEnrollment(student)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                               Enroll
+                            </button>
+                          ) : null}
+                          {permissions.includes("users.delete") ? (
+                            <button
+                              onClick={() => void softDeleteStudent(student)}
+                              disabled={saving}
+                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Delete
                             </button>
                           ) : null}
                         </div>
