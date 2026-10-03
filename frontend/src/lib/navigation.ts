@@ -124,6 +124,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "People",
   },
   {
+    label: "Student Setup",
+    href: "/admin/student-setup",
+    icon: "✦",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["students.update"],
+    group: "People",
+  },
+  {
     label: "Academic structure",
     href: "/admin/departments",
     icon: "▦",
