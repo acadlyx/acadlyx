@@ -32,10 +32,10 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[620px]">
+          <div className="relative mx-auto w-full max-w-[620px] lg:max-w-[660px]">
             <div className="absolute -inset-5 rounded-[34px] border border-blue-400/10 bg-blue-500/5 blur-2xl" />
             <div className="relative w-full overflow-hidden rounded-[24px] border border-slate-600/80 bg-slate-950/95 p-2 sm:p-3 shadow-[0_28px_80px_rgba(0,0,0,.38)]">
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[18px] border border-slate-200/10 bg-[#f8f4eb]">
+              <div className="relative min-h-[620px] w-full overflow-hidden rounded-[18px] border border-slate-200/10 bg-[#f8f4eb] sm:min-h-[680px] lg:min-h-[720px]">
                 {loginOpen ? <InlineLogin /> : (
                   <div className="absolute inset-0 overflow-hidden bg-[#f8f4eb] p-4 sm:p-7">
                     <div className="flex items-center justify-between gap-3">
