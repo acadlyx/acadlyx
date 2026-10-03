@@ -8,6 +8,7 @@ import type { DataType } from "@/lib/dataTransferApi";
 import { authedFetch, getCurrentUser } from "@/lib/auth";
 import { findAdminNavItem, type AdminNavItem } from "@/lib/adminNavigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DetailDrawer, DetailField } from "@/components/ui/DetailDrawer";
 
 type Row = Record<string, any> & { id?: string };
 type Lookup = Row;
@@ -194,19 +195,38 @@ function text(value: any): string {
   return String(value);
 }
 
-function dateText(value: any): string {
+function isDateOnlyField(field: string): boolean {
+  const key = field.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  return key.endsWith("date") || key === "dob" || key === "dateofbirth";
+}
+
+function isTimestampField(field: string): boolean {
+  const key = field.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  return key.endsWith("at") || key.includes("timestamp") || key.includes("datetime") || key === "created" || key === "updated";
+}
+
+function dateText(value: any, field = ""): string {
   if (!value) return "—";
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
+  if (isDateOnlyField(field)) {
+    const raw = String(value);
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [year, month, day] = match.slice(1).map(Number);
+      return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(
+        new Date(year, month - 1, day),
+      );
+    }
   }
 
-  return date.toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  if (!isTimestampField(field)) {
+    return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  }
+
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 function relationId(value: any): string {
@@ -1667,97 +1687,45 @@ function Detail({
   row,
   fields,
   onClose,
+  canEdit = false,
+  onEdit,
 }: {
   row: Row;
   fields: string[];
   onClose: () => void;
+  canEdit?: boolean;
+  onEdit?: () => void;
 }) {
+  const title = text(row.name ?? row.title ?? row.email ?? row.code ?? row.id);
+  const subtitle = text(row.code ?? row.email ?? row.id);
+
   return (
-    <div
-      className="fixed inset-0 z-[110] bg-slate-950/50 p-4 backdrop-blur-sm [color-scheme:light]"
-      onMouseDown={onClose}
+    <DetailDrawer
+      title={title}
+      subtitle={subtitle !== title ? subtitle : undefined}
+      onClose={onClose}
+      canEdit={canEdit}
+      onEdit={onEdit}
     >
-      <aside
-        className="ml-auto flex h-full max-w-xl flex-col overflow-hidden rounded-[30px] bg-white text-slate-900 shadow-2xl"
-        onMouseDown={(event) =>
-          event.stopPropagation()
-        }
-      >
-        <div className="flex items-center justify-between border-b border-slate-100 p-6">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
-              Record details
-            </p>
+      {fields.map((field) => {
+        const value = rowValue(row, field);
+        const dateOnly = isDateOnlyField(field);
+        const timestamp = isTimestampField(field);
 
-            <h3 className="mt-1 text-2xl font-black">
-              {text(
-                row.name ??
-                  row.title ??
-                  row.email ??
-                  row.code ??
-                  row.id,
-              )}
-            </h3>
-          </div>
-
-          <button
-            className={SECONDARY}
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid gap-3">
-            {fields.map(
-              (field) => {
-                const value =
-                  rowValue(
-                    row,
-                    field,
-                  );
-
-                const isDate =
-                  field
-                    .toLowerCase()
-                    .includes(
-                      "date",
-                    ) ||
-                  field
-                    .toLowerCase()
-                    .endsWith(
-                      "at",
-                    );
-
-                return (
-                  <div
-                    key={field}
-                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-                  >
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      {displayColumn(
-                        field,
-                      )}
-                    </p>
-
-                    <p className="mt-1 break-words text-sm font-bold text-slate-800">
-                      {isDate
-                        ? dateText(
-                            value,
-                          )
-                        : text(
-                            value,
-                          )}
-                    </p>
-                  </div>
-                );
-              },
-            )}
-          </div>
-        </div>
-      </aside>
-    </div>
+        return (
+          <DetailField
+            key={field}
+            label={displayColumn(field)}
+            value={dateOnly || timestamp ? dateText(value, field) : text(value)}
+            tone={
+              field.toLowerCase().includes("status") && String(value).toLowerCase() === "active"
+                ? "success"
+                : "default"
+            }
+          />
+        );
+      })}
+    </DetailDrawer>
   );
 }
 
@@ -1769,23 +1737,18 @@ function toInputDate(
 ): string {
   if (!value) return "";
 
-  const date = new Date(
-    value,
-  );
-
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return "";
-  }
-
   if (type === "date") {
-    return date
-      .toISOString()
-      .slice(0, 10);
+    const raw = String(value);
+    const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
+    if (match) return match[0];
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
 
   const local = new Date(
     date.getTime() -
@@ -2602,6 +2565,7 @@ function ResourceManager({
                               )
                               ? dateText(
                                   value,
+                                  column,
                                 )
                               : text(
                                   value,
@@ -2675,6 +2639,11 @@ function ResourceManager({
               null,
             )
           }
+          canEdit={canUpdate}
+          onEdit={() => {
+            setSelected(null);
+            openEdit(selected);
+          }}
         />
       )}
 
