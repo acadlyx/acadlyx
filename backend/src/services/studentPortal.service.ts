@@ -14,7 +14,7 @@ import { AppError } from "../middleware/errorHandler";
  */
 
 const enrollmentInclude = {
-  program: { select: { id: true, name: true, code: true, level: true } },
+  program: { select: { id: true, name: true, code: true, level: true, departmentId: true } },
   academicYear: { select: { id: true, name: true, isCurrent: true } },
   section: {
     select: {
