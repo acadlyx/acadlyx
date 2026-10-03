@@ -5,8 +5,10 @@ import test from "node:test";
 
 import {
   PERMISSIONS,
+  PermissionKey,
   ROLE_PERMISSIONS,
   SYSTEM_ROLE_NAMES,
+  SystemRoleName,
 } from "../config/rbac";
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -39,7 +41,7 @@ function collectRouteFiles(directory: string): string[] {
 }
 
 test("every role permission exists in the canonical permission catalog", () => {
-  const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
+  const catalog = new Set<string>(PERMISSIONS.map((permission) => permission.key));
 
   for (const role of SYSTEM_ROLE_NAMES) {
     for (const permission of ROLE_PERMISSIONS[role] ?? []) {
@@ -52,7 +54,7 @@ test("every role permission exists in the canonical permission catalog", () => {
 });
 
 test("all backend route permission gates exist in the canonical catalog", () => {
-  const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
+  const catalog = new Set<string>(PERMISSIONS.map((permission) => permission.key));
   const routeFiles = collectRouteFiles(path.join(ROOT, "backend", "src", "routes"));
   const unknown: string[] = [];
 
@@ -69,7 +71,7 @@ test("all backend route permission gates exist in the canonical catalog", () => 
 });
 
 test("all frontend navigation permission keys exist in the canonical catalog", () => {
-  const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
+  const catalog = new Set<string>(PERMISSIONS.map((permission) => permission.key));
   const navigationPath = path.join(ROOT, "frontend", "src", "lib", "navigation.ts");
   const content = fs.readFileSync(navigationPath, "utf8");
   const unknown = extractNavigationPermissionKeys(content).filter(
@@ -84,7 +86,7 @@ test("all frontend navigation permission keys exist in the canonical catalog", (
 });
 
 test("critical examination, result and user-lifecycle permissions are assigned intentionally", () => {
-  const has = (role: string, permission: string) =>
+  const has = (role: SystemRoleName, permission: PermissionKey) =>
     (ROLE_PERMISSIONS[role] ?? []).includes(permission);
 
   assert.equal(has("EXAMINATION", "exams.read"), true);
@@ -108,7 +110,7 @@ test("critical examination, result and user-lifecycle permissions are assigned i
 });
 
 test("institution administration does not receive examination write authority by default", () => {
-  const permissions = new Set(ROLE_PERMISSIONS.INSTITUTION_ADMIN ?? []);
+  const permissions = new Set<PermissionKey>(ROLE_PERMISSIONS.INSTITUTION_ADMIN ?? []);
 
   assert.equal(permissions.has("exams.manage"), false);
   assert.equal(permissions.has("exams.approve"), false);
