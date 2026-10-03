@@ -22,6 +22,7 @@ router.get(
         academicYearId: typeof req.query.academicYearId === "string" ? req.query.academicYearId : undefined,
         semesterId: typeof req.query.semesterId === "string" ? req.query.semesterId : undefined,
         sectionId: typeof req.query.sectionId === "string" ? req.query.sectionId : undefined,
+        batchId: typeof req.query.batchId === "string" ? req.query.batchId : undefined,
       }
     );
 
