@@ -39,7 +39,27 @@ function text(v: any): string { return String(v ?? "").trim(); }
 function number(v: any): number { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 function bool(v: any): boolean { return [true, 1, "1", "true", "yes", "y"].includes(typeof v === "string" ? v.toLowerCase() : v); }
 function date(v: any): Date { if (v instanceof Date) return v; if (typeof v === "number") return XLSX.SSF.parse_date_code(v) ? new Date(Date.UTC(XLSX.SSF.parse_date_code(v).y, XLSX.SSF.parse_date_code(v).m - 1, XLSX.SSF.parse_date_code(v).d)) : new Date(v); const d = new Date(v); if (Number.isNaN(d.getTime())) throw new AppError(`Invalid date: ${v}`, 400); return d; }
-function normalizeRow(row: Row): Row { return Object.fromEntries(Object.entries(row).map(([k,v]) => [k.toLowerCase().replace(/[\s_-]+/g, ""), v])); }
+function normalizeRow(row: Row): Row { return Object.fromEntries(Object.entries(row).map(([k,v]) => [k.toLowerCase().replace(/[\\s_-]+/g, ""), v])); }
+
+function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED" {
+  const raw = text(value).toUpperCase().replace(/[\\s-]+/g, "_");
+  if (!raw) return "ACTIVE";
+  const aliases: Record<string, "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED"> = {
+    ACTIVE: "ACTIVE",
+    INACTIVE: "INACTIVE",
+    GRADUATED: "GRADUATED",
+    WITHDRAWN: "WITHDRAWN",
+    TRANSFERRED: "TRANSFERRED",
+  };
+  const normalized = aliases[raw];
+  if (!normalized) {
+    throw new AppError(
+      "Invalid student status. Use ACTIVE, INACTIVE, GRADUATED, WITHDRAWN, or TRANSFERRED.",
+      400
+    );
+  }
+  return normalized;
+}
 
 export function parseWorkbook(buffer: Buffer) {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
@@ -232,7 +252,7 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
             );
           }
 
-          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: text(row.status) || "ACTIVE" } });
+          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: normalizeStudentStatus(row.status) } });
           await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } }, update: { programId: program.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, programId: program.id, academicYearId: year.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" } });
         } else if (type === "faculty") {
           await upsertUser(tx, institutionId, row, "FACULTY");
