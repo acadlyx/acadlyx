@@ -157,6 +157,7 @@ model User {
   institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
   email        String    @unique
+  idNumber     String    @unique
   passwordHash String
   firstName    String
   lastName     String
