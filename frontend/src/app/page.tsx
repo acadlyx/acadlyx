@@ -12,7 +12,7 @@ export default function HomePage() {
 
   return (
     <PublicSiteShell onLogin={() => setLoginOpen((value) => !value)}>
-      <section className="relative min-h-[calc(100svh-76px)] overflow-visible px-5 py-8 sm:px-8 sm:py-14">
+      <section className="relative px-5 py-8 sm:px-8 sm:py-14">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.02fr_.98fr] lg:gap-14">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-lg border border-blue-300/20 bg-slate-950/70 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200 shadow-lg backdrop-blur-xl">
@@ -34,10 +34,10 @@ export default function HomePage() {
 
           <div className="relative mx-auto w-full max-w-[620px]">
             <div className="absolute -inset-5 rounded-[34px] border border-blue-400/10 bg-blue-500/5 blur-2xl" />
-            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[24px] border border-slate-600/80 bg-slate-950/95 p-2 sm:p-3 lg:aspect-[1/0.9] shadow-[0_28px_80px_rgba(0,0,0,.38)]">
-              <div className="h-full min-h-0 overflow-hidden rounded-[18px] border border-slate-200/10 bg-[#f8f4eb]">
+            <div className="relative w-full overflow-hidden rounded-[24px] border border-slate-600/80 bg-slate-950/95 p-2 sm:p-3 shadow-[0_28px_80px_rgba(0,0,0,.38)]">
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[18px] border border-slate-200/10 bg-[#f8f4eb]">
                 {loginOpen ? <InlineLogin /> : (
-                  <div className="h-full overflow-y-auto bg-[#f8f4eb] p-4 sm:p-7">
+                  <div className="absolute inset-0 overflow-hidden bg-[#f8f4eb] p-4 sm:p-7">
                     <div className="flex items-center justify-between gap-3">
                       <Image src={content.brand.logoUrl || "/branding/acadlyx-logo.png"} alt={content.brand.siteName} width={38} height={38} className="h-9 w-9 object-contain" priority />
                       <span className="rounded-md border border-slate-200 bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">Live workspace</span>
