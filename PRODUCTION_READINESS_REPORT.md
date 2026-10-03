@@ -178,3 +178,7 @@ Earlier production-hardening work already present on this branch includes the ce
 The last verified green CI run was GitHub Actions run 37066480835 before the latest hardening commits. Its backend, frontend and production smoke jobs all completed successfully.
 
 The latest branch status after the hardening commits currently reports a Vercel status failure whose target explicitly points to the account build-rate-limit upgrade page. This must not be interpreted as an application build error. A fresh application CI run is still required to verify the latest code itself.
+
+
+### Verification refresh
+A fresh CI run is intentionally triggered by this report update so the current branch state is validated after the latest authentication, workspace-context, and batch changes.
