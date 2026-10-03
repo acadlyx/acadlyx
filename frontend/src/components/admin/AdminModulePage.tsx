@@ -2661,7 +2661,9 @@ function ResourceManager({
           }
           canEdit={canUpdate}
           onEdit={() => {
-            openEdit(selected);
+            const row = selected;
+            setSelected(null);
+            openEdit(row);
           }}
         />
       )}
