@@ -64,6 +64,8 @@ export function DashboardShell({
       cachedUser,
     );
 
+  const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
+
   const allowedRolesKey =
     allowedRoles?.join(",") || "";
 
@@ -80,6 +82,23 @@ export function DashboardShell({
     if (cached) {
       setUser(cached);
     }
+
+    fetch("/api/v1/workspace/context", {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("acadlyx_access_token") || ""}`,
+      },
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((response) => {
+        const institution = response?.data?.institution;
+        if (institution) {
+          setInstitutionBrand({
+            name: institution.name || "",
+            logoUrl: institution.logoUrl || null,
+          });
+        }
+      })
+      .catch(() => undefined);
 
     getCurrentUser({
       background: Boolean(cached),
@@ -215,6 +234,8 @@ export function DashboardShell({
           ? `${user.firstName} ${user.lastName}`.trim()
           : "Workspace"
       }
+      institutionName={institutionBrand.name}
+      logoUrl={institutionBrand.logoUrl}
       userRole={
         role
           ? ROLE_LABELS[role] ||
@@ -228,10 +249,6 @@ export function DashboardShell({
     >
       <InstitutionalCmsProvider>
         <div className="acadlyx-workspace-content">
-          <div className="mb-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 shadow-sm">
-            <DashboardBranding />
-            <span className="sr-only">Institutional workspace</span>
-          </div>
           {children}
         </div>
       </InstitutionalCmsProvider>
