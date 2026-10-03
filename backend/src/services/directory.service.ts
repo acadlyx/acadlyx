@@ -292,6 +292,12 @@ export async function searchUsers(
  *
  * Therefore `exams.manage` is accepted as an alternative authority for
  * this LOOKUP ONLY.
+ *
+ * The label intentionally exposes the academic targeting chain used by
+ * examination seating and result generation:
+ * Department → Program/Class → Semester → Section → Course.
+ * This makes the selector understandable without asking staff to paste
+ * internal IDs or guess which roster will be used.
  */
 export async function searchCourseOfferings(
   institutionId: string,
@@ -317,7 +323,12 @@ export async function searchCourseOfferings(
     Prisma.sql`(
       c."code" ILIKE ${like}
       OR c."name" ILIKE ${like}
-      OR s."name" ILIKE ${like}
+      OR sec."name" ILIKE ${like}
+      OR sem."name" ILIKE ${like}
+      OR p."name" ILIKE ${like}
+      OR p."code" ILIKE ${like}
+      OR d."name" ILIKE ${like}
+      OR d."code" ILIKE ${like}
     )`,
   ];
 
@@ -367,33 +378,57 @@ export async function searchCourseOfferings(
       id: string;
       code: string;
       name: string;
+      departmentName: string;
+      departmentCode: string;
+      programName: string;
+      programCode: string;
       sectionName: string;
       semesterName: string;
+      semesterNumber: number;
     }>
   >(Prisma.sql`
     SELECT
       co."id",
       c."code",
       c."name",
-      s."name" AS "sectionName",
-      sem."name" AS "semesterName"
+      d."name" AS "departmentName",
+      d."code" AS "departmentCode",
+      p."name" AS "programName",
+      p."code" AS "programCode",
+      sec."name" AS "sectionName",
+      sem."name" AS "semesterName",
+      sem."number" AS "semesterNumber"
     FROM "course_offerings" co
     JOIN "courses" c
       ON c."id" = co."courseId"
-    JOIN "sections" s
-      ON s."id" = co."sectionId"
+    JOIN "departments" d
+      ON d."id" = c."departmentId"
     JOIN "semesters" sem
       ON sem."id" = co."semesterId"
+    JOIN "programs" p
+      ON p."id" = sem."programId"
+    JOIN "sections" sec
+      ON sec."id" = co."sectionId"
     ${andWhere(conditions)}
     ORDER BY
-      c."code" ASC,
-      c."name" ASC
+      d."code" ASC,
+      p."code" ASC,
+      sem."number" ASC,
+      sec."name" ASC,
+      c."code" ASC
     LIMIT ${MAX_RESULTS}
   `);
 
   return rows.map((row) => ({
     id: row.id,
     label: `${row.code} — ${row.name}`,
-    hint: `${row.sectionName} · ${row.semesterName}`,
+    hint: [
+      `${row.departmentCode} · ${row.departmentName}`,
+      `${row.programCode} · ${row.programName}`,
+      `Semester ${row.semesterNumber}`,
+      row.sectionName,
+    ]
+      .filter(Boolean)
+      .join(" · "),
   }));
 }
