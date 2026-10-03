@@ -2653,7 +2653,7 @@ function ResourceManager({
             role="dialog"
             aria-modal="true"
             aria-labelledby="acadlyx-resource-editor-title"
-            className="mx-auto my-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] bg-slate-50 text-slate-900 shadow-2xl [color-scheme:light] sm:my-6"
+            className="mx-auto my-2 flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] bg-slate-50 text-slate-900 shadow-2xl [color-scheme:light] sm:my-4 sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[30px]"
           >
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
               <div>
