@@ -843,6 +843,9 @@ function AdminPeopleManagerContent() {
         lastName: String(form.get("lastName") || "").trim(),
         email: String(form.get("email") || "").trim(),
         phone: String(form.get("phone") || "").trim(),
+        ...(String(form.get("password") || "").trim()
+          ? { password: String(form.get("password") || "") }
+          : {}),
         role,
         departmentIds,
       });
@@ -1689,6 +1692,10 @@ function AdminPeopleManagerContent() {
                 <label>
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Phone</span>
                   <input name="phone" defaultValue={selected.phone || ""} className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">New password</span>
+                  <input name="password" type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Leave blank to keep current password" className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
                 </label>
                 <label>
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Role *</span>
