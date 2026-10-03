@@ -40,6 +40,7 @@ model Institution {
   departments           Department[]
   programs              Program[]
   academicYears         AcademicYear[]
+  batches               Batch[]
   semesters             Semester[]
   sections              Section[]
   courses               Course[]
@@ -453,11 +454,13 @@ model Program {
   updatedAt DateTime @updatedAt
 
   semesters Semester[]
+  batches Batch[]
   programmeOutcomes ProgrammeOutcome[]
   obeAttainmentRuns ObeAttainmentRun[]
   obePolicies ObeAttainmentPolicy[]
 
   studentEnrollments StudentEnrollment[]
+  batches             Batch[]
 
   admissionApplications AdmissionApplication[]
 
@@ -494,6 +497,33 @@ model AcademicYear {
   @@map("academic_years")
 }
 
+/// A student cohort spanning an admission/start year through its expected completion year.
+/// Batch is intentionally distinct from AcademicYear: an academic year describes
+/// the institution's operating year, while a batch describes a student's cohort.
+model Batch {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  name              String
+  code              String
+  admissionYear     Int
+  completionYear    Int
+  isActive          Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentEnrollments StudentEnrollment[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId, programId])
+  @@index([programId, admissionYear])
+  @@map("batches")
+}
+
 /// A program's Nth semester, occurring in a specific academic year.
 /// e.g. "B.Tech CSE, Semester 3, 2025-2026".
 model Semester {
@@ -502,6 +532,8 @@ model Semester {
   institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   programId      String
   program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  batchId        String?
+  batch          Batch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
@@ -712,6 +744,8 @@ model StudentEnrollment {
   @@index([sectionId])
   @@index([semesterId])
   @@index([academicYearId])
+  @@index([batchId])
+  @@index([institutionId, batchId, semesterId, sectionId])
   @@map("student_enrollments")
 }
 
