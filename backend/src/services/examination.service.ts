@@ -1196,6 +1196,47 @@ export async function updateHallTicketStatus(
  * Callers other than the student are re-checked against the shared
  * student-visibility rule, so parents see only their linked child.
  */
+
+/**
+ * Lists only hall tickets that are actually available to the student.
+ *
+ * This is intentionally independent of the student's generic upcoming-exam
+ * feed. A hall ticket is a published examination document and must remain
+ * discoverable even when the generic exam dashboard has different filters.
+ */
+export async function listStudentHallTickets(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string
+): Promise<Awaited<ReturnType<typeof getStudentHallTicket>>[]> {
+  await assertCanViewStudent(institutionId, actor, studentId);
+
+  const now = new Date();
+
+  const tickets = await prisma.$queryRaw<
+    Array<{ examSessionId: string }>
+  >(Prisma.sql`
+    SELECT DISTINCT h."examSessionId"
+    FROM "hall_tickets" h
+    JOIN "exam_sessions" es ON es."id" = h."examSessionId"
+    WHERE h."institutionId" = ${institutionId}
+      AND h."studentId" = ${studentId}
+      AND h."status" = 'ISSUED'
+      AND es."status" <> 'CANCELLED'
+      AND (
+        es."hallTicketReleaseAt" IS NULL
+        OR es."hallTicketReleaseAt" <= ${now}
+      )
+    ORDER BY h."examSessionId"
+  `);
+
+  return Promise.all(
+    tickets.map(({ examSessionId }) =>
+      getStudentHallTicket(institutionId, actor, examSessionId, studentId)
+    )
+  );
+}
+
 export async function getStudentHallTicket(
   institutionId: string,
   actor: AuthenticatedUser,
