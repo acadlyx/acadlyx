@@ -44,8 +44,8 @@ export function InlineLogin() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto rounded-[25px] bg-white p-5 text-slate-950 sm:p-8">
-      <div className="my-auto w-full">
+    <div className="flex min-h-[616px] h-full flex-col rounded-[25px] bg-white p-5 text-slate-950 sm:min-h-[672px] sm:p-8 lg:min-h-[712px]">
+      <div className="flex w-full flex-1 flex-col justify-center">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-sm font-black text-white">A</div>
           <div className="min-w-0">
