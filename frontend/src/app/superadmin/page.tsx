@@ -1485,6 +1485,19 @@ export default function SuperAdminPage() {
                 />
 
                 <input
+                  value={userForm.idNumber}
+                  onChange={(event) =>
+                    setUserForm((current) => ({
+                      ...current,
+                      idNumber: event.target.value,
+                    }))
+                  }
+                  required
+                  placeholder="ID number / Login ID"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                />
+
+                <input
                   value={userForm.email}
                   onChange={(event) =>
                     setUserForm((current) => ({
