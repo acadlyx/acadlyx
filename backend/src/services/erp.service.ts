@@ -2556,29 +2556,37 @@ export async function listNotices(
             ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
             : undefined;
 
-  return prisma.notice.findMany({
-    where: {
-      institutionId,
+  const where: Prisma.NoticeWhereInput = {
+    institutionId,
+    AND: [
       ...(includeExpired
-        ? {}
-        : {
-            OR: [
-              { expiresAt: null },
-              { expiresAt: { gt: now } },
-            ],
-          }),
-      ...(audience ? { audience: { in: audience } } : {}),
+        ? []
+        : [
+            {
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: now } },
+              ],
+            },
+          ]),
+      ...(audience ? [{ audience: { in: audience } }] : []),
       ...(isHod || isStudent || isParent
-        ? {
-            OR: [
-              { departmentId: null },
-              ...(departmentIds.length
-                ? [{ departmentId: { in: departmentIds } }]
-                : []),
-            ],
-          }
-        : {}),
-    },
+        ? [
+            {
+              OR: [
+                { departmentId: null },
+                ...(departmentIds.length
+                  ? [{ departmentId: { in: departmentIds } }]
+                  : []),
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+
+  return prisma.notice.findMany({
+    where,
     orderBy: { publishedAt: "desc" },
   });
 }
