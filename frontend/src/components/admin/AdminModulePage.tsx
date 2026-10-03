@@ -2694,9 +2694,10 @@ function ResourceManager({
 
             <form
               onSubmit={save}
-              className="space-y-5 p-5 sm:p-6"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
             >
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+                <div className="grid gap-4 md:grid-cols-2">
                 {fields.map(
                   (field) => (
                     <label
@@ -2751,6 +2752,7 @@ function ResourceManager({
                     </label>
                   ),
                 )}
+                </div>
               </div>
 
               {error && (
@@ -2759,7 +2761,7 @@ function ResourceManager({
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+              <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
                 <button
                   type="button"
                   className={
