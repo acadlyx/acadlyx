@@ -11,6 +11,7 @@ import {
   UnifiedDashboardFrame,
   DashboardNavigationItem,
 } from "./UnifiedDashboardFrame";
+import { useWorkspaceShellContext } from "./WorkspaceShellContext";
 import {
   AuthRequiredError,
   AuthUser,
@@ -51,6 +52,9 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const workspaceShell = useWorkspaceShellContext();
+  const embeddedInWorkspaceShell =
+    workspaceShell?.kind === "admin";
 
   const cachedUser =
     getCachedCurrentUser();
@@ -60,11 +64,14 @@ export function DashboardShell({
       cachedUser,
     );
 
-
   const allowedRolesKey =
     allowedRoles?.join(",") || "";
 
   useEffect(() => {
+    if (embeddedInWorkspaceShell) {
+      return;
+    }
+
     let alive = true;
 
     const cached =
@@ -96,17 +103,15 @@ export function DashboardShell({
           router.replace("/login");
           return;
         }
-
-        
       });
 
     return () => {
       alive = false;
     };
-  }, [router]);
+  }, [router, embeddedInWorkspaceShell]);
 
   useEffect(() => {
-    if (!user) {
+    if (embeddedInWorkspaceShell || !user) {
       return;
     }
 
@@ -143,6 +148,7 @@ export function DashboardShell({
     router,
     user,
     allowedRolesKey,
+    embeddedInWorkspaceShell,
   ]);
 
   /*
@@ -193,6 +199,10 @@ export function DashboardShell({
   async function signOut() {
     await logout();
     router.replace("/login");
+  }
+
+  if (embeddedInWorkspaceShell) {
+    return <>{children}</>;
   }
 
   return (
