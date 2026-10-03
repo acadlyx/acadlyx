@@ -15,6 +15,7 @@ export type WorkspaceContextInput = {
   academicYearId?: string;
   semesterId?: string;
   sectionId?: string;
+  batchId?: string;
 };
 
 async function allowedDepartmentIds(
@@ -73,6 +74,7 @@ export async function getWorkspaceContext(
         academicYearId: true,
         semesterId: true,
         sectionId: true,
+        batchId: true,
         program: { select: { departmentId: true } },
       },
     });
@@ -100,6 +102,7 @@ export async function getWorkspaceContext(
       academicYearId: enrollment.academicYearId,
       semesterId: enrollment.semesterId ?? undefined,
       sectionId: enrollment.sectionId ?? undefined,
+      batchId: enrollment.batchId ?? undefined,
     };
   }
 
@@ -124,6 +127,19 @@ export async function getWorkspaceContext(
   }
 
   const selectedDepartment = departments[0] ?? null;
+
+  if (input.batchId) {
+    const batch = await prisma.batch.findFirst({
+      where: {
+        id: input.batchId,
+        institutionId,
+        isActive: true,
+        ...(input.programId ? { programId: input.programId } : {}),
+      },
+      select: { id: true },
+    });
+    if (!batch) throw new AppError("Batch is not valid for the selected program", 404);
+  }
 
   if (input.programId) {
     const program = await prisma.program.findFirst({
@@ -209,6 +225,18 @@ export async function getWorkspaceContext(
     throw new AppError("Section is not valid for the selected semester", 404);
   }
 
+  const batches = input.programId
+    ? await prisma.batch.findMany({
+        where: { institutionId, programId: input.programId, isActive: true },
+        select: { id: true, name: true, code: true, programId: true, admissionYear: true, completionYear: true },
+        orderBy: { admissionYear: "desc" },
+      })
+    : [];
+
+  const selectedBatch = input.batchId
+    ? batches.find((batch) => batch.id === input.batchId) ?? null
+    : null;
+
   const selectedProgram = input.programId
     ? programs.find((program) => program.id === input.programId) ?? null
     : null;
@@ -217,8 +245,16 @@ export async function getWorkspaceContext(
     ? academicYears.find((year) => year.id === input.academicYearId) ?? null
     : null;
 
+  const basePath = workspaceBasePath(roles);
+  const contextHref = (extra: Record<string, string | undefined> = {}) => {
+    const params = new URLSearchParams();
+    const values = { departmentId, programId: input.programId, batchId: input.batchId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId, ...extra };
+    Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
+    const query = params.toString();
+    return query ? `${basePath}?${query}` : basePath;
+  };
   const breadcrumbs: Array<{ type: string; id: string; label: string; href: string }> = [
-    { type: "institution", id: institutionId, label: "Institution", href: "/admin" },
+    { type: "institution", id: institutionId, label: "Institution", href: basePath },
   ];
 
   if (selectedDepartment) {
@@ -226,7 +262,7 @@ export async function getWorkspaceContext(
       type: "department",
       id: selectedDepartment.id,
       label: selectedDepartment.name,
-      href: `/admin/departments?departmentId=${selectedDepartment.id}`,
+      href: contextHref({ departmentId: selectedDepartment.id, programId: undefined, batchId: undefined, academicYearId: undefined, semesterId: undefined, sectionId: undefined }),
     });
   }
 
@@ -235,20 +271,24 @@ export async function getWorkspaceContext(
       type: "program",
       id: selectedProgram.id,
       label: selectedProgram.name,
-      href: `/admin/departments?departmentId=${selectedProgram.departmentId}&programId=${selectedProgram.id}`,
+      href: contextHref({ departmentId: selectedProgram.departmentId, programId: selectedProgram.id }),
     });
   }
 
   if (selectedYear) {
-    breadcrumbs.push({ type: "academicYear", id: selectedYear.id, label: selectedYear.name, href: "?" });
+    breadcrumbs.push({ type: "academicYear", id: selectedYear.id, label: selectedYear.name, href: contextHref({ academicYearId: selectedYear.id }) });
   }
 
   if (selectedSemester) {
-    breadcrumbs.push({ type: "semester", id: selectedSemester.id, label: selectedSemester.name, href: "?" });
+    breadcrumbs.push({ type: "semester", id: selectedSemester.id, label: selectedSemester.name, href: contextHref({ semesterId: selectedSemester.id }) });
+  }
+
+  if (selectedBatch) {
+    breadcrumbs.push({ type: "batch", id: selectedBatch.id, label: selectedBatch.name, href: contextHref({ batchId: selectedBatch.id }) });
   }
 
   if (selectedSection) {
-    breadcrumbs.push({ type: "section", id: selectedSection.id, label: selectedSection.name, href: "?" });
+    breadcrumbs.push({ type: "section", id: selectedSection.id, label: selectedSection.name, href: contextHref({ sectionId: selectedSection.id }) });
   }
 
   return {
@@ -260,8 +300,9 @@ export async function getWorkspaceContext(
       academicYearId: selectedYear?.id ?? null,
       semesterId: selectedSemester?.id ?? null,
       sectionId: selectedSection?.id ?? null,
+      batchId: selectedBatch?.id ?? null,
     },
     breadcrumbs,
-    children: { departments, programs, academicYears, semesters, sections },
+    children: { departments, programs, academicYears, batches, semesters, sections },
   };
 }
