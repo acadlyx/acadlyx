@@ -873,6 +873,7 @@ export async function getMyWorkspace(
                     select: {
                       name: true,
                       code: true,
+                      departmentId: true,
                     },
                   },
                   section: {
@@ -967,8 +968,25 @@ export async function getMyWorkspace(
             in: [
               "ALL",
               "PARENT",
+              "PARENTS",
             ],
           },
+          OR: [
+            { departmentId: null },
+            {
+              departmentId: {
+                in: Array.from(
+                  new Set(
+                    children.flatMap((child) =>
+                      child.student.studentEnrollments.map(
+                        (enrollment) => enrollment.program.departmentId,
+                      ),
+                    ),
+                  ),
+                ),
+              },
+            },
+          ],
         },
         orderBy: {
           publishedAt: "desc",
@@ -1194,8 +1212,15 @@ export async function getMyWorkspace(
             in: [
               "ALL",
               "STUDENT",
+              "STUDENTS",
             ],
           },
+          OR: [
+            { departmentId: null },
+            {
+              departmentId: enrollment?.program.departmentId ?? undefined,
+            },
+          ],
         },
         orderBy: {
           publishedAt: "desc",
