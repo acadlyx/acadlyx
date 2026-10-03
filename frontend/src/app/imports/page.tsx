@@ -7,9 +7,9 @@ import { DataType, DATA_TYPES } from "@/lib/dataTransferApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
 
 const help: Record<DataType, string> = {
-  users: "email, firstName, lastName, phone, password, role, active",
-  students: "email, firstName, lastName, phone, password, admissionNumber, rollNumber, programCode, academicYear, section, dateOfBirth, guardianName, guardianPhone, status",
-  faculty: "email, firstName, lastName, phone, password, active",
+  users: "idNumber, email, firstName, lastName, phone, password, role, active",
+  students: "idNumber, email, firstName, lastName, phone, password, admissionNumber, rollNumber, programCode, academicYear, section, dateOfBirth, guardianName, guardianPhone, status",
+  faculty: "idNumber, email, firstName, lastName, phone, password, active",
   campuses: "code, name, address, active",
   departments: "code, name, campusId, active",
   programs: "code, name, departmentCode, level, durationYears, active",
