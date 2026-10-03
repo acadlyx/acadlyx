@@ -126,6 +126,7 @@ type UserForm = {
   institutionId: string;
   firstName: string;
   lastName: string;
+  idNumber: string;
   email: string;
   phone: string;
   password: string;
@@ -149,6 +150,7 @@ const emptyUserForm: UserForm = {
   institutionId: "",
   firstName: "",
   lastName: "",
+  idNumber: "",
   email: "",
   phone: "",
   password: "",
@@ -533,6 +535,7 @@ export default function SuperAdminPage() {
             userForm.institutionId || undefined,
           firstName: userForm.firstName.trim(),
           lastName: userForm.lastName.trim(),
+          idNumber: userForm.idNumber.trim(),
           email: userForm.email.trim(),
           phone:
             userForm.phone.trim() || undefined,
