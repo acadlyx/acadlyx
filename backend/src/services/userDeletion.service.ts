@@ -502,24 +502,33 @@ export async function requestPermanentDeletion(
     target,
   );
 
-  if (!target.deletedAt || !target.recoveryDeadline || target.recoveryDeadline.getTime() > Date.now()) {
-    throw new AppError(
-      "Permanent deletion is available only for users whose 90-day recovery window has expired.",
-      409,
-    );
-  }
-
   /*
-   * SUPER_ADMIN is the platform authority.
-   * No second approval is required.
+   * SUPER_ADMIN and INSTITUTION_ADMIN are the direct deletion authorities
+   * exposed by the institution administration workspace. They may permanently
+   * delete an account immediately after explicit confirmation in the UI.
+   *
+   * The old 90-day recovery-window rule remains applicable to lower
+   * authorities that use the approval workflow.
    */
   if (
-    isSuperAdmin(actor)
+    isSuperAdmin(actor) ||
+    actorRecord.userRoles.some(
+      (binding) =>
+        binding.role.name ===
+        "INSTITUTION_ADMIN",
+    )
   ) {
     return deleteUserPermanently(
       target.id,
       actor,
       "user.permanent_delete",
+    );
+  }
+
+  if (!target.deletedAt || !target.recoveryDeadline || target.recoveryDeadline.getTime() > Date.now()) {
+    throw new AppError(
+      "Permanent deletion is available only after the 90-day recovery window for this authority level.",
+      409,
     );
   }
 
