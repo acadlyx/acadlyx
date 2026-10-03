@@ -506,6 +506,7 @@ export async function createStudent(
   await assertTenantQuota(institutionId, "users");
   await assertTenantQuota(institutionId, "students");
   const email = input.email.trim().toLowerCase();
+  const idNumber = input.idNumber.trim().toUpperCase();
   const admissionNumber =
     input.admissionNumber.trim().toUpperCase();
 
@@ -521,6 +522,9 @@ export async function createStudent(
       409
     );
   }
+
+  const existingIdNumber = await prisma.user.findUnique({ where: { idNumber }, select: { id: true } });
+  if (existingIdNumber) throw new AppError(`ID number "${idNumber}" already exists`, 409);
 
   const existingAdmission =
     await prisma.studentProfile.findFirst({
@@ -589,6 +593,7 @@ export async function createStudent(
             data: {
               institutionId,
               email,
+              idNumber,
               passwordHash,
               firstName:
                 input.firstName.trim(),
@@ -779,6 +784,11 @@ export async function updateStudent(
     }
   }
 
+  if (input.idNumber !== undefined && input.idNumber.trim().toUpperCase() !== existing.idNumber) {
+    const duplicate = await prisma.user.findUnique({ where: { idNumber: input.idNumber.trim().toUpperCase() }, select: { id: true } });
+    if (duplicate && duplicate.id !== userId) throw new AppError(`ID number "${input.idNumber.trim().toUpperCase()}" already exists`, 409);
+  }
+
   if (
     input.email &&
     input.email.trim().toLowerCase() !==
@@ -809,6 +819,7 @@ export async function updateStudent(
         await tx.user.update({
           where: { id: userId },
           data: {
+            ...(input.idNumber !== undefined ? { idNumber: input.idNumber.trim().toUpperCase() } : {}),
             ...(input.email !==
             undefined
               ? {
@@ -897,12 +908,14 @@ export async function updateStudent(
     entityId: userId,
     metadata: {
       before: {
+        idNumber: existing.idNumber,
         admissionNumber:
           existing.profile?.admissionNumber ?? null,
         email:
           existing.email,
       },
       after: {
+        idNumber: updated.idNumber,
         admissionNumber:
           updated.profile?.admissionNumber ?? null,
         email:
