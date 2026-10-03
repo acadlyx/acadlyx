@@ -124,6 +124,34 @@ export function PublicSiteShell({ children, onLogin }: { children: ReactNode; on
             <div><h3 className="font-black text-white">Contact</h3><div className="mt-3 space-y-2 text-sm text-slate-400">{content.contact.email ? <p>{content.contact.email}</p> : null}{content.contact.phone ? <p>{content.contact.phone}</p> : null}{content.contact.address ? <p>{content.contact.address}</p> : null}</div></div>
           </div>
         </footer>
+
+        <div className="border-t border-white/10 bg-black/20">
+          <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-1 px-5 py-5 text-center sm:px-8">
+            <p className="text-[11px] font-medium tracking-wide text-slate-400">
+              A product of{" "}
+              <a
+                href="https://ayzent-solutions.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-cyan-200 transition hover:text-cyan-100 hover:underline"
+              >
+                Ayzent Solutions
+              </a>
+            </p>
+            <p className="text-[10px] font-medium tracking-wide text-slate-500">
+              Designed, developed &amp; maintained by{" "}
+              <a
+                href="https://ayzent-solutions.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-slate-300 transition hover:text-white hover:underline"
+              >
+                Ayzent Solutions
+              </a>{" "}
+              · © 2026 ACADLYX
+            </p>
+          </div>
+        </div>
       </div>
     </main>
   );
