@@ -511,7 +511,7 @@ export function StudentManagement({ onChanged }: Props) {
     const confirmed = window.confirm(
       `PERMANENTLY DELETE ${student.firstName} ${student.lastName}?
 
-This removes the student account and all related records permitted by the database relations. This cannot be undone.`,
+This permanently removes the student account and related records allowed by the database relations. This cannot be undone.`,
     );
     if (!confirmed) return;
 
