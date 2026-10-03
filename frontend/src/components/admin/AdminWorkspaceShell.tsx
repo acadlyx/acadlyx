@@ -160,7 +160,9 @@ export function AdminWorkspaceShell({
       onSignOut={signOut}
     >
       <WorkspaceShellProvider kind="admin">
-        {children}
+        <div className="acadlyx-workspace-content">
+          {children}
+        </div>
       </WorkspaceShellProvider>
     </UnifiedDashboardFrame>
   );
