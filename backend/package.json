@@ -12,7 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "render:build": "npm ci && prisma generate && (prisma migrate resolve --rolled-back 20261003030000_user_lifecycle_90_day_recovery || true) && prisma migrate deploy && npm run prisma:rbac:sync && tsc -p tsconfig.json",
+    "render:build": "npm ci && prisma generate && prisma migrate deploy && npm run prisma:rbac:sync && tsc -p tsconfig.json",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
     "prisma:seed:demo": "tsx prisma/seed.ts",
@@ -32,7 +32,7 @@
     "express-rate-limit": "^8.7.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
+    "morgan": "^1.4.1",
     "multer": "^2.0.2",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
@@ -45,6 +45,9 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^2.0.0",
     "@types/node": "^20.14.0",
+    "@types/node": "^20.14.0",
+    "@types/multer": "^2.0.0",
+    "@types/morgan": "^1.9.9",
     "prisma": "^5.20.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
