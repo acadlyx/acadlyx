@@ -39,6 +39,7 @@ export interface AuthUser {
   institutionId:
     string | null;
   email: string;
+  idNumber: string;
   firstName: string;
   lastName: string;
   roles: string[];
