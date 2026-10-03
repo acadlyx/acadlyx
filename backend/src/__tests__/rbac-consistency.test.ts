@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -6,6 +8,23 @@ import {
   ROLE_PERMISSIONS,
   SYSTEM_ROLE_NAMES,
 } from "../config/rbac";
+
+const ROOT = path.resolve(__dirname, "../../..");
+
+function extractQuotedPermissionKeys(content: string): string[] {
+  const matches = content.matchAll(/authorize\(\s*['\"]([^'\"]+)['\"]/g);
+  return [...matches].map((match) => match[1]);
+}
+
+function collectRouteFiles(directory: string): string[] {
+  if (!fs.existsSync(directory)) return [];
+
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return collectRouteFiles(fullPath);
+    return entry.name.endsWith(".routes.ts") ? [fullPath] : [];
+  });
+}
 
 test("every role permission exists in the canonical permission catalog", () => {
   const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
@@ -18,6 +37,23 @@ test("every role permission exists in the canonical permission catalog", () => {
       );
     }
   }
+});
+
+test("all backend route permission gates exist in the canonical catalog", () => {
+  const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
+  const routeFiles = collectRouteFiles(path.join(ROOT, "backend", "src", "routes"));
+  const unknown: string[] = [];
+
+  for (const file of routeFiles) {
+    const content = fs.readFileSync(file, "utf8");
+    for (const permission of extractQuotedPermissionKeys(content)) {
+      if (!catalog.has(permission)) {
+        unknown.push(`${path.relative(ROOT, file)} -> ${permission}`);
+      }
+    }
+  }
+
+  assert.deepEqual(unknown, [], `Unknown route permission(s): ${unknown.join("; ")}`);
 });
 
 test("critical examination, result and user-lifecycle permissions are assigned intentionally", () => {
