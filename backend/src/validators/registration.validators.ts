@@ -36,6 +36,11 @@ export const dropSchema = z.object({
   reason: optionalText(500),
 });
 
+export const bulkAssignCoursesSchema = z.object({
+  studentIds: z.array(z.string().uuid()).min(1).max(500),
+  courseOfferingIds: z.array(z.string().uuid()).min(1).max(100),
+});
+
 export const offeringCapacitySchema = z.object({
   capacity: z.coerce.number().int().min(0).max(2000).nullable().optional(),
   registrationOpen: z.boolean().optional(),
@@ -50,3 +55,4 @@ export const availableOfferingsQuery = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type OfferingCapacityInput = z.infer<typeof offeringCapacitySchema>;
+export type BulkAssignCoursesInput = z.infer<typeof bulkAssignCoursesSchema>;
