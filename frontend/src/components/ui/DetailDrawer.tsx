@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode } from "react";
 import { ModalPortal } from "@/components/ui/ModalPortal";
 
 export function DetailDrawer({
@@ -24,28 +24,6 @@ export function DetailDrawer({
   onEdit?: () => void;
   canEdit?: boolean;
 }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusTimer = window.setTimeout(() => closeRef.current?.focus(), 0);
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
-
   return (
     <ModalPortal onBackdropClick={onClose} className="items-stretch justify-end p-0">
       <aside
@@ -74,7 +52,6 @@ export function DetailDrawer({
           </div>
 
           <button
-            ref={closeRef}
             type="button"
             aria-label="Close details"
             onClick={onClose}
