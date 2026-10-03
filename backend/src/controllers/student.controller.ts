@@ -538,8 +538,20 @@ export const dashboard =
                     in: [
                       "ALL",
                       "STUDENT",
+                      "STUDENTS",
                     ],
                   },
+                },
+                {
+                  OR: [
+                    {
+                      departmentId: null,
+                    },
+                    {
+                      departmentId:
+                        enrollment.program.departmentId,
+                    },
+                  ],
                 },
               ],
             },
