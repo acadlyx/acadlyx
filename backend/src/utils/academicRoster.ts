@@ -40,6 +40,19 @@ export async function getCourseOfferingRoster(
       semesterId: offering.semesterId,
       programId: offering.semester.programId,
       academicYearId: offering.semester.academicYearId,
+      /*
+       * Course registration approval is the academic clearance gate.
+       * A student may belong to the section and still be excluded from
+       * attendance/marks/assignment rosters until this concrete offering
+       * is approved by the configured authority.
+       */
+      registrations: {
+        some: {
+          courseOfferingId,
+          institutionId,
+          status: "APPROVED",
+        },
+      },
     },
     include: {
       user: { select: { id: true, firstName: true, lastName: true } },
@@ -113,6 +126,13 @@ export async function getStudentCourseOfferingIds(
       institutionId,
       isActive: true,
       OR: pairs,
+      registrations: {
+        some: {
+          institutionId,
+          studentId,
+          status: "APPROVED",
+        },
+      },
     },
     select: { id: true },
   });
