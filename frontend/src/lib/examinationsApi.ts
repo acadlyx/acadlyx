@@ -298,6 +298,16 @@ export async function generateHallTickets(
   return res.data;
 }
 
+export async function listStudentHallTickets(
+  studentId: string,
+): Promise<HallTicketView[]> {
+  const res = await authedFetch<
+    Envelope<HallTicketView[]>
+  >(`/examinations/students/${studentId}/hall-tickets`);
+
+  return res.data;
+}
+
 export async function getHallTicket(
   sessionId: string,
   studentId?: string,
