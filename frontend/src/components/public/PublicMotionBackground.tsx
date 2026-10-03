@@ -24,7 +24,7 @@ export function PublicMotionBackground() {
     const program=gl.createProgram()!; gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);gl.useProgram(program);
     const buffer=gl.createBuffer()!;gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const loc=gl.getAttribLocation(program,"p");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
     const timeLoc=gl.getUniformLocation(program,"uTime"),scrollLoc=gl.getUniformLocation(program,"uScroll"),seedLoc=gl.getUniformLocation(program,"uSeed"),resLoc=gl.getUniformLocation(program,"uRes");
-    let scroll=window.scrollY,target=scroll,raf=0,start=performance.now(); const seed=hashPath(pathname||"/");
+    let scroll=window.scrollY,target=scroll,raf=0; const start=performance.now(); const seed=hashPath(pathname||"/");
     const resize=()=>{const d=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.floor(innerWidth*d);canvas.height=Math.floor(innerHeight*d);gl.viewport(0,0,canvas.width,canvas.height);};
     const onScroll=()=>{target=window.scrollY;}; resize(); addEventListener("resize",resize,{passive:true});addEventListener("scroll",onScroll,{passive:true});
     const draw=(now:number)=>{scroll+=(target-scroll)*.065;gl.uniform1f(timeLoc,(now-start)/1000);gl.uniform1f(scrollLoc,scroll);gl.uniform1f(seedLoc,seed);gl.uniform2f(resLoc,canvas.width,canvas.height);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);raf=requestAnimationFrame(draw);}; raf=requestAnimationFrame(draw);
