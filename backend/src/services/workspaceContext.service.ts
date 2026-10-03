@@ -245,6 +245,11 @@ export async function getWorkspaceContext(
     ? academicYears.find((year) => year.id === input.academicYearId) ?? null
     : null;
 
+  const institution = await prisma.institution.findUnique({
+    where: { id: institutionId },
+    select: { name: true, logoUrl: true },
+  });
+
   const basePath = workspaceBasePath(roles);
   const contextHref = (extra: Record<string, string | undefined> = {}) => {
     const params = new URLSearchParams();
@@ -292,6 +297,10 @@ export async function getWorkspaceContext(
   }
 
   return {
+    institution: {
+      name: institution?.name ?? "",
+      logoUrl: institution?.logoUrl ?? null,
+    },
     role: roles[0] ?? "UNKNOWN",
     scope: {
       institutionId,
