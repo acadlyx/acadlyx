@@ -553,45 +553,45 @@ export async function getMyWorkspace(
       prisma.notice.findMany({
         where: {
           institutionId,
-          publishedAt: {
-            lte: now,
-          },
-          audience: {
-            in: [
-              "ALL",
-              "HOD",
-            ],
-          },
           AND: [
             {
               OR: [
-                {
-                  expiresAt: null,
-                },
-                {
-                  expiresAt: {
-                    gt: now,
-                  },
-                },
+                { publishedAt: { lte: now } },
+                { publishedAt: { lte: now } },
               ],
             },
             {
               OR: [
-                {
-                  departmentId: null,
-                },
+                { expiresAt: null },
+                { expiresAt: { gt: now } },
+              ],
+            },
+            {
+              audience: {
+                in: ["ALL", "PARENT", "PARENTS"],
+              },
+            },
+            {
+              OR: [
+                { departmentId: null },
                 {
                   departmentId: {
-                    in: departmentIds,
+                    in: Array.from(
+                      new Set(
+                        children.flatMap((child) =>
+                          child.student.studentEnrollments.map(
+                            (enrollment) => enrollment.program.departmentId,
+                          ),
+                        ),
+                      ),
+                    ),
                   },
                 },
               ],
             },
           ],
         },
-        orderBy: {
-          publishedAt: "desc",
-        },
+        orderBy: { publishedAt: "desc" },
         take: 10,
       }),
 
@@ -1195,36 +1195,30 @@ export async function getMyWorkspace(
       prisma.notice.findMany({
         where: {
           institutionId,
-          publishedAt: {
-            lte: now,
-          },
-          OR: [
+          AND: [
+            { publishedAt: { lte: now } },
             {
-              expiresAt: null,
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: now } },
+              ],
             },
             {
-              expiresAt: {
-                gt: now,
+              audience: {
+                in: ["ALL", "STUDENT", "STUDENTS"],
               },
             },
-          ],
-          audience: {
-            in: [
-              "ALL",
-              "STUDENT",
-              "STUDENTS",
-            ],
-          },
-          OR: [
-            { departmentId: null },
-            ...(enrollment
-              ? [{ departmentId: enrollment.program.departmentId }]
-              : []),
+            {
+              OR: [
+                { departmentId: null },
+                ...(enrollment
+                  ? [{ departmentId: enrollment.program.departmentId }]
+                  : []),
+              ],
+            },
           ],
         },
-        orderBy: {
-          publishedAt: "desc",
-        },
+        orderBy: { publishedAt: "desc" },
         take: 10,
       }),
 
