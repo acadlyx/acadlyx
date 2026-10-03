@@ -37,6 +37,7 @@ export interface SafeUser {
   id: string;
   institutionId: string | null;
   email: string;
+  idNumber: string;
   firstName: string;
   lastName: string;
   roles: string[];
@@ -242,6 +243,7 @@ function toSafeUser(
     id: user.id,
     institutionId,
     email: user.email,
+    idNumber: user.idNumber,
     firstName: user.firstName,
     lastName: user.lastName,
     roles,
@@ -390,6 +392,7 @@ export async function login(
     where: {
       OR: [
         { email: normalizedIdentifier.toLowerCase() },
+        { idNumber: normalizedIdentifier.toUpperCase() },
         {
           studentEnrollments: {
             some: {
