@@ -13,6 +13,7 @@ import {
 
 import { UnifiedDashboardFrame } from "@/components/dashboard/UnifiedDashboardFrame";
 import type { DashboardNavigationItem } from "@/components/dashboard/UnifiedDashboardFrame";
+import { WorkspaceShellProvider } from "@/components/dashboard/WorkspaceShellContext";
 
 import {
   AuthRequiredError,
@@ -158,7 +159,9 @@ export function AdminWorkspaceShell({
       userRole="Institution Admin"
       onSignOut={signOut}
     >
-      {children}
+      <WorkspaceShellProvider kind="admin">
+        {children}
+      </WorkspaceShellProvider>
     </UnifiedDashboardFrame>
   );
 }
