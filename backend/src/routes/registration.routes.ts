@@ -21,6 +21,7 @@ import {
   decideRegistrationSchema,
   dropSchema,
   offeringCapacitySchema,
+  bulkAssignCoursesSchema,
   registerSchema,
   registrationListQuery,
 } from "../validators/registration.validators";
@@ -111,6 +112,24 @@ router.post(
     sendOk(
       res,
       await service.register(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.body,
+        auditMeta(req)
+      ),
+      201
+    )
+  )
+);
+
+router.post(
+  "/bulk-assign",
+  authorize("registration.approve"),
+  validateBody(bulkAssignCoursesSchema),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await service.bulkAssignCourses(
         requireInstitution(req),
         requireAuthenticatedUser(req),
         req.body,
