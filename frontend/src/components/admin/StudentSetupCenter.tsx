@@ -78,7 +78,7 @@ export function StudentSetupCenter() {
           <p className="acadlyx-eyebrow">Student operations</p>
           <h1 className="acadlyx-page-title">Student Setup Center</h1>
           <p className="acadlyx-page-description">
-            Complete a student's academic setup from one place. ACADLYX verifies the active enrollment and assigns all compulsory offerings for the student's section.
+            Complete a student&apos;s academic setup from one place. ACADLYX verifies the active enrollment and assigns all compulsory offerings for the student&apos;s section.
           </p>
         </div>
       </div>
