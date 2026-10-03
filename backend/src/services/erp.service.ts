@@ -2460,19 +2460,101 @@ export async function listNotices(
   actor: AuthenticatedUser,
   includeExpired = true
 ) {
-  assertRole(actor, [
-    "INSTITUTION_ADMIN",
-    "DIRECTOR",
-    "CHAIRMAN",
-    "HOD",
-    "ACCOUNTS",
-  ]);
-
+  const roles = actor.roles.map((role) => role.toUpperCase());
   const now = new Date();
-  const hodDepartmentIds = await getHodDepartmentIds(
-    institutionId,
-    actor
-  );
+
+  const isStudent = roles.includes("STUDENT");
+  const isParent = roles.includes("PARENT");
+  const isFaculty = roles.includes("FACULTY");
+  const isHod = roles.includes("HOD");
+
+  if (
+    !isStudent &&
+    !isParent &&
+    !isFaculty &&
+    !isHod &&
+    !hasAnyRole(actor, [
+      "INSTITUTION_ADMIN",
+      "DIRECTOR",
+      "CHAIRMAN",
+      "DEAN",
+      "REGISTRAR",
+      "ACCOUNTS",
+      "HR",
+      "ADMISSIONS",
+      "EXAMINATION",
+      "LIBRARIAN",
+      "PLACEMENT",
+      "IT",
+      "STAFF",
+    ])
+  ) {
+    throw new AppError("You are not allowed to view notices", 403);
+  }
+
+  let departmentIds: string[] = [];
+
+  if (isStudent) {
+    const enrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: actor.id,
+        status: "ACTIVE",
+      },
+      orderBy: { academicYear: { startDate: "desc" } },
+      select: {
+        program: { select: { departmentId: true } },
+      },
+    });
+
+    if (enrollment?.program.departmentId) {
+      departmentIds = [enrollment.program.departmentId];
+    }
+  } else if (isParent) {
+    const links = await prisma.parentStudentLink.findMany({
+      where: {
+        institutionId,
+        parentId: actor.id,
+      },
+      select: {
+        student: {
+          select: {
+            studentEnrollments: {
+              where: { institutionId, status: "ACTIVE" },
+              orderBy: { academicYear: { startDate: "desc" } },
+              take: 1,
+              select: {
+                program: { select: { departmentId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    departmentIds = Array.from(
+      new Set(
+        links.flatMap((link) =>
+          link.student.studentEnrollments.map(
+            (enrollment) => enrollment.program.departmentId,
+          ),
+        ),
+      ),
+    );
+  } else if (isHod) {
+    departmentIds = await getHodDepartmentIds(institutionId, actor);
+  }
+
+  const audience =
+    isStudent
+      ? ["ALL", "STUDENT", "STUDENTS"]
+      : isParent
+        ? ["ALL", "PARENT", "PARENTS"]
+        : isFaculty
+          ? ["ALL", "FACULTY", "TEACHERS"]
+          : isHod
+            ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
+            : undefined;
 
   return prisma.notice.findMany({
     where: {
@@ -2485,22 +2567,19 @@ export async function listNotices(
               { expiresAt: { gt: now } },
             ],
           }),
-      ...(actor.roles.includes("HOD")
+      ...(audience ? { audience: { in: audience } } : {}),
+      ...(isHod || isStudent || isParent
         ? {
             OR: [
               { departmentId: null },
-              {
-                departmentId: {
-                  in: hodDepartmentIds,
-                },
-              },
+              ...(departmentIds.length
+                ? [{ departmentId: { in: departmentIds } }]
+                : []),
             ],
           }
         : {}),
     },
-    orderBy: {
-      publishedAt: "desc",
-    },
+    orderBy: { publishedAt: "desc" },
   });
 }
 
