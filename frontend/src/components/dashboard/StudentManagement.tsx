@@ -16,7 +16,14 @@ const statuses = ["ACTIVE", "INACTIVE", "GRADUATED", "WITHDRAWN", "TRANSFERRED"]
 const enrollmentStatuses = ["ACTIVE", "COMPLETED", "DROPPED", "TRANSFERRED"];
 function inputClass() { return "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-50"; }
 function labelClass() { return "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500"; }
-function dateValue(value?: string | null) { if (!value) return ""; const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value).slice(0, 10) : d.toISOString().slice(0, 10); }
+function dateValue(value?: string | null) {
+  if (!value) return "";
+  const raw = String(value);
+  const dateOnly = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (dateOnly) return dateOnly[0];
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? raw.slice(0, 10) : new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
 function optionLabel(item: Lookup) { if (item.code && item.name) return `${item.code} — ${item.name}`; if (item.number !== undefined && item.name) return `Semester ${item.number} — ${item.name}`; return item.name || item.code || item.id; }
 function statusClass(status: string) { if (status === "ACTIVE") return "bg-emerald-50 text-emerald-700"; if (status === "GRADUATED" || status === "COMPLETED") return "bg-blue-50 text-blue-700"; if (status === "WITHDRAWN" || status === "DROPPED" || status === "TRANSFERRED") return "bg-amber-50 text-amber-700"; return "bg-slate-100 text-slate-600"; }
 function Field({ label, children, required }: { label: string; children: ReactNode; required?: boolean }) { return <label><span className={labelClass()}>{label}{required ? " *" : ""}</span>{children}</label>; }
