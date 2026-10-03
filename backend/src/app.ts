@@ -55,6 +55,7 @@ import exportRoutes from "./routes/export.routes";
 import importRoutes from "./routes/import.routes";
 import peopleImportRoutes from "./routes/peopleImport.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
+import institutionalCmsRoutes from "./routes/institutionalCms.routes";
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
 import examinationRoutes from "./routes/examination.routes";
@@ -513,6 +514,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/site-content`,
     siteContentRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/institutional-cms`,
+    institutionalCmsRoutes
   );
 
   /* Centralized provider-agnostic tenant file storage. */
