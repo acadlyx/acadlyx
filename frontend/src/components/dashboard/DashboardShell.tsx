@@ -61,7 +61,20 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     if (workspaceRole === "INSTITUTION_ADMIN") {
       return getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group }));
     }
-    return navigationForUser({ roles: [workspaceRole || getPrimaryRole(user.roles)], permissions: user.permissions || [] }).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group || "Workspace" }));
+
+    const role = workspaceRole;
+    if (!role) return [];
+
+    return navigationForUser({
+      roles: [role],
+      permissions: user.permissions || [],
+    }).map((item) => ({
+      id: item.href,
+      label: item.label,
+      href: item.href,
+      icon: item.icon,
+      group: item.group || "Workspace",
+    }));
   }, [user, workspaceRole]);
 
   const roles = user?.roles?.length ? user.roles : allowedRoles || [];
