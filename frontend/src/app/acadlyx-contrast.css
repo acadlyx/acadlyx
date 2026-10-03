@@ -12,9 +12,6 @@
   color: #f8fafc !important;
 }
 
-/* Every navigation link gets readable text. This deliberately targets the
-   real DOM structure used by UnifiedDashboardFrame rather than relying on
-   individual utility classes. */
 .acadlyx-app-shell aside nav a,
 .acadlyx-app-shell aside nav a:visited,
 .acadlyx-app-shell aside nav a > span,
@@ -31,8 +28,6 @@
   color: #ffffff !important;
 }
 
-/* Keep the navigation icon readable without allowing a low-contrast utility
-   class to override the shell baseline. */
 .acadlyx-app-shell aside nav a > span:first-child {
   color: #e2e8f0 !important;
 }
@@ -47,12 +42,10 @@
   background-color: rgba(255, 255, 255, 0.16) !important;
 }
 
-/* Navigation group headings. */
 .acadlyx-app-shell aside nav section > div:first-child {
   color: #dbe4ee !important;
 }
 
-/* Badges and secondary navigation metadata. */
 .acadlyx-app-shell aside nav a span[class*="bg-blue-500"] {
   color: #dbeafe !important;
 }
@@ -61,7 +54,6 @@
   color: #ffffff !important;
 }
 
-/* Sidebar brand and controls. */
 .acadlyx-app-shell aside .text-\[10px\] {
   color: #cbd5e1 !important;
 }
@@ -75,7 +67,6 @@
   color: #ffffff !important;
 }
 
-/* Destructive sign-out control: readable on the dark sidebar. */
 .acadlyx-app-shell aside .text-red-600,
 .acadlyx-app-shell aside button.text-red-600,
 .acadlyx-app-shell aside button.text-red-600 > span,
@@ -109,7 +100,6 @@
   color: #111827 !important;
 }
 
-/* Header title and all role/account metadata use a readable dark ink. */
 .acadlyx-app-shell header .text-slate-900 {
   color: #111827 !important;
 }
@@ -120,8 +110,6 @@
   color: #475569 !important;
 }
 
-/* Explicitly target the compact user profile text so the role never falls
-   back to the low-contrast slate-400 Tailwind color. */
 .acadlyx-app-shell header button span span.text-slate-900 {
   color: #111827 !important;
 }
@@ -130,26 +118,29 @@
   color: #475569 !important;
 }
 
-/* Avatar initials sit on a pale-blue surface, so use dark ink. */
 .acadlyx-app-shell header button > span:first-child {
   color: #1e3a5f !important;
 }
 
-/* Profile dropdown is dark and therefore uses light text. */
-.acadlyx-app-shell header [class*="bg-[#101a2d"] {
+/* Keep profile menus readable when the implementation renders them with
+   semantic menu roles. This avoids brittle selectors for Tailwind arbitrary
+   class names containing square brackets. */
+.acadlyx-app-shell header [role="menu"] {
+  color: #f8fafc !important;
+  background-color: #101a2d !important;
+}
+
+.acadlyx-app-shell header [role="menu"] a,
+.acadlyx-app-shell header [role="menu"] button {
   color: #f8fafc !important;
 }
 
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-\[\#a8b2bf\"] {
-  color: #d1d9e2 !important;
-}
-
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-300,
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-400 {
+.acadlyx-app-shell header [role="menu"] .text-slate-300,
+.acadlyx-app-shell header [role="menu"] .text-slate-400 {
   color: #e2e8f0 !important;
 }
 
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-red-600 {
+.acadlyx-app-shell header [role="menu"] .text-red-600 {
   color: #fecaca !important;
 }
 
