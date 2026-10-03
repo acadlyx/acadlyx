@@ -33,18 +33,11 @@ const DEFAULT_SITE_CONTENT = {
   },
 
   navigation: [
-    {
-      label: "Platform",
-      href: "#platform",
-    },
-    {
-      label: "Capabilities",
-      href: "#capabilities",
-    },
-    {
-      label: "Workspaces",
-      href: "#workspaces",
-    },
+    { label: "Home", href: "/" },
+    { label: "Platform", href: "#platform" },
+    { label: "About", href: "/about" },
+    { label: "Team", href: "/team" },
+    { label: "Contact", href: "/contact" },
   ],
 
   hero: {
