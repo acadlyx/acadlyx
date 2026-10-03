@@ -42,6 +42,14 @@ export const createUserSchema =
         .email()
         .max(200),
 
+    idNumber:
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .transform((value) => value.toUpperCase()),
+
     firstName:
       z
         .string()
@@ -124,6 +132,15 @@ export const updateUserSchema =
         .trim()
         .email()
         .max(200)
+        .optional(),
+
+    idNumber:
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .transform((value) => value.toUpperCase())
         .optional(),
 
     password:
