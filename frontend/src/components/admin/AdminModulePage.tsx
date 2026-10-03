@@ -491,8 +491,13 @@ function resource(
             },
             {
               name: "email",
-              label: "Email",
+              label: "Login email",
               type: "email",
+              required: true,
+            },
+            {
+              name: "idNumber",
+              label: "Login ID / ID number",
               required: true,
             },
             {
@@ -521,6 +526,20 @@ function resource(
             {
               name: "lastName",
               label: "Last name",
+            },
+            {
+              name: "email",
+              label: "Login email",
+              type: "email",
+            },
+            {
+              name: "idNumber",
+              label: "Login ID / ID number",
+            },
+            {
+              name: "password",
+              label: "New password",
+              type: "password",
             },
             {
               name: "phone",
