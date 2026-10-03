@@ -437,6 +437,7 @@ export async function createInstitution(
             institutionId:
               createdInstitution.id,
             email: normalizedEmail,
+            idNumber: input.admin.idNumber.trim().toUpperCase(),
             passwordHash,
             firstName:
               input.admin.firstName.trim(),
