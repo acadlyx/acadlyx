@@ -1048,16 +1048,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
 
   [
     "/examinations",
-    [
-      "EXAMINATION",
-      "FACULTY",
-      "HOD",
-      "DEAN",
-      "DIRECTOR",
-      "CHAIRMAN",
-      "REGISTRAR",
-      "STUDENT",
-    ],
+    ["EXAMINATION"],
   ],
 
   [
