@@ -83,7 +83,7 @@ export function DashboardShell({
       setUser(cached);
     }
 
-    fetch("/api/v1/workspace/context", {
+    fetch(apiUrl("/workspace/context"), {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("acadlyx_access_token") || ""}`,
       },
