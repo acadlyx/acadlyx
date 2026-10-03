@@ -34,6 +34,7 @@ import {
 
   approveAdminUserDeletionRequest,
   createAdminUser,
+  updateAdminUser,
   getAdminWorkspace,
   listAdminUserDeletionRequests,
   listAdminUsers,
@@ -920,6 +921,14 @@ export function UserLifecycleManager() {
                 "",
             ).trim(),
 
+          idNumber:
+            String(
+              form.get(
+                "idNumber",
+              ) ||
+                "",
+            ).trim(),
+
           phone:
             String(
               form.get(
@@ -1495,6 +1504,11 @@ export function UserLifecycleManager() {
 
               <div className="grid gap-3 p-5 sm:grid-cols-2">
                 <Info
+                  label="ID number / Login ID"
+                  value={selected.idNumber || "—"}
+                />
+
+                <Info
                   label="Email"
                   value={
                     selected.email
@@ -1661,6 +1675,12 @@ export function UserLifecycleManager() {
                   <Input
                     name="lastName"
                     label="Last name"
+                    required
+                  />
+
+                  <Input
+                    name="idNumber"
+                    label="ID number / Login ID"
                     required
                   />
 
