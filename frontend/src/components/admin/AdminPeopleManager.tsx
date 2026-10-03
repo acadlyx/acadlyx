@@ -659,7 +659,7 @@ function AdminPeopleManagerContent() {
 
     if (
       !window.confirm(
-        `Permanently delete ${person.firstName} ${person.lastName}?\n\nThis action cannot be undone. If the server requires higher authority, a deletion approval request will be created instead.`,
+        `Permanently delete ${person.firstName} ${person.lastName}?\n\nThis is irreversible. The account will be removed permanently. If the server requires higher authority, an approval request will be created instead.`,
       )
     ) {
       return;
@@ -1635,7 +1635,7 @@ function AdminPeopleManagerContent() {
                   {busyId ===
                   selected.id
                     ? "Processing…"
-                    : "Permanent Delete"}
+                    : "Delete permanently"}
                 </button>
               ) : null}
 
