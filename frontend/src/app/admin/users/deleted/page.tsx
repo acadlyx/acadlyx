@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { DeletedAdminUser, listDeletedAdminUsers, recoverAdminUser } from "@/lib/adminApi";
+import { DeletedAdminUser, listDeletedAdminUsers, recoverAdminUser, requestAdminUserPermanentDeletion } from "@/lib/adminApi";
 
 function date(value?: string | null) {
   if (!value) return "—";
@@ -17,6 +17,7 @@ export default function DeletedUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true); setError("");
@@ -25,6 +26,36 @@ export default function DeletedUsersPage() {
     finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, [expiringSoon]); // search is submitted explicitly
+
+  async function permanentlyDelete(user: DeletedAdminUser) {
+    if (user.daysRemaining > 0) {
+      setError("Permanent deletion is available only after the 90-day recovery window expires.");
+      return;
+    }
+
+    if (!window.confirm(`Permanently delete ${user.firstName} ${user.lastName}? This cannot be undone.`)) {
+      return;
+    }
+
+    const reason = window.prompt("Optional permanent-deletion reason:", "")?.trim() || undefined;
+    setBusyId(user.id);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await requestAdminUserPermanentDeletion(user.id, reason);
+      if (result.permanentlyDeleted) {
+        setUsers((current) => current.filter((item) => item.id !== user.id));
+        setMessage("User permanently deleted.");
+      } else {
+        setMessage(result.message || "Permanent deletion request submitted for approval.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to permanently delete user.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function recover(user: DeletedAdminUser) {
     if (!window.confirm(`Recover ${user.firstName} ${user.lastName}? Their original user ID and institutional history will be preserved.`)) return;
@@ -63,7 +94,23 @@ export default function DeletedUsersPage() {
                     <td className="px-4 py-4">{date(user.deletedAt)}</td><td className="px-4 py-4">{date(user.recoveryDeadline)}</td>
                     <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${user.daysRemaining <= 14 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>{user.daysRemaining}</span></td>
                     <td className="max-w-[220px] px-4 py-4">{user.deletionReason || "—"}</td>
-                    <td className="px-4 py-4"><button type="button" onClick={() => void recover(user)} className="acadlyx-button-primary">Recover</button></td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {user.daysRemaining > 0 ? (
+                          <button type="button" onClick={() => void recover(user)} className="acadlyx-button-primary">Recover</button>
+                        ) : null}
+                        {user.daysRemaining === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => void permanentlyDelete(user)}
+                            disabled={busyId === user.id}
+                            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                          >
+                            {busyId === user.id ? "Deleting…" : "Delete permanently"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
                   </tr>
                 ))}</tbody>
               </table>
