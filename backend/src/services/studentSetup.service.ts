@@ -196,6 +196,7 @@ export async function completeStudentSetup(
         status: saved.status,
         action: current ? "UPDATED" : "CREATED",
       });
+      runningCredits += offering.course.credits;
     }
 
     return assigned;
