@@ -73,6 +73,11 @@ export const PERMISSIONS = [
   { key: "programs.update", module: "academics", description: "Update programs" },
   { key: "programs.delete", module: "academics", description: "Deactivate programs" },
 
+  { key: "batches.read", module: "academics", description: "View student batches" },
+  { key: "batches.create", module: "academics", description: "Create student batches" },
+  { key: "batches.update", module: "academics", description: "Update student batches" },
+  { key: "batches.delete", module: "academics", description: "Deactivate student batches" },
+
   { key: "academic-years.read", module: "academics", description: "View academic years" },
   { key: "academic-years.create", module: "academics", description: "Create academic years" },
   { key: "academic-years.update", module: "academics", description: "Update academic years" },
@@ -328,6 +333,7 @@ export function getCanonicalRoleNames(
 const ACADEMIC_READ: PermissionKey[] = [
   "departments.read",
   "programs.read",
+  "batches.read",
   "academic-years.read",
   "semesters.read",
   "sections.read",
@@ -432,6 +438,10 @@ export const ROLE_PERMISSIONS: Record<
     "programs.create",
     "programs.update",
     "programs.delete",
+
+    "batches.create",
+    "batches.update",
+    "batches.delete",
 
     "academic-years.create",
     "academic-years.update",
