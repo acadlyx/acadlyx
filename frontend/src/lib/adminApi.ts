@@ -313,6 +313,7 @@ export async function updateAdminUser(
     isActive: boolean;
     role: string;
     departmentIds: string[];
+    password: string;
   }>,
 ): Promise<AdminUser> {
   const response =
