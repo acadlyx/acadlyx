@@ -29,6 +29,18 @@ async function allowedDepartmentIds(
   return [];
 }
 
+function workspaceBasePath(roles: string[]) {
+  if (roles.includes("HOD")) return "/hod";
+  if (roles.includes("FACULTY")) return "/faculty";
+  if (roles.includes("STUDENT")) return "/student";
+  if (roles.includes("INSTITUTION_ADMIN")) return "/admin";
+  if (roles.includes("REGISTRAR")) return "/registrar";
+  if (roles.includes("DEAN")) return "/dean";
+  if (roles.includes("DIRECTOR")) return "/director";
+  if (roles.includes("CHAIRMAN")) return "/chairman";
+  return "/dashboard";
+}
+
 async function assertDepartmentScope(
   institutionId: string,
   actor: AuthenticatedUser,
