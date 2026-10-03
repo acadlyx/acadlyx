@@ -741,6 +741,7 @@ model StudentEnrollment {
   @@index([institutionId])
   @@index([userId])
   @@index([institutionId, userId, status])
+  @@index([institutionId, rollNumber, status])
   @@index([programId])
   @@index([sectionId])
   @@index([semesterId])
