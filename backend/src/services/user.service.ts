@@ -1186,7 +1186,7 @@ export async function updateUser(
           input.departmentIds,
         );
 
-        if (input.isActive === false) {
+        if (input.isActive === false || requestedPasswordHash !== undefined) {
           await tx.refreshToken.updateMany({
             where: {
               userId: id,
@@ -1262,7 +1262,7 @@ export async function updateUser(
         input.departmentIds,
       );
 
-      if (input.isActive === false) {
+      if (input.isActive === false || requestedPasswordHash !== undefined) {
         await tx.refreshToken.updateMany({
         where: {
           userId: id,
@@ -1288,6 +1288,8 @@ export async function updateUser(
         input.role ?? null,
       changedStatus:
         input.isActive ?? null,
+      changedPassword:
+        input.password !== undefined,
     },
   });
 
