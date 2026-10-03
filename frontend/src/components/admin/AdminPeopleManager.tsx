@@ -841,6 +841,7 @@ function AdminPeopleManagerContent() {
       const updated = await updateAdminUser(selected.id, {
         firstName: String(form.get("firstName") || "").trim(),
         lastName: String(form.get("lastName") || "").trim(),
+        idNumber: String(form.get("idNumber") || "").trim(),
         email: String(form.get("email") || "").trim(),
         phone: String(form.get("phone") || "").trim(),
         ...(String(form.get("password") || "").trim()
@@ -1678,6 +1679,10 @@ function AdminPeopleManagerContent() {
             <form onSubmit={savePerson} className="space-y-4 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">ID number / Login ID *</span>
+                  <input name="idNumber" defaultValue={selected.idNumber} required className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
+                </label>
+                <label>
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">First name *</span>
                   <input name="firstName" defaultValue={selected.firstName} required className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400" />
                 </label>
@@ -1776,6 +1781,12 @@ function AdminPeopleManagerContent() {
               className="space-y-4 p-6"
             >
               <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  name="idNumber"
+                  label="ID number / Login ID"
+                  required
+                />
+
                 <Input
                   name="firstName"
                   label="First name"
