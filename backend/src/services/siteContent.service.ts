@@ -10,6 +10,28 @@ const DEFAULT_SITE_CONTENT = {
     faviconUrl: "",
   },
 
+  pages: {
+    about: {
+      eyebrow: "ABOUT ACADLYX",
+      title: "A connected operating layer for modern institutions.",
+      description: "ACADLYX brings academic, administrative and institutional workflows into one permission-aware environment.",
+      imageUrl: "",
+    },
+    team: {
+      eyebrow: "OUR TEAM",
+      title: "People building institutional technology.",
+      description: "Meet the people responsible for product, engineering, delivery and institutional success.",
+      members: [
+        { name: "ACADLYX Team", role: "Product & Engineering", bio: "Building secure education technology for institutions.", imageUrl: "" },
+      ],
+    },
+    contact: {
+      eyebrow: "CONTACT",
+      title: "Start a conversation with ACADLYX.",
+      description: "Use the institution's published contact details to reach the team.",
+    },
+  },
+
   navigation: [
     {
       label: "Platform",
