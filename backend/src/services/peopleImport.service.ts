@@ -205,6 +205,8 @@ async function validateRows(
     const row = rows[i];
     const n = i + 2;
     const email = text(row.email).toLowerCase();
+  const idNumber = text(row.idnumber || row.id || row.loginid).toUpperCase();
+  if (!idNumber) throw new AppError("Every user row needs an ID number", 400);
 
     if (!email) {
       errors.push({
@@ -589,6 +591,7 @@ async function upsertUser(
           id: existing.id,
         },
         data: {
+          idNumber,
           firstName:
             text(row.firstname) ||
             existing.firstName,
@@ -619,6 +622,7 @@ async function upsertUser(
         data: {
           institutionId,
           email,
+          idNumber,
           passwordHash:
             await hashPassword(password),
           firstName:
