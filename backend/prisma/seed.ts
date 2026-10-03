@@ -34,17 +34,18 @@ const ROLE_PERMISSIONS: Record<string, string[]> = CANON_ROLE_PERMISSIONS as unk
 
 const DEMO_USERS: Array<{
   email: string;
+  idNumber: string;
   firstName: string;
   lastName: string;
   role: string;
   scopedToInstitution: boolean;
 }> = [
-  { email: "superadmin@acadlyx.com", firstName: "Platform", lastName: "Admin", role: "SUPER_ADMIN", scopedToInstitution: false },
-  { email: "management@aimt.acadlyx.com", firstName: "Meera", lastName: "Kapoor", role: "MANAGEMENT", scopedToInstitution: true },
-  { email: "hod@aimt.acadlyx.com", firstName: "Rajesh", lastName: "Sharma", role: "HOD", scopedToInstitution: true },
-  { email: "faculty@aimt.acadlyx.com", firstName: "Anita", lastName: "Verma", role: "FACULTY", scopedToInstitution: true },
-  { email: "student@aimt.acadlyx.com", firstName: "Rohan", lastName: "Gupta", role: "STUDENT", scopedToInstitution: true },
-  { email: "parent@aimt.acadlyx.com", firstName: "Suresh", lastName: "Gupta", role: "PARENT", scopedToInstitution: true },
+  { email: "superadmin@acadlyx.com", idNumber: "SUPER-ADMIN", firstName: "Platform", lastName: "Admin", role: "SUPER_ADMIN", scopedToInstitution: false },
+  { email: "management@aimt.acadlyx.com", idNumber: "MGT-001", firstName: "Meera", lastName: "Kapoor", role: "MANAGEMENT", scopedToInstitution: true },
+  { email: "hod@aimt.acadlyx.com", idNumber: "HOD-CSE-001", firstName: "Rajesh", lastName: "Sharma", role: "HOD", scopedToInstitution: true },
+  { email: "faculty@aimt.acadlyx.com", idNumber: "FAC-001", firstName: "Anita", lastName: "Verma", role: "FACULTY", scopedToInstitution: true },
+  { email: "student@aimt.acadlyx.com", idNumber: "STU-001", firstName: "Rohan", lastName: "Gupta", role: "STUDENT", scopedToInstitution: true },
+  { email: "parent@aimt.acadlyx.com", idNumber: "PAR-001", firstName: "Suresh", lastName: "Gupta", role: "PARENT", scopedToInstitution: true },
 ];
 
 async function main() {
@@ -126,9 +127,10 @@ async function main() {
   for (const demo of DEMO_USERS) {
     const user = await prisma.user.upsert({
       where: { email: demo.email },
-      update: {},
+      update: { idNumber: demo.idNumber },
       create: {
         email: demo.email,
+        idNumber: demo.idNumber,
         passwordHash,
         firstName: demo.firstName,
         lastName: demo.lastName,
