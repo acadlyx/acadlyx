@@ -27,6 +27,7 @@ export const createInstitutionSchema = z.object({
   adminOfficeEmail: z.string().trim().email().optional().or(z.literal("")),
 
   admin: z.object({
+    idNumber: z.string().trim().min(1).max(100).transform((value) => value.toUpperCase()),
     firstName: z.string().trim().min(2).max(100),
     lastName: z.string().trim().min(1).max(100),
     email: z.string().trim().email().max(200),
