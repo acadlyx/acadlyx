@@ -70,12 +70,7 @@ export default function CourseOfferingRoster({
     if (!query) return roster;
 
     return roster.filter((student) =>
-      [
-        student.firstName,
-        student.lastName,
-        student.rollNumber || "",
-        student.studentId,
-      ]
+      [student.firstName, student.lastName, student.rollNumber || "", student.studentId]
         .join(" ")
         .toLowerCase()
         .includes(query),
@@ -88,17 +83,12 @@ export default function CourseOfferingRoster({
     async function load() {
       setLoading(true);
       setError("");
-
       try {
         const data = await getCourseOfferingRoster(offering.id);
         if (mounted) setRoster(data);
       } catch (err) {
         if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load roster.",
-          );
+          setError(err instanceof Error ? err.message : "Unable to load roster.");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -106,7 +96,6 @@ export default function CourseOfferingRoster({
     }
 
     void load();
-
     return () => {
       mounted = false;
     };
@@ -150,18 +139,12 @@ export default function CourseOfferingRoster({
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-sm text-slate-400">
-          Loading live student roster…
-        </div>
+        <div className="p-8 text-center text-sm text-slate-400">Loading live student roster…</div>
       ) : error ? (
-        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       ) : filtered.length === 0 ? (
         <div className="p-8 text-center text-sm text-slate-400">
-          {roster.length === 0
-            ? "No active students are enrolled in this offering."
-            : "No students match your search."}
+          {roster.length === 0 ? "No active students are enrolled in this offering." : "No students match your search."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -178,15 +161,9 @@ export default function CourseOfferingRoster({
               {filtered.map((student, index) => (
                 <tr key={student.studentId} className="hover:bg-slate-50">
                   <td className="px-3 py-2.5 text-slate-400">{index + 1}</td>
-                  <td className="px-3 py-2.5 font-semibold text-slate-900">
-                    {student.firstName} {student.lastName}
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-600">
-                    {student.rollNumber || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs text-slate-400">
-                    {student.studentId}
-                  </td>
+                  <td className="px-3 py-2.5 font-semibold text-slate-900">{student.firstName} {student.lastName}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{student.rollNumber || "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs text-slate-400">{student.studentId}</td>
                 </tr>
               ))}
             </tbody>
@@ -195,9 +172,7 @@ export default function CourseOfferingRoster({
       )}
 
       <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-400">
-        This roster is read from the authoritative academic enrollment for this
-        course offering. Attendance, marks and assignments use the same
-        enrollment boundary.
+        This roster is read from the authoritative academic enrollment for this course offering. Attendance, marks and assignments use the same enrollment boundary.
       </p>
     </DetailDrawer>
   );
