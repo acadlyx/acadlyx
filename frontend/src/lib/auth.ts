@@ -345,7 +345,7 @@ async function refreshCurrentUserInBackground():
 }
 
 export async function login(
-  email: string,
+  identifier: string,
   password: string
 ): Promise<LoginResult> {
   const res =
@@ -362,7 +362,7 @@ export async function login(
         },
 
         body: JSON.stringify({
-          email,
+          identifier,
           password,
         }),
       }
