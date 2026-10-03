@@ -13,15 +13,16 @@ CREATE TABLE IF NOT EXISTS "batches" (
   CONSTRAINT "batches_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "batches"
-  ADD CONSTRAINT "batches_institutionId_fkey"
-  FOREIGN KEY ("institutionId") REFERENCES "institutions"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "batches"
-  ADD CONSTRAINT "batches_programId_fkey"
-  FOREIGN KEY ("programId") REFERENCES "programs"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+DO $ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'batches_institutionId_fkey') THEN
+    ALTER TABLE "batches" ADD CONSTRAINT "batches_institutionId_fkey"
+      FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'batches_programId_fkey') THEN
+    ALTER TABLE "batches" ADD CONSTRAINT "batches_programId_fkey"
+      FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "batches_institutionId_code_key"
   ON "batches"("institutionId", "code");
@@ -33,10 +34,12 @@ CREATE INDEX IF NOT EXISTS "batches_programId_admissionYear_idx"
 ALTER TABLE "student_enrollments"
   ADD COLUMN IF NOT EXISTS "batchId" TEXT;
 
-ALTER TABLE "student_enrollments"
-  ADD CONSTRAINT "student_enrollments_batchId_fkey"
-  FOREIGN KEY ("batchId") REFERENCES "batches"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'student_enrollments_batchId_fkey') THEN
+    ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_batchId_fkey"
+      FOREIGN KEY ("batchId") REFERENCES "batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $;
 
 CREATE INDEX IF NOT EXISTS "student_enrollments_batchId_idx"
   ON "student_enrollments"("batchId");
