@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
+import "./acadlyx-dashboard-tokens.css";
 import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";
 import { ServiceWorkerRegistration } from "@/components/system/ServiceWorkerRegistration";
 import { API_BASE_URL } from "@/lib/api";
@@ -11,15 +12,10 @@ export const metadata: Metadata = {
   description: "Education ERP & Institutional Intelligence Platform",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <head>
-        {/* Establish the API connection before the first authenticated request. */}
         <link rel="preconnect" href={API_BASE_URL} crossOrigin="anonymous" />
         <link rel="dns-prefetch" href={API_BASE_URL} />
       </head>
