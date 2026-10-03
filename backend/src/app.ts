@@ -28,6 +28,7 @@ import assignmentRoutes from "./routes/assignment.routes";
 import attendanceSessionRoutes from "./routes/attendanceSession.routes";
 import authRoutes from "./routes/auth.routes";
 import calendarRoutes from "./routes/calendar.routes";
+import batchRoutes from "./routes/batch.routes";
 import campusRoutes from "./routes/campus.routes";
 import certificateRoutes from "./routes/certificate.routes";
 import courseRoutes from "./routes/course.routes";
@@ -267,6 +268,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/academic-years`,
     academicYearRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/batches`,
+    batchRoutes
   );
 
   app.use(
