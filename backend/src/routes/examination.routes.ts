@@ -606,6 +606,22 @@ router.patch(
 // ---------- Student view ----------
 
 router.get(
+  "/students/:studentId/hall-tickets",
+  authorize("exams.read"),
+  validateParams(studentIdParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await service.listStudentHallTickets(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.studentId
+      )
+    )
+  )
+);
+
+router.get(
   "/students/:studentId",
   authorize("exams.read"),
   validateParams(studentIdParams),
