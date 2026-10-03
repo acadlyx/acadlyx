@@ -31,6 +31,7 @@ export const listStudentsQuerySchema = z.object({
 
 export const createStudentSchema = z.object({
   email: z.string().trim().email().max(200),
+  idNumber: z.string().trim().min(1).max(100).transform((value) => value.toUpperCase()),
   firstName: z.string().trim().min(2).max(100),
   lastName: z.string().trim().min(1).max(100),
   phone: optionalText(30),
@@ -76,6 +77,7 @@ export const createStudentSchema = z.object({
 
 export const updateStudentSchema = z.object({
   email: z.string().trim().email().max(200).optional(),
+  idNumber: z.string().trim().min(1).max(100).transform((value) => value.toUpperCase()).optional(),
   firstName: z.string().trim().min(2).max(100).optional(),
   lastName: z.string().trim().min(1).max(100).optional(),
   phone: optionalText(30),
