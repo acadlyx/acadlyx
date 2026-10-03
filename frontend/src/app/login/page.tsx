@@ -14,7 +14,7 @@ function getDashboardRoute(roles: string[]): string {
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -36,7 +36,7 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const result = await login(email.trim(), password);
+      const result = await login(identifier.trim(), password);
 
       if (result.mfaRequired) {
         // No tokens were issued; ask for the authenticator code.
@@ -172,22 +172,22 @@ export default function LoginPage() {
           <div className="space-y-4">
             <div>
               <label
-                htmlFor="email"
+                htmlFor="identifier"
                 className="mb-1.5 block text-sm font-medium text-slate-700"
               >
-                Email
+                Email or roll number
               </label>
 
               <div className="relative"><input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="identifier"
+                name="identifier"
+                type="text"
+                autoComplete="username"
                 required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-                placeholder="you@example.com"
+                placeholder="you@example.com or roll number"
               />
             </div>
 
