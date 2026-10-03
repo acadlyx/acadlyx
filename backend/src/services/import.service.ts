@@ -111,9 +111,13 @@ async function findOrCreateRole(
 
 async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string) {
   const email = text(row.email).toLowerCase();
+  const idNumber = text(row.idnumber || row.id || row.loginid).toUpperCase();
   if (!email) throw new AppError("Every user row needs an email", 400);
+  if (!idNumber) throw new AppError("Every user row needs an ID number", 400);
   const role = await findOrCreateRole(tx, institutionId, roleName);
   const existing = await tx.user.findUnique({ where: { email } });
+  const existingId = await tx.user.findUnique({ where: { idNumber } });
+  if (existingId && existingId.id !== existing?.id) throw new AppError(`ID number ${idNumber} already belongs to another user`, 409);
   if (existing && existing.institutionId !== institutionId) {
     throw new AppError(`Email ${email} already belongs to another institution`, 409);
   }
@@ -122,8 +126,8 @@ async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, r
     throw new AppError("New imported users require a password of at least 12 characters", 400);
   }
   const user = existing
-    ? await tx.user.update({ where: { id: existing.id }, data: { firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
-    : await tx.user.create({ data: { institutionId, email, passwordHash: await hashPassword(password), firstName: text(row.firstname) || "User", lastName: text(row.lastname), phone: text(row.phone) || null } });
+    ? await tx.user.update({ where: { id: existing.id }, data: { idNumber, firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
+    : await tx.user.create({ data: { institutionId, email, idNumber, passwordHash: await hashPassword(password), firstName: text(row.firstname) || "User", lastName: text(row.lastname), phone: text(row.phone) || null } });
   await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: role.id } }, update: {}, create: { userId: user.id, roleId: role.id } });
   return user;
 }
