@@ -5,7 +5,7 @@ Branch: production-upgrade-2026-09-20
 
 ## 1. Overall completion
 
-**Current defensible implementation estimate: 93%.**
+**Current defensible implementation estimate: 95%.**
 
 This is not a declaration of 100% production readiness. The repository has a broad, tenant-scoped ERP architecture, real database-backed workflows across many core domains, production CI, deployment smoke checks, RBAC, authentication hardening, centralized file storage, academic lifecycle integrity, examination workflows, billing, imports, OBE, portals, and intelligence.
 
@@ -50,7 +50,7 @@ The remaining percentage is primarily verification and infrastructure completene
 
 No known blocker should be hidden:
 
-1. Fresh post-change CI verification is still required. The last fully verified automated pipeline was successful before the latest hardening commits. The current GitHub status also reports a Vercel build-rate-limit failure target, which is an account/plan limitation rather than an application compiler result.
+1. The fresh post-hardening CI gate is now verified green on GitHub Actions run 37106219957 (2026-10-03). Backend typecheck/tests, frontend typecheck/lint/build, and production deployment smoke checks all passed. A separate Vercel status may still report account build-rate-limit information; that is not an application compiler failure.
 2. Online payments are not a completed live provider integration. Manual/offline collection is explicit and safe; the generic HMAC adapter does not itself create provider orders. A live Razorpay/Stripe/etc. adapter must be provisioned and tested before enabling online payments.
 3. Asynchronous bulk PDF generation is not proven at 10,000+ student scale. A queue/worker architecture and operational retry/progress verification are still required before claiming that gate.
 4. Email delivery is configuration-dependent and requires provider credentials plus delivery testing.
@@ -105,7 +105,7 @@ No known blocker should be hidden:
 - Production smoke checks for Render health and Vercel frontend: passed.
 
 ### Still required
-- Fresh CI after the latest hardening commits.
+- Fresh post-hardening CI: **passed** on run 37106219957.
 - Two-tenant security integration suite.
 - Full role journey E2E suite.
 - Large import/load testing.
@@ -175,10 +175,6 @@ Earlier production-hardening work already present on this branch includes the ce
 
 ## 12. Latest repository verification state
 
-The last verified green CI run was GitHub Actions run 37066480835 before the latest hardening commits. Its backend, frontend and production smoke jobs all completed successfully.
+A fresh post-hardening CI run is now verified: GitHub Actions run 37106219957 completed successfully on 2026-10-03. Its three jobs all passed: Backend typecheck and tests; Frontend typecheck and production build; Production deployment smoke checks. This validates the current branch at commit b85ada89ae42bc8a3fcf16a6104a9e645a6403e6.
 
-The latest branch status after the hardening commits currently reports a Vercel status failure whose target explicitly points to the account build-rate-limit upgrade page. This must not be interpreted as an application build error. A fresh application CI run is still required to verify the latest code itself.
-
-
-### Verification refresh
-A fresh CI run is intentionally triggered by this report update so the current branch state is validated after the latest authentication, workspace-context, and batch changes.
+The remaining release gates are now limited to items that require either real production-provider/infrastructure access or additional scale/adversarial execution: exhaustive two-tenant authorization testing, 10,000+ record batch-generation/load verification, live email delivery verification, live online-payment-provider verification if enabled, Supabase backup/restore drill, and final route-by-route frontend data/state audit.
