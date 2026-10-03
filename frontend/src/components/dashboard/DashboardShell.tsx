@@ -226,9 +226,15 @@ export function DashboardShell({
       }
       onSignOut={signOut}
     >
-      <div className="acadlyx-workspace-content">
-        {children}
-      </div>
+      <InstitutionalCmsProvider>
+        <div className="acadlyx-workspace-content">
+          <div className="mb-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 shadow-sm">
+            <DashboardBranding />
+            <span className="sr-only">Institutional workspace</span>
+          </div>
+          {children}
+        </div>
+      </InstitutionalCmsProvider>
     </UnifiedDashboardFrame>
   );
 }
