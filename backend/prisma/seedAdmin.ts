@@ -296,6 +296,7 @@ async function ensureSuperAdmin(
         },
         data: {
           institutionId: null,
+          idNumber: process.env.SUPER_ADMIN_ID_NUMBER?.trim().toUpperCase() || "SUPER-ADMIN",
           passwordHash,
           firstName,
           lastName,
@@ -311,6 +312,7 @@ async function ensureSuperAdmin(
         data: {
           institutionId: null,
           email,
+          idNumber: process.env.SUPER_ADMIN_ID_NUMBER?.trim().toUpperCase() || "SUPER-ADMIN",
           passwordHash,
           firstName,
           lastName,
