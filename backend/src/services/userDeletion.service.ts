@@ -255,6 +255,9 @@ async function deleteUserPermanently(
   targetId: string,
   actor: AuthenticatedUser,
   auditAction: string,
+  options?: {
+    bypassRecoveryWindow?: boolean;
+  },
 ) {
   const target =
     await getTarget(
@@ -267,18 +270,20 @@ async function deleteUserPermanently(
     target,
   );
 
-  if (!target.deletedAt || !target.recoveryDeadline) {
-    throw new AppError(
-      "Permanent deletion is only available after the 90-day recovery window. Soft-delete the account first.",
-      409,
-    );
-  }
+  if (!options?.bypassRecoveryWindow) {
+    if (!target.deletedAt || !target.recoveryDeadline) {
+      throw new AppError(
+        "Permanent deletion is only available after the 90-day recovery window. Soft-delete the account first.",
+        409,
+      );
+    }
 
-  if (target.recoveryDeadline.getTime() > Date.now()) {
-    throw new AppError(
-      "The 90-day recovery window has not expired yet. Recover or retain the account until the deadline.",
-      409,
-    );
+    if (target.recoveryDeadline.getTime() > Date.now()) {
+      throw new AppError(
+        "The 90-day recovery window has not expired yet. Recover or retain the account until the deadline.",
+        409,
+      );
+    }
   }
 
   const targetRoleName =
@@ -522,6 +527,9 @@ export async function requestPermanentDeletion(
       target.id,
       actor,
       "user.permanent_delete",
+      {
+        bypassRecoveryWindow: true,
+      },
     );
   }
 
