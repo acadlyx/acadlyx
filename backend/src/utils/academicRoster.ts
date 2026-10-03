@@ -40,19 +40,6 @@ export async function getCourseOfferingRoster(
       semesterId: offering.semesterId,
       programId: offering.semester.programId,
       academicYearId: offering.semester.academicYearId,
-      /*
-       * Course registration approval is the academic clearance gate.
-       * A student may belong to the section and still be excluded from
-       * attendance/marks/assignment rosters until this concrete offering
-       * is approved by the configured authority.
-       */
-      registrations: {
-        some: {
-          courseOfferingId,
-          institutionId,
-          status: "APPROVED",
-        },
-      },
     },
     include: {
       user: { select: { id: true, firstName: true, lastName: true } },
@@ -60,12 +47,31 @@ export async function getCourseOfferingRoster(
     orderBy: { user: { firstName: "asc" } },
   });
 
-  return enrollments.map((enrollment) => ({
-    studentId: enrollment.userId,
-    firstName: enrollment.user.firstName,
-    lastName: enrollment.user.lastName,
-    rollNumber: enrollment.rollNumber,
-  }));
+  /*
+   * CourseRegistration is intentionally a separate workflow record, so
+   * approval is checked after resolving the authoritative enrollment
+   * roster. Only APPROVED registrations are academically cleared.
+   */
+  const approved = await prisma.courseRegistration.findMany({
+    where: {
+      institutionId,
+      courseOfferingId,
+      status: "APPROVED",
+      studentId: { in: enrollments.map((enrollment) => enrollment.userId) },
+    },
+    select: { studentId: true },
+  });
+
+  const approvedIds = new Set(approved.map((row) => row.studentId));
+
+  return enrollments
+    .filter((enrollment) => approvedIds.has(enrollment.userId))
+    .map((enrollment) => ({
+      studentId: enrollment.userId,
+      firstName: enrollment.user.firstName,
+      lastName: enrollment.user.lastName,
+      rollNumber: enrollment.rollNumber,
+    }));
 }
 
 export async function getCourseOfferingRosterIds(
