@@ -12,6 +12,7 @@ import {
   DashboardNavigationItem,
 } from "./UnifiedDashboardFrame";
 import { useWorkspaceShellContext } from "./WorkspaceShellContext";
+import { apiUrl } from "@/lib/api";
 import {
   AuthRequiredError,
   AuthUser,
