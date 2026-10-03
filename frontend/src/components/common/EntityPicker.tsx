@@ -72,8 +72,8 @@ export function EntityPicker({
           kind === "student"
             ? await searchStudents(query)
             : kind === "courseOffering"
-            ? await searchCourseOfferings(query)
-            : await searchUsers(query, roleKey ? roleKey.split(",") : undefined);
+              ? await searchCourseOfferings(query)
+              : await searchUsers(query, roleKey ? roleKey.split(",") : undefined);
         if (!cancelled) {
           setOptions(results);
           setOpen(true);
@@ -135,6 +135,11 @@ export function EntityPicker({
     );
   }
 
+  const defaultPlaceholder =
+    kind === "courseOffering"
+      ? "Search course, department, program/class, semester or section"
+      : "Type a name or code to search";
+
   return (
     <div ref={containerRef} className="relative text-sm">
       <label className="block">
@@ -147,7 +152,7 @@ export function EntityPicker({
           disabled={disabled}
           onChange={(event) => setTerm(event.target.value)}
           onFocus={() => options.length > 0 && setOpen(true)}
-          placeholder={placeholder ?? "Type a name or code to search"}
+          placeholder={placeholder ?? defaultPlaceholder}
           className="w-full rounded-xl border border-slate-200 px-3 py-2 disabled:bg-slate-100"
           autoComplete="off"
         />
