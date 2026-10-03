@@ -874,6 +874,10 @@ export async function updateUser(
   const targetRoleName =
     input.role ?? currentRole?.name;
 
+  const requestedPasswordHash = input.password !== undefined
+    ? await hashPassword(input.password)
+    : undefined;
+
   if (!targetRoleName) {
     throw new AppError(
       "Target user has no valid role",
@@ -1131,6 +1135,14 @@ export async function updateUser(
                     input.isActive,
                 }
               : {}),
+
+            ...(requestedPasswordHash !== undefined
+              ? {
+                  passwordHash: requestedPasswordHash,
+                  passwordChangedAt: new Date(),
+                  mustChangePassword: false,
+                }
+              : {}),
           },
         });
 
@@ -1229,6 +1241,14 @@ export async function updateUser(
           ? {
               isActive:
                 input.isActive,
+            }
+          : {}),
+
+        ...(requestedPasswordHash !== undefined
+          ? {
+              passwordHash: requestedPasswordHash,
+              passwordChangedAt: new Date(),
+              mustChangePassword: false,
             }
           : {}),
         },
