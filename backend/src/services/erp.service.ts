@@ -550,7 +550,7 @@ export async function getMyWorkspace(
        * through AND, with one OR for expiry and one OR
        * for department scope.
        */
-                  prisma.notice.findMany({
+                        prisma.notice.findMany({
         where: {
           institutionId,
           AND: [
@@ -562,32 +562,17 @@ export async function getMyWorkspace(
               ],
             },
             {
-              audience: {
-                in: ["ALL", "PARENT", "PARENTS"],
-              },
-            },
-            {
               OR: [
                 { departmentId: null },
-                {
-                  departmentId: {
-                    in: Array.from(
-                      new Set(
-                        children.flatMap((child) =>
-                          child.student.studentEnrollments.map(
-                            (enrollment) => enrollment.program.departmentId,
-                          ),
-                        ),
-                      ),
-                    ),
-                  },
-                },
+                ...(departmentIds.length
+                  ? [{ departmentId: { in: departmentIds } }]
+                  : []),
               ],
             },
           ],
         },
         orderBy: { publishedAt: "desc" },
-        take: 10,
+        take: 20,
       }),
 
       prisma.notification.findMany({
@@ -943,49 +928,43 @@ export async function getMyWorkspace(
         take: 50,
       }),
 
-      prisma.notice.findMany({
+            prisma.notice.findMany({
         where: {
           institutionId,
-          publishedAt: {
-            lte: now,
-          },
-          OR: [
+          AND: [
+            { publishedAt: { lte: now } },
             {
-              expiresAt: null,
+              OR: [
+                { expiresAt: null },
+                { expiresAt: { gt: now } },
+              ],
             },
             {
-              expiresAt: {
-                gt: now,
+              audience: {
+                in: ["ALL", "PARENT", "PARENTS"],
               },
             },
-          ],
-          audience: {
-            in: [
-              "ALL",
-              "PARENT",
-              "PARENTS",
-            ],
-          },
-          OR: [
-            { departmentId: null },
             {
-              departmentId: {
-                in: Array.from(
-                  new Set(
-                    children.flatMap((child) =>
-                      child.student.studentEnrollments.map(
-                        (enrollment) => enrollment.program.departmentId,
+              OR: [
+                { departmentId: null },
+                {
+                  departmentId: {
+                    in: Array.from(
+                      new Set(
+                        children.flatMap((child) =>
+                          child.student.studentEnrollments.map(
+                            (enrollment) => enrollment.program.departmentId,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              },
+                  },
+                },
+              ],
             },
           ],
         },
-        orderBy: {
-          publishedAt: "desc",
-        },
+        orderBy: { publishedAt: "desc" },
         take: 10,
       }),
 
