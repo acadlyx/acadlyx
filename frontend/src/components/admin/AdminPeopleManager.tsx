@@ -915,6 +915,13 @@ function AdminPeopleManagerContent() {
 
       const created =
         await createAdminUser({
+          idNumber:
+            String(
+              form.get(
+                "idNumber",
+              ) || "",
+            ).trim(),
+
           firstName:
             String(
               form.get(
