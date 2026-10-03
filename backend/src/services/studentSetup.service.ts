@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
+import { MAX_CREDITS_PER_SEMESTER } from "./registration.service";
 
 export async function completeStudentSetup(
   institutionId: string,
@@ -96,6 +97,22 @@ export async function completeStudentSetup(
   const elective = offerings.filter((item) => item.isElective);
 
   const results = await prisma.$transaction(async (tx) => {
+    let runningCredits = 0;
+
+    const alreadyApproved = await tx.courseRegistration.findMany({
+      where: {
+        institutionId,
+        studentId,
+        status: "APPROVED",
+        courseOffering: {
+          semesterId: enrollment.semesterId,
+          sectionId: enrollment.sectionId,
+        },
+        courseOfferingId: { notIn: compulsory.map((item) => item.id) },
+      },
+      select: { courseOffering: { select: { course: { select: { credits: true } } } } },
+    });
+    runningCredits = alreadyApproved.reduce((sum, item) => sum + item.courseOffering.course.credits, 0);
     const assigned: Array<{
       courseOfferingId: string;
       courseCode: string;
@@ -107,6 +124,35 @@ export async function completeStudentSetup(
 
     for (const offering of compulsory) {
       const current = existingByOffering.get(offering.id);
+
+      if (current?.status === "APPROVED") {
+        runningCredits += offering.course.credits;
+      }
+
+      const section = await tx.section.findUnique({
+        where: { id: enrollment.sectionId! },
+        select: { capacity: true },
+      });
+      const offeringMeta = await tx.courseOffering.findUnique({
+        where: { id: offering.id },
+        select: { capacity: true },
+      });
+      const limit = offeringMeta?.capacity ?? section?.capacity ?? null;
+      if (limit !== null && current?.status !== "APPROVED") {
+        const approvedCount = await tx.courseRegistration.count({
+          where: { courseOfferingId: offering.id, status: "APPROVED", studentId: { not: studentId } },
+        });
+        if (approvedCount >= limit) {
+          throw new AppError("Course offering " + offering.course.code + " is full", 409);
+        }
+      }
+
+      if (current?.status !== "APPROVED" && runningCredits + offering.course.credits > MAX_CREDITS_PER_SEMESTER) {
+        throw new AppError(
+          "Automatic course setup would exceed the " + MAX_CREDITS_PER_SEMESTER + "-credit semester limit for this student",
+          422
+        );
+      }
 
       if (current?.status === "APPROVED") {
         assigned.push({
@@ -228,6 +274,6 @@ export async function completeStudentSetup(
     },
     compulsory: results,
     electives: skippedElectives,
-    complete: results.length === compulsory.length,
+    complete: offerings.length > 0 && results.length === compulsory.length,
   };
 }
