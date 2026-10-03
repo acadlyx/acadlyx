@@ -19,6 +19,7 @@ type Lookup = {
 
 type Student = {
   id: string;
+  idNumber: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -179,6 +180,7 @@ export function StudentManagement({ onChanged }: Props) {
   const [showEnrollment, setShowEnrollment] = useState(false);
 
   const emptyForm = {
+    idNumber: "",
     email: "",
     firstName: "",
     lastName: "",
@@ -351,6 +353,7 @@ export function StudentManagement({ onChanged }: Props) {
     setError("");
     setEditing(student);
     setForm({
+      idNumber: student.idNumber,
       email: student.email,
       firstName: student.firstName,
       lastName: student.lastName,
@@ -404,6 +407,7 @@ export function StudentManagement({ onChanged }: Props) {
         setSuccess("Student account, master profile and first enrollment created successfully.");
       } else {
         const payload: Record<string, unknown> = {
+          idNumber: form.idNumber,
           email: form.email,
           firstName: form.firstName,
           lastName: form.lastName,
@@ -775,6 +779,7 @@ This permanently removes the student account and related records allowed by the 
                   <Field label="First name" required><input required value={form.firstName} onChange={(e) => setField("firstName", e.target.value)} className={inputClass()} /></Field>
                   <Field label="Last name" required><input required value={form.lastName} onChange={(e) => setField("lastName", e.target.value)} className={inputClass()} /></Field>
                   <Field label="Email" required><input required type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} className={inputClass()} /></Field>
+                  <Field label="ID number / Login ID" required><input value={form.idNumber} onChange={(e) => setField("idNumber", e.target.value)} className={inputClass()} required /></Field>
                   <Field label="Phone"><input value={form.phone} onChange={(e) => setField("phone", e.target.value)} className={inputClass()} /></Field>
                   {!editing && <Field label="Temporary password" required><input required minLength={8} type="password" value={form.password} onChange={(e) => setField("password", e.target.value)} className={inputClass()} /></Field>}
                   <Field label="Admission number" required><input required value={form.admissionNumber} onChange={(e) => setField("admissionNumber", e.target.value)} className={inputClass()} /></Field>
