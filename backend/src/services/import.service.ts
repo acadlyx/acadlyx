@@ -148,10 +148,10 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
 
-  await prisma.$transaction(async (tx) => {
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      try {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    try {
+      await prisma.$transaction(async (tx) => {
         if (type === "users") {
           const roleName = text(row.role) || "ACCOUNTS";
           if (roleName === "STUDENT") {
@@ -194,6 +194,22 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
           if (!parent || !student) throw new AppError("Parent and student emails must belong to this institution", 400);
           await tx.parentStudentLink.upsert({ where: { parentId_studentId: { parentId: parent.id, studentId: student.id } }, update: { relationship: text(row.relationship) || null }, create: { institutionId, parentId: parent.id, studentId: student.id, relationship: text(row.relationship) || null } });
         } else if (type === "students") {
+          const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
+          if (!admissionNumber) throw new AppError("admissionNumber (or rollNumber) is required for students", 400);
+
+          const existingProfile = await tx.studentProfile.findFirst({
+            where: { institutionId, admissionNumber },
+            include: { user: true },
+          });
+
+          const email = text(row.email).toLowerCase();
+          if (existingProfile && email && existingProfile.user.email.toLowerCase() !== email) {
+            throw new AppError(
+              "Admission number " + admissionNumber + " is already assigned to " + existingProfile.user.email,
+              409
+            );
+          }
+
           const user = await upsertUser(tx, institutionId, row, "STUDENT");
           const program = await resolveProgram(tx, institutionId, row);
           const yearName = text(row.academicyear);
@@ -209,8 +225,13 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
             sectionId = section.id;
             semesterId = section.semesterId;
           }
-          const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
-          if (!admissionNumber) throw new AppError("admissionNumber (or rollNumber) is required for students", 400);
+          if (existingProfile && existingProfile.userId !== user.id) {
+            throw new AppError(
+              "Admission number " + admissionNumber + " is already linked to another student account",
+              409
+            );
+          }
+
           await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: text(row.status) || "ACTIVE" } });
           await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } }, update: { programId: program.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, programId: program.id, academicYearId: year.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" } });
         } else if (type === "faculty") {
@@ -290,11 +311,15 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
           await tx.timetableEntry.upsert({ where: { courseOfferingId_dayOfWeek_startTime: { courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime) } }, update: { endTime: text(row.endtime), room: text(row.room) || null }, create: { institutionId, courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime), endTime: text(row.endtime), room: text(row.room) || null } });
         }
         imported++;
-      } catch (e) {
-        errors.push({ row: i + 2, message: e instanceof Error ? e.message : "Unknown row error" });
-      }
+      });
+    } catch (e) {
+      errors.push({ row: i + 2, message: e instanceof Error ? e.message : "Unknown row error" });
     }
-    if (errors.length) throw new AppError(`Import stopped because ${errors.length} row(s) failed. Fix the spreadsheet and retry. First error: ${errors[0].message}`, 400);
-  }, { timeout: 120000 });
-  return { imported, failed: errors.length };
+  }
+
+  return {
+    imported,
+    failed: errors.length,
+    errors,
+  };
 }
