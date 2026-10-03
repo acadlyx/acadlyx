@@ -1,0 +1,162 @@
+/* ACADLYX responsive shell reliability layer.
+ * This file intentionally targets the canonical authenticated shell only.
+ * It fixes the mobile drawer stacking bug without changing module/API behavior.
+ */
+
+.acadlyx-app-shell {
+  --acadlyx-mobile-nav-backdrop-z: 70;
+  --acadlyx-mobile-nav-drawer-z: 75;
+}
+
+/* The legacy global layering rule promotes every z-[70] full-screen overlay.
+ * The authenticated shell's navigation backdrop is a direct child of the
+ * shell, so it must stay below the drawer and above page content.
+ */
+.acadlyx-app-shell > .fixed.inset-0.z-\[70\] {
+  z-index: var(--acadlyx-mobile-nav-backdrop-z) !important;
+  pointer-events: auto !important;
+  touch-action: none;
+}
+
+.acadlyx-app-shell > aside {
+  z-index: var(--acadlyx-mobile-nav-drawer-z) !important;
+  pointer-events: auto !important;
+  touch-action: pan-y;
+}
+
+.acadlyx-app-shell > aside nav,
+.acadlyx-app-shell > aside nav a,
+.acadlyx-app-shell > aside nav button,
+.acadlyx-app-shell > aside > div,
+.acadlyx-app-shell > aside > div > div {
+  pointer-events: auto;
+}
+
+.acadlyx-app-shell > aside nav a,
+.acadlyx-app-shell > aside button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.acadlyx-app-shell > aside nav a {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.acadlyx-app-shell > main {
+  position: relative;
+  z-index: 0;
+}
+
+.acadlyx-app-shell > main,
+.acadlyx-app-shell > main > div,
+.acadlyx-app-shell .acadlyx-page-container,
+.acadlyx-app-shell .acadlyx-workspace-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acadlyx-app-shell .acadlyx-page-container {
+  overflow-x: clip;
+}
+
+@media (max-width: 1023px) {
+  .acadlyx-app-shell > main {
+    padding-top: 64px !important;
+  }
+
+  .acadlyx-app-shell > main > div {
+    min-height: calc(100vh - 64px);
+  }
+
+  .acadlyx-app-shell .acadlyx-page-container {
+    padding-top: 20px;
+  }
+
+  .acadlyx-app-shell header {
+    height: 64px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .acadlyx-app-shell > aside {
+    width: min(304px, calc(100vw - 12px)) !important;
+    max-width: calc(100vw - 12px);
+    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.22);
+  }
+
+  .acadlyx-app-shell > aside nav a {
+    min-height: 48px;
+  }
+
+  .acadlyx-app-shell header > div {
+    padding-inline: 10px;
+  }
+
+  .acadlyx-app-shell header .max-w-\[180px\] {
+    max-width: 150px;
+  }
+
+  .acadlyx-app-shell .acadlyx-page-container {
+    padding-inline: 12px;
+    padding-bottom: 28px;
+  }
+
+  .acadlyx-app-shell .acadlyx-page-header {
+    gap: 14px;
+  }
+
+  .acadlyx-app-shell .acadlyx-page-actions {
+    width: 100%;
+  }
+
+  .acadlyx-app-shell .acadlyx-page-actions > * {
+    min-width: min(100%, 150px);
+  }
+
+  .acadlyx-app-shell .acadlyx-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 380px) {
+  .acadlyx-app-shell .acadlyx-page-container {
+    padding-inline: 10px;
+  }
+
+  .acadlyx-app-shell header > div {
+    padding-inline: 8px;
+  }
+}
+
+/* At desktop widths the drawer is not a drawer and the backdrop must not
+ * participate in hit testing even if a stale React state survives a resize.
+ */
+@media (min-width: 1024px) {
+  .acadlyx-app-shell > .fixed.inset-0.z-\[70\] {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  .acadlyx-app-shell > aside {
+    pointer-events: auto !important;
+  }
+}
+
+/* High-contrast shell text: keep inactive navigation and profile metadata
+ * readable even when legacy utility classes are present in module markup.
+ */
+.acadlyx-app-shell > aside nav a:not([aria-current="page"]) {
+  color: #f1f5f9 !important;
+}
+
+.acadlyx-app-shell > aside nav a:not([aria-current="page"]) > span:not(:first-child) {
+  color: #f1f5f9 !important;
+}
+
+.acadlyx-app-shell header button span span:last-child {
+  color: #475569 !important;
+}
