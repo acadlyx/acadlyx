@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm run render:build
+    buildCommand: npm ci && npx prisma generate && (npx prisma migrate resolve --rolled-back 20261003030000_user_lifecycle_90_day_recovery || true) && npx prisma migrate deploy && npm run prisma:rbac:sync && npx tsc -p tsconfig.json
     startCommand: npm start
     healthCheckPath: /api/v1/health
     autoDeploy: true
