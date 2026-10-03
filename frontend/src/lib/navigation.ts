@@ -459,10 +459,18 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/hod",
     icon: "◎",
     roles: ["HOD"],
     permissions: ["students.read"],
+    group: "Academic",
+  },
+  {
+    label: "Course Registration",
+    href: "/hod?tab=registrations",
+    icon: "▦",
+    roles: ["HOD"],
+    permissions: ["registration.read", "registration.approve"],
     group: "Academic",
   },
   {
