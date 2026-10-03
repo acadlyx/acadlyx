@@ -16,9 +16,7 @@ export async function completeStudentSetup(
       id: studentId,
       institutionId,
       isActive: true,
-      userRoles: {
-        some: { role: { name: "STUDENT", institutionId } },
-      },
+      userRoles: { some: { role: { name: "STUDENT", institutionId } } },
     },
     select: {
       id: true,
@@ -26,12 +24,7 @@ export async function completeStudentSetup(
       lastName: true,
       email: true,
       idNumber: true,
-      profile: {
-        select: {
-          admissionNumber: true,
-          status: true,
-        },
-      },
+      profile: { select: { admissionNumber: true, status: true } },
       studentEnrollments: {
         where: { institutionId, status: "ACTIVE" },
         orderBy: { enrolledAt: "desc" },
@@ -56,18 +49,20 @@ export async function completeStudentSetup(
   if (!student.profile) throw new AppError("Student master profile is incomplete", 409);
 
   const enrollment = student.studentEnrollments[0];
-  if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
+  const semesterId = enrollment?.semesterId;
+  const sectionId = enrollment?.sectionId;
+  if (!enrollment || !semesterId || !sectionId) {
     throw new AppError(
       "Student needs an active program, academic year, semester and section before course setup can be completed",
-      409
+      409,
     );
   }
 
   const offerings = await prisma.courseOffering.findMany({
     where: {
       institutionId,
-      semesterId: enrollment.semesterId,
-      sectionId: enrollment.sectionId,
+      semesterId,
+      sectionId,
       isActive: true,
     },
     orderBy: { course: { code: "asc" } },
@@ -85,11 +80,7 @@ export async function completeStudentSetup(
       studentId,
       courseOfferingId: { in: offerings.map((item) => item.id) },
     },
-    select: {
-      id: true,
-      courseOfferingId: true,
-      status: true,
-    },
+    select: { id: true, courseOfferingId: true, status: true },
   });
 
   const existingByOffering = new Map(existing.map((item) => [item.courseOfferingId, item]));
@@ -104,15 +95,18 @@ export async function completeStudentSetup(
         institutionId,
         studentId,
         status: "APPROVED",
-        courseOffering: {
-          semesterId: enrollment.semesterId,
-          sectionId: enrollment.sectionId,
-        },
+        courseOffering: { semesterId, sectionId },
         courseOfferingId: { notIn: compulsory.map((item) => item.id) },
       },
-      select: { courseOffering: { select: { course: { select: { credits: true } } } } },
+      select: {
+        courseOffering: { select: { course: { select: { credits: true } } } },
+      },
     });
-    runningCredits = alreadyApproved.reduce((sum, item) => sum + item.courseOffering.course.credits, 0);
+    runningCredits = alreadyApproved.reduce(
+      (sum, item) => sum + item.courseOffering.course.credits,
+      0,
+    );
+
     const assigned: Array<{
       courseOfferingId: string;
       courseCode: string;
@@ -122,39 +116,34 @@ export async function completeStudentSetup(
       action: "CREATED" | "UPDATED" | "UNCHANGED";
     }> = [];
 
+    const section = await tx.section.findUnique({
+      where: { id: sectionId },
+      select: { capacity: true },
+    });
+
     for (const offering of compulsory) {
       const current = existingByOffering.get(offering.id);
-
-      if (current?.status === "APPROVED") {
-        runningCredits += offering.course.credits;
-      }
-
-      const section = await tx.section.findUnique({
-        where: { id: enrollment.sectionId! },
-        select: { capacity: true },
-      });
       const offeringMeta = await tx.courseOffering.findUnique({
         where: { id: offering.id },
         select: { capacity: true },
       });
       const limit = offeringMeta?.capacity ?? section?.capacity ?? null;
+
       if (limit !== null && current?.status !== "APPROVED") {
         const approvedCount = await tx.courseRegistration.count({
-          where: { courseOfferingId: offering.id, status: "APPROVED", studentId: { not: studentId } },
+          where: {
+            courseOfferingId: offering.id,
+            status: "APPROVED",
+            studentId: { not: studentId },
+          },
         });
         if (approvedCount >= limit) {
-          throw new AppError("Course offering " + offering.course.code + " is full", 409);
+          throw new AppError(`Course offering ${offering.course.code} is full`, 409);
         }
       }
 
-      if (current?.status !== "APPROVED" && runningCredits + offering.course.credits > MAX_CREDITS_PER_SEMESTER) {
-        throw new AppError(
-          "Automatic course setup would exceed the " + MAX_CREDITS_PER_SEMESTER + "-credit semester limit for this student",
-          422
-        );
-      }
-
       if (current?.status === "APPROVED") {
+        runningCredits += offering.course.credits;
         assigned.push({
           courseOfferingId: offering.id,
           courseCode: offering.course.code,
@@ -164,6 +153,13 @@ export async function completeStudentSetup(
           action: "UNCHANGED",
         });
         continue;
+      }
+
+      if (runningCredits + offering.course.credits > MAX_CREDITS_PER_SEMESTER) {
+        throw new AppError(
+          `Automatic course setup would exceed the ${MAX_CREDITS_PER_SEMESTER}-credit semester limit for this student`,
+          422,
+        );
       }
 
       const saved = current
@@ -218,10 +214,7 @@ export async function completeStudentSetup(
       institutionId,
       studentId,
       status: "APPROVED",
-      courseOffering: {
-        semesterId: enrollment.semesterId,
-        sectionId: enrollment.sectionId,
-      },
+      courseOffering: { semesterId, sectionId },
     },
     select: {
       courseOffering: { select: { course: { select: { credits: true } } } },
@@ -230,7 +223,7 @@ export async function completeStudentSetup(
 
   const registeredCredits = activeRegistrations.reduce(
     (sum, item) => sum + item.courseOffering.course.credits,
-    0
+    0,
   );
 
   await recordAuditLog({
