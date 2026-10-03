@@ -65,6 +65,7 @@ export const admissionStatusSchema = z.object({
 });
 
 export const admissionEnrollSchema = z.object({
+  idNumber: z.string().trim().min(1).max(100).transform((value) => value.toUpperCase()),
   admissionNumber: z.string().trim().min(1).max(100),
   password: z.string().min(8).max(128),
   semesterId: z.string().uuid(),
