@@ -257,20 +257,18 @@ function toSafeUser(
 async function assertInstitutionUsable(
   institutionId: string | null
 ): Promise<void> {
-  if (!institutionId) {
-    return;
-  }
+  if (!institutionId) return;
 
-  const institution =
-    await prisma.institution.findUnique({
-      where: {
-        id: institutionId,
-      },
-      select: {
-        id: true,
-        isActive: true,
-      },
-    });
+  const [institution, subscription] = await Promise.all([
+    prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { id: true, isActive: true },
+    }),
+    prisma.tenantSubscription.findUnique({
+      where: { institutionId },
+      select: { status: true, expiresAt: true },
+    }),
+  ]);
 
   if (!institution) {
     throw new AppError(
@@ -286,34 +284,11 @@ async function assertInstitutionUsable(
     );
   }
 
-  const subscription =
-    await prisma.tenantSubscription.findUnique(
-      {
-        where: {
-          institutionId,
-        },
-        select: {
-          status: true,
-          expiresAt: true,
-        },
-      }
-    );
-
   if (
     subscription &&
     (
-      [
-        "EXPIRED",
-        "SUSPENDED",
-        "CANCELLED",
-      ].includes(
-        subscription.status
-      ) ||
-      (
-        subscription.expiresAt &&
-        subscription.expiresAt <
-          new Date()
-      )
+      ["EXPIRED", "SUSPENDED", "CANCELLED"].includes(subscription.status) ||
+      (subscription.expiresAt && subscription.expiresAt < new Date())
     )
   ) {
     throw new AppError(
@@ -324,7 +299,7 @@ async function assertInstitutionUsable(
 }
 
 async function issueTokens(
-  user: User,
+  user: Pick<User, "id" | "email">,
   roles: string[],
   permissions: string[],
   institutionId: string | null,
@@ -536,59 +511,37 @@ export async function login(
     institutionId
   );
 
-  /*
-   * Re-read the user after possible tenant repair so the returned
-   * object and token are guaranteed to contain the same tenant.
-   */
-  const freshUser =
-    await prisma.user.findUnique({
-      where: {
-        id: user.id,
-      },
-    });
+  const authenticatedUser =
+    user.institutionId === institutionId
+      ? user
+      : { ...user, institutionId };
 
-  if (!freshUser) {
-    throw new AppError(
-      "User could not be loaded after authentication",
-      500
-    );
-  }
-
-  const tokens =
-    await issueTokens(
-      freshUser,
+  const [tokens] = await Promise.all([
+    issueTokens(
+      authenticatedUser,
       roles,
       permissions,
       institutionId,
       meta
-    );
-
-  await prisma.user.update({
-    where: {
-      id: freshUser.id,
-    },
-    data: {
-      lastLoginAt:
-        new Date(),
-    },
-  });
+    ),
+    prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    }),
+  ]);
 
   await recordAuditLog({
     institutionId,
-    userId:
-      freshUser.id,
-    action:
-      "auth.login",
-    ipAddress:
-      meta.ipAddress,
-    userAgent:
-      meta.userAgent,
+    userId: user.id,
+    action: "auth.login",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
   });
 
   return {
     mfaRequired: false,
     user: toSafeUser(
-      freshUser,
+      authenticatedUser,
       roles,
       permissions,
       institutionId
@@ -879,20 +832,6 @@ export async function getCurrentUser(
   await assertInstitutionUsable(
     institutionId
   );
-
-  const freshUser =
-    await prisma.user.findUnique({
-      where: {
-        id: user.id,
-      },
-    });
-
-  if (!freshUser) {
-    throw new AppError(
-      "User not found",
-      401
-    );
-  }
 
   return toSafeUser(
     freshUser,
