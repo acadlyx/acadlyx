@@ -114,7 +114,8 @@ type InstitutionForm = {
   slug: string;
   primaryColor: string;
   secondaryColor: string;
-  adminFirstName: string;
+  adminIdNumber: "",
+    adminFirstName: string;
   adminLastName: string;
   adminEmail: string;
   adminPhone: string;
