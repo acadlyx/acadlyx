@@ -299,6 +299,7 @@ export async function enrollApplicant(
     institutionId,
     {
       email: application.email,
+      idNumber: input.idNumber,
       firstName: application.firstName,
       lastName: application.lastName,
       phone: application.phone ?? undefined,
