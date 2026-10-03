@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
+import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";
 import { ServiceWorkerRegistration } from "@/components/system/ServiceWorkerRegistration";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -24,6 +25,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen antialiased">
         <ServiceWorkerRegistration />
+        <ResponsiveNavigationGuard />
         {children}
       </body>
     </html>
