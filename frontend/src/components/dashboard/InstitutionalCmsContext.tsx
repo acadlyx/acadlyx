@@ -53,9 +53,23 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     let active = true;
-    authedFetch<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms")
-      .then((response) => {
-        if (active && response?.data?.content) setContent(response.data.content);
+    Promise.all([
+      authedFetch<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms"),
+      authedFetch<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context"),
+    ])
+      .then(([cms, workspace]) => {
+        if (!active) return;
+        const next = cms?.data?.content;
+        if (!next) return;
+        const institution = workspace?.data?.institution;
+        setContent({
+          ...next,
+          brand: {
+            ...next.brand,
+            institutionName: next.brand.institutionName || institution?.name || "",
+            institutionLogoUrl: next.brand.institutionLogoUrl || institution?.logoUrl || "",
+          },
+        });
       })
       .catch(() => undefined);
     return () => {
