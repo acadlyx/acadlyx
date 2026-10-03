@@ -897,6 +897,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Admit Cards",
+    href: "/student/admit-cards",
+    icon: "▤",
+    roles: ["STUDENT"],
+    permissions: ["exams.read"],
+    group: "Academic",
+  },
+  {
     label: "Results",
     href: "/student/results",
     icon: "▤",
@@ -1379,32 +1387,57 @@ export function getNavigationForRoles(
     permissions,
   );
 
-  return ROLE_NAVIGATION.filter(
-    (item) => {
-      const roleAllowed =
-        !item.roles ||
-        item.roles.length === 0 ||
-        item.roles.some((role) => {
-          const normalized = normalizeRoleName(role);
-          return normalized !== null && roleSet.has(normalized);
-        });
+  const visible = ROLE_NAVIGATION.filter((item) => {
+    const roleAllowed =
+      !item.roles ||
+      item.roles.length === 0 ||
+      item.roles.some((role) => {
+        const normalized = normalizeRoleName(role);
+        return normalized !== null && roleSet.has(normalized);
+      });
 
-      const permissionAllowed =
-        !item.permissions ||
-        item.permissions.length === 0 ||
-        item.permissions.every(
-          (permission) =>
-            permissionSet.has(
-              permission,
-            ),
-        );
+    const permissionAllowed =
+      !item.permissions ||
+      item.permissions.length === 0 ||
+      item.permissions.every((permission) => permissionSet.has(permission));
 
-      return (
-        roleAllowed &&
-        permissionAllowed
-      );
-    },
-  );
+    return roleAllowed && permissionAllowed;
+  });
+
+  // One destination gets one navigation entry. If several visible entries
+  // intentionally land on the same page (including tab/query variants),
+  // combine their names instead of making users choose between duplicates.
+  const merged = new Map<string, NavigationItem>();
+
+  for (const item of visible) {
+    const destination = item.href.split("?")[0].replace(/\/+$/, "") || "/";
+    const existing = merged.get(destination);
+
+    if (!existing) {
+      merged.set(destination, {
+        ...item,
+        label: item.label,
+        permissions: item.permissions ? [...item.permissions] : undefined,
+      });
+      continue;
+    }
+
+    const labels = existing.label.split(" & ").filter(Boolean);
+    if (!labels.includes(item.label)) labels.push(item.label);
+
+    const permissions = Array.from(
+      new Set([...(existing.permissions ?? []), ...(item.permissions ?? [])]),
+    );
+
+    merged.set(destination, {
+      ...existing,
+      label: labels.join(" & "),
+      href: existing.href.includes("?") ? item.href.split("?")[0] : existing.href,
+      permissions: permissions.length ? permissions : undefined,
+    });
+  }
+
+  return Array.from(merged.values());
 }
 
 export function navigationForUser(
