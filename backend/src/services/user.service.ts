@@ -263,6 +263,7 @@ export async function listUsers(params: {
         id: true,
         institutionId: true,
         email: true,
+        idNumber: true,
         firstName: true,
         lastName: true,
         phone: true,
@@ -345,6 +346,7 @@ export async function getUserById(
       id: true,
       institutionId: true,
       email: true,
+      idNumber: true,
       firstName: true,
       lastName: true,
       phone: true,
@@ -734,18 +736,16 @@ export async function createUser(
   const email =
     input.email.trim().toLowerCase();
 
-  const existing =
-    await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+  const idNumber = input.idNumber.trim().toUpperCase();
 
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new AppError(
-      "A user with this email already exists",
-      409
-    );
+    throw new AppError("A user with this email already exists", 409);
+  }
+
+  const existingIdNumber = await prisma.user.findUnique({ where: { idNumber } });
+  if (existingIdNumber) {
+    throw new AppError("A user with this ID number already exists", 409);
   }
 
   if (input.role === "CLUB_PRESIDENT") {
@@ -785,6 +785,7 @@ export async function createUser(
               institutionId:
                 targetInstitutionId,
               email,
+              idNumber,
               passwordHash,
               firstName:
                 input.firstName,
@@ -825,6 +826,7 @@ export async function createUser(
     metadata: {
       role: input.role,
       email: user.email,
+      idNumber: user.idNumber,
     },
   });
 
@@ -887,6 +889,12 @@ export async function updateUser(
 
   const resolvedTargetRoleName: string =
     targetRoleName;
+
+  if (input.idNumber !== undefined) {
+    const normalizedIdNumber = input.idNumber.trim().toUpperCase();
+    const duplicate = await prisma.user.findFirst({ where: { idNumber: normalizedIdNumber, id: { not: id } }, select: { id: true } });
+    if (duplicate) throw new AppError("A user with this ID number already exists", 409);
+  }
 
   if (input.email !== undefined) {
     const normalizedEmail = input.email.trim().toLowerCase();
@@ -1123,9 +1131,11 @@ export async function updateUser(
               : {}),
 
             ...(input.email !== undefined
-              ? {
-                  email: input.email.trim().toLowerCase(),
-                }
+              ? { email: input.email.trim().toLowerCase() }
+              : {}),
+
+            ...(input.idNumber !== undefined
+              ? { idNumber: input.idNumber.trim().toUpperCase() }
               : {}),
 
             ...(input.isActive !==
@@ -1231,9 +1241,11 @@ export async function updateUser(
           : {}),
 
         ...(input.email !== undefined
-          ? {
-              email: input.email.trim().toLowerCase(),
-            }
+          ? { email: input.email.trim().toLowerCase() }
+          : {}),
+
+        ...(input.idNumber !== undefined
+          ? { idNumber: input.idNumber.trim().toUpperCase() }
           : {}),
 
         ...(input.isActive !==
@@ -1290,6 +1302,8 @@ export async function updateUser(
         input.isActive ?? null,
       changedPassword:
         input.password !== undefined,
+      changedIdNumber:
+        input.idNumber !== undefined,
     },
   });
 
