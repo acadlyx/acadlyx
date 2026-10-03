@@ -1688,7 +1688,7 @@ export function UserLifecycleManager() {
                   <Input name="password" label="New password (optional)" type="password" />
                 </div>
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
-                  The ID number is the user's login ID. It must be unique and can be changed by authorized administrators.
+                  The ID number is the user&apos;s login ID. It must be unique and can be changed by authorized administrators.
                 </div>
                 <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                   <button type="button" onClick={() => setEditingUser(null)} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
