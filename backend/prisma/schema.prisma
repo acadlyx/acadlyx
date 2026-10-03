@@ -65,6 +65,7 @@ model Institution {
   notifications         Notification[]
   parentStudentLinks    ParentStudentLink[]
   siteContents          SiteContent[]
+  institutionalCmsContent InstitutionalCmsContent?
   subscription          TenantSubscription?
   featureEntitlements   TenantFeatureEntitlement[]
   files                 FileAsset[]
