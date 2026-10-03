@@ -1865,11 +1865,13 @@ function Input({
   label: fieldLabel,
   type = "text",
   required = false,
+  defaultValue,
 }: {
   name: string;
   label: string;
   type?: string;
   required?: boolean;
+  defaultValue?: string;
 }) {
   return (
     <label>
@@ -1884,6 +1886,7 @@ function Input({
         name={name}
         type={type}
         required={required}
+        defaultValue={defaultValue}
         className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
       />
     </label>
