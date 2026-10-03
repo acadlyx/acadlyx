@@ -312,6 +312,7 @@ export async function updateAdminUser(
     firstName: string;
     lastName: string;
     email: string;
+    idNumber: string;
     phone: string;
     isActive: boolean;
     role: string;
