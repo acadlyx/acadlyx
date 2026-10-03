@@ -834,7 +834,7 @@ export async function getCurrentUser(
   );
 
   return toSafeUser(
-    freshUser,
+    user,
     roles,
     permissions,
     institutionId
