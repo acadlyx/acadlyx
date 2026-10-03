@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthRequiredError, authedFetch, getCurrentUser } from "@/lib/auth";
-import { deleteAdminUser } from "@/lib/adminApi";
+import { deleteAdminUser, requestAdminUserPermanentDeletion } from "@/lib/adminApi";
 
 type Lookup = {
   id: string;
@@ -503,6 +503,55 @@ export function StudentManagement({ onChanged }: Props) {
     }
   }
 
+  async function permanentlyDeleteStudent(student: Student) {
+    if (!permissions.includes("users.delete")) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `PERMANENTLY DELETE ${student.firstName} ${student.lastName}?
+
+This removes the student account and all related records permitted by the database relations. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    const reason = window.prompt("Optional permanent deletion reason:", "")?.trim() || undefined;
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const result = await requestAdminUserPermanentDeletion(
+        student.id,
+        reason,
+      );
+
+      if (result.permanentlyDeleted) {
+        setStudents((current) =>
+          current.filter((item) => item.id !== student.id),
+        );
+        setSelected(null);
+        setSuccess("Student permanently deleted.");
+      } else {
+        setSuccess(
+          result.message ||
+            "Permanent deletion request submitted for higher-authority approval.",
+        );
+      }
+
+      await onChanged?.();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to permanently delete student.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function openStudent(student: Student) {
     setError("");
     try {
@@ -681,13 +730,22 @@ export function StudentManagement({ onChanged }: Props) {
                             </button>
                           ) : null}
                           {permissions.includes("users.delete") ? (
-                            <button
-                              onClick={() => void softDeleteStudent(student)}
-                              disabled={saving}
-                              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                            >
-                              Delete
-                            </button>
+                            <>
+                              <button
+                                onClick={() => void softDeleteStudent(student)}
+                                disabled={saving}
+                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                Archive
+                              </button>
+                              <button
+                                onClick={() => void permanentlyDeleteStudent(student)}
+                                disabled={saving}
+                                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Delete permanently
+                              </button>
+                            </>
                           ) : null}
                         </div>
                       </td>
