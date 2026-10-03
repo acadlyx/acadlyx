@@ -175,7 +175,7 @@ export default function LoginPage() {
                 htmlFor="identifier"
                 className="mb-1.5 block text-sm font-medium text-slate-700"
               >
-                Email or roll number
+                ID number, email or roll number
               </label>
 
               <div className="relative"><input
@@ -187,7 +187,7 @@ export default function LoginPage() {
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-                placeholder="you@example.com or roll number"
+                placeholder="ID number, you@example.com or roll number"
               />
             </div>
 
