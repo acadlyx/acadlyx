@@ -550,16 +550,11 @@ export async function getMyWorkspace(
        * through AND, with one OR for expiry and one OR
        * for department scope.
        */
-      prisma.notice.findMany({
+                  prisma.notice.findMany({
         where: {
           institutionId,
           AND: [
-            {
-              OR: [
-                { publishedAt: { lte: now } },
-                { publishedAt: { lte: now } },
-              ],
-            },
+            { publishedAt: { lte: now } },
             {
               OR: [
                 { expiresAt: null },
