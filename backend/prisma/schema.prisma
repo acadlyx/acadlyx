@@ -460,7 +460,6 @@ model Program {
   obePolicies ObeAttainmentPolicy[]
 
   studentEnrollments StudentEnrollment[]
-  batches             Batch[]
 
   admissionApplications AdmissionApplication[]
 
@@ -532,8 +531,6 @@ model Semester {
   institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   programId      String
   program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
-  batchId        String?
-  batch          Batch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
@@ -724,6 +721,8 @@ model StudentEnrollment {
   program        Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  batchId        String?
+  batch          Batch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
   semesterId     String?
   semester       Semester?     @relation(fields: [semesterId], references: [id], onDelete: SetNull)
   sectionId      String?
