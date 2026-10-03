@@ -400,6 +400,9 @@ export function UserLifecycleManager() {
   ] =
     useState(false);
 
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [updatingUser, setUpdatingUser] = useState(false);
+
   const [
     pending,
     setPending,
