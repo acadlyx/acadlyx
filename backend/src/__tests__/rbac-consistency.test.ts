@@ -16,6 +16,18 @@ function extractQuotedPermissionKeys(content: string): string[] {
   return [...matches].map((match) => match[1]);
 }
 
+function extractNavigationPermissionKeys(content: string): string[] {
+  const matches = content.matchAll(/permissions:\s*\[([^\]]*)\]/gms);
+  const keys: string[] = [];
+
+  for (const match of matches) {
+    const values = match[1].matchAll(/['\"]([^'\"]+)['\"]/g);
+    for (const value of values) keys.push(value[1]);
+  }
+
+  return keys;
+}
+
 function collectRouteFiles(directory: string): string[] {
   if (!fs.existsSync(directory)) return [];
 
@@ -54,6 +66,21 @@ test("all backend route permission gates exist in the canonical catalog", () => 
   }
 
   assert.deepEqual(unknown, [], `Unknown route permission(s): ${unknown.join("; ")}`);
+});
+
+test("all frontend navigation permission keys exist in the canonical catalog", () => {
+  const catalog = new Set(PERMISSIONS.map((permission) => permission.key));
+  const navigationPath = path.join(ROOT, "frontend", "src", "lib", "navigation.ts");
+  const content = fs.readFileSync(navigationPath, "utf8");
+  const unknown = extractNavigationPermissionKeys(content).filter(
+    (permission) => !catalog.has(permission),
+  );
+
+  assert.deepEqual(
+    [...new Set(unknown)],
+    [],
+    `Unknown navigation permission(s): ${[...new Set(unknown)].join("; ")}`,
+  );
 });
 
 test("critical examination, result and user-lifecycle permissions are assigned intentionally", () => {
