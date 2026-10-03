@@ -572,34 +572,33 @@ export const dashboard =
         ),
 
         sectionId
-          ? prisma.exam.findMany(
-              {
-                where: {
-                  institutionId,
-
-                  courseOffering: {
-                    sectionId,
-                  },
-
-                  examDate: {
-                    gte: now,
-                  },
-                },
-
-                select: {
-                  id: true,
-                  title: true,
-                  examDate: true,
-                },
-
-                orderBy: {
-                  examDate:
-                    "asc",
-                },
-
-                take: 5,
-              }
-            )
+          ? prisma.$queryRaw<
+              Array<{
+                id: string;
+                title: string;
+                examDate: Date;
+              }>
+            >(Prisma.sql`
+              SELECT
+                s."id",
+                es."name" AS "title",
+                s."examDate"
+              FROM "exam_schedules" s
+              JOIN "exam_sessions" es
+                ON es."id" = s."examSessionId"
+              JOIN "course_offerings" co
+                ON co."id" = s."courseOfferingId"
+              JOIN "exam_seat_allocations" a
+                ON a."examScheduleId" = s."id"
+                AND a."studentId" = ${user.id}
+              WHERE s."institutionId" = ${institutionId}
+                AND co."sectionId" = ${sectionId}
+                AND s."status" IN ('PUBLISHED', 'LOCKED')
+                AND es."status" = 'PUBLISHED'
+                AND s."examDate" >= CURRENT_DATE
+              ORDER BY s."examDate" ASC, s."startTime" ASC
+              LIMIT 5
+            `)
           : Promise.resolve([]),
       ]);
 
