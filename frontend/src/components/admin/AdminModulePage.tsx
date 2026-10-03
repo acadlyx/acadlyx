@@ -9,6 +9,7 @@ import { authedFetch, getCurrentUser } from "@/lib/auth";
 import { findAdminNavItem, type AdminNavItem } from "@/lib/adminNavigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DetailDrawer, DetailField } from "@/components/ui/DetailDrawer";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 type Row = Record<string, any> & { id?: string };
 type Lookup = Row;
@@ -2641,15 +2642,19 @@ function ResourceManager({
           }
           canEdit={canUpdate}
           onEdit={() => {
-            setSelected(null);
             openEdit(selected);
           }}
         />
       )}
 
       {open && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm [color-scheme:light]">
-          <div className="mx-auto my-8 max-w-4xl overflow-hidden rounded-[30px] bg-slate-50 text-slate-900 shadow-2xl">
+        <ModalPortal layer="nested" onBackdropClick={() => setOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="acadlyx-resource-editor-title"
+            className="mx-auto my-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] bg-slate-50 text-slate-900 shadow-2xl [color-scheme:light] sm:my-6"
+          >
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
@@ -2658,7 +2663,7 @@ function ResourceManager({
                     : "Create"}
                 </p>
 
-                <h3 className="mt-1 text-2xl font-black">
+                <h3 id="acadlyx-resource-editor-title" className="mt-1 text-2xl font-black">
                   {def.title}
                 </h3>
 
@@ -2786,7 +2791,7 @@ function ResourceManager({
               </div>
             </form>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </section>
   );
