@@ -19,12 +19,14 @@ export type WorkspaceContext = {
     academicYearId: string | null;
     semesterId: string | null;
     sectionId: string | null;
+    batchId: string | null;
   };
   breadcrumbs: WorkspaceBreadcrumb[];
   children: {
     departments: Array<{ id: string; name: string; code: string }>;
     programs: Array<{ id: string; name: string; code: string; level: string; durationYears: number; departmentId: string }>;
     academicYears: Array<{ id: string; name: string; startDate: string; endDate: string; isCurrent: boolean }>;
+    batches: Array<{ id: string; name: string; code: string; programId: string; admissionYear: number; completionYear: number }>;
     semesters: Array<{ id: string; name: string; number: number; programId: string; academicYearId: string }>;
     sections: Array<{ id: string; name: string; capacity: number | null; semesterId: string }>;
   };
