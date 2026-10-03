@@ -71,8 +71,25 @@ router.post(
   userController.reactivateLifecycle,
 );
 
+/*
+ * Legacy-compatible user deletion endpoint.
+ *
+ * The frontend uses this endpoint for the normal Archive/Delete action.
+ * Keep this route explicit and separate from the permanent-delete endpoint
+ * so older dashboard builds continue to resolve POST /users/:id/delete.
+ */
 router.post(
   "/:id/delete",
+  authorize("users.delete"),
+  userController.softDeleteLifecycle,
+);
+
+/*
+ * Explicit soft-delete alias for clients that distinguish lifecycle
+ * operations by name. The original /:id/delete endpoint remains supported.
+ */
+router.post(
+  "/:id/soft-delete",
   authorize("users.delete"),
   userController.softDeleteLifecycle,
 );
