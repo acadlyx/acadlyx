@@ -862,6 +862,31 @@ export function UserLifecycleManager() {
     }
   }
 
+  async function updatePerson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingUser) return;
+    setUpdatingUser(true);
+    setError("");
+    try {
+      const form = new FormData(event.currentTarget);
+      const updated = await updateAdminUser(editingUser.id, {
+        idNumber: String(form.get("idNumber") || "").trim(),
+        firstName: String(form.get("firstName") || "").trim(),
+        lastName: String(form.get("lastName") || "").trim(),
+        email: String(form.get("email") || "").trim(),
+        phone: String(form.get("phone") || "").trim(),
+        password: String(form.get("password") || "") || undefined,
+      });
+      setUsers((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setSelected(updated);
+      setEditingUser(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update the account.");
+    } finally {
+      setUpdatingUser(false);
+    }
+  }
+
   async function createPerson(
     event: FormEvent<HTMLFormElement>,
   ) {
@@ -1566,6 +1591,13 @@ export function UserLifecycleManager() {
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white p-5">
                 <button
+                  onClick={() => setEditingUser(selected)}
+                  className="rounded-[13px] border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-extrabold text-blue-700"
+                >
+                  Edit user
+                </button>
+
+                <button
                   onClick={() =>
                     void toggle(
                       selected,
@@ -1629,6 +1661,37 @@ export function UserLifecycleManager() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editingUser ? (
+          <div className="fixed inset-0 z-[90] overflow-y-auto bg-slate-950/30 p-4 backdrop-blur-sm">
+            <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Update account</p>
+                  <h2 className="mt-1 text-xl font-black">Edit user and login ID</h2>
+                </div>
+                <button type="button" onClick={() => setEditingUser(null)} className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200">×</button>
+              </div>
+              <form onSubmit={updatePerson} className="space-y-4 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input name="idNumber" label="ID number / Login ID" required defaultValue={editingUser.idNumber} />
+                  <Input name="email" label="Email" type="email" required defaultValue={editingUser.email} />
+                  <Input name="firstName" label="First name" required defaultValue={editingUser.firstName} />
+                  <Input name="lastName" label="Last name" required defaultValue={editingUser.lastName} />
+                  <Input name="phone" label="Phone" defaultValue={editingUser.phone || ""} />
+                  <Input name="password" label="New password (optional)" type="password" />
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
+                  The ID number is the user's login ID. It must be unique and can be changed by authorized administrators.
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                  <button type="button" onClick={() => setEditingUser(null)} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
+                  <button disabled={updatingUser} className="rounded-[13px] bg-blue-600 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-50">{updatingUser ? "Saving…" : "Save changes"}</button>
+                </div>
+              </form>
             </div>
           </div>
         ) : null}
