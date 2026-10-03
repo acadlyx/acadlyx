@@ -235,7 +235,8 @@ export function DashboardShell({
           : "Workspace"
       }
       institutionName={institutionBrand.name}
-      logoUrl={institutionBrand.logoUrl}
+      logoUrl="/branding/acadlyx-logo.png"
+      institutionLogoUrl={institutionBrand.logoUrl}
       userRole={
         role
           ? ROLE_LABELS[role] ||
