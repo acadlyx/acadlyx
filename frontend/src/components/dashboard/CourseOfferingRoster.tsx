@@ -7,30 +7,112 @@ import { DetailDrawer } from "@/components/ui/DetailDrawer";
 type Offering = {
   id: string;
   course?: { code?: string; name?: string; credits?: number } | null;
-  semester?: { number?: number; name?: string; program?: { name?: string; code?: string } | null; academicYear?: { name?: string } | null } | null;
+  semester?: {
+    number?: number;
+    name?: string;
+    program?: { name?: string; code?: string } | null;
+    academicYear?: { name?: string } | null;
+  } | null;
   section?: { name?: string } | null;
   faculty?: { firstName?: string; lastName?: string } | null;
   isActive?: boolean;
 };
 
-type RosterMember = { studentId: string; firstName: string; lastName: string; rollNumber: string | null };
+type RosterMember = {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  rollNumber: string | null;
+};
 
-export default function CourseOfferingRoster({ offering, onClose }: { offering: Offering; onClose: () => void }) {
+export default function CourseOfferingRoster({
+  offering,
+  onClose,
+}: {
+  offering: Offering;
+  onClose: () => void;
+}) {
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  const courseName = useMemo(() => {
+    const code = offering.course?.code?.trim();
+    const name = offering.course?.name?.trim();
+    if (code && name) return `${code} — ${name}`;
+    return code || name || "Course offering";
+  }, [offering.course?.code, offering.course?.name]);
+
+  const context = useMemo(() => {
+    const parts = [
+      offering.semester?.program?.code || offering.semester?.program?.name,
+      offering.semester?.academicYear?.name,
+      offering.semester?.name ||
+        (offering.semester?.number != null
+          ? `Semester ${offering.semester.number}`
+          : undefined),
+      offering.section?.name ? `Section ${offering.section.name}` : undefined,
+    ].filter(Boolean);
+
+    return parts.join(" • ");
+  }, [
+    offering.semester?.program?.code,
+    offering.semester?.program?.name,
+    offering.semester?.academicYear?.name,
+    offering.semester?.name,
+    offering.semester?.number,
+    offering.section?.name,
+  ]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return roster;
+
+    return roster.filter((student) =>
+      [
+        student.firstName,
+        student.lastName,
+        student.rollNumber || "",
+        student.studentId,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [roster, search]);
+
   useEffect(() => {
     let mounted = true;
+
     async function load() {
-      setLoading(true); setError("");
-      try { const data = await getCourseOfferingRoster(offering.id); if (mounted) setRoster(data); }
-      catch (err) { if (mounted) setError(err instanceof Error ? err.message : "Unable to load roster."); }
-      finally { if (mounted) setLoading(false); }
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await getCourseOfferingRoster(offering.id);
+        if (mounted) setRoster(data);
+      } catch (err) {
+        if (mounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load roster.",
+          );
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
+
     void load();
-    return (
+
+    return () => {
+      mounted = false;
+    };
+  }, [offering.id]);
+
+  return (
     <DetailDrawer
       eyebrow="Student roster"
       title={courseName}
@@ -59,6 +141,7 @@ export default function CourseOfferingRoster({ offering, onClose }: { offering: 
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search student name or roll number…"
+          aria-label="Search student roster"
           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
         />
         <div className="shrink-0 text-sm font-semibold text-slate-600">
@@ -112,8 +195,9 @@ export default function CourseOfferingRoster({ offering, onClose }: { offering: 
       )}
 
       <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-400">
-        This roster is read from the authoritative academic enrollment for this course offering.
-        Attendance, marks and assignments use the same enrollment boundary.
+        This roster is read from the authoritative academic enrollment for this
+        course offering. Attendance, marks and assignments use the same
+        enrollment boundary.
       </p>
     </DetailDrawer>
   );
