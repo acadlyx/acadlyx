@@ -1217,9 +1217,9 @@ export async function getMyWorkspace(
           },
           OR: [
             { departmentId: null },
-            {
-              departmentId: enrollment?.program.departmentId ?? undefined,
-            },
+            ...(enrollment
+              ? [{ departmentId: enrollment.program.departmentId }]
+              : []),
           ],
         },
         orderBy: {
