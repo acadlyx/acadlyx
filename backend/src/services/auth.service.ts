@@ -381,21 +381,31 @@ export type LoginResult =
   | { mfaRequired: true; challengeToken: string; expiresAt: Date };
 
 export async function login(
-  email: string,
+  identifier: string,
   password: string,
   meta: RequestMeta
 ): Promise<LoginResult> {
-  const user =
-    await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+  const normalizedIdentifier = identifier.trim();
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: normalizedIdentifier.toLowerCase() },
+        {
+          studentEnrollments: {
+            some: {
+              rollNumber: normalizedIdentifier,
+              status: "ACTIVE",
+            },
+          },
+        },
+      ],
+    },
+  });
 
   const invalidCredentials =
     () =>
       new AppError(
-        "Invalid email or password",
+        "Invalid email/roll number or password",
         401
       );
 
@@ -404,7 +414,7 @@ export async function login(
       action:
         "auth.login_failed",
       metadata: {
-        email,
+        identifier: normalizedIdentifier,
         reason:
           "user_not_found",
       },
