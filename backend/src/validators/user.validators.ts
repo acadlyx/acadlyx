@@ -126,6 +126,13 @@ export const updateUserSchema =
         .max(200)
         .optional(),
 
+    password:
+      z
+        .string()
+        .min(8)
+        .max(128)
+        .optional(),
+
     departmentIds:
       z
         .array(z.string().uuid())
