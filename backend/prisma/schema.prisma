@@ -1277,6 +1277,21 @@ model FileAsset {
 /// One dynamic public-site configuration document per institution.
 /// The JSON payload is intentionally flexible so the public website can
 /// evolve without repeated schema migrations for every text/image field.
+model InstitutionalCmsContent {
+  id            String      @id @default(uuid())
+  institutionId String      @unique
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  content       Json
+  version       Int         @default(1)
+  publishedAt   DateTime    @default(now())
+  updatedById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([institutionId, updatedAt])
+  @@map("institutional_cms_contents")
+}
+
 model SiteContent {
   id            String      @id @default(uuid())
   institutionId String
