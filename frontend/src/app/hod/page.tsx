@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, authedFetch, isAuthenticated } from "@/lib/auth";
 import { decideRegistration } from "@/lib/registrationApi";
+import { useWorkspaceContext } from "@/lib/workspaceContext";
+import { ContextBreadcrumbs } from "@/components/dashboard/ContextBreadcrumbs";
 
 type ApiEnvelope<T> = { success: boolean; data: T };
 type Paged<T> = ApiEnvelope<T[]> & { meta?: { total?: number } };
@@ -77,6 +79,19 @@ export default function HODDashboardPage() {
     searchParams.get("tab") === "registrations"
       ? "registrations"
       : "students";
+
+  const contextParams = useMemo(
+    () => ({
+      departmentId: searchParams.get("departmentId") || undefined,
+      programId: searchParams.get("programId") || undefined,
+      academicYearId: searchParams.get("academicYearId") || undefined,
+      semesterId: searchParams.get("semesterId") || undefined,
+      sectionId: searchParams.get("sectionId") || undefined,
+    }),
+    [searchParams]
+  );
+
+  const workspaceContext = useWorkspaceContext(contextParams);
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -310,6 +325,15 @@ export default function HODDashboardPage() {
       allowedRoles={["HOD"]}
     >
       <div className="space-y-6">
+        {workspaceContext.data?.breadcrumbs?.length ? (
+          <ContextBreadcrumbs items={workspaceContext.data.breadcrumbs} />
+        ) : null}
+
+        {workspaceContext.error ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Institutional context could not be resolved. The server will continue to enforce HOD scope on every request.
+          </div>
+        ) : null}
         <section className="rounded-3xl border border-[#dfd4c4] bg-[#f3eadf] p-6 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
