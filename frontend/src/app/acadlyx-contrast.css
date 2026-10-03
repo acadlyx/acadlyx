@@ -96,38 +96,23 @@
   color: #111827 !important;
 }
 
-/* User name, role and chevron in the authenticated profile control. */
+/* User name and supporting metadata in the light top bar. */
 .acadlyx-app-shell header .text-slate-900 {
   color: #111827 !important;
 }
 
-.acadlyx-app-shell header .text-slate-600 {
-  color: #475569 !important;
-}
-
-.acadlyx-app-shell header .text-slate-400 {
-  color: #475569 !important;
-}
-
-.acadlyx-app-shell header [class*="text-[#a8b2bf"] {
-  color: #d1d9e2 !important;
-}
-
-.acadlyx-app-shell header .text-slate-300 {
-  color: #e2e8f0 !important;
-}
-
+.acadlyx-app-shell header .text-slate-600,
 .acadlyx-app-shell header .text-slate-400,
 .acadlyx-app-shell header .text-slate-500 {
-  color: #cbd5e1 !important;
+  color: #475569 !important;
 }
 
-/* The profile avatar is a pale blue circle: use a dark ink color. */
+/* Avatar initials sit on a pale-blue surface, so use dark ink. */
 .acadlyx-app-shell header button > span:first-child {
   color: #1e3a5f !important;
 }
 
-/* Profile dropdown remains dark and therefore uses light text. */
+/* Profile dropdown is dark and therefore uses light text. */
 .acadlyx-app-shell header [class*="bg-[#101a2d"] {
   color: #f8fafc !important;
 }
@@ -136,7 +121,8 @@
   color: #d1d9e2 !important;
 }
 
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-300 {
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-300,
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-slate-400 {
   color: #e2e8f0 !important;
 }
 
