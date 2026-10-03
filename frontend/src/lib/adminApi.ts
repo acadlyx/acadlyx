@@ -16,6 +16,7 @@ export interface AdminUser {
   id: string;
   institutionId?: string | null;
   email: string;
+  idNumber: string;
   firstName: string;
   lastName: string;
   phone?: string | null;
@@ -41,6 +42,7 @@ export interface UserDeletionRequest {
     firstName: string;
     lastName: string;
     email: string;
+    idNumber: string;
     role: string;
   };
 
@@ -158,6 +160,7 @@ export interface CreateAdminUserInput {
   firstName: string;
   lastName: string;
   email: string;
+  idNumber: string;
   phone?: string;
   password: string;
   role: string;
