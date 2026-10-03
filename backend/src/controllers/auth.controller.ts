@@ -12,10 +12,10 @@ function requestMeta(req: Request) {
 }
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body as LoginInput;
+  const { identifier, password } = req.body as LoginInput;
 
   const result = await authService.login(
-    email,
+    identifier,
     password,
     requestMeta(req)
   );
