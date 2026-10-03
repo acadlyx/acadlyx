@@ -1,8 +1,8 @@
-/* ACADLYX authenticated-shell contrast baseline.
- * Keep the warm institutional palette while making navigation and account
- * metadata readable against their actual surfaces. These rules intentionally
- * use direct shell selectors so they remain effective even when module-level
- * Tailwind utilities differ.
+/* ACADLYX authenticated-shell accessibility and contrast baseline.
+ * Keep the warm institutional palette while enforcing readable text on the
+ * actual shell surfaces. These selectors intentionally avoid depending on
+ * Tailwind text utility classes so module-level styling cannot accidentally
+ * reduce shell contrast.
  */
 
 /* ================================================================
@@ -12,22 +12,27 @@
   color: #f8fafc !important;
 }
 
+/* Every navigation link gets readable text. This deliberately targets the
+   real DOM structure used by UnifiedDashboardFrame rather than relying on
+   individual utility classes. */
 .acadlyx-app-shell aside nav a,
-.acadlyx-app-shell aside nav a:visited {
+.acadlyx-app-shell aside nav a:visited,
+.acadlyx-app-shell aside nav a > span,
+.acadlyx-app-shell aside nav a > span:not(:first-child) {
   color: #f1f5f9 !important;
 }
 
 .acadlyx-app-shell aside nav a:hover,
 .acadlyx-app-shell aside nav a:focus-visible,
-.acadlyx-app-shell aside nav a[aria-current="page"] {
+.acadlyx-app-shell aside nav a[aria-current="page"],
+.acadlyx-app-shell aside nav a:hover > span,
+.acadlyx-app-shell aside nav a:focus-visible > span,
+.acadlyx-app-shell aside nav a[aria-current="page"] > span {
   color: #ffffff !important;
 }
 
-/* The label is a direct flex child of every navigation link. */
-.acadlyx-app-shell aside nav a > span {
-  color: inherit !important;
-}
-
+/* Keep the navigation icon readable without allowing a low-contrast utility
+   class to override the shell baseline. */
 .acadlyx-app-shell aside nav a > span:first-child {
   color: #e2e8f0 !important;
 }
@@ -42,11 +47,12 @@
   background-color: rgba(255, 255, 255, 0.16) !important;
 }
 
-/* Group headings and supporting navigation metadata. */
+/* Navigation group headings. */
 .acadlyx-app-shell aside nav section > div:first-child {
   color: #dbe4ee !important;
 }
 
+/* Badges and secondary navigation metadata. */
 .acadlyx-app-shell aside nav a span[class*="bg-blue-500"] {
   color: #dbeafe !important;
 }
@@ -69,11 +75,18 @@
   color: #ffffff !important;
 }
 
-.acadlyx-app-shell aside .text-red-600 {
+/* Destructive sign-out control: readable on the dark sidebar. */
+.acadlyx-app-shell aside .text-red-600,
+.acadlyx-app-shell aside button.text-red-600,
+.acadlyx-app-shell aside button.text-red-600 > span,
+.acadlyx-app-shell aside button.text-red-600 svg {
   color: #fecaca !important;
 }
 
-.acadlyx-app-shell aside .text-red-600:hover {
+.acadlyx-app-shell aside .text-red-600:hover,
+.acadlyx-app-shell aside button.text-red-600:hover,
+.acadlyx-app-shell aside button.text-red-600:hover > span,
+.acadlyx-app-shell aside button.text-red-600:hover svg {
   color: #fee2e2 !important;
 }
 
@@ -96,14 +109,24 @@
   color: #111827 !important;
 }
 
-/* User name and supporting metadata in the light top bar. */
+/* Header title and all role/account metadata use a readable dark ink. */
 .acadlyx-app-shell header .text-slate-900 {
   color: #111827 !important;
 }
 
 .acadlyx-app-shell header .text-slate-600,
-.acadlyx-app-shell header .text-slate-400,
-.acadlyx-app-shell header .text-slate-500 {
+.acadlyx-app-shell header .text-slate-500,
+.acadlyx-app-shell header .text-slate-400 {
+  color: #475569 !important;
+}
+
+/* Explicitly target the compact user profile text so the role never falls
+   back to the low-contrast slate-400 Tailwind color. */
+.acadlyx-app-shell header button span span.text-slate-900 {
+  color: #111827 !important;
+}
+
+.acadlyx-app-shell header button span span.text-slate-400 {
   color: #475569 !important;
 }
 
@@ -117,7 +140,7 @@
   color: #f8fafc !important;
 }
 
-.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-\[\#a8b2bf\] {
+.acadlyx-app-shell header [class*="bg-[#101a2d"] .text-\[\#a8b2bf\"] {
   color: #d1d9e2 !important;
 }
 
