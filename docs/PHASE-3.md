@@ -73,11 +73,14 @@ records — there's no `:id` param to tamper with.
 - `src/lib/auth.ts` — login/logout, token storage, and `authedFetch`
   (attaches the access token, retries once through a silent refresh
   on a 401, then throws `AuthRequiredError`).
-- **Decision:** tokens are stored in `localStorage` for this MVP —
-  simplest thing that makes the portal testable end-to-end. This is a
-  known, explicit trade-off, not a final answer: an httpOnly cookie is
-  the production-appropriate home for the refresh token, revisit in
-  Phase 14.
+- **Decision:** credentials are stored in the current tab's
+  `sessionStorage`. This is intentional: `localStorage` is shared by
+  every tab on the same origin and cannot support simultaneous ACADLYX
+  identities. `sessionStorage` keeps each tab's access/refresh-token pair
+  independent, survives reloads in that tab, and is discarded when the tab
+  closes. The backend already stores each refresh token independently and
+  rotates/revokes by token hash, so one tab's refresh/logout does not revoke
+  another tab's refresh token.
 - `src/app/login/page.tsx` — minimal login form, pre-filled with the
   demo student email for convenience.
 
