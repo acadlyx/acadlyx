@@ -16,6 +16,8 @@ router.post("/invoices/:id/payments",authorize("fees.payment.record"),validatePa
 router.get("/payments",authorizeAnyPermission("fees.read","fees.read"),c.payments);
 router.get("/receipts",authorizeAnyPermission("fees.read","fees.read"),c.receipts);
 router.get("/collections",authorizeAnyPermission("fees.read","fees.read"),c.collections);
+router.post("/invoices/:id/concessions",authorize("fees.concession.manage"),validateParams(financeIdSchema),validateBody(financeRefundSchema),c.requestConcession);
+router.post("/concessions/:id/approve",authorize("fees.concession.approve"),validateParams(financeIdSchema),c.approveConcession);
 router.get("/concessions",authorizeAnyPermission("fees.read","fees.read"),c.concessions);
 router.get("/refunds",authorizeAnyPermission("fees.read","fees.read"),c.refunds);
 router.post("/payments/:id/refunds",authorize("fees.refund.request"),validateParams(financeIdSchema),validateBody(financeRefundSchema),c.requestRefund);
