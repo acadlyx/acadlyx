@@ -816,6 +816,15 @@ async function fetchWithTimeout(
   }
 }
 
+export async function authedDownload(path:string):Promise<{blob:Blob;filename:string}>{
+ let token=getAccessToken();if(!token)throw new AuthRequiredError();
+ let res=await fetchWithTimeout(apiUrl(path),{headers:{Authorization:`Bearer ${token}`}});
+ if(res.status===401&&await tryRefresh()){token=getAccessToken();res=await fetchWithTimeout(apiUrl(path),{headers:{Authorization:`Bearer ${token}`}});}
+ if(!res.ok)throw new Error(`Download failed (${res.status})`);
+ const disposition=res.headers.get("content-disposition")||"";const match=/filename="?([^"]+)"?/i.exec(disposition);
+ return{blob:await res.blob(),filename:match?.[1]||"acadlyx-export"};
+}
+
 export async function authedFetch<T>(
   path: string,
   init?: RequestInit
