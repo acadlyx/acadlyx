@@ -18,7 +18,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGIN
-        sync: false
+        value: https://acadlyx-orcin.vercel.app
+      - key: FRONTEND_URL
+        value: https://acadlyx-orcin.vercel.app
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -41,6 +43,8 @@ services:
         value: manual
       - key: PAYMENT_CURRENCY
         value: INR
+      - key: STORAGE_PROVIDER
+        value: cloudinary
       - key: CLOUDINARY_URL
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
