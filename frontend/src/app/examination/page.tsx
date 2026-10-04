@@ -11,14 +11,6 @@ type Offering = {
   semester?: { name?: string; number?: number } | null;
 };
 
-type User = {
-  id: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  idNumber?: string;
-};
-
 export default function ExaminationOperationsPage() {
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [selectedOffering, setSelectedOffering] = useState("");
