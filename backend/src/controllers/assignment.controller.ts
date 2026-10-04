@@ -108,3 +108,18 @@ export const review = asyncHandler(async (req: Request, res: Response) => {
   );
   res.status(200).json({ success: true, data: submission });
 });
+
+
+export async function reopenSubmission(req: any, res: any, next: any) {
+  try {
+    const submission = await assignmentService.reopenSubmission(
+      req.institutionId,
+      req.user,
+      req.params.id,
+      req.params.studentId,
+    );
+    res.json({ success: true, data: submission });
+  } catch (error) {
+    next(error);
+  }
+}
