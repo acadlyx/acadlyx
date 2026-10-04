@@ -1,5 +1,18 @@
 -- ACADLYX finance domain
 CREATE TABLE IF NOT EXISTS "fee_invoice_items" ("id" TEXT NOT NULL,"invoiceId" TEXT NOT NULL,"feeHeadId" TEXT,"description" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "fee_invoice_items_pkey" PRIMARY KEY ("id"),CONSTRAINT "fee_invoice_items_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "fee_invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_invoice_items_feeHeadId_fkey" FOREIGN KEY ("feeHeadId") REFERENCES "fee_heads"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_invoice_items_amount_check" CHECK ("amount" >= 0));
+DO $
+BEGIN
+  IF to_regclass('"fee_invoice_items"') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'fee_invoice_items'
+         AND column_name = 'invoiceId'
+     ) THEN
+    ALTER TABLE "fee_invoice_items" ADD COLUMN "invoiceId" TEXT;
+  END IF;
+END $;
 CREATE INDEX IF NOT EXISTS "fee_invoice_items_invoiceId_idx" ON "fee_invoice_items"("invoiceId");
 CREATE TABLE IF NOT EXISTS "fee_concessions" ("id" TEXT NOT NULL,"institutionId" TEXT NOT NULL,"invoiceId" TEXT NOT NULL,"studentId" TEXT NOT NULL,"type" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"percentage" DECIMAL(7,4),"reason" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'PENDING',"createdById" TEXT NOT NULL,"approvedById" TEXT,"approvedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "fee_concessions_pkey" PRIMARY KEY ("id"),CONSTRAINT "fee_concessions_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "fee_invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT "fee_concessions_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_concessions_amount_check" CHECK ("amount" >= 0));
 CREATE INDEX IF NOT EXISTS "fee_concessions_institutionId_studentId_status_idx" ON "fee_concessions"("institutionId","studentId","status"); CREATE INDEX IF NOT EXISTS "fee_concessions_invoiceId_idx" ON "fee_concessions"("invoiceId");
