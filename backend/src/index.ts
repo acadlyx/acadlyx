@@ -48,7 +48,7 @@ async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
 
-  logger.info(`${signal} received, shutting down");
+  logger.info(`${signal} received, shutting down`);
 
   const forceExit = setTimeout(() => process.exit(1), 10_000);
   forceExit.unref();
