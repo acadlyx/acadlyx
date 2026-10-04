@@ -1,4 +1,3 @@
-import { API_BASE_URL, API_VERSION } from "./api";
 import { authedBlobFetch, authedFetch } from "./auth";
 
 export const DATA_TYPES = [
@@ -10,20 +9,36 @@ export const DATA_TYPES = [
 
 export type DataType = typeof DATA_TYPES[number];
 
-export async function previewImport(type: DataType, file: File) {
+export interface ImportPreviewResult {
+  totalRows: number;
+  validRows?: number;
+  invalidRows?: number;
+  errors?: Array<{ row?: number; message: string }>;
+  [key: string]: unknown;
+}
+
+export interface ImportCommitResult {
+  imported: number;
+  skipped?: number;
+  failed?: number;
+  errors?: Array<{ row?: number; message: string }>;
+  [key: string]: unknown;
+}
+
+export async function previewImport(type: DataType, file: File): Promise<ImportPreviewResult> {
   const form = new FormData();
   form.append("file", file);
-  const body = await authedFetch<{ data: unknown }>(`/imports/${type}/preview`, {
+  const body = await authedFetch<{ data: ImportPreviewResult }>(`/imports/${type}/preview`, {
     method: "POST",
     body: form,
   });
   return body.data;
 }
 
-export async function commitImport(type: DataType, file: File) {
+export async function commitImport(type: DataType, file: File): Promise<ImportCommitResult> {
   const form = new FormData();
   form.append("file", file);
-  const body = await authedFetch<{ data: unknown }>(`/imports/${type}/commit`, {
+  const body = await authedFetch<{ data: ImportCommitResult }>(`/imports/${type}/commit`, {
     method: "POST",
     body: form,
   });
