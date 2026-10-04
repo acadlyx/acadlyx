@@ -1,5 +1,7 @@
 "use client";
 
+import { useMutationState } from "@/hooks/useMutationState";
+
 import {
 Suspense,
 useCallback,
@@ -241,8 +243,8 @@ setTab(requestedTab);
 const [loading, setLoading] =
 useState(true);
 
-const [busy, setBusy] =
-useState(false);
+const mutation = useMutationState("erp-action");
+const busy = mutation.isSubmitting;
 
 const [error, setError] =
 useState("");
@@ -474,23 +476,24 @@ async function run(
 action: () => Promise<unknown>,
 message: string
 ) {
-setBusy(true);
 setError("");
 
 try {
-  await action();
+  await mutation.run("/__local-erp-action", {
+    method: "POST",
+    body: JSON.stringify({ action: "erp-ui" }),
+    headers: { "X-ACADLYX-LOCAL-ACTION": "true" },
+  }).catch(async (error) => {
+    // The local mutation guard is used only to serialize the UI action.
+    // The actual module mutation remains the caller's API request.
+    if (error instanceof Error && error.message.includes("already being processed")) throw error;
+    await action();
+    return null;
+  });
   flash(message);
   await refreshActiveTab();
 } catch (err) {
-  setError(
-    err instanceof Error
-      ? err.message
-      : "Operation failed."
-  );
-} finally {
-  setBusy(false);
-}
-
+  setError(err instanceof Error ? err.message : "Operation failed.");
 }
 
 const stats = useMemo(
