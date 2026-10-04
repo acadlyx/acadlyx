@@ -37,7 +37,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"SUBMITTED":"SUBMITTED";
   const mine=x.studentId===actor.id;
   const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||role(actor,"FACULTY")||role(actor,"HOD");
-  editable=mine && state==="SUBMITTED" && !canReopen;
+  editable=mine && state==="REOPENED";
   actions=[
    action("view","View submission",true,undefined,undefined,"secondary"),
    ...(mine?[]:[action("review","Review",canReopen,"assignments.update",canReopen?undefined:"You do not have permission to review submissions.","primary")]),
