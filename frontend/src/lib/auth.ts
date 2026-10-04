@@ -6,6 +6,71 @@ const ACCESS_TOKEN_KEY =
 const REFRESH_TOKEN_KEY =
   "acadlyx_refresh_token";
 
+/*
+ * Authentication credentials are intentionally scoped to the current
+ * top-level browsing context.
+ *
+ * localStorage is origin-wide and therefore cannot represent:
+ *   Tab 1 -> User A
+ *   Tab 2 -> User B
+ *
+ * sessionStorage is isolated per tab/window, survives reloads in that
+ * browsing context, and is discarded when that tab is closed.
+ *
+ * The storage keys remain stable so the rest of the auth API does not
+ * need to know how credentials are persisted.
+ */
+const AUTH_STORAGE = "sessionStorage" as const;
+
+function getAuthStorage(): Storage | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  try {
+    return window[AUTH_STORAGE];
+  } catch {
+    return null;
+  }
+}
+
+function clearLegacySharedAuthStorage(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  /*
+   * Older ACADLYX builds stored credentials in localStorage. Never read
+   * them as an authentication source again. Removing them prevents a
+   * stale credential from remaining in the browser after this migration.
+   *
+   * This is deliberately write-only cleanup: no auth decision is based
+   * on localStorage, so tabs running the new build cannot affect each
+   * other's session.
+   */
+  try {
+    window.localStorage.removeItem(
+      ACCESS_TOKEN_KEY
+    );
+
+    window.localStorage.removeItem(
+      REFRESH_TOKEN_KEY
+    );
+  } catch {
+    /* Ignore unavailable legacy storage. */
+  }
+}
+
+function initializeAuthStorage(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  clearLegacySharedAuthStorage();
+}
+
+initializeAuthStorage();
+
 const USER_CACHE_TTL_MS =
   30_000;
 
@@ -163,9 +228,9 @@ export function getAccessToken():
     return null;
   }
 
-  return window.localStorage.getItem(
+  return getAuthStorage()?.getItem(
     ACCESS_TOKEN_KEY
-  );
+  ) ?? null;
 }
 
 export function getRefreshToken():
@@ -174,9 +239,9 @@ export function getRefreshToken():
     return null;
   }
 
-  return window.localStorage.getItem(
+  return getAuthStorage()?.getItem(
     REFRESH_TOKEN_KEY
-  );
+  ) ?? null;
 }
 
 export function setTokens(
@@ -186,12 +251,21 @@ export function setTokens(
     return;
   }
 
-  window.localStorage.setItem(
+  const storage =
+    getAuthStorage();
+
+  if (!storage) {
+    throw new Error(
+      "Browser session storage is unavailable"
+    );
+  }
+
+  storage.setItem(
     ACCESS_TOKEN_KEY,
     tokens.accessToken
   );
 
-  window.localStorage.setItem(
+  storage.setItem(
     REFRESH_TOKEN_KEY,
     tokens.refreshToken
   );
@@ -205,11 +279,14 @@ export function clearTokens(): void {
     return;
   }
 
-  window.localStorage.removeItem(
+  const storage =
+    getAuthStorage();
+
+  storage?.removeItem(
     ACCESS_TOKEN_KEY
   );
 
-  window.localStorage.removeItem(
+  storage?.removeItem(
     REFRESH_TOKEN_KEY
   );
 
@@ -221,6 +298,16 @@ export function getAuthCacheScope(): number {
   return authCacheScope;
 }
 
+/*
+ * Session isolation invariant:
+ *
+ * Every function below resolves credentials from this tab's sessionStorage
+ * only. There is deliberately no storage-event/BroadcastChannel auth
+ * synchronization and no origin-wide credential fallback.
+ *
+ * Module-level caches (cachedUser/currentUserRequest/refreshRequest) are
+ * also naturally tab-scoped because each browser tab has its own JS realm.
+ */
 export function isAuthenticated():
   boolean {
   return (
