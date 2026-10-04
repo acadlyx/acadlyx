@@ -1,4 +1,4 @@
-import { Request,Response } from "express";
+import { Request } from "express";
 import * as finance from "../services/finance.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution, requireAuthenticatedUser } from "../utils/requireInstitution";
