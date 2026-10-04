@@ -1213,6 +1213,7 @@ model FeePayment {
   reconciledAt      DateTime?
   recordedById      String?
   notes             String?
+  idempotencyKey    String?
 
   createdAt     DateTime    @default(now())
   User          User?       @relation(fields: [userId], references: [id])
@@ -1223,6 +1224,7 @@ model FeePayment {
 
   @@unique([institutionId, receiptNumber])
   @@unique([provider, providerPaymentId])
+  @@unique([institutionId, idempotencyKey])
   @@index([institutionId, invoiceId])
   @@index([institutionId, status])
   @@map("fee_payments")
