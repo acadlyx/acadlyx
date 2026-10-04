@@ -37,16 +37,63 @@ async function audit(institutionId:string,userId:string,action:string,entityType
 
 export async function overview(institutionId:string,a:AuthenticatedUser){
  if(!has(a,"fees.read")&&!has(a,"fees.collection.read"))throw new AppError("Financial visibility permission required",403);
- const s=await scope(institutionId,a),[invoices,payments]=await Promise.all([
-  prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true}}),
-  prisma.feePayment.findMany({where:paymentWhere(s),select:{amount:true,paidAt:true,status:true}})
+ const s=await scope(institutionId,a);
+ const where=invoiceWhere(s), pwhere=paymentWhere(s);
+ const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
+ const month=new Date(now.getFullYear(),now.getMonth(),1);
+ const overdueWhere={...where,dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}};
+ const [invAgg,paidAgg,refAgg,overdueAgg,invoiceCount,paymentCount,todayAgg,monthAgg]=await Promise.all([
+  prisma.feeInvoice.aggregate({where,_sum:{amount:true}}),
+  prisma.feePayment.aggregate({where:{...pwhere,status:"SUCCESS"},_sum:{amount:true}}),
+  prisma.feeInvoice.aggregate({where,_sum:{refundedAmount:true}}),
+  prisma.feeInvoice.aggregate({where:overdueWhere,_sum:{amount:true,paidAmount:true,refundedAmount:true}}),
+  prisma.feeInvoice.count({where}),
+  prisma.feePayment.count({where:pwhere}),
+  prisma.feePayment.aggregate({where:{...pwhere,status:"SUCCESS",paidAt:{gte:today}},_sum:{amount:true}}),
+  prisma.feePayment.aggregate({where:{...pwhere,status:"SUCCESS",paidAt:{gte:month}},_sum:{amount:true}})
  ]);
- const now=new Date();const today=new Date(now);today.setHours(0,0,0,0);const month=new Date(now.getFullYear(),now.getMonth(),1);
- const billed=invoices.reduce((n,x)=>n+Number(x.amount),0),collected=payments.filter(x=>x.status==="SUCCESS").reduce((n,x)=>n+Number(x.amount),0),refunded=invoices.reduce((n,x)=>n+Number(x.refundedAmount),0);
- const outstanding=Math.max(0,billed-collected-refunded);
- const overdue=invoices.filter(x=>x.dueDate&&x.dueDate<now).reduce((n,x)=>n+Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount)),0);
- return {billed,collected,refunded,outstanding,overdue,collectionPercentage:billed?collected/billed*100:0,todayCollection:payments.filter(x=>x.status==="SUCCESS"&&x.paidAt>=today).reduce((n,x)=>n+Number(x.amount),0),monthCollection:payments.filter(x=>x.status==="SUCCESS"&&x.paidAt>=month).reduce((n,x)=>n+Number(x.amount),0),invoiceCount:invoices.length,paymentCount:payments.length,scope:s};
+ const billed=Number(invAgg._sum.amount||0), collected=Number(paidAgg._sum.amount||0), refunded=Number(refAgg._sum.refundedAmount||0);
+ const overdue=Math.max(0,Number(overdueAgg._sum.amount||0)-Number(overdueAgg._sum.paidAmount||0)-Number(overdueAgg._sum.refundedAmount||0));
+ return {billed,collected,refunded,outstanding:Math.max(0,billed-collected-refunded),overdue,collectionPercentage:billed?collected/billed*100:0,todayCollection:Number(todayAgg._sum.amount||0),monthCollection:Number(monthAgg._sum.amount||0),invoiceCount,paymentCount,scope:s};
 }
+
+export async function commandCenter(institutionId:string,a:AuthenticatedUser){
+ if(!has(a,"fees.read")&&!has(a,"fees.collection.read"))throw new AppError("Financial visibility permission required",403);
+ const s=await scope(institutionId,a);
+ const base=await overview(institutionId,a);
+ const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
+ const [methods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
+  prisma.feePayment.groupBy({by:["method"],where:{...paymentWhere(s),status:"SUCCESS"},_sum:{amount:true},_count:{_all:true}}),
+  prisma.feePayment.findMany({where:{...paymentWhere(s),status:"SUCCESS",paidAt:{gte:thirty}},select:{amount:true,paidAt:true},orderBy:{paidAt:"asc"},take:2000}),
+  prisma.feePayment.findMany({where:paymentWhere(s),select:{id:true,amount:true,method:true,paidAt:true,status:true,receiptNumber:true,invoice:{select:{id:true,invoiceNumber:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:8}),
+  prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true,student:{select:{id:true,firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{createdAt:"desc"},take:8}),
+  prisma.feeRefund.count({where:{institutionId,...studentFinancialFilter(s),status:"REQUESTED"}}),
+  prisma.feeConcession.count({where:{institutionId,...studentFinancialFilter(s),status:"PENDING"}}),
+  prisma.feeInvoice.count({where:{...invoiceWhere(s),status:"PENDING"}}),
+  collections(institutionId,a)
+ ]);
+ const trendMap=new Map<string,number>();
+ for(const p of trendPayments){const key=p.paidAt.toISOString().slice(0,10);trendMap.set(key,(trendMap.get(key)||0)+Number(p.amount));}
+ const trend=Array.from({length:30},(_,i)=>{const d=new Date(thirty);d.setDate(thirty.getDate()+i);const key=d.toISOString().slice(0,10);return{date:key,amount:trendMap.get(key)||0};});
+ const overdueCount=await prisma.feeInvoice.count({where:{...invoiceWhere(s),dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}}});
+ const actions=[
+  pendingRefunds>0?{kind:"refunds",count:pendingRefunds,label:"refunds awaiting review",href:"/accounts/refunds"}:null,
+  pendingConcessions>0?{kind:"concessions",count:pendingConcessions,label:"concessions awaiting approval",href:"/accounts/concessions"}:null,
+  pendingInvoices>0?{kind:"invoices",count:pendingInvoices,label:"invoices awaiting payment",href:"/accounts/invoices"}:null,
+  overdueCount>0?{kind:"overdue",count:overdueCount,label:"overdue accounts",href:"/accounts/dues"}:null
+ ].filter(Boolean);
+ return {
+  ...base,
+  paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),
+  trend,
+  recentPayments,
+  recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount))})),
+  actionRequired:actions,
+  pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,
+  departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0}))
+ };
+}
+
 export async function invoices(institutionId:string,a:AuthenticatedUser,input:{studentId?:string;status?:string;search?:string;page?:number;pageSize?:number}){
  const s=await scope(institutionId,a);if(!has(a,"fees.read")&&!has(a,"fees.invoice.read"))throw new AppError("Invoice visibility permission required",403);
  if(input.studentId&&s.studentIds&&!s.studentIds.includes(input.studentId))throw new AppError("Student is outside your scope",403);
