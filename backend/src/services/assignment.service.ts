@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { recordAuditLog } from "./audit.service";
 import { AuthenticatedUser } from "../types/auth";
 import {
   assertOwnsCourseOffering,
@@ -208,9 +209,22 @@ export async function submitAssignment(
     assignment.courseOfferingId
   );
 
+  const existing = await prisma.assignmentSubmission.findUnique({
+    where: { assignmentId_studentId: { assignmentId, studentId: user.id } },
+    select: { id: true, status: true, content: true, submittedAt: true },
+  });
+
+  if (existing && existing.status !== "REOPENED") {
+    throw new AppError(
+      "This assignment has already been submitted. It must be explicitly reopened by an authorized faculty member before it can be submitted again.",
+      409,
+    );
+  }
+
+  const previousState = existing?.status ?? "NOT_STARTED";
   const isLate = new Date() > assignment.dueDate;
 
-  return prisma.assignmentSubmission.upsert({
+  const submission = await prisma.assignmentSubmission.upsert({
     where: { assignmentId_studentId: { assignmentId, studentId: user.id } },
     update: {
       content: input.content,
