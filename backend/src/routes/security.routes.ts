@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { env } from "../config/env";
 
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
@@ -23,9 +22,11 @@ import {
 /**
  * Account security endpoints.
  *
- * The unauthenticated routes (forgot/reset) are rate limited with the
- * same limiter that protects sign-in, because they are the same attack
- * surface. Neither ever reveals whether an address exists.
+ * Unauthenticated password-recovery endpoints never disclose account
+ * existence or return a password-reset credential. Reset credentials are
+ * delivered through the configured recovery channel only. Administrative
+ * reset-link issuance remains permission protected and may return a token
+ * only for explicitly configured local/no-mail development workflows.
  */
 const router = Router();
 
@@ -34,24 +35,12 @@ router.post(
   loginRateLimit,
   validateBody(forgotPasswordSchema),
   asyncHandler(async (req, res) => {
-    const issued = await service.requestPasswordReset(
-      req.body.email,
-      auditMeta(req)
-    );
-
-    /*
-     * The token is only returned when no mailer is configured, so a
-     * self-hosted institution without SMTP can still complete the flow
-     * from the admin console. With MAIL_ENABLED=true it is emailed and
-     * the response carries nothing exploitable.
-     */
-    const exposeToken = env.emailProvider === "disabled";
+    await service.requestPasswordReset(req.body.email, auditMeta(req));
 
     sendOk(res, {
       message:
         "If that address belongs to an account, a reset link has been sent.",
       expiresInMinutes: service.passwordResetTtlMinutes,
-      ...(exposeToken && issued.token ? { resetToken: issued.token } : {}),
     });
   })
 );
@@ -102,7 +91,7 @@ router.post(
         auditMeta(req)
       )
     )
-  )
+  })
 );
 
 router.post(
@@ -118,7 +107,7 @@ router.post(
         auditMeta(req)
       )
     )
-  )
+  })
 );
 
 router.post(
@@ -131,7 +120,7 @@ router.post(
         auditMeta(req)
       )
     )
-  )
+  })
 );
 
 router.post(
@@ -148,7 +137,7 @@ router.post(
         auditMeta(req)
       )
     )
-  )
+  })
 );
 
 router.post(
@@ -164,9 +153,7 @@ router.post(
     );
     sendOk(res, {
       expiresAt: issued.expiresAt,
-      ...(env.emailProvider === "disabled" && issued.token
-        ? { resetToken: issued.token }
-        : {}),
+      ...(issued.token ? { resetToken: issued.token } : {}),
     });
   })
 );
