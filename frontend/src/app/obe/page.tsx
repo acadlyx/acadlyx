@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/authority";
+import { hasPermission, normalizeRole } from "@/lib/authority";
 import {
   calculateAttainment,
   calculateProgrammeAttainment,
@@ -78,7 +78,7 @@ export default function ObePage() {
   const [assessmentMarks, setAssessmentMarks] = useState("30");
   const [itemDrafts, setItemDrafts] = useState<ItemDraft[]>([]);
 
-  const selectedOffering = useMemo(
+  const isStudent = Boolean(user?.roles?.some((role) => normalizeRole(role) === "STUDENT"));\n\n  const selectedOffering = useMemo(
     () => offerings.find((item) => item.id === selectedOfferingId) ?? null,
     [offerings, selectedOfferingId]
   );
