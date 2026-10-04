@@ -12,6 +12,7 @@ router.get("/overview",authorizeAnyPermission("fees.read","fees.collection.read"
 router.get("/invoices",authorize("fees.read"),validateQuery(financeInvoiceListSchema),c.invoices);
 router.get("/invoices/:id",authorize("fees.read"),validateParams(financeIdSchema),c.invoice);
 router.post("/invoices",authorize("fees.invoice.manage"),validateBody(financeInvoiceCreateSchema),c.createInvoice);
+router.post("/invoices/:id/cancel",authorize("fees.invoice.manage"),validateParams(financeIdSchema),c.cancelInvoice);
 router.post("/invoices/:id/payments",authorize("fees.payment.record"),validateParams(financeIdSchema),validateBody(financePaymentSchema),c.payment);
 router.get("/payments",authorize("fees.read"),c.payments);
 router.get("/receipts",authorize("fees.read"),c.receipts);
