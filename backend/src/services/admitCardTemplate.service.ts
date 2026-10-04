@@ -125,7 +125,7 @@ export async function updateAdmitCardTemplate(
   if (input.status === "ACTIVE" && existing.status !== "ACTIVE") {
     await recordAuditLog({
       institutionId, userId: actor.id, action: "exam.admit_card_template_activated",
-      entityType: "AdmitCardTemplate", entityId: id, metadata: { name: input.name ?? existing.name },
+      entityType: "AdmitCardTemplate", entityId: id, metadata: { name: input.name ?? String(existing.name ?? "") },
     });
   }
 
