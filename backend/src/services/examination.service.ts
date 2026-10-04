@@ -1347,7 +1347,7 @@ export async function generateStudentHallTicketPdf(
   const student = rows[0];
   const buffer = createAdmitCardPdf({
     institutionName: student.institutionName,
-    institutionAddress: student.institutionAddress,
+    institutionAddress: null,
     examination: ticket.session.name,
     sessionCode: ticket.session.code,
     serialNumber: ticket.ticket.serialNumber,
