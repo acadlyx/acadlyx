@@ -1,0 +1,1 @@
+ALTER TABLE "fee_structure_items" ALTER COLUMN "amount" TYPE DECIMAL(14,2) USING ROUND("amount"::numeric, 2);
