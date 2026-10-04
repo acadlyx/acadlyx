@@ -1,5 +1,5 @@
-import { API_BASE_URL, API_VERSION } from "./api";
-import { getAccessToken } from "./auth";
+import { authedFetch } from "./auth";
+import type { Envelope } from "./httpShared";
 
 export type PeopleImportType = "students" | "faculty" | "staff";
 
@@ -15,14 +15,11 @@ export interface PeopleImportPreview {
 async function request(type: PeopleImportType, action: "preview" | "commit", file: File) {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}/people-imports/${type}/${action}`, {
+  const response = await authedFetch<Envelope<unknown>>(`/people-imports/${type}/${action}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${getAccessToken() || ""}` },
     body: form,
   });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error?.message || `People import ${action} failed (${response.status})`);
-  return body.data;
+  return response.data;
 }
 
 export function previewPeopleImport(type: PeopleImportType, file: File) {
