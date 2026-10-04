@@ -3,6 +3,7 @@ import { assertAuthEnv, env } from "./config/env";
 import { syncAllTenantAccess } from "./services/rbacSync.service";
 import { logger } from "./utils/logger";
 import { cleanupExpiredDeletedUsers } from "./services/userLifecycle.service";
+import { drainDomainEventOutbox } from "./services/domainEvent.service";
 
 assertAuthEnv();
 
@@ -17,10 +18,18 @@ const server = app.listen(env.port, () => {
   logger.info(`ACADLYX API running on http://localhost:${env.port}`);
   logger.info(`Health check: http://localhost:${env.port}/api/${env.apiVersion}/health`);
   void cleanupExpiredDeletedUsers().catch((error) => logger.error("Initial deleted-user cleanup failed", { error }));
+  void drainDomainEventOutbox(50).catch((error) => logger.error("Initial domain-event outbox drain failed", { error }));
   const lifecycleCleanup = setInterval(() => {
     void cleanupExpiredDeletedUsers().catch((error) => logger.error("Scheduled deleted-user cleanup failed", { error }));
   }, 6 * 60 * 60 * 1000);
   lifecycleCleanup.unref();
+
+  const outboxDrain = setInterval(() => {
+    void drainDomainEventOutbox(50).catch((error) =>
+      logger.error("Scheduled domain-event outbox drain failed", { error })
+    );
+  }, 5_000);
+  outboxDrain.unref();
 
   // Reconcile the canonical RBAC catalogue + default entitlements with every
   // existing tenant. Non-blocking: the API is already serving traffic.
