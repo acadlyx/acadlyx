@@ -8,6 +8,7 @@ import * as c from "../controllers/finance.controller";
 import {financeInvoiceListSchema,financeInvoiceCreateSchema,financePaymentSchema,financeRefundSchema,financeConcessionSchema,financeIdSchema,financeExportSchema} from "../validators/finance.validators";
 const router=Router();router.use(authenticate);router.use(requireFeature("fees"));
 router.get("/export",authorizeAnyPermission("fees.reports.export","fees.read"),validateQuery(financeExportSchema),c.exportFinancial);
+router.get("/command-center",authorizeAnyPermission("fees.read","fees.collection.read"),c.commandCenter);
 router.get("/overview",authorizeAnyPermission("fees.read","fees.collection.read"),c.overview);
 router.get("/invoices",authorize("fees.read"),validateQuery(financeInvoiceListSchema),c.invoices);
 router.get("/invoices/:id",authorize("fees.read"),validateParams(financeIdSchema),c.invoice);
