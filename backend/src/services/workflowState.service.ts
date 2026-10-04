@@ -101,5 +101,19 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
 }
 
 export async function getWorkflowStates(institutionId:string,actor:AuthenticatedUser,items:Array<{workflow:string;entityId:string}>){
- return Promise.all(items.map(x=>getWorkflowState(institutionId,actor,x.workflow,x.entityId)));
+ // De-duplicate identical requests so a large table cannot accidentally issue the same
+ // authoritative state query more than once. Preserve the caller's original order.
+ const unique=new Map<string,{workflow:string;entityId:string}>();
+ for(const item of items){
+  const workflow=item.workflow.trim();
+  const entityId=item.entityId.trim();
+  if(!workflow || !entityId) throw new Error("Each workflow item requires workflow and entityId.");
+  unique.set(\`${workflow.toLowerCase()}::${entityId}\`,{workflow,entityId});
+ }
+ const resolved=new Map<string,WorkflowStateResult>();
+ await Promise.all([...unique.values()].map(async item=>{
+  const result=await getWorkflowState(institutionId,actor,item.workflow,item.entityId);
+  resolved.set(\`${item.workflow.toLowerCase()}::${item.entityId}\`,result);
+ }));
+ return items.map(item=>resolved.get(\`${item.workflow.trim().toLowerCase()}::${item.entityId.trim()}\`)!);
 }
