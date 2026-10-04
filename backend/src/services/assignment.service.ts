@@ -244,6 +244,22 @@ export async function submitAssignment(
       status: isLate ? "LATE" : "SUBMITTED",
     },
   });
+
+  await recordAuditLog({
+    institutionId,
+    userId: user.id,
+    action: existing ? "WORKFLOW_REOPENED_SUBMISSION_RESUBMITTED" : "WORKFLOW_ASSIGNMENT_SUBMITTED",
+    entityType: "AssignmentSubmission",
+    entityId: submission.id,
+    metadata: {
+      workflow: "assignment_submission",
+      previousState,
+      newState: isLate ? "SUBMITTED" : "SUBMITTED",
+      assignmentId,
+    },
+  });
+
+  return submission;
 }
 
 export async function reviewSubmission(
