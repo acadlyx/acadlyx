@@ -132,7 +132,8 @@ export const markNotification =
           requireInstitution(req),
           actor(req),
           req.params.id,
-          read
+          read,
+          req.body?.dismissed === true
         );
 
       res.status(200).json({
