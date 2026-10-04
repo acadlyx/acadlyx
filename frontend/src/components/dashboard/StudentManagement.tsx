@@ -130,7 +130,7 @@ export function StudentManagement({ onChanged }: Props) {
       footer={
         <div className="flex justify-end gap-2">
           <button type="button" onClick={()=>setShowEnrollment(false)} className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
-          <button form="acadlyx-student-enrollment-form" disabled={saving} type="submit" className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-black text-white disabled:opacity-50">{saving?"Saving…":"Save Enrollment"}</button>
+          <button form="acadlyx-student-enrollment-form" disabled={saving} type="submit" className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-black text-white disabled:opacity-50">{saving?"Enrolling…":"Save Enrollment"}</button>
         </div>
       }
     >
