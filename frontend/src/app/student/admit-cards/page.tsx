@@ -6,6 +6,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   getHallTicket,
   listStudentHallTickets,
+  downloadHallTicketPdf,
   HallTicketView,
 } from "@/lib/examinationsApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
@@ -46,6 +47,31 @@ export default function StudentAdmitCardsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function downloadPdf(sessionId: string) {
+    setBusy(sessionId);
+    setError("");
+    try {
+      const user = await getCurrentUser();
+      const file = await downloadHallTicketPdf(sessionId, user.id);
+      const url = URL.createObjectURL(file.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) {
+      if (reason instanceof AuthRequiredError) {
+        router.replace("/login");
+        return;
+      }
+      setError(reason instanceof Error ? reason.message : "Unable to generate the admit-card PDF.");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function refreshTicket(sessionId: string) {
     setBusy(sessionId);
@@ -194,10 +220,11 @@ export default function StudentAdmitCardsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={printAdmitCard}
-                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-600"
+                  onClick={() => void downloadPdf(ticket.session.id)}
+                  disabled={busy === ticket.session.id}
+                  className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-600 disabled:opacity-50"
                 >
-                  Download / Print PDF
+                  {busy === ticket.session.id ? "Generating…" : "Download PDF"
                 </button>
               </footer>
             </article>
