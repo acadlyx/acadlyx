@@ -57,8 +57,13 @@ function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
 
   if (rows.length > 0) {
     const sheet = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.autoFilter(sheet, { ref: sheet["!ref"] || "A1" });
+    const ref = sheet["!ref"] || "A1";
+    sheet["!autofilter"] = { ref };
     sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+    const headers = Object.keys(rows[0] || {});
+    sheet["!cols"] = headers.map((header) => ({
+      wch: Math.min(42, Math.max(12, header.length + 3)),
+    }));
     XLSX.utils.book_append_sheet(workbook, sheet, "Data");
   } else {
     const sheet = XLSX.utils.aoa_to_sheet([
