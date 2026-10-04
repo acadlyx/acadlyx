@@ -1161,6 +1161,7 @@ model FeeInvoice {
   /// reached and how much of it has settled.
   invoiceNumber     String?
   feeStructureId    String?
+  feeStructure      FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
   academicYearId    String?
   semesterId        String?
   installmentNumber Int       @default(1)
