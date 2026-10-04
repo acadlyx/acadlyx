@@ -583,8 +583,6 @@ export const ROLE_PERMISSIONS: Record<
 
     ...ACADEMIC_READ,
 
-    "sections.read",
-    "course-offerings.read",
     "timetable.read",
 
     "notices.read",
