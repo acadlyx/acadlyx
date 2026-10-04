@@ -40,6 +40,8 @@ function ascii(value: unknown): string {
 export function createAdmitCardPdf(input: {
   institutionName: string;
   institutionAddress?: string | null;
+  institutionLogoJpeg?: Buffer | null;
+  studentPhotoJpeg?: Buffer | null;
   examination: string;
   sessionCode: string;
   serialNumber: string;
@@ -70,6 +72,8 @@ export function createAdmitCardPdf(input: {
   };
 }): Buffer {
   const config = input.config ?? {};
+  const accent = (config.accent || input.institutionPrimaryColor || "#1f3a5f").replace("#", "");
+  const rgb = /^[0-9a-fA-F]{6}$/.test(accent) ? [parseInt(accent.slice(0,2),16)/255,parseInt(accent.slice(2,4),16)/255,parseInt(accent.slice(4,6),16)/255] : [0.12,0.23,0.37];
   const lines: Array<{ text: string; x: number; y: number; size: number; bold?: boolean }> = [];
   const add = (text: unknown, x: number, y: number, size: number, bold = false) =>
     lines.push({ text: ascii(text), x, y, size, bold });
@@ -158,6 +162,9 @@ export function createAdmitCardPdf(input: {
     "q",
     "0.7 w",
     "50 55 495 705 re S",
+    `${rgb[0].toFixed(3)} ${rgb[1].toFixed(3)} ${rgb[2].toFixed(3)} rg`,
+    "50 675 495 2 re f",
+    "0 0 0 rg",
     "50 675 495 0.5 re f",
     "50 600 495 0.5 re f",
     "50 560 495 0.5 re f",
