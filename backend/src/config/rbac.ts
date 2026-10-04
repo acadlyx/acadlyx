@@ -566,7 +566,6 @@ export const ROLE_PERMISSIONS: Record<
     "audit.read",
   ],
 
-    "obe.programme-outcomes.manage",
   DEAN: [
     "fees.read",
     "obe.read", "obe.reports.read", "obe.attainment.approve",
