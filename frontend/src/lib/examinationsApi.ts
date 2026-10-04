@@ -1,4 +1,4 @@
-import { authedFetch } from "./auth";
+import { authedBlobFetch, authedFetch } from "./auth";
 import { buildQuery, Envelope, PagedEnvelope } from "./httpShared";
 
 /**
@@ -319,6 +319,23 @@ export async function getHallTicket(
   );
 
   return res.data;
+}
+
+export async function downloadHallTicketPdf(
+  sessionId: string,
+  studentId?: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await authedBlobFetch(
+    `/examinations/sessions/${sessionId}/hall-ticket.pdf${buildQuery({ studentId })}`,
+  );
+  const blob = await response.blob();
+  if (blob.size === 0) throw new Error("The generated admit card is empty.");
+  if (blob.type && blob.type !== "application/pdf") {
+    throw new Error("The server returned an invalid admit-card file.");
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return { blob, filename: match?.[1] || "ACADLYX_AdmitCard.pdf" };
 }
 
 export function printHallTicket() {
