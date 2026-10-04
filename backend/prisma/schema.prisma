@@ -1223,6 +1223,7 @@ model FeePayment {
 
   receipt        FeeReceipt?
   refunds        FeeRefund[]
+  transactions   FeeTransaction[]
 
   @@unique([institutionId, receiptNumber])
   @@unique([provider, providerPaymentId])
