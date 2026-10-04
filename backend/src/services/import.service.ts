@@ -165,17 +165,13 @@ async function resolveOffering(tx: Prisma.TransactionClient, institutionId: stri
   return offering;
 }
 
-export async function commit(buffer: Buffer, type: ImportType, institutionId: string, actor: AuthenticatedUser) {
-  assertImportPermission(actor, type);
-  const rows = parseWorkbook(buffer).rows;
-  if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
-  let imported = 0;
-  const errors: { row: number; message: string }[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    try {
-      await prisma.$transaction(async (tx) => {
+async function processImportRow(
+  tx: Prisma.TransactionClient,
+  type: ImportType,
+  institutionId: string,
+  actor: AuthenticatedUser,
+  row: Row,
+): Promise<void> {
         if (type === "users") {
           const roleName = text(row.role) || "ACCOUNTS";
           if (roleName === "STUDENT") {
@@ -334,16 +330,65 @@ export async function commit(buffer: Buffer, type: ImportType, institutionId: st
           const offering = await resolveOffering(tx, institutionId, row);
           await tx.timetableEntry.upsert({ where: { courseOfferingId_dayOfWeek_startTime: { courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime) } }, update: { endTime: text(row.endtime), room: text(row.room) || null }, create: { institutionId, courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime), endTime: text(row.endtime), room: text(row.room) || null } });
         }
-        imported++;
+}
+
+export async function commit(
+  buffer: Buffer,
+  type: ImportType,
+  institutionId: string,
+  actor: AuthenticatedUser,
+  options: { mode?: "partial" | "atomic" } = {},
+) {
+  assertImportPermission(actor, type);
+  const rows = parseWorkbook(buffer).rows;
+  if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
+
+  const mode = options.mode === "atomic" ? "atomic" : "partial";
+  let imported = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  if (mode === "atomic") {
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (let i = 0; i < rows.length; i += 1) {
+          try {
+            await processImportRow(tx, type, institutionId, actor, rows[i]);
+            imported += 1;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown row error";
+            throw new AppError(`Import rolled back at row ${i + 2}: ${message}`, 400);
+          }
+        }
       });
-    } catch (e) {
-      errors.push({ row: i + 2, message: e instanceof Error ? e.message : "Unknown row error" });
+    } catch (error) {
+      return {
+        mode,
+        imported: 0,
+        failed: rows.length,
+        rolledBack: true,
+        errors: [{ row: 0, message: error instanceof Error ? error.message : "Atomic import failed and was rolled back." }],
+      };
+    }
+
+    return { mode, imported, failed: 0, rolledBack: false, errors: [] };
+  }
+
+  for (let i = 0; i < rows.length; i += 1) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await processImportRow(tx, type, institutionId, actor, rows[i]);
+      });
+      imported += 1;
+    } catch (error) {
+      errors.push({ row: i + 2, message: error instanceof Error ? error.message : "Unknown row error" });
     }
   }
 
   return {
+    mode,
     imported,
     failed: errors.length,
+    rolledBack: false,
     errors,
   };
 }
