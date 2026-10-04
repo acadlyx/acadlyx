@@ -17,3 +17,5 @@ export const requestRefund=asyncHandler(async(req,res)=>res.status(201).json({su
 export const approveRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.approveRefund(requireInstitution(req),a(req),req.params.id)}));
 export const processRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.processRefund(requireInstitution(req),a(req),req.params.id)}));
 export const transactions=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.transactions(requireInstitution(req),a(req))}));
+
+export const exportFinancial=asyncHandler(async(req,res)=>{const file=await finance.exportFinancial(requireInstitution(req),a(req),String(req.query.type),String(req.query.format||"xlsx") as "xlsx"|"csv");res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});
