@@ -26,6 +26,18 @@ export type AdmitCardTemplateConfig = {
   instructions?: string;
 };
 
+export async function getActiveAdmitCardTemplate(institutionId: string) {
+  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT "id", "name", "description", "status", "config", "createdById", "updatedById",
+           "createdAt", "updatedAt"
+    FROM "admit_card_templates"
+    WHERE "institutionId" = ${institutionId} AND "status" = 'ACTIVE'
+    ORDER BY "updatedAt" DESC
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
+}
+
 export async function listAdmitCardTemplates(institutionId: string) {
   return prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT "id", "name", "description", "status", "config", "createdById", "updatedById",
@@ -85,12 +97,20 @@ export async function updateAdmitCardTemplate(
   input: { name?: string; description?: string; status?: "DRAFT" | "ACTIVE" | "INACTIVE"; config?: AdmitCardTemplateConfig },
 ) {
   assertExaminationController(actor);
-  await getAdmitCardTemplate(institutionId, id);
+  const existing = await getAdmitCardTemplate(institutionId, id);
   if (input.status && !["DRAFT", "ACTIVE", "INACTIVE"].includes(input.status)) {
     throw new AppError("Invalid template status.", 400);
   }
 
-  await prisma.$executeRaw`
+  await prisma.$transaction(async (tx) => {
+    if (input.status === "ACTIVE") {
+      await tx.$executeRaw`
+        UPDATE "admit_card_templates"
+        SET "status" = 'INACTIVE', "updatedAt" = CURRENT_TIMESTAMP, "updatedById" = ${actor.id}
+        WHERE "institutionId" = ${institutionId} AND "status" = 'ACTIVE' AND "id" <> ${id}
+      `;
+    }
+    await tx.$executeRaw`
     UPDATE "admit_card_templates"
     SET "name" = COALESCE(${input.name?.trim() || null}, "name"),
         "description" = COALESCE(${input.description ?? null}, "description"),
@@ -99,7 +119,15 @@ export async function updateAdmitCardTemplate(
         "updatedById" = ${actor.id},
         "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${id} AND "institutionId" = ${institutionId}
-  `;
+    `;
+  });
+
+  if (input.status === "ACTIVE" && existing.status !== "ACTIVE") {
+    await recordAuditLog({
+      institutionId, userId: actor.id, action: "exam.admit_card_template_activated",
+      entityType: "AdmitCardTemplate", entityId: id, metadata: { name: input.name ?? existing.name },
+    });
+  }
 
   await recordAuditLog({
     institutionId, userId: actor.id, action: "exam.admit_card_template_updated",
