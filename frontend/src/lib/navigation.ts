@@ -729,6 +729,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Examinations",
   },
   {
+    label: "Admit card templates",
+    href: "/examination/admit-card-templates",
+    icon: "▤",
+    roles: ["EXAMINATION"],
+    permissions: ["exams.manage"],
+    group: "Examinations",
+  },
+  {
     label: "Outcome Based Education",
     href: "/examination/obe",
     icon: "◎",
