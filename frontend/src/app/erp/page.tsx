@@ -633,7 +633,7 @@ ACADLYX ERP
         canManage={can([
           "notices.manage",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
       />
     )}
@@ -645,7 +645,7 @@ ACADLYX ERP
         canManage={can([
           "exams.manage",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
       />
     )}
@@ -666,7 +666,7 @@ ACADLYX ERP
           "fees.manage",
           "fees.pay",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
       />
     )}
@@ -678,7 +678,7 @@ ACADLYX ERP
         canManage={can([
           "parent-links.manage",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
       />
     )}
@@ -688,7 +688,7 @@ ACADLYX ERP
         notifications={
           notifications
         }
-        busy={busy}
+        busy={mutation.isSubmitting}
         onRefresh={refreshActiveTab}
         onRead={(id) =>
           run(
@@ -716,7 +716,7 @@ ACADLYX ERP
         canManage={can([
           "students.update",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
         onRefresh={refreshActiveTab}
       />
@@ -1020,7 +1020,7 @@ event.preventDefault();
     </Field>
 
     <div className="flex items-end">
-      <Submit busy={busy}>
+      <Submit busy={mutation.isSubmitting}>
         Save timetable
       </Submit>
     </div>
@@ -1199,7 +1199,7 @@ event.preventDefault();
       />
     </Field>
 
-    <Submit busy={busy}>
+    <Submit busy={mutation.isSubmitting}>
       Publish notice
     </Submit>
   </form>
@@ -1357,7 +1357,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={busy}>
+      <Submit busy={mutation.isSubmitting}>
         Create exam
       </Submit>
     </form>
@@ -1475,7 +1475,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={busy}>
+      <Submit busy={mutation.isSubmitting}>
         Save result
       </Submit>
     </form>
@@ -1660,7 +1660,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={busy}>
+        <Submit busy={mutation.isSubmitting}>
           Create fee head
         </Submit>
       </form>
@@ -2043,7 +2043,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={busy}>
+        <Submit busy={mutation.isSubmitting}>
           Create structure
         </Submit>
       </form>
@@ -2255,7 +2255,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={busy}>
+        <Submit busy={mutation.isSubmitting}>
           Create invoice
         </Submit>
       </form>
@@ -2340,7 +2340,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={busy}>
+        <Submit busy={mutation.isSubmitting}>
           Record payment
         </Submit>
       </form>
@@ -2504,7 +2504,7 @@ event.preventDefault();
     </Field>
 
     <div className="flex items-end">
-      <Submit busy={busy}>
+      <Submit busy={mutation.isSubmitting}>
         Create link
       </Submit>
     </div>
@@ -2767,7 +2767,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={busy}>
+      <Submit busy={mutation.isSubmitting}>
         Add document
       </Submit>
     </form>
