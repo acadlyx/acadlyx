@@ -379,19 +379,54 @@ export async function replaceMapping(
 
 export async function submitMapping(institutionId: string, user: AuthenticatedUser, courseOfferingId: string) {
   const offering = await loadOffering(institutionId, user, courseOfferingId, true);
-  const count = await prisma.courseOutcomeMapping.count({ where: { institutionId, courseOutcome: { courseId: offering.courseId }, programmeOutcome: { programId: offering.semester.programId }, level: { gt: 0 } } });
-  if (!count) throw new AppError("Add at least one CO–PO/PSO mapping before submitting", 400);
-  await prisma.courseOutcomeMapping.updateMany({ where: { institutionId, courseOutcome: { courseId: offering.courseId }, programmeOutcome: { programId: offering.semester.programId } }, data: { status: "SUBMITTED" } });
+  const where = {
+    institutionId,
+    courseOutcome: { courseId: offering.courseId },
+    programmeOutcome: { programId: offering.semester.programId },
+  };
+  const mappings = await prisma.courseOutcomeMapping.findMany({
+    where,
+    select: { id: true, status: true, level: true },
+  });
+  if (!mappings.some((row) => row.level > 0)) {
+    throw new AppError("Add at least one CO–PO/PSO mapping before submitting", 400);
+  }
+  const editable = mappings.filter((row) => row.status === "DRAFT" || row.status === "RETURNED");
+  if (!editable.length && mappings.every((row) => row.status === "SUBMITTED")) {
+    throw new AppError("This mapping is already awaiting review", 409);
+  }
+  if (mappings.some((row) => !["DRAFT", "RETURNED", "SUBMITTED"].includes(row.status))) {
+    throw new AppError("This mapping is already in a final workflow state", 409);
+  }
+  await prisma.courseOutcomeMapping.updateMany({
+    where: { ...where, status: { in: ["DRAFT", "RETURNED"] } },
+    data: { status: "SUBMITTED" },
+  });
   return getMapping(institutionId, user, courseOfferingId);
 }
 
 export async function reviewMapping(institutionId: string, user: AuthenticatedUser, courseOfferingId: string, decision: "APPROVED" | "RETURNED") {
   const offering = await loadOffering(institutionId, user, courseOfferingId, true);
-  const mappings = await prisma.courseOutcomeMapping.findMany({ where: { institutionId, courseOutcome: { courseId: offering.courseId }, programmeOutcome: { programId: offering.semester.programId } }, select: { id: true, status: true } });
+  const where = {
+    institutionId,
+    courseOutcome: { courseId: offering.courseId },
+    programmeOutcome: { programId: offering.semester.programId },
+  };
+  const mappings = await prisma.courseOutcomeMapping.findMany({
+    where,
+    select: { id: true, status: true },
+  });
   if (!mappings.length) throw new AppError("No CO–PO/PSO mapping exists", 400);
+  if (mappings.some((row) => row.status !== "SUBMITTED")) {
+    throw new AppError("Only submitted mappings can be reviewed", 409);
+  }
   await prisma.courseOutcomeMapping.updateMany({
-    where: { institutionId, courseOutcome: { courseId: offering.courseId }, programmeOutcome: { programId: offering.semester.programId } },
-    data: { status: decision, approvedById: decision === "APPROVED" ? user.id : null, approvedAt: decision === "APPROVED" ? new Date() : null },
+    where,
+    data: {
+      status: decision,
+      approvedById: decision === "APPROVED" ? user.id : null,
+      approvedAt: decision === "APPROVED" ? new Date() : null,
+    },
   });
   return getMapping(institutionId, user, courseOfferingId);
 }
