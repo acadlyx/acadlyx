@@ -1,6 +1,21 @@
+import { AuthUser } from "@/lib/auth";
 import {
-  AuthUser,
-} from "@/lib/auth";
+  can,
+  canAny,
+  canAll,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+} from "@/lib/authorization";
+
+export {
+  can,
+  canAny,
+  canAll,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+};
 
 /**
  * Frontend authority helpers.
@@ -161,67 +176,6 @@ export function isDashboard(
  *
  * without inventing permissions on the client.
  */
-function getUserPermissionList(
-  user: AuthUser
-): string[] {
-  const candidate =
-    user as AuthUser & {
-      permissions?: string[];
-      capabilities?: string[];
-    };
-
-  return [
-    ...(candidate.permissions ??
-      []),
-    ...(candidate.capabilities ??
-      []),
-  ];
-}
-
-export function hasPermission(
-  user: AuthUser | null,
-  permission: string
-): boolean {
-  if (!user) {
-    return false;
-  }
-
-  const permissions =
-    getUserPermissionList(
-      user
-    );
-
-  return permissions.includes(
-    permission
-  );
-}
-
-export function hasAnyPermission(
-  user: AuthUser | null,
-  permissions: readonly string[]
-): boolean {
-  return permissions.some(
-    (permission) =>
-      hasPermission(
-        user,
-        permission
-      )
-  );
-}
-
-export function hasAllPermissions(
-  user: AuthUser | null,
-  permissions: readonly string[]
-): boolean {
-  return permissions.every(
-    (permission) =>
-      hasPermission(
-        user,
-        permission
-      )
-  );
-}
-
 export function isSuperAdmin(
   user: AuthUser | null
 ): boolean {
