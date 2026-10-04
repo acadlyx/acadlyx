@@ -220,6 +220,7 @@ model User {
   feeInvoices             FeeInvoice[]
   feePayments             FeePayment[]
   feeConcessionsCreated   FeeConcession[] @relation("FeeConcessionCreatedBy")
+  feeConcessionStudents   FeeConcession[] @relation("FeeConcessionStudent")
   feeConcessionsApproved  FeeConcession[] @relation("FeeConcessionApprovedBy")
   feeRefundsRequested     FeeRefund[] @relation("FeeRefundRequestedBy")
   feeRefundsApproved      FeeRefund[] @relation("FeeRefundApprovedBy")
@@ -1310,7 +1311,7 @@ model FeeConcession {
   invoiceId     String
   invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   studentId     String
-  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       User        @relation("FeeConcessionStudent", fields: [studentId], references: [id], onDelete: Cascade)
   type          String
   amount        Decimal     @db.Decimal(14,2)
   percentage    Decimal?    @db.Decimal(7,4)
