@@ -10,6 +10,7 @@ export interface WorkItem {
   priority: WorkPriority;
   href: string;
   detail: string;
+  state?: "PENDING" | "COMPLETED" | "PARTIAL";
 }
 
 export interface MyWorkSummary {
@@ -18,6 +19,8 @@ export interface MyWorkSummary {
   critical: number;
   high: number;
   items: WorkItem[];
+  completed: number;
+  pending: number;
 }
 
 const MANAGEMENT_ROLES = new Set([
@@ -37,6 +40,8 @@ export async function getMyWork(
   actor: AuthenticatedUser,
 ): Promise<MyWorkSummary> {
   const items: WorkItem[] = [];
+  let completed = 0;
+  let pending = 0;
 
   const unreadNotifications = await prisma.notification.count({
     where: { institutionId, userId: actor.id, readAt: null },
@@ -256,7 +261,7 @@ export async function getMyWork(
   }
 
   if (hasRole(actor, "STUDENT")) {
-    const [assignments, exams, fees] = await Promise.all([
+    const [assignments, exams, fees, submittedAssignments, paidFees, enrollments, pendingRegistrations] = await Promise.all([
       prisma.assignment.count({
         where: {
           institutionId,
@@ -283,8 +288,14 @@ export async function getMyWork(
           status: { notIn: ["PAID", "CANCELLED", "REFUNDED"] },
         },
       }),
+      prisma.assignmentSubmission.count({ where: { institutionId, studentId: actor.id, status: { in: ["SUBMITTED", "LATE", "REVIEWED"] } } }),
+      prisma.feeInvoice.count({ where: { institutionId, studentId: actor.id, status: "PAID" } }),
+      prisma.studentEnrollment.count({ where: { institutionId, userId: actor.id, status: "ACTIVE" } }),
+      prisma.courseRegistration.count({ where: { institutionId, studentId: actor.id, status: "REQUESTED" } }),
     ]);
 
+    completed += submittedAssignments + paidFees + enrollments;
+    pending += assignments + fees + pendingRegistrations;
     if (assignments) {
       items.push({
         id: "student-assignments",
@@ -293,6 +304,7 @@ export async function getMyWork(
         priority: "normal",
         href: "/student/assignments",
         detail: "Review deadlines and complete your pending work.",
+        state: "PENDING",
       });
     }
 
@@ -304,6 +316,7 @@ export async function getMyWork(
         priority: "high",
         href: "/student/examinations",
         detail: "Review your next examinations and admit-card status.",
+        state: "PENDING",
       });
     }
 
@@ -315,6 +328,7 @@ export async function getMyWork(
         priority: "high",
         href: "/student/fees",
         detail: "Review outstanding fee invoices.",
+        state: "PENDING",
       });
     }
   }
@@ -399,5 +413,7 @@ export async function getMyWork(
     critical: items.filter((item) => item.priority === "critical").reduce((sum, item) => sum + item.count, 0),
     high: items.filter((item) => item.priority === "high").reduce((sum, item) => sum + item.count, 0),
     items,
+    completed,
+    pending,
   };
 }
