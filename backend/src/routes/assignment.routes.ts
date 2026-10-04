@@ -47,6 +47,11 @@ router.post(
   validateBody(submitAssignmentSchema),
   assignmentController.submit
 );
+router.post(
+  "/:id/submissions/:studentId/reopen",
+  authorize("assignments.review"),
+  assignmentController.reopenSubmission
+);
 router.patch(
   "/:id/submissions/:studentId",
   authorize("assignments.review"),
