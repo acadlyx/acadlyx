@@ -10,7 +10,7 @@ type Editable = {
   admissionNumber: string; dateOfBirth: string; gender: string; bloodGroup: string;
   nationality: string; address: string; city: string; state: string; postalCode: string;
   guardianName: string; guardianPhone: string; guardianEmail: string; admissionDate: string;
-  status: ManagedStudent["profile"]["status"];
+  status: NonNullable<ManagedStudent["profile"]>["status"];
 };
 
 const labels: Record<keyof Editable, string> = {
