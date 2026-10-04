@@ -101,7 +101,20 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   table="admission_applications";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"SUBMITTED";
   const manage=has(actor,"admissions.manage");
   editable=manage;
-  actions=[action("view","View application",true),...(manage&&["SUBMITTED","UNDER_REVIEW","DOCUMENTS_PENDING"].includes(state)?[action("review","Review application",true,"admissions.manage","", "primary")]:[]),...(manage&&state==="SELECTED"?[action("enroll","Enroll applicant",true,"students.create","", "primary")]:[])];
+  const nextByState:Record<string,string[]>={
+    SUBMITTED:["UNDER_REVIEW","DOCUMENTS_PENDING","REJECTED","WITHDRAWN"],
+    UNDER_REVIEW:["DOCUMENTS_PENDING","SELECTED","REJECTED","WITHDRAWN"],
+    DOCUMENTS_PENDING:["UNDER_REVIEW","SELECTED","REJECTED","WITHDRAWN"],
+    SELECTED:["REJECTED","WITHDRAWN"],
+    REJECTED:[],
+    ENROLLED:[],
+    WITHDRAWN:[],
+  };
+  actions=[
+    action("view","View application",true),
+    ...(manage?(nextByState[state]||[]).map((next)=>action(`status:${next}`,next.replaceAll("_"," "),true,"admissions.manage",undefined,next==="REJECTED"?"danger":"primary")):[]),
+    ...(manage&&state==="SELECTED"?[action("enroll","Enroll applicant",true,"students.create",undefined,"primary")]:[]),
+  ];
  } else if(w==="user_account"||w==="user_lifecycle"){
   const x=await prisma.user.findFirst({where:{id:entityId,institutionId},select:{id:true,isActive:true,deletedAt:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
