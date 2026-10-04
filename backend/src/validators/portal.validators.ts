@@ -42,4 +42,5 @@ export const bulkNotificationSchema = z.object({
 
 export const notificationReadSchema = z.object({
   read: z.boolean().default(true),
+  dismissed: z.boolean().optional(),
 });
