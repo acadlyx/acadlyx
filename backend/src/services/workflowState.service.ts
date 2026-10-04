@@ -108,12 +108,12 @@ export async function getWorkflowStates(institutionId:string,actor:Authenticated
   const workflow=item.workflow.trim();
   const entityId=item.entityId.trim();
   if(!workflow || !entityId) throw new Error("Each workflow item requires workflow and entityId.");
-  unique.set(\`${workflow.toLowerCase()}::${entityId}\`,{workflow,entityId});
+  unique.set(`${workflow.toLowerCase()}::${entityId}`,{workflow,entityId});
  }
  const resolved=new Map<string,WorkflowStateResult>();
  await Promise.all([...unique.values()].map(async item=>{
   const result=await getWorkflowState(institutionId,actor,item.workflow,item.entityId);
-  resolved.set(\`${item.workflow.toLowerCase()}::${item.entityId}\`,result);
+  resolved.set(`${item.workflow.toLowerCase()}::${item.entityId}`,result);
  }));
- return items.map(item=>resolved.get(\`${item.workflow.trim().toLowerCase()}::${item.entityId.trim()}\`)!);
+ return items.map(item=>resolved.get(`${item.workflow.trim().toLowerCase()}::${item.entityId.trim()}`)!);
 }
