@@ -17,11 +17,21 @@ export interface ImportPreviewResult {
   [key: string]: unknown;
 }
 
+export interface IncompleteStudentImport {
+  id: string;
+  row: number;
+  name: string;
+  missingFields: string[];
+}
+
 export interface ImportCommitResult {
   imported: number;
   skipped?: number;
   failed?: number;
   errors?: Array<{ row?: number; message: string }>;
+  incomplete?: IncompleteStudentImport[];
+  complete?: IncompleteStudentImport[];
+  failedRows?: Array<{ row: number; message: string }>;
   [key: string]: unknown;
 }
 
