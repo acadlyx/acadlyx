@@ -78,7 +78,9 @@ export default function ObePage() {
   const [assessmentMarks, setAssessmentMarks] = useState("30");
   const [itemDrafts, setItemDrafts] = useState<ItemDraft[]>([]);
 
-  const isStudent = Boolean(user?.roles?.some((role) => normalizeRole(role) === "STUDENT"));\n\n  const selectedOffering = useMemo(
+  const isStudent = Boolean(user?.roles?.some((role) => normalizeRole(role) === "STUDENT"));
+
+  const selectedOffering = useMemo(
     () => offerings.find((item) => item.id === selectedOfferingId) ?? null,
     [offerings, selectedOfferingId]
   );
