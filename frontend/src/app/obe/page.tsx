@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
-import { hasPermission, getPrimaryRole } from "@/lib/authority";
+import { hasPermission } from "@/lib/authority";
 import {
   calculateAttainment,
   calculateProgrammeAttainment,
@@ -83,9 +83,7 @@ export default function ObePage() {
     [offerings, selectedOfferingId]
   );
 
-  const normalizedRole = getPrimaryRole(user?.roles ?? []) ?? "";
-  const isStudent = normalizedRole === "STUDENT";
-  const canEditMapping = !isStudent && hasPermission(user, "obe.mapping.manage") && (mappingStatus === "DRAFT" || mappingStatus === "RETURNED");
+  const canEditMapping = hasPermission(user, "obe.mapping.manage") && (mappingStatus === "DRAFT" || mappingStatus === "RETURNED");
   const canSubmitMapping = hasPermission(user, "obe.mapping.submit") && mappingStatus !== "SUBMITTED" && mappingStatus !== "APPROVED";
   const canReviewMapping = hasPermission(user, "obe.attainment.approve") && mappingStatus === "SUBMITTED";
   const canManageAssessment = hasPermission(user, "obe.assessment.manage");
