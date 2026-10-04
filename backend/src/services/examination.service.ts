@@ -21,6 +21,7 @@ import { recordAuditLog } from "./audit.service";
 import { assertExaminationController } from "./workflowAuthority.service";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
+import { createAdmitCardPdf } from "./admitCardPdf.service";
 
 /**
  * Examinations.
@@ -1307,6 +1308,70 @@ export async function getStudentHallTicket(
   `);
 
   return { session, ticket: tickets[0], papers };
+}
+
+export async function generateStudentHallTicketPdf(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+): Promise<{ buffer: Buffer; filename: string }> {
+  const ticket = await getStudentHallTicket(institutionId, actor, examSessionId, studentId);
+  if (ticket.ticket.status !== "ISSUED") {
+    throw new AppError("This hall ticket is not available for download.", 409);
+  }
+  const rows = await prisma.$queryRaw<Array<{
+    firstName: string; lastName: string; rollNumber: string | null;
+    enrollmentNumber: string | null; programName: string | null;
+    departmentName: string | null; semesterName: string | null;
+    institutionName: string; institutionAddress: string | null;
+  }>>(Prisma.sql`
+    SELECT u."firstName", u."lastName", sp."rollNumber", sp."enrollmentNumber",
+           p."name" AS "programName", d."name" AS "departmentName",
+           sem."name" AS "semesterName", i."name" AS "institutionName",
+           i."address" AS "institutionAddress"
+    FROM "users" u
+    JOIN "student_profiles" sp ON sp."userId" = u."id"
+    JOIN "institutions" i ON i."id" = u."institutionId"
+    LEFT JOIN "student_enrollments" se ON se."studentId" = u."id"
+      AND se."institutionId" = ${institutionId} AND se."isCurrent" = TRUE
+    LEFT JOIN "programs" p ON p."id" = se."programId"
+    LEFT JOIN "departments" d ON d."id" = p."departmentId"
+    LEFT JOIN "semesters" sem ON sem."id" = se."semesterId"
+    WHERE u."id" = ${studentId} AND u."institutionId" = ${institutionId}
+      AND u."isActive" = TRUE LIMIT 1
+  `);
+  if (!rows[0]) {
+    throw new AppError("Student profile could not be loaded for the hall ticket.", 404);
+  }
+  const student = rows[0];
+  const buffer = createAdmitCardPdf({
+    institutionName: student.institutionName,
+    institutionAddress: student.institutionAddress,
+    examination: ticket.session.name,
+    sessionCode: ticket.session.code,
+    serialNumber: ticket.ticket.serialNumber,
+    studentName: [student.firstName, student.lastName].filter(Boolean).join(" "),
+    rollNumber: student.rollNumber,
+    enrollmentNumber: student.enrollmentNumber,
+    program: student.programName,
+    department: student.departmentName,
+    semester: student.semesterName,
+    instructions: ticket.session.instructions,
+    papers: ticket.papers.map((paper) => ({
+      code: paper.courseCode,
+      name: paper.courseName,
+      date: paper.examDate.toISOString().slice(0, 10),
+      startTime: paper.startTime,
+      endTime: paper.endTime,
+      room: paper.roomName,
+      seat: paper.seatNumber,
+    })),
+  });
+  return {
+    buffer,
+    filename: "ACADLYX_" + ticket.ticket.serialNumber + "_AdmitCard.pdf",
+  };
 }
 
 // ==========================================================
