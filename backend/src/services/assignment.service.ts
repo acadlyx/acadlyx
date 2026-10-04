@@ -286,7 +286,7 @@ export async function reviewSubmission(
     throw new AppError("This student has not submitted this assignment", 404);
   }
 
-  return prisma.assignmentSubmission.update({
+  const updated = await prisma.assignmentSubmission.update({
     where: { assignmentId_studentId: { assignmentId, studentId } },
     data: {
       marksAwarded: input.marksAwarded,
@@ -296,6 +296,23 @@ export async function reviewSubmission(
       reviewedById: user.id,
     },
   });
+
+  await recordAuditLog({
+    institutionId,
+    userId: user.id,
+    action: "WORKFLOW_ASSIGNMENT_REVIEWED",
+    entityType: "AssignmentSubmission",
+    entityId: updated.id,
+    metadata: {
+      workflow: "assignment_submission",
+      previousState: submission.status,
+      newState: "REVIEWED",
+      assignmentId,
+      studentId,
+    },
+  });
+
+  return updated;
 }
 
 /** Real data for the student dashboard: assignments due soon + this student's own status. */
