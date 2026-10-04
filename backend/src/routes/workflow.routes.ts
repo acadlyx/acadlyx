@@ -21,7 +21,7 @@ router.post("/batch",authenticate,asyncHandler(async(req,res)=>{
  const data=await getWorkflowStates(institutionId,actor,normalized);
  res.json({success:true,data});
 }));
-\nrouter.get("/:workflow/:id",authenticate,asyncHandler(async(req,res)=>{
+router.get("/:workflow/:id",authenticate,asyncHandler(async(req,res)=>{
  const data=await getWorkflowState(requireInstitution(req),requireAuthenticatedUser(req),req.params.workflow,req.params.id);
  res.json({success:true,data});
 }));
