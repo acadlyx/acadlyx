@@ -20,16 +20,29 @@ import {
   logger,
 } from "../utils/logger";
 
+function errorCode(error: Error, prismaCode: number | null): string {
+  if (error instanceof AppError) return error.code;
+  if (prismaCode === 409) return "CONFLICT";
+  if (prismaCode === 404) return "NOT_FOUND";
+  if (prismaCode === 400) return "BAD_REQUEST";
+  if (error instanceof MulterError) return "INVALID_UPLOAD";
+  if (isJsonSyntaxError(error)) return "INVALID_JSON";
+  if (error.message.startsWith("CORS origin not allowed:")) return "CORS_FORBIDDEN";
+  return "INTERNAL_ERROR";
+}
+
 export class AppError
   extends Error
 {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
+  public readonly code: string;
 
   constructor(
     message: string,
     statusCode = 500,
     isOperational = true,
+    code = "APP_ERROR",
   ) {
     super(message);
 
@@ -41,6 +54,8 @@ export class AppError
 
     this.isOperational =
       isOperational;
+
+    this.code = code;
 
     Object.setPrototypeOf(
       this,
@@ -193,6 +208,7 @@ export function errorHandler(
     success: false,
 
     error: {
+      code: errorCode(err, prismaCode),
       message,
 
       requestId:
