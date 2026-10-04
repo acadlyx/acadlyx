@@ -10,6 +10,7 @@ useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { useMutationState } from "@/hooks/useMutationState";
 import {
 AuthRequiredError,
 getCurrentUser,
@@ -241,8 +242,7 @@ setTab(requestedTab);
 const [loading, setLoading] =
 useState(true);
 
-const [busy, setBusy] =
-useState(false);
+const mutation = useMutationState("erp-action");
 
 const [error, setError] =
 useState("");
@@ -474,11 +474,10 @@ async function run(
 action: () => Promise<unknown>,
 message: string
 ) {
-setBusy(true);
 setError("");
 
 try {
-  await action();
+  await mutation.execute(async () => { await action(); return null; });
   flash(message);
   await refreshActiveTab();
 } catch (err) {
@@ -488,7 +487,7 @@ try {
       : "Operation failed."
   );
 } finally {
-  setBusy(false);
+  
 }
 
 }
@@ -623,7 +622,7 @@ ACADLYX ERP
         canManage={can([
           "timetable.manage",
         ])}
-        busy={busy}
+        busy={mutation.isSubmitting}
         run={run}
       />
     )}
