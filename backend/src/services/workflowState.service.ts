@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 
 export type WorkflowState =
@@ -32,6 +33,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  if(w==="assignment_submission"){
   const x=await prisma.assignmentSubmission.findFirst({where:{id:entityId,institutionId},select:{id: true,status:true,submittedAt:true,updatedAt:true,studentId:true,assignment:{select:{courseOffering:{select:{facultyId:true}}}}}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.studentId===actor.id || has(actor,"assignments.read") || has(actor,"assignments.manage") || (role(actor,"FACULTY") && x.assignment.courseOffering.facultyId===actor.id);
+  if(!canRead) throw new AppError("You do not have access to this submission.",403);
   table="assignment_submissions"; updatedAt=x.updatedAt;
   state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"LATE":x.status==="REOPENED"?"REOPENED":"SUBMITTED";
   const mine=x.studentId===actor.id;
@@ -45,6 +48,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="enrollment"||w==="student_enrollment"){
   const x=await prisma.studentEnrollment.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,enrolledAt:true,updatedAt:true,userId:true}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.userId===actor.id || has(actor,"students.read") || has(actor,"students.manage");
+  if(!canRead) throw new AppError("You do not have access to this enrollment.",403);
   table="student_enrollments";updatedAt=x.updatedAt;
   state=x.status==="ACTIVE"?"ENROLLED":x.status==="DROPPED"?"DROPPED":x.status==="COMPLETED"?"COMPLETED":x.status==="TRANSFERRED"?"TRANSFERRED":"CANCELLED";
   const mine=x.userId===actor.id; const canWithdraw=has(actor,"students.update")||has(actor,"students.manage");
@@ -63,6 +68,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="course_registration"||w==="registration"){
   const x=await prisma.courseRegistration.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.studentId===actor.id || has(actor,"registration.read") || has(actor,"registration.approve") || has(actor,"courses.manage");
+  if(!canRead) throw new AppError("You do not have access to this registration.",403);
   table="course_registrations";updatedAt=x.updatedAt;
   state=x.status==="APPROVED"?"APPROVED":x.status==="REJECTED"?"REJECTED":x.status==="DROPPED"?"DROPPED":"REQUESTED";
   const mine=x.studentId===actor.id; const manage=has(actor,"registration.approve")||has(actor,"courses.manage");
@@ -71,6 +78,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="application"){
   const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.studentId===actor.id || has(actor,"applications.read") || has(actor,"applications.manage") || has(actor,"admissions.manage");
+  if(!canRead) throw new AppError("You do not have access to this application.",403);
   table="applications";updatedAt=x.appliedAt;
   state=(x.status as WorkflowState)||"APPLIED";
   const manage=has(actor,"applications.manage")||has(actor,"admissions.manage");
@@ -79,12 +88,16 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="certificate"){
   const x=await prisma.certificate.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.studentId===actor.id || has(actor,"certificates.read") || has(actor,"certificates.issue") || has(actor,"students.manage");
+  if(!canRead) throw new AppError("You do not have access to this certificate.",403);
   table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"REQUESTED";
   const manage=has(actor,"certificates.issue")||has(actor,"students.manage");
   editable=manage; actions=[action("view","View certificate",true),...(state==="REQUESTED"&&manage?[action("issue","Issue certificate",true,"certificates.issue","", "primary")]:[])];
  } else if(w==="fee_invoice"){
   const x=await prisma.feeInvoice.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,paidAmount:true,amount:true,updatedAt:true,studentId:true}});
   if(!x) throw new Error("Workflow record not found");
+  const canRead = x.studentId===actor.id || has(actor,"fees.read") || has(actor,"fees.manage") || has(actor,"payments.manage");
+  if(!canRead) throw new AppError("You do not have access to this fee invoice.",403);
   table="fee_invoices";updatedAt=x.updatedAt;
   state=x.status==="PAID"||x.paidAmount>=x.amount?"PAID":x.status==="CANCELLED"?"CANCELLED":"PENDING";
   const manage=has(actor,"fees.manage")||has(actor,"payments.manage");
