@@ -309,6 +309,13 @@ export function canAny(
   return hasAnyPermission(user, permissions);
 }
 
+export function canAll(
+  user: AuthUser | null,
+  permissions: readonly string[],
+): boolean {
+  return hasAllPermissions(user, permissions);
+}
+
 export function canRenderAction(
   user: AuthUser | null,
   permission: string
