@@ -89,6 +89,9 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
         if (existingEmail && existingEmail.institutionId !== institutionId) throw new AppError("The supplied email already belongs to another institution", 409);
         if (existingProfile && existingEmail && existingProfile.userId !== existingEmail.id) throw new AppError("Admission number and email refer to different users", 409);
         const existingUserId = existingProfile?.userId ?? existingEmail?.id;
+        const existingUser = existingUserId ? await tx.user.findUnique({ where: { id: existingUserId }, select: { email: true, idNumber: true } }) : null;
+        const finalEmail = existingUser?.email ?? email;
+        const finalIdNumber = existingUser?.idNumber ?? idNumber;
         const user = existingUserId
           ? await tx.user.update({ where: { id: existingUserId }, data: { idNumber, firstName, lastName, phone: text(row.phone) || null } })
           : await tx.user.create({ data: { institutionId, email, idNumber, passwordHash: await hashPassword("Import-" + crypto.randomUUID() + "-9xA!"), firstName, lastName, phone: text(row.phone) || null, isActive: true } });
@@ -105,7 +108,7 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
         }
         return user;
       });
-      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, email, idNumber, enrollmentCreated) });
+      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, (await prisma.user.findUnique({ where: { id: result.id }, select: { email: true } }))?.email || email, (await prisma.user.findUnique({ where: { id: result.id }, select: { idNumber: true } }))?.idNumber || idNumber, enrollmentCreated) });
     } catch (error) {
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
     }
