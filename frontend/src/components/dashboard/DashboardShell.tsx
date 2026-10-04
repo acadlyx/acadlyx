@@ -15,9 +15,11 @@ import { getAdminNavigation } from "@/lib/adminNavigation";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   CHAIRMAN: { "/reports": "/chairman/reports" },
-  DIRECTOR: { "/reports": "/director/reports" },
-  DEAN: { "/reports": "/dean/reports" },
-  REGISTRAR: { "/reports": "/registrar/reports" },
+  DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations" },
+  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations" },
+  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters" },
+  HOD: { "/erp": "/hod/operations" },
+  STAFF: { "/erp": "/staff/operations" },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
@@ -79,13 +81,16 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     return navigationForUser({
       roles: [role],
       permissions: user.permissions || [],
-    }).map((item) => ({
-      id: roleOwnedHref(role, item.href),
-      label: item.label,
-      href: roleOwnedHref(role, item.href),
-      icon: item.icon,
-      group: item.group || "Workspace",
-    }));
+    }).map((item) => {
+      const href = roleOwnedHref(role, item.href);
+      return {
+        id: href,
+        label: item.label,
+        href,
+        icon: item.icon,
+        group: item.group || "Workspace",
+      };
+    });
   }, [user, workspaceRole]);
 
   const roles = user?.roles?.length ? user.roles : allowedRoles || [];
