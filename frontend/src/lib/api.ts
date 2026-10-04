@@ -18,6 +18,7 @@ const GET_CACHE_TTL_MS = 5_000;
 type CachedResponse = { expiresAt: number; value: unknown };
 const getCache = new Map<string, CachedResponse>();
 const getInflight = new Map<string, Promise<unknown>>();
+let cacheGeneration = 0;
 
 function createIdempotencyKey(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
@@ -98,6 +99,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
 }
 
 export function invalidateApiCache(pathPrefix?: string): void {
+  cacheGeneration += 1;
   if (!pathPrefix) {
     getCache.clear();
     return;
@@ -123,6 +125,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   const request = (async () => {
+    const requestGeneration = cacheGeneration;
     const incomingHeaders = new Headers(init?.headers);
     if (!incomingHeaders.has("Content-Type") && init?.body) {
       incomingHeaders.set("Content-Type", "application/json");
@@ -144,7 +147,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
 
     if (!cacheable) invalidateApiCache();
-    if (cacheable) getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value: body });
+    if (cacheable && requestGeneration === cacheGeneration) getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value: body });
     return body as T;
   })();
 
