@@ -9,15 +9,6 @@ const HEADER = "x-idempotency-key";
 const KEY_PATTERN = /^[A-Za-z0-9._:-]{1,200}$/;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
-const HEADER_REQUIRED_EXCEPTIONS = ["/payment-webhooks", "/auth/login", "/auth/refresh"];
-
-function isHeaderException(req: Request): boolean {
-  const path = req.path.replace(/\/+$/, "") || "/";
-  return HEADER_REQUIRED_EXCEPTIONS.some(
-    (prefix) => path === prefix || path.endsWith(prefix),
-  );
-}
-
 function requestScope(req: Request): string {
   return req.method + ":" + req.originalUrl + ":" +
     createHash("sha256").update(req.header("authorization") ?? "").digest("hex");
