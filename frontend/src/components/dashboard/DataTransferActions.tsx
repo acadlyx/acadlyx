@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { commitImport, DataType, exportData, previewImport } from "@/lib/dataTransferApi";
+import { commitImport, commitPartialStudentImport, DataType, exportData, previewImport } from "@/lib/dataTransferApi";
 
 const labels: Record<DataType, string> = {
   users: "Users", students: "Students", faculty: "Faculty", campuses: "Campuses", departments: "Departments",
@@ -22,7 +22,12 @@ export default function DataTransferActions({ type, compact = false }: { type: D
       const preview = await previewImport(type, file);
       const ok = window.confirm(`Preview ${preview.totalRows} row(s) for ${labels[type]}. Import these rows now?`);
       if (!ok) return;
-      const result = await commitImport(type, file);
+      const result = type === "students" ? await commitPartialStudentImport(file) : await commitImport(type, file);
+      if (type === "students" && result.incomplete?.length) {
+        const ids = result.incomplete.map((item) => item.id).join(",");
+        window.location.href = `/imports/students/complete?ids=${encodeURIComponent(ids)}`;
+        return;
+      }
       setMessage(`${result.imported} row(s) imported successfully.`);
       window.setTimeout(() => setMessage(""), 4000);
     } catch (error) {
