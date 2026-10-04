@@ -73,6 +73,7 @@ import paymentWebhookRoutes from "./routes/paymentWebhook.routes";
 import workspaceContextRoutes from "./routes/workspaceContext.routes";
 import myWorkRoutes from "./routes/myWork.routes";
 import globalSearchRoutes from "./routes/globalSearch.routes";
+import workflowRoutes from "./routes/workflow.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -245,6 +246,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/search`,
     globalSearchRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/workflow`,
+    workflowRoutes
   );
 
   /*
