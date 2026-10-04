@@ -73,22 +73,26 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
   academicYearId=year?.id;
  }
  const s=await scope(institutionId,a);
+ const scopedInvoice=invoiceWhere(s);
+ const scopedPayment=paymentWhere(s);
+ const invoiceFilter:any=academicYearId?{...scopedInvoice,academicYearId}:scopedInvoice;
+ const paymentFilter:any=academicYearId?{...scopedPayment,invoice:{...(scopedPayment.invoice as any),academicYearId}}:scopedPayment;
  const base=await overview(institutionId,a,{period:input.period,academicYearId});
  const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
  const [methods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
-  prisma.feePayment.groupBy({by:["method"],where:{...paymentWhere(s),status:"SUCCESS",...(academicYearId?{invoice:{academicYearId}}:{})},_sum:{amount:true},_count:{_all:true}}),
-  prisma.feePayment.findMany({where:{...paymentWhere(s),status:"SUCCESS",paidAt:{gte:thirty},...(academicYearId?{invoice:{academicYearId}}:{})},select:{amount:true,paidAt:true},orderBy:{paidAt:"asc"},take:2000}),
-  prisma.feePayment.findMany({where:{...paymentWhere(s),...(academicYearId?{invoice:{academicYearId}}:{})},select:{id:true,amount:true,method:true,paidAt:true,status:true,receiptNumber:true,invoice:{select:{id:true,invoiceNumber:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:8}),
-  prisma.feeInvoice.findMany({where:{...invoiceWhere(s),...(academicYearId?{academicYearId}:{})},select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true,student:{select:{id:true,firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{createdAt:"desc"},take:8}),
-  prisma.feeRefund.count({where:{institutionId,...studentFinancialFilter(s),status:"REQUESTED",...(academicYearId?{invoice:{academicYearId}}:{})}}),
-  prisma.feeConcession.count({where:{institutionId,...studentFinancialFilter(s),status:"PENDING",...(academicYearId?{invoice:{academicYearId}}:{})}}),
-  prisma.feeInvoice.count({where:{...invoiceWhere(s),status:"PENDING",...(academicYearId?{academicYearId}:{})}}),
+  prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS"},_sum:{amount:true},_count:{_all:true}}),
+  prisma.feePayment.findMany({where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:thirty}},select:{amount:true,paidAt:true},orderBy:{paidAt:"asc"},take:2000}),
+  prisma.feePayment.findMany({where:paymentFilter,select:{id:true,amount:true,method:true,paidAt:true,status:true,receiptNumber:true,invoice:{select:{id:true,invoiceNumber:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:8}),
+  prisma.feeInvoice.findMany({where:invoiceFilter,select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true,student:{select:{id:true,firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{createdAt:"desc"},take:8}),
+  prisma.feeRefund.count({where:{institutionId,...studentFinancialFilter(s),status:"REQUESTED"}}),
+  prisma.feeConcession.count({where:{institutionId,...studentFinancialFilter(s),status:"PENDING"}}),
+  prisma.feeInvoice.count({where:{...invoiceFilter,status:"PENDING"}}),
   collections(institutionId,a)
  ]);
  const trendMap=new Map<string,number>();
  for(const p of trendPayments){const key=p.paidAt.toISOString().slice(0,10);trendMap.set(key,(trendMap.get(key)||0)+Number(p.amount));}
  const trend=Array.from({length:30},(_,i)=>{const d=new Date(thirty);d.setDate(thirty.getDate()+i);const key=d.toISOString().slice(0,10);return{date:key,amount:trendMap.get(key)||0};});
- const overdueCount=await prisma.feeInvoice.count({where:{...invoiceWhere(s),dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]},...(academicYearId?{academicYearId}:{})}});
+ const overdueCount=await prisma.feeInvoice.count({where:{...invoiceFilter,dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}}});
  const actions=[
   pendingRefunds>0?{kind:"refunds",count:pendingRefunds,label:"refunds awaiting review",href:"/accounts/refunds"}:null,
   pendingConcessions>0?{kind:"concessions",count:pendingConcessions,label:"concessions awaiting approval",href:"/accounts/concessions"}:null,
