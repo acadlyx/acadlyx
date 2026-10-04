@@ -42,7 +42,7 @@ router.post(
         "If that address belongs to an account, a reset link has been sent.",
       expiresInMinutes: service.passwordResetTtlMinutes,
     });
-  )
+  })
 );
 
 router.post(
