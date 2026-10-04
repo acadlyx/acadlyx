@@ -45,6 +45,18 @@ export async function exportData(type: DataType, format: "xlsx" | "csv") {
     throw new Error(body?.error?.message || `Export failed (${response.status})`);
   }
   const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new Error("The server returned an empty export file. No download was created.");
+  }
+
+  const expectedType = format === "xlsx"
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : "text/csv";
+  const actualType = blob.type.split(";")[0].toLowerCase();
+  if (actualType && actualType !== expectedType) {
+    throw new Error("The server returned an unexpected file type. The export was not downloaded.");
+  }
+
   const disposition = response.headers.get("Content-Disposition") || "";
   const match = disposition.match(/filename="?([^";]+)"?/i);
   const filename = match?.[1] || `acadlyx-${type}.${format}`;
