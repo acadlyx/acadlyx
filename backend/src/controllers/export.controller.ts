@@ -24,6 +24,8 @@ export const exportData = asyncHandler(async (req: Request, res: Response) => {
   res.setHeader("Content-Type", file.contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Length", String(file.buffer.length));
+  res.setHeader("X-Acadlyx-Export-Rows", String(file.rowCount));
   res.send(file.buffer);
 });
 
