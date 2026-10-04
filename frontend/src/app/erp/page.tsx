@@ -1020,7 +1020,7 @@ event.preventDefault();
     </Field>
 
     <div className="flex items-end">
-      <Submit busy={mutation.isSubmitting}>
+      <Submit busy={busy}>
         Save timetable
       </Submit>
     </div>
@@ -1199,7 +1199,7 @@ event.preventDefault();
       />
     </Field>
 
-    <Submit busy={mutation.isSubmitting}>
+    <Submit busy={busy}>
       Publish notice
     </Submit>
   </form>
@@ -1357,7 +1357,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={mutation.isSubmitting}>
+      <Submit busy={busy}>
         Create exam
       </Submit>
     </form>
@@ -1475,7 +1475,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={mutation.isSubmitting}>
+      <Submit busy={busy}>
         Save result
       </Submit>
     </form>
@@ -1660,7 +1660,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={mutation.isSubmitting}>
+        <Submit busy={busy}>
           Create fee head
         </Submit>
       </form>
@@ -2043,7 +2043,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={mutation.isSubmitting}>
+        <Submit busy={busy}>
           Create structure
         </Submit>
       </form>
@@ -2255,7 +2255,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={mutation.isSubmitting}>
+        <Submit busy={busy}>
           Create invoice
         </Submit>
       </form>
@@ -2340,7 +2340,7 @@ event.preventDefault();
           />
         </Field>
 
-        <Submit busy={mutation.isSubmitting}>
+        <Submit busy={busy}>
           Record payment
         </Submit>
       </form>
@@ -2504,7 +2504,7 @@ event.preventDefault();
     </Field>
 
     <div className="flex items-end">
-      <Submit busy={mutation.isSubmitting}>
+      <Submit busy={busy}>
         Create link
       </Submit>
     </div>
@@ -2767,7 +2767,7 @@ event.preventDefault();
         />
       </Field>
 
-      <Submit busy={mutation.isSubmitting}>
+      <Submit busy={busy}>
         Add document
       </Submit>
     </form>
