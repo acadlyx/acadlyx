@@ -33,7 +33,7 @@ function studentFinancialFilter(s:Scope):Record<string,any>{
  return{};
 }
 function dec(v:unknown){const x=new Prisma.Decimal(String(v??"0"));if(x.lte(0))throw new AppError("Amount must be greater than zero",400);return x}
-async function audit(institutionId:string,userId:string,action:string,entityType:string,entityId:string,metadata?:unknown){await recordAuditLog({institutionId,userId,action,entityType,entityId,metadata})}
+async function audit(institutionId:string,userId:string,action:string,entityType:string,entityId:string,metadata?:Prisma.InputJsonValue){await recordAuditLog({institutionId,userId,action,entityType,entityId,metadata})}
 
 export async function overview(institutionId:string,a:AuthenticatedUser){
  if(!has(a,"fees.read")&&!has(a,"fees.collection.read"))throw new AppError("Financial visibility permission required",403);
@@ -41,7 +41,7 @@ export async function overview(institutionId:string,a:AuthenticatedUser){
   prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true}}),
   prisma.feePayment.findMany({where:paymentWhere(s),select:{amount:true,paidAt:true,status:true}})
  ]);
- const now=new Date(),today=new Date(now);today.setHours(0,0,0,0),month=new Date(now.getFullYear(),now.getMonth(),1);
+ const now=new Date();const today=new Date(now);today.setHours(0,0,0,0);const month=new Date(now.getFullYear(),now.getMonth(),1);
  const billed=invoices.reduce((n,x)=>n+Number(x.amount),0),collected=payments.filter(x=>x.status==="SUCCESS").reduce((n,x)=>n+Number(x.amount),0),refunded=invoices.reduce((n,x)=>n+Number(x.refundedAmount),0);
  const outstanding=Math.max(0,billed-collected-refunded);
  const overdue=invoices.filter(x=>x.dueDate&&x.dueDate<now).reduce((n,x)=>n+Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount)),0);
@@ -60,16 +60,28 @@ export async function invoice(institutionId:string,a:AuthenticatedUser,id:string
  const x=await prisma.feeInvoice.findFirst({where:{id,...invoiceWhere(s)},include:{student:{select:{id:true,firstName:true,lastName:true,email:true,profile:{select:{admissionNumber:true}}}},items:{include:{feeHead:true}},payments:true,concessions:true,refunds:true,receipts:true}});
  if(!x)throw new AppError("Invoice not found in authorized scope",404);return x;
 }
-async function invoiceNo(institutionId:string){return `INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0,10).toUpperCase()}`}
+async function invoiceNo(){return `INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0,10).toUpperCase()}`}
 async function receiptNo(){return `RCT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0,10).toUpperCase()}`}
 export async function createInvoice(institutionId:string,a:AuthenticatedUser,input:any){
  if(!has(a,"fees.invoice.manage"))throw new AppError("Invoice management permission required",403);
- const s=await scope(institutionId,a),student=await prisma.user.findFirst({where:{id:input.studentId,institutionId,userRoles:{some:{role:{name:"STUDENT"}}},...(s.studentIds?{id:{in:s.studentIds}}:s.departmentIds?{studentEnrollments:{some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}}}:s.campusIds?{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}:{})},select:{id:true}});
+ const s=await scope(institutionId,a);
+ if(s.studentIds&&!s.studentIds.includes(input.studentId))throw new AppError("Student is outside your financial scope",403);
+ const studentWhere:Prisma.UserWhereInput={id:input.studentId,institutionId,userRoles:{some:{role:{name:"STUDENT"}}}};
+ if(s.departmentIds)studentWhere.studentEnrollments={some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}};
+ if(s.campusIds)studentWhere.studentEnrollments={some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}};
+ const student=await prisma.user.findFirst({where:studentWhere,select:{id:true}});
  if(!student)throw new AppError("Student is outside your financial scope",403);
- const amount=dec(input.amount),items=(input.items||[]).map((x:any)=>({description:String(x.description).trim(),amount:dec(x.amount),feeHeadId:x.feeHeadId||null}));
- const total=items.reduce((n:any,x:any)=>n.plus(x.amount),new Prisma.Decimal(0));if(items.length&&!total.eq(amount))throw new AppError("Invoice amount must equal line items",400);
- const created=await prisma.$transaction(async tx=>{const i=await tx.feeInvoice.create({data:{institutionId,studentId:student.id,title:String(input.title).trim(),amount:Number(amount),grossAmount:Number(amount),dueDate:input.dueDate?new Date(input.dueDate):null,status:"PENDING",feeStructureId:input.feeStructureId||null,academicYearId:input.academicYearId||null,semesterId:input.semesterId||null,createdById:a.id,invoiceNumber:await invoiceNo(institutionId),items:{create:items}}});await tx.feeTransaction.create({data:{institutionId,studentId:student.id,invoiceId:i.id,amount,type:"INVOICE",createdById:a.id}});return i});
- await audit(institutionId,a.id,"finance.invoice.create","FeeInvoice",created.id,{amount:amount.toString(),studentId:student.id});return invoice(institutionId,a,created.id);
+ const amount=dec(input.amount);
+ const items=(input.items||[]).map((x:any)=>({description:String(x.description).trim(),amount:dec(x.amount),feeHeadId:x.feeHeadId||null}));
+ const total=items.reduce((n:any,x:any)=>n.plus(x.amount),new Prisma.Decimal(0));
+ if(items.length&&!total.eq(amount))throw new AppError("Invoice amount must equal line items",400);
+ const created=await prisma.$transaction(async tx=>{
+  const i=await tx.feeInvoice.create({data:{institutionId,studentId:student.id,title:String(input.title).trim(),amount:Number(amount),grossAmount:Number(amount),dueDate:input.dueDate?new Date(input.dueDate):null,status:"PENDING",feeStructureId:input.feeStructureId||null,academicYearId:input.academicYearId||null,semesterId:input.semesterId||null,createdById:a.id,invoiceNumber:await invoiceNo(),items:{create:items}}});
+  await tx.feeTransaction.create({data:{institutionId,studentId:student.id,invoiceId:i.id,amount,type:"INVOICE",createdById:a.id}});
+  return i;
+ });
+ await audit(institutionId,a.id,"finance.invoice.create","FeeInvoice",created.id,{amount:amount.toString(),studentId:student.id});
+ return invoice(institutionId,a,created.id);
 }
 export async function payment(institutionId:string,a:AuthenticatedUser,id:string,input:any){
  if(!has(a,"fees.payment.record"))throw new AppError("Payment recording permission required",403);
