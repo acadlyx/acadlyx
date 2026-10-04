@@ -1231,6 +1231,26 @@ model Document {
   @@map("documents")
 }
 
+model DomainEventOutbox {
+  id            String   @id @default(uuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  actorId       String?
+  actor         User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  name          String
+  payload       Json
+  occurredAt    DateTime @default(now())
+  processedAt   DateTime?
+  attempts      Int      @default(0)
+  lastError     String?
+  createdAt     DateTime @default(now())
+
+  @@index([institutionId, createdAt])
+  @@index([processedAt, createdAt])
+  @@index([name, processedAt, createdAt])
+  @@map("domain_event_outbox")
+}
+
 model Notification {
   id            String      @id @default(uuid())
   institutionId String
@@ -1240,6 +1260,9 @@ model Notification {
   title         String
   body          String
   readAt        DateTime?
+  dismissedAt   DateTime?
+  actionUrl     String?
+  priority      String      @default("NORMAL")
   createdAt     DateTime    @default(now())
 
   @@index([institutionId, userId, readAt])
