@@ -1,3 +1,5 @@
+import { prisma } from "../lib/prisma";
+
 export interface DomainEvent<T = Record<string, unknown>> {
   name: string;
   occurredAt: string;
@@ -35,6 +37,18 @@ export function publishDomainEvent<T extends Record<string, unknown>>(
     actorId: context.actorId ?? null,
     payload: context.payload ?? ({} as T),
   };
+
+  void prisma.domainEventOutbox.create({
+    data: {
+      institutionId: event.institutionId,
+      actorId: event.actorId,
+      name: event.name,
+      payload: event.payload as object,
+      occurredAt: new Date(event.occurredAt),
+    },
+  }).catch(() => {
+    // The outbox must never break the originating business request.
+  });
 
   const listeners = [
     ...(handlers.get(name) ?? []),
