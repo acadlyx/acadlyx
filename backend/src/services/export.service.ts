@@ -52,7 +52,7 @@ function clean(value: unknown): string | number | boolean | null {
   return String(value);
 }
 
-function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
+export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
   const workbook = XLSX.utils.book_new();
 
   if (rows.length > 0) {
