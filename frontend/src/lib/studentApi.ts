@@ -34,6 +34,7 @@ export type ManagedStudent = {
   id: string;
   institutionId: string | null;
   email: string;
+  idNumber: string;
   firstName: string;
   lastName: string;
   phone: string | null;
