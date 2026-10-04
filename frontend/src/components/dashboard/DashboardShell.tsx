@@ -75,14 +75,33 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     let alive = true;
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
-    fetch(apiUrl("/workspace/context"), { headers: { Authorization: `Bearer ${getAccessToken() || ""}` } })
-      .then((response) => response.ok ? response.json() : null)
-      .then((response) => {
-        const institution = response?.data?.institution;
-        if (institution && alive) setInstitutionBrand({ name: institution.name || "", logoUrl: institution.logoUrl || null });
-      })
-      .catch(() => undefined);
-    getCurrentUser({ background: Boolean(cached) }).then((current) => { if (alive) setUser(current); }).catch((error) => {
+
+    // Never issue protected workspace requests until authentication has been
+    // resolved. sessionStorage is intentionally tab-scoped; an empty token
+    // must not become a request that can race the auth boundary.
+    getCurrentUser({ background: Boolean(cached) }).then(async (current) => {
+      if (!alive) return;
+      setUser(current);
+      const token = getAccessToken();
+      if (!token) return;
+      try {
+        const response = await fetch(apiUrl("/workspace/context"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const responseBody = await response.json();
+        const institution = responseBody?.data?.institution;
+        if (alive && institution) {
+          setInstitutionBrand({
+            name: institution.name || "",
+            logoUrl: institution.logoUrl || null,
+          });
+        }
+      } catch {
+        // Branding is non-critical; authorization/data loading remains
+        // independent and fail-closed.
+      }
+    }).catch((error) => {
       if (alive && error instanceof AuthRequiredError) router.replace("/login");
     });
     return () => { alive = false; };
