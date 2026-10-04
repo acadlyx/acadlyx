@@ -671,7 +671,7 @@ export const ROLE_PERMISSIONS: Record<
 
   HOD: [
     "fees.read",
-    "obe.read", "obe.manage", "obe.mapping.manage", "obe.mapping.submit", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
+    "obe.read", "obe.manage", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
     "people.import",
 
@@ -733,7 +733,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   FACULTY: [
-    "obe.read", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.reports.read",
+    "obe.read", "obe.mapping.manage", "obe.mapping.submit", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.reports.read",
     "students.read",
 
     "attendance.read",
