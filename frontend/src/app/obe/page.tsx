@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
+import { hasPermission, getPrimaryRole } from "@/lib/authority";
 import {
   calculateAttainment,
   calculateProgrammeAttainment,
@@ -21,6 +22,7 @@ import {
   replaceAssessmentItems,
   replaceMapping,
   submitMapping,
+  reviewMapping,
   updateObeAssessment,
   type CourseOutcome,
   type ObeAssessment,
@@ -37,10 +39,6 @@ type ItemDraft = {
   maxMarks: string;
   courseOutcomeId: string;
 };
-
-function can(user: ReturnType<typeof getCachedCurrentUser>, permission: string) {
-  return Boolean(user?.permissions.includes(permission));
-}
 
 function levelLabel(level: number | null) {
   if (level === null) return "—";
@@ -59,6 +57,7 @@ export default function ObePage() {
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
   const [programmeOutcomes, setProgrammeOutcomes] = useState<ProgrammeOutcome[]>([]);
   const [mappings, setMappings] = useState<Record<string, number>>({});
+  const [mappingStatus, setMappingStatus] = useState<"DRAFT" | "SUBMITTED" | "APPROVED" | "RETURNED" | string>("DRAFT");
   const [assessments, setAssessments] = useState<ObeAssessment[]>([]);
   const [attainment, setAttainment] = useState<ObeAttainment[]>([]);
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -84,11 +83,13 @@ export default function ObePage() {
     [offerings, selectedOfferingId]
   );
 
-  const normalizedRole = user?.roles?.[0]?.toUpperCase() ?? "";
+  const normalizedRole = getPrimaryRole(user?.roles ?? []) ?? "";
   const isStudent = normalizedRole === "STUDENT";
-  const canEditMapping = !isStudent && can(user, "obe.mapping.manage");
-  const canManageAssessment = can(user, "obe.assessment.manage");
-  const canCalculate = can(user, "obe.attainment.calculate");
+  const canEditMapping = !isStudent && hasPermission(user, "obe.mapping.manage") && (mappingStatus === "DRAFT" || mappingStatus === "RETURNED");
+  const canSubmitMapping = hasPermission(user, "obe.mapping.submit") && mappingStatus !== "SUBMITTED" && mappingStatus !== "APPROVED";
+  const canReviewMapping = hasPermission(user, "obe.attainment.approve") && mappingStatus === "SUBMITTED";
+  const canManageAssessment = hasPermission(user, "obe.assessment.manage");
+  const canCalculate = hasPermission(user, "obe.attainment.calculate");
 
   const loadOfferings = useCallback(async () => {
     setLoading(true);
@@ -119,6 +120,7 @@ export default function ObePage() {
         getAttainment(selectedOffering.id),
       ]);
       setCourseOutcomes(mapping.outcomes);
+      setMappingStatus(mapping.mappings[0]?.status ?? "DRAFT");
       setProgrammeOutcomes(mapping.programmeOutcomes);
       const matrix: Record<string, number> = {};
       mapping.mappings.forEach((row) => {
@@ -210,7 +212,7 @@ export default function ObePage() {
   async function submitCurrentMapping() {
     if (!selectedOffering) return;
     setWorking(true); setError(""); setMessage("");
-    try { await submitMapping(selectedOffering.id); setMessage("Mapping submitted for review."); await loadSelected(); }
+    try { await submitMapping(selectedOffering.id); setMessage("Mapping submitted for HOD review."); await loadSelected(); }
     catch (err) { setError(err instanceof Error ? err.message : "Unable to submit mapping."); }
     finally { setWorking(false); }
   }
@@ -366,7 +368,14 @@ export default function ObePage() {
                   <div className="mt-4 grid gap-2 md:grid-cols-2">{programmeOutcomes.map((po) => <div key={po.id} className="rounded-xl border border-slate-200 p-3"><span className="font-black">{po.code}</span><span className="ml-2 text-sm text-slate-600">{po.description}</span></div>)}</div>
                 </DashboardCard>}
                 <DashboardCard title="CO–PO / PSO mapping matrix">
-                {courseOutcomes.length === 0 || programmeOutcomes.length === 0 ? <p className="text-sm text-slate-500">Create the course outcomes and programme outcomes before building the matrix.</p> : <div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-sm"><thead><tr><th className="border border-slate-200 bg-slate-50 p-3 text-left">CO</th>{programmeOutcomes.map((po) => <th key={po.id} className="border border-slate-200 bg-slate-50 p-3 text-center">{po.code}</th>)}</tr></thead><tbody>{courseOutcomes.map((co) => <tr key={co.id}><td className="border border-slate-200 p-3 font-bold text-slate-800">{co.code}</td>{programmeOutcomes.map((po) => { const key = `${co.id}:${po.id}`; const value = mappings[key] ?? 0; return <td key={po.id} className="border border-slate-200 p-2 text-center"><select disabled={!canEditMapping} value={value} onChange={(e) => setMappingLevel(co.id, po.id, Number(e.target.value))} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"><option value={0}>—</option><option value={1}>1 · Low</option><option value={2}>2 · Moderate</option><option value={3}>3 · High</option></select></td>})}</tr>)}</tbody></table><div className="mt-4 flex flex-wrap gap-2">{canEditMapping && <><button disabled={working} onClick={() => void saveMapping()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Save mapping</button><button disabled={working} onClick={() => void submitCurrentMapping()} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50">Submit for review</button></>}</div></div>}
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Status: {mappingStatus === "SUBMITTED" ? "Awaiting HOD Review" : mappingStatus === "RETURNED" ? "Returned for Correction" : mappingStatus === "APPROVED" ? "Approved" : "Draft"}</p>
+                    <p className="text-xs text-slate-500">Only the role authorized for the current workflow step can act.</p>
+                  </div>
+                  {canReviewMapping && <div className="flex gap-2"><button disabled={working} onClick={() => void (async () => { setWorking(true); setError(""); try { await reviewMapping(selectedOffering.id, "return"); setMessage("Mapping returned for correction."); await loadSelected(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to return mapping."); } finally { setWorking(false); } })()} className="rounded-xl border border-amber-300 px-4 py-2.5 text-sm font-bold text-amber-800 disabled:opacity-50">Return for Correction</button><button disabled={working} onClick={() => void (async () => { setWorking(true); setError(""); try { await reviewMapping(selectedOffering.id, "approve"); setMessage("Mapping approved."); await loadSelected(); } catch (err) { setError(err instanceof Error ? err.message : "Unable to approve mapping."); } finally { setWorking(false); } })()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Approve</button></div>}
+                </div>
+                {courseOutcomes.length === 0 || programmeOutcomes.length === 0 ? <p className="text-sm text-slate-500">Create the course outcomes and programme outcomes before building the matrix.</p> : <div className="overflow-x-auto"><table className="min-w-[760px] w-full border-collapse text-sm"><thead><tr><th className="border border-slate-200 bg-slate-50 p-3 text-left">CO</th>{programmeOutcomes.map((po) => <th key={po.id} className="border border-slate-200 bg-slate-50 p-3 text-center">{po.code}</th>)}</tr></thead><tbody>{courseOutcomes.map((co) => <tr key={co.id}><td className="border border-slate-200 p-3 font-bold text-slate-800">{co.code}</td>{programmeOutcomes.map((po) => { const key = `${co.id}:${po.id}`; const value = mappings[key] ?? 0; return <td key={po.id} className="border border-slate-200 p-2 text-center"><select disabled={!canEditMapping} value={value} onChange={(e) => setMappingLevel(co.id, po.id, Number(e.target.value))} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"><option value={0}>—</option><option value={1}>1 · Low</option><option value={2}>2 · Moderate</option><option value={3}>3 · High</option></select></td>})}</tr>)}</tbody></table><div className="mt-4 flex flex-wrap gap-2">{canEditMapping && <><button disabled={working} onClick={() => void saveMapping()} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Save mapping</button><button disabled={working || !canSubmitMapping} onClick={() => void submitCurrentMapping()} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50">Submit for HOD review</button></>}</div></div>}
               </DashboardCard>
               </div>
             )}
