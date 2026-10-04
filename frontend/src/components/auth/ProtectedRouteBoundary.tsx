@@ -114,6 +114,22 @@ export function ProtectedRouteBoundary({
     };
   }, [pathname, router]);
 
+  useEffect(() => {
+    if (state !== "unauthorized") {
+      return;
+    }
+
+    const destination = user
+      ? workspaceHome(user.roles)
+      : "/login";
+
+    router.replace(
+      destination === pathname
+        ? "/login"
+        : destination,
+    );
+  }, [pathname, router, state, user]);
+
   if (isPublicRoute(pathname)) {
     return <>{children}</>;
   }
@@ -136,16 +152,6 @@ export function ProtectedRouteBoundary({
   }
 
   if (state === "unauthorized") {
-    const destination = user
-      ? workspaceHome(user.roles)
-      : "/login";
-
-    if (destination === pathname) {
-      router.replace("/login");
-    } else {
-      router.replace(destination);
-    }
-
     return null;
   }
 
