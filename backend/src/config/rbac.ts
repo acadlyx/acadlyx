@@ -129,6 +129,26 @@ export const PERMISSIONS = [
   { key: "results.read", module: "exams", description: "View examination results within scope" },
 
   { key: "fees.read", module: "fees", description: "View fee records within scope" },
+  { key: "fees.collection.read", module: "fees", description: "View authorized fee collection summaries" },
+  { key: "fees.structure.read", module: "fees", description: "View fee structures and heads" },
+  { key: "fees.structure.manage", module: "fees", description: "Create and update fee structures and heads" },
+  { key: "fees.assign", module: "fees", description: "Assign fees and generate invoices" },
+  { key: "fees.invoice.read", module: "fees", description: "View authorized invoices" },
+  { key: "fees.invoice.manage", module: "fees", description: "Create, update and cancel invoices" },
+  { key: "fees.payment.read", module: "fees", description: "View authorized payments" },
+  { key: "fees.payment.record", module: "fees", description: "Record and reconcile payments" },
+  { key: "fees.receipt.read", module: "fees", description: "View authorized receipts" },
+  { key: "fees.receipt.generate", module: "fees", description: "Generate receipts for valid payments" },
+  { key: "fees.concession.read", module: "fees", description: "View concessions" },
+  { key: "fees.concession.manage", module: "fees", description: "Create concession requests" },
+  { key: "fees.concession.approve", module: "fees", description: "Approve concessions" },
+  { key: "fees.refund.read", module: "fees", description: "View refunds" },
+  { key: "fees.refund.request", module: "fees", description: "Request refunds" },
+  { key: "fees.refund.approve", module: "fees", description: "Approve refunds" },
+  { key: "fees.refund.process", module: "fees", description: "Process approved refunds" },
+  { key: "fees.reports.read", module: "fees", description: "View financial reports" },
+  { key: "fees.reports.export", module: "fees", description: "Export authorized financial reports" },
+
   { key: "fees.manage", module: "fees", description: "Manage fee heads, structures and invoices" },
   { key: "fees.pay", module: "fees", description: "Record fee payments and issue receipts" },
   { key: "fees.refund", module: "fees", description: "Process or request fee refunds" },
@@ -517,6 +537,9 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "fees.collection.read",
+    "fees.reports.read",
+    "fees.reports.export",
     "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
@@ -524,6 +547,9 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "fees.collection.read",
+    "fees.reports.read",
+    "fees.reports.export",
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
@@ -557,6 +583,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DEAN: [
+    "fees.collection.read",
+    "fees.reports.read",
     "fees.read",
     "obe.read", "obe.reports.read", "obe.attainment.approve",
     "students.read",
@@ -662,6 +690,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HOD: [
+    "fees.collection.read",
+    "fees.reports.read",
     "fees.read",
     "obe.read", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
@@ -773,6 +803,25 @@ export const ROLE_PERMISSIONS: Record<
 
   ACCOUNTS: [
     "students.read",
+    "fees.collection.read",
+    "fees.structure.read",
+    "fees.structure.manage",
+    "fees.assign",
+    "fees.invoice.read",
+    "fees.invoice.manage",
+    "fees.payment.read",
+    "fees.payment.record",
+    "fees.receipt.read",
+    "fees.receipt.generate",
+    "fees.concession.read",
+    "fees.concession.manage",
+    "fees.concession.approve",
+    "fees.refund.read",
+    "fees.refund.request",
+    "fees.refund.approve",
+    "fees.refund.process",
+    "fees.reports.read",
+    "fees.reports.export",
 
     "fees.read",
     "fees.manage",
