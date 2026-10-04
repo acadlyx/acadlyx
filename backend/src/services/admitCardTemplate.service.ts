@@ -18,7 +18,12 @@ export type AdmitCardTemplateConfig = {
   showSemester?: boolean;
   showInstructions?: boolean;
   showSignatures?: boolean;
+  showVerificationCode?: boolean;
   accent?: string;
+  title?: string;
+  subtitle?: string;
+  footer?: string;
+  instructions?: string;
 };
 
 export async function listAdmitCardTemplates(institutionId: string) {
