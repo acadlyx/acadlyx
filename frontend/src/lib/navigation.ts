@@ -91,6 +91,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["SUPER_ADMIN"],
     group: "Account",
   },
+  {
+    label: "Public website",
+    href: "/site-content",
+    icon: "✦",
+    roles: ["SUPER_ADMIN"],
+    permissions: ["site.manage"],
+    group: "Platform",
+  },
 
   {
     label: "Overview",
