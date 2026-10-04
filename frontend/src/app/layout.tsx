@@ -4,6 +4,7 @@ import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
 import "./acadlyx-dashboard-tokens.css";
 import "./acadlyx-modal-responsive.css";
+import { ProtectedRouteBoundary } from "@/components/auth/ProtectedRouteBoundary";
 import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";
 import { ServiceWorkerRegistration } from "@/components/system/ServiceWorkerRegistration";
 import { API_BASE_URL } from "@/lib/api";
@@ -23,7 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-screen antialiased">
         <ServiceWorkerRegistration />
         <ResponsiveNavigationGuard />
-        {children}
+        <ProtectedRouteBoundary>{children}</ProtectedRouteBoundary>
       </body>
     </html>
   );

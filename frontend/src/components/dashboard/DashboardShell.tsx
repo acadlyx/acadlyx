@@ -8,7 +8,7 @@ import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboa
 import { useWorkspaceShellContext } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { apiUrl } from "@/lib/api";
-import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
+import { AuthRequiredError, AuthUser, getAccessToken, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
@@ -75,7 +75,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     let alive = true;
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
-    fetch(apiUrl("/workspace/context"), { headers: { Authorization: `Bearer ${localStorage.getItem("acadlyx_access_token") || ""}` } })
+    fetch(apiUrl("/workspace/context"), { headers: { Authorization: `Bearer ${getAccessToken() || ""}` } })
       .then((response) => response.ok ? response.json() : null)
       .then((response) => {
         const institution = response?.data?.institution;
@@ -127,6 +127,11 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
       };
     });
   }, [user, workspaceRole]);
+
+  // DashboardShell is a secondary fail-closed guard. The global ProtectedRouteBoundary
+  // prevents children from mounting before authentication/authorization is resolved,
+  // while this shell independently refuses to render workspace chrome without a user.
+  if (!user) return null;
 
   const roles = user?.roles?.length ? user.roles : allowedRoles || [];
   const role = getPrimaryRole(roles);

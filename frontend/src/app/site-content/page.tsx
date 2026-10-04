@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { authedFetch } from "@/lib/auth";
+import { authedFetch, getAccessToken } from "@/lib/auth";
 
 const fallback: any = {
   brand: { siteName: "ACADLYX", tagline: "", logoUrl: "/branding/acadlyx-logo.png", faviconUrl: "" },
