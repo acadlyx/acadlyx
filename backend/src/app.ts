@@ -99,6 +99,7 @@ export function createApp(): Application {
   );
 
   app.use(requestContext);
+  app.use(idempotency);
 
   app.use(
     cors({
