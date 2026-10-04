@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { WorkflowStatus } from "@/components/workflow/WorkflowState";
+import { getWorkflowStates, type WorkflowStateResult } from "@/lib/workflowApi";
 import { AuthRequiredError, getCurrentUser, isAuthenticated } from "@/lib/auth";
 import {
   ADMISSION_STATUSES,
@@ -78,6 +80,7 @@ export default function AdmissionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowStateResult>>({});
 
   const load = useCallback(async () => {
     try {
@@ -95,6 +98,9 @@ export default function AdmissionsPage() {
       ]);
       setUserPermissions(currentUser?.permissions ?? []);
       setItems(list.items);
+      const workflowItems = list.items.map((item) => ({ workflow: "admission_application", entityId: item.id }));
+      const states = workflowItems.length ? await getWorkflowStates(workflowItems) : [];
+      setWorkflowStates(Object.fromEntries(states.map((item) => [item.entityId, item])));
       setSummary(list.summary);
       setTotalPages(list.totalPages);
       setPrograms(programOptions);
@@ -475,11 +481,13 @@ export default function AdmissionsPage() {
                           {app.applicationNumber}
                         </td>
                         <td className="whitespace-nowrap px-5 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[app.status]}`}
-                          >
-                            {app.status.replace("_", " ")}
-                          </span>
+                          {workflowStates[app.id] ? (
+                            <WorkflowStatus state={workflowStates[app.id]} />
+                          ) : (
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[app.status]}`}>
+                              {app.status.replace("_", " ")}
+                            </span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-5 py-4">
                           {userPermissions.includes("admissions.manage") && !["ENROLLED", "REJECTED", "WITHDRAWN"].includes(app.status) ? (
@@ -491,24 +499,35 @@ export default function AdmissionsPage() {
                               Edit
                             </button>
                           ) : null}
-                          {NEXT_STATUS[app.status].length > 0 ? (
-                            <select
-                              defaultValue=""
-                              onChange={(e) => {
-                                const next = e.target.value as AdmissionStatus;
-                                if (next) handleStatusChange(app.id, next);
-                              }}
-                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-                            >
-                              <option value="">Move to…</option>
-                              {NEXT_STATUS[app.status].map((s) => (
-                                <option key={s} value={s}>
-                                  {s.replace("_", " ")}
-                                </option>
+                          {workflowStates[app.id] ? (
+                            <div className="flex flex-wrap gap-2">
+                              {workflowStates[app.id].actions.filter((item) => item.key.startsWith("status:")).map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  disabled={!item.enabled}
+                                  title={item.reason}
+                                  onClick={() => void handleStatusChange(app.id, item.key.replace("status:", "") as AdmissionStatus)}
+                                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {item.label}
+                                </button>
                               ))}
-                            </select>
+                              {workflowStates[app.id].state === "SELECTED" && workflowStates[app.id].actions.some((item) => item.key === "enroll") ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleStatusChange(app.id, "ENROLLED")}
+                                  className="rounded-lg bg-slate-950 px-2 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                                >
+                                  Enroll applicant
+                                </button>
+                              ) : null}
+                              {!workflowStates[app.id].actions.some((item) => item.key.startsWith("status:")) && workflowStates[app.id].state !== "SELECTED" ? (
+                                <span className="text-xs text-slate-400">No actions</span>
+                              ) : null}
+                            </div>
                           ) : (
-                            <span className="text-xs text-slate-400">No actions</span>
+                            <span className="text-xs text-slate-400">Checking…</span>
                           )}
                         </td>
                       </tr>
