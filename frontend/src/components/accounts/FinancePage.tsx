@@ -36,7 +36,7 @@ export default function FinancePage({view}:{view:View}){
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [period,setPeriod]=useState<Period>("academic");
  const [search,setSearch]=useState("");
- const can=(p:string)=>permissions.has(p)||permissions.has("fees.manage")||permissions.has("fees.read");
+ const can=(p:string)=>permissions.has(p)||permissions.has("fees.manage")||permissions.has("fees.admin");
  useEffect(()=>{let live=true;setLoading(true);setError("");const load=async()=>{try{
    let x:any;
    if(view==="overview"||view==="dues") x=await financeCommandCenter();
