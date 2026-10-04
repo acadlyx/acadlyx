@@ -9,6 +9,7 @@ const HEADER = "x-idempotency-key";
 const KEY_PATTERN = /^[A-Za-z0-9._:-]{1,200}$/;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const HEADER_REQUIRED_EXCEPTIONS = ["/payment-webhooks", "/auth/login", "/auth/refresh"];
 
 function requestScope(req: Request): string {
   return req.method + ":" + req.originalUrl + ":" +
@@ -49,6 +50,14 @@ export async function idempotency(
 
   const key = req.header(HEADER)?.trim();
   if (!key) {
+    // Production mutation requests must carry a client-stable key. This is
+    // the only reliable way to collapse retries after a network timeout.
+    // Authentication bootstrap and payment-provider webhooks are excluded
+    // because their protocols do not consistently support our header.
+    const isException = HEADER_REQUIRED_EXCEPTIONS.some((prefix) => req.path.startsWith(prefix));
+    if (process.env.NODE_ENV === "production" && !isException) {
+      throw new AppError("X-Idempotency-Key is required for mutating requests.", 428);
+    }
     next();
     return;
   }
