@@ -740,6 +740,7 @@ async function getNotificationsForUser(
   const where: Prisma.NotificationWhereInput = {
     institutionId,
     userId,
+    dismissedAt: null,
     ...(unreadOnly
       ? {
           readAt: null,
@@ -758,6 +759,9 @@ async function getNotificationsForUser(
           title: true,
           body: true,
           readAt: true,
+          dismissedAt: true,
+          actionUrl: true,
+          priority: true,
           createdAt: true,
         },
         orderBy: {
@@ -774,6 +778,7 @@ async function getNotificationsForUser(
           institutionId,
           userId,
           readAt: null,
+          dismissedAt: null,
         },
       }),
     ]);
@@ -1145,7 +1150,8 @@ export async function markNotificationRead(
   institutionId: string,
   actor: PortalActor,
   notificationId: string,
-  read: boolean
+  read: boolean,
+  dismissed = false
 ) {
   assertActor(actor);
 
@@ -1172,12 +1178,16 @@ export async function markNotificationRead(
       },
       data: {
         readAt: read ? new Date() : null,
+        dismissedAt: dismissed ? new Date() : null,
       },
       select: {
         id: true,
         title: true,
         body: true,
         readAt: true,
+        dismissedAt: true,
+        actionUrl: true,
+        priority: true,
         createdAt: true,
       },
     });
