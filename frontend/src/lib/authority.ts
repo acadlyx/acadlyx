@@ -438,6 +438,27 @@ export function canOpenDashboard(
  *
  * This does not replace backend authorization.
  */
+
+
+/**
+ * Central permission predicate used by role-aware UI. Resource/workflow
+ * checks remain authoritative on the backend; callers may add those checks
+ * when the resource is already available in the client.
+ */
+export function can(
+  user: AuthUser | null,
+  permission: string,
+): boolean {
+  return hasPermission(user, permission);
+}
+
+export function canAny(
+  user: AuthUser | null,
+  permissions: readonly string[],
+): boolean {
+  return hasAnyPermission(user, permissions);
+}
+
 export function canRenderAction(
   user: AuthUser | null,
   permission: string
