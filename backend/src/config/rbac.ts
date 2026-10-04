@@ -553,31 +553,17 @@ export const ROLE_PERMISSIONS: Record<
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
-    "reports.read",
-    "intelligence.read",
-
-
-    "registration.read",
     "registration.approve",
-
-    "promotions.read",
     "promotions.approve",
-
-    "certificates.read",
     "certificates.issue",
 
-    "exams.read",
     "exams.approve",
     "exams.revaluate",
 
-    "attendance.read",
     "attendance.approve",
     "attendance.lock",
 
-    "fees.read",
     "fees.approve",
-
-    "operations.read",
 
     "audit.read",
   ],
