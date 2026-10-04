@@ -6,7 +6,7 @@ export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
   | "COMPLETED" | "MARKED" | "ENROLLED" | "APPROVED" | "REJECTED"
   | "PAID" | "GENERATED" | "PUBLISHED" | "EXPIRED" | "CANCELLED"
-  | "LOCKED" | "REOPENED" | "DROPPED" | "ISSUED" | "REVIEWED";
+  | "LOCKED" | "REOPENED" | "DROPPED" | "TRANSFERRED" | "ISSUED" | "REVIEWED" | "LATE" | "REQUESTED" | "APPLIED";
 
 export interface WorkflowAction {
   key:string; label:string; kind:"primary"|"secondary"|"danger"|"status";
@@ -31,12 +31,12 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  const w=workflow.toLowerCase();
 
  if(w==="assignment_submission"){
-  const x=await prisma.assignmentSubmission.findFirst({where:{id:entityId,institutionId},select:{id: true,status:true,submittedAt:true,updatedAt:true,studentId:true}});
+  const x=await prisma.assignmentSubmission.findFirst({where:{id:entityId,institutionId},select:{id: true,status:true,submittedAt:true,updatedAt:true,studentId:true,assignment:{select:{courseOffering:{select:{facultyId:true}}}}}});
   if(!x) throw new Error("Workflow record not found");
   table="assignment_submissions"; updatedAt=x.updatedAt;
-  state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"SUBMITTED":"SUBMITTED";
+  state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"LATE":x.status==="REOPENED"?"REOPENED":"SUBMITTED";
   const mine=x.studentId===actor.id;
-  const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||role(actor,"FACULTY")||has(actor,"attendance.correct")||has(actor,"attendance.approve");
+  const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||(role(actor,"FACULTY")&&x.assignment.courseOffering.facultyId===actor.id);
   editable=mine && state==="REOPENED";
   actions=[
    action("view","View submission",true,undefined,undefined,"secondary"),
@@ -47,7 +47,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.studentEnrollment.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,enrolledAt:true,updatedAt:true,userId:true}});
   if(!x) throw new Error("Workflow record not found");
   table="student_enrollments";updatedAt=x.updatedAt;
-  state=x.status==="ACTIVE"?"ENROLLED":x.status==="DROPPED"?"DROPPED":x.status==="COMPLETED"?"COMPLETED":"CANCELLED";
+  state=x.status==="ACTIVE"?"ENROLLED":x.status==="DROPPED"?"DROPPED":x.status==="COMPLETED"?"COMPLETED":x.status==="TRANSFERRED"?"TRANSFERRED":"CANCELLED";
   const mine=x.userId===actor.id; const canWithdraw=has(actor,"students.update")||has(actor,"students.manage");
   editable=canWithdraw;
   actions=[action("view","View enrollment",true)];
@@ -58,21 +58,21 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if(!x) throw new Error("Workflow record not found");
   table="attendance_sessions";updatedAt=x.updatedAt;
   state=x.isLocked?"LOCKED":x.isSubmitted?"MARKED":"PENDING";
-  const canEdit=(x.facultyId===actor.id&&has(actor,"attendance.mark"))||has(actor,"attendance.manage")||role(actor,"HOD");
+  const canEdit=(x.facultyId===actor.id&&has(actor,"attendance.mark"))||has(actor,"attendance.manage");
   editable=canEdit&&!x.isLocked;
   actions=[action("view","View attendance",true),state==="PENDING"?action("mark","Mark attendance",canEdit,"attendance.mark",canEdit?undefined:"You do not have permission to mark attendance.","primary"):action("edit","Edit attendance",canEdit&&!x.isLocked,"attendance.mark",x.isLocked?"Attendance is locked.":undefined,"secondary",true)];
  } else if(w==="course_registration"||w==="registration"){
   const x=await prisma.courseRegistration.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new Error("Workflow record not found");
   table="course_registrations";updatedAt=x.updatedAt;
-  state=x.status==="APPROVED"?"APPROVED":x.status==="REJECTED"?"REJECTED":x.status==="DROPPED"?"DROPPED":"PENDING";
+  state=x.status==="APPROVED"?"APPROVED":x.status==="REJECTED"?"REJECTED":x.status==="DROPPED"?"DROPPED":"REQUESTED";
   const mine=x.studentId===actor.id; const manage=has(actor,"registration.approve")||has(actor,"courses.manage");
   editable=manage;
   actions=[action("view","View registration",true),state==="PENDING"&&manage?action("approve","Approve",true,"registration.approve",undefined,"primary"):state==="PENDING"&&mine?action("withdraw","Withdraw request",true,"registration.submit",undefined,"danger",true):state==="REJECTED"&&mine?action("resubmit","Fix & resubmit",true,"registration.submit",undefined,"primary"):action("view","View status",true)];
  } else if(w==="application"){
-  const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true,updatedAt:true}});
+  const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true}});
   if(!x) throw new Error("Workflow record not found");
-  table="applications";updatedAt=x.updatedAt;
+  table="applications";updatedAt=x.appliedAt;
   state=(x.status as WorkflowState)||"APPLIED";
   const manage=has(actor,"applications.manage")||has(actor,"admissions.manage");
   editable=manage;
@@ -80,7 +80,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="certificate"){
   const x=await prisma.certificate.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new Error("Workflow record not found");
-  table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"PENDING";
+  table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"REQUESTED";
   const manage=has(actor,"certificates.issue")||has(actor,"students.manage");
   editable=manage; actions=[action("view","View certificate",true),...(state==="PENDING"&&manage?[action("issue","Issue certificate",true,"certificates.issue","", "primary")]:[])];
  } else if(w==="fee_invoice"){
@@ -98,7 +98,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   actions=[action("view","View result",true),...(manage?[action("edit","Edit result",true,"results.manage",undefined,"secondary",true)]:[])];
  } else throw new Error(`Unsupported workflow: ${workflow}`);
 
- return {workflow,entityId,state,completed:["SUBMITTED","COMPLETED","MARKED","ENROLLED","APPROVED","PAID","GENERATED","PUBLISHED","ISSUED","REVIEWED"].includes(state),editable,locked:state==="LOCKED",actions,source:{table,id:entityId},updatedAt:updatedAt.toISOString()};
+ return {workflow,entityId,state,completed:["SUBMITTED","LATE","COMPLETED","MARKED","ENROLLED","APPROVED","PAID","GENERATED","PUBLISHED","ISSUED","REVIEWED"].includes(state),editable,locked:state==="LOCKED",actions,source:{table,id:entityId},updatedAt:updatedAt.toISOString()};
 }
 
 export async function getWorkflowStates(institutionId:string,actor:AuthenticatedUser,items:Array<{workflow:string;entityId:string}>){
