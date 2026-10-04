@@ -1,19 +1,52 @@
 -- ACADLYX finance domain
 CREATE TABLE IF NOT EXISTS "fee_invoice_items" ("id" TEXT NOT NULL,"invoiceId" TEXT NOT NULL,"feeHeadId" TEXT,"description" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "fee_invoice_items_pkey" PRIMARY KEY ("id"),CONSTRAINT "fee_invoice_items_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "fee_invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_invoice_items_feeHeadId_fkey" FOREIGN KEY ("feeHeadId") REFERENCES "fee_heads"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_invoice_items_amount_check" CHECK ("amount" >= 0));
-DO $$
-BEGIN
-  IF to_regclass('"fee_invoice_items"') IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1
-       FROM information_schema.columns
-       WHERE table_schema = current_schema()
-         AND table_name = 'fee_invoice_items'
-         AND column_name = 'invoiceId'
-     ) THEN
-    ALTER TABLE "fee_invoice_items" ADD COLUMN "invoiceId" TEXT;
-  END IF;
-END $$;
+ALTER TABLE "fee_invoice_items" ADD COLUMN IF NOT EXISTS "invoiceId" TEXT;
 CREATE INDEX IF NOT EXISTS "fee_invoice_items_invoiceId_idx" ON "fee_invoice_items"("invoiceId");
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "invoiceId" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "studentId" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "type" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "amount" DECIMAL(14,2);
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "percentage" DECIMAL(7,4);
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "reason" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'PENDING';
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "approvedById" TEXT;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "fee_concessions" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "invoiceId" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "studentId" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "amount" DECIMAL(14,2);
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "reason" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'REQUESTED';
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "requestedById" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "approvedById" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "processedById" TEXT;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "processedAt" TIMESTAMP(3);
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "fee_refunds" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "studentId" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "invoiceId" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "amount" DECIMAL(14,2);
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "type" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "reference" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "createdById" TEXT;
+ALTER TABLE "fee_transactions" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "paymentId" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "invoiceId" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "studentId" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "receiptNumber" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "issuedById" TEXT;
+ALTER TABLE "fee_receipts" ADD COLUMN IF NOT EXISTS "issuedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP;
+
 CREATE TABLE IF NOT EXISTS "fee_concessions" ("id" TEXT NOT NULL,"institutionId" TEXT NOT NULL,"invoiceId" TEXT NOT NULL,"studentId" TEXT NOT NULL,"type" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"percentage" DECIMAL(7,4),"reason" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'PENDING',"createdById" TEXT NOT NULL,"approvedById" TEXT,"approvedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "fee_concessions_pkey" PRIMARY KEY ("id"),CONSTRAINT "fee_concessions_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "fee_invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_concessions_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT "fee_concessions_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_concessions_amount_check" CHECK ("amount" >= 0));
 CREATE INDEX IF NOT EXISTS "fee_concessions_institutionId_studentId_status_idx" ON "fee_concessions"("institutionId","studentId","status"); CREATE INDEX IF NOT EXISTS "fee_concessions_invoiceId_idx" ON "fee_concessions"("invoiceId");
 CREATE TABLE IF NOT EXISTS "fee_refunds" ("id" TEXT NOT NULL,"institutionId" TEXT NOT NULL,"paymentId" TEXT NOT NULL,"invoiceId" TEXT NOT NULL,"studentId" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"reason" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'REQUESTED',"requestedById" TEXT NOT NULL,"approvedById" TEXT,"processedById" TEXT,"approvedAt" TIMESTAMP(3),"processedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "fee_refunds_pkey" PRIMARY KEY ("id"),CONSTRAINT "fee_refunds_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_refunds_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "fee_payments"("id") ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT "fee_refunds_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "fee_invoices"("id") ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT "fee_refunds_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE,CONSTRAINT "fee_refunds_requestedById_fkey" FOREIGN KEY ("requestedById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,CONSTRAINT "fee_refunds_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_refunds_processedById_fkey" FOREIGN KEY ("processedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE,CONSTRAINT "fee_refunds_amount_check" CHECK ("amount" > 0));
