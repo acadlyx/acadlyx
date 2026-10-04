@@ -510,6 +510,7 @@ model AcademicYear {
   semesters Semester[]
 
   studentEnrollments StudentEnrollment[]
+  feeStructures FeeStructure[]
 
   admissionApplications AdmissionApplication[]
   calendarEvents CalendarEvent[]
