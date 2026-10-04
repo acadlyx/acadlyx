@@ -42,5 +42,13 @@ function authorizeImportType(
 
 router.post("/:type/preview", upload.single("file"), authorizeImportType, controller.preview);
 router.post("/:type/commit", upload.single("file"), authorizeImportType, controller.commit);
+router.post("/students/commit-partial", upload.single("file"), (req, res, next) => {
+  const user = requireAuthenticatedUser(req);
+  if (!user.permissions.includes("students.create")) {
+    res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "You are not authorized to import students" } });
+    return;
+  }
+  next();
+}, controller.commitPartialStudents);
 export default router;
 
