@@ -737,6 +737,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Finance",
   },
   {
+    label: "Audit",
+    href: "/accounts/audit",
+    icon: "◉",
+    roles: ["ACCOUNTS"],
+    permissions: ["fees.read"],
+    group: "Finance",
+  },
+  {
     label: "Reports",
     href: "/accounts/reports",
     icon: "▤",
