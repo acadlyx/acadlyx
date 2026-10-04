@@ -53,12 +53,35 @@ function clean(value: unknown): string | number | boolean | null {
 }
 
 function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
-  const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "Data");
-  const buffer = XLSX.write(workbook, { type: "buffer", bookType: format === "csv" ? "csv" : "xlsx" });
+
+  if (rows.length > 0) {
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.autoFilter(sheet, { ref: sheet["!ref"] || "A1" });
+    sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+    XLSX.utils.book_append_sheet(workbook, sheet, "Data");
+  } else {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["ACADLYX Export"],
+      ["No records matched the selected filters."],
+    ]);
+    XLSX.utils.book_append_sheet(workbook, sheet, "Data");
+  }
+
+  const output = XLSX.write(workbook, {
+    type: "buffer",
+    bookType: format === "csv" ? "csv" : "xlsx",
+    compression: true,
+  });
+  const buffer = Buffer.from(output);
+
+  if (!buffer.length) {
+    throw new AppError("Export generation produced an empty file.", 500);
+  }
+
   return {
-    buffer: Buffer.from(buffer),
+    buffer,
+    rowCount: rows.length,
     contentType: format === "csv"
       ? "text/csv; charset=utf-8"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
