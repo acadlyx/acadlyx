@@ -1533,7 +1533,10 @@ export function canAccessRoute(
   );
 
   if (!relevantItem) {
-    return true;
+    const protectedNamespace = NAMESPACE_OWNERS.some(([prefix]) =>
+      normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"),
+    );
+    return !protectedNamespace;
   }
 
   return (
