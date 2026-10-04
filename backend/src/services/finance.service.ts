@@ -16,7 +16,7 @@ async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  if(r.includes("PARENT")) return {institutionId,studentIds:(await prisma.parentStudentLink.findMany({where:{institutionId,parentId:a.id},select:{studentId:true}})).map(x=>x.studentId)};
  if(r.includes("HOD")||r.includes("DEAN")) return {institutionId,departmentIds:(await prisma.departmentAccess.findMany({where:{userId:a.id,department:{institutionId}},select:{departmentId:true}})).map(x=>x.departmentId)};
  if(r.includes("DIRECTOR")) return {institutionId,campusIds:Array.from(new Set((await prisma.departmentAccess.findMany({where:{userId:a.id,department:{institutionId}},select:{department:{select:{campusId:true}}}})).map(x=>x.department.campusId).filter((x):x is string=>!!x)))};
- if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")||has(a,"fees.read")) return {institutionId};
+ if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")||has(a,"fees.reports.export")) return {institutionId};
  throw new AppError("Financial scope is not authorized",403);
 }
 function invoiceWhere(s:Scope):Prisma.FeeInvoiceWhereInput{
