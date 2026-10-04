@@ -14,3 +14,5 @@ export async function financeStructures(){return (await authedFetch<{success:boo
 export async function financeHeads(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-heads")).data;}
 
 export async function downloadFinanceExport(type:"invoices"|"payments"|"receipts"|"transactions",format:"xlsx"|"csv"="xlsx"){const x=await authedDownload(`/finance/export?type=${type}&format=${format}`);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+
+export async function financeAudit(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/audit")).data}
