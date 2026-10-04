@@ -1,5 +1,2 @@
-import { StudentSelfServiceModule } from "@/components/student/StudentSelfServiceModule";
-
-export default function StudentFeesPage() {
-  return <StudentSelfServiceModule module="fees" />;
-}
+import StudentFinancePage from "@/components/student/StudentFinancePage";
+export default function Page(){return <StudentFinancePage/>;}
