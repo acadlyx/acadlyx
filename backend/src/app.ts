@@ -72,6 +72,7 @@ import fileStorageRoutes from "./routes/fileStorage.routes";
 import paymentWebhookRoutes from "./routes/paymentWebhook.routes";
 import workspaceContextRoutes from "./routes/workspaceContext.routes";
 import myWorkRoutes from "./routes/myWork.routes";
+import globalSearchRoutes from "./routes/globalSearch.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -239,6 +240,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/my-work`,
     myWorkRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/search`,
+    globalSearchRoutes
   );
 
   /*
