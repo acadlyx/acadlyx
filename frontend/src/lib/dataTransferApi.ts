@@ -1,5 +1,5 @@
 import { API_BASE_URL, API_VERSION } from "./api";
-import { getAccessToken } from "./auth";
+import { authedBlobFetch, authedFetch } from "./auth";
 
 export const DATA_TYPES = [
   "users", "students", "faculty", "campuses", "departments", "programs",
@@ -13,37 +13,30 @@ export type DataType = typeof DATA_TYPES[number];
 export async function previewImport(type: DataType, file: File) {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}/imports/${type}/preview`, {
+  const body = await authedFetch<{ data: unknown }>(`/imports/${type}/preview`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${getAccessToken() || ""}` },
     body: form,
   });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error?.message || `Import preview failed (${response.status})`);
   return body.data;
 }
 
 export async function commitImport(type: DataType, file: File) {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}/imports/${type}/commit`, {
+  const body = await authedFetch<{ data: unknown }>(`/imports/${type}/commit`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${getAccessToken() || ""}` },
     body: form,
   });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error?.message || `Import failed (${response.status})`);
   return body.data;
 }
 
 export async function exportData(type: DataType, format: "xlsx" | "csv") {
-  const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}/exports/${type}?format=${format}`, {
-    headers: { Authorization: `Bearer ${getAccessToken() || ""}` },
-  });
+  const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.error?.message || `Export failed (${response.status})`);
   }
+
   const blob = await response.blob();
   if (blob.size === 0) {
     throw new Error("The server returned an empty export file. No download was created.");
