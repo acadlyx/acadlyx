@@ -16,3 +16,7 @@ CREATE INDEX IF NOT EXISTS "admit_card_templates_institutionId_status_idx"
 
 CREATE UNIQUE INDEX IF NOT EXISTS "admit_card_templates_institutionId_name_key"
   ON "admit_card_templates" ("institutionId", "name");
+
+CREATE UNIQUE INDEX IF NOT EXISTS "admit_card_templates_one_active_per_institution_key"
+  ON "admit_card_templates" ("institutionId")
+  WHERE "status" = 'ACTIVE';
