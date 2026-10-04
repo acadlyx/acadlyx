@@ -203,6 +203,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Institution Collection",
+    href: "/fees/collections",
+    icon: "₹",
+    roles: ["CHAIRMAN"],
+    permissions: ["fees.collection.read"],
+    group: "Finance",
+  },
+  {
     label: "Intelligence",
     href: "/intelligence",
     icon: "✦",
@@ -321,6 +329,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["operations.read"],
     group: "Institution",
   },
+  {
+    label: "Campus Collection",
+    href: "/fees/collections",
+    icon: "₹",
+    roles: ["DIRECTOR"],
+    permissions: ["fees.collection.read"],
+    group: "Finance",
+  },
 
   {
     label: "Overview",
@@ -355,10 +371,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Department Fees",
-    href: "/dean/fees",
+    href: "/fees/collections",
     icon: "₹",
     roles: ["DEAN"],
-    permissions: ["fees.read"],
+    permissions: ["fees.collection.read"],
     group: "Finance",
   },
   {
