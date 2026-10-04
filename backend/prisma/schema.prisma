@@ -59,8 +59,14 @@ model Institution {
   timetableEntries      TimetableEntry[]
   exams                 Exam[]
   examResults           ExamResult[]
+  feeHeads              FeeHead[]
+  feeStructures         FeeStructure[]
   feeInvoices           FeeInvoice[]
   feePayments           FeePayment[]
+  feeConcessions        FeeConcession[]
+  feeRefunds            FeeRefund[]
+  feeTransactions      FeeTransaction[]
+  receipts              FeeReceipt[]
   notices               Notice[]
   documents             Document[]
   notifications         Notification[]
@@ -213,6 +219,13 @@ model User {
   examResults             ExamResult[]
   feeInvoices             FeeInvoice[]
   feePayments             FeePayment[]
+  feeConcessionsCreated   FeeConcession[] @relation("FeeConcessionCreatedBy")
+  feeConcessionsApproved  FeeConcession[] @relation("FeeConcessionApprovedBy")
+  feeRefundsRequested     FeeRefund[] @relation("FeeRefundRequestedBy")
+  feeRefundsApproved      FeeRefund[] @relation("FeeRefundApprovedBy")
+  feeRefundsProcessed     FeeRefund[] @relation("FeeRefundProcessedBy")
+  feeTransactions         FeeTransaction[]
+  feeReceiptsIssued       FeeReceipt[]
   documents               Document[]             @relation("DocumentOwner")
   notifications           Notification[]
 
@@ -1157,6 +1170,10 @@ model FeeInvoice {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   payments      FeePayment[]
+  items         FeeInvoiceItem[]
+  concessions   FeeConcession[]
+  refunds       FeeRefund[]
+  receipts      FeeReceipt[]
 
   @@unique([institutionId, invoiceNumber])
   @@index([institutionId, studentId, status])
@@ -1193,11 +1210,180 @@ model FeePayment {
   User          User?       @relation(fields: [userId], references: [id])
   userId        String?
 
+  receipt        FeeReceipt?
+  refunds        FeeRefund[]
+
   @@unique([institutionId, receiptNumber])
   @@unique([provider, providerPaymentId])
   @@index([institutionId, invoiceId])
   @@index([institutionId, status])
   @@map("fee_payments")
+}
+
+model FeeHead {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  code          String
+  description   String?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  structures    FeeStructureItem[]
+  @@unique([institutionId, code])
+  @@index([institutionId, isActive])
+  @@map("fee_heads")
+}
+
+model FeeStructure {
+  id             String       @id @default(uuid())
+  institutionId  String
+  institution    Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name           String
+  academicYearId String?
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  programId      String?
+  program        Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  semesterId     String?
+  semester       Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  status         String       @default("DRAFT")
+  currency       String       @default("INR")
+  notes          String?
+  createdById    String
+  createdBy      User         @relation("FeeStructureCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items          FeeStructureItem[]
+  invoices       FeeInvoice[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  @@index([institutionId, status])
+  @@index([institutionId, academicYearId])
+  @@index([institutionId, programId])
+  @@map("fee_structures")
+}
+
+model FeeStructureItem {
+  id                String      @id @default(uuid())
+  feeStructureId    String
+  feeStructure      FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  feeHeadId         String
+  feeHead           FeeHead      @relation(fields: [feeHeadId], references: [id], onDelete: Restrict)
+  amount            Decimal     @db.Decimal(14,2)
+  dueDays           Int?
+  installmentNumber Int         @default(1)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  @@unique([feeStructureId, feeHeadId, installmentNumber])
+  @@index([feeStructureId])
+  @@map("fee_structure_items")
+}
+
+model FeeInvoiceItem {
+  id          String     @id @default(uuid())
+  invoiceId   String
+  invoice     FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeHeadId   String?
+  feeHead     FeeHead?   @relation(fields: [feeHeadId], references: [id], onDelete: SetNull)
+  description String
+  amount      Decimal    @db.Decimal(14,2)
+  createdAt   DateTime   @default(now())
+  @@index([invoiceId])
+  @@map("fee_invoice_items")
+}
+
+model FeeConcession {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  invoiceId     String
+  invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type          String
+  amount        Decimal     @db.Decimal(14,2)
+  percentage    Decimal?    @db.Decimal(7,4)
+  reason        String
+  status        String      @default("PENDING")
+  createdById   String
+  createdBy     User        @relation("FeeConcessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById  String?
+  approvedBy    User?       @relation("FeeConcessionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  @@index([institutionId, studentId, status])
+  @@index([invoiceId])
+  @@map("fee_concessions")
+}
+
+model FeeRefund {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  paymentId     String
+  payment       FeePayment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  invoiceId     String
+  invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(14,2)
+  reason        String
+  status        String      @default("REQUESTED")
+  requestedById String
+  requestedBy   User        @relation("FeeRefundRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedById  String?
+  approvedBy    User?       @relation("FeeRefundApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  processedById String?
+  processedBy   User?       @relation("FeeRefundProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+  processedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  @@index([institutionId, status])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("fee_refunds")
+}
+
+model FeeTransaction {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId     String?
+  student       User?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  invoiceId     String?
+  invoice       FeeInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  paymentId     String?
+  amount        Decimal     @db.Decimal(14,2)
+  type          String
+  reference     String?
+  metadata      Json?
+  createdById   String?
+  createdBy     User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  @@index([institutionId, createdAt])
+  @@index([institutionId, studentId])
+  @@index([institutionId, type])
+  @@map("fee_transactions")
+}
+
+model FeeReceipt {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  paymentId     String      @unique
+  payment       FeePayment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId     String
+  invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  receiptNumber String
+  issuedById    String?
+  issuedBy      User?       @relation(fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedAt      DateTime    @default(now())
+  @@unique([institutionId, receiptNumber])
+  @@index([institutionId, studentId])
+  @@map("fee_receipts")
 }
 
 model Notice {
