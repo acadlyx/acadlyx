@@ -1,8 +1,11 @@
 /**
  * Central API configuration and fast client request layer.
  *
- * GET requests are briefly cached and de-duplicated in memory. Any mutation
- * invalidates the cache so CRUD screens see their own changes immediately.
+ * GET requests are briefly cached and de-duplicated in memory. Mutations
+ * invalidate the cache and automatically receive an idempotency key so
+ * retries from the same request are safe. Callers may provide a stable
+ * X-Idempotency-Key when a user action can be retried across renders/network
+ * recovery.
  */
 
 const defaultApiUrl = process.env.NODE_ENV === "production" ? "https://acadlyx-api.onrender.com" : "http://localhost:5001";
@@ -15,6 +18,18 @@ const GET_CACHE_TTL_MS = 5_000;
 type CachedResponse = { expiresAt: number; value: unknown };
 const getCache = new Map<string, CachedResponse>();
 const getInflight = new Map<string, Promise<unknown>>();
+
+function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const suffix = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `acadlyx-${Date.now().toString(36)}-${suffix || Math.random().toString(36).slice(2)}`;
+}
+
+export function createMutationKey(prefix = "mutation"): string {
+  return `${prefix}:${createIdempotencyKey()}`;
+}
 
 export function apiUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
@@ -91,22 +106,27 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
     const existing = getInflight.get(cacheKey);
     if (existing) return existing as Promise<T>;
-  } else {
-    invalidateApiCache();
   }
 
   const request = (async () => {
+    const incomingHeaders = new Headers(init?.headers);
+    if (!incomingHeaders.has("Content-Type") && init?.body) {
+      incomingHeaders.set("Content-Type", "application/json");
+    }
+
+    if (!cacheable && !incomingHeaders.has("X-Idempotency-Key")) {
+      incomingHeaders.set("X-Idempotency-Key", createIdempotencyKey());
+    }
+
     const res = await fetchWithTimeout(url, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
-      },
+      headers: incomingHeaders,
     });
 
     const body = (await res.json().catch(() => null)) as ApiError | null;
     if (!res.ok) throw new Error(body?.error?.message || `Request failed: ${res.status}`);
 
+    if (!cacheable) invalidateApiCache();
     if (cacheable) getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value: body });
     return body as T;
   })();
