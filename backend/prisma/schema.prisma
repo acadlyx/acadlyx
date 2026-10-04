@@ -224,8 +224,12 @@ model User {
   feeRefundsRequested     FeeRefund[] @relation("FeeRefundRequestedBy")
   feeRefundsApproved      FeeRefund[] @relation("FeeRefundApprovedBy")
   feeRefundsProcessed     FeeRefund[] @relation("FeeRefundProcessedBy")
-  feeTransactions         FeeTransaction[]
-  feeReceiptsIssued       FeeReceipt[]
+  feeTransactions         FeeTransaction[] @relation("FeeTransactionCreatedBy")
+  feeTransactionStudents  FeeTransaction[] @relation("FeeTransactionStudent")
+  feeRefundStudents       FeeRefund[] @relation("FeeRefundStudent")
+  feeReceiptsIssued       FeeReceipt[] @relation("FeeReceiptIssuedBy")
+  feeReceiptStudents      FeeReceipt[] @relation("FeeReceiptStudent")
+  feeStructuresCreated    FeeStructure[] @relation("FeeStructureCreatedBy")
   documents               Document[]             @relation("DocumentOwner")
   notifications           Notification[]
 
@@ -472,12 +476,14 @@ model Program {
   updatedAt DateTime @updatedAt
 
   semesters Semester[]
+  feeStructures FeeStructure[]
   batches Batch[]
   programmeOutcomes ProgrammeOutcome[]
   obeAttainmentRuns ObeAttainmentRun[]
   obePolicies ObeAttainmentPolicy[]
 
   studentEnrollments StudentEnrollment[]
+  feeStructures FeeStructure[]
 
   admissionApplications AdmissionApplication[]
 
@@ -563,6 +569,7 @@ model Semester {
 
   sections        Section[]
   courseOfferings CourseOffering[]
+  feeStructures FeeStructure[]
   studentEnrollments StudentEnrollment[]
 
   @@unique([programId, academicYearId, number])
@@ -1170,6 +1177,7 @@ model FeeInvoice {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   payments      FeePayment[]
+  transactions FeeTransaction[]
   items         FeeInvoiceItem[]
   concessions   FeeConcession[]
   refunds       FeeRefund[]
@@ -1231,6 +1239,7 @@ model FeeHead {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   structures    FeeStructureItem[]
+  invoiceItems  FeeInvoiceItem[]
   @@unique([institutionId, code])
   @@index([institutionId, isActive])
   @@map("fee_heads")
@@ -1325,7 +1334,7 @@ model FeeRefund {
   invoiceId     String
   invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   studentId     String
-  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       User        @relation("FeeRefundStudent", fields: [studentId], references: [id], onDelete: Cascade)
   amount        Decimal     @db.Decimal(14,2)
   reason        String
   status        String      @default("REQUESTED")
@@ -1350,7 +1359,7 @@ model FeeTransaction {
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentId     String?
-  student       User?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  student       User?       @relation("FeeTransactionStudent", fields: [studentId], references: [id], onDelete: SetNull)
   invoiceId     String?
   invoice       FeeInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   paymentId     String?
@@ -1359,7 +1368,7 @@ model FeeTransaction {
   reference     String?
   metadata      Json?
   createdById   String?
-  createdBy     User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy     User?       @relation("FeeTransactionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime    @default(now())
   @@index([institutionId, createdAt])
   @@index([institutionId, studentId])
@@ -1376,10 +1385,10 @@ model FeeReceipt {
   invoiceId     String
   invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   studentId     String
-  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       User        @relation("FeeReceiptStudent", fields: [studentId], references: [id], onDelete: Cascade)
   receiptNumber String
   issuedById    String?
-  issuedBy      User?       @relation(fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedBy      User?       @relation("FeeReceiptIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
   issuedAt      DateTime    @default(now())
   @@unique([institutionId, receiptNumber])
   @@index([institutionId, studentId])
