@@ -12,6 +12,29 @@ export function useMutationState<TResponse = unknown>(mutationName = "mutation")
   const keyRef = useRef<string | null>(null);
   const submittingRef = useRef(false);
 
+  const execute = useCallback(
+    async (action: () => Promise<TResponse>): Promise<TResponse> => {
+      if (submittingRef.current) throw new Error("This action is already being processed.");
+      submittingRef.current = true;
+      setStatus("submitting");
+      setError(null);
+      try {
+        const result = await action();
+        setData(result);
+        setStatus("success");
+        submittingRef.current = false;
+        keyRef.current = null;
+        return result;
+      } catch (cause) {
+        submittingRef.current = false;
+        setStatus("error");
+        setError(cause instanceof Error ? cause.message : "The action failed. Please try again.");
+        throw cause;
+      }
+    },
+    [],
+  );
+
   const run = useCallback(
     async (path: string, init?: RequestInit): Promise<TResponse> => {
       if (submittingRef.current) {
@@ -53,6 +76,7 @@ export function useMutationState<TResponse = unknown>(mutationName = "mutation")
 
   return {
     run,
+    execute,
     reset,
     status,
     data,
