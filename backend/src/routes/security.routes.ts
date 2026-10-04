@@ -49,95 +49,87 @@ router.post(
   "/reset-password",
   loginRateLimit,
   validateBody(resetPasswordSchema),
-  asyncHandler(async (req, res) =>
-    sendOk(
-      res,
-      await service.resetPassword(
+  asyncHandler(async (req, res) => {
+    const result = await service.resetPassword(
         req.body.token,
         req.body.newPassword,
         auditMeta(req)
-      )
-    )
-  )
+    );
+    sendOk(res, result);
+  })
 );
 
 router.use(authenticate);
 
 router.get(
   "/mfa",
-  asyncHandler(async (req, res) =>
-    sendOk(res, await service.getMfaStatus(requireAuthenticatedUser(req)))
-  )
+  asyncHandler(async (req, res) => {
+    const result = await service.getMfaStatus(requireAuthenticatedUser(req));
+    sendOk(res, result);
+  })
 );
 
 router.post(
   "/mfa/enroll",
   tokenRateLimit,
-  asyncHandler(async (req, res) =>
-    sendOk(res, await service.beginMfaEnrollment(requireAuthenticatedUser(req)))
-  )
+  asyncHandler(async (req, res) => {
+    const result = await service.beginMfaEnrollment(requireAuthenticatedUser(req));
+    sendOk(res, result);
+  })
 );
 
 router.post(
   "/mfa/confirm",
   tokenRateLimit,
   validateBody(confirmMfaSchema),
-  asyncHandler(async (req, res) =>
-    sendOk(
-      res,
-      await service.confirmMfaEnrollment(
+  asyncHandler(async (req, res) => {
+    const result = await service.confirmMfaEnrollment(
         requireAuthenticatedUser(req),
         req.body.code,
         auditMeta(req)
-      )
-    )
-  )
+    );
+    sendOk(res, result);
+  })
 );
 
 router.post(
   "/mfa/disable",
   tokenRateLimit,
   validateBody(disableMfaSchema),
-  asyncHandler(async (req, res) =>
-    sendOk(
-      res,
-      await service.disableMfa(
+  asyncHandler(async (req, res) => {
+    const result = await service.disableMfa(
         requireAuthenticatedUser(req),
         req.body.password,
         auditMeta(req)
-      )
-    )
-  )
+    );
+    sendOk(res, result);
+  })
 );
 
 router.post(
   "/sessions/revoke-all",
-  asyncHandler(async (req, res) =>
-    sendOk(
-      res,
-      await service.revokeAllSessions(
+  asyncHandler(async (req, res) => {
+    const result = await service.revokeAllSessions(
         requireAuthenticatedUser(req),
         auditMeta(req)
-      )
-    )
-  )
+    );
+    sendOk(res, result);
+  })
 );
 
 router.post(
   "/users/:id/unlock",
   authorize("users.update"),
   validateParams(idParams),
-  asyncHandler(async (req, res) =>
-    sendOk(
-      res,
-      await service.unlockAccount(
+  asyncHandler(async (req, res) => {
+    const result = await service.unlockAccount(
         requireInstitution(req),
         requireAuthenticatedUser(req),
         req.params.id,
         auditMeta(req)
-      )
-    )
-  )
+    );
+    sendOk(res, result);
+  })
 );
 
 router.post(
