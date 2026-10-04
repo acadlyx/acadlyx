@@ -69,5 +69,8 @@ user to the dashboard permitted by their assigned role.
 - Frontend and backend are fully independent — either can run without
   the other; `/` just shows a connection error state, and `/student`
   redirects to `/login` if there's no valid session.
-- Auth tokens are stored in the browser's `localStorage` for this MVP
-  (see `docs/PHASE-3.md` for the trade-off and when it'll be revisited).
+- Auth credentials are stored in the current browser tab's `sessionStorage`,
+  not origin-wide `localStorage`. Each tab therefore owns an independent
+  access/refresh-token pair; reloads preserve that tab's session and closing
+  the tab discards it. The frontend auth API is centralized in
+  `frontend/src/lib/auth.ts`.
