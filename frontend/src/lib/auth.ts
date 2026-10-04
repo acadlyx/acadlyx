@@ -817,3 +817,29 @@ export async function authedFetch<T>(
 
   return res.json() as Promise<T>;
 }
+
+export async function authedBlobFetch(path: string): Promise<Response> {
+  let token = getAccessToken();
+  if (!token) throw new AuthRequiredError();
+
+  const perform = (currentToken: string) =>
+    fetchWithTimeout(apiUrl(path), {
+      headers: { Authorization: `Bearer ${currentToken}` },
+    });
+
+  let response = await perform(token);
+  if (response.status === 401) {
+    const refreshed = await tryRefresh();
+    if (!refreshed) throw new AuthRequiredError();
+    token = getAccessToken();
+    if (!token) throw new AuthRequiredError();
+    response = await perform(token);
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new Error(body?.error?.message || `Request failed: ${response.status}`);
+  }
+
+  return response;
+}
