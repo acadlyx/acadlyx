@@ -1334,7 +1334,7 @@ export async function generateStudentHallTicketPdf(
     JOIN "student_profiles" sp ON sp."userId" = u."id"
     JOIN "institutions" i ON i."id" = u."institutionId"
     LEFT JOIN "student_enrollments" se ON se."studentId" = u."id"
-      AND se."institutionId" = ${institutionId} AND se."isCurrent" = TRUE
+      AND se."institutionId" = ${institutionId} AND se."status" = 'ACTIVE'
     LEFT JOIN "programs" p ON p."id" = se."programId"
     LEFT JOIN "departments" d ON d."id" = p."departmentId"
     LEFT JOIN "semesters" sem ON sem."id" = se."semesterId"
