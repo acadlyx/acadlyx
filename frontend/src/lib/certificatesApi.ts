@@ -1,4 +1,4 @@
-import { apiUrl } from "./api";
+import { apiFetch } from "./api";
 import { authedFetch } from "./auth";
 import { buildQuery, Envelope, PagedEnvelope, PageMeta } from "./httpShared";
 
@@ -101,12 +101,8 @@ export interface VerificationResult {
 export async function verifyCertificate(
   certificateNumber: string
 ): Promise<VerificationResult> {
-  const res = await fetch(
-    apiUrl(`/certificates/verify/${encodeURIComponent(certificateNumber)}`)
+  const body = await apiFetch<Envelope<VerificationResult>>(
+    `/certificates/verify/${encodeURIComponent(certificateNumber)}`
   );
-  if (!res.ok) {
-    throw new Error(`Verification failed: ${res.status}`);
-  }
-  const body = (await res.json()) as Envelope<VerificationResult>;
   return body.data;
 }
