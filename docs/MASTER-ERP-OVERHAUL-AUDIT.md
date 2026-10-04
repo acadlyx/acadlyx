@@ -131,3 +131,19 @@ The following must not be considered complete merely because the current build c
 ## Definition of completion
 
 The overhaul is complete only after P0 broken-file workflows, P1 information architecture, P2 workflow simplification, P3 automation, P4 role dashboards and P5 document infrastructure have all been verified against real tenant-scoped data.
+
+
+## Second implementation pass
+
+- Added a dependency-free A4 PDF renderer for issued hall tickets.
+- Added authenticated binary download support in the frontend.
+- Replaced the student admit-card print-only action with a real PDF download.
+- Added tenant-scoped admit-card template storage through a Prisma deployment migration.
+- Added template CRUD service/API and an Examination Cell template workspace.
+- Added a navigation entry for template administration.
+- Added a structural PDF regression test.
+- The existing examination service remains the source of truth for eligibility, seating, release state and paper data; the PDF layer consumes that data rather than duplicating it.
+
+### Deliberate limitation
+
+The current PDF renderer is a reliable baseline document renderer, not yet a visual drag-and-drop editor. The template configuration is now persisted and exposed through CRUD, but the next pass should connect template configuration to rendering and add live A4 preview, photos, logos, QR verification and bulk/ZIP generation.
