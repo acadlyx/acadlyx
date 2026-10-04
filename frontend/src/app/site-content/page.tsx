@@ -65,15 +65,12 @@ export default function SiteContentPage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api/v1";
-      const response = await fetch(`${api}/site-content/media`, {
+      const response = await authedFetch<{ data: { url: string } }>("/site-content/media", {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("acadlyx_access_token") || ""}` },
         body: form,
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message || "Upload failed.");
-      set(path, body.data.url);
+      
+      set(path, response.data.url);
       setMessage("Image uploaded. Save to publish.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Upload failed.");
