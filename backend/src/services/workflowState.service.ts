@@ -36,7 +36,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   table="assignment_submissions"; updatedAt=x.updatedAt;
   state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"SUBMITTED":"SUBMITTED";
   const mine=x.studentId===actor.id;
-  const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||role(actor,"FACULTY")||role(actor,"HOD");
+  const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||role(actor,"FACULTY")||has(actor,"attendance.correct")||has(actor,"attendance.approve");
   editable=mine && state==="REOPENED";
   actions=[
    action("view","View submission",true,undefined,undefined,"secondary"),
