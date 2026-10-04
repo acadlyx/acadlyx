@@ -25,7 +25,7 @@ const labels: Record<keyof Editable, string> = {
 function emptyStudent(student: ManagedStudent): Editable {
   const p = student.profile;
   return {
-    email: student.email, idNumber: "", firstName: student.firstName, lastName: student.lastName,
+    email: student.email, idNumber: student.idNumber || "", firstName: student.firstName, lastName: student.lastName,
     phone: student.phone || "", admissionNumber: p?.admissionNumber || "", dateOfBirth: p?.dateOfBirth?.slice(0, 10) || "",
     gender: p?.gender || "", bloodGroup: p?.bloodGroup || "", nationality: p?.nationality || "",
     address: p?.address || "", city: p?.city || "", state: p?.state || "", postalCode: p?.postalCode || "",
