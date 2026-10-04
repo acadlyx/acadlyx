@@ -110,16 +110,12 @@ export const review = asyncHandler(async (req: Request, res: Response) => {
 });
 
 
-export async function reopenSubmission(req: any, res: any, next: any) {
-  try {
-    const submission = await assignmentService.reopenSubmission(
-      req.institutionId,
-      req.user,
-      req.params.id,
-      req.params.studentId,
-    );
-    res.json({ success: true, data: submission });
-  } catch (error) {
-    next(error);
-  }
-}
+export const reopenSubmission = asyncHandler(async (req: Request, res: Response) => {
+  const submission = await assignmentService.reopenSubmission(
+    requireInstitution(req),
+    requireUser(req),
+    req.params.id,
+    req.params.studentId,
+  );
+  res.json({ success: true, data: submission });
+});
