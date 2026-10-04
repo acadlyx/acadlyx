@@ -32,7 +32,6 @@ function SectionTitle({title,subtitle,href}:{title:string;subtitle?:string;href?
 export default function FinancePage({view}:{view:View}){
  const user=getCachedCurrentUser();
  const permissions=new Set(user?.permissions||[]);
- const visibleNav=nav.filter(x=>!x.permission||permissions.has(x.permission)||permissions.has("fees.read"));
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [period,setPeriod]=useState<Period>("academic");
  const [search,setSearch]=useState("");
