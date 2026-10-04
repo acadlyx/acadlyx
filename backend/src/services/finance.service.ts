@@ -88,7 +88,7 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
   prisma.feeRefund.count({where:{institutionId,...studentFinancialFilter(s),status:"REQUESTED"}}),
   prisma.feeConcession.count({where:{institutionId,...studentFinancialFilter(s),status:"PENDING"}}),
   prisma.feeInvoice.count({where:{...invoiceFilter,status:"PENDING"}}),
-  collections(institutionId,a)
+  collections(institutionId,a,{academicYearId})
  ]);
  const trendMap=new Map<string,number>();
  for(const p of trendPayments){const key=p.paidAt.toISOString().slice(0,10);trendMap.set(key,(trendMap.get(key)||0)+Number(p.amount));}
@@ -157,10 +157,11 @@ export async function listReceipts(institutionId:string,a:AuthenticatedUser){
  if(!has(a,"fees.read")&&!has(a,"fees.receipt.read"))throw new AppError("Receipt visibility permission required",403);
  return prisma.feeReceipt.findMany({where:{institutionId,...studentFinancialFilter(s)},include:{payment:true,invoice:{select:{invoiceNumber:true,title:true,amount:true}},student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{issuedAt:"desc"},take:500});
 }
-export async function collections(institutionId:string,a:AuthenticatedUser){
+export async function collections(institutionId:string,a:AuthenticatedUser,filters:{academicYearId?:string}={}){
  if(!has(a,"fees.collection.read")&&!has(a,"fees.read"))throw new AppError("Collection visibility permission required",403);
  const s=await scope(institutionId,a);
- const rows=await prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},select:{program:{select:{id:true,name:true,department:{select:{id:true,name:true,campusId:true}}}},semester:{select:{id:true,name:true}}}}}}}});
+ const collectionWhere:any=filters.academicYearId?{...invoiceWhere(s),academicYearId:filters.academicYearId}:invoiceWhere(s);
+ const rows=await prisma.feeInvoice.findMany({where:collectionWhere,select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},select:{program:{select:{id:true,name:true,department:{select:{id:true,name:true,campusId:true}}}},semester:{select:{id:true,name:true}}}}}}}});
  const departments=new Map<string,any>(),programs=new Map<string,any>(),semesters=new Map<string,any>();
  for(const x of rows)for(const e of x.student.studentEnrollments){
   const billed=Number(x.amount),collected=Number(x.paidAmount)-Number(x.refundedAmount),outstanding=Math.max(0,billed-Number(x.paidAmount)-Number(x.refundedAmount));
