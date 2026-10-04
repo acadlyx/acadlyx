@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import test from "node:test";
 import { subscribeDomainEvent, publishDomainEvent } from "../services/domainEvent.service";
 
 async function waitFor(check: () => boolean, timeoutMs = 1000) {
