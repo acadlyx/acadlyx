@@ -513,16 +513,7 @@ export default function AdmissionsPage() {
                                   {item.label}
                                 </button>
                               ))}
-                              {workflowStates[app.id].state === "SELECTED" && workflowStates[app.id].actions.some((item) => item.key === "enroll") ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleStatusChange(app.id, "ENROLLED")}
-                                  className="rounded-lg bg-slate-950 px-2 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-                                >
-                                  Enroll applicant
-                                </button>
-                              ) : null}
-                              {!workflowStates[app.id].actions.some((item) => item.key.startsWith("status:")) && workflowStates[app.id].state !== "SELECTED" ? (
+                              {!workflowStates[app.id].actions.some((item) => item.key.startsWith("status:")) ? (
                                 <span className="text-xs text-slate-400">No actions</span>
                               ) : null}
                             </div>
