@@ -7,13 +7,13 @@ export type GlobalSearchResult={type:"person"|"course"|"notice";id:string;title:
 export async function globalSearch(institutionId:string, actor:AuthenticatedUser, query:string):Promise<GlobalSearchResult[]>{
  const q=query.trim(); if(q.length<2)return [];
  const like=`%${q}%`; const out:GlobalSearchResult[]=[];
- const canPeople=actor.permissions.includes("users.read")||actor.permissions.includes("students.read")||actor.permissions.includes("faculty.read")||actor.roles.some(r=>["DIRECTOR","DEAN","REGISTRAR","INSTITUTION_ADMIN","HOD","HR","ADMISSIONS"].includes(r));
- const canCourses=actor.permissions.includes("courses.read")||actor.roles.some(r=>["FACULTY","HOD","EXAMINATION","DIRECTOR","DEAN","REGISTRAR"].includes(r));
+ const canPeople=actor.permissions.includes("users.read")||actor.permissions.includes("students.read")||actor.permissions.includes("faculty.read");
+ const canCourses=actor.permissions.includes("courses.read");
  const canNotices=actor.permissions.includes("notices.read");
  if(canPeople){
   const people=await prisma.$queryRaw<Array<{id:string;firstName:string;lastName:string;idNumber:string;email:string}>>(Prisma.sql`
    SELECT "id","firstName","lastName","idNumber","email" FROM "users"
-   WHERE "institutionId"=${institutionId} AND "isActive"=TRUE AND ("firstName" ILIKE ${like} OR "lastName" ILIKE ${like} OR "idNumber" ILIKE ${like} OR "email" ILIKE ${like})
+   WHERE "institutionId"=${institutionId} AND "isActive"=TRUE AND "deletedAt" IS NULL AND ("firstName" ILIKE ${like} OR "lastName" ILIKE ${like} OR "idNumber" ILIKE ${like} OR "email" ILIKE ${like})
    ORDER BY "firstName","lastName" LIMIT 8
   `);
   for(const p of people)out.push({type:"person",id:p.id,title:`${p.firstName} ${p.lastName}`.trim(),subtitle:`${p.idNumber} · ${p.email}`,href:"/erp?tab=people"});
