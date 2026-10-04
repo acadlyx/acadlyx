@@ -10,6 +10,11 @@ const KEY_PATTERN = /^[A-Za-z0-9._:-]{1,200}$/;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
+function requestScope(req: Request): string {
+  return req.method + ":" + req.originalUrl + ":" +
+    createHash("sha256").update(req.header("authorization") ?? "").digest("hex");
+}
+
 function fingerprint(req: Request): string {
   const authorization = req.header("authorization") ?? "";
   const body = JSON.stringify(req.body ?? {});
@@ -52,6 +57,7 @@ export async function idempotency(
     throw new AppError("Invalid X-Idempotency-Key.", 400);
   }
 
+  const scope = requestScope(req);
   const requestFingerprint = fingerprint(req);
   const expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);
 
@@ -67,7 +73,7 @@ export async function idempotency(
       SELECT id, fingerprint, status_code, response_body, response_content_type, expires_at
       FROM idempotency_keys
       WHERE key = ${key}
-        AND scope = ${req.method + ":" + req.originalUrl + ":" + createHash("sha256").update(req.header("authorization") ?? "").digest("hex")}
+        AND scope = ${scope}
         AND expires_at > NOW()
       LIMIT 1
     `);
@@ -96,24 +102,35 @@ export async function idempotency(
       return;
     }
 
-    const scope = req.method + ":" + req.originalUrl + ":" +
-      createHash("sha256").update(req.header("authorization") ?? "").digest("hex");
-
     await prisma.$executeRaw(Prisma.sql`
       INSERT INTO idempotency_keys (id, key, scope, fingerprint, expires_at, created_at, updated_at)
       VALUES (gen_random_uuid(), ${key}, ${scope}, ${requestFingerprint}, ${expiresAt}, NOW(), NOW())
-      ON CONFLICT (key, scope) DO NOTHING
+      ON CONFLICT (key, scope) DO UPDATE
+      SET fingerprint = EXCLUDED.fingerprint,
+          status_code = NULL,
+          response_body = NULL,
+          response_content_type = NULL,
+          expires_at = EXCLUDED.expires_at,
+          updated_at = NOW()
+      WHERE idempotency_keys.expires_at <= NOW()
     `);
 
-    const winner = await prisma.$queryRaw<Array<{ id: string; fingerprint: string; status_code: number | null; response_body: string | null; response_content_type: string | null }>>(Prisma.sql`
-      SELECT id, fingerprint, status_code, response_body, response_content_type
+    const winner = await prisma.$queryRaw<Array<{
+      id: string;
+      fingerprint: string;
+      status_code: number | null;
+      response_body: string | null;
+      response_content_type: string | null;
+      expires_at: Date;
+    }>>(Prisma.sql`
+      SELECT id, fingerprint, status_code, response_body, response_content_type, expires_at
       FROM idempotency_keys
       WHERE key = ${key} AND scope = ${scope}
       LIMIT 1
     `);
 
     if (!winner.length || winner[0].fingerprint !== requestFingerprint) {
-      throw new AppError("Unable to establish an idempotent request record.", 409);
+      throw new AppError("This idempotency key was already used for a different request.", 409);
     }
 
     if (winner[0].status_code !== null && winner[0].response_body !== null) {
@@ -161,8 +178,8 @@ export async function idempotency(
             updated_at = NOW()
         WHERE key = ${key} AND scope = ${scope} AND fingerprint = ${requestFingerprint}
       `).catch(() => {
-        // The business request has already completed. Never turn an audit/cache
-        // persistence failure into a second response or an unhandled rejection.
+        // The business request has already completed. Never turn persistence
+        // failure into a second response or an unhandled rejection.
       });
     });
 
