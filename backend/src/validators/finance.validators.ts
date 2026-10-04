@@ -6,3 +6,4 @@ export const financePaymentSchema=z.object({amount:money,method:z.string().min(2
 export const financeRefundSchema=z.object({amount:money,reason:z.string().min(3).max(1000)});
 export const financeIdSchema=z.object({id:z.string().uuid()});
 \nexport const financeExportSchema=z.object({type:z.enum(["invoices","payments","receipts","transactions"]),format:z.enum(["xlsx","csv"]).default("xlsx")});\n
+export const financeConcessionSchema=z.object({amount:money,type:z.string().min(2).max(40),reason:z.string().min(3).max(1000),percentage:z.union([z.string(),z.number()]).transform(String).optional()});
