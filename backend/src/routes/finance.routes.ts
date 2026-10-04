@@ -21,5 +21,6 @@ router.get("/refunds",authorizeAnyPermission("fees.read","fees.read"),c.refunds)
 router.post("/payments/:id/refunds",authorize("fees.refund.request"),validateParams(financeIdSchema),validateBody(financeRefundSchema),c.requestRefund);
 router.post("/refunds/:id/approve",authorize("fees.refund.approve"),validateParams(financeIdSchema),c.approveRefund);
 router.post("/refunds/:id/process",authorize("fees.refund.process"),validateParams(financeIdSchema),c.processRefund);
+router.get("/audit",authorizeAnyPermission("fees.read","audit.read"),c.auditTrail);
 router.get("/transactions",authorizeAnyPermission("fees.read","fees.read"),c.transactions);
 export default router;
