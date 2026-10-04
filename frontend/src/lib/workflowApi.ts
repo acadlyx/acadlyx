@@ -5,3 +5,8 @@ export async function getWorkflowState(workflow:string,entityId:string):Promise<
  const r=await authedFetch<{success:true;data:WorkflowStateResult}>(`/workflow/${encodeURIComponent(workflow)}/${encodeURIComponent(entityId)}`);
  return r.data;
 }
+
+export async function getWorkflowStates(items:Array<{workflow:string;entityId:string}>):Promise<WorkflowStateResult[]>{
+ const r=await authedFetch<{success:true;data:WorkflowStateResult[]}>("/workflow/batch",{method:"POST",body:JSON.stringify({items})});
+ return r.data;
+}
