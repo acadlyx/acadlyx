@@ -1,4 +1,4 @@
-import { apiUrl } from "./api";
+import { apiUrl, createMutationKey } from "./api";
 
 const ACCESS_TOKEN_KEY =
   "acadlyx_access_token";
@@ -740,32 +740,44 @@ export async function authedFetch<T>(
     throw new AuthRequiredError();
   }
 
-  const performFetch =
-    async (
-      currentToken: string
-    ) => {
-      return fetchWithTimeout(
-        apiUrl(path),
-        {
-          ...init,
+  const method = (init?.method || "GET").toUpperCase();
+  const requestHeaders = new Headers(init?.headers);
 
-          headers: {
-            "Content-Type":
-              "application/json",
+  if (
+    !requestHeaders.has("Content-Type") &&
+    !(init?.body instanceof FormData)
+  ) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
 
-            ...(currentToken
-              ? {
-                  Authorization:
-                    `Bearer ${currentToken}`,
-                }
-              : {}),
-
-            ...(init?.headers ||
-              {}),
-          },
-        }
+  if (
+    method === "POST" ||
+    method === "PUT" ||
+    method === "PATCH" ||
+    method === "DELETE"
+  ) {
+    if (!requestHeaders.has("X-Idempotency-Key")) {
+      requestHeaders.set(
+        "X-Idempotency-Key",
+        createMutationKey("authed"),
       );
-    };
+    }
+  }
+
+  const performFetch = async (currentToken: string) => {
+    requestHeaders.set(
+      "Authorization",
+      `Bearer ${currentToken}`,
+    );
+
+    return fetchWithTimeout(
+      apiUrl(path),
+      {
+        ...init,
+        headers: requestHeaders,
+      },
+    );
+  };
 
   let res =
     await performFetch(
