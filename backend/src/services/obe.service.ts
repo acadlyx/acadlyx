@@ -270,9 +270,35 @@ async function assertMappingOwnership(
 
 export async function getMapping(institutionId: string, user: AuthenticatedUser, courseOfferingId: string) {
   const offering = await loadOffering(institutionId, user, courseOfferingId);
-  const outcomes = await prisma.courseOutcome.findMany({ where: { institutionId, courseId: offering.courseId, isActive: true }, orderBy: [{ displayOrder: "asc" }, { code: "asc" }] });
-  const programmeOutcomes = await prisma.programmeOutcome.findMany({ where: { institutionId, programId: offering.semester.programId, isActive: true }, orderBy: [{ type: "asc" }, { displayOrder: "asc" }, { code: "asc" }] });
-  const mappings = await prisma.courseOutcomeMapping.findMany({ where: { institutionId, courseOutcome: { courseId: offering.courseId }, programmeOutcome: { programId: offering.semester.programId } }, orderBy: { createdAt: "asc" } });
+
+  const [outcomes, programmeOutcomes] = await Promise.all([
+    prisma.courseOutcome.findMany({
+      where: { institutionId, courseId: offering.courseId, isActive: true },
+      orderBy: [{ displayOrder: "asc" }, { code: "asc" }],
+    }),
+    prisma.programmeOutcome.findMany({
+      where: { institutionId, programId: offering.semester.programId, isActive: true },
+      orderBy: [{ type: "asc" }, { displayOrder: "asc" }, { code: "asc" }],
+    }),
+  ]);
+
+  const [courseOutcomeIds, programmeOutcomeIds] = [
+    outcomes.map((row) => row.id),
+    programmeOutcomes.map((row) => row.id),
+  ];
+
+  const mappings =
+    courseOutcomeIds.length && programmeOutcomeIds.length
+      ? await prisma.courseOutcomeMapping.findMany({
+          where: {
+            institutionId,
+            courseOutcomeId: { in: courseOutcomeIds },
+            programmeOutcomeId: { in: programmeOutcomeIds },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+
   return { offering, outcomes, programmeOutcomes, mappings };
 }
 
