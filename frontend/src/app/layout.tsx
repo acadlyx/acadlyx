@@ -3,6 +3,7 @@ import "./globals.css";
 import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
 import "./acadlyx-dashboard-tokens.css";
+import "./acadlyx-modal-responsive.css";
 import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";
 import { ServiceWorkerRegistration } from "@/components/system/ServiceWorkerRegistration";
 import { API_BASE_URL } from "@/lib/api";
