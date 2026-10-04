@@ -47,6 +47,20 @@ export interface ApiError {
   error: { message: string; requestId?: string };
 }
 
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly requestId?: string;
+
+  constructor(message: string, status: number, code = "REQUEST_FAILED", requestId?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
 export class ApiRequestTimeoutError extends Error {
   constructor(message = "The server took too long to respond. Please try again.") {
     super(message);
@@ -123,8 +137,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       headers: incomingHeaders,
     });
 
-    const body = (await res.json().catch(() => null)) as ApiError | null;
-    if (!res.ok) throw new Error(body?.error?.message || `Request failed: ${res.status}`);
+    const body = (await res.json().catch(() => null)) as (ApiError & { error?: { code?: string; message?: string; requestId?: string } }) | null;
+    if (!res.ok) {
+      const requestId = body?.error?.requestId || res.headers.get("X-Request-ID") || undefined;
+      throw new ApiRequestError(body?.error?.message || `Request failed: ${res.status}`, res.status, body?.error?.code || "REQUEST_FAILED", requestId);
+    }
 
     if (!cacheable) invalidateApiCache();
     if (cacheable) getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value: body });
