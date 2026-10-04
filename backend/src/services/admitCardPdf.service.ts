@@ -7,6 +7,23 @@ function escapePdfText(value: string): string {
     .replace(/\)/g, "\\)");
 }
 
+function jpegDimensions(data: Buffer): { width: number; height: number } | null {
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+  let i = 2;
+  while (i + 9 < data.length) {
+    if (data[i] !== 0xff) { i++; continue; }
+    const marker = data[i + 1]; i += 2;
+    if (marker === 0xda || marker === 0xd9) break;
+    const len = data.readUInt16BE(i);
+    if (len < 2 || i + len > data.length) break;
+    if ([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker)) {
+      return { height: data.readUInt16BE(i + 3), width: data.readUInt16BE(i + 5) };
+    }
+    i += len;
+  }
+  return null;
+}
+
 function ascii(value: unknown): string {
   return String(value ?? "")
     .normalize("NFKD")
@@ -127,6 +144,16 @@ export function createAdmitCardPdf(input: {
 
   const objects: string[] = [];
   const offsets: number[] = [0];
+  const imageDefs: Array<{ name: string; data: Buffer; width: number; height: number }> = [];
+  if (input.institutionLogoJpeg) {
+    const d = jpegDimensions(input.institutionLogoJpeg);
+    if (d) imageDefs.push({ name: "ImLogo", data: input.institutionLogoJpeg, ...d });
+  }
+  if (input.studentPhotoJpeg && config.showPhoto !== false) {
+    const d = jpegDimensions(input.studentPhotoJpeg);
+    if (d) imageDefs.push({ name: "ImPhoto", data: input.studentPhotoJpeg, ...d });
+  }
+  const imageResources = imageDefs.map((image) => `/${image.name} ${7 + imageDefs.indexOf(image)} 0 R`).join(" ");
   const content = [
     "q",
     "0.7 w",
@@ -134,16 +161,24 @@ export function createAdmitCardPdf(input: {
     "50 675 495 0.5 re f",
     "50 600 495 0.5 re f",
     "50 560 495 0.5 re f",
-    ...lines.map((line) => `BT /${line.bold ? "F2" : "F1"} ${line.size} Tf ${line.x} ${line.y} Td (${escapePdfText(line.text)}) Tj ET`),
+    ...(imageDefs.some((x) => x.name === "ImLogo") ? ["q", "50 780 55 40 cm /ImLogo Do", "Q"] : []),
+    ...(imageDefs.some((x) => x.name === "ImPhoto") ? ["q", "485 620 70 90 cm /ImPhoto Do", "Q"] : []),
+    ...lines.flatMap((line) => line.text === "" && line.size <= 3
+      ? [`${line.x} ${line.y} 2.4 2.4 re f`]
+      : [`BT /${line.bold ? "F2" : "F1"} ${line.size} Tf ${line.x} ${line.y} Td (${escapePdfText(line.text)}) Tj ET`]),
+
     "Q",
   ].join("\n");
 
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
   objects.push("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  objects.push("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>");
+  objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> /XObject << ${imageResources} >> >> /Contents 4 0 R >>`);
   objects.push(`<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`);
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+  for (const image of imageDefs) {
+    objects.push(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.data.length} >>\nstream\n${image.data.toString("latin1")}\nendstream`);
+  }
 
   let output = "%PDF-1.4\n";
   for (let index = 0; index < objects.length; index += 1) {
