@@ -14,16 +14,49 @@ import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@
 import { getAdminNavigation } from "@/lib/adminNavigation";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports" },
-  DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations" },
-  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters" },
-  HOD: { "/erp": "/hod/operations" },
-  STAFF: { "/erp": "/staff/operations" },
+  CHAIRMAN: {
+    "/reports": "/chairman/reports",
+    "/examinations": "/chairman/examinations",
+  },
+  DIRECTOR: {
+    "/reports": "/director/reports",
+    "/erp": "/director/operations",
+    "/examinations": "/director/examinations",
+    "/fees": "/director/fees",
+  },
+  DEAN: {
+    "/reports": "/dean/reports",
+    "/erp": "/dean/operations",
+    "/examinations": "/dean/examinations",
+    "/fees": "/dean/fees",
+  },
+  REGISTRAR: {
+    "/reports": "/registrar/reports",
+    "/erp": "/registrar/academic-masters",
+  },
+  HOD: {
+    "/erp": "/hod/operations",
+  },
+  FACULTY: {
+    "/erp": "/faculty/operations",
+  },
+  STAFF: {
+    "/erp": "/staff/operations",
+  },
+  EXAMINATION: {
+    "/examinations": "/examination",
+  },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
   return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
+}
+
+function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[]): boolean {
+  if (canAccessRoute(pathname, roles, permissions)) return true;
+  const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
+  const sourceRoute = Object.entries(overrides).find(([, destination]) => destination === pathname)?.[0];
+  return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions) : false;
 }
 
 export function DashboardShell({ title, subtitle, children, allowedRoles }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[] }) {
@@ -57,6 +90,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   useEffect(() => {
     if (embeddedInWorkspaceShell || !user) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
+    const primaryRole = getPrimaryRole(roles);
     if (allowedRoles?.length) {
       const canonicalRoles = getCanonicalRoles(roles);
       if (!allowedRoles.some((role) => canonicalRoles.includes(normalizeRole(role)))) {
@@ -64,7 +98,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
         return;
       }
     }
-    if (!canAccessRoute(pathname, roles, user.permissions || [])) router.replace(workspaceHome(roles));
+    if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [])) router.replace(workspaceHome(roles));
   }, [pathname, router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
