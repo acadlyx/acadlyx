@@ -113,7 +113,6 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   actions=[
     action("view","View application",true),
     ...(manage?(nextByState[state]||[]).map((next)=>action(`status:${next}`,next.replaceAll("_"," "),true,"admissions.manage",undefined,next==="REJECTED"?"danger":"primary")):[]),
-    ...(manage&&state==="SELECTED"?[action("enroll","Enroll applicant",true,"students.create",undefined,"primary")]:[]),
   ];
  } else if(w==="user_account"||w==="user_lifecycle"){
   const x=await prisma.user.findFirst({where:{id:entityId,institutionId},select:{id:true,isActive:true,deletedAt:true,updatedAt:true}});
