@@ -79,8 +79,9 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  const paymentFilter:any=academicYearId?{...scopedPayment,invoice:{...(scopedPayment.invoice as any),academicYearId}}:scopedPayment;
  const base=await overview(institutionId,a,{period:input.period,academicYearId});
  const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
- const [methods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
+ const [methods,todayMethods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
   prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS"},_sum:{amount:true},_count:{_all:true}}),
+  prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:new Date(new Date().setHours(0,0,0,0))}},_sum:{amount:true},_count:{_all:true}}),
   prisma.feePayment.findMany({where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:thirty}},select:{amount:true,paidAt:true},orderBy:{paidAt:"asc"},take:2000}),
   prisma.feePayment.findMany({where:paymentFilter,select:{id:true,amount:true,method:true,paidAt:true,status:true,receiptNumber:true,invoice:{select:{id:true,invoiceNumber:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:8}),
   prisma.feeInvoice.findMany({where:invoiceFilter,select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true,student:{select:{id:true,firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{createdAt:"desc"},take:8}),
@@ -99,7 +100,7 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
   pendingInvoices>0?{kind:"invoices",count:pendingInvoices,label:"invoices awaiting payment",href:"/accounts/invoices"}:null,
   overdueCount>0?{kind:"overdue",count:overdueCount,label:"overdue accounts",href:"/accounts/dues"}:null
  ].filter(Boolean);
- return {...base,paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),trend,recentPayments,recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount))})),actionRequired:actions,pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})),programs:departments.programs,semesters:departments.semesters};
+ return {...base,paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),todayPaymentMethods:todayMethods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),trend,recentPayments,recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount))})),actionRequired:actions,pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})),programs:departments.programs,semesters:departments.semesters};
 }
 
 export async function invoices(institutionId:string,a:AuthenticatedUser,input:{studentId?:string;status?:string;search?:string;page?:number;pageSize?:number}){
