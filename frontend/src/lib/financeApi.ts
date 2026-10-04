@@ -9,3 +9,6 @@ export async function financeCollections(){return (await authedFetch<{success:bo
 export async function financeConcessions(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/concessions")).data;}
 export async function financeRefunds(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/refunds")).data;}
 export async function financeTransactions(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/transactions")).data;}
+
+export async function financeStructures(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-structures")).data;}
+export async function financeHeads(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-heads")).data;}
