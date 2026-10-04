@@ -163,6 +163,7 @@ model User {
   firstName    String
   lastName     String
   phone        String?
+  avatarUrl    String?
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
 
