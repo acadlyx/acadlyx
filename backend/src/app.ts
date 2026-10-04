@@ -71,6 +71,7 @@ import obeRoutes from "./routes/obe.routes";
 import fileStorageRoutes from "./routes/fileStorage.routes";
 import paymentWebhookRoutes from "./routes/paymentWebhook.routes";
 import workspaceContextRoutes from "./routes/workspaceContext.routes";
+import myWorkRoutes from "./routes/myWork.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -233,6 +234,11 @@ export function createApp(): Application {
   app.use(
     `${apiPrefix}/workspace`,
     workspaceContextRoutes
+  );
+
+  app.use(
+    `${apiPrefix}/my-work`,
+    myWorkRoutes
   );
 
   /*
