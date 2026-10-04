@@ -671,7 +671,6 @@ export const ROLE_PERMISSIONS: Record<
     "audit.read",
   ],
 
-    "obe.programme-outcomes.manage",
   HOD: [
     "fees.read",
     "obe.read", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
