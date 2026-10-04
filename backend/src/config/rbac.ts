@@ -612,7 +612,7 @@ export const ROLE_PERMISSIONS: Record<
     "operations.read",
   ],
 
-    "obe.programme-outcomes.manage",
+
   REGISTRAR: [
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read",
     "students.read",
