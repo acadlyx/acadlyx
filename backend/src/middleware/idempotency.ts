@@ -62,47 +62,7 @@ export async function idempotency(
   const expiresAt = new Date(Date.now() + DEFAULT_TTL_MS);
 
   try {
-    const existing = await prisma.$queryRaw<Array<{
-      id: string;
-      fingerprint: string;
-      status_code: number | null;
-      response_body: string | null;
-      response_content_type: string | null;
-      expires_at: Date;
-    }>>(Prisma.sql`
-      SELECT id, fingerprint, status_code, response_body, response_content_type, expires_at
-      FROM idempotency_keys
-      WHERE key = ${key}
-        AND scope = ${scope}
-        AND expires_at > NOW()
-      LIMIT 1
-    `);
-
-    if (existing.length) {
-      const record = existing[0];
-      if (record.fingerprint !== requestFingerprint) {
-        throw new AppError("This idempotency key was already used for a different request.", 409);
-      }
-
-      if (record.status_code !== null && record.response_body !== null) {
-        res.status(record.status_code);
-        res.setHeader("Content-Type", record.response_content_type ?? "application/json; charset=utf-8");
-        res.setHeader("X-Idempotency-Replayed", "true");
-        res.send(record.response_body);
-        return;
-      }
-
-      res.status(409).json({
-        success: false,
-        error: {
-          message: "An identical request is already being processed.",
-          requestId: res.locals.requestId,
-        },
-      });
-      return;
-    }
-
-    await prisma.$executeRaw(Prisma.sql`
+    const acquired = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       INSERT INTO idempotency_keys (id, key, scope, fingerprint, expires_at, created_at, updated_at)
       VALUES (gen_random_uuid(), ${key}, ${scope}, ${requestFingerprint}, ${expiresAt}, NOW(), NOW())
       ON CONFLICT (key, scope) DO UPDATE
@@ -113,31 +73,41 @@ export async function idempotency(
           expires_at = EXCLUDED.expires_at,
           updated_at = NOW()
       WHERE idempotency_keys.expires_at <= NOW()
+      RETURNING id
     `);
 
-    const winner = await prisma.$queryRaw<Array<{
-      id: string;
-      fingerprint: string;
-      status_code: number | null;
-      response_body: string | null;
-      response_content_type: string | null;
-      expires_at: Date;
-    }>>(Prisma.sql`
-      SELECT id, fingerprint, status_code, response_body, response_content_type, expires_at
-      FROM idempotency_keys
-      WHERE key = ${key} AND scope = ${scope}
-      LIMIT 1
-    `);
+    if (!acquired.length) {
+      const existing = await prisma.$queryRaw<Array<{
+        fingerprint: string;
+        status_code: number | null;
+        response_body: string | null;
+        response_content_type: string | null;
+      }>>(Prisma.sql`
+        SELECT fingerprint, status_code, response_body, response_content_type
+        FROM idempotency_keys
+        WHERE key = ${key} AND scope = ${scope}
+        LIMIT 1
+      `);
 
-    if (!winner.length || winner[0].fingerprint !== requestFingerprint) {
-      throw new AppError("This idempotency key was already used for a different request.", 409);
-    }
+      if (!existing.length || existing[0].fingerprint !== requestFingerprint) {
+        throw new AppError("This idempotency key was already used for a different request.", 409);
+      }
 
-    if (winner[0].status_code !== null && winner[0].response_body !== null) {
-      res.status(winner[0].status_code);
-      res.setHeader("Content-Type", winner[0].response_content_type ?? "application/json; charset=utf-8");
-      res.setHeader("X-Idempotency-Replayed", "true");
-      res.send(winner[0].response_body);
+      if (existing[0].status_code !== null && existing[0].response_body !== null) {
+        res.status(existing[0].status_code);
+        res.setHeader("Content-Type", existing[0].response_content_type ?? "application/json; charset=utf-8");
+        res.setHeader("X-Idempotency-Replayed", "true");
+        res.send(existing[0].response_body);
+        return;
+      }
+
+      res.status(409).json({
+        success: false,
+        error: {
+          message: "An identical request is already being processed.",
+          requestId: res.locals.requestId,
+        },
+      });
       return;
     }
 
