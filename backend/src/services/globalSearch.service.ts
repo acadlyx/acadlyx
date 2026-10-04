@@ -9,7 +9,7 @@ export async function globalSearch(institutionId:string, actor:AuthenticatedUser
  const like=`%${q}%`; const out:GlobalSearchResult[]=[];
  const canPeople=actor.permissions.includes("users.read")||actor.permissions.includes("students.read")||actor.permissions.includes("faculty.read")||actor.roles.some(r=>["DIRECTOR","DEAN","REGISTRAR","INSTITUTION_ADMIN","HOD","HR","ADMISSIONS"].includes(r));
  const canCourses=actor.permissions.includes("courses.read")||actor.roles.some(r=>["FACULTY","HOD","EXAMINATION","DIRECTOR","DEAN","REGISTRAR"].includes(r));
- const canNotices=actor.permissions.includes("notices.read")||actor.roles.length>0;
+ const canNotices=actor.permissions.includes("notices.read");
  if(canPeople){
   const people=await prisma.$queryRaw<Array<{id:string;firstName:string;lastName:string;idNumber:string;email:string}>>(Prisma.sql`
    SELECT "id","firstName","lastName","idNumber","email" FROM "users"
@@ -28,7 +28,7 @@ export async function globalSearch(institutionId:string, actor:AuthenticatedUser
  if(canNotices){
   const notices=await prisma.$queryRaw<Array<{id:string;title:string;body:string}>>(Prisma.sql`
    SELECT "id","title","body" FROM "notices" WHERE "institutionId"=${institutionId}
-   AND ("title" ILIKE ${like} OR "body" ILIKE ${like}) ORDER BY "createdAt" DESC LIMIT 6
+   AND ("title" ILIKE ${like} OR "body" ILIKE ${like}) AND "publishedAt" <= CURRENT_TIMESTAMP AND ("expiresAt" IS NULL OR "expiresAt" >= CURRENT_TIMESTAMP) ORDER BY "createdAt" DESC LIMIT 6
   `);
   for(const n of notices)out.push({type:"notice",id:n.id,title:n.title,subtitle:n.body.slice(0,100),href:"/erp?tab=notices"});
  }
