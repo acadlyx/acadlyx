@@ -17,6 +17,8 @@ export interface MyWorkSummary {
   critical: number;
   high: number;
   items: WorkItem[];
+  completed: number;
+  pending: number;
 }
 
 export async function getMyWork(): Promise<MyWorkSummary> {
