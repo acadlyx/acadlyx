@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { createExam, listOfferings, listUsers } from "@/lib/erpApi";
+import { createExam, listOfferings } from "@/lib/erpApi";
 
 type Offering = {
   id: string;
@@ -21,7 +21,6 @@ type User = {
 
 export default function ExaminationOperationsPage() {
   const [offerings, setOfferings] = useState<Offering[]>([]);
-  const [students, setStudents] = useState<User[]>([]);
   const [selectedOffering, setSelectedOffering] = useState("");
   const [title, setTitle] = useState("");
   const [examDate, setExamDate] = useState("");
@@ -37,13 +36,9 @@ export default function ExaminationOperationsPage() {
       setLoading(true);
       setError("");
       try {
-        const [offeringResult, studentResult] = await Promise.all([
-          listOfferings(),
-          listUsers("STUDENT"),
-        ]);
+        const offeringResult = await listOfferings();
         if (!active) return;
         setOfferings(offeringResult as Offering[]);
-        setStudents(studentResult as User[]);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to load examination data.");
       } finally {
@@ -178,9 +173,9 @@ export default function ExaminationOperationsPage() {
                   <p className="mt-1 font-black text-slate-900">{selected.section?.name || "—"}</p>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
-                  <p className="text-xs font-bold text-slate-400">Students available</p>
-                  <p className="mt-1 text-2xl font-black text-slate-900">{students.length}</p>
-                  <p className="text-xs text-slate-500">Institution students available to the examiner workflow.</p>
+                  <p className="text-xs font-bold text-slate-400">Readiness</p>
+                  <p className="mt-1 text-sm font-black text-slate-900">Offering selected</p>
+                  <p className="text-xs text-slate-500">Student eligibility and seating are validated by the examination workflow before publication.</p>
                 </div>
               </div>
             ) : (
