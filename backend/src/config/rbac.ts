@@ -534,7 +534,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
-    "obe.read", "obe.reports.read", "obe.attainment.approve",
+    "obe.read", "obe.programme-outcomes.manage", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
     "reports.read",
@@ -615,7 +615,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "obe.programme-outcomes.manage",
   REGISTRAR: [
-    "obe.read", "obe.reports.read",
+    "obe.read", "obe.programme-outcomes.manage", "obe.reports.read",
     "students.read",
     "students.update",
 
@@ -675,7 +675,7 @@ export const ROLE_PERMISSIONS: Record<
     "obe.programme-outcomes.manage",
   HOD: [
     "fees.read",
-    "obe.read", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
+    "obe.read", "obe.programme-outcomes.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
     "people.import",
 
