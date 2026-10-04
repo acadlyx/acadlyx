@@ -108,7 +108,7 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
         }
         return user;
       });
-      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, (await prisma.user.findUnique({ where: { id: result.id }, select: { email: true } }))?.email || email, (await prisma.user.findUnique({ where: { id: result.id }, select: { idNumber: true } }))?.idNumber || idNumber, enrollmentCreated) });
+      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, result.email, result.idNumber, enrollmentCreated) });
     } catch (error) {
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
     }
