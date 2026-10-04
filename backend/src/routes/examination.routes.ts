@@ -452,6 +452,29 @@ router.patch(
 );
 
 router.get(
+  "/sessions/:id/hall-ticket.pdf",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    const studentId =
+      typeof req.query.studentId === "string" ? req.query.studentId : actor.id;
+    const file = await service.generateStudentHallTicketPdf(
+      requireInstitution(req),
+      actor,
+      req.params.id,
+      studentId
+    );
+    res.status(200);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
+    res.setHeader("Content-Length", String(file.buffer.length));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.send(file.buffer);
+  })
+);
+
+router.get(
   "/sessions/:id/hall-ticket",
   authorize("exams.read"),
   validateParams(idParams),
