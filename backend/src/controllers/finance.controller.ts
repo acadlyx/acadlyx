@@ -21,3 +21,6 @@ export const transactions=asyncHandler(async(req,res)=>res.json({success:true,da
 export const exportFinancial=asyncHandler(async(req,res)=>{const file=await finance.exportFinancial(requireInstitution(req),a(req),String(req.query.type),String(req.query.format||"xlsx") as "xlsx"|"csv");res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});
 
 export const auditTrail=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.auditTrail(requireInstitution(req),a(req))}));
+
+export const requestConcession=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await finance.requestConcession(requireInstitution(req),a(req),req.params.id,req.body)}));
+export const approveConcession=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.approveConcession(requireInstitution(req),a(req),req.params.id)}));
