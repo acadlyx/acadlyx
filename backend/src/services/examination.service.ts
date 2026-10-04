@@ -22,6 +22,7 @@ import { assertExaminationController } from "./workflowAuthority.service";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
+import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
 
 /**
  * Examinations.
@@ -1320,16 +1321,17 @@ export async function generateStudentHallTicketPdf(
   if (ticket.ticket.status !== "ISSUED") {
     throw new AppError("This hall ticket is not available for download.", 409);
   }
+
   const rows = await prisma.$queryRaw<Array<{
     firstName: string; lastName: string; rollNumber: string | null;
     enrollmentNumber: string | null; programName: string | null;
     departmentName: string | null; semesterName: string | null;
-    institutionName: string; institutionAddress: string | null;
+    institutionName: string; logoUrl: string | null; primaryColor: string | null;
+    avatarUrl: string | null;
   }>>(Prisma.sql`
-    SELECT u."firstName", u."lastName", sp."rollNumber", sp."enrollmentNumber",
-           p."name" AS "programName", d."name" AS "departmentName",
-           sem."name" AS "semesterName", i."name" AS "institutionName",
-           i."address" AS "institutionAddress"
+    SELECT u."firstName", u."lastName", se."rollNumber", sp."admissionNumber" AS "enrollmentNumber",
+           p."name" AS "programName", d."name" AS "departmentName", sem."name" AS "semesterName",
+           i."name" AS "institutionName", i."logoUrl", i."primaryColor", u."avatarUrl"
     FROM "users" u
     JOIN "student_profiles" sp ON sp."userId" = u."id"
     JOIN "institutions" i ON i."id" = u."institutionId"
@@ -1341,23 +1343,43 @@ export async function generateStudentHallTicketPdf(
     WHERE u."id" = ${studentId} AND u."institutionId" = ${institutionId}
       AND u."isActive" = TRUE LIMIT 1
   `);
-  if (!rows[0]) {
-    throw new AppError("Student profile could not be loaded for the hall ticket.", 404);
-  }
-  const student = rows[0];
+  if (!rows[0]) throw new AppError("Student profile could not be loaded for the hall ticket.", 404);
+
+  const template = await getActiveAdmitCardTemplate(institutionId);
+  const config = (template?.config ?? {}) as Record<string, unknown>;
+  const fetchJpeg = async (url: string | null): Promise<Buffer | null> => {
+    if (!url || !/^https?:\\/\\//i.test(url)) return null;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const type = response.headers.get("content-type") || "";
+      if (!type.toLowerCase().includes("jpeg") && !type.toLowerCase().includes("jpg")) return null;
+      return Buffer.from(await response.arrayBuffer());
+    } catch { return null; }
+  };
+  const [logo, photo] = await Promise.all([fetchJpeg(rows[0].logoUrl), fetchJpeg(rows[0].avatarUrl)]);
+  const verificationValue = createHash("sha256")
+    .update(`${institutionId}:${examSessionId}:${ticket.ticket.serialNumber}:${studentId}`)
+    .digest("hex").slice(0, 16).toUpperCase();
+
   const buffer = createAdmitCardPdf({
-    institutionName: student.institutionName,
+    institutionName: rows[0].institutionName,
     institutionAddress: null,
+    institutionLogoJpeg: logo,
+    institutionPrimaryColor: rows[0].primaryColor,
     examination: ticket.session.name,
     sessionCode: ticket.session.code,
     serialNumber: ticket.ticket.serialNumber,
-    studentName: [student.firstName, student.lastName].filter(Boolean).join(" "),
-    rollNumber: student.rollNumber,
-    enrollmentNumber: student.enrollmentNumber,
-    program: student.programName,
-    department: student.departmentName,
-    semester: student.semesterName,
+    studentName: [rows[0].firstName, rows[0].lastName].filter(Boolean).join(" "),
+    studentPhotoJpeg: photo,
+    rollNumber: rows[0].rollNumber,
+    enrollmentNumber: rows[0].enrollmentNumber,
+    program: rows[0].programName,
+    department: rows[0].departmentName,
+    semester: rows[0].semesterName,
     instructions: ticket.session.instructions,
+    verificationValue,
+    config: config as never,
     papers: ticket.papers.map((paper) => ({
       code: paper.courseCode,
       name: paper.courseName,
@@ -1368,10 +1390,7 @@ export async function generateStudentHallTicketPdf(
       seat: paper.seatNumber,
     })),
   });
-  return {
-    buffer,
-    filename: "ACADLYX_" + ticket.ticket.serialNumber + "_AdmitCard.pdf",
-  };
+  return { buffer, filename: "ACADLYX_" + ticket.ticket.serialNumber + "_AdmitCard.pdf" };
 }
 
 // ==========================================================
