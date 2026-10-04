@@ -4,14 +4,13 @@ import { syncAllTenantAccess } from "./services/rbacSync.service";
 import { logger } from "./utils/logger";
 import { cleanupExpiredDeletedUsers } from "./services/userLifecycle.service";
 import { drainDomainEventOutbox } from "./services/domainEvent.service";
+import { prisma } from "./lib/prisma";
 
 assertAuthEnv();
 
 const app = createApp();
 
 const server = app.listen(env.port, () => {
-  // Keep HTTP connections reusable on Render/Vercel instead of repeatedly
-  // paying TCP/TLS setup costs for authenticated API traffic.
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 70_000;
 
@@ -19,6 +18,7 @@ const server = app.listen(env.port, () => {
   logger.info(`Health check: http://localhost:${env.port}/api/${env.apiVersion}/health`);
   void cleanupExpiredDeletedUsers().catch((error) => logger.error("Initial deleted-user cleanup failed", { error }));
   void drainDomainEventOutbox(50).catch((error) => logger.error("Initial domain-event outbox drain failed", { error }));
+
   const lifecycleCleanup = setInterval(() => {
     void cleanupExpiredDeletedUsers().catch((error) => logger.error("Scheduled deleted-user cleanup failed", { error }));
   }, 6 * 60 * 60 * 1000);
@@ -31,8 +31,6 @@ const server = app.listen(env.port, () => {
   }, 5_000);
   outboxDrain.unref();
 
-  // Reconcile the canonical RBAC catalogue + default entitlements with every
-  // existing tenant. Non-blocking: the API is already serving traffic.
   if (process.env.RBAC_SYNC_ON_BOOT !== "false" && env.databaseUrl) {
     syncAllTenantAccess()
       .then((result) => logger.info("RBAC sync complete", result))
@@ -44,11 +42,32 @@ const server = app.listen(env.port, () => {
   }
 });
 
-function shutdown(signal: string) {
-  logger.info(`${signal} received, shutting down`);
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 10_000).unref();
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info(`${signal} received, shutting down");
+
+  const forceExit = setTimeout(() => process.exit(1), 10_000);
+  forceExit.unref();
+
+  try {
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+    await prisma.$disconnect();
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    logger.error("Graceful shutdown failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    clearTimeout(forceExit);
+    process.exit(1);
+  }
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
