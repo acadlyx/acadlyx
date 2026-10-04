@@ -51,7 +51,7 @@ function levelLabel(level: number | null) {
 export default function ObePage() {
   const router = useRouter();
   const [user, setUser] = useState(getCachedCurrentUser());
-  const isStudent = hasPermission(user, "obe.read") && user?.roles?.some((role) => role.trim().toUpperCase() === "STUDENT") === true;
+  const isStudent = user?.roles?.some((role) => role.trim().toUpperCase() === "STUDENT") ?? false;
   const [tab, setTab] = useState<Tab>("outcomes");
   const [offerings, setOfferings] = useState<ObeOffering[]>([]);
   const [selectedOfferingId, setSelectedOfferingId] = useState("");
