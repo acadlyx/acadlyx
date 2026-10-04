@@ -254,16 +254,20 @@ export function RoleWorkspaceLanding({
           0,
       );
 
-  const quickStart =
-    available
+  const quickStart = [
+    {
+      href: "/my-work",
+      label: "My Work",
+      description: "See every live task, approval, deadline and exception that needs your attention.",
+      icon: "✓",
+    },
+    ...available
       .filter(
         (item) =>
-          item.href !==
-            meta.home &&
-          item.label !==
-            "Account security",
-      )
-      .slice(0, 4);
+          item.href !== meta.home &&
+          item.label !== "Account security",
+      ),
+  ].slice(0, 5);
 
   return (
     <DashboardShell
