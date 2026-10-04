@@ -55,6 +55,14 @@ export function StudentManagement({ onChanged }: Props) {
   function startEnrollment(student:Student){const e=student.currentEnrollment;setSelected(student);setEnrollment({academicYearId:academicYears.find(x=>x.isCurrent)?.id||e?.academicYearId||"",programId:e?.programId||"",semesterId:e?.semesterId||"",sectionId:e?.sectionId||"",rollNumber:e?.rollNumber||"",status:"ACTIVE"});setShowEnrollment(true);}
   async function saveEnrollment(event:FormEvent){event.preventDefault();if(!selected)return;setSaving(true);setError("");setSuccess("");try{await authedFetch(`/students/${selected.id}/enrollments`,{method:"POST",body:JSON.stringify({...enrollment,sectionId:enrollment.sectionId||""})});const response=await authedFetch<{success?:boolean;data?:Student}>(`/students/${selected.id}`);const authoritative=response.data||selected;setSelected(authoritative);if(authoritative.currentEnrollment?.id){const state=await getWorkflowState("enrollment",authoritative.currentEnrollment.id);setWorkflowStates((current)=>({...current,[state.entityId]:state}));}setShowEnrollment(false);setSuccess("Academic enrollment updated successfully.");await loadStudents();await onChanged?.();}catch(err){setError(err instanceof Error?err.message:"Unable to save enrollment.");}finally{setSaving(false);}}
 
+  function EnrollmentRowAction({ student, workflowState, onOpen }: { student: Student; workflowState?: WorkflowStateResult; onOpen: (student: Student) => void }) {
+    if (!student.currentEnrollment) return <button onClick={() => onOpen(student)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Enroll</button>;
+    if (!workflowState) return <span className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">Checking…</span>;
+    const action = workflowState.actions.find((item) => item.key === "manage" || item.key === "withdraw");
+    if (workflowState.state === "ENROLLED" || workflowState.completed) return <WorkflowStatus state={workflowState} />;
+    return <button disabled={!action?.enabled} onClick={() => onOpen(student)} title={action?.reason} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{action?.label || "Manage Enrollment"}</button>;
+  }
+
   return <div className="space-y-5">
     {error&&<div className="flex items-start justify-between rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><span>{error}</span><button onClick={()=>setError("")} className="font-semibold">Dismiss</button></div>}
     {success&&<div className="flex items-start justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"><span>{success}</span><button onClick={()=>setSuccess("")} className="font-semibold">Dismiss</button></div>}
