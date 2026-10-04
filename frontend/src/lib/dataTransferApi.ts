@@ -35,6 +35,12 @@ export async function previewImport(type: DataType, file: File): Promise<ImportP
   return body.data;
 }
 
+export async function commitPartialStudentImport(file: File): Promise<ImportCommitResult & { incomplete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; complete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; failedRows?: Array<{ row: number; message: string }> }> {
+  const form = new FormData();
+  form.append("file", file);
+  const body = await authedFetch<{ data: ImportCommitResult & { incomplete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; complete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; failedRows?: Array<{ row: number; message: string }> } }>(`/imports/students/commit-partial`, { method: "POST", body: form });
+  return body.data;
+}
 export async function commitImport(type: DataType, file: File): Promise<ImportCommitResult> {
   const form = new FormData();
   form.append("file", file);
