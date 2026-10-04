@@ -237,21 +237,34 @@ export async function updateCourseOutcome(institutionId: string, user: Authentic
   return prisma.courseOutcome.update({ where: { id }, data: input });
 }
 
-async function assertMappingOwnership(institutionId: string, user: AuthenticatedUser, courseOutcomeId: string) {
-  const co = await prisma.courseOutcome.findFirst({ where: { id: courseOutcomeId, institutionId }, select: { courseId: true } });
-  if (!co) throw new AppError("Course outcome not found", 404);
-  if (isInstitutionWide(user)) return co;
+async function assertMappingOwnership(
+  institutionId: string,
+  user: AuthenticatedUser,
+  courseId: string
+) {
+  if (isInstitutionWide(user)) return;
+
   if (hasRole(user, "HOD")) {
     const departments = await getManagedDepartmentIds(institutionId, user.id);
-    const course = await prisma.course.findFirst({ where: { id: co.courseId, institutionId }, select: { departmentId: true } });
-    if (!course || !departments.includes(course.departmentId)) throw new AppError("This CO is outside your department scope", 403);
-    return co;
+    const course = await prisma.course.findFirst({
+      where: { id: courseId, institutionId },
+      select: { departmentId: true },
+    });
+    if (!course || !departments.includes(course.departmentId)) {
+      throw new AppError("This CO is outside your department scope", 403);
+    }
+    return;
   }
+
   if (hasRole(user, "FACULTY")) {
-    const taught = await prisma.courseOffering.findFirst({ where: { institutionId, facultyId: user.id, courseId: co.courseId }, select: { id: true } });
+    const taught = await prisma.courseOffering.findFirst({
+      where: { institutionId, facultyId: user.id, courseId, isActive: true },
+      select: { id: true },
+    });
     if (!taught) throw new AppError("You are not assigned to this course", 403);
-    return co;
+    return;
   }
+
   throw new AppError("You are not authorized to manage CO mapping", 403);
 }
 
@@ -263,19 +276,63 @@ export async function getMapping(institutionId: string, user: AuthenticatedUser,
   return { offering, outcomes, programmeOutcomes, mappings };
 }
 
-export async function replaceMapping(institutionId: string, user: AuthenticatedUser, courseOfferingId: string, input: ReplaceMappingInput) {
+export async function replaceMapping(
+  institutionId: string,
+  user: AuthenticatedUser,
+  courseOfferingId: string,
+  input: ReplaceMappingInput
+) {
   const offering = await loadOffering(institutionId, user, courseOfferingId, true);
-  const courseOutcomes = await prisma.courseOutcome.findMany({ where: { institutionId, courseId: offering.courseId, isActive: true }, select: { id: true } });
-  const programmeOutcomes = await prisma.programmeOutcome.findMany({ where: { institutionId, programId: offering.semester.programId, isActive: true }, select: { id: true } });
+
+  // Authorize the course once, not once per matrix cell. A CO×PO matrix can
+  // contain hundreds of cells; doing DB-backed ownership checks for every
+  // cell was the primary source of request amplification/timeouts.
+  await assertMappingOwnership(institutionId, user, offering.courseId);
+
+  const [courseOutcomes, programmeOutcomes] = await Promise.all([
+    prisma.courseOutcome.findMany({
+      where: { institutionId, courseId: offering.courseId, isActive: true },
+      select: { id: true },
+    }),
+    prisma.programmeOutcome.findMany({
+      where: { institutionId, programId: offering.semester.programId, isActive: true },
+      select: { id: true },
+    }),
+  ]);
+
   const coIds = new Set(courseOutcomes.map((x) => x.id));
   const poIds = new Set(programmeOutcomes.map((x) => x.id));
+
+  const seen = new Set<string>();
   for (const row of input.mappings) {
-    if (!coIds.has(row.courseOutcomeId) || !poIds.has(row.programmeOutcomeId)) throw new AppError("One or more mapping rows do not belong to this course/programme", 400);
-    await assertMappingOwnership(institutionId, user, row.courseOutcomeId);
+    if (!coIds.has(row.courseOutcomeId) || !poIds.has(row.programmeOutcomeId)) {
+      throw new AppError("One or more mapping rows do not belong to this course/programme", 400);
+    }
+    if (!Number.isInteger(row.level) || row.level < 0 || row.level > 3) {
+      throw new AppError("Mapping level must be an integer from 0 to 3", 400);
+    }
+    const key = `${row.courseOutcomeId}:${row.programmeOutcomeId}`;
+    if (seen.has(key)) throw new AppError("Duplicate CO–PO/PSO mapping row", 400);
+    seen.add(key);
   }
 
+  // Mapping is defined by Course + Programme, not by a particular offering.
+  // Use scalar foreign-key filters so PostgreSQL can use the tenant/ID indexes
+  // directly instead of resolving a relation predicate during the delete.
+  const validCoIds = [...coIds];
+  const validPoIds = [...poIds];
+
   await prisma.$transaction(async (tx) => {
-    await tx.courseOutcomeMapping.deleteMany({ where: { institutionId, courseOutcomeId: { in: [...coIds] }, programmeOutcome: { programId: offering.semester.programId } } });
+    if (validCoIds.length && validPoIds.length) {
+      await tx.courseOutcomeMapping.deleteMany({
+        where: {
+          institutionId,
+          courseOutcomeId: { in: validCoIds },
+          programmeOutcomeId: { in: validPoIds },
+        },
+      });
+    }
+
     if (input.mappings.length) {
       await tx.courseOutcomeMapping.createMany({
         data: input.mappings.map((row) => ({
@@ -290,6 +347,7 @@ export async function replaceMapping(institutionId: string, user: AuthenticatedU
       });
     }
   });
+
   return getMapping(institutionId, user, courseOfferingId);
 }
 
