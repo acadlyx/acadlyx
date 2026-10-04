@@ -159,10 +159,16 @@ export async function listReceipts(institutionId:string,a:AuthenticatedUser){
 export async function collections(institutionId:string,a:AuthenticatedUser){
  if(!has(a,"fees.collection.read")&&!has(a,"fees.read"))throw new AppError("Collection visibility permission required",403);
  const s=await scope(institutionId,a);
- const rows=await prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},select:{program:{select:{department:{select:{id:true,name:true,code:true,campusId:true}}}}}}}}}});
- const map=new Map<string,any>();
- for(const x of rows)for(const e of x.student.studentEnrollments){const d=e.program.department;const r=map.get(d.id)||{departmentId:d.id,name:d.name,billed:0,collected:0,outstanding:0};r.billed+=Number(x.amount);r.collected+=Number(x.paidAmount)-Number(x.refundedAmount);r.outstanding+=Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount));map.set(d.id,r);}
- return{departments:[...map.values()].sort((a,b)=>b.collected-a.collected),scope:s};
+ const rows=await prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},select:{program:{select:{id:true,name:true,department:{select:{id:true,name:true,campusId:true}}}},semester:{select:{id:true,name:true}}}}}}}});
+ const departments=new Map<string,any>(),programs=new Map<string,any>(),semesters=new Map<string,any>();
+ for(const x of rows)for(const e of x.student.studentEnrollments){
+  const billed=Number(x.amount),collected=Number(x.paidAmount)-Number(x.refundedAmount),outstanding=Math.max(0,billed-Number(x.paidAmount)-Number(x.refundedAmount));
+  const d=e.program.department; const dr=departments.get(d.id)||{departmentId:d.id,name:d.name,billed:0,collected:0,outstanding:0};dr.billed+=billed;dr.collected+=collected;dr.outstanding+=outstanding;departments.set(d.id,dr);
+  const pr=e.program; const prr=programs.get(pr.id)||{programId:pr.id,name:pr.name,departmentId:d.id,departmentName:d.name,billed:0,collected:0,outstanding:0};prr.billed+=billed;prr.collected+=collected;prr.outstanding+=outstanding;programs.set(pr.id,prr);
+  if(e.semester){const se=e.semester;const sr=semesters.get(se.id)||{semesterId:se.id,name:se.name,billed:0,collected:0,outstanding:0};sr.billed+=billed;sr.collected+=collected;sr.outstanding+=outstanding;semesters.set(se.id,sr);}
+ }
+ const decorate=(rows:any[])=>rows.map(x=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})).sort((a,b)=>b.collected-a.collected);
+ return{departments:decorate([...departments.values()]),programs:decorate([...programs.values()]),semesters:decorate([...semesters.values()]),scope:s};
 }
 export async function concessions(institutionId:string,a:AuthenticatedUser){
  const s=await scope(institutionId,a);
