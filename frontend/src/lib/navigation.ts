@@ -1503,6 +1503,20 @@ export function canAccessRoute(
   }
 
   const permissionSet = new Set(permissions);
+
+  // Permission-gated module namespaces are denied unless the authenticated
+  // user actually has the module's read capability. Role ownership alone is
+  // never enough to open a protected module directly by URL.
+  const namespacePermission: Array<[string, string]> = [
+    ["/obe", "obe.read"],
+    ["/examination", "exams.read"],
+    ["/examinations", "exams.read"],
+  ];
+  const requiredPermission = namespacePermission
+    .filter(([prefix]) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
+  if (requiredPermission && !permissionSet.has(requiredPermission)) return false;
+
   const matchingItems = ROLE_NAVIGATION
     .filter((item) => {
       const href = item.href.replace(/\/+$/, "") || "/";
