@@ -25,12 +25,12 @@ export function DetailDrawer({
   canEdit?: boolean;
 }) {
   return (
-    <ModalPortal onBackdropClick={onClose} className="items-stretch justify-end p-0">
+    <ModalPortal onBackdropClick={onClose} className="items-center justify-end overflow-hidden p-0 sm:p-4">
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="acadlyx-detail-drawer-title"
-        className="flex h-[100dvh] w-full max-w-full flex-col overflow-hidden border-l border-slate-200 bg-white text-slate-900 shadow-[-18px_0_55px_rgba(15,23,42,0.18)] sm:w-[min(480px,92vw)]"
+        className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-[-18px_0_55px_rgba(15,23,42,0.18)] sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[min(720px,calc(100vw-2rem))] sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="flex min-h-[92px] shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
