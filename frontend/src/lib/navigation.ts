@@ -642,7 +642,15 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Fee Structures",
-    href: "/accounts/invoices",
+    href: "/accounts/fee-structures",
+    icon: "▤",
+    roles: ["ACCOUNTS"],
+    permissions: ["fees.structure.read"],
+    group: "Finance",
+  },
+  {
+    label: "Fee Heads",
+    href: "/accounts/fee-heads",
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.structure.read"],
