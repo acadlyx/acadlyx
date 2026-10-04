@@ -223,8 +223,8 @@ export default function StudentAssignmentsPage() {
                         href={`/student/assignments/${assignment.id}`}
                         className="shrink-0"
                       >
-                        <StatusBadge tone="neutral">
-                          Open
+                        <StatusBadge tone={assignment.submission ? "success" : "neutral"}>
+                          {assignment.submission ? "✓ Submitted" : "Open"}
                         </StatusBadge>
                       </Link>
                     </li>
