@@ -30,16 +30,6 @@ const STATUS_STYLES: Record<AdmissionStatus, string> = {
   WITHDRAWN: "bg-slate-100 text-slate-500",
 };
 
-const NEXT_STATUS: Record<AdmissionStatus, AdmissionStatus[]> = {
-  SUBMITTED: ["UNDER_REVIEW", "DOCUMENTS_PENDING", "REJECTED", "WITHDRAWN"],
-  UNDER_REVIEW: ["DOCUMENTS_PENDING", "SELECTED", "REJECTED", "WITHDRAWN"],
-  DOCUMENTS_PENDING: ["UNDER_REVIEW", "SELECTED", "REJECTED", "WITHDRAWN"],
-  SELECTED: ["REJECTED", "WITHDRAWN"],
-  REJECTED: [],
-  ENROLLED: [],
-  WITHDRAWN: [],
-};
-
 type ViewState = "loading" | "ready" | "error";
 
 const emptyForm = {
