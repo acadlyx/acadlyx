@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { recordAuditLog } from "../services/audit.service";
+import { publishDomainEvent } from "../services/domainEvent.service";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -19,29 +20,41 @@ export function mutationAudit(req: Request, res: Response, next: NextFunction): 
     if (!user) return;
 
     const institutionId = user.institutionId ?? null;
+    const succeeded = res.statusCode < 400;
     const entityType = req.path
       .split("/")
       .filter(Boolean)
       .slice(2, 3)[0]
       ?.replace(/[-_]/g, " ")
-      .replace(/^./, (value) => value.toUpperCase());
+      .replace(/^./, (value) => value.toUpperCase()) || "HTTP";
+
+    const payload = {
+      method: req.method,
+      route: safeRoute(req),
+      path: req.path,
+      statusCode: res.statusCode,
+      requestId: res.locals.requestId,
+      entityId: req.params.id ?? null,
+    };
 
     void recordAuditLog({
       institutionId,
       userId: user.id,
-      action: `HTTP_${req.method}_${res.statusCode < 400 ? "SUCCEEDED" : "FAILED"}`,
-      entityType: entityType || "HTTP",
+      action: `HTTP_${req.method}_${succeeded ? "SUCCEEDED" : "FAILED"}`,
+      entityType,
       entityId: req.params.id,
-      metadata: {
-        method: req.method,
-        route: safeRoute(req),
-        path: req.path,
-        statusCode: res.statusCode,
-        requestId: res.locals.requestId,
-      },
+      metadata: payload,
       ipAddress: req.ip,
       userAgent: req.get("user-agent") ?? undefined,
     });
+
+    if (succeeded) {
+      publishDomainEvent("erp.mutation.completed", {
+        institutionId,
+        actorId: user.id,
+        payload,
+      });
+    }
   });
 
   next();
