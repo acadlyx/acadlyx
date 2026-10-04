@@ -3,6 +3,7 @@ import * as finance from "../services/finance.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution, requireAuthenticatedUser } from "../utils/requireInstitution";
 const a=(req:Request)=>requireAuthenticatedUser(req);
+export const commandCenter=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.commandCenter(requireInstitution(req),a(req))}));
 export const overview=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.overview(requireInstitution(req),a(req))}));
 export const invoices=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.invoices(requireInstitution(req),a(req),req.query as any)}));
 export const invoice=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.invoice(requireInstitution(req),a(req),req.params.id)}));
