@@ -224,7 +224,7 @@ export default function StudentAdmitCardsPage() {
                   disabled={busy === ticket.session.id}
                   className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-600 disabled:opacity-50"
                 >
-                  {busy === ticket.session.id ? "Generating…" : "Download PDF"
+                  {busy === ticket.session.id ? "Generating…" : "Download PDF"}
                 </button>
               </footer>
             </article>
