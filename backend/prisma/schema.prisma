@@ -1367,6 +1367,7 @@ model FeeTransaction {
   invoiceId     String?
   invoice       FeeInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   paymentId     String?
+  payment       FeePayment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   amount        Decimal     @db.Decimal(14,2)
   type          String
   reference     String?
