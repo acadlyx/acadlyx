@@ -17,6 +17,7 @@ const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   CHAIRMAN: { "/reports": "/chairman/reports" },
   DIRECTOR: { "/reports": "/director/reports" },
   DEAN: { "/reports": "/dean/reports" },
+  REGISTRAR: { "/reports": "/registrar/reports" },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
