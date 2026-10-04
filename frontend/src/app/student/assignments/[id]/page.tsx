@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { WorkflowStatus } from "@/components/workflow/WorkflowState";
+import { getWorkflowState, type WorkflowStateResult } from "@/lib/workflowApi";
 
 import {
   AuthRequiredError,
@@ -71,6 +73,8 @@ export default function StudentAssignmentDetailPage() {
 
   const [submitMessage, setSubmitMessage] =
     useState("");
+  const [workflowState, setWorkflowState] =
+    useState<WorkflowStateResult | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -85,6 +89,15 @@ export default function StudentAssignmentDetailPage() {
         setContent(
           data.mySubmission?.content ?? "",
         );
+        if (data.mySubmission) {
+          try {
+            setWorkflowState(await getWorkflowState("assignment_submission", data.mySubmission.id));
+          } catch {
+            setWorkflowState(null);
+          }
+        } else {
+          setWorkflowState(null);
+        }
         setState("ready");
       })
       .catch((error: unknown) => {
@@ -141,6 +154,9 @@ export default function StudentAssignmentDetailPage() {
         refreshed.mySubmission?.content ??
           content,
       );
+      if (refreshed.mySubmission) {
+        setWorkflowState(await getWorkflowState("assignment_submission", refreshed.mySubmission.id));
+      }
 
       setSubmitState("saved");
       setSubmitMessage(
@@ -300,6 +316,7 @@ export default function StudentAssignmentDetailPage() {
           >
             {assignment.mySubmission ? (
               <div className="mb-4 flex flex-wrap items-center gap-2">
+                {workflowState ? <WorkflowStatus state={workflowState} /> : null}
                 <StatusBadge
                   tone={
                     assignment.mySubmission
@@ -334,6 +351,7 @@ export default function StudentAssignmentDetailPage() {
             <textarea
               id="assignment-submission"
               value={content}
+              readOnly={Boolean(workflowState && workflowState.state !== "REOPENED")}
               onChange={(event) =>
                 setContent(
                   event.target.value,
@@ -346,8 +364,8 @@ export default function StudentAssignmentDetailPage() {
 
             <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs leading-5 text-slate-400">
-                {assignment.mySubmission
-                  ? "Resubmitting replaces your previous submission."
+                {assignment.mySubmission && workflowState?.state !== "REOPENED"
+                  ? "Submitted work is locked until an authorized faculty member reopens it."
                   : "Make sure your submission is complete before sending it."}
               </p>
 
@@ -360,14 +378,15 @@ export default function StudentAssignmentDetailPage() {
                   submitState ===
                     "saving" ||
                   content.trim()
-                    .length === 0
+                    .length === 0 ||
+                  Boolean(assignment.mySubmission && workflowState?.state !== "REOPENED")
                 }
                 className="rounded-xl bg-acadlyx-primary px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitState ===
                 "saving"
                   ? "Submitting…"
-                  : assignment.mySubmission
+                  : assignment.mySubmission && workflowState?.state === "REOPENED"
                     ? "Resubmit"
                     : "Submit"}
               </button>
