@@ -449,11 +449,9 @@ export default function CourseRegistrationPage() {
                           "Open"}
                       </td>
                       <td>
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[row.status]}`}
-                        >
-                          {row.status}
-                        </span>
+                        {workflowStates[row.id] ? <WorkflowStatus state={workflowStates[row.id]} /> : (
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[row.status]}`}>{row.status}</span>
+                        )}
                       </td>
                       <td className="py-3 text-right">
                         {workflowStates[row.id] ? (
