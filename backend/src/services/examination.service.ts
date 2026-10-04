@@ -1348,7 +1348,7 @@ export async function generateStudentHallTicketPdf(
   const template = await getActiveAdmitCardTemplate(institutionId);
   const config = (template?.config ?? {}) as Record<string, unknown>;
   const fetchJpeg = async (url: string | null): Promise<Buffer | null> => {
-    if (!url || !/^https?:\\/\\//i.test(url)) return null;
+    if (!url || !/^https?:\/\//i.test(url)) return null;
     try {
       const response = await fetch(url);
       if (!response.ok) return null;
