@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 
@@ -66,7 +66,7 @@ export async function idempotency(
   try {
     const acquired = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       INSERT INTO idempotency_keys (id, key, scope, fingerprint, expires_at, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${key}, ${scope}, ${requestFingerprint}, ${expiresAt}, NOW(), NOW())
+      VALUES (${randomUUID()}, ${key}, ${scope}, ${requestFingerprint}, ${expiresAt}, NOW(), NOW())
       ON CONFLICT (key, scope) DO UPDATE
       SET fingerprint = EXCLUDED.fingerprint,
           status_code = NULL,
