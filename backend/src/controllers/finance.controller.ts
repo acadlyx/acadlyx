@@ -24,3 +24,5 @@ export const auditTrail=asyncHandler(async(req,res)=>res.json({success:true,data
 
 export const requestConcession=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await finance.requestConcession(requireInstitution(req),a(req),req.params.id,req.body)}));
 export const approveConcession=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.approveConcession(requireInstitution(req),a(req),req.params.id)}));
+
+export const cancelInvoice=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.cancelInvoice(requireInstitution(req),a(req),req.params.id)}));
