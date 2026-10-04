@@ -9,6 +9,7 @@ import {
   validateQuery,
 } from "../middleware/validate";
 import * as service from "../services/examination.service";
+import * as templateService from "../services/admitCardTemplate.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { auditMeta, searchTerm, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
@@ -52,6 +53,73 @@ import {
 const router = Router();
 
 router.use(authenticate, requireFeature("exams"));
+
+// ---------- Admit-card templates ----------
+router.get(
+  "/admit-card-templates",
+  authorize("exams.read"),
+  asyncHandler(async (req, res) =>
+    sendOk(res, await templateService.listAdmitCardTemplates(requireInstitution(req)))
+  )
+);
+
+router.post(
+  "/admit-card-templates",
+  authorize("exams.manage"),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await templateService.createAdmitCardTemplate(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.body,
+      ),
+      201,
+    )
+  )
+);
+
+router.get(
+  "/admit-card-templates/:id",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(res, await templateService.getAdmitCardTemplate(requireInstitution(req), req.params.id))
+  )
+);
+
+router.patch(
+  "/admit-card-templates/:id",
+  authorize("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await templateService.updateAdmitCardTemplate(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+        req.body,
+      ),
+    )
+  )
+);
+
+router.delete(
+  "/admit-card-templates/:id",
+  authorize("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await templateService.deleteAdmitCardTemplate(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+      ),
+    )
+  )
+);
 
 // ---------- Sessions ----------
 
