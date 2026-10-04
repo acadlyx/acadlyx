@@ -98,6 +98,7 @@ export type CreateManagedStudentInput = {
   lastName: string;
   phone?: string;
   password: string;
+  idNumber?: string;
 
   admissionNumber: string;
   dateOfBirth?: string;
