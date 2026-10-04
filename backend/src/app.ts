@@ -149,19 +149,7 @@ export function createApp(): Application {
     app.use(morgan("dev"));
   }
 
-  /*
-   * Mutation controls run after CORS/body parsing so idempotency fingerprints
-   * include the real request payload. They still run before route handlers,
-   * so duplicate mutations are stopped before business logic executes.
-   */
   app.use(idempotency);
-
-  /*
-   * Mutation audit is registered before route authentication. Its finish
-   * listener observes req.user after route-level authentication has populated
-   * it, so every authenticated POST/PUT/PATCH/DELETE receives a baseline
-   * audit event.
-   */
   app.use(mutationAudit);
 
   app.get("/", (_req, res) => {
@@ -170,7 +158,6 @@ export function createApp(): Application {
       name: "ACADLYX",
       message: "ACADLYX API is running",
       version: env.apiVersion,
-      environment: env.nodeEnv,
     });
   });
 
@@ -182,10 +169,8 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/my-work`, myWorkRoutes);
   app.use(`${apiPrefix}/search`, globalSearchRoutes);
   app.use(`${apiPrefix}/workflow`, workflowRoutes);
-
   app.use(`${apiPrefix}/institutions`, institutionRoutes);
   app.use(`${apiPrefix}/users`, userRoutes);
-
   app.use(`${apiPrefix}/campuses`, campusRoutes);
   app.use(`${apiPrefix}/departments`, departmentRoutes);
   app.use(`${apiPrefix}/programs`, programRoutes);
@@ -196,27 +181,22 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/courses`, courseRoutes);
   app.use(`${apiPrefix}/course-offerings`, courseOfferingRoutes);
   app.use(`${apiPrefix}/obe`, obeRoutes);
-
   app.use(`${apiPrefix}/students`, studentRoutes);
   app.use(`${apiPrefix}/faculty`, facultyRoutes);
-
   app.use(`${apiPrefix}/admissions`, admissionRoutes);
   app.use(`${apiPrefix}/hr`, hrRoutes);
   app.use(`${apiPrefix}/leave`, leaveRoutes);
   app.use(`${apiPrefix}/portal`, portalRoutes);
-
   app.use(`${apiPrefix}/library`, libraryRoutes);
   app.use(`${apiPrefix}/calendar`, calendarRoutes);
   app.use(`${apiPrefix}/registrations`, registrationRoutes);
   app.use(`${apiPrefix}/movements`, movementRoutes);
   app.use(`${apiPrefix}/certificates`, certificateRoutes);
-
   app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
   app.use(`${apiPrefix}/assignments`, assignmentRoutes);
   app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
   app.use(`${apiPrefix}/grades`, gradingRoutes);
   app.use(`${apiPrefix}/directory`, directoryRoutes);
-
   app.use(`${apiPrefix}/examinations`, examinationRoutes);
   app.use(`${apiPrefix}/attendance`, attendanceGovernanceRoutes);
   app.use(`${apiPrefix}/lms`, lmsRoutes);
@@ -228,16 +208,13 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
   app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
   app.use(`${apiPrefix}/erp`, erpRoutes);
-
   app.use(`${apiPrefix}/imports`, importRoutes);
   app.use(`${apiPrefix}/people-imports`, peopleImportRoutes);
   app.use(`${apiPrefix}/exports`, exportRoutes);
-
   app.use(`${apiPrefix}/site-content`, siteContentRoutes);
   app.use(`${apiPrefix}/institutional-cms`, institutionalCmsRoutes);
   app.use(`${apiPrefix}/files`, fileStorageRoutes);
   app.use(`${apiPrefix}/payment-webhooks`, paymentWebhookRoutes);
-
   app.use(notFound);
   app.use(errorHandler);
 
