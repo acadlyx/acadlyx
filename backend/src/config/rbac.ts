@@ -885,7 +885,17 @@ export const ROLE_PERMISSIONS: Record<
 
   EXAMINATION: [
     "obe.read", "obe.assessment.manage", "obe.reports.read",
+
+    // Examination workspace needs read access to the people and
+    // academic context it operates on (students, faculty/invigilators,
+    // programmes, semesters, sections and course offerings).
+    "users.read",
     "students.read",
+    ...ACADEMIC_READ,
+    "timetable.read",
+    "attendance.read",
+    "registration.read",
+    "calendar.read",
 
     "exams.read",
     "exams.manage",
@@ -924,7 +934,15 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   LIBRARIAN: [
+    // Library circulation is a people-facing workflow: librarians need
+    // to resolve borrowers and their academic context without gaining
+    // user-management or academic-management authority.
+    "users.read",
     "students.read",
+    ...ACADEMIC_READ,
+    "registration.read",
+    "calendar.read",
+    "operations.read",
 
     "library.read",
     "library.borrow",
