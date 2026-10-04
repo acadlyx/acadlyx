@@ -23,12 +23,15 @@ export function getHealth(_req: Request, res: Response): void {
 export async function getReadiness(_req: Request, res: Response): Promise<void> {
   try {
     await prisma.$queryRaw`SELECT 1`;
+    const outbox = await prisma.$queryRaw<Array<{ pending: bigint; maxAttempts: number | null }>>`SELECT COUNT(*)::bigint AS "pending", MAX("attempts") AS "maxAttempts" FROM "domain_event_outbox" WHERE "processedAt" IS NULL`;
+    const pending = Number(outbox[0]?.pending ?? 0);
 
     res.status(200).json({
       success: true,
       service: "acadlyx-api",
       status: "ready",
       timestamp: new Date().toISOString(),
+      jobs: { domainEventOutbox: { pending, maxAttempts: outbox[0]?.maxAttempts ?? 0, healthy: pending < 1000 } },
     });
   } catch {
     res.status(503).json({
