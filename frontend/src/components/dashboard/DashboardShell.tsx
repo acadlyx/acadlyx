@@ -12,6 +12,7 @@ import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logo
 import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
+import { GlobalSearchBar } from "./GlobalSearchBar";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   CHAIRMAN: {
@@ -134,6 +135,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={user ? `${user.firstName} ${user.lastName}`.trim() : "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <InstitutionalCmsProvider><div className="acadlyx-workspace-content">{children}</div></InstitutionalCmsProvider>
+    <InstitutionalCmsProvider><div className="acadlyx-workspace-content"><GlobalSearchBar />{children}</div></InstitutionalCmsProvider>
   </UnifiedDashboardFrame>;
 }
