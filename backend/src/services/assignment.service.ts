@@ -359,3 +359,29 @@ export async function getMySubmissionCompletionPercent(
 
   return Math.round((submittedCount / assignments.length) * 100);
 }
+
+
+export async function reopenSubmission(
+  institutionId: string,
+  user: AuthenticatedUser,
+  assignmentId: string,
+  studentId: string,
+) {
+  const assignment = await loadAssignmentOrThrow(institutionId, assignmentId);
+  assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+  const submission = await prisma.assignmentSubmission.findUnique({
+    where: { assignmentId_studentId: { assignmentId, studentId } },
+  });
+  if (!submission) throw new AppError("Submission not found", 404);
+  if (submission.status === "REOPENED") return submission;
+  const updated = await prisma.assignmentSubmission.update({
+    where: { assignmentId_studentId: { assignmentId, studentId } },
+    data: { status: "REOPENED", marksAwarded: null, feedback: null, reviewedAt: null, reviewedById: null },
+  });
+  await recordAuditLog({
+    institutionId, userId: user.id, action: "WORKFLOW_SUBMISSION_REOPENED",
+    entityType: "AssignmentSubmission", entityId: updated.id,
+    metadata: { workflow: "assignment_submission", previousState: submission.status, newState: "REOPENED", assignmentId, studentId },
+  });
+  return updated;
+}
