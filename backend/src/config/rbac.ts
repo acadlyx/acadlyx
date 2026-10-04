@@ -105,6 +105,7 @@ export const PERMISSIONS = [
   { key: "obe.read", module: "obe", description: "View outcome based education data" },
   { key: "obe.manage", module: "obe", description: "Manage OBE configuration and records within scope" },
   { key: "obe.mapping.manage", module: "obe", description: "Create and update CO-PO/PSO mappings" },
+  { key: "obe.mapping.submit", module: "obe", description: "Submit CO-PO/PSO mappings for review" },
   { key: "obe.assessment.manage", module: "obe", description: "Manage OBE assessments and CO question mapping" },
   { key: "obe.attainment.calculate", module: "obe", description: "Calculate CO and PO/PSO attainment" },
   { key: "obe.attainment.approve", module: "obe", description: "Approve OBE mappings and attainment runs" },
@@ -670,7 +671,7 @@ export const ROLE_PERMISSIONS: Record<
 
   HOD: [
     "fees.read",
-    "obe.read", "obe.manage", "obe.mapping.manage", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
+    "obe.read", "obe.manage", "obe.mapping.manage", "obe.mapping.submit", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.attainment.approve", "obe.reports.read",
     "students.read",
     "people.import",
 
