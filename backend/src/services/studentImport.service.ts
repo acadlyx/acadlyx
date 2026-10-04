@@ -1,3 +1,72 @@
+import * as XLSX from "xlsx";
+import * as crypto from "crypto";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
+import { AuthenticatedUser } from "../types/auth";
+import { hashPassword } from "../utils/password";
+import { assertTenantQuota } from "./entitlement.service";
+import { ensureInstitutionSystemRoles } from "./institution.service";
+import { parseWorkbook } from "./import.service";
+
+type Row = Record<string, any>;
+const text = (value: any): string => String(value ?? "").trim();
+function normalizeRow(row: Row): Row {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toLowerCase().replace(/[\s_-]+/g, ""), value]));
+}
+function date(value: any): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") { const parsed = XLSX.SSF.parse_date_code(value); return parsed ? new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d)) : null; }
+  const raw = text(value); if (!raw) return null; const parsed = new Date(raw); return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+function syntheticEmail(key: string): string { return "imported-" + key.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase() + "-" + crypto.randomUUID().slice(0, 8) + "@invalid.acadlyx.local"; }
+function syntheticIdNumber(key: string): string { return "IMPORT-" + (key.replace(/[^a-zA-Z0-9]+/g, "").toUpperCase() || "STUDENT") + "-" + crypto.randomUUID().slice(0, 6); }
+function syntheticAdmissionNumber(row: Row): string { return text(row.rollnumber) || "IMPORT-" + crypto.randomUUID().slice(0, 10).toUpperCase(); }
+
+async function findRoleId(tx: Prisma.TransactionClient, institutionId: string) {
+  const roles = await ensureInstitutionSystemRoles(tx, institutionId);
+  const roleId = roles.get("STUDENT");
+  if (!roleId) throw new AppError("STUDENT role is not initialized for this institution", 500);
+  return roleId;
+}
+
+async function resolvePlacement(tx: Prisma.TransactionClient, institutionId: string, row: Row) {
+  const programCode = text(row.programcode); const yearName = text(row.academicyear);
+  if (!programCode || !yearName) return null;
+  const program = await tx.program.findFirst({ where: { institutionId, code: programCode, isActive: true }, select: { id: true } });
+  const academicYear = await tx.academicYear.findFirst({ where: { institutionId, name: yearName }, select: { id: true } });
+  if (!program || !academicYear) return null;
+  let semesterId: string | null = null; let sectionId: string | null = null;
+  const sectionName = text(row.section);
+  if (sectionName) {
+    const section = await tx.section.findFirst({ where: { institutionId, name: sectionName, semester: { programId: program.id, academicYearId: academicYear.id } }, select: { id: true, semesterId: true } });
+    if (section) { sectionId = section.id; semesterId = section.semesterId; }
+  }
+  if (!semesterId && text(row.semesternumber)) {
+    const semester = await tx.semester.findFirst({ where: { institutionId, programId: program.id, academicYearId: academicYear.id, number: Number(row.semesternumber), isActive: true }, select: { id: true } });
+    semesterId = semester?.id ?? null;
+  }
+  return { programId: program.id, academicYearId: academicYear.id, semesterId, sectionId };
+}
+
+function getMissingFields(row: Row, email: string, idNumber: string, enrollmentCreated: boolean) {
+  const fields: string[] = [];
+  if (!text(row.email) || email.includes("@invalid.acadlyx.local")) fields.push("email");
+  if (!text(row.idnumber || row.id || row.loginid) || idNumber.startsWith("IMPORT-")) fields.push("idNumber");
+  if (!text(row.firstname)) fields.push("firstName");
+  if (!text(row.lastname)) fields.push("lastName");
+  if (!text(row.phone)) fields.push("phone");
+  if (!text(row.admissionnumber) && !text(row.rollnumber)) fields.push("admissionNumber");
+  if (!text(row.dateofbirth)) fields.push("dateOfBirth");
+  if (!text(row.gender)) fields.push("gender");
+  if (!text(row.guardianname)) fields.push("guardianName");
+  if (!text(row.guardianphone)) fields.push("guardianPhone");
+  if (!enrollmentCreated) fields.push("enrollment");
+  return [...new Set(fields)];
+}
+
+export async function commitPartialStudentImport(buffer: Buffer, institutionId: string, actor: AuthenticatedUser) {
+  if (!actor.permissions.includes("students.create")) throw new AppError("You are not authorized to import students", 403);
   const rows = parseWorkbook(buffer).rows.map(normalizeRow);
   if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
   await assertTenantQuota(institutionId, "users"); await assertTenantQuota(institutionId, "students");
@@ -44,3 +113,5 @@
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
     }
   }
+  return { imported: imported.length, failed: errors.length, failedRows: errors, incomplete: imported.filter((item) => item.missingFields.length > 0), complete: imported.filter((item) => item.missingFields.length === 0) };
+}
