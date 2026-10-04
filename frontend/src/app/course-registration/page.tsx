@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { WorkflowStatus } from "@/components/workflow/WorkflowState";
+import { getWorkflowStates, type WorkflowStateResult } from "@/lib/workflowApi";
 import {
   AuthRequiredError,
   AuthUser,
@@ -59,6 +61,7 @@ export default function CourseRegistrationPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [rejectFor, setRejectFor] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowStateResult>>({});
 
   const canSubmit = user?.permissions.includes("registration.submit") ?? false;
   const canApprove = user?.permissions.includes("registration.approve") ?? false;
@@ -84,6 +87,8 @@ export default function CourseRegistrationPage() {
           setOfferings(available.items);
           setEnrollment(available.enrollment);
           setMine(summary);
+          const mineStates = summary.items.length ? await getWorkflowStates(summary.items.map((item) => ({ workflow: "course_registration", entityId: item.id }))) : [];
+          setWorkflowStates((current) => ({ ...current, ...Object.fromEntries(mineStates.map((item) => [item.entityId, item])) }));
           setOfferingsError("");
         } catch (err) {
           /* A staff member with submit rights but no enrollment is a
@@ -100,6 +105,8 @@ export default function CourseRegistrationPage() {
           status: queueStatus || undefined,
         });
         setQueue(list.items);
+        const queueStates = list.items.length ? await getWorkflowStates(list.items.map((item) => ({ workflow: "course_registration", entityId: item.id }))) : [];
+        setWorkflowStates((current) => ({ ...current, ...Object.fromEntries(queueStates.map((item) => [item.entityId, item])) }));
         setQueueSummary(list.summary);
         setTotalPages(list.meta.totalPages);
         if (!submit) setTab("approvals");
@@ -354,23 +361,21 @@ export default function CourseRegistrationPage() {
                         {row.courseOffering.semester.name}
                       </td>
                       <td>
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[row.status]}`}
-                        >
-                          {row.status}
-                        </span>
+                        {workflowStates[row.id] ? <WorkflowStatus state={workflowStates[row.id]} /> : (
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS_STYLES[row.status]}`}>{row.status}</span>
+                        )}
                       </td>
                       <td className="text-slate-500">{row.remarks || "—"}</td>
                       <td className="py-3 text-right">
-                        {["REQUESTED", "APPROVED"].includes(row.status) && (
+                        {workflowStates[row.id]?.actions.some((item) => item.key === "withdraw" || item.key === "drop") ? (
                           <button
                             type="button"
                             onClick={() => run(() => dropRegistration(row.id))}
                             className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600"
                           >
-                            Drop
+                            {workflowStates[row.id]?.actions.find((item) => item.key === "withdraw" || item.key === "drop")?.label || "Drop"}
                           </button>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -451,29 +456,16 @@ export default function CourseRegistrationPage() {
                         </span>
                       </td>
                       <td className="py-3 text-right">
-                        {row.status === "REQUESTED" && canApprove && (
+                        {workflowStates[row.id] ? (
                           <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                run(() => decideRegistration(row.id, "APPROVED"))
-                              }
-                              className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRejectFor(row.id);
-                                setRejectNote("");
-                              }}
-                              className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white"
-                            >
-                              Reject
-                            </button>
+                            {workflowStates[row.id].actions.some((item) => item.key === "approve") ? (
+                              <button type="button" onClick={() => run(() => decideRegistration(row.id, "APPROVED"))} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">Approve</button>
+                            ) : null}
+                            {workflowStates[row.id].actions.some((item) => item.key === "reject") ? (
+                              <button type="button" onClick={() => { setRejectFor(row.id); setRejectNote(""); }} className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white">Reject</button>
+                            ) : null}
                           </div>
-                        )}
+                        ) : <span className="text-xs text-slate-400">Checking…</span>}
                       </td>
                     </tr>
                   ))}
