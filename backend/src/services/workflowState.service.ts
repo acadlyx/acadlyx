@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedUser } from "../types/auth";
 
@@ -68,7 +67,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   state=x.status==="APPROVED"?"APPROVED":x.status==="REJECTED"?"REJECTED":x.status==="DROPPED"?"DROPPED":"REQUESTED";
   const mine=x.studentId===actor.id; const manage=has(actor,"registration.approve")||has(actor,"courses.manage");
   editable=manage;
-  actions=[action("view","View registration",true),state==="PENDING"&&manage?action("approve","Approve",true,"registration.approve",undefined,"primary"):state==="PENDING"&&mine?action("withdraw","Withdraw request",true,"registration.submit",undefined,"danger",true):state==="REJECTED"&&mine?action("resubmit","Fix & resubmit",true,"registration.submit",undefined,"primary"):action("view","View status",true)];
+  actions=[action("view","View registration",true),state==="REQUESTED"&&manage?action("approve","Approve",true,"registration.approve",undefined,"primary"):state==="REQUESTED"&&mine?action("withdraw","Withdraw request",true,"registration.submit",undefined,"danger",true):state==="REJECTED"&&mine?action("resubmit","Fix & resubmit",true,"registration.submit",undefined,"primary"):action("view","View status",true)];
  } else if(w==="application"){
   const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true}});
   if(!x) throw new Error("Workflow record not found");
@@ -82,7 +81,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if(!x) throw new Error("Workflow record not found");
   table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"REQUESTED";
   const manage=has(actor,"certificates.issue")||has(actor,"students.manage");
-  editable=manage; actions=[action("view","View certificate",true),...(state==="PENDING"&&manage?[action("issue","Issue certificate",true,"certificates.issue","", "primary")]:[])];
+  editable=manage; actions=[action("view","View certificate",true),...(state==="REQUESTED"&&manage?[action("issue","Issue certificate",true,"certificates.issue","", "primary")]:[])];
  } else if(w==="fee_invoice"){
   const x=await prisma.feeInvoice.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,paidAmount:true,amount:true,updatedAt:true,studentId:true}});
   if(!x) throw new Error("Workflow record not found");
