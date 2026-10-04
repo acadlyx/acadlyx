@@ -1,4 +1,4 @@
-import { authedFetch } from "@/lib/auth";
+import { authedFetch,authedDownload } from "@/lib/auth";
 export type FinanceOverview={billed:number;collected:number;refunded:number;outstanding:number;overdue:number;collectionPercentage:number;todayCollection:number;monthCollection:number;invoiceCount:number;paymentCount:number;scope:Record<string,unknown>};
 export async function financeOverview(){return (await authedFetch<{success:boolean;data:FinanceOverview}>("/finance/overview")).data;}
 export async function financeInvoices(params:Record<string,string|number|undefined>={}){const q=new URLSearchParams();Object.entries(params).forEach(([k,v])=>v!==undefined&&q.set(k,String(v)));return (await authedFetch<{success:boolean;data:{items:any[];total:number;page:number;pageSize:number}}>(`/finance/invoices?${q}`)).data;}
@@ -12,3 +12,5 @@ export async function financeTransactions(){return (await authedFetch<{success:b
 
 export async function financeStructures(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-structures")).data;}
 export async function financeHeads(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-heads")).data;}
+
+export async function downloadFinanceExport(type:"invoices"|"payments"|"receipts"|"transactions",format:"xlsx"|"csv"="xlsx"){const x=await authedDownload(`/finance/export?type=${type}&format=${format}`);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
