@@ -1,6 +1,7 @@
 import { Request } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import * as importer from "../services/import.service";
+import * as studentImporter from "../services/studentImport.service";
 import { AppError } from "../middleware/errorHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 
@@ -15,5 +16,10 @@ export const preview = asyncHandler(async (req, res) => res.json({ success: true
 export const commit = asyncHandler(async (req, res) => {
   const mode = req.query.mode === "atomic" ? "atomic" : "partial";
   const data = await importer.commit(file(req), getType(req), requireInstitution(req), req.user!, { mode });
+  res.json({ success: true, data });
+});
+
+export const commitPartialStudents = asyncHandler(async (req, res) => {
+  const data = await studentImporter.commitPartialStudentImport(file(req), requireInstitution(req), req.user!);
   res.json({ success: true, data });
 });
