@@ -36,7 +36,7 @@ router.patch("/course-outcomes/:id", authorize("obe.mapping.manage"), validateBo
 
 router.get("/course-offerings/:courseOfferingId/mapping", authorize("obe.read"), controller.mapping);
 router.put("/course-offerings/:courseOfferingId/mapping", authorize("obe.mapping.manage"), validateBody(replaceMappingSchema), controller.replaceMapping);
-router.post("/course-offerings/:courseOfferingId/mapping/submit", authorize("obe.mapping.manage"), controller.submitMapping);
+router.post("/course-offerings/:courseOfferingId/mapping/submit", authorize("obe.mapping.submit"), controller.submitMapping);
 router.post("/course-offerings/:courseOfferingId/mapping/approve", authorize("obe.attainment.approve"), controller.approveMapping);
 router.post("/course-offerings/:courseOfferingId/mapping/return", authorize("obe.attainment.approve"), controller.returnMapping);
 
