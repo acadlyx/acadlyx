@@ -80,7 +80,7 @@ export default function StudentAssignmentDetailPage() {
     let isMounted = true;
 
     getAssignment(params.id)
-      .then((data) => {
+      .then(async (data) => {
         if (!isMounted) {
           return;
         }
