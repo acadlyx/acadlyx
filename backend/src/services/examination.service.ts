@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
