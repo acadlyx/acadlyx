@@ -13,6 +13,16 @@ import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authorit
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 
+const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
+  CHAIRMAN: { "/reports": "/chairman/reports" },
+  DIRECTOR: { "/reports": "/director/reports" },
+  DEAN: { "/reports": "/dean/reports" },
+};
+
+function roleOwnedHref(role: string | null, href: string): string {
+  return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
+}
+
 export function DashboardShell({ title, subtitle, children, allowedRoles }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -69,9 +79,9 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
       roles: [role],
       permissions: user.permissions || [],
     }).map((item) => ({
-      id: item.href,
+      id: roleOwnedHref(role, item.href),
       label: item.label,
-      href: item.href,
+      href: roleOwnedHref(role, item.href),
       icon: item.icon,
       group: item.group || "Workspace",
     }));
