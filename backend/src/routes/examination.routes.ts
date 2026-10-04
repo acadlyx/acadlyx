@@ -10,6 +10,7 @@ import {
 } from "../middleware/validate";
 import * as service from "../services/examination.service";
 import * as templateService from "../services/admitCardTemplate.service";
+import * as admitCardGenerationService from "../services/admitCardGeneration.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { auditMeta, searchTerm, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
@@ -496,6 +497,39 @@ router.post(
         auditMeta(req)
       )
     )
+  )
+);
+
+router.post(
+  "/sessions/:id/hall-tickets/bulk.zip",
+  authorize("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const result = await admitCardGenerationService.generateBulkAdmitCardsZip(
+      requireInstitution(req),
+      requireAuthenticatedUser(req),
+      req.params.id,
+    );
+    res.status(200);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    res.setHeader("Content-Length", String(result.buffer.length));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Admit-Card-Job-Id", result.jobId);
+    res.send(result.buffer);
+  })
+);
+
+router.get(
+  "/admit-card-generation-jobs/:id",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(res, await admitCardGenerationService.getAdmitCardGenerationJob(
+      requireInstitution(req),
+      requireAuthenticatedUser(req),
+      req.params.id,
+    ))
   )
 );
 
