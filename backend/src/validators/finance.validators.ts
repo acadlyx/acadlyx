@@ -9,3 +9,5 @@ export const financeIdSchema=z.object({id:z.string().uuid()});
 export const financeExportSchema=z.object({type:z.enum(["invoices","payments","receipts","transactions"]),format:z.enum(["xlsx","csv"]).default("xlsx")});
 
 export const financeConcessionSchema=z.object({amount:money,type:z.string().min(2).max(40),reason:z.string().min(3).max(1000),percentage:z.union([z.string(),z.number()]).transform(String).optional()});
+
+export const financeDashboardSchema=z.object({period:z.enum(["today","week","month","quarter","academic"]).optional()});
