@@ -22,6 +22,9 @@ import {
   requestContext,
 } from "./middleware/requestContext";
 
+import { mutationAudit } from "./middleware/mutationAudit";
+import { idempotency } from "./middleware/idempotency";
+
 import academicYearRoutes from "./routes/academicYear.routes";
 import admissionRoutes from "./routes/admission.routes";
 import assignmentRoutes from "./routes/assignment.routes";
@@ -78,12 +81,6 @@ import workflowRoutes from "./routes/workflow.routes";
 export function createApp(): Application {
   const app: Application = express();
 
-  /*
-   * Render runs behind a reverse proxy.
-   *
-   * The existing EnvConfig does not expose a security.trustProxy
-   * property, so use the production environment directly here.
-   */
   if (isProduction) {
     app.set("trust proxy", 1);
   }
@@ -104,76 +101,35 @@ export function createApp(): Application {
   app.use(
     cors({
       origin(origin, callback) {
-        /*
-         * Requests without an Origin header include server-to-server
-         * requests and health checks. These are allowed.
-         */
         if (!origin) {
           callback(null, true);
           return;
         }
 
-        /*
-         * Normalize trailing slashes so:
-         *
-         * https://acadlyx-orcin.vercel.app
-         *
-         * and
-         *
-         * https://acadlyx-orcin.vercel.app/
-         *
-         * are treated as the same origin.
-         */
-        const normalizedOrigin = origin.replace(
-          /\/+$/,
-          ""
-        );
+        const normalizedOrigin = origin.replace(/\/+$/, "");
 
-        if (
-          env.corsOrigins.includes(
-            normalizedOrigin
-          )
-        ) {
+        if (env.corsOrigins.includes(normalizedOrigin)) {
           callback(null, true);
           return;
         }
 
-        callback(
-          new Error(
-            `CORS origin not allowed: ${origin}`
-          )
-        );
+        callback(new Error(`CORS origin not allowed: ${origin}`));
       },
-
       credentials: true,
-
-      methods: [
-        "GET",
-        "HEAD",
-        "POST",
-        "PUT",
-        "PATCH",
-        "DELETE",
-        "OPTIONS",
-      ],
-
+      methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: [
         "Content-Type",
         "Authorization",
         "X-Request-ID",
+        "X-Idempotency-Key",
       ],
-
       exposedHeaders: [
         "X-Request-ID",
+        "X-Idempotency-Replayed",
       ],
     })
   );
 
-  /*
-   * Profile photos are sent as base64 data URLs by the web client.
-   * A 5 MB binary image expands when base64 encoded, so the JSON parser
-   * must allow enough headroom for the authenticated photo endpoint.
-   */
   app.use(
     express.json({
       limit: "8mb",
@@ -191,380 +147,92 @@ export function createApp(): Application {
   );
 
   if (!isProduction) {
-    app.use(
-      morgan("dev")
-    );
+    app.use(morgan("dev"));
   }
 
   /*
-   * API root.
+   * Mutation audit is registered after body parsing but before route
+   * authentication. The finish listener observes req.user after the
+   * route-level authenticate middleware has populated it, so every
+   * authenticated POST/PUT/PATCH/DELETE receives a baseline audit event.
    */
-  app.get(
-    "/",
-    (_req, res) => {
-      res.status(200).json({
-        success: true,
-        name: "ACADLYX",
-        message:
-          "ACADLYX API is running",
-        version:
-          env.apiVersion,
-        environment:
-          env.nodeEnv,
-      });
-    }
-  );
+  app.use(mutationAudit);
 
-  const apiPrefix =
-    `/api/${env.apiVersion}`;
+  app.get("/", (_req, res) => {
+    res.status(200).json({
+      success: true,
+      name: "ACADLYX",
+      message: "ACADLYX API is running",
+      version: env.apiVersion,
+      environment: env.nodeEnv,
+    });
+  });
 
-  /*
-   * HEALTH
-   */
-  app.use(
-    `${apiPrefix}/health`,
-    healthRoutes
-  );
+  const apiPrefix = `/api/${env.apiVersion}`;
 
-  /*
-   * AUTHENTICATION
-   */
-  app.use(
-    `${apiPrefix}/auth`,
-    authRoutes
-  );
+  app.use(`${apiPrefix}/health`, healthRoutes);
+  app.use(`${apiPrefix}/auth`, authRoutes);
+  app.use(`${apiPrefix}/workspace`, workspaceContextRoutes);
+  app.use(`${apiPrefix}/my-work`, myWorkRoutes);
+  app.use(`${apiPrefix}/search`, globalSearchRoutes);
+  app.use(`${apiPrefix}/workflow`, workflowRoutes);
 
-  app.use(
-    `${apiPrefix}/workspace`,
-    workspaceContextRoutes
-  );
+  app.use(`${apiPrefix}/institutions`, institutionRoutes);
+  app.use(`${apiPrefix}/users`, userRoutes);
 
-  app.use(
-    `${apiPrefix}/my-work`,
-    myWorkRoutes
-  );
+  app.use(`${apiPrefix}/campuses`, campusRoutes);
+  app.use(`${apiPrefix}/departments`, departmentRoutes);
+  app.use(`${apiPrefix}/programs`, programRoutes);
+  app.use(`${apiPrefix}/academic-years`, academicYearRoutes);
+  app.use(`${apiPrefix}/batches`, batchRoutes);
+  app.use(`${apiPrefix}/semesters`, semesterRoutes);
+  app.use(`${apiPrefix}/sections`, sectionRoutes);
+  app.use(`${apiPrefix}/courses`, courseRoutes);
+  app.use(`${apiPrefix}/course-offerings`, courseOfferingRoutes);
+  app.use(`${apiPrefix}/obe`, obeRoutes);
 
-  app.use(
-    `${apiPrefix}/search`,
-    globalSearchRoutes
-  );
+  app.use(`${apiPrefix}/students`, studentRoutes);
+  app.use(`${apiPrefix}/faculty`, facultyRoutes);
 
-  app.use(
-    `${apiPrefix}/workflow`,
-    workflowRoutes
-  );
+  app.use(`${apiPrefix}/admissions`, admissionRoutes);
+  app.use(`${apiPrefix}/hr`, hrRoutes);
+  app.use(`${apiPrefix}/leave`, leaveRoutes);
+  app.use(`${apiPrefix}/portal`, portalRoutes);
 
-  /*
-   * PLATFORM / INSTITUTION ADMINISTRATION
-   */
-  app.use(
-    `${apiPrefix}/institutions`,
-    institutionRoutes
-  );
+  app.use(`${apiPrefix}/library`, libraryRoutes);
+  app.use(`${apiPrefix}/calendar`, calendarRoutes);
+  app.use(`${apiPrefix}/registrations`, registrationRoutes);
+  app.use(`${apiPrefix}/movements`, movementRoutes);
+  app.use(`${apiPrefix}/certificates`, certificateRoutes);
 
-  app.use(
-    `${apiPrefix}/users`,
-    userRoutes
-  );
+  app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
+  app.use(`${apiPrefix}/assignments`, assignmentRoutes);
+  app.use(`${apiPrefix}/internal-marks`, internalMarkRoutes);
+  app.use(`${apiPrefix}/grades`, gradingRoutes);
+  app.use(`${apiPrefix}/directory`, directoryRoutes);
 
-  /*
-   * ACADEMIC STRUCTURE
-   */
-  app.use(
-    `${apiPrefix}/campuses`,
-    campusRoutes
-  );
+  app.use(`${apiPrefix}/examinations`, examinationRoutes);
+  app.use(`${apiPrefix}/attendance`, attendanceGovernanceRoutes);
+  app.use(`${apiPrefix}/lms`, lmsRoutes);
+  app.use(`${apiPrefix}/billing`, feeBillingRoutes);
+  app.use(`${apiPrefix}/parent`, parentPortalRoutes);
+  app.use(`${apiPrefix}/operations`, operationsRoutes);
+  app.use(`${apiPrefix}/security`, securityRoutes);
+  app.use(`${apiPrefix}/subscriptions`, subscriptionPlanRoutes);
+  app.use(`${apiPrefix}/intelligence`, intelligenceRoutes);
+  app.use(`${apiPrefix}/ask-acadlyx`, askRoutes);
+  app.use(`${apiPrefix}/erp`, erpRoutes);
 
-  app.use(
-    `${apiPrefix}/departments`,
-    departmentRoutes
-  );
+  app.use(`${apiPrefix}/imports`, importRoutes);
+  app.use(`${apiPrefix}/people-imports`, peopleImportRoutes);
+  app.use(`${apiPrefix}/exports`, exportRoutes);
 
-  app.use(
-    `${apiPrefix}/programs`,
-    programRoutes
-  );
+  app.use(`${apiPrefix}/site-content`, siteContentRoutes);
+  app.use(`${apiPrefix}/institutional-cms`, institutionalCmsRoutes);
+  app.use(`${apiPrefix}/files`, fileStorageRoutes);
+  app.use(`${apiPrefix}/payment-webhooks`, paymentWebhookRoutes);
 
-  app.use(
-    `${apiPrefix}/academic-years`,
-    academicYearRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/batches`,
-    batchRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/semesters`,
-    semesterRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/sections`,
-    sectionRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/courses`,
-    courseRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/course-offerings`,
-    courseOfferingRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/obe`,
-    obeRoutes
-  );
-
-  /*
-   * PEOPLE
-   */
-  app.use(
-    `${apiPrefix}/students`,
-    studentRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/faculty`,
-    facultyRoutes
-  );
-
-  /*
-   * ADMISSIONS / HR / LEAVE / PORTALS
-   */
-  app.use(
-    `${apiPrefix}/admissions`,
-    admissionRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/hr`,
-    hrRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/leave`,
-    leaveRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/portal`,
-    portalRoutes
-  );
-
-  /*
-   * STUDENT SERVICES
-   */
-  app.use(
-    `${apiPrefix}/library`,
-    libraryRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/calendar`,
-    calendarRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/registrations`,
-    registrationRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/movements`,
-    movementRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/certificates`,
-    certificateRoutes
-  );
-
-  /*
-   * ACADEMIC OPERATIONS
-   */
-  app.use(
-    `${apiPrefix}/attendance-sessions`,
-    attendanceSessionRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/assignments`,
-    assignmentRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/internal-marks`,
-    internalMarkRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/grades`,
-    gradingRoutes
-  );
-
-  /*
-   * DIRECTORY LOOKUPS
-   *
-   * Typeahead endpoints backing the searchable selectors, so no screen
-   * ever asks a user to paste an identifier.
-   */
-  app.use(
-    `${apiPrefix}/directory`,
-    directoryRoutes
-  );
-
-  /*
-   * EXAMINATIONS
-   */
-  app.use(
-    `${apiPrefix}/examinations`,
-    examinationRoutes
-  );
-
-  /*
-   * ATTENDANCE GOVERNANCE
-   *
-   * Policy, shortage, corrections and locking. Marking itself stays
-   * on /attendance-sessions.
-   */
-  app.use(
-    `${apiPrefix}/attendance`,
-    attendanceGovernanceRoutes
-  );
-
-  /*
-   * LEARNING MANAGEMENT
-   */
-  app.use(
-    `${apiPrefix}/lms`,
-    lmsRoutes
-  );
-
-  /*
-   * FEE BILLING
-   */
-  app.use(
-    `${apiPrefix}/billing`,
-    feeBillingRoutes
-  );
-
-  /*
-   * PARENT PORTAL
-   */
-  app.use(
-    `${apiPrefix}/parent`,
-    parentPortalRoutes
-  );
-
-  /*
-   * INSTITUTION OPERATIONS
-   */
-  app.use(
-    `${apiPrefix}/operations`,
-    operationsRoutes
-  );
-
-  /*
-   * ACCOUNT SECURITY (MFA, password reset, session control)
-   */
-  app.use(
-    `${apiPrefix}/security`,
-    securityRoutes
-  );
-
-  /*
-   * SaaS SUBSCRIPTION + TENANT LIFECYCLE
-   */
-  app.use(
-    `${apiPrefix}/subscriptions`,
-    subscriptionPlanRoutes
-  );
-
-  /*
-   * INTELLIGENCE
-   */
-  app.use(
-    `${apiPrefix}/intelligence`,
-    intelligenceRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/ask-acadlyx`,
-    askRoutes
-  );
-
-  /*
-   * LEGACY / AGGREGATED ERP
-   *
-   * Kept for compatibility while individual ERP domains
-   * are progressively implemented.
-   */
-  app.use(
-    `${apiPrefix}/erp`,
-    erpRoutes
-  );
-
-  /*
-   * DATA IMPORTS
-   */
-  app.use(
-    `${apiPrefix}/imports`,
-    importRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/people-imports`,
-    peopleImportRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/exports`,
-    exportRoutes
-  );
-
-  /*
-   * PUBLIC / SITE CMS
-   */
-  app.use(
-    `${apiPrefix}/site-content`,
-    siteContentRoutes
-  );
-
-  app.use(
-    `${apiPrefix}/institutional-cms`,
-    institutionalCmsRoutes
-  );
-
-  /* Centralized provider-agnostic tenant file storage. */
-  app.use(
-    `${apiPrefix}/files`,
-    fileStorageRoutes
-  );
-
-  /*
-   * PAYMENT WEBHOOKS
-   *
-   * Provider-authenticated callbacks do not use a user session. The
-   * endpoint verifies the raw-body HMAC before touching tenant billing.
-   */
-  app.use(
-    `${apiPrefix}/payment-webhooks`,
-    paymentWebhookRoutes
-  );
-
-  /*
-   * 404 HANDLER
-   */
   app.use(notFound);
-
-  /*
-   * CENTRAL ERROR HANDLER
-   */
   app.use(errorHandler);
 
   return app;
