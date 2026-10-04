@@ -5,7 +5,7 @@ import {requireFeature} from "../middleware/requireFeature";
 import {validateBody,validateParams,validateQuery} from "../middleware/validate";
 import {authorizeAnyPermission} from "../middleware/authorize";
 import * as c from "../controllers/finance.controller";
-import {financeInvoiceListSchema,financeInvoiceCreateSchema,financePaymentSchema,financeRefundSchema,financeIdSchema,financeExportSchema} from "../validators/finance.validators";
+import {financeInvoiceListSchema,financeInvoiceCreateSchema,financePaymentSchema,financeRefundSchema,financeConcessionSchema,financeIdSchema,financeExportSchema} from "../validators/finance.validators";
 const router=Router();router.use(authenticate);router.use(requireFeature("fees"));
 router.get("/export",authorizeAnyPermission("fees.reports.export","fees.read"),validateQuery(financeExportSchema),c.exportFinancial);
 router.get("/overview",authorizeAnyPermission("fees.read","fees.collection.read"),c.overview);
@@ -16,7 +16,7 @@ router.post("/invoices/:id/payments",authorize("fees.payment.record"),validatePa
 router.get("/payments",authorizeAnyPermission("fees.read","fees.read"),c.payments);
 router.get("/receipts",authorizeAnyPermission("fees.read","fees.read"),c.receipts);
 router.get("/collections",authorizeAnyPermission("fees.read","fees.read"),c.collections);
-router.post("/invoices/:id/concessions",authorize("fees.concession.manage"),validateParams(financeIdSchema),validateBody(financeRefundSchema),c.requestConcession);
+router.post("/invoices/:id/concessions",authorize("fees.concession.manage"),validateParams(financeIdSchema),validateBody(financeConcessionSchema),c.requestConcession);
 router.post("/concessions/:id/approve",authorize("fees.concession.approve"),validateParams(financeIdSchema),c.approveConcession);
 router.get("/concessions",authorizeAnyPermission("fees.read","fees.read"),c.concessions);
 router.get("/refunds",authorizeAnyPermission("fees.read","fees.read"),c.refunds);
