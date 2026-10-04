@@ -358,7 +358,7 @@ export default function ObePage() {
 
             {tab === "mapping" && (
               <div className="space-y-6">
-                {can(user, "obe.manage") && <DashboardCard title="Programme Outcomes / PSOs">
+                {hasPermission(user, "obe.programme-outcomes.manage") && <DashboardCard title="Programme Outcomes / PSOs">
                   <div className="grid gap-3 md:grid-cols-[130px_140px_1fr_auto]">
                     <select value={poType} onChange={(e) => setPoType(e.target.value as "PO" | "PSO")} className="rounded-xl border border-slate-300 px-3 py-2 text-sm"><option value="PO">PO</option><option value="PSO">PSO</option></select>
                     <input value={poCode} onChange={(e) => setPoCode(e.target.value)} placeholder="PO1 / PSO1" className="rounded-xl border border-slate-300 px-3 py-2 text-sm" />
