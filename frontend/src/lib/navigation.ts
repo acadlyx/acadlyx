@@ -662,7 +662,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.structure.read"],
-    group: "Finance",
+    group: "Fee Management",
   },
   {
     label: "Fee Heads",
@@ -670,7 +670,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.structure.read"],
-    group: "Finance",
+    group: "Fee Management",
   },
   {
     label: "Invoices",
@@ -678,7 +678,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.invoice.read"],
-    group: "Finance",
+    group: "Billing",
   },
   {
     label: "Payments",
@@ -686,7 +686,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "₹",
     roles: ["ACCOUNTS"],
     permissions: ["fees.payment.read"],
-    group: "Finance",
+    group: "Collections",
   },
   {
     label: "Receipts",
@@ -694,7 +694,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.receipt.read"],
-    group: "Finance",
+    group: "Billing",
   },
   {
     label: "Dues & Outstanding",
@@ -702,7 +702,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "!",
     roles: ["ACCOUNTS"],
     permissions: ["fees.read"],
-    group: "Finance",
+    group: "Dues",
   },
   {
     label: "Collections",
@@ -710,7 +710,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▦",
     roles: ["ACCOUNTS"],
     permissions: ["fees.collection.read"],
-    group: "Finance",
+    group: "Collections",
   },
   {
     label: "Concessions",
@@ -718,7 +718,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "◇",
     roles: ["ACCOUNTS"],
     permissions: ["fees.concession.read"],
-    group: "Finance",
+    group: "Adjustments",
   },
   {
     label: "Refunds",
@@ -726,7 +726,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "↩",
     roles: ["ACCOUNTS"],
     permissions: ["fees.refund.read"],
-    group: "Finance",
+    group: "Adjustments",
   },
   {
     label: "Transactions",
@@ -734,7 +734,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.payment.read"],
-    group: "Finance",
+    group: "Collections",
   },
   {
     label: "Audit",
@@ -742,7 +742,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "◉",
     roles: ["ACCOUNTS"],
     permissions: ["fees.read"],
-    group: "Finance",
+    group: "Reporting",
   },
   {
     label: "Reports",
@@ -750,7 +750,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["ACCOUNTS"],
     permissions: ["fees.reports.read"],
-    group: "Finance",
+    group: "Reporting",
   },
 
   {
