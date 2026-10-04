@@ -476,7 +476,6 @@ model Program {
   updatedAt DateTime @updatedAt
 
   semesters Semester[]
-  feeStructures FeeStructure[]
   batches Batch[]
   programmeOutcomes ProgrammeOutcome[]
   obeAttainmentRuns ObeAttainmentRun[]
