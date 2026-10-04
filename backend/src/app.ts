@@ -96,7 +96,6 @@ export function createApp(): Application {
   );
 
   app.use(requestContext);
-  app.use(idempotency);
 
   app.use(
     cors({
@@ -151,10 +150,17 @@ export function createApp(): Application {
   }
 
   /*
-   * Mutation audit is registered after body parsing but before route
-   * authentication. The finish listener observes req.user after the
-   * route-level authenticate middleware has populated it, so every
-   * authenticated POST/PUT/PATCH/DELETE receives a baseline audit event.
+   * Mutation controls run after CORS/body parsing so idempotency fingerprints
+   * include the real request payload. They still run before route handlers,
+   * so duplicate mutations are stopped before business logic executes.
+   */
+  app.use(idempotency);
+
+  /*
+   * Mutation audit is registered before route authentication. Its finish
+   * listener observes req.user after route-level authentication has populated
+   * it, so every authenticated POST/PUT/PATCH/DELETE receives a baseline
+   * audit event.
    */
   app.use(mutationAudit);
 
