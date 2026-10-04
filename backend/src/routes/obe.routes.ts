@@ -27,8 +27,8 @@ router.use(authenticate, requireFeature("obe"));
 router.get("/course-offerings", authorize("obe.read"), controller.courseOfferings);
 
 router.get("/programs/:programId/outcomes", authorize("obe.read"), controller.programmeOutcomes);
-router.post("/programs/:programId/outcomes", authorize("obe.manage"), validateBody(createProgrammeOutcomeSchema), controller.createProgrammeOutcome);
-router.patch("/outcomes/:id", authorize("obe.manage"), validateBody(updateProgrammeOutcomeSchema), controller.updateProgrammeOutcome);
+router.post("/programs/:programId/outcomes", authorize("obe.programme-outcomes.manage"), validateBody(createProgrammeOutcomeSchema), controller.createProgrammeOutcome);
+router.patch("/outcomes/:id", authorize("obe.programme-outcomes.manage"), validateBody(updateProgrammeOutcomeSchema), controller.updateProgrammeOutcome);
 
 router.get("/courses/:courseId/outcomes", authorize("obe.read"), controller.courseOutcomes);
 router.post("/courses/:courseId/outcomes", authorize("obe.mapping.manage"), validateBody(createCourseOutcomeSchema), controller.createCourseOutcome);
