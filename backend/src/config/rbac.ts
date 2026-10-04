@@ -520,16 +520,6 @@ export const ROLE_PERMISSIONS: Record<
     "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
-    "reports.read",
-    "intelligence.read",
-
-    "fees.read",
-
-    "exams.read",
-    "results.read",
-
-    "operations.read",
-
     "audit.read",
   ],
 
