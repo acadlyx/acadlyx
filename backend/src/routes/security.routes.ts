@@ -147,7 +147,7 @@ router.post(
       expiresAt: issued.expiresAt,
       ...(issued.token ? { resetToken: issued.token } : {}),
     });
-  )
+  })
 );
 
 export default router;
