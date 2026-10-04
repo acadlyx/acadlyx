@@ -42,7 +42,7 @@ router.post(
         "If that address belongs to an account, a reset link has been sent.",
       expiresInMinutes: service.passwordResetTtlMinutes,
     });
-  })
+  )
 );
 
 router.post(
@@ -91,7 +91,7 @@ router.post(
         auditMeta(req)
       )
     )
-  })
+  )
 );
 
 router.post(
@@ -107,7 +107,7 @@ router.post(
         auditMeta(req)
       )
     )
-  })
+  )
 );
 
 router.post(
@@ -120,7 +120,7 @@ router.post(
         auditMeta(req)
       )
     )
-  })
+  )
 );
 
 router.post(
@@ -137,7 +137,7 @@ router.post(
         auditMeta(req)
       )
     )
-  })
+  )
 );
 
 router.post(
@@ -155,7 +155,7 @@ router.post(
       expiresAt: issued.expiresAt,
       ...(issued.token ? { resetToken: issued.token } : {}),
     });
-  })
+  )
 );
 
 export default router;
