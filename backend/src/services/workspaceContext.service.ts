@@ -154,7 +154,7 @@ async function buildWorkspaceContext(
     if (!program) throw new AppError("Program is not valid for the selected department", 404);
   }
 
-  const programs = await prisma.program.findMany({
+  const programsPromise = prisma.program.findMany({
     where: {
       institutionId,
       isActive: true,
@@ -171,7 +171,7 @@ async function buildWorkspaceContext(
     orderBy: { name: "asc" },
   });
 
-  const academicYears = await prisma.academicYear.findMany({
+  const academicYearsPromise = prisma.academicYear.findMany({
     where: {
       institutionId,
       ...(input.programId
@@ -182,7 +182,7 @@ async function buildWorkspaceContext(
     orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
   });
 
-  const semesters = await prisma.semester.findMany({
+  const semestersPromise = prisma.semester.findMany({
     where: {
       institutionId,
       isActive: true,
@@ -200,6 +200,12 @@ async function buildWorkspaceContext(
     },
     orderBy: { number: "asc" },
   });
+
+  const [programs, academicYears, semesters] = await Promise.all([
+    programsPromise,
+    academicYearsPromise,
+    semestersPromise,
+  ]);
 
   const selectedSemester = input.semesterId
     ? semesters.find((semester) => semester.id === input.semesterId) ?? null
