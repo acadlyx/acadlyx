@@ -99,6 +99,29 @@ async function uploadStream(input: Omit<import("./FileStorageProvider").StorageU
   });
 }
 
+async function uploadPath(input: Omit<import("./FileStorageProvider").StorageUploadInput, "buffer"> & { path: string; size?: number }): Promise<StorageObject> {
+  configure();
+  return new Promise((resolve, reject) => {
+    const resourceType = input.resourceType ?? "raw";
+    const visibility = input.visibility ?? "private";
+    cloudinary.uploader.upload_large(input.path, {
+      folder: input.folder, public_id: input.publicId, resource_type: resourceType,
+      type: visibility === "private" ? "authenticated" : "upload",
+      overwrite: input.overwrite ?? false, chunk_size: 20 * 1024 * 1024,
+      use_filename: !input.publicId, unique_filename: !input.publicId,
+      context: { original_filename: input.filename, mime_type: input.mimeType },
+    }, (error, result) => {
+      if (error || !result) return reject(error ?? new Error("Cloudinary upload failed"));
+      resolve({
+        provider: "cloudinary", publicId: result.public_id, url: result.url,
+        secureUrl: result.secure_url, resourceType: result.resource_type,
+        mimeType: input.mimeType, bytes: result.bytes ?? input.size ?? 0,
+        folder: result.folder ?? input.folder, visibility, format: result.format, version: result.version,
+      });
+    });
+  });
+}
+
 export const cloudinaryProvider: FileStorageProvider = {
   upload,
   uploadStream,
