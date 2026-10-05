@@ -386,7 +386,8 @@ export const payment = asyncHandler(async (req, res) => {
     user,
     req.params.id,
     req.body.amount,
-    req.body.reference
+    req.body.reference,
+    { idempotencyKey: req.body.idempotencyKey, method: req.body.method }
   );
 
   res.status(201).json({
