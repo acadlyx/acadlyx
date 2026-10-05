@@ -7,7 +7,7 @@ ALTER TABLE "library_issues" ADD COLUMN IF NOT EXISTS "note" TEXT;
 -- Seed a configurable baseline fee-head catalogue for every tenant. These
 -- are defaults, not a closed enum; administrators may add or deactivate heads.
 INSERT INTO "fee_heads" ("id","institutionId","name","code","description")
-SELECT md5(i."id" || d.code)::uuid, i."id", d.name, d.code, d.description
+SELECT md5(i."id" || ':' || d.code), i."id", d.name, d.code, d.description
 FROM "institutions" i
 CROSS JOIN (VALUES
   ('Tuition Fee','TUITION_FEE','Academic tuition'),
