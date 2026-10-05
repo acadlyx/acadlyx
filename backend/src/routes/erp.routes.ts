@@ -39,6 +39,7 @@ import {
   feeStructureCreateSchema,
   feeStructureListSchema,
   feeStructureUpdateSchema,
+  feeStructureAssignmentSchema,
 } from "../validators/feeStructure.validators";
 
 const router = Router();
@@ -232,21 +233,21 @@ router.delete(
 router.get(
   "/fee-heads",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.read"),
   validateQuery(feeStructureListSchema),
   feeController.listFeeHeads
 );
 router.post(
   "/fee-heads",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.manage"),
   validateBody(feeHeadCreateSchema),
   feeController.createFeeHead
 );
 router.patch(
   "/fee-heads/:id",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.manage"),
   validateParams(idParamSchema),
   validateBody(feeHeadUpdateSchema),
   feeController.updateFeeHead
@@ -256,24 +257,27 @@ router.patch(
 router.get(
   "/fee-structures",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.read"),
   validateQuery(feeStructureListSchema),
   feeController.listFeeStructures
 );
 router.post(
   "/fee-structures",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.manage"),
   validateBody(feeStructureCreateSchema),
   feeController.createFeeStructure
 );
 router.patch(
   "/fee-structures/:id",
   requireFeature("fees"),
-  authorize("fees.manage"),
+  authorize("fees.structure.manage"),
   validateParams(idParamSchema),
   validateBody(feeStructureUpdateSchema),
   feeController.updateFeeStructure
 );
+
+router.post("/fee-structures/:id/approve", requireFeature("fees"), authorize("fees.structure.approve"), validateParams(idParamSchema), feeController.approveFeeStructure);
+router.post("/fee-structures/:id/assign", requireFeature("fees"), authorize("fees.assign"), validateParams(idParamSchema), validateBody(feeStructureAssignmentSchema), feeController.assignFeeStructure);
 
 export default router;
