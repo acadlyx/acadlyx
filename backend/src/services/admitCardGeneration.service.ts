@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { AppError } from "../middleware/errorHandler";
 import { assertExaminationController } from "./workflowAuthority.service";
 import { generateStudentHallTicketPdf } from "./examination.service";
-import { enqueueJob, getJob, loadActiveJobActor } from "./backgroundJob.service";
+import { enqueueJob, getJob, loadActiveJobActor, requestCancellation } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { storeFileFromPath } from "./fileStorage.service";
 import { recordAuditLog } from "./audit.service";
@@ -137,6 +137,5 @@ export async function cancelAdmitCardGenerationJob(institutionId: string, actor:
   assertExaminationController(actor);
   const job = await getJob(institutionId, actor, id);
   if (job.type !== JOB_TYPES.ADMIT_CARD_GENERATION) throw new AppError("This is not an admit-card generation job.", 400);
-  const { requestCancellation } = await import("./backgroundJob.service");
   return requestCancellation(institutionId, actor, id);
 }
