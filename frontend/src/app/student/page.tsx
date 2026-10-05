@@ -15,6 +15,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
+import { listMyLoans, LibraryLoan } from "@/lib/libraryApi";
 import { StudentDashboardData } from "@/types/dashboard";
 
 function greeting() {
@@ -41,6 +42,7 @@ function ErrorState({ message, retry }: { message: string; retry: () => void }) 
 export default function StudentDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<StudentDashboardData | null>(null);
+  const [libraryLoans, setLibraryLoans] = useState<LibraryLoan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -48,7 +50,9 @@ export default function StudentDashboardPage() {
     setLoading(true); setError("");
     try {
       if (!isAuthenticated()) { router.replace("/login"); return; }
-      setData(await getMyDashboard());
+      const [dashboard, library] = await Promise.all([getMyDashboard(), listMyLoans()]);
+      setData(dashboard);
+      setLibraryLoans(library.items.filter((loan) => ["ISSUED", "RESERVED"].includes(loan.status)));
     } catch (err) {
       if (err instanceof AuthRequiredError) { router.replace("/login"); return; }
       setError(err instanceof Error ? err.message : "Unable to load your workspace.");
@@ -58,11 +62,11 @@ export default function StudentDashboardPage() {
   useEffect(() => { void load(); }, []);
 
   return <DashboardShell title="Student workspace" subtitle="Your classes, progress and next actions" allowedRoles={["STUDENT"]}>
-    {loading && !data ? <DashboardSkeleton /> : error && !data ? <ErrorState message={error} retry={load} /> : data ? <StudentDashboardContent data={data} /> : null}
+    {loading && !data ? <DashboardSkeleton /> : error && !data ? <ErrorState message={error} retry={load} /> : data ? <StudentDashboardContent data={data} libraryLoans={libraryLoans} /> : null}
   </DashboardShell>;
 }
 
-function StudentDashboardContent({ data }: { data: StudentDashboardData }) {
+function StudentDashboardContent({ data, libraryLoans }: { data: StudentDashboardData; libraryLoans: LibraryLoan[] }) {
   const { student, program, section, todaysClasses, assignments, announcements, upcomingEvents, academicHealth, academicRisk, recommendations, attendancePercentage } = data;
 
   return <div className="space-y-6">
@@ -82,6 +86,28 @@ function StudentDashboardContent({ data }: { data: StudentDashboardData }) {
       <DashboardCard title="Today's classes" action={<Link href="/student/timetable" className="text-xs font-bold text-blue-600 hover:text-blue-700">Weekly timetable</Link>}><ClassSchedule classes={todaysClasses} /></DashboardCard>
       <DashboardCard title="Assignments" action={<Link href="/student/assignments" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all</Link>}><AssignmentList assignments={assignments} /></DashboardCard>
     </div>
+
+    <DashboardCard title="Library" action={<Link href="/library" className="text-xs font-bold text-blue-600 hover:text-blue-700">Open library</Link>}>
+      {libraryLoans.length === 0 ? (
+        <p className="text-sm text-slate-500">No books are currently issued or reserved to you.</p>
+      ) : (
+        <div className="space-y-3">
+          {libraryLoans.slice(0, 5).map((loan) => (
+            <div key={loan.id} className="flex flex-col justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center">
+              <div>
+                <p className="font-semibold text-slate-900">{loan.book.title}</p>
+                <p className="text-xs text-slate-500">{loan.book.author}{loan.book.isbn ? ` · ISBN ${loan.book.isbn}` : ""}</p>
+              </div>
+              <div className="text-left sm:text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{loan.status}</p>
+                <p className="text-xs text-slate-500">Due {new Date(loan.dueDate).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
+          {libraryLoans.length > 5 && <p className="text-xs font-semibold text-slate-500">+{libraryLoans.length - 5} more active library records</p>}
+        </div>
+      )}
+    </DashboardCard>
 
     <div className="grid gap-6 xl:grid-cols-2">
       <DashboardCard title="Announcements"><AnnouncementList items={announcements.map((item) => ({ id: item.id, title: item.title, meta: item.postedLabel }))} emptyLabel="No announcements right now." /></DashboardCard>
