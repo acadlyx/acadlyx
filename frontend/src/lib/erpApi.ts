@@ -141,7 +141,7 @@ export interface ErpDocument {
  * the same tenant data during a single active browser session.
  */
 
-const CACHE_TTL_MS = 8_000;
+const CACHE_TTL_MS = 30_000;
 
 interface CacheEntry<T = unknown> {
   value: T;
