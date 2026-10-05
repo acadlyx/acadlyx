@@ -7,57 +7,65 @@ export interface LibraryStudentSearchFilters { department?: string; program?: st
 
 export async function searchLibraryStudents(institutionId: string, actor: AuthenticatedUser, filters: LibraryStudentSearchFilters) {
   if (!actor.permissions.includes("library.manage")) throw new AppError("Library student lookup requires circulation permission", 403);
-  const normalized = Object.fromEntries(Object.entries(filters).map(([key, value]) => [key, value?.trim() || undefined])) as LibraryStudentSearchFilters;
-  const search = normalized.search;
-  const programFilter: Prisma.ProgramWhereInput = {
-    ...(normalized.department ? { department: { OR: [{ name: { contains: normalized.department, mode: "insensitive" } }, { code: { contains: normalized.department, mode: "insensitive" } }] } } : {}),
-    ...(normalized.program ? { OR: [{ name: { contains: normalized.program, mode: "insensitive" } }, { code: { contains: normalized.program, mode: "insensitive" } }] } : {}),
-  };
-  const enrollment: Prisma.StudentEnrollmentWhereInput = {
-    institutionId,
-    status: "ACTIVE",
-    ...(Object.keys(programFilter).length ? { program: programFilter } : {}),
-    ...(normalized.session ? { academicYear: { name: { contains: normalized.session, mode: "insensitive" } } } : {}),
-    ...(normalized.semester ? { semester: { OR: [{ name: { contains: normalized.semester, mode: "insensitive" } }, ...(Number.isFinite(Number(normalized.semester)) ? [{ number: Number(normalized.semester) }] : [])] } } : {}),
-    ...(normalized.section ? { section: { name: { contains: normalized.section, mode: "insensitive" } } } : {}),
-  };
-  const where: Prisma.UserWhereInput = {
-    institutionId,
-    isActive: true,
-    userRoles: { some: { role: { name: "STUDENT", institutionId } } },
-    studentEnrollments: { some: enrollment },
-    ...(search ? { OR: [
-      { firstName: { contains: search, mode: "insensitive" } },
-      { lastName: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-      { profile: { admissionNumber: { contains: search, mode: "insensitive" } } },
-      { studentEnrollments: { some: { institutionId, rollNumber: { contains: search, mode: "insensitive" } } } },
-    ] } : {}),
-  };
-  const rows = await prisma.user.findMany({
-    where, take: 25, orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-    select: {
-      id: true, firstName: true, lastName: true,
-      profile: { select: { admissionNumber: true } },
-      studentEnrollments: { where: enrollment, take: 1, orderBy: [{ enrolledAt: "desc" }, { createdAt: "desc" }], select: {
-        rollNumber: true,
-        program: { select: { name: true, code: true, department: { select: { name: true, code: true } } } },
-        academicYear: { select: { name: true } },
-        semester: { select: { number: true, name: true } },
-        section: { select: { name: true } },
-      } },
-    },
-  });
-  return rows.map((student) => {
-    const current = student.studentEnrollments[0];
-    return { id: student.id, label: `${student.firstName} ${student.lastName}`.trim(), hint: [
-      student.profile?.admissionNumber ? `Enrollment ${student.profile.admissionNumber}` : null,
-      current?.rollNumber ? `Roll ${current.rollNumber}` : null,
-      current?.program ? `${current.program.code} · ${current.program.name}` : null,
-      current?.program?.department ? `${current.program.department.code} · ${current.program.department.name}` : null,
-      current?.academicYear?.name,
-      current?.semester ? `Semester ${current.semester.number}` : null,
-      current?.section ? `Section ${current.section.name}` : null,
-    ].filter(Boolean).join(" · ") };
-  });
+  const value = (input?: string) => input?.trim() || undefined;
+  const search = value(filters.search);
+  const department = value(filters.department);
+  const program = value(filters.program);
+  const session = value(filters.session);
+  const semester = value(filters.semester);
+  const section = value(filters.section);
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`u."institutionId" = ${institutionId}`,
+    Prisma.sql`u."isActive" = TRUE`,
+    Prisma.sql`EXISTS (SELECT 1 FROM "user_roles" ur JOIN "roles" r ON r."id"=ur."roleId" WHERE ur."userId"=u."id" AND r."name"='STUDENT' AND r."institutionId"=${institutionId})`,
+    Prisma.sql`e."institutionId"=${institutionId} AND e."status"='ACTIVE'`,
+  ];
+  if (department) conditions.push(Prisma.sql`(d."name" ILIKE ${`%${department}%`} OR d."code" ILIKE ${`%${department}%`})`);
+  if (program) conditions.push(Prisma.sql`(p."name" ILIKE ${`%${program}%`} OR p."code" ILIKE ${`%${program}%`})`);
+  if (session) conditions.push(Prisma.sql`ay."name" ILIKE ${`%${session}%`}`);
+  if (semester) {
+    const number = Number(semester);
+    conditions.push(Number.isFinite(number) ? Prisma.sql`(sem."name" ILIKE ${`%${semester}%`} OR sem."number"=${number})` : Prisma.sql`sem."name" ILIKE ${`%${semester}%`}`);
+  }
+  if (section) conditions.push(Prisma.sql`sec."name" ILIKE ${`%${section}%`}`);
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(Prisma.sql`(u."firstName" ILIKE ${like} OR u."lastName" ILIKE ${like} OR u."email" ILIKE ${like} OR sp."admissionNumber" ILIKE ${like} OR e."rollNumber" ILIKE ${like})`);
+  }
+
+  const rows = await prisma.$queryRaw<Array<{
+    id: string; firstName: string; lastName: string; admissionNumber: string | null; rollNumber: string | null;
+    departmentCode: string; departmentName: string; programCode: string; programName: string; sessionName: string;
+    semesterNumber: number; sectionName: string;
+  }>>(Prisma.sql`
+    SELECT u."id",u."firstName",u."lastName",sp."admissionNumber",e."rollNumber",
+      d."code" AS "departmentCode",d."name" AS "departmentName",
+      p."code" AS "programCode",p."name" AS "programName",ay."name" AS "sessionName",
+      sem."number" AS "semesterNumber",sec."name" AS "sectionName"
+    FROM "users" u
+    JOIN "student_enrollments" e ON e."userId"=u."id"
+    JOIN "programs" p ON p."id"=e."programId"
+    JOIN "departments" d ON d."id"=p."departmentId"
+    LEFT JOIN "academic_years" ay ON ay."id"=e."academicYearId"
+    LEFT JOIN "semesters" sem ON sem."id"=e."semesterId"
+    LEFT JOIN "sections" sec ON sec."id"=e."sectionId"
+    LEFT JOIN "student_profiles" sp ON sp."userId"=u."id"
+    WHERE ${Prisma.join(conditions, " AND ")}
+    ORDER BY u."firstName" ASC,u."lastName" ASC
+    LIMIT 25
+  `);
+
+  return rows.map((row) => ({
+    id: row.id,
+    label: `${row.firstName} ${row.lastName}`.trim(),
+    hint: [
+      row.admissionNumber ? `Enrollment ${row.admissionNumber}` : null,
+      row.rollNumber ? `Roll ${row.rollNumber}` : null,
+      `${row.programCode} · ${row.programName}`,
+      `${row.departmentCode} · ${row.departmentName}`,
+      row.sessionName,
+      `Semester ${row.semesterNumber}`,
+      `Section ${row.sectionName}`,
+    ].filter(Boolean).join(" · "),
+  }));
 }
