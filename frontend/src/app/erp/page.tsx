@@ -2042,12 +2042,22 @@ event.preventDefault();
                     </p>
                   </div>
 
-                  <p className="font-bold">
-                    {money(
-                      structure.totalAmount,
-                      structure.currency
-                    )}
-                  </p>
+                  <div className="text-right">
+                    <p className="font-bold">
+                      {money(
+                        structure.totalAmount,
+                        structure.currency
+                      )}
+                    </p>
+                    <div className="mt-2 flex justify-end gap-2">
+                      {can(["fees.structure.approve"]) && structure.status === "DRAFT" && (
+                        <button type="button" onClick={() => void run(() => approveFeeStructure(structure.id), "Fee structure approved")} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">Approve</button>
+                      )}
+                      {can(["fees.assign"]) && structure.status === "ACTIVE" && (
+                        <button type="button" onClick={() => void run(() => assignFeeStructure(structure.id), "Fees assigned to eligible students")} className="rounded-lg bg-slate-950 px-3 py-1 text-xs font-semibold text-white">Assign to eligible students</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-3 space-y-1 text-xs text-slate-600">
