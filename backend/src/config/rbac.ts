@@ -257,6 +257,8 @@ export const PERMISSIONS = [
   { key: "library.read", module: "library", description: "Browse library catalogue" },
   { key: "library.borrow", module: "library", description: "Use personal library services" },
   { key: "library.manage", module: "library", description: "Manage library catalogue and circulation" },
+  { key: "library.fines.waive.request", module: "library", description: "Request library fine waivers" },
+  { key: "library.fines.waive.approve", module: "library", description: "Approve library fine waivers" },
 
   { key: "calendar.read", module: "calendar", description: "View academic calendar" },
   { key: "calendar.manage", module: "calendar", description: "Manage academic calendar" },
@@ -647,6 +649,7 @@ export const ROLE_PERMISSIONS: Record<
     "attendance.lock",
 
     "fees.approve",
+    "library.fines.waive.approve",
 
     "audit.read",
   ],
@@ -1015,6 +1018,7 @@ export const ROLE_PERMISSIONS: Record<
     "library.read",
     "library.borrow",
     "library.manage",
+    "library.fines.waive.request",
 
     "notifications.read",
 
