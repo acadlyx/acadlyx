@@ -5,6 +5,9 @@ import { authenticate } from "../middleware/authenticate";
 import { requireFeature } from "../middleware/requireFeature";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
 import { IMPORT_PERMISSION_BY_TYPE } from "../services/import.service";
+import { getOwnedJob, requestCancellation } from "../services/backgroundJob.service";
+import { validateParams } from "../middleware/validate";
+import { idParams } from "../validators/common";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -12,6 +15,23 @@ router.use(
   authenticate,
   requireFeature("import_export")
 );
+
+
+router.get("/jobs/:id", validateParams(idParams), async (req, res, next) => {
+  try {
+    const job = await getOwnedJob(req.user!.institutionId!, req.user!, req.params.id);
+    res.json({ success: true, data: job });
+  } catch (error) { next(error); }
+});
+
+router.post("/jobs/:id/cancel", validateParams(idParams), async (req, res, next) => {
+  try {
+    const job = await getOwnedJob(req.user!.institutionId!, req.user!, req.params.id);
+    if (job.type !== "BULK_IMPORT") return res.status(400).json({ success: false, error: { code: "INVALID_JOB_TYPE", message: "This is not a bulk import job." }});
+    const updated = await requestCancellation(req.user!.institutionId!, req.user!, req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (error) { next(error); }
+});
 
 function authorizeImportType(
   req: Parameters<import("express").RequestHandler>[0],
