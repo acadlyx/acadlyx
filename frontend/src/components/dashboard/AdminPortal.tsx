@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AuthRequiredError,
   AuthUser,
   getCachedCurrentUser,
 } from "@/lib/auth";
