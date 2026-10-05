@@ -204,15 +204,6 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
     attendanceByStudent.set(row.studentId, byCourse);
   }
 
-  const assignmentsByStudent = new Map<string, typeof assignments>();
-  for (const assignment of assignments) {
-    for (const submission of assignment.submissions) {
-      const list = assignmentsByStudent.get(submission.studentId) ?? [];
-      list.push(assignment);
-      assignmentsByStudent.set(submission.studentId, list);
-    }
-  }
-
   const marksByStudent = new Map(marks.map((row) => [row.studentId, row]));
   const skillsByStudent = new Map(skills.map((row) => [row.studentId, row._count._all]));
   const result = students.map((student) => {
@@ -221,14 +212,24 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
     const sessions = [...byCourse.values()].reduce((n, x) => n + x.total, 0);
     const attendanceScore = sessions ? round((present / sessions) * 100) : 0;
 
-    const studentAssignments = assignments.filter(
+    const studentAssignments = assignments.filter((assignment) =>
+      assignment.courseOffering.section.studentEnrollments.some(
+        (enrollment) => enrollment.userId === student.id,
+      ),
+    );
+    const overdue = studentAssignments.filter(
       (assignment) =>
         assignment.dueDate < now &&
-        !assignment.submissions.some((submission) => submission.studentId === student.id),
+        !assignment.submissions.some(
+          (submission) => submission.studentId === student.id,
+        ),
     );
-    const overdue = studentAssignments;
-    const assignmentScore = assignments.length
-      ? round(((assignments.length - overdue.length) / assignments.length) * 100)
+    const assignmentScore = studentAssignments.length
+      ? round(
+          ((studentAssignments.length - overdue.length) /
+            studentAssignments.length) *
+            100,
+        )
       : 100;
 
     const mark = marksByStudent.get(student.id);
