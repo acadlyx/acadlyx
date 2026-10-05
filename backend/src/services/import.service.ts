@@ -344,7 +344,8 @@ export async function commit(
   const rows = parseWorkbook(buffer).rows;
   if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
 
-  // Safe ERP default: bulk mutations are atomic unless an operator explicitly opts into partial mode.\n  const mode = options.mode === "partial" ? "partial" : "atomic";
+  // Safe ERP default: bulk mutations are atomic unless an operator explicitly opts into partial mode.
+  const mode = options.mode === "partial" ? "partial" : "atomic";
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
 
@@ -386,6 +387,7 @@ export async function commit(
     return result;
     }
 
+    await recordAuditLog({ institutionId, userId: actor.id, action: "import.commit", entityType: "Import", metadata: { type, mode, totalRows: rows.length, imported, failed: 0, rolledBack: false } });
     return { mode, imported, failed: 0, rolledBack: false, errors: [] };
   }
 
