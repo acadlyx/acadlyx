@@ -12,6 +12,7 @@ const POLL_MS = Number(process.env.JOB_POLL_MS || 1000);
 const HEARTBEAT_MS = Number(process.env.JOB_HEARTBEAT_MS || 15000);
 const STALE_MS = Number(process.env.JOB_STALE_MS || 120000);
 const CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.JOB_CONCURRENCY || 2)));
+const SHUTDOWN_TIMEOUT_MS = Math.max(10_000, Math.min(110_000, Number(process.env.JOB_SHUTDOWN_TIMEOUT_MS || 110_000)));
 let stopping = false;
 const active = new Set<Promise<void>>();
 
@@ -76,7 +77,7 @@ async function shutdown(signal: string) {
   logger.info("Background worker shutting down", { signal, workerId });
   await Promise.race([
     Promise.allSettled([...active]),
-    new Promise(resolve => setTimeout(resolve, 25_000)),
+    new Promise(resolve => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS)),
   ]);
   await prisma.$disconnect();
   process.exit(0);
