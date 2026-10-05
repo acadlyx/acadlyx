@@ -7,6 +7,7 @@ export const LOAN_STATUSES = [
   "ISSUED",
   "RETURNED",
   "LOST",
+  "DAMAGED",
   "OVERDUE",
 ] as const;
 export type LoanStatus = (typeof LOAN_STATUSES)[number];
