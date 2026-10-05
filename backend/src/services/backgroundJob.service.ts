@@ -76,12 +76,12 @@ export async function requestCancellation(institutionId: string, actor: Authenti
 
 export async function claimNextJob(workerId: string) {
   return prisma.$transaction(async tx => {
-    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql\x60
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id" FROM "background_jobs"
       WHERE "status" = 'QUEUED' AND "availableAt" <= CURRENT_TIMESTAMP
       ORDER BY "priority" ASC, "createdAt" ASC
       FOR UPDATE SKIP LOCKED LIMIT 1
-    \x60);
+    `);
     if (!rows[0]) return null;
     const updated = await tx.backgroundJob.updateMany({
       where: { id: rows[0].id, status: JOB_STATUS.QUEUED },
