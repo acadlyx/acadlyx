@@ -109,6 +109,7 @@ export interface AuthUser {
   lastName: string;
   roles: string[];
   permissions: string[];
+  tenantFeatures?: string[];
 }
 
 interface ApiEnvelope<T> {
