@@ -1426,7 +1426,7 @@ model LibraryBook {
   institutionId  String
   institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   title          String
-  author         String
+  author         String?
   publisher      String?
   isbn           String?
   category       String?
@@ -1451,7 +1451,7 @@ model LibraryIssue {
   book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
   borrowerId    String
   borrower      User @relation("LibraryBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
-  issuedById    String
+  issuedById    String?
   issuedAt      DateTime @default(now())
   dueDate       DateTime
   returnedAt    DateTime?
