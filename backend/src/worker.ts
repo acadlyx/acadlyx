@@ -73,7 +73,10 @@ async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   logger.info("Background worker shutting down", { signal, workerId });
-  await Promise.allSettled([...active]);
+  await Promise.race([
+    Promise.allSettled([...active]),
+    new Promise(resolve => setTimeout(resolve, 25_000)),
+  ]);
   await prisma.$disconnect();
   process.exit(0);
 }
