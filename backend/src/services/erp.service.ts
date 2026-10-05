@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { getManagementWorkspace } from "./managementWorkspace.service";
+import { getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
 
 const MANAGEMENT_ROLES = [
   "SUPER_ADMIN",
@@ -307,32 +308,17 @@ async function getHodDepartments(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  if (!actor.roles.includes("HOD")) {
-    return [];
-  }
-
-  const access =
-    await prisma.departmentAccess.findMany({
-      where: {
-        userId: actor.id,
-        department: {
-          institutionId,
-        },
-      },
-      select: {
-        departmentId: true,
-        scope: true,
-        department: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-      },
-    });
-
-  return access;
+  if (!hasAnyRole(actor, ["HOD"])) return [];
+  const ids = await getManagedDepartmentIds(institutionId, actor.id);
+  if (!ids.length) return [];
+  return prisma.department.findMany({
+    where: { institutionId, id: { in: ids }, isActive: true },
+    select: { id: true, name: true, code: true },
+  }).then(rows => rows.map(department => ({
+    departmentId: department.id,
+    scope: "HOD",
+    department,
+  })));
 }
 
 export async function getMyWorkspace(
@@ -2175,10 +2161,9 @@ export async function listTimetableEntries(
     "FACULTY",
   ]);
 
-  const hodDepartmentIds = await getHodDepartmentIds(
-    institutionId,
-    actor
-  );
+  const hodDepartmentIds = actor.roles.includes("HOD")
+    ? await getManagedDepartmentIds(institutionId, actor.id)
+    : [];
 
   return prisma.timetableEntry.findMany({
     where: {
