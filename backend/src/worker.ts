@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
-import { prisma } from "../lib/prisma";
-import { logger } from "../utils/logger";
-import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, recoverStaleJobs, isCancellationRequested, updateJobProgress } from "../services/backgroundJob.service";
-import { getJobHandler } from "./registry";
+import { prisma } from "./lib/prisma";
+import { logger } from "./utils/logger";
+import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, recoverStaleJobs, isCancellationRequested, updateJobProgress } from "./services/backgroundJob.service";
+import { getJobHandler } from "./jobs/registry";
 import "./handlers/admitCard.handler";
 import "./handlers/import.handler";
 import "./handlers/result.handler";
