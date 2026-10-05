@@ -3,7 +3,7 @@ import multer from "multer";
 import * as controller from "../controllers/import.controller";
 import { authenticate } from "../middleware/authenticate";
 import { requireFeature } from "../middleware/requireFeature";
-import { requireAuthenticatedUser } from "../utils/requireInstitution";
+import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import { IMPORT_PERMISSION_BY_TYPE } from "../services/import.service";
 import { getOwnedJob, requestCancellation } from "../services/backgroundJob.service";
 import { validateParams } from "../middleware/validate";
@@ -19,7 +19,7 @@ router.use(
 
 router.get("/jobs/:id", validateParams(idParams), async (req, res, next) => {
   try {
-    const job = await getOwnedJob(req.user!.institutionId!, req.user!, req.params.id);
+    const job = await getOwnedJob(requireInstitution(req), req.user!, req.params.id);
     res.json({ success: true, data: job });
   } catch (error) { next(error); }
 });
