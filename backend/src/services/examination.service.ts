@@ -41,7 +41,7 @@ import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
  * continue to read from one source of truth.
  */
 
-const EXAM_TYPES = ["REGULAR", "SUPPLEMENTARY", "REVALUATION", "IMPROVEMENT"] as const;
+const EXAM_TYPES = ["REGULAR", "MID_SEMESTER", "INTERNAL_ASSESSMENT", "END_SEMESTER", "SEMESTER", "PRACTICAL", "VIVA", "UNIVERSITY", "SUPPLEMENTARY", "BACK_PAPER", "IMPROVEMENT", "REAPPEAR", "MAKE_UP", "SPECIAL", "REVALUATION"] as const;
 const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISHED", "CANCELLED"] as const;
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
@@ -229,13 +229,18 @@ export async function createExamSession(
       INSERT INTO "exam_sessions"
         ("id", "institutionId", "academicYearId", "semesterId", "name", "code",
          "examType", "status", "startDate", "endDate", "hallTicketReleaseAt",
-         "instructions", "createdById")
+         "instructions", "createdById", "campusIds", "departmentIds",
+         "programIds", "semesterIds", "sectionIds")
       VALUES
         (${id}, ${institutionId}, ${input.academicYearId ?? null},
          ${input.semesterId ?? null}, ${input.name.trim()}, ${code},
          ${input.examType}, 'DRAFT', ${input.startDate}, ${input.endDate},
          ${input.hallTicketReleaseAt ?? null}, ${input.instructions ?? null},
-         ${actor.id})
+         ${actor.id}, ${JSON.stringify(input.campusIds ?? [])}::jsonb,
+         ${JSON.stringify(input.departmentIds ?? [])}::jsonb,
+         ${JSON.stringify(input.programIds ?? [])}::jsonb,
+         ${JSON.stringify(input.semesterIds ?? [])}::jsonb,
+         ${JSON.stringify(input.sectionIds ?? [])}::jsonb)
     `;
   } catch (error) {
     if (
