@@ -1172,6 +1172,23 @@ export async function updateFeeStructure(
   return response.data;
 }
 
+export async function approveFeeStructure(id: string) {
+  const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
+    `/erp/fee-structures/${id}/approve`, { method: "POST" }
+  );
+  invalidateFeeData();
+  return response.data;
+}
+
+export async function assignFeeStructure(id: string, studentIds?: string[]) {
+  const response = await authedFetch<ApiEnvelope<{ structureId: string; generated: number; skipped: number; studentCount?: number }>>(
+    `/erp/fee-structures/${id}/assign`,
+    { method: "POST", body: JSON.stringify({ studentIds }) }
+  );
+  invalidateFeeData();
+  return response.data;
+}
+
 /*
  * ---------------------------------------------------------------------------
  * NOTIFICATIONS
