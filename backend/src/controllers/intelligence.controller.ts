@@ -5,10 +5,12 @@ import * as career from "../services/careerIntelligence.service";
 import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
+import { getDirectorDepartmentIds } from "../services/accessScope.service";
 
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
 async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
-  if (roles.some(r => ["CHAIRMAN", "DIRECTOR", "DEAN", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
+  if (roles.some(r => ["CHAIRMAN", "MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
+  if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, userId);
   return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
 }
 function canReadOther(req: Request) { return user(req).permissions.includes("intelligence.read"); }
@@ -45,7 +47,7 @@ export const commandCenter = asyncHandler(async (req, res) => {
   const requestedDepartment = typeof req.query.departmentId === "string" ? req.query.departmentId : undefined;
   if (requestedDepartment && allowed && !allowed.includes(requestedDepartment)) throw new AppError("Department not authorized", 403);
   const departmentId = requestedDepartment || (allowed?.length === 1 ? allowed[0] : undefined);
-  if (allowed && !departmentId) throw new AppError("A department scope is required for this account", 403);
+  if (allowed && !departmentId) throw new AppError("A department or campus scope is required for this account", 403);
   const parseDate = (value: unknown) => {
     if (typeof value !== "string") return undefined;
     const date = new Date(value);
@@ -57,44 +59,16 @@ export const commandCenter = asyncHandler(async (req, res) => {
 
   if (programId || semesterId) {
     const [program, semester] = await Promise.all([
-      programId
-        ? prisma.program.findFirst({
-            where: { id: programId, institutionId },
-            select: { id: true, departmentId: true },
-          })
-        : Promise.resolve(null),
-      semesterId
-        ? prisma.semester.findFirst({
-            where: { id: semesterId, institutionId },
-            select: { id: true, programId: true },
-          })
-        : Promise.resolve(null),
+      programId ? prisma.program.findFirst({ where: { id: programId, institutionId }, select: { id: true, departmentId: true } }) : Promise.resolve(null),
+      semesterId ? prisma.semester.findFirst({ where: { id: semesterId, institutionId }, select: { id: true, programId: true } }) : Promise.resolve(null),
     ]);
-
-    if (programId && !program) {
-      throw new AppError("Program not authorized", 403);
-    }
-
-    if (semesterId && !semester) {
-      throw new AppError("Semester not authorized", 403);
-    }
-
-    if (departmentId && program && program.departmentId !== departmentId) {
-      throw new AppError("Program does not belong to the selected department", 400);
-    }
-
-    if (program && semester && program.id !== semester.programId) {
-      throw new AppError("Semester does not belong to the selected program", 400);
-    }
-
+    if (programId && !program) throw new AppError("Program not authorized", 403);
+    if (semesterId && !semester) throw new AppError("Semester not authorized", 403);
+    if (departmentId && program && program.departmentId !== departmentId) throw new AppError("Program does not belong to the selected department", 400);
+    if (program && semester && program.id !== semester.programId) throw new AppError("Semester does not belong to the selected program", 400);
     if (departmentId && semester && !program) {
-      const semesterProgram = await prisma.program.findFirst({
-        where: { id: semester.programId, institutionId },
-        select: { departmentId: true },
-      });
-      if (!semesterProgram || semesterProgram.departmentId !== departmentId) {
-        throw new AppError("Semester does not belong to the selected department", 400);
-      }
+      const semesterProgram = await prisma.program.findFirst({ where: { id: semester.programId, institutionId }, select: { departmentId: true } });
+      if (!semesterProgram || semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
     }
   }
 
