@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as marksController from "../controllers/internalMark.controller";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
+import { authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
@@ -22,7 +22,7 @@ router.get(
 );
 router.post(
   "/",
-  authorize("marks.enter"),
+  authorizeWorkflow("marks.enter"),
   validateBody(enterMarksSchema),
   marksController.enter
 );
