@@ -739,6 +739,69 @@ export async function createNotice(
  * ---------------------------------------------------------------------------
  */
 
+export interface ErpExamOption {
+  id: string;
+  title: string;
+  examDate: string;
+  courseCode: string;
+  courseName: string;
+  sectionName: string | null;
+}
+
+export async function listExams(courseOfferingId?: string): Promise<ErpExamOption[]> {
+  const qs = courseOfferingId
+    ? `?courseOfferingId=${encodeURIComponent(courseOfferingId)}`
+    : "";
+  const response = await authedFetch<ApiEnvelope<Array<{
+    id: string;
+    title: string;
+    examDate: string;
+    courseOffering?: {
+      course?: { code?: string; name?: string };
+      section?: { name?: string } | null;
+    };
+  }>>>(`/erp/exams${qs}`);
+  return response.data.map((exam) => ({
+    id: exam.id,
+    title: exam.title,
+    examDate: exam.examDate,
+    courseCode: exam.courseOffering?.course?.code || "",
+    courseName: exam.courseOffering?.course?.name || "",
+    sectionName: exam.courseOffering?.section?.name || null,
+  }));
+}
+
+export interface ErpInvoiceOption {
+  id: string;
+  invoiceNumber: string | null;
+  title: string;
+  amount: number;
+  status: string;
+  studentName: string;
+}
+
+export async function listInvoices(studentId?: string): Promise<ErpInvoiceOption[]> {
+  const qs = studentId
+    ? `?studentId=${encodeURIComponent(studentId)}`
+    : "";
+  const response = await authedFetch<ApiEnvelope<Array<{
+    id: string;
+    invoiceNumber?: string | null;
+    title: string;
+    amount: number;
+    status: string;
+    student?: { firstName?: string; lastName?: string };
+  }>>>(`/erp/fee-invoices${qs}`);
+  return response.data.map((invoice) => ({
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber || null,
+    title: invoice.title,
+    amount: invoice.amount,
+    status: invoice.status,
+    studentName: [invoice.student?.firstName, invoice.student?.lastName].filter(Boolean).join(" "),
+  }));
+}
+
 export async function createExam(
   input: {
     courseOfferingId: string;
