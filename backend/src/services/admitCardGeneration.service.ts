@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { AppError } from "../middleware/errorHandler";
 import { assertExaminationController } from "./workflowAuthority.service";
 import { generateStudentHallTicketPdf } from "./examination.service";
-import { enqueueJob, getJob } from "./backgroundJob.service";
+import { enqueueJob, getJob, loadActiveJobActor } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { storeFileFromPath } from "./fileStorage.service";
 import { recordAuditLog } from "./audit.service";
@@ -53,20 +53,6 @@ async function finishZip(path: string, entries: Array<{ name: string; offset: nu
   ]));
 }
 
-async function loadWorkerActor(institutionId: string, userId: string): Promise<AuthenticatedUser> {
-  const user = await prisma.user.findFirst({
-    where: { id: userId, institutionId, isActive: true, deletedAt: null },
-    include: { userRoles: { include: { role: true } } },
-  });
-  if (!user) throw new AppError("The job creator is no longer an active institutional user.", 409);
-  return {
-    id: user.id, institutionId: user.institutionId, email: user.email, idNumber: user.idNumber,
-    firstName: user.firstName, lastName: user.lastName,
-    roles: user.userRoles.map(x => x.role.name),
-    permissions: [],
-  };
-}
-
 export async function enqueueBulkAdmitCardsZip(institutionId: string, actor: AuthenticatedUser, examSessionId: string) {
   assertExaminationController(actor);
   const rows = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
@@ -91,7 +77,7 @@ export async function processBulkAdmitCardsJob(ctx: {
 }) {
   const examSessionId = typeof ctx.payload.examSessionId === "string" ? ctx.payload.examSessionId : "";
   if (!examSessionId) throw new AppError("Admit-card job payload is invalid.", 400);
-  const actor = await loadWorkerActor(ctx.institutionId, ctx.createdById);
+  const actor = await loadActiveJobActor(ctx.institutionId, ctx.createdById);
   assertExaminationController(actor);
   const students = await prisma.$queryRaw<Array<{ studentId: string; serialNumber: string }>>(Prisma.sql`
     SELECT "studentId","serialNumber" FROM "hall_tickets"
