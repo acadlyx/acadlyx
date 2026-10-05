@@ -36,6 +36,7 @@ export const CANONICAL_ROLES = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
@@ -62,10 +63,7 @@ export type CanonicalRole = (typeof CANONICAL_ROLES)[number];
  *
  * They are NOT separate authority models.
  */
-export const LEGACY_ROLE_ALIASES: Record<string, CanonicalRole> = {
-  MANAGEMENT: "CHAIRMAN",
-  STAFF: "ACCOUNTS",
-};
+export const LEGACY_ROLE_ALIASES: Record<string, CanonicalRole> = {};
 
 export function normalizeRole(role: string): string {
   const normalized = role.trim().toUpperCase();
