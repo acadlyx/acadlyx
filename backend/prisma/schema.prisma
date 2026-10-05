@@ -1207,6 +1207,12 @@ model FeeInvoice {
   notes             String?
   cancelledAt       DateTime?
   createdById       String?
+  sourceModule      String?
+  sourceType        String?
+  sourceEntityId    String?
+  sourceEventKey    String?
+  libraryIssueId    String?
+  libraryIssue      LibraryIssue? @relation(fields: [libraryIssueId], references: [id], onDelete: SetNull)
 
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
@@ -1216,6 +1222,7 @@ model FeeInvoice {
   concessions   FeeConcession[]
   refunds       FeeRefund[]
   receipts      FeeReceipt[]
+  libraryFines  LibraryFine[]
 
   @@unique([institutionId, invoiceNumber])
   @@unique([institutionId, sourceEventKey])
