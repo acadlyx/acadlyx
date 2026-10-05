@@ -1,4 +1,6 @@
 import { env } from "../config/env";
+import { createReadStream } from "fs";
+import { stat } from "fs/promises";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { cloudinaryProvider } from "../storage/cloudinary.provider";
@@ -178,6 +180,55 @@ export async function storeFile(input: {
     referenceId: created.referenceId,
     visibility: created.visibility as "public" | "private",
     originalName: created.originalName,
+  };
+}
+
+
+export async function storeFileFromPath(input: {
+  institutionId: string;
+  module: string;
+  path: string;
+  filename: string;
+  mimeType: string;
+  ownerId?: string;
+  referenceId?: string;
+  visibility?: "public" | "private";
+  resourceType?: "image" | "video" | "raw" | "auto";
+}): Promise<StoredFile> {
+  const fileStat = await stat(input.path);
+  if (!fileStat.isFile() || fileStat.size <= 0) throw new AppError("Generated file is empty", 422);
+  if (fileStat.size > MAX_FILE_BYTES) throw new AppError("Generated file exceeds the 25 MB limit", 413);
+  const folder = buildTenantFolder(input.institutionId, input.module, input.ownerId);
+  const allowed = MODULE_MIME_ALLOWLIST[input.module];
+  if (!allowed) throw new AppError("Unsupported storage module", 400);
+  validateAllowedMime(input.mimeType, allowed);
+  let uploaded: StorageObject;
+  try {
+    uploaded = await provider().uploadStream({
+      stream: createReadStream(input.path),
+      size: fileStat.size,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      folder,
+      visibility: input.visibility ?? "private",
+      resourceType: input.resourceType ?? "raw",
+    });
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : "File upload failed", 502);
+  }
+  const created = await prisma.fileAsset.create({ data: {
+    provider: uploaded.provider, publicId: uploaded.publicId, url: uploaded.secureUrl,
+    resourceType: uploaded.resourceType, size: uploaded.bytes, mimeType: uploaded.mimeType,
+    folder: uploaded.folder, institutionId: input.institutionId, ownerId: input.ownerId ?? null,
+    module: input.module, referenceId: input.referenceId ?? null,
+    visibility: uploaded.visibility, originalName: input.filename,
+  }});
+  return {
+    id: created.id, provider: created.provider, publicId: created.publicId, url: created.url,
+    secureUrl: created.url, resourceType: created.resourceType, size: created.size,
+    mimeType: created.mimeType, folder: created.folder, institutionId: created.institutionId,
+    ownerId: created.ownerId, module: created.module, referenceId: created.referenceId,
+    visibility: created.visibility as "public" | "private", originalName: created.originalName,
   };
 }
 
