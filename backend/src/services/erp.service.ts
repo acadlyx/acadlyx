@@ -1959,112 +1959,127 @@ export async function recordPayment(
   actor: AuthenticatedUser,
   invoiceId: string,
   amount: number,
-  reference?: string
+  reference?: string,
+  options?: { idempotencyKey?: string; method?: string }
 ) {
-  if (
-    !Number.isFinite(amount) ||
-    amount <= 0
-  ) {
-    throw new AppError(
-      "Payment amount must be greater than zero",
-      400
-    );
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new AppError("Payment amount must be greater than zero", 400);
+  }
+  if (!actor.permissions.includes("fees.payment.record") && !actor.permissions.includes("fees.pay")) {
+    throw new AppError("Only authorized finance users may record payments", 403);
   }
 
-  const invoice =
-    await prisma.feeInvoice.findFirst({
-      where: {
-        id: invoiceId,
-        institutionId,
-      },
-    });
+  const invoice = await prisma.feeInvoice.findFirst({
+    where: { id: invoiceId, institutionId },
+    select: { id: true, studentId: true, amount: true, status: true },
+  });
+  if (!invoice) throw new AppError("Invoice not found", 404);
+  await assertStudentScope(institutionId, actor, invoice.studentId);
 
-  if (!invoice) {
-    throw new AppError(
-      "Invoice not found",
-      404
-    );
-  }
+  const idempotencyKey = options?.idempotencyKey?.trim() || undefined;
+  const method = options?.method?.trim().toUpperCase() || "OFFLINE";
 
-  await assertStudentScope(
-    institutionId,
-    actor,
-    invoice.studentId
-  );
-
-  /*
-   * Payments are money movements. Only the finance desk (institution admin
-   * or staff) may record them; a student or parent must never be able to
-   * mark their own invoice as paid. Online payments require a verified
-   * gateway callback, which is out of scope for this endpoint.
-   */
-  if (
-    !actor.roles.some((role) =>
-      ["INSTITUTION_ADMIN", "ACCOUNTS"].includes(role)
-    )
-  ) {
-    throw new AppError(
-      "Only finance staff can record fee payments",
-      403
-    );
-  }
-
-  let payment;
   try {
-    payment = await prisma.$transaction(async (tx) => {
-      const currentInvoice = await tx.feeInvoice.findFirst({
+    const result = await prisma.$transaction(async (tx) => {
+      if (idempotencyKey) {
+        const prior = await tx.feePayment.findFirst({
+          where: { institutionId, idempotencyKey },
+          include: { receipt: true },
+        });
+        if (prior) return { payment: prior, invoiceId, duplicate: true };
+      }
+
+      const current = await tx.feeInvoice.findFirst({
         where: { id: invoiceId, institutionId },
       });
-      if (!currentInvoice) throw new AppError("Invoice not found", 404);
+      if (!current) throw new AppError("Invoice not found", 404);
 
-      const existing = await tx.feePayment.aggregate({
-        where: { invoiceId },
-        _sum: { amount: true },
-      });
-      const alreadyPaid = Number(existing._sum.amount || 0);
-      if (alreadyPaid + amount > Number(currentInvoice.amount) + 0.005) {
+      const alreadyPaid = Number(current.paidAmount || 0);
+      const outstanding = Math.max(0, Number(current.amount) - alreadyPaid);
+      if (amount > outstanding + 0.005) {
         throw new AppError("Payment exceeds the outstanding invoice balance", 400);
       }
 
-      const created = await tx.feePayment.create({
+      const payment = await tx.feePayment.create({
         data: {
           institutionId,
           invoiceId,
           amount,
           reference: reference || null,
           userId: actor.id,
+          recordedById: actor.id,
+          method,
+          status: "SUCCESS",
+          idempotencyKey: idempotencyKey || null,
         },
       });
 
       const totalPaid = alreadyPaid + amount;
+      const newStatus = totalPaid >= Number(current.amount) - 0.005 ? "PAID" : "PARTIAL";
+
       await tx.feeInvoice.update({
         where: { id: invoiceId },
+        data: { paidAmount: totalPaid, status: newStatus },
+      });
+
+      const transaction = await tx.feeTransaction.create({
         data: {
-          status: totalPaid >= Number(currentInvoice.amount) - 0.005 ? "PAID" : "PARTIAL",
+          institutionId,
+          studentId: current.studentId,
+          invoiceId,
+          paymentId: payment.id,
+          amount,
+          type: "PAYMENT",
+          reference: reference || payment.id,
+          createdById: actor.id,
+          metadata: {
+            method,
+            sourceModule: current.sourceModule || "ACCOUNTS",
+            sourceType: current.sourceType || "FEE_PAYMENT",
+          },
         },
       });
 
-      return created;
+      const receiptNumber = `RCT-${new Date().toISOString().replace(/\\D/g, "").slice(0, 14)}-${payment.id.slice(0, 8).toUpperCase()}`;
+      await tx.feePayment.update({
+        where: { id: payment.id },
+        data: { receiptNumber },
+      });
+      const receipt = await tx.feeReceipt.create({
+        data: {
+          institutionId,
+          paymentId: payment.id,
+          invoiceId,
+          studentId: current.studentId,
+          receiptNumber,
+          issuedById: actor.id,
+        },
+      });
+
+      return { payment: { ...payment, receiptNumber }, transaction, receipt, invoiceId, duplicate: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    await recordAuditLog({
+      institutionId,
+      userId: actor.id,
+      action: result.duplicate ? "fee-payment.idempotent-replay" : "fee-payment.create",
+      entityType: "FeePayment",
+      entityId: result.payment.id,
+      metadata: { invoiceId, amount, reference: reference ?? null, method, receiptNumber: result.payment.receiptNumber ?? null },
+    });
+
+    return result.payment;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       throw new AppError("Payment could not be recorded because the invoice changed; retry the request", 409);
     }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && idempotencyKey) {
+      const prior = await prisma.feePayment.findFirst({ where: { institutionId, idempotencyKey } });
+      if (prior) return prior;
+    }
     throw error;
   }
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "fee-payment.create",
-    entityType: "FeePayment",
-    entityId: payment.id,
-    metadata: { invoiceId, amount, reference: reference ?? null },
-  });
-
-  return payment;
 }
-
 export async function linkParent(
   institutionId: string,
   actor: AuthenticatedUser,
