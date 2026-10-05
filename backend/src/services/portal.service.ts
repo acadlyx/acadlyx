@@ -142,8 +142,10 @@ async function assertHodStudentAccess(
     where: { id: actorId, institutionId, isActive: true },
     select: {
       id: true,
-      roles: {
-        select: { name: true },
+      userRoles: {
+        select: {
+          role: { select: { name: true } },
+        },
       },
     },
   });
@@ -153,7 +155,7 @@ async function assertHodStudentAccess(
     institutionId,
     {
       ...actor,
-      roles: actor.roles.map((role) => role.name),
+      roles: actor.userRoles.map((binding) => binding.role.name),
       permissions: [],
     } as any,
     studentId,
