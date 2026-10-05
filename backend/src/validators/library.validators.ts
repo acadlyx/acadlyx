@@ -57,3 +57,6 @@ export type CreateBookInput = z.infer<typeof createBookSchema>;
 export type UpdateBookInput = z.infer<typeof updateBookSchema>;
 export type IssueBookInput = z.infer<typeof issueBookSchema>;
 export type ReturnBookInput = z.infer<typeof returnBookSchema>;
+
+export const fineWaiverRequestSchema = z.object({ reason: z.string().trim().min(3).max(500), amount: z.coerce.number().positive().max(1000000).optional() });
+export const fineWaiverApprovalSchema = z.object({ reason: z.string().trim().min(3).max(500), amount: z.coerce.number().positive().max(1000000) });
