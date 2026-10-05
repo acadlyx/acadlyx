@@ -65,7 +65,7 @@ const HOME_BY_ROLE: Record<
   ACCOUNTS: "/accounts",
   HR: "/hr",
   ADMISSIONS: "/admissions",
-  EXAMINATION: "/examinations",
+  EXAMINATION: "/examination",
   LIBRARIAN: "/library",
   PLACEMENT: "/placements",
   IT: "/it",
