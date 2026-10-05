@@ -5,7 +5,7 @@ import * as career from "../services/careerIntelligence.service";
 import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
-import { getDirectorDepartmentIds } from "../services/accessScope.service";
+import { assertCanViewStudent, getDirectorDepartmentIds } from "../services/accessScope.service";
 
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
 async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
@@ -13,31 +13,31 @@ async function permittedDepartments(institutionId: string, userId: string, roles
   if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, userId);
   return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
 }
-function canReadOther(req: Request) { return user(req).permissions.includes("intelligence.read"); }
 
 export const student = asyncHandler(async (req, res) => {
+  await assertCanViewStudent(institutionId, actor, studentId);
   const institutionId = requireInstitution(req); const actor = user(req);
   const studentId = req.params.id === "me" ? actor.id : req.params.id;
-  if (studentId !== actor.id && !canReadOther(req)) throw new AppError("Not authorized to view this student intelligence", 403);
+  if (studentId !== actor.id) await assertCanViewStudent(institutionId, actor, studentId);
   const data = await intelligence.getStudentIntelligence(institutionId, studentId);
   if (!data) throw new AppError("Student not found", 404);
   res.json({ success: true, data });
 });
 export const studentRisk = asyncHandler(async (req, res) => {
   const institutionId = requireInstitution(req); const actor = user(req); const id = req.params.id === "me" ? actor.id : req.params.id;
-  if (id !== actor.id && !canReadOther(req)) throw new AppError("Not authorized", 403);
+  if (id !== actor.id) await assertCanViewStudent(institutionId, actor, id);
   const data = await intelligence.getStudentIntelligence(institutionId, id); if (!data) throw new AppError("Student not found", 404);
   res.json({ success: true, data: { risk: data.risk, reasons: data.reasons, academicHealth: data.scores.academicHealth } });
 });
 export const recommendations = asyncHandler(async (req, res) => {
   const institutionId = requireInstitution(req); const actor = user(req); const id = req.params.id === "me" ? actor.id : req.params.id;
-  if (id !== actor.id && !canReadOther(req)) throw new AppError("Not authorized", 403);
+  if (id !== actor.id) await assertCanViewStudent(institutionId, actor, id);
   const data = await intelligence.getStudentIntelligence(institutionId, id); if (!data) throw new AppError("Student not found", 404);
   res.json({ success: true, data: { recommendations: data.recommendations } });
 });
 export const careerProfile = asyncHandler(async (req, res) => {
   const institutionId = requireInstitution(req); const actor = user(req); const id = req.params.id === "me" ? actor.id : req.params.id;
-  if (id !== actor.id && !canReadOther(req)) throw new AppError("Not authorized", 403);
+  if (id !== actor.id) await assertCanViewStudent(institutionId, actor, id);
   const health = await intelligence.getStudentIntelligence(institutionId, id);
   res.json({ success: true, data: await career.getCareerIntelligence(institutionId, id, health?.scores.academicHealth || 0) });
 });
