@@ -2053,9 +2053,7 @@ event.preventDefault();
                       {can(["fees.structure.approve"]) && structure.status === "DRAFT" && (
                         <button type="button" onClick={() => void run(() => approveFeeStructure(structure.id), "Fee structure approved")} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">Approve</button>
                       )}
-                      {can(["fees.assign"]) && structure.status === "ACTIVE" && (
-                        <button type="button" onClick={() => void run(() => assignFeeStructure(structure.id), "Fees assigned to eligible students")} className="rounded-lg bg-slate-950 px-3 py-1 text-xs font-semibold text-white">Assign to eligible students</button>
-                      )}
+
                     </div>
                   </div>
                 </div>
