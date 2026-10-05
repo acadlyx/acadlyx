@@ -1,5 +1,1 @@
-import { RoleWorkspaceLanding } from "@/components/dashboard/RoleWorkspaceLanding";
-
-export default function Page() {
-  return <RoleWorkspaceLanding role="IT" />;
-}
+import { ITDashboard } from "@/components/dashboard/ITDashboard"; export default function Page(){return <ITDashboard/>;}
