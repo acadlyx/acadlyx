@@ -747,7 +747,7 @@ export async function listMyLoans(institutionId: string, actor: AuthenticatedUse
 
 export async function getLibrarySummary(institutionId: string) {
   const now = new Date();
-  const [titles, copies, issued, reserved, overdue, fines] = await Promise.all([
+  const [titles, copies, issued, reserved, overdue, libraryFineTotals, financialTotals] = await Promise.all([
     prisma.libraryBook.count({ where: { institutionId, isActive: true } }),
     prisma.libraryBook.aggregate({
       where: { institutionId, isActive: true },
@@ -758,15 +758,31 @@ export async function getLibrarySummary(institutionId: string) {
     prisma.libraryIssue.count({
       where: { institutionId, status: "ISSUED", dueDate: { lt: now } },
     }),
-    prisma.libraryFine.aggregate({ where: { institutionId }, _sum: { originalAmount: true, waivedAmount: true } }),
+    prisma.libraryFine.aggregate({
+      where: { institutionId },
+      _sum: { originalAmount: true, waivedAmount: true },
+    }),
     prisma.feeInvoice.aggregate({
-      where: { institutionId, sourceModule: "LIBRARY", sourceType: { in: ["OVERDUE", "LIBRARY_FINE", "LOST_BOOK", "LIBRARY_LOST_BOOK_CHARGE", "DAMAGED_BOOK", "LIBRARY_DAMAGED_BOOK_CHARGE"] } },
+      where: {
+        institutionId,
+        sourceModule: "LIBRARY",
+        sourceType: {
+          in: [
+            "OVERDUE",
+            "LIBRARY_FINE",
+            "LOST_BOOK",
+            "LIBRARY_LOST_BOOK_CHARGE",
+            "DAMAGED_BOOK",
+            "LIBRARY_DAMAGED_BOOK_CHARGE",
+          ],
+        },
+      },
       _sum: { amount: true, paidAmount: true },
     }),
   ]);
 
-  const billed = Number(fines._sum.amount ?? 0);
-  const paid = Number(fines._sum.paidAmount ?? 0);
+  const billed = Number(financialTotals._sum.amount ?? 0);
+  const paid = Number(financialTotals._sum.paidAmount ?? 0);
   return {
     titles,
     totalCopies: copies._sum.totalCopies ?? 0,
