@@ -48,20 +48,36 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     user.id
   );
 
+  const attendanceOverview = await facultyService.getAttendanceOverview(institutionId, user.id, new Date(), offerings);
   const [
-    attendanceOverview,
     atRisk,
-    pendingAttendanceCount,
     pendingReviewCount,
-    submissionGaps, timetable,
+    submissionGaps,
+    timetable,
   ] = await Promise.all([
-    facultyService.getAttendanceOverview(institutionId, user.id),
-    facultyService.getAtRiskStudents(institutionId, user.id),
-    facultyService.getPendingAttendanceCount(institutionId, user.id),
+    facultyService.getAtRiskStudents(institutionId, user.id, 75, offerings),
     facultyService.getPendingAssignmentReviewCount(institutionId, user.id),
-    facultyService.getAssignmentSubmissionGaps(institutionId, user.id),
-    prisma.timetableEntry.findMany({ where: { institutionId, dayOfWeek: new Date().getDay(), courseOffering: { facultyId: user.id } }, include: { courseOffering: { include: { course: true, section: true } } }, orderBy: { startTime: "asc" } }),
+    facultyService.getAssignmentSubmissionGaps(institutionId, user.id, 5, offerings),
+    prisma.timetableEntry.findMany({
+      where: {
+        institutionId,
+        dayOfWeek: new Date().getDay(),
+        courseOffering: { facultyId: user.id },
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+        courseOffering: {
+          select: {
+            course: { select: { code: true, name: true } },
+            section: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { startTime: "asc" },
+    }),
   ]);
+  const pendingAttendanceCount = attendanceOverview.filter((item) => !item.isSubmitted).length;
 
   res.status(200).json({
     success: true,
