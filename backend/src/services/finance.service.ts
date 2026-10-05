@@ -79,13 +79,12 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  const paymentFilter:any=academicYearId?{...scopedPayment,invoice:{...(scopedPayment.invoice as any),academicYearId}}:scopedPayment;
  const base=await overview(institutionId,a,{period:input.period,academicYearId},s);
  const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
- const [methods,todayMethods,trendPayments,recentPayments,recentInvoices,sourceRows,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
+ const [methods,todayMethods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
   prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS"},_sum:{amount:true},_count:{_all:true}}),
   prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:new Date(new Date().setHours(0,0,0,0))}},_sum:{amount:true},_count:{_all:true}}),
   prisma.feePayment.findMany({where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:thirty}},select:{amount:true,paidAt:true},orderBy:{paidAt:"asc"},take:2000}),
   prisma.feePayment.findMany({where:paymentFilter,select:{id:true,amount:true,method:true,paidAt:true,status:true,receiptNumber:true,invoice:{select:{id:true,invoiceNumber:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:8}),
   prisma.feeInvoice.findMany({where:invoiceFilter,select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,refundedAmount:true,dueDate:true,status:true,student:{select:{id:true,firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}},orderBy:{createdAt:"desc"},take:8}),
-  prisma.feeInvoice.groupBy({by:["sourceModule","sourceType"],where:invoiceFilter,_sum:{amount:true,paidAmount:true,refundedAmount:true},_count:{_all:true}}),
   prisma.feeRefund.count({where:{institutionId,...studentFinancialFilter(s),status:"REQUESTED"}}),
   prisma.feeConcession.count({where:{institutionId,...studentFinancialFilter(s),status:"PENDING"}}),
   prisma.feeInvoice.count({where:{...invoiceFilter,status:"PENDING"}}),
