@@ -3,6 +3,60 @@
 import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "./auth";
 
+const CONTEXT_CACHE_TTL_MS = 30_000;
+const contextCache = new Map<string, { value: WorkspaceContext; expiresAt: number }>();
+const contextInflight = new Map<string, Promise<WorkspaceContext>>();
+
+function contextKey(params: Record<string, string | undefined>): string {
+  return Object.entries(params)
+    .filter(([, value]) => Boolean(value))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+}
+
+export function clearWorkspaceContextCache(): void {
+  contextCache.clear();
+  contextInflight.clear();
+}
+
+async function fetchWorkspaceContext(
+  params: Record<string, string | undefined>,
+): Promise<WorkspaceContext> {
+  const key = contextKey(params);
+  const cached = contextCache.get(key);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  const inflight = contextInflight.get(key);
+  if (inflight) return inflight;
+
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([name, value]) => {
+    if (value) query.set(name, value);
+  });
+
+  const suffix = query.toString();
+  const request = authedFetch<{
+    success: boolean;
+    data: WorkspaceContext;
+  }>(`/workspace/context${suffix ? `?${suffix}` : ""}`)
+    .then((response) => {
+      contextCache.set(key, {
+        value: response.data,
+        expiresAt: Date.now() + CONTEXT_CACHE_TTL_MS,
+      });
+      return response.data;
+    })
+    .finally(() => {
+      contextInflight.delete(key);
+    });
+
+  contextInflight.set(key, request);
+  return request;
+}
+
 export type WorkspaceBreadcrumb = {
   type: string;
   id: string;
@@ -44,18 +98,8 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
     setError("");
 
     try {
-      const query = new URLSearchParams();
-      Object.entries(params).forEach(([name, value]) => {
-        if (value) query.set(name, value);
-      });
-
-      const suffix = query.toString();
-      const response = await authedFetch<{
-        success: boolean;
-        data: WorkspaceContext;
-      }>(`/workspace/context${suffix ? `?${suffix}` : ""}`);
-
-      setData(response.data);
+      const value = await fetchWorkspaceContext(params);
+      setData(value);
     } catch (err) {
       setError(
         err instanceof Error
