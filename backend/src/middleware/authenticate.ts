@@ -160,12 +160,9 @@ export async function authenticate(
           userRoles: {
             include: {
               role: {
-                include: {
-                  rolePermissions: {
-                    include: {
-                      permission: true,
-                    },
-                  },
+                select: {
+                  name: true,
+                  institutionId: true,
                 },
               },
             },
