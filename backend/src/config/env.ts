@@ -89,11 +89,11 @@ export const env: EnvConfig = {
 
   jwtAccessSecret:
     process.env.JWT_ACCESS_SECRET ||
-    "insecure-dev-access-secret",
+    crypto.randomBytes(48).toString("hex"),
 
   jwtRefreshSecret:
     process.env.JWT_REFRESH_SECRET ||
-    "insecure-dev-refresh-secret",
+    crypto.randomBytes(48).toString("hex"),
 
   jwtAccessExpiresIn:
     process.env.JWT_ACCESS_EXPIRES_IN ||
@@ -203,7 +203,7 @@ export function assertAuthEnv(): void {
   if (!isProduction && (missingAccessSecret || missingRefreshSecret)) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[WARN] JWT_ACCESS_SECRET/JWT_REFRESH_SECRET not set — using insecure defaults for local development only."
+      "[WARN] JWT secrets are not configured; ephemeral development secrets are being used for this process only. Restarting the local process invalidates local development tokens."
     );
   }
 
