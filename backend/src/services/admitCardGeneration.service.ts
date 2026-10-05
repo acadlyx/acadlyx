@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { AppError } from "../middleware/errorHandler";
 import { assertExaminationController } from "./workflowAuthority.service";
 import { generateStudentHallTicketPdf } from "./examination.service";
-import { enqueueJob, getJob, completeJob } from "./backgroundJob.service";
+import { enqueueJob, getJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { storeFileFromPath } from "./fileStorage.service";
 import { recordAuditLog } from "./audit.service";
@@ -132,7 +132,6 @@ export async function processBulkAdmitCardsJob(ctx: {
       mimeType: "application/zip", ownerId: ctx.createdById, referenceId: ctx.jobId,
       visibility: "private", resourceType: "raw",
     });
-    await completeJob(ctx.jobId, ctx.workerId, { fileId: stored.id, filename, processed, failed });
     await recordAuditLog({
       institutionId: ctx.institutionId, userId: ctx.createdById, action: "exam.admit_cards_generated",
       entityType: "BackgroundJob", entityId: ctx.jobId,
