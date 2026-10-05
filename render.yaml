@@ -5,7 +5,8 @@ services:
     rootDir: backend
     plan: 0.5c-512mb
     buildCommand: npm ci && npm run build
-    preDeployCommand: npx prisma migrate deploy && npm run prisma:rbac:sync
+    preDeployCommand: >-
+      status=$(npx prisma migrate status 2>&1 || true); echo "$status"; if echo "$status" | grep -q "20261005060000_align_library_existing_architecture"; then npx prisma migrate resolve --rolled-back 20261005060000_align_library_existing_architecture; fi; npx prisma migrate deploy && npm run prisma:rbac:sync
     startCommand: npm start
     maxShutdownDelaySeconds: 60
     healthCheckPath: /api/v1/health
