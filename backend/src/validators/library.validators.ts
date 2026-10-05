@@ -41,7 +41,7 @@ export const reserveBookSchema = z.object({
 
 export const returnBookSchema = z.object({
   /// LOST marks the copy as never coming back and removes it from stock.
-  condition: z.enum(["RETURNED", "LOST"]).default("RETURNED"),
+  condition: z.enum(["RETURNED", "LOST", "DAMAGED"]).default("RETURNED"),
   waiveFine: z.boolean().default(false),
   note: optionalText(300),
 });
