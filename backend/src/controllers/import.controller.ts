@@ -14,7 +14,7 @@ function file(req: Request): Buffer { if (!req.file) throw new AppError("Attach 
 
 export const preview = asyncHandler(async (req, res) => res.json({ success: true, data: importer.preview(file(req), getType(req)) }));
 export const commit = asyncHandler(async (req, res) => {
-  const mode = req.query.mode === "atomic" ? "atomic" : "partial";
+  const mode = req.query.mode === "partial" ? "partial" : "atomic";
   const data = await importer.commit(file(req), getType(req), requireInstitution(req), req.user!, { mode });
   res.json({ success: true, data });
 });
