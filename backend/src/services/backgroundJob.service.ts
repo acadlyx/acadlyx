@@ -78,7 +78,7 @@ export async function loadActiveJobActor(institutionId: string, userId: string):
   };
 }
 
-export async function getJob(institutionId: string, actor: AuthenticatedUser, id: string) {
+export async function getJob(institutionId: string, _actor: AuthenticatedUser, id: string) {
   const job = await prisma.backgroundJob.findFirst({ where: { id, institutionId }});
   if (!job) throw new AppError("Job not found.", 404);
   return job;
