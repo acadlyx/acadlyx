@@ -667,6 +667,7 @@ ACADLYX ERP
           "fees.manage",
           "fees.pay",
         ])}
+        canApprove={can(["fees.structure.approve"])}
         busy={mutation.isSubmitting}
         run={run}
       />
@@ -1451,6 +1452,7 @@ semesters,
 feeHeads,
 feeStructures,
 canManage,
+canApprove,
 busy,
 run,
 }: {
@@ -1471,6 +1473,7 @@ name: string;
 feeHeads: FeeHead[];
 feeStructures: FeeStructure[];
 canManage: boolean;
+canApprove: boolean;
 busy: boolean;
 run: (
 action: () => Promise<unknown>,
@@ -2050,7 +2053,7 @@ event.preventDefault();
                       )}
                     </p>
                     <div className="mt-2 flex justify-end gap-2">
-                      {permissions.includes("fees.structure.approve") && structure.status === "DRAFT" && (
+                      {canApprove && structure.status === "DRAFT" && (
                         <button type="button" onClick={() => void run(() => approveFeeStructure(structure.id), "Fee structure approved")} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">Approve</button>
                       )}
 
@@ -2754,3 +2757,4 @@ Access restricted
 
 );
 }
+
