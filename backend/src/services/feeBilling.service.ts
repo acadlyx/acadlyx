@@ -72,6 +72,9 @@ interface InvoiceRow {
   installmentNumber: number;
   currency: string;
   cancelledAt: Date | null;
+  sourceModule?: string | null;
+  sourceType?: string | null;
+  sourceEntityId?: string | null;
 }
 
 /** Outstanding on an invoice, never negative. */
@@ -368,6 +371,9 @@ export async function generateInvoicesFromStructure(
     if (structure.academicYearId) {
       conditions.push(Prisma.sql`e."academicYearId" = ${structure.academicYearId}`);
     }
+    if (structure.semesterId) {
+      conditions.push(Prisma.sql`e."semesterId" = ${structure.semesterId}`);
+    }
     const rows = await prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
       SELECT DISTINCT e."userId" FROM "student_enrollments" e
       ${andWhere(conditions)}
@@ -375,10 +381,11 @@ export async function generateInvoicesFromStructure(
     `);
     studentIds = rows.map((row) => row.userId);
   } else {
+    studentIds = [...new Set(studentIds)];
     const valid = await prisma.user.count({
-      where: { institutionId, id: { in: studentIds } },
+      where: { institutionId, id: { in: studentIds }, isActive: true, userRoles: { some: { role: { name: "STUDENT" } } } },
     });
-    if (valid !== new Set(studentIds).size) {
+    if (valid !== studentIds.length) {
       throw new AppError(
         "One or more students are not in this institution",
         404
@@ -450,14 +457,17 @@ export async function generateInvoicesFromStructure(
             ("id", "institutionId", "studentId", "title", "amount", "dueDate",
              "status", "invoiceNumber", "feeStructureId", "academicYearId",
              "semesterId", "installmentNumber", "grossAmount", "discountAmount",
-             "currency", "createdById")
+             "currency", "createdById", "sourceModule", "sourceType",
+             "sourceEntityId", "sourceEventKey")
           VALUES
             (${randomUUID()}, ${institutionId}, ${studentId},
              ${`${structure.name} — Installment ${item.installmentNumber}`},
              ${net}, ${dueDate}, 'PENDING', ${invoiceNumber},
              ${input.feeStructureId}, ${structure.academicYearId},
              ${structure.semesterId}, ${item.installmentNumber}, ${item.amount},
-             ${itemDiscount}, ${structure.currency ?? paymentCurrency()}, ${actor.id})
+             ${itemDiscount}, ${structure.currency ?? paymentCurrency()}, ${actor.id},
+             "FEES", "FEE_STRUCTURE_ASSIGNMENT", ${input.feeStructureId},
+             "FEE_STRUCTURE_ASSIGNMENT:" + input.feeStructureId + ":" + studentId + ":" + item.installmentNumber)
         `;
         created += 1;
       }
