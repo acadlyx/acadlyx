@@ -1589,6 +1589,7 @@ export function canAccessRoute(
   pathname: string,
   roles: string[],
   permissions: string[] = [],
+  tenantFeatures: string[] = [],
 ): boolean {
   const normalizedPath =
     pathname.replace(
@@ -1633,6 +1634,8 @@ export function canAccessRoute(
   }
 
   const permissionSet = new Set(permissions);
+  const tenantFeature = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1];
+  if (tenantFeature && tenantFeatures.length > 0 && !tenantFeatures.includes(tenantFeature)) return false;
 
   // Permission-gated module namespaces are denied unless the authenticated
   // user actually has the module's read capability. Role ownership alone is
