@@ -115,6 +115,10 @@ export interface PortalFee {
   balance: number;
   dueDate: string | null;
   status: string;
+  sourceModule: string;
+  sourceType: string;
+  sourceEntityId: string | null;
+  feeStructureId: string | null;
   payments: Array<{
     id: string;
     amount: number;
