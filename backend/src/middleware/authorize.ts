@@ -8,6 +8,8 @@ import {
   PermissionKey,
   isPlatformPermission,
   normalizeRoleName,
+  PERMISSION_DEPENDENCIES,
+  PermissionKey,
 } from "../config/rbac";
 
 import {
@@ -321,3 +323,24 @@ export function authorizeAnyPermission(
     next();
   };
 }
+
+export function getPermissionDependencies(permission: PermissionKey) {
+  return PERMISSION_DEPENDENCIES.find((item) => item.permission === permission)?.dependencies ?? [];
+}
+
+export function missingPermissionDependencies(
+  permissions: readonly string[],
+  requiredPermissions: readonly PermissionKey[],
+): Array<{ action: PermissionKey; permission: string; access: string }> {
+  const granted = new Set(permissions);
+  const missing: Array<{ action: PermissionKey; permission: string; access: string }> = [];
+  for (const action of requiredPermissions) {
+    for (const dependency of getPermissionDependencies(action)) {
+      if (!granted.has(dependency.permission)) {
+        missing.push({ action, permission: dependency.permission, access: dependency.access });
+      }
+    }
+  }
+  return missing;
+}
+
