@@ -39,6 +39,10 @@ export async function provisionTenantEntitlements(
   tx: Prisma.TransactionClient,
   institutionId: string
 ) {
+  const existingSubscription = await tx.tenantSubscription.findUnique({
+    where: { institutionId },
+    select: { id: true },
+  });
   const subscription = await tx.tenantSubscription.upsert({
     where: { institutionId },
     update: {},
@@ -46,7 +50,12 @@ export async function provisionTenantEntitlements(
   });
   await tx.tenantFeatureEntitlement.createMany({
     data: TENANT_FEATURES.map((featureKey) => ({
-      institutionId, subscriptionId: subscription.id, featureKey, isEnabled: true,
+      institutionId,
+      subscriptionId: subscription.id,
+      featureKey,
+      // New institutions start with the catalog enabled. Newly introduced
+      // modules must not be silently granted to an existing institution.
+      isEnabled: !existingSubscription,
     })),
     skipDuplicates: true,
   });
