@@ -77,6 +77,20 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
 
   useEffect(() => {
     if (embeddedInWorkspaceShell || !user) return;
+
+    const roles = user.roles?.length ? user.roles : allowedRoles || [];
+    const home = workspaceHome(roles);
+    const timer = window.setTimeout(() => {
+      // Warm the next workspace chunk during idle time so navigation does not
+      // wait for both JS download and API work after the click.
+      router.prefetch(home);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [router, user, allowedRolesKey, embeddedInWorkspaceShell]);
+
+  useEffect(() => {
+    if (embeddedInWorkspaceShell || !user) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
     const primaryRole = getPrimaryRole(roles);
     if (allowedRoles?.length) {
