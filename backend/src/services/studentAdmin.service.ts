@@ -410,6 +410,91 @@ function serializeStudent(student: any) {
   };
 }
 
+async function assertStudentListContext(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  params: {
+    academicYearId?: string;
+    programId?: string;
+    semesterId?: string;
+    sectionId?: string;
+  }
+) {
+  const roles = getCanonicalRoleNames(actor.roles);
+  const allowedDepartments = await allowedDepartmentIdsForValidation(institutionId, actor);
+
+  const program = params.programId
+    ? await prisma.program.findFirst({
+        where: { id: params.programId, institutionId, isActive: true },
+        select: { id: true, departmentId: true },
+      })
+    : null;
+
+  if (params.programId && !program) throw new AppError("Selected program is not available in this institution", 404);
+  if (program && allowedDepartments !== null && !allowedDepartments.includes(program.departmentId)) {
+    throw new AppError("Selected program is outside your authorized department scope", 403);
+  }
+
+  const semester = params.semesterId
+    ? await prisma.semester.findFirst({
+        where: { id: params.semesterId, institutionId, isActive: true },
+        select: { id: true, programId: true, academicYearId: true },
+      })
+    : null;
+
+  if (params.semesterId && !semester) throw new AppError("Selected semester is not available in this institution", 404);
+  if (semester && program && semester.programId !== program.id) {
+    throw new AppError("Selected semester does not belong to the selected program", 400);
+  }
+  if (semester && params.academicYearId && semester.academicYearId !== params.academicYearId) {
+    throw new AppError("Selected semester does not belong to the selected academic year", 400);
+  }
+
+  if (params.academicYearId) {
+    const year = await prisma.academicYear.findFirst({
+      where: { id: params.academicYearId, institutionId },
+      select: { id: true },
+    });
+    if (!year) throw new AppError("Selected academic year is not available in this institution", 404);
+  }
+
+  const section = params.sectionId
+    ? await prisma.section.findFirst({
+        where: { id: params.sectionId, institutionId, isActive: true },
+        select: { id: true, semesterId: true },
+      })
+    : null;
+
+  if (params.sectionId && !section) throw new AppError("Selected section is not available in this institution", 404);
+  if (section && semester && section.semesterId !== semester.id) {
+    throw new AppError("Selected section does not belong to the selected semester", 400);
+  }
+
+  if (roles.includes("STUDENT") && !params.programId && !params.semesterId && !params.sectionId && !params.academicYearId) {
+    return;
+  }
+}
+
+async function allowedDepartmentIdsForValidation(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<string[] | null> {
+  if (isInstitutionWide(actor)) return null;
+  const roles = getCanonicalRoleNames(actor.roles);
+  if (roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
+  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id).then(async (ids) => {
+    if (!ids.length) {
+      const offerings = await prisma.courseOffering.findMany({ where: { institutionId, facultyId: actor.id, isActive: true }, select: { sectionId: true, semesterId: true } });
+      if (!offerings.length) return [];
+      const semesters = await prisma.semester.findMany({ where: { id: { in: offerings.map((o) => o.semesterId) }, institutionId }, select: { program: { select: { departmentId: true } } } });
+      return Array.from(new Set(semesters.map((s) => s.program.departmentId)));
+    }
+    return ids;
+  });
+  if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
+  return [];
+}
+
 export async function listStudents(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -425,6 +510,7 @@ export async function listStudents(
   }
 ) {
   const search = params.search?.trim();
+  await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentAccessScope(institutionId, actor);
 
   const where: Prisma.UserWhereInput = {
