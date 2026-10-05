@@ -1188,6 +1188,8 @@ model FeeInvoice {
   @@unique([institutionId, invoiceNumber])
   @@index([institutionId, studentId, status])
   @@index([institutionId, dueDate])
+  @@index([institutionId, academicYearId, status, createdAt])
+  @@index([institutionId, createdAt])
   @@map("fee_invoices")
 }
 
@@ -1230,6 +1232,8 @@ model FeePayment {
   @@unique([institutionId, idempotencyKey])
   @@index([institutionId, invoiceId])
   @@index([institutionId, status])
+  @@index([institutionId, status, paidAt])
+  @@index([institutionId, paidAt])
   @@map("fee_payments")
 }
 
@@ -1326,6 +1330,7 @@ model FeeConcession {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   @@index([institutionId, studentId, status])
+  @@index([institutionId, status, createdAt])
   @@index([invoiceId])
   @@map("fee_concessions")
 }
@@ -1354,6 +1359,7 @@ model FeeRefund {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   @@index([institutionId, status])
+  @@index([institutionId, status, createdAt])
   @@index([paymentId])
   @@index([invoiceId])
   @@map("fee_refunds")
@@ -1398,6 +1404,7 @@ model FeeReceipt {
   issuedAt      DateTime    @default(now())
   @@unique([institutionId, receiptNumber])
   @@index([institutionId, studentId])
+  @@index([institutionId, issuedAt])
   @@map("fee_receipts")
 }
 
