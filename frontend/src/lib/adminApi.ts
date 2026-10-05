@@ -213,7 +213,7 @@ export async function listAdminUsers(
     "pageSize",
     String(
       options?.pageSize ??
-        200,
+        50,
     ),
   );
 
