@@ -21,6 +21,7 @@ const campusInclude = {
   _count: {
     select: {
       departments: true,
+      campusAccesses: true,
     },
   },
 } satisfies Prisma.CampusInclude;
@@ -245,6 +246,79 @@ export async function updateCampus(
  * contains active departments because doing so would
  * leave the academic hierarchy in an inconsistent state.
  */
+export async function assignCampusAccess(
+  institutionId: string,
+  campusId: string,
+  userId: string,
+  scope = "DIRECTOR"
+) {
+  const campus = await prisma.campus.findFirst({
+    where: { id: campusId, institutionId, isActive: true },
+    select: { id: true },
+  });
+  if (!campus) throw new AppError("Campus not found or inactive", 404);
+
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      institutionId,
+      isActive: true,
+      userRoles: { some: { role: { name: "DIRECTOR", institutionId } } },
+    },
+    select: { id: true },
+  });
+  if (!user) throw new AppError("Active Director not found in this institution", 404);
+
+  return prisma.campusAccess.upsert({
+    where: { userId_campusId: { userId, campusId } },
+    create: { userId, campusId, scope },
+    update: { scope },
+  });
+}
+
+export async function revokeCampusAccess(
+  institutionId: string,
+  campusId: string,
+  userId: string
+) {
+  const access = await prisma.campusAccess.findFirst({
+    where: {
+      userId,
+      campusId,
+      campus: { institutionId },
+    },
+    select: { userId: true, campusId: true },
+  });
+  if (!access) throw new AppError("Campus assignment not found", 404);
+
+  await prisma.campusAccess.delete({
+    where: { userId_campusId: { userId, campusId } },
+  });
+
+  return { userId, campusId, revoked: true };
+}
+
+export async function listCampusAccess(
+  institutionId: string,
+  campusId: string
+) {
+  const campus = await prisma.campus.findFirst({
+    where: { id: campusId, institutionId },
+    select: { id: true },
+  });
+  if (!campus) throw new AppError("Campus not found", 404);
+
+  return prisma.campusAccess.findMany({
+    where: { campusId, campus: { institutionId } },
+    orderBy: { createdAt: "asc" },
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
+  });
+}
+
 export async function deactivateCampus(
   institutionId: string,
   id: string
