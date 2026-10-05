@@ -8,6 +8,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
 import { assertTenantQuota } from "./entitlement.service";
+import { getManagedDepartmentIds, getStaffDepartmentIds, getStudentDepartmentIds, isInstitutionWide } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
