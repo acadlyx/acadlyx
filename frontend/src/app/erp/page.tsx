@@ -27,6 +27,7 @@ createDocument,
 createExam,
 createFeeHead,
 createFeeStructure,
+approveFeeStructure,
 createInvoice,
 createNotice,
 createParentLink,
@@ -2757,4 +2758,5 @@ Access restricted
 
 );
 }
+
 
