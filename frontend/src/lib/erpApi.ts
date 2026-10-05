@@ -22,6 +22,35 @@ export interface ErpWorkspace {
   departments?: Array<Record<string, unknown>>;
 }
 
+export interface DirectoryOption {
+  id: string;
+  label: string;
+  hint: string | null;
+}
+
+export async function searchDirectoryStudents(search: string): Promise<DirectoryOption[]> {
+  const response = await authedFetch<ApiEnvelope<DirectoryOption[]>>(
+    `/directory/students?search=${encodeURIComponent(search)}`
+  );
+  return response.data;
+}
+
+export async function searchDirectoryUsers(search: string, roles?: string[]): Promise<DirectoryOption[]> {
+  const params = new URLSearchParams({ search });
+  if (roles?.length) params.set("roles", roles.join(","));
+  const response = await authedFetch<ApiEnvelope<DirectoryOption[]>>(
+    `/directory/users?${params.toString()}`
+  );
+  return response.data;
+}
+
+export async function searchDirectoryCourseOfferings(search: string): Promise<DirectoryOption[]> {
+  const response = await authedFetch<ApiEnvelope<DirectoryOption[]>>(
+    `/directory/course-offerings?search=${encodeURIComponent(search)}`
+  );
+  return response.data;
+}
+
 export interface ErpUser {
   id: string;
   institutionId?: string | null;
