@@ -46,6 +46,8 @@ export type NavigationItem = {
   permissions?: PermissionKey[];
   group?: string;
   children?: NavigationItem[];
+  /** Optional query parameters that must match for this item to be active. */
+  activeQuery?: Record<string, string | null>;
 };
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -86,14 +88,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▦",
     roles: ["SUPER_ADMIN"],
     permissions: ["institutions.manage"],
-    group: "Platform",
-  },
-  {
-    label: "Plans",
-    href: "/superadmin/plans",
-    icon: "₹",
-    roles: ["SUPER_ADMIN"],
-    permissions: ["plans.manage"],
     group: "Platform",
   },
   {
@@ -518,22 +512,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
-    label: "Students",
-    href: "/hod",
-    icon: "◎",
-    roles: ["HOD"],
-    permissions: ["students.read"],
-    group: "Academic",
-  },
-  {
-    label: "Course Registration",
-    href: "/hod?tab=registrations",
-    icon: "▦",
-    roles: ["HOD"],
-    permissions: ["registration.read", "registration.approve"],
-    group: "Academic",
-  },
-  {
     label: "Outcome Based Education",
     href: "/hod/obe",
     icon: "◎",
@@ -814,13 +792,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 
   {
-    label: "Overview",
-    href: "/admissions",
-    icon: "⌂",
-    roles: ["ADMISSIONS"],
-    group: "Workspace",
-  },
-  {
     label: "Applications",
     href: "/applications",
     icon: "▤",
@@ -851,14 +822,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["EXAMINATION"],
     group: "Workspace",
-  },
-  {
-    label: "Exam operations",
-    href: "/examination",
-    icon: "◉",
-    roles: ["EXAMINATION"],
-    permissions: ["exams.read"],
-    group: "Examinations",
   },
   {
     label: "Admit card templates",
@@ -950,13 +913,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 
 
-  {
-    label: "Overview",
-    href: "/site-content",
-    icon: "⌂",
-    roles: ["CMS"],
-    group: "Workspace",
-  },
+
 
   /*
    * ============================================================
@@ -1502,6 +1459,33 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 ];
+
+export function isNavigationItemActive(pathname: string, item: NavigationItem): boolean {
+  const normalize = (value: string) => value.replace(/\/+$/, "") || "/";
+  const [hrefPath, hrefQuery] = item.href.split("?");
+  const currentPath = normalize(pathname.split("?")[0]);
+  const targetPath = normalize(hrefPath);
+
+  if (currentPath !== targetPath && !currentPath.startsWith(targetPath + "/")) {
+    return false;
+  }
+
+  const query = item.activeQuery;
+  if (!query) {
+    // Dashboard roots are exact-only. Other routes remain active for children.
+    return targetPath !== normalize("/") ? true : currentPath === "/";
+  }
+
+  const currentParams = new URLSearchParams(hrefQuery || "");
+  const required = { ...Object.fromEntries(currentParams.entries()), ...query };
+  const currentSearch = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+
+  return Object.entries(required).every(([key, value]) =>
+    value === null ? !currentSearch.has(key) : currentSearch.get(key) === value
+  );
+}
 
 export function getNavigationForRoles(
   roles: string[],
