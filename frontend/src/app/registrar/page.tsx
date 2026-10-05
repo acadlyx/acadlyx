@@ -1,5 +1,2 @@
-import { LeadershipDashboard } from "@/components/dashboard/LeadershipDashboard";
-
-export default function Page() {
-  return <LeadershipDashboard role="REGISTRAR" />;
-}
+import { RegistrarDashboard } from "@/components/dashboard/RegistrarDashboard";
+export default function Page(){return <RegistrarDashboard/>;}
