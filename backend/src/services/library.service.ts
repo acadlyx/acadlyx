@@ -855,44 +855,128 @@ export async function approveFineWaiver(
   if (!Number.isFinite(amount) || amount <= 0 || !reason?.trim()) {
     throw new AppError("A positive waiver amount and reason are required", 400);
   }
+
   const result = await prisma.$transaction(async tx => {
-    const fine = await tx.libraryFine.findFirst({ where: { id: fineId, institutionId } });
+    const fineRows = await tx.$queryRaw<Array<{
+      id: string;
+      originalAmount: number;
+      waivedAmount: number;
+      financialInvoiceId: string | null;
+    }>>(Prisma.sql`
+      SELECT "id", "originalAmount", "waivedAmount", "financialInvoiceId"
+      FROM "library_fines"
+      WHERE "id" = ${fineId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const fine = fineRows[0];
     if (!fine) throw new AppError("Library fine not found", 404);
-    const remaining = Math.max(0, Number(fine.originalAmount) - Number(fine.waivedAmount));
-    if (amount > remaining + 0.005) throw new AppError("Waiver exceeds the remaining fine balance", 400);
+
+    const fineRemaining = Math.max(
+      0,
+      Number(fine.originalAmount) - Number(fine.waivedAmount)
+    );
+
+    let invoice: {
+      id: string;
+      amount: number;
+      paidAmount: number;
+      lateFeeAmount: number;
+      refundedAmount: number;
+      status: string;
+    } | null = null;
+
+    if (fine.financialInvoiceId) {
+      const invoiceRows = await tx.$queryRaw<Array<{
+        id: string;
+        amount: number;
+        paidAmount: number;
+        lateFeeAmount: number;
+        refundedAmount: number;
+        status: string;
+      }>>(Prisma.sql`
+        SELECT "id", "amount", "paidAmount", "lateFeeAmount", "refundedAmount", "status"
+        FROM "fee_invoices"
+        WHERE "id" = ${fine.financialInvoiceId}
+          AND "institutionId" = ${institutionId}
+        FOR UPDATE
+      `);
+      invoice = invoiceRows[0] ?? null;
+      if (!invoice) throw new AppError("Financial liability for this fine was not found", 409);
+    }
+
+    const financialOutstanding = invoice
+      ? Math.max(
+          0,
+          Number(invoice.amount) + Number(invoice.lateFeeAmount ?? 0) -
+            Number(invoice.paidAmount ?? 0)
+        )
+      : fineRemaining;
+    const allowed = Math.min(fineRemaining, financialOutstanding);
+
+    if (amount > allowed + 0.005) {
+      throw new AppError(
+        allowed <= 0
+          ? "This fine has no outstanding financial balance available for waiver"
+          : `Waiver exceeds the remaining fine balance of ${allowed.toFixed(2)}`,
+        400
+      );
+    }
+
     const newWaived = Number(fine.waivedAmount) + amount;
-    const newStatus = newWaived >= Number(fine.originalAmount) - 0.005 ? "WAIVED" : "PARTIAL";
+    const newStatus =
+      newWaived >= Number(fine.originalAmount) - 0.005 ? "WAIVED" : "PARTIAL";
+
     await tx.libraryFine.update({
       where: { id: fineId },
-      data: { waivedAmount: newWaived, status: newStatus, approvedById: actor.id, approvedAt: new Date(), waiverReason: reason.trim() },
+      data: {
+        waivedAmount: newWaived,
+        status: newStatus,
+        approvedById: actor.id,
+        approvedAt: new Date(),
+        waiverReason: reason.trim(),
+      },
     });
-    if (fine.financialInvoiceId) {
-      const invoice = await tx.feeInvoice.findFirst({ where: { id: fine.financialInvoiceId, institutionId } });
-      if (invoice) {
-        const newAmount = Math.max(0, Number(invoice.amount) - amount);
-        const paidAmount = Number(invoice.paidAmount ?? 0);
-        const nextStatus =
-          newAmount <= paidAmount + 0.005
-            ? "PAID"
-            : paidAmount > 0
-              ? "PARTIALLY_PAID"
-              : "PENDING";
-        await tx.feeInvoice.update({
-          where: { id: invoice.id },
-          data: {
-            amount: newAmount,
-            discountAmount: Number(invoice.discountAmount ?? 0) + amount,
-            status: nextStatus,
-          },
-        });
-      }
+
+    if (invoice) {
+      const newAmount = Math.max(0, Number(invoice.amount) - amount);
+      const paidAmount = Number(invoice.paidAmount ?? 0);
+      const nextStatus =
+        newAmount <= paidAmount + 0.005
+          ? "PAID"
+          : paidAmount > 0
+            ? "PARTIALLY_PAID"
+            : "PENDING";
+
+      await tx.feeInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          amount: newAmount,
+          discountAmount: Number(invoice.discountAmount ?? 0) + amount,
+          status: nextStatus,
+        },
+      });
     }
-    return { id: fine.id, originalAmount: Number(fine.originalAmount), waivedAmount: newWaived, remainingAmount: Math.max(0, Number(fine.originalAmount) - newWaived), status: newStatus };
+
+    return {
+      id: fine.id,
+      originalAmount: Number(fine.originalAmount),
+      waivedAmount: newWaived,
+      remainingAmount: Math.max(0, Number(fine.originalAmount) - newWaived),
+      status: newStatus,
+    };
   });
-  await recordAuditLog({ institutionId, userId: actor.id, action: "library.fine.waiver.approve", entityType: "LibraryFine", entityId: fineId, metadata: { ...result, amount, reason: reason.trim() }, ...meta });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "library.fine.waiver.approve",
+    entityType: "LibraryFine",
+    entityId: fineId,
+    metadata: { ...result, amount, reason: reason.trim() },
+    ...meta,
+  });
   return result;
 }
-
 export async function listFines(institutionId: string, actor: AuthenticatedUser, pagination: PaginationParams) {
   if (!actor.permissions.includes("library.read")) throw new AppError("Library access is not authorized", 403);
   const [items, total] = await Promise.all([
