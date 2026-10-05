@@ -85,9 +85,7 @@ model Institution {
   leaveTypes LeaveType[]
   leaveRequests LeaveRequest[]
   libraryBooks LibraryBook[]
-  libraryCopies LibraryCopy[]
   libraryIssues LibraryIssue[]
-  libraryReservations LibraryReservation[]
   libraryFines LibraryFine[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
@@ -246,7 +244,6 @@ model User {
   employeeProfile EmployeeProfile?
   leaveRequests LeaveRequest[] @relation("LeaveApplicant")
   libraryIssues LibraryIssue[] @relation("LibraryBorrower")
-  libraryReservations LibraryReservation[] @relation("LibraryReservationMember")
   libraryFines LibraryFine[] @relation("LibraryFineStudent")
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
@@ -1425,45 +1422,25 @@ model FeeTransaction {
 }
 
 model LibraryBook {
-  id            String   @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  title         String
-  author        String?
-  publisher     String?
-  isbn          String?
-  category      String?
-  shelfLocation String?
-  description   String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  copies        LibraryCopy[]
-  issues        LibraryIssue[]
-  reservations  LibraryReservation[]
+  id             String   @id @default(uuid())
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title          String
+  author         String
+  publisher      String?
+  isbn           String?
+  category       String?
+  shelfLocation  String?
+  totalCopies    Int      @default(1)
+  availableCopies Int     @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  issues         LibraryIssue[]
   @@index([institutionId, isActive])
   @@index([institutionId, title])
   @@index([institutionId, isbn])
   @@map("library_books")
-}
-
-model LibraryCopy {
-  id            String   @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  bookId        String
-  book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  accessionNumber String
-  status        String @default("AVAILABLE")
-  condition     String @default("GOOD")
-  acquiredAt    DateTime?
-  price         Decimal? @db.Decimal(14,2)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  issues        LibraryIssue[]
-  @@unique([institutionId, accessionNumber])
-  @@index([institutionId, bookId, status])
-  @@map("library_copies")
 }
 
 model LibraryIssue {
@@ -1472,66 +1449,45 @@ model LibraryIssue {
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   bookId        String
   book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  copyId        String?
-  copy          LibraryCopy? @relation(fields: [copyId], references: [id], onDelete: SetNull)
   borrowerId    String
   borrower      User @relation("LibraryBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+  issuedById    String
   issuedAt      DateTime @default(now())
   dueDate       DateTime
   returnedAt    DateTime?
-  status        String @default("ISSUED")
-  notes         String?
+  status        String   @default("ISSUED")
+  fineAmount    Float    @default(0)
+  note          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   fines         LibraryFine[]
-  reservations LibraryReservation[]
-  financialInvoices FeeInvoice[]
   @@index([institutionId, borrowerId, status])
   @@index([institutionId, dueDate, status])
   @@index([institutionId, bookId, status])
   @@map("library_issues")
 }
 
-model LibraryReservation {
-  id            String   @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  bookId        String
-  book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  memberId      String
-  member        User @relation("LibraryReservationMember", fields: [memberId], references: [id], onDelete: Cascade)
-  issueId       String?
-  issue         LibraryIssue? @relation(fields: [issueId], references: [id], onDelete: SetNull)
-  status        String @default("ACTIVE")
-  reservedAt   DateTime @default(now())
-  cancelledAt  DateTime?
-  fulfilledAt  DateTime?
-  @@index([institutionId, memberId, status])
-  @@index([institutionId, bookId, status])
-  @@map("library_reservations")
-}
-
 model LibraryFine {
-  id              String   @id @default(uuid())
-  institutionId   String
-  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  issueId         String
-  issue           LibraryIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  studentId       String
-  student         User @relation("LibraryFineStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  type            String
-  originalAmount  Decimal  @db.Decimal(14,2)
-  waivedAmount    Decimal  @default(0) @db.Decimal(14,2)
-  reason          String
-  status          String   @default("OUTSTANDING")
-  requestedById   String?
-  approvedById    String?
-  approvedAt      DateTime?
-  waiverReason    String?
+  id                 String   @id @default(uuid())
+  institutionId      String
+  institution        Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  issueId            String
+  issue              LibraryIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            User @relation("LibraryFineStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  type               String
+  originalAmount     Decimal  @db.Decimal(14,2)
+  waivedAmount       Decimal  @default(0) @db.Decimal(14,2)
+  reason             String
+  status             String   @default("OUTSTANDING")
+  requestedById      String?
+  approvedById       String?
+  approvedAt         DateTime?
+  waiverReason       String?
   financialInvoiceId String?
-  financialInvoice FeeInvoice? @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  financialInvoice   FeeInvoice? @relation(fields: [financialInvoiceId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
   @@unique([issueId, type])
   @@index([institutionId, studentId, status])
   @@index([institutionId, issueId])
