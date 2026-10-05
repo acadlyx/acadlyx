@@ -106,7 +106,13 @@ export default function LibraryPage() {
       const manage = me.permissions.includes("library.manage");
       const borrow = me.permissions.includes("library.borrow");
 
-      const [summaryData, bookList] = await Promise.all([
+      /*
+       * Library is a multi-surface workspace. Do not let a failure in the
+       * financial/fines or circulation surface take down the catalogue for
+       * the librarian. Backend failures are surfaced per surface instead of
+       * turning the entire page into "Internal server error".
+       */
+      const [summaryResult, booksResult] = await Promise.allSettled([
         getLibrarySummary(),
         listBooks({
           page,
@@ -116,25 +122,77 @@ export default function LibraryPage() {
         }),
       ]);
 
-      setSummary(summaryData);
-      setBooks(bookList.items);
-      setCategories(bookList.categories);
-      setTotalPages(bookList.meta.totalPages);
+      const surfaceErrors: string[] = [];
+
+      if (summaryResult.status === "fulfilled") {
+        setSummary(summaryResult.value);
+      } else {
+        surfaceErrors.push(
+          summaryResult.reason instanceof Error
+            ? summaryResult.reason.message
+            : "Library summary is temporarily unavailable."
+        );
+      }
+
+      if (booksResult.status === "fulfilled") {
+        setBooks(booksResult.value.items);
+        setCategories(booksResult.value.categories);
+        setTotalPages(booksResult.value.meta.totalPages);
+      } else {
+        surfaceErrors.push(
+          booksResult.reason instanceof Error
+            ? booksResult.reason.message
+            : "Library catalogue is temporarily unavailable."
+        );
+      }
 
       if (manage) {
-        const circulation = await listLoans({ status: loanStatus || undefined });
-        setLoans(circulation.items);
-        setOutstandingFines(circulation.outstandingFines);
-        const fineList = await listLibraryFines({ page: 1 });
-        setFines(fineList.items);
+        const [circulationResult, finesResult] = await Promise.allSettled([
+          listLoans({ status: loanStatus || undefined }),
+          listLibraryFines({ page: 1 }),
+        ]);
+
+        if (circulationResult.status === "fulfilled") {
+          setLoans(circulationResult.value.items);
+          setOutstandingFines(circulationResult.value.outstandingFines);
+        } else {
+          surfaceErrors.push(
+            circulationResult.reason instanceof Error
+              ? circulationResult.reason.message
+              : "Circulation is temporarily unavailable."
+          );
+        }
+
+        if (finesResult.status === "fulfilled") {
+          setFines(finesResult.value.items);
+        } else {
+          surfaceErrors.push(
+            finesResult.reason instanceof Error
+              ? finesResult.reason.message
+              : "Fine records are temporarily unavailable."
+          );
+        }
       }
 
       if (borrow) {
-        const mine = await listMyLoans();
-        setMyLoans(mine.items);
-        setMyFine(mine.outstandingFine);
+        const mineResult = await Promise.allSettled([listMyLoans()]);
+        if (mineResult[0].status === "fulfilled") {
+          setMyLoans(mineResult[0].value.items);
+          setMyFine(mineResult[0].value.outstandingFine);
+        } else {
+          surfaceErrors.push(
+            mineResult[0].reason instanceof Error
+              ? mineResult[0].reason.message
+              : "My loans are temporarily unavailable."
+          );
+        }
       }
 
+      setErrorMessage(
+        surfaceErrors.length
+          ? [...new Set(surfaceErrors)].join(" ")
+          : ""
+      );
       setState("ready");
     } catch (err) {
       if (err instanceof AuthRequiredError) {
