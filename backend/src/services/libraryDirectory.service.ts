@@ -8,13 +8,8 @@ export interface LibraryStudentSearchFilters { department?: string; program?: st
 export async function searchLibraryStudents(institutionId: string, actor: AuthenticatedUser, filters: LibraryStudentSearchFilters) {
   if (!actor.permissions.includes("library.manage")) throw new AppError("Library student lookup requires circulation permission", 403);
   const value = (input?: string) => input?.trim() || undefined;
-  const search = value(filters.search);
-  const department = value(filters.department);
-  const program = value(filters.program);
-  const session = value(filters.session);
-  const semester = value(filters.semester);
-  const section = value(filters.section);
-  const conditions: Prisma.Sql[] = [
+  const search = value(filters.search), department = value(filters.department), program = value(filters.program), session = value(filters.session), semester = value(filters.semester), section = value(filters.section);
+  const conditions: any[] = [
     Prisma.sql`u."institutionId" = ${institutionId}`,
     Prisma.sql`u."isActive" = TRUE`,
     Prisma.sql`EXISTS (SELECT 1 FROM "user_roles" ur JOIN "roles" r ON r."id"=ur."roleId" WHERE ur."userId"=u."id" AND r."name"='STUDENT' AND r."institutionId"=${institutionId})`,
@@ -23,25 +18,12 @@ export async function searchLibraryStudents(institutionId: string, actor: Authen
   if (department) conditions.push(Prisma.sql`(d."name" ILIKE ${`%${department}%`} OR d."code" ILIKE ${`%${department}%`})`);
   if (program) conditions.push(Prisma.sql`(p."name" ILIKE ${`%${program}%`} OR p."code" ILIKE ${`%${program}%`})`);
   if (session) conditions.push(Prisma.sql`ay."name" ILIKE ${`%${session}%`}`);
-  if (semester) {
-    const number = Number(semester);
-    conditions.push(Number.isFinite(number) ? Prisma.sql`(sem."name" ILIKE ${`%${semester}%`} OR sem."number"=${number})` : Prisma.sql`sem."name" ILIKE ${`%${semester}%`}`);
-  }
+  if (semester) { const number = Number(semester); conditions.push(Number.isFinite(number) ? Prisma.sql`(sem."name" ILIKE ${`%${semester}%`} OR sem."number"=${number})` : Prisma.sql`sem."name" ILIKE ${`%${semester}%`}`); }
   if (section) conditions.push(Prisma.sql`sec."name" ILIKE ${`%${section}%`}`);
-  if (search) {
-    const like = `%${search}%`;
-    conditions.push(Prisma.sql`(u."firstName" ILIKE ${like} OR u."lastName" ILIKE ${like} OR u."email" ILIKE ${like} OR sp."admissionNumber" ILIKE ${like} OR e."rollNumber" ILIKE ${like})`);
-  }
+  if (search) { const like = `%${search}%`; conditions.push(Prisma.sql`(u."firstName" ILIKE ${like} OR u."lastName" ILIKE ${like} OR u."email" ILIKE ${like} OR sp."admissionNumber" ILIKE ${like} OR e."rollNumber" ILIKE ${like})`); }
 
-  const rows = await prisma.$queryRaw<Array<{
-    id: string; firstName: string; lastName: string; admissionNumber: string | null; rollNumber: string | null;
-    departmentCode: string; departmentName: string; programCode: string; programName: string; sessionName: string;
-    semesterNumber: number; sectionName: string;
-  }>>(Prisma.sql`
-    SELECT u."id",u."firstName",u."lastName",sp."admissionNumber",e."rollNumber",
-      d."code" AS "departmentCode",d."name" AS "departmentName",
-      p."code" AS "programCode",p."name" AS "programName",ay."name" AS "sessionName",
-      sem."number" AS "semesterNumber",sec."name" AS "sectionName"
+  const rows = await prisma.$queryRaw<Array<{ id: string; firstName: string; lastName: string; admissionNumber: string | null; rollNumber: string | null; departmentCode: string; departmentName: string; programCode: string; programName: string; sessionName: string; semesterNumber: number; sectionName: string; }>>(Prisma.sql`
+    SELECT u."id",u."firstName",u."lastName",sp."admissionNumber",e."rollNumber",d."code" AS "departmentCode",d."name" AS "departmentName",p."code" AS "programCode",p."name" AS "programName",ay."name" AS "sessionName",sem."number" AS "semesterNumber",sec."name" AS "sectionName"
     FROM "users" u
     JOIN "student_enrollments" e ON e."userId"=u."id"
     JOIN "programs" p ON p."id"=e."programId"
@@ -51,21 +33,8 @@ export async function searchLibraryStudents(institutionId: string, actor: Authen
     LEFT JOIN "sections" sec ON sec."id"=e."sectionId"
     LEFT JOIN "student_profiles" sp ON sp."userId"=u."id"
     WHERE ${Prisma.join(conditions, " AND ")}
-    ORDER BY u."firstName" ASC,u."lastName" ASC
-    LIMIT 25
+    ORDER BY u."firstName" ASC,u."lastName" ASC LIMIT 25
   `);
 
-  return rows.map((row) => ({
-    id: row.id,
-    label: `${row.firstName} ${row.lastName}`.trim(),
-    hint: [
-      row.admissionNumber ? `Enrollment ${row.admissionNumber}` : null,
-      row.rollNumber ? `Roll ${row.rollNumber}` : null,
-      `${row.programCode} · ${row.programName}`,
-      `${row.departmentCode} · ${row.departmentName}`,
-      row.sessionName,
-      `Semester ${row.semesterNumber}`,
-      `Section ${row.sectionName}`,
-    ].filter(Boolean).join(" · "),
-  }));
+  return rows.map((row) => ({ id: row.id, label: `${row.firstName} ${row.lastName}`.trim(), hint: [row.admissionNumber ? `Enrollment ${row.admissionNumber}` : null, row.rollNumber ? `Roll ${row.rollNumber}` : null, `${row.programCode} · ${row.programName}`, `${row.departmentCode} · ${row.departmentName}`, row.sessionName, `Semester ${row.semesterNumber}`, `Section ${row.sectionName}`].filter(Boolean).join(" · ") }));
 }
