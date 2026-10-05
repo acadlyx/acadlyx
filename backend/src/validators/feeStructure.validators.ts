@@ -211,6 +211,10 @@ export const feeStructureUpdateSchema =
       }
     );
 
+export const feeStructureAssignmentSchema = z.object({
+  studentIds: z.array(uuid).max(10000).optional(),
+});
+
 export const feeStructureListSchema =
   z.object({
     status:
