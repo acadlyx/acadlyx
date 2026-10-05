@@ -30,8 +30,8 @@ function roleOwnedHref(role: string | null, href: string): string {
   return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
 }
 
-function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[]): boolean {
-  if (canAccessRoute(pathname, roles, permissions)) return true;
+function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
+  if (canAccessRoute(pathname, roles, permissions, tenantFeatures)) return true;
   const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
   const sourceRoute = Object.entries(overrides).find(([, destination]) => destination === pathname)?.[0];
   return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions, tenantFeatures) : false;
