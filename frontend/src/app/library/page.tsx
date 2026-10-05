@@ -94,6 +94,8 @@ export default function LibraryPage() {
 
   const canManage = user?.permissions.includes("library.manage") ?? false;
   const canBorrow = user?.permissions.includes("library.borrow") ?? false;
+  const canRequestWaiver = user?.permissions.includes("library.fines.waive.request") ?? false;
+  const canApproveWaiver = user?.permissions.includes("library.fines.waive.approve") ?? false;
 
   const load = useCallback(async () => {
     try {
@@ -695,7 +697,21 @@ export default function LibraryPage() {
                       <td className="text-slate-600">{money(Number(fine.originalAmount))}</td>
                       <td className="text-slate-600">{money(Number(fine.waivedAmount))}</td>
                       <td className="text-slate-600">{money(balance)}</td>
-                      <td><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{fine.status}</span></td>
+                      <td>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{fine.status}</span>
+                        {balance > 0 && canRequestWaiver && fine.status !== "WAIVER_REQUESTED" && (
+                          <button type="button" className="ml-2 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold"
+                            onClick={() => { const reason = window.prompt("Waiver reason"); if (reason) void run(() => requestFineWaiver(fine.id, reason)); }}>
+                            Request waiver
+                          </button>
+                        )}
+                        {balance > 0 && canApproveWaiver && (fine.status === "WAIVER_REQUESTED" || fine.status === "OUTSTANDING" || fine.status === "PARTIAL") && (
+                          <button type="button" className="ml-2 rounded-lg bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
+                            onClick={() => { const reason = window.prompt("Approval reason"); const amount = window.prompt("Waiver amount", String(balance)); if (reason && amount) void run(() => approveFineWaiver(fine.id, Number(amount), reason)); }}>
+                            Approve waiver
+                          </button>
+                        )}
+                      </td>
                     </tr>;
                   })}
                   {fines.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-slate-500">No library financial charges.</td></tr>}
