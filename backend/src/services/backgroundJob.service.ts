@@ -120,11 +120,12 @@ export async function updateJobProgress(id: string, workerId: string, processed:
 }
 
 export async function completeJob(id: string, workerId: string, result?: Prisma.InputJsonValue) {
-  await prisma.backgroundJob.updateMany({
-    where: { id, workerId, status: { in: [JOB_STATUS.PROCESSING, JOB_STATUS.CANCEL_REQUESTED] }},
+  const updated = await prisma.backgroundJob.updateMany({
+    where: { id, workerId, status: JOB_STATUS.PROCESSING },
     data: { status: JOB_STATUS.COMPLETED, progress: 100, completedAt: new Date(),
       result, lastHeartbeatAt: new Date(), updatedAt: new Date() },
   });
+  return updated.count > 0;
 }
 
 export async function failJob(id: string, workerId: string, error: unknown, retryable: boolean) {
