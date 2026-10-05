@@ -8,7 +8,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
 import { assertTenantQuota } from "./entitlement.service";
-import { getManagedDepartmentIds, getStaffDepartmentIds, getStudentDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { getManagedDepartmentIds, getStaffDepartmentIds, getStudentDepartmentIds, getStudentWhereScope, isInstitutionWide } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -325,66 +325,12 @@ async function ensureStudentRole(
 }
 
 
-async function getStudentAccessScope(
-  institutionId: string,
-  actor: AuthenticatedUser
-): Promise<Prisma.UserWhereInput> {
-  const canonicalRoles = getCanonicalRoleNames(actor.roles);
-  const unrestricted = new Set([
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "REGISTRAR",
-    "ACCOUNTS",
-    "ADMISSIONS",
-    "EXAMINATION",
-  ]);
-
-  if (canonicalRoles.some((role) => unrestricted.has(role))) return {};
-
-  if (canonicalRoles.includes("HOD")) {
-    const accesses = await prisma.departmentAccess.findMany({
-      where: { userId: actor.id, department: { institutionId } },
-      select: { departmentId: true },
-    });
-    const departmentIds = accesses.map((item) => item.departmentId);
-    if (!departmentIds.length) return { id: "00000000-0000-0000-0000-000000000000" };
-    return {
-      studentEnrollments: {
-        some: {
-          institutionId,
-          program: { departmentId: { in: departmentIds } },
-        },
-      },
-    };
-  }
-
-  if (canonicalRoles.includes("FACULTY")) {
-    const offerings = await prisma.courseOffering.findMany({
-      where: { institutionId, facultyId: actor.id, isActive: true },
-      select: { sectionId: true, semesterId: true },
-    });
-    const pairs = offerings.map((offering) => ({
-      sectionId: offering.sectionId,
-      semesterId: offering.semesterId,
-    }));
-    if (!pairs.length) return { id: "00000000-0000-0000-0000-000000000000" };
-    return { studentEnrollments: { some: { institutionId, OR: pairs } } };
-  }
-
-  if (canonicalRoles.includes("STUDENT")) return { id: actor.id };
-
-  throw new AppError("Student access is not available for this role", 403);
-}
-
 async function assertStudentReadAccess(
   institutionId: string,
   userId: string,
   actor: AuthenticatedUser
 ) {
-  const scope = await getStudentAccessScope(institutionId, actor);
+  const scope = await getStudentWhereScope(institutionId, actor);
   const allowed = await prisma.user.findFirst({
     where: { id: userId, institutionId, ...scope },
     select: { id: true },
@@ -421,19 +367,33 @@ async function assertStudentListContext(
     sectionId?: string;
   }
 ) {
-  const roles = getCanonicalRoleNames(actor.roles);
-  const allowedDepartments = await allowedDepartmentIdsForValidation(institutionId, actor);
-
   const program = params.programId
     ? await prisma.program.findFirst({
         where: { id: params.programId, institutionId, isActive: true },
         select: { id: true, departmentId: true },
       })
     : null;
-
   if (params.programId && !program) throw new AppError("Selected program is not available in this institution", 404);
-  if (program && allowedDepartments !== null && !allowedDepartments.includes(program.departmentId)) {
-    throw new AppError("Selected program is outside your authorized department scope", 403);
+
+  const scope = await getStudentWhereScope(institutionId, actor);
+  if (program) {
+    const probe = await prisma.user.findFirst({
+      where: {
+        institutionId,
+        userRoles: { some: { role: { name: "STUDENT", institutionId } } },
+        studentEnrollments: {
+          some: {
+            programId: program.id,
+            ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
+            ...(params.semesterId ? { semesterId: params.semesterId } : {}),
+            ...(params.sectionId ? { sectionId: params.sectionId } : {}),
+          },
+        },
+        ...scope,
+      },
+      select: { id: true },
+    });
+    if (!probe) throw new AppError("Selected academic context is outside your authorized scope", 403);
   }
 
   const semester = params.semesterId
@@ -442,58 +402,20 @@ async function assertStudentListContext(
         select: { id: true, programId: true, academicYearId: true },
       })
     : null;
-
   if (params.semesterId && !semester) throw new AppError("Selected semester is not available in this institution", 404);
-  if (semester && program && semester.programId !== program.id) {
-    throw new AppError("Selected semester does not belong to the selected program", 400);
-  }
-  if (semester && params.academicYearId && semester.academicYearId !== params.academicYearId) {
-    throw new AppError("Selected semester does not belong to the selected academic year", 400);
-  }
+  if (semester && program && semester.programId !== program.id) throw new AppError("Selected semester does not belong to the selected program", 400);
+  if (semester && params.academicYearId && semester.academicYearId !== params.academicYearId) throw new AppError("Selected semester does not belong to the selected academic year", 400);
 
   if (params.academicYearId) {
-    const year = await prisma.academicYear.findFirst({
-      where: { id: params.academicYearId, institutionId },
-      select: { id: true },
-    });
+    const year = await prisma.academicYear.findFirst({ where: { id: params.academicYearId, institutionId }, select: { id: true } });
     if (!year) throw new AppError("Selected academic year is not available in this institution", 404);
   }
 
-  const section = params.sectionId
-    ? await prisma.section.findFirst({
-        where: { id: params.sectionId, institutionId, isActive: true },
-        select: { id: true, semesterId: true },
-      })
-    : null;
-
-  if (params.sectionId && !section) throw new AppError("Selected section is not available in this institution", 404);
-  if (section && semester && section.semesterId !== semester.id) {
-    throw new AppError("Selected section does not belong to the selected semester", 400);
+  if (params.sectionId) {
+    const section = await prisma.section.findFirst({ where: { id: params.sectionId, institutionId, isActive: true }, select: { id: true, semesterId: true } });
+    if (!section) throw new AppError("Selected section is not available in this institution", 404);
+    if (semester && section.semesterId !== semester.id) throw new AppError("Selected section does not belong to the selected semester", 400);
   }
-
-  if (roles.includes("STUDENT") && !params.programId && !params.semesterId && !params.sectionId && !params.academicYearId) {
-    return;
-  }
-}
-
-async function allowedDepartmentIdsForValidation(
-  institutionId: string,
-  actor: AuthenticatedUser
-): Promise<string[] | null> {
-  if (isInstitutionWide(actor)) return null;
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id).then(async (ids) => {
-    if (!ids.length) {
-      const offerings = await prisma.courseOffering.findMany({ where: { institutionId, facultyId: actor.id, isActive: true }, select: { sectionId: true, semesterId: true } });
-      if (!offerings.length) return [];
-      const semesters = await prisma.semester.findMany({ where: { id: { in: offerings.map((o) => o.semesterId) }, institutionId }, select: { program: { select: { departmentId: true } } } });
-      return Array.from(new Set(semesters.map((s) => s.program.departmentId)));
-    }
-    return ids;
-  });
-  if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
-  return [];
 }
 
 export async function listStudents(
