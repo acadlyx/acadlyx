@@ -202,14 +202,6 @@ async function buildWorkspaceContext(
       })
     : [];
 
-  const selectedSection = input.sectionId
-    ? sections.find((section) => section.id === input.sectionId) ?? null
-    : null;
-
-  if (input.sectionId && !selectedSection) {
-    throw new AppError("Section is not valid for the selected semester", 404);
-  }
-
   const batchesPromise = input.programId
     ? prisma.batch.findMany({
         where: { institutionId, programId: input.programId, isActive: true },
@@ -219,6 +211,14 @@ async function buildWorkspaceContext(
     : [];
 
   const [sections, batches] = await Promise.all([sectionsPromise, batchesPromise]);
+
+  const selectedSection = input.sectionId
+    ? sections.find((section) => section.id === input.sectionId) ?? null
+    : null;
+
+  if (input.sectionId && !selectedSection) {
+    throw new AppError("Section is not valid for the selected semester", 404);
+  }
 
   const selectedBatch = input.batchId
     ? batches.find((batch) => batch.id === input.batchId) ?? null
