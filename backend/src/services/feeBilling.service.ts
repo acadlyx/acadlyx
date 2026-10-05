@@ -1226,36 +1226,65 @@ export async function requestRefund(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanManageFees(actor);
-  const payment = await requireTenantRow<{
-    id: string;
-    invoiceId: string;
-    amount: number;
-    refundedAmount: number;
-    status: string;
-  }>(prisma, "fee_payments", institutionId, input.feePaymentId, "Payment");
-
-  const invoice = await requireTenantRow<{
-    id: string;
-    studentId: string;
-  }>(prisma, "fee_invoices", institutionId, payment.invoiceId, "Invoice");
-
-  const refundable = round2(payment.amount - payment.refundedAmount);
-  if (input.amount > refundable) {
-    throw new AppError(
-      `Refund exceeds the refundable balance of ${refundable.toFixed(2)}`,
-      400
-    );
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new AppError("Refund amount must be greater than zero", 400);
+  }
+  if (!input.reason?.trim()) {
+    throw new AppError("Refund reason is required", 400);
   }
 
   const id = randomUUID();
-  await prisma.$executeRaw`
-    INSERT INTO "fee_refunds"
-      ("id", "institutionId", "paymentId", "invoiceId", "studentId",
-       "amount", "reason", "status", "requestedById")
-    VALUES
-      (${id}, ${institutionId}, ${payment.id}, ${invoice.id}, ${invoice.studentId},
-       ${input.amount}, ${input.reason.trim()}, 'REQUESTED', ${actor.id})
-  `;
+
+  await prisma.$transaction(async (tx) => {
+    const payments = await tx.$queryRaw<
+      Array<{ id: string; invoiceId: string; amount: number; refundedAmount: number; status: string }>
+    >(Prisma.sql`
+      SELECT "id", "invoiceId", "amount", "refundedAmount", "status"
+      FROM "fee_payments"
+      WHERE "id" = ${input.feePaymentId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const payment = payments[0];
+    if (!payment) throw new AppError("Payment was not found", 404);
+    if (!["SUCCESS", "PARTIALLY_REFUNDED"].includes(payment.status)) {
+      throw new AppError("Only successfully settled payments can be refunded", 409);
+    }
+
+    const invoice = await requireTenantRow<{ id: string; studentId: string }>(
+      tx,
+      "fee_invoices",
+      institutionId,
+      payment.invoiceId,
+      "Invoice"
+    );
+
+    const reservedRefundRows = await tx.$queryRaw<Array<{ total: number | null }>>(Prisma.sql`
+      SELECT COALESCE(SUM("amount"), 0)::float AS "total"
+      FROM "fee_refunds"
+      WHERE "paymentId" = ${payment.id}
+        AND "institutionId" = ${institutionId}
+        AND "status" IN ('REQUESTED', 'APPROVED', 'PROCESSED')
+    `);
+    const reservedRefunds = Number(reservedRefundRows[0]?.total ?? 0);
+    const refundable = round2(payment.amount - payment.refundedAmount - reservedRefunds);
+
+    if (input.amount > refundable + 0.009) {
+      throw new AppError(
+        `Refund exceeds the refundable balance of ${Math.max(0, refundable).toFixed(2)}`,
+        400
+      );
+    }
+
+    await tx.$executeRaw`
+      INSERT INTO "fee_refunds"
+        ("id", "institutionId", "paymentId", "invoiceId", "studentId",
+         "amount", "reason", "status", "requestedById")
+      VALUES
+        (${id}, ${institutionId}, ${payment.id}, ${invoice.id}, ${invoice.studentId},
+         ${input.amount}, ${input.reason.trim()}, 'REQUESTED', ${actor.id})
+    `;
+  });
 
   await recordAuditLog({
     institutionId,
@@ -1269,7 +1298,6 @@ export async function requestRefund(
 
   return requireTenantRow(prisma, "fee_refunds", institutionId, id, "Refund");
 }
-
 /**
  * Approving a refund reverses the money on the payment and the invoice
  * in one transaction, so the ledger can never show a refund that the
