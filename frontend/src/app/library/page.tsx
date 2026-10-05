@@ -247,6 +247,7 @@ export default function LibraryPage() {
   const tabs: Array<[Tab, string]> = [
     ["catalogue", "Catalogue"],
     ...(canManage ? ([["circulation", "Circulation"]] as Array<[Tab, string]>) : []),
+    ...(canManage ? ([["fines", "Fines"]] as Array<[Tab, string]>) : []),
     ...(canBorrow ? ([["mine", "My loans"]] as Array<[Tab, string]>) : []),
   ];
 
@@ -263,6 +264,7 @@ export default function LibraryPage() {
                 ["Issued", summary.issued],
                 ["Reserved", summary.reserved],
                 ["Overdue", summary.overdue],
+                ...(canManage ? [["Fine outstanding", summary.outstandingFines]] as Array<[string, number]> : []),
               ] as Array<[string, number]>
             ).map(([label, value]) => (
               <div
