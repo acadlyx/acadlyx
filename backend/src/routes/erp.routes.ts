@@ -200,7 +200,7 @@ router.delete(
 router.post(
   "/fee-invoices/:id/payments",
   requireFeature("payments"),
-  authorize("fees.pay"),
+  authorize("fees.payment.record"),
   validateParams(idParamSchema),
   validateBody(recordPaymentSchema),
   controller.payment
