@@ -509,7 +509,7 @@ export async function returnBook(
         ? DAMAGED_BOOK_FINE
         : computeFine(existing.dueDate);
 
-  if (input.waiveFine && fine > 0 && !actor.permissions.includes("fees.approve")) {
+  if (input.waiveFine && fine > 0 && !actor.permissions.includes("library.fines.waive.approve")) {
     throw new AppError("Fine waiver requires financial approval authority", 403);
   }
 
@@ -850,9 +850,20 @@ export async function approveFineWaiver(
       const invoice = await tx.feeInvoice.findFirst({ where: { id: fine.financialInvoiceId, institutionId } });
       if (invoice) {
         const newAmount = Math.max(0, Number(invoice.amount) - amount);
+        const paidAmount = Number(invoice.paidAmount ?? 0);
+        const nextStatus =
+          newAmount <= paidAmount + 0.005
+            ? "PAID"
+            : paidAmount > 0
+              ? "PARTIALLY_PAID"
+              : "PENDING";
         await tx.feeInvoice.update({
           where: { id: invoice.id },
-          data: { amount: newAmount, discountAmount: Number(invoice.discountAmount ?? 0) + amount, status: newAmount <= Number(invoice.paidAmount ?? 0) ? "PAID" : "PARTIALLY_PAID" },
+          data: {
+            amount: newAmount,
+            discountAmount: Number(invoice.discountAmount ?? 0) + amount,
+            status: nextStatus,
+          },
         });
       }
     }
