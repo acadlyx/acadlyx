@@ -1410,6 +1410,7 @@ model FeeRefund {
   processedBy   User?       @relation("FeeRefundProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
   approvedAt    DateTime?
   processedAt   DateTime?
+  reference     String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   @@index([institutionId, status])
