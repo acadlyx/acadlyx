@@ -71,7 +71,6 @@ const studentListInclude = {
       dateOfBirth: true,
       gender: true,
       status: true,
-      profilePhotoUrl: true,
     },
   },
   userRoles: {
