@@ -513,6 +513,12 @@ export async function returnBook(
     throw new AppError("Fine waiver requires financial approval authority", 403);
   }
 
+  const financeEntitlement = await prisma.tenantFeatureEntitlement.findFirst({
+    where: { institutionId, featureKey: "fees", isEnabled: true },
+    select: { id: true },
+  });
+  const financialReady = Boolean(financeEntitlement);
+
   const result = await prisma.$transaction(async (tx) => {
     if (input.condition === "LOST") {
       await tx.libraryBook.update({
@@ -530,6 +536,19 @@ export async function returnBook(
     let libraryFineId: string | null = null;
 
     if (fine > 0) {
+      if (!financialReady) {
+        const blockedFine = await tx.libraryFine.upsert({
+          where: { issueId_type: { issueId: existing.id, type: input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE" } },
+          update: {},
+          create: {
+            institutionId, issueId: existing.id, studentId: existing.borrowerId,
+            type: input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE",
+            originalAmount: fine, reason: input.condition === "LOST" ? `Lost book: "${existing.book.title}"` : input.condition === "DAMAGED" ? `Damaged book: "${existing.book.title}"` : `Late return of "${existing.book.title}"`,
+            status: "FINANCE_BLOCKED",
+          },
+        });
+        libraryFineId = blockedFine.id;
+      } else {
       const feeHeadCode =
         input.condition === "LOST"
           ? "LOST_BOOK_CHARGE"
@@ -621,6 +640,7 @@ export async function returnBook(
         where: { id: libraryFineId },
         data: { financialInvoiceId },
       });
+      }
     }
 
     const issue = await tx.libraryIssue.update({
@@ -634,7 +654,7 @@ export async function returnBook(
       include: issueInclude,
     });
 
-    return { issue, fine, financialInvoiceId, libraryFineId };
+    return { issue, fine, financialInvoiceId, libraryFineId, financialReady };
   });
 
   await recordAuditLog({
@@ -648,7 +668,9 @@ export async function returnBook(
       fine: result.fine,
       financialInvoiceId: result.financialInvoiceId,
       libraryFineId: result.libraryFineId,
+    financialWarning: result.financialReady ? null : "Fees/Accounts is disabled for this institution; the library fine is recorded as FINANCE_BLOCKED and must be reconciled after the financial module is enabled.",
       waived: Boolean(input.waiveFine),
+      financialReady: result.financialReady,
     },
     ...meta,
   });
