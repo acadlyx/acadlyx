@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { AppError } from "../middleware/errorHandler";
 
 import { authenticate } from "../middleware/authenticate";
 import { authorize, authorizeWorkflow } from "../middleware/authorize";
