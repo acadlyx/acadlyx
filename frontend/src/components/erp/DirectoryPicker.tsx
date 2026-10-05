@@ -5,7 +5,11 @@ import {
   searchDirectoryCourseOfferings,
   searchDirectoryStudents,
   searchDirectoryUsers,
+  listExams,
+  listInvoices,
   type DirectoryOption,
+  type ErpExamOption,
+  type ErpInvoiceOption,
 } from "@/lib/erpApi";
 
 type DirectoryKind = "student" | "user" | "course-offering";
@@ -128,5 +132,89 @@ export function DirectoryPicker({
         </div>
       )}
     </div>
+  );
+}
+
+
+export function ExamPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [items, setItems] = useState<ErpExamOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listExams()
+      .then((result) => {
+        if (!cancelled) setItems(result);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <select
+      required
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+    >
+      <option value="">{loading ? "Loading exams…" : "Select exam"}</option>
+      {items.map((exam) => (
+        <option key={exam.id} value={exam.id}>
+          {exam.courseCode ? `${exam.courseCode} — ` : ""}{exam.title}
+          {exam.sectionName ? ` · Section ${exam.sectionName}` : ""}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function InvoicePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [items, setItems] = useState<ErpInvoiceOption[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listInvoices()
+      .then((result) => {
+        if (!cancelled) setItems(result);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <select
+      required
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+    >
+      <option value="">{loading ? "Loading invoices…" : "Select invoice"}</option>
+      {items.map((invoice) => (
+        <option key={invoice.id} value={invoice.id}>
+          {invoice.invoiceNumber || invoice.title} — {invoice.studentName || "Student"} — {invoice.status}
+        </option>
+      ))}
+    </select>
   );
 }
