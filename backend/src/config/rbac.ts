@@ -20,6 +20,83 @@
  * Frontend navigation is never a security boundary.
  */
 
+/**
+ * Workflow dependency catalogue.
+ *
+ * These are runtime capabilities required to complete an action safely.
+ * They are NOT role grants and never expand write authority.
+ */
+export type PermissionDependencyAccess = "READ" | "WRITE" | "VERIFY";
+
+export type PermissionDependency = {
+  permission: string;
+  dependencies: Array<{
+    permission: string;
+    access: PermissionDependencyAccess;
+  }>;
+};
+
+export const PERMISSION_DEPENDENCIES: PermissionDependency[] = [
+  { permission: "library.borrow", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "library.read", access: "READ" },
+  ]},
+  { permission: "library.manage", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "library.read", access: "READ" },
+  ]},
+  { permission: "exams.manage", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "programs.read", access: "READ" },
+    { permission: "departments.read", access: "READ" },
+    { permission: "semesters.read", access: "READ" },
+    { permission: "sections.read", access: "READ" },
+    { permission: "courses.read", access: "READ" },
+  ]},
+  { permission: "exams.invigilate", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "sections.read", access: "READ" },
+  ]},
+  { permission: "exams.approve", dependencies: [
+    { permission: "marks.read", access: "READ" },
+    { permission: "students.read", access: "READ" },
+    { permission: "courses.read", access: "READ" },
+  ]},
+  { permission: "attendance.mark", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "course-offerings.read", access: "READ" },
+    { permission: "sections.read", access: "READ" },
+  ]},
+  { permission: "marks.enter", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "course-offerings.read", access: "READ" },
+  ]},
+  { permission: "fees.assign", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "programs.read", access: "READ" },
+  ]},
+  { permission: "fees.payment.record", dependencies: [
+    { permission: "students.read", access: "READ" },
+    { permission: "fees.invoice.read", access: "READ" },
+  ]},
+  { permission: "fees.concession.apply", dependencies: [
+    { permission: "students.read", access: "READ" },
+  ]},
+  { permission: "admissions.manage", dependencies: [
+    { permission: "programs.read", access: "READ" },
+    { permission: "departments.read", access: "READ" },
+    { permission: "documents.read", access: "READ" },
+  ]},
+  { permission: "obe.mapping.manage", dependencies: [
+    { permission: "programs.read", access: "READ" },
+    { permission: "courses.read", access: "READ" },
+  ]},
+  { permission: "obe.assessment.manage", dependencies: [
+    { permission: "courses.read", access: "READ" },
+    { permission: "course-offerings.read", access: "READ" },
+  ]},
+];
+
 export const PERMISSIONS = [
   { key: "users.read", module: "users", description: "View users" },
   { key: "users.create", module: "users", description: "Create users" },
