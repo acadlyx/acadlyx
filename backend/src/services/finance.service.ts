@@ -161,7 +161,7 @@ export async function collections(institutionId:string,a:AuthenticatedUser,filte
  if(!has(a,"fees.collection.read")&&!has(a,"fees.read"))throw new AppError("Collection visibility permission required",403);
  const s=await scope(institutionId,a);
  const collectionWhere:any=filters.academicYearId?{...invoiceWhere(s),academicYearId:filters.academicYearId}:invoiceWhere(s);
- const rows=await prisma.feeInvoice.findMany({where:collectionWhere,select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},select:{program:{select:{id:true,name:true,department:{select:{id:true,name:true,campusId:true}}}},semester:{select:{id:true,name:true}}}}}}}});
+ const rows=await prisma.feeInvoice.findMany({where:collectionWhere,select:{amount:true,paidAmount:true,refundedAmount:true,student:{select:{studentEnrollments:{where:{status:"ACTIVE"},orderBy:{createdAt:"desc"},take:1,select:{program:{select:{id:true,name:true,department:{select:{id:true,name:true,campusId:true}}}},semester:{select:{id:true,name:true}}}}}}}});
  const departments=new Map<string,any>(),programs=new Map<string,any>(),semesters=new Map<string,any>();
  for(const x of rows)for(const e of x.student.studentEnrollments){
   const billed=Number(x.amount),collected=Number(x.paidAmount)-Number(x.refundedAmount),outstanding=Math.max(0,billed-Number(x.paidAmount)-Number(x.refundedAmount));
