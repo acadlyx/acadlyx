@@ -1986,7 +1986,18 @@ export async function recordPayment(
           where: { institutionId, idempotencyKey },
           include: { receipt: true },
         });
-        if (prior) return { payment: prior, invoiceId, duplicate: true };
+        if (prior) {
+          if (
+            Math.abs(Number(prior.amount) - amount) > 0.005 ||
+            prior.invoiceId !== invoiceId
+          ) {
+            throw new AppError(
+              "Idempotency key was already used for a different payment request",
+              409
+            );
+          }
+          return { payment: prior, invoiceId, duplicate: true };
+        }
       }
 
       const current = await tx.feeInvoice.findFirst({
