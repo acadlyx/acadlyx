@@ -10,6 +10,7 @@ useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DirectoryPicker } from "@/components/erp/DirectoryPicker";
 import { useMutationState } from "@/hooks/useMutationState";
 import {
 AuthRequiredError,
@@ -904,40 +905,17 @@ event.preventDefault();
     }}
   >
     <Field label="Course offering">
-      <select
-        required
-        value={
-          form.courseOfferingId
-        }
-        onChange={(event) =>
+      <DirectoryPicker
+        kind="course-offering"
+        value={form.courseOfferingId}
+        onChange={(id) =>
           setForm({
             ...form,
-            courseOfferingId:
-              event.target.value,
+            courseOfferingId: id,
           })
         }
-        className={inputClass}
-      >
-        <option value="">
-          Select offering
-        </option>
-
-        {offerings.map(
-          (offering) => (
-            <option
-              key={offering.id}
-              value={offering.id}
-            >
-              {offering.course?.code}{" "}
-              —{" "}
-              {offering.course?.name}{" "}
-              {offering.section?.name
-                ? `· ${offering.section.name}`
-                : ""}
-            </option>
-          )
-        )}
-      </select>
+        placeholder="Search course, code, program, semester or section…"
+      />
     </Field>
 
     <Field label="Day">
@@ -1390,54 +1368,30 @@ event.preventDefault();
         );
       }}
     >
-      <Field label="Exam ID">
-        <input
-          required
+      <Field label="Exam">
+        <ExamPicker
           value={result.examId}
-          onChange={(event) =>
+          onChange={(id) =>
             setResult({
               ...result,
-              examId:
-                event.target.value,
+              examId: id,
             })
           }
-          className={inputClass}
         />
       </Field>
 
       <Field label="Student">
-        <select
-          required
-          value={
-            result.studentId
-          }
-          onChange={(event) =>
+        <DirectoryPicker
+          kind="student"
+          value={result.studentId}
+          onChange={(id) =>
             setResult({
               ...result,
-              studentId:
-                event.target.value,
+              studentId: id,
             })
           }
-          className={inputClass}
-        >
-          <option value="">
-            Select student
-          </option>
-
-          {students.map(
-            (student) => (
-              <option
-                key={student.id}
-                value={student.id}
-              >
-                {student.firstName}{" "}
-                {student.lastName}{" "}
-                —{" "}
-                {student.email}
-              </option>
-            )
-          )}
-        </select>
+          placeholder="Search student name, roll number or email…"
+        />
       </Field>
 
       <Field label="Marks">
@@ -2284,21 +2238,15 @@ event.preventDefault();
           );
         }}
       >
-        <Field label="Invoice ID">
-          <input
-            required
-            value={
-              payment.invoiceId
-            }
-            onChange={(event) =>
+        <Field label="Invoice">
+          <InvoicePicker
+            value={payment.invoiceId}
+            onChange={(id) =>
               setPayment({
                 ...payment,
-                invoiceId:
-                  event.target
-                    .value,
+                invoiceId: id,
               })
             }
-            className={inputClass}
           />
         </Field>
 
@@ -2401,89 +2349,32 @@ event.preventDefault();
     }}
   >
     <Field label="Parent">
-      <select
-        required
-        value={
-          form.parentId
-        }
-        onChange={(event) =>
+      <DirectoryPicker
+        kind="user"
+        roles={["PARENT"]}
+        value={form.parentId}
+        onChange={(id) =>
           setForm({
             ...form,
-            parentId:
-              event.target
-                .value,
+            parentId: id,
           })
         }
-        className={inputClass}
-      >
-        <option value="">
-          Select parent
-        </option>
-
-        {parents.map(
-          (parent) => (
-            <option
-              key={parent.id}
-              value={parent.id}
-            >
-              {
-                parent.firstName
-              }{" "}
-              {
-                parent.lastName
-              }{" "}
-              —{" "}
-              {parent.email}
-            </option>
-          )
-        )}
-      </select>
+        placeholder="Search parent name or email…"
+      />
     </Field>
 
     <Field label="Student">
-      <select
-        required
-        value={
-          form.studentId
-        }
-        onChange={(event) =>
+      <DirectoryPicker
+        kind="student"
+        value={form.studentId}
+        onChange={(id) =>
           setForm({
             ...form,
-            studentId:
-              event.target
-                .value,
+            studentId: id,
           })
         }
-        className={inputClass}
-      >
-        <option value="">
-          Select student
-        </option>
-
-        {students.map(
-          (student) => (
-            <option
-              key={
-                student.id
-              }
-              value={
-                student.id
-              }
-            >
-              {
-                student.firstName
-              }{" "}
-              {
-                student.lastName
-              }{" "}
-              —{" "}
-              {
-                student.email
-              }
-            </option>
-          )
-        )}
-      </select>
+        placeholder="Search student name, roll number or email…"
+      />
     </Field>
 
     <Field label="Relationship">
