@@ -56,7 +56,7 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     timetable,
   ] = await Promise.all([
     facultyService.getAtRiskStudents(institutionId, user.id, 75, offerings),
-    facultyService.getPendingAssignmentReviewCount(institutionId, user.id),
+    facultyService.getPendingAssignmentReviewCount(institutionId, user.id, offerings),
     facultyService.getAssignmentSubmissionGaps(institutionId, user.id, 5, offerings),
     prisma.timetableEntry.findMany({
       where: {
