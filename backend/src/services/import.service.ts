@@ -7,6 +7,9 @@ import { AuthenticatedUser } from "../types/auth";
 import { normalizeRoleName } from "../config/rbac";
 import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
+import { storeFile, deleteFile } from "./fileStorage.service";
+import { enqueueJob } from "./backgroundJob.service";
+import { JOB_TYPES } from "../jobs/types";
 
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
 export type ImportType = typeof IMPORT_TYPES[number];
@@ -338,7 +341,7 @@ export async function commit(
   type: ImportType,
   institutionId: string,
   actor: AuthenticatedUser,
-  options: { mode?: "partial" | "atomic" } = {},
+  options: { mode?: "partial" | "atomic"; onProgress?: (processed: number, failed: number, total: number) => Promise<void> } = {},
 ) {
   assertImportPermission(actor, type);
   const rows = parseWorkbook(buffer).rows;
@@ -356,6 +359,7 @@ export async function commit(
           try {
             await processImportRow(tx, type, institutionId, actor, rows[i]);
             imported += 1;
+            if (options.onProgress) await options.onProgress(imported, 0, rows.length);
           } catch (error) {
             const message = error instanceof Error ? error.message : "Unknown row error";
             throw new AppError(`Import rolled back at row ${i + 2}: ${message}`, 400);
@@ -397,6 +401,7 @@ export async function commit(
         await processImportRow(tx, type, institutionId, actor, rows[i]);
       });
       imported += 1;
+      if (options.onProgress) await options.onProgress(imported, errors.length, rows.length);
     } catch (error) {
       errors.push({ row: i + 2, message: error instanceof Error ? error.message : "Unknown row error" });
     }
@@ -424,4 +429,34 @@ export async function commit(
     },
   });
   return result;
+}
+
+export async function enqueueImport(
+  buffer: Buffer,
+  type: ImportType,
+  institutionId: string,
+  actor: AuthenticatedUser,
+  options: { mode?: "partial" | "atomic"; mimeType: string; originalName: string },
+) {
+  assertImportPermission(actor, type);
+  if (!buffer.length) throw new AppError("The uploaded import file is empty.", 400);
+  const digest = crypto.createHash("sha256").update(buffer).digest("hex");
+  const stored = await storeFile({
+    institutionId, module: "imports", buffer, filename: options.originalName,
+    mimeType: options.mimeType, ownerId: actor.id, referenceId: digest,
+    visibility: "private", resourceType: "raw",
+  });
+  try {
+    const job = await enqueueJob({
+      institutionId, type: JOB_TYPES.BULK_IMPORT,
+      payload: { fileId: stored.id, importType: type, mode: options.mode === "partial" ? "partial" : "atomic" },
+      createdById: actor.id, maxAttempts: 3, priority: 30,
+      idempotencyKey: "BULK_IMPORT:" + type + ":" + digest,
+    });
+    await prisma.fileAsset.update({ where: { id: stored.id }, data: { referenceId: job.id } });
+    return { jobId: job.id, status: job.status, type, mode: options.mode === "partial" ? "partial" : "atomic" };
+  } catch (error) {
+    await deleteFile(stored.id, institutionId).catch(() => undefined);
+    throw error;
+  }
 }
