@@ -38,6 +38,7 @@ function tenantFeatureForNavigation(item: NavigationItem): string | null {
 }
 
 
+export type NavigationItem = {
   label: string;
   href: string;
   icon?: string;
