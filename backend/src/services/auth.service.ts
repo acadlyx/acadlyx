@@ -48,11 +48,6 @@ type RoleBinding = {
   role: {
     name: string;
     institutionId: string | null;
-    rolePermissions: Array<{
-      permission: {
-        key: string;
-      };
-    }>;
   };
 };
 
