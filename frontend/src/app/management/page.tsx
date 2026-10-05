@@ -1,5 +1,2 @@
-import { redirect } from "next/navigation";
-
-export default function Page() {
-  redirect("/chairman");
-}
+import { ManagementDashboard } from "@/components/dashboard/ManagementDashboard";
+export default function Page(){return <ManagementDashboard/>;}
