@@ -45,6 +45,20 @@ test("enterprise recovery: imports expose atomic rollback semantics", () => {
   assert.match(source, /prisma\.\$transaction/);
 });
 
+test("enterprise finance: refund processing locks the payment before balance mutation", () => {
+  const source = read("src/services/feeBilling.service.ts");
+  assert.match(source, /SELECT "id", "invoiceId", "amount", "refundedAmount"/);
+  assert.match(source, /fee_payments[\\s\\S]*FOR UPDATE/);
+  assert.match(source, /INSERT INTO "fee_refunds"/);
+});
+
+test("enterprise library: stock and waiver mutations are conditional or row-locked", () => {
+  const source = read("src/services/library.service.ts");
+  assert.match(source, /availableCopies: \{ gt: 0 \}/);
+  assert.match(source, /library_fines[\\s\\S]*FOR UPDATE/);
+  assert.match(source, /fee_invoices[\\s\\S]*FOR UPDATE/);
+});
+
 test("enterprise observability: readiness exposes background-job health", () => {
   const source = read("src/controllers/health.controller.ts");
   assert.match(source, /domainEventOutbox/);
