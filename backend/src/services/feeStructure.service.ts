@@ -18,7 +18,7 @@ type FeeStructureStatus =
 function assertCanManageFees(
   actor: AuthenticatedUser
 ): void {
-  if (!actor.permissions.includes("fees.manage")) {
+  if (!actor.permissions.includes("fees.manage") && !actor.permissions.includes("fees.structure.manage")) {
     throw new AppError(
       "You are not authorized to manage fee structures",
       403
@@ -115,6 +115,8 @@ export async function listFeeHeads(
   if (
     !actor.roles.includes("SUPER_ADMIN") &&
     !actor.permissions.includes("fees.manage") &&
+    !actor.permissions.includes("fees.structure.read") &&
+    !actor.permissions.includes("fees.structure.manage") &&
     !actor.permissions.includes("reports.read")
   ) {
     throw new AppError(
