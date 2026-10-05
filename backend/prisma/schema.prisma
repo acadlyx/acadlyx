@@ -75,9 +75,6 @@ model Institution {
   auditLogs AuditLog[]
   domainEvents DomainEventOutbox[]
 
-  /// Explicit campus assignments used by Director-level authorization.
-  campusAccesses         CampusAccess[]
-
   campuses              Campus[]
   departments           Department[]
   programs              Program[]
@@ -533,7 +530,6 @@ model Program {
 
   studentEnrollments StudentEnrollment[]
   feeStructures FeeStructure[]
-  feeConcessions FeeConcession[]
 
   admissionApplications AdmissionApplication[]
 
@@ -559,6 +555,7 @@ model AcademicYear {
   updatedAt DateTime @updatedAt
 
   semesters Semester[]
+  feeConcessions FeeConcession[]
 
   studentEnrollments StudentEnrollment[]
   feeStructures FeeStructure[]
@@ -1824,6 +1821,8 @@ model LibraryIssue {
   status        String      @default("ISSUED")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  financialInvoices FeeInvoice[]
+  fines             LibraryFine[]
 
   @@index([institutionId, status])
   @@index([institutionId, dueDate])
