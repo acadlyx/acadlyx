@@ -358,6 +358,13 @@ export default function LibraryPage() {
           ))}
         </nav>
 
+        {errorMessage && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p className="font-semibold">Some library data is temporarily unavailable.</p>
+            <p className="mt-1">{errorMessage}</p>
+          </div>
+        )}
+
         {actionError && (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
             {actionError}
