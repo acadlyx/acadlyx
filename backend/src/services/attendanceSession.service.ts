@@ -6,6 +6,7 @@ import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
 import { getCanonicalRoleNames } from "../config/rbac";
+import { getManagedDepartmentIds } from "./accessScope.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -311,12 +312,9 @@ export async function listSessions(
     }
     where.facultyId = user.id;
   } else if (user.roles.includes("HOD")) {
-    const departmentAccess = await prisma.departmentAccess.findMany({
-      where: { userId: user.id, department: { institutionId } },
-      select: { departmentId: true },
-    });
+    const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
     where.courseOffering = {
-      course: { departmentId: { in: departmentAccess.map((item) => item.departmentId) } },
+      course: { departmentId: { in: departmentIds } },
     };
   } else {
     throw new AppError("Attendance history is not available for this role", 403);
