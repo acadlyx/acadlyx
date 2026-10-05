@@ -880,6 +880,7 @@ export async function approveFineWaiver(
       id: string;
       amount: number;
       paidAmount: number;
+      discountAmount: number;
       lateFeeAmount: number;
       refundedAmount: number;
       status: string;
@@ -889,12 +890,13 @@ export async function approveFineWaiver(
       const invoiceRows = await tx.$queryRaw<Array<{
         id: string;
         amount: number;
+        discountAmount: number;
         paidAmount: number;
         lateFeeAmount: number;
         refundedAmount: number;
         status: string;
       }>>(Prisma.sql`
-        SELECT "id", "amount", "paidAmount", "lateFeeAmount", "refundedAmount", "status"
+        SELECT "id", "amount", "discountAmount", "paidAmount", "lateFeeAmount", "refundedAmount", "status"
         FROM "fee_invoices"
         WHERE "id" = ${fine.financialInvoiceId}
           AND "institutionId" = ${institutionId}
