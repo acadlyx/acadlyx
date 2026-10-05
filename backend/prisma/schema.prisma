@@ -37,6 +37,9 @@ model Institution {
   auditLogs AuditLog[]
   domainEvents DomainEventOutbox[]
 
+  /// Explicit campus assignments used by Director-level authorization.
+  campusAccesses         CampusAccess[]
+
   campuses              Campus[]
   departments           Department[]
   programs              Program[]
@@ -211,6 +214,7 @@ model User {
   internalMarksReceived   InternalMark[]         @relation("InternalMarkStudent")
   internalMarksEntered    InternalMark[]         @relation("InternalMarkEnteredBy")
   departmentAccesses      DepartmentAccess[]
+  campusAccesses           CampusAccess[]
   studentSkills           StudentSkill[]
   careerPaths             CareerPath[]
   applications            Application[]
@@ -427,6 +431,7 @@ model Campus {
   updatedAt DateTime @updatedAt
 
   departments Department[]
+  campusAccesses CampusAccess[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -947,6 +952,21 @@ model InternalMark {
 // ==========================================================
 // INSTITUTIONAL + CAREER INTELLIGENCE
 // ==========================================================
+
+/// Explicit campus scope for Directors and other delegated leadership.
+/// A Director's campus authority is never inferred from DepartmentAccess.
+model CampusAccess {
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campusId     String
+  campus       Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  scope        String @default("DIRECTOR")
+  createdAt    DateTime @default(now())
+
+  @@id([userId, campusId])
+  @@index([campusId])
+  @@map("campus_accesses")
+}
 
 /// Explicit departmental scope for HODs and delegated academic staff.
 /// A role name alone never grants access to every department.
