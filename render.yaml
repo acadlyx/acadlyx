@@ -3,10 +3,11 @@ services:
     name: acadlyx-api
     runtime: node
     rootDir: backend
-    plan: free
+    plan: 0.5c-512mb
     buildCommand: npm ci && npm run build
     preDeployCommand: npx prisma migrate deploy && npm run prisma:rbac:sync
     startCommand: npm start
+    maxShutdownDelaySeconds: 60
     healthCheckPath: /api/v1/health
     autoDeploy: true
     envVars:
@@ -61,9 +62,10 @@ services:
     name: acadlyx-worker
     runtime: node
     rootDir: backend
-    plan: free
+    plan: 0.5c-512mb
     buildCommand: npm ci && npm run build
     startCommand: npm run worker
+    maxShutdownDelaySeconds: 120
     autoDeploy: true
     envVars:
       - key: NODE_ENV
