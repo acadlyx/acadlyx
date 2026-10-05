@@ -236,7 +236,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Academic oversight",
-    href: "/examinations",
+    href: "/examination",
     icon: "◉",
     roles: ["CHAIRMAN"],
     permissions: ["exams.read"],
@@ -475,7 +475,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Examinations",
-    href: "/examinations",
+    href: "/examination",
     icon: "◉",
     roles: ["REGISTRAR"],
     permissions: ["exams.read"],
@@ -819,7 +819,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Overview",
-    href: "/examinations",
+    href: "/examination",
     icon: "⌂",
     roles: ["EXAMINATION"],
     group: "Workspace",
@@ -1158,10 +1158,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/accounts", ["ACCOUNTS"]],
   ["/hr", ["HR"]],
 
-  [
-    "/examinations",
-    ["EXAMINATION"],
-  ],
 
   [
     "/library",
@@ -1617,7 +1613,6 @@ export function canAccessRoute(
   const namespacePermission: Array<[string, string]> = [
     ["/obe", "obe.read"],
     ["/examination", "exams.read"],
-    ["/examinations", "exams.read"],
   ];
   const requiredPermission = namespacePermission
     .filter(([prefix]) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))
@@ -1755,7 +1750,7 @@ export function workspaceHome(
       "EXAMINATION",
     )
   ) {
-    return "/examinations";
+    return "/examination";
   }
 
   if (
