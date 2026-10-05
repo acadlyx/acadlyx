@@ -3078,49 +3078,42 @@ export async function deleteExam(
 export async function listFeeInvoices(
   institutionId: string,
   actor: AuthenticatedUser,
-  filters: {
-    studentId?: string;
-    status?: string;
-  } = {}
+  filters: { studentId?: string; status?: string } = {}
 ) {
-  assertRole(actor, [
-    "INSTITUTION_ADMIN",
-    "DIRECTOR",
-    "CHAIRMAN",
-    "ACCOUNTS",
-  ]);
+  const roles = getCanonicalRoleNames(actor.roles);
+  const institutionWide = roles.some(role => ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","ACCOUNTS"].includes(role));
+
+  if (!institutionWide && !roles.some(role => ["DIRECTOR","DEAN","HOD"].includes(role))) {
+    throw new AppError("Not authorized to view fee invoices", 403);
+  }
+
+  const where: Prisma.FeeInvoiceWhereInput = {
+    institutionId,
+    ...(filters.studentId ? { studentId: filters.studentId } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+  };
+
+  if (!institutionWide && roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) throw new AppError("No campus scope is assigned to this director", 403);
+    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
+  } else if (!institutionWide && (roles.includes("DEAN") || roles.includes("HOD"))) {
+    const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) throw new AppError("No department scope is assigned to this account", 403);
+    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
+  }
 
   return prisma.feeInvoice.findMany({
-    where: {
-      institutionId,
-      ...(filters.studentId
-        ? { studentId: filters.studentId }
-        : {}),
-      ...(filters.status
-        ? { status: filters.status }
-        : {}),
-    },
+    where,
     include: {
-      student: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      payments: {
-        orderBy: {
-          paidAt: "desc",
-        },
-      },
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      payments: { orderBy: { paidAt: "desc" } },
+      items: { include: { feeHead: { select: { id: true, name: true, code: true } } } },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
   });
 }
-
 export async function getFeeInvoice(
   institutionId: string,
   actor: AuthenticatedUser,
