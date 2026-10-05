@@ -5,6 +5,7 @@ import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, rec
 import { getJobHandler } from "./registry";
 import "./handlers/admitCard.handler";
 import "./handlers/import.handler";
+import "./handlers/result.handler";
 
 const workerId = "worker-" + randomUUID();
 const POLL_MS = Number(process.env.JOB_POLL_MS || 1000);
