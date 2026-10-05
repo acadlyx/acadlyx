@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
+import { authorize, authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import {
   validateBody,
@@ -74,7 +74,7 @@ router.get(
 
 router.post(
   "/books",
-  authorize("library.manage"),
+  authorizeWorkflow("library.manage"),
   validateBody(createBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -92,7 +92,7 @@ router.post(
 
 router.patch(
   "/books/:id",
-  authorize("library.manage"),
+  authorizeWorkflow("library.manage"),
   validateParams(idParams),
   validateBody(updateBookSchema),
   asyncHandler(async (req, res) =>
@@ -111,7 +111,7 @@ router.patch(
 
 router.get(
   "/loans/mine",
-  authorize("library.borrow"),
+  authorizeWorkflow("library.borrow"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -125,7 +125,7 @@ router.get(
 
 router.get(
   "/loans",
-  authorize("library.manage"),
+  authorizeWorkflow("library.manage"),
   validateQuery(circulationListQuery),
   asyncHandler(async (req, res) => {
     const pagination = parsePagination(req);
@@ -150,7 +150,7 @@ router.get(
 
 router.post(
   "/loans",
-  authorize("library.manage"),
+  authorizeWorkflow("library.manage"),
   validateBody(issueBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -168,7 +168,7 @@ router.post(
 
 router.post(
   "/loans/:id/return",
-  authorize("library.manage"),
+  authorizeWorkflow("library.manage"),
   validateParams(idParams),
   validateBody(returnBookSchema),
   asyncHandler(async (req, res) =>
@@ -187,7 +187,7 @@ router.post(
 
 router.post(
   "/reservations",
-  authorize("library.borrow"),
+  authorizeWorkflow("library.borrow"),
   validateBody(reserveBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -206,7 +206,7 @@ router.post(
 
 router.post(
   "/reservations/:id/cancel",
-  authorize("library.borrow"),
+  authorizeWorkflow("library.borrow"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
