@@ -3,9 +3,9 @@ import { prisma } from "./lib/prisma";
 import { logger } from "./utils/logger";
 import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, recoverStaleJobs, isCancellationRequested, updateJobProgress } from "./services/backgroundJob.service";
 import { getJobHandler } from "./jobs/registry";
-import "./handlers/admitCard.handler";
-import "./handlers/import.handler";
-import "./handlers/result.handler";
+import "./jobs/handlers/admitCard.handler";
+import "./jobs/handlers/import.handler";
+import "./jobs/handlers/result.handler";
 
 const workerId = "worker-" + randomUUID();
 const POLL_MS = Number(process.env.JOB_POLL_MS || 1000);
