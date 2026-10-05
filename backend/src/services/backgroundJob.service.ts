@@ -144,3 +144,10 @@ export async function isCancellationRequested(id: string) {
   const job = await prisma.backgroundJob.findUnique({ where: { id }, select: { status: true }});
   return job?.status === JOB_STATUS.CANCEL_REQUESTED || job?.status === JOB_STATUS.CANCELLED;
 }
+
+export async function cancelClaimedJob(id: string, workerId: string) {
+  await prisma.backgroundJob.updateMany({
+    where: { id, workerId, status: JOB_STATUS.CANCEL_REQUESTED },
+    data: { status: JOB_STATUS.CANCELLED, cancelledAt: new Date(), workerId: null, updatedAt: new Date() },
+  });
+}
