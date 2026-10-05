@@ -115,7 +115,7 @@ export const upsertExamResultSchema = z.object({
 
 export const invoiceListQuerySchema = z.object({
   studentId: z.string().uuid().optional(),
-  status: z.enum(["PENDING", "PARTIAL", "PAID", "WAIVED", "CANCELLED"]).optional(),
+  status: z.enum(["PENDING", "PARTIALLY_PAID", "PAID", "WAIVED", "CANCELLED"]).optional(),
 });
 
 export const createInvoiceSchema = z.object({
