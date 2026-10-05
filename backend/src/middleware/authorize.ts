@@ -344,3 +344,38 @@ export function missingPermissionDependencies(
   return missing;
 }
 
+
+/**
+ * Authorization gate for a business action plus its declared read/verify
+ * dependencies. Dependencies never confer write authority; they are
+ * checked only as minimum capabilities required by the workflow.
+ */
+export function authorizeWorkflow(...requiredPermissions: PermissionKey[]) {
+  return (
+    req: Request,
+    _res: Response,
+    next: NextFunction,
+  ): void => {
+    if (!req.user) {
+      next(new AppError("Authentication required", 401));
+      return;
+    }
+
+    const missing = missingPermissionDependencies(
+      req.user.permissions,
+      requiredPermissions,
+    );
+
+    if (missing.length > 0) {
+      next(
+        new AppError(
+          `Workflow dependency permission(s) missing: ${missing.map((item) => item.permission).join(", ")}`,
+          403,
+        ),
+      );
+      return;
+    }
+
+    authorize(...requiredPermissions)(req, _res, next);
+  };
+}
