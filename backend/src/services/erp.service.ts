@@ -3159,6 +3159,8 @@ export async function getFeeInvoice(
         "DIRECTOR",
         "CHAIRMAN",
         "ACCOUNTS",
+        "DEAN",
+        "HOD",
         "PARENT",
       ].includes(role)
     )
