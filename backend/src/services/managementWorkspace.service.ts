@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-
 import { prisma } from "../lib/prisma";
 import {
   AuthenticatedUser,
@@ -62,14 +60,6 @@ export function isLeadershipActor(
   );
 }
 
-/**
- * Returns the number of users in an institution that
- * currently have a profile photo.
- *
- * Kept as a separate async function so the Prisma
- * $queryRaw result is correctly typed as a Promise and
- * can safely be consumed by Promise.all().
- */
 /**
  * Institution Admin workspace.
  *
