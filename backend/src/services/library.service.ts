@@ -515,10 +515,11 @@ export async function returnBook(
 
   const result = await prisma.$transaction(async (tx) => {
     if (input.condition === "LOST") {
-      await tx.libraryBook.update({ where: { id: existing.bookId }, data: { totalCopies: { decrement: 1 } } });
+      await tx.libraryBook.update({
+        where: { id: existing.bookId },
+        data: { totalCopies: { decrement: 1 } },
+      });
     } else {
-      await tx.libraryBook.update({ where: { id: existing.bookId }, data: { availableCopies: { increment: 1 } } });
-    }
       await tx.libraryBook.update({
         where: { id: existing.bookId },
         data: { availableCopies: { increment: 1 } },
