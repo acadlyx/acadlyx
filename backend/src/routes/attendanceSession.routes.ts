@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as attendanceController from "../controllers/attendanceSession.controller";
 import { authenticate } from "../middleware/authenticate";
-import { authorizeWorkflow } from "../middleware/authorize";
+import { authorize, authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
