@@ -2050,7 +2050,7 @@ event.preventDefault();
                       )}
                     </p>
                     <div className="mt-2 flex justify-end gap-2">
-                      {can(["fees.structure.approve"]) && structure.status === "DRAFT" && (
+                      {permissions.includes("fees.structure.approve") && structure.status === "DRAFT" && (
                         <button type="button" onClick={() => void run(() => approveFeeStructure(structure.id), "Fee structure approved")} className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">Approve</button>
                       )}
 
