@@ -685,16 +685,18 @@ export async function listCirculation(
       take: pagination.take,
     }),
     prisma.libraryIssue.count({ where }),
-    prisma.libraryIssue.aggregate({
-      where: { institutionId, fineAmount: { gt: 0 } },
-      _sum: { fineAmount: true },
+    prisma.feeInvoice.aggregate({
+      where: { institutionId, sourceModule: "LIBRARY" },
+      _sum: { amount: true, paidAmount: true },
     }),
   ]);
 
+  const billed = Number(outstanding._sum.amount ?? 0);
+  const paid = Number(outstanding._sum.paidAmount ?? 0);
   return {
     items: rows.map(shape),
     total,
-    outstandingFines: round2(outstanding._sum.fineAmount ?? 0),
+    outstandingFines: round2(Math.max(0, billed - paid)),
   };
 }
 
