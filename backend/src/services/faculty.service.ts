@@ -83,47 +83,77 @@ function startOfDay(date: Date): Date {
 export async function getAttendanceOverview(
   institutionId: string,
   facultyId: string,
-  date: Date = new Date()
+  date: Date = new Date(),
+  offeringsOverride?: Awaited<ReturnType<typeof getMyCourseOfferings>>,
 ) {
-  const offerings = await getMyCourseOfferings(institutionId, facultyId);
+  const offerings =
+    offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
   const day = startOfDay(date);
+  if (offerings.length === 0) return [];
 
-  const overview = await Promise.all(
-    offerings.map(async (offering) => {
-      const [rosterSize, session] = await Promise.all([
-        prisma.studentEnrollment.count({
-          where: {
-            institutionId,
-            sectionId: offering.section.id,
-            status: "ACTIVE",
-          },
-        }),
-        prisma.attendanceSession.findFirst({
-          where: { courseOfferingId: offering.id, sessionDate: day },
-          include: { _count: { select: { records: true } } },
-        }),
-      ]);
+  const offeringIds = offerings.map((offering) => offering.id);
+  const sectionIds = [...new Set(offerings.map((offering) => offering.section.id))];
 
-      const presentCount = session
-        ? await prisma.attendanceRecord.count({
-            where: { attendanceSessionId: session.id, status: "PRESENT" },
-          })
-        : 0;
+  const [rosterRows, sessions] = await Promise.all([
+    prisma.studentEnrollment.groupBy({
+      by: ["sectionId"],
+      where: {
+        institutionId,
+        sectionId: { in: sectionIds },
+        status: "ACTIVE",
+      },
+      _count: { _all: true },
+    }),
+    prisma.attendanceSession.findMany({
+      where: {
+        institutionId,
+        courseOfferingId: { in: offeringIds },
+        sessionDate: day,
+      },
+      select: {
+        id: true,
+        courseOfferingId: true,
+        isSubmitted: true,
+        _count: { select: { records: true } },
+      },
+    }),
+  ]);
 
-      return {
-        courseOfferingId: offering.id,
-        courseCode: offering.course.code,
-        sectionName: offering.section.name,
-        rosterSize,
-        presentCount,
-        sessionId: session?.id ?? null,
-        isStarted: session !== null,
-        isSubmitted: session?.isSubmitted ?? false,
-      };
-    })
+  const sessionIds = sessions.map((session) => session.id);
+  const presentRows = sessionIds.length
+    ? await prisma.attendanceRecord.groupBy({
+        by: ["attendanceSessionId"],
+        where: {
+          attendanceSessionId: { in: sessionIds },
+          status: "PRESENT",
+        },
+        _count: { _all: true },
+      })
+    : [];
+
+  const rosterBySection = new Map(
+    rosterRows.map((row) => [row.sectionId, row._count._all]),
+  );
+  const sessionByOffering = new Map(
+    sessions.map((session) => [session.courseOfferingId, session]),
+  );
+  const presentBySession = new Map(
+    presentRows.map((row) => [row.attendanceSessionId, row._count._all]),
   );
 
-  return overview;
+  return offerings.map((offering) => {
+    const session = sessionByOffering.get(offering.id);
+    return {
+      courseOfferingId: offering.id,
+      courseCode: offering.course.code,
+      sectionName: offering.section.name,
+      rosterSize: rosterBySection.get(offering.section.id) ?? 0,
+      presentCount: session ? presentBySession.get(session.id) ?? 0 : 0,
+      sessionId: session?.id ?? null,
+      isStarted: session !== undefined,
+      isSubmitted: session?.isSubmitted ?? false,
+    };
+  });
 }
 
 /**
@@ -221,43 +251,65 @@ export async function getPendingAssignmentReviewCount(
 export async function getAssignmentSubmissionGaps(
   institutionId: string,
   facultyId: string,
-  limit = 5
+  limit = 5,
+  offeringsOverride?: Awaited<ReturnType<typeof getMyCourseOfferings>>,
 ) {
-  await assertFacultyInInstitution(institutionId, facultyId);
+  const offerings =
+    offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
+  const offeringIds = offerings.map((offering) => offering.id);
+  if (offeringIds.length === 0) return [];
 
   const assignments = await prisma.assignment.findMany({
     where: {
       institutionId,
       status: "PUBLISHED",
-      courseOffering: { facultyId },
+      courseOfferingId: { in: offeringIds },
     },
-    include: {
-      courseOffering: {
-        select: { sectionId: true, course: { select: { code: true } } },
-      },
+    select: {
+      title: true,
+      courseOfferingId: true,
       _count: { select: { submissions: true } },
     },
   });
 
-  const gaps = await Promise.all(
-    assignments.map(async (a) => {
-      const rosterSize = await prisma.studentEnrollment.count({
+  const sectionIds = [
+    ...new Set(
+      offerings
+        .filter((offering) => assignments.some((assignment) => assignment.courseOfferingId === offering.id))
+        .map((offering) => offering.section.id),
+    ),
+  ];
+  const rosterRows = sectionIds.length
+    ? await prisma.studentEnrollment.groupBy({
+        by: ["sectionId"],
         where: {
           institutionId,
-          sectionId: a.courseOffering.sectionId,
+          sectionId: { in: sectionIds },
           status: "ACTIVE",
         },
-      });
+        _count: { _all: true },
+      })
+    : [];
+  const rosterBySection = new Map(
+    rosterRows.map((row) => [row.sectionId, row._count._all]),
+  );
+  const offeringById = new Map(offerings.map((offering) => [offering.id, offering]));
+
+  return assignments
+    .map((assignment) => {
+      const offering = offeringById.get(assignment.courseOfferingId);
+      if (!offering) return null;
       return {
-        courseCode: a.courseOffering.course.code,
-        assignmentTitle: a.title,
-        missingCount: Math.max(0, rosterSize - a._count.submissions),
+        courseCode: offering.course.code,
+        assignmentTitle: assignment.title,
+        missingCount: Math.max(
+          0,
+          (rosterBySection.get(offering.section.id) ?? 0) -
+            assignment._count.submissions,
+        ),
       };
     })
-  );
-
-  return gaps
-    .filter((g) => g.missingCount > 0)
+    .filter((gap): gap is NonNullable<typeof gap> => gap !== null && gap.missingCount > 0)
     .sort((a, b) => b.missingCount - a.missingCount)
-    .slice(0, limit);
+    .slice(0, Math.max(1, Math.min(limit, 20)));
 }
