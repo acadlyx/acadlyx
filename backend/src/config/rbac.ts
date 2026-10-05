@@ -1165,6 +1165,8 @@ export const ROLE_RANK: Record<
 
   CHAIRMAN: 80,
 
+  MANAGEMENT: 80,
+
   DIRECTOR: 75,
 
   DEAN: 65,
