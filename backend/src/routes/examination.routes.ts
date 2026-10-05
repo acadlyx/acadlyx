@@ -12,6 +12,7 @@ import * as service from "../services/examination.service";
 import * as templateService from "../services/admitCardTemplate.service";
 import * as admitCardGenerationService from "../services/admitCardGeneration.service";
 import { getFileDelivery } from "../services/fileStorage.service";
+import { getOwnedJob, requestCancellation } from "../services/backgroundJob.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { auditMeta, searchTerm, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
@@ -479,6 +480,35 @@ router.get(
       )
     )
   )
+);
+
+// ---------- Background jobs ----------
+router.get(
+  "/jobs/:id",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const job = await getOwnedJob(requireInstitution(req), requireAuthenticatedUser(req), req.params.id);
+    if (![ "ADMIT_CARD_GENERATION", "RESULT_PROCESSING" ].includes(job.type)) {
+      throw new AppError("Examination job not found.", 404);
+    }
+    sendOk(res, job);
+  })
+);
+
+router.post(
+  "/jobs/:id/cancel",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    const institutionId = requireInstitution(req);
+    const job = await getOwnedJob(institutionId, actor, req.params.id);
+    if (![ "ADMIT_CARD_GENERATION", "RESULT_PROCESSING" ].includes(job.type)) {
+      throw new AppError("Examination job not found.", 404);
+    }
+    sendOk(res, await requestCancellation(institutionId, actor, req.params.id));
+  })
 );
 
 // ---------- Hall tickets ----------
