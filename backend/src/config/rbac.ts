@@ -512,6 +512,8 @@ export const ROLE_PERMISSIONS: Record<
     INSTITUTION_ADMIN: [
     "fees.structure.read",
     "fees.structure.manage",
+    "fees.structure.approve",
+    "fees.assign",
     /*
      * Institution-wide administrative role.
      *
