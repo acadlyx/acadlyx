@@ -138,7 +138,7 @@ const studentListInclude = {
       },
     },
   },
-} satisfies Prisma.UserInclude; satisfies Prisma.UserInclude;
+} satisfies Prisma.UserInclude;
 
 function parseDate(value?: string) {
   if (!value) return undefined;
