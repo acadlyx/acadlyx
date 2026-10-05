@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as attendanceController from "../controllers/attendanceSession.controller";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
+import { authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
@@ -24,13 +24,13 @@ router.get(
 router.get("/:id", authorize("attendance.read"), attendanceController.getById);
 router.post(
   "/",
-  authorize("attendance.mark"),
+  authorizeWorkflow("attendance.mark"),
   validateBody(createSessionSchema),
   attendanceController.create
 );
 router.patch(
   "/:id/records",
-  authorize("attendance.mark"),
+  authorizeWorkflow("attendance.mark"),
   validateBody(updateRecordsSchema),
   attendanceController.updateRecords
 );
