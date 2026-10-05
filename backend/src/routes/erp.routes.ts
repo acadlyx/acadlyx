@@ -39,6 +39,7 @@ import {
   feeStructureCreateSchema,
   feeStructureListSchema,
   feeStructureUpdateSchema,
+  feeStructureAssignmentSchema,
 } from "../validators/feeStructure.validators";
 
 const router = Router();
