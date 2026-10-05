@@ -316,13 +316,18 @@ export async function issueBook(
     /* A reservation already reserved a copy, so stock only moves for
        a fresh issue. */
     if (!reservation) {
-      if (book.availableCopies <= 0) {
-        throw new AppError("No copies are currently available", 409);
-      }
-      await tx.libraryBook.update({
-        where: { id: book.id },
+      const stockUpdate = await tx.libraryBook.updateMany({
+        where: {
+          id: book.id,
+          institutionId,
+          isActive: true,
+          availableCopies: { gt: 0 },
+        },
         data: { availableCopies: { decrement: 1 } },
       });
+      if (stockUpdate.count !== 1) {
+        throw new AppError("No copies are currently available", 409);
+      }
     }
 
     if (reservation) {
@@ -411,10 +416,18 @@ export async function reserveBook(
       );
     }
 
-    await tx.libraryBook.update({
-      where: { id: book.id },
+    const stockUpdate = await tx.libraryBook.updateMany({
+      where: {
+        id: book.id,
+        institutionId,
+        isActive: true,
+        availableCopies: { gt: 0 },
+      },
       data: { availableCopies: { decrement: 1 } },
     });
+    if (stockUpdate.count !== 1) {
+      throw new AppError("No copies are currently available to reserve", 409);
+    }
 
     return tx.libraryIssue.create({
       data: {
@@ -521,10 +534,17 @@ export async function returnBook(
 
   const result = await prisma.$transaction(async (tx) => {
     if (input.condition === "LOST") {
-      await tx.libraryBook.update({
-        where: { id: existing.bookId },
+      const stockUpdate = await tx.libraryBook.updateMany({
+        where: {
+          id: existing.bookId,
+          institutionId,
+          totalCopies: { gt: 0 },
+        },
         data: { totalCopies: { decrement: 1 } },
       });
+      if (stockUpdate.count !== 1) {
+        throw new AppError("Book inventory is already exhausted; reconcile stock before closing this loan as lost", 409);
+      }
     } else {
       await tx.libraryBook.update({
         where: { id: existing.bookId },
