@@ -1092,6 +1092,13 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Management workspace",
+    href: "/management",
+    icon: "⌂",
+    roles: ["MANAGEMENT"],
+    group: "Workspace",
+  },
+  {
     label: "Account security",
     href: "/account-security",
     icon: "◉",
@@ -1128,7 +1135,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/parent", ["PARENT"]],
   ["/chairman", ["CHAIRMAN"]],
   ["/director", ["DIRECTOR"]],
-  ["/management", ["CHAIRMAN", "DIRECTOR"]],
+  ["/management", ["MANAGEMENT"]],
   ["/dean", ["DEAN"]],
   ["/registrar", ["REGISTRAR"]],
   ["/hod", ["HOD"]],
