@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { isNavigationItemActive } from "@/lib/navigation";
 
 export type DashboardNavigationItem = { id?: string; label: string; href: string; icon?: string; group?: string; badge?: string | number; children?: DashboardNavigationItem[]; disabled?: boolean };
 
@@ -54,10 +55,8 @@ export function SvgIcon({ name, className = "h-[18px] w-[18px]" }: { name?: stri
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d={path} /></svg>;
 }
 
-function routeIsActive(pathname: string, href: string) {
-  const clean = href.split("?")[0];
-  if (!clean || clean === "/") return pathname === "/";
-  return pathname === clean || pathname.startsWith(`${clean}/`);
+function routeIsActive(pathname: string, item: DashboardNavigationItem) {
+  return isNavigationItemActive(pathname, item);
 }
 
 function flatten(items: DashboardNavigationItem[]): DashboardNavigationItem[] {
@@ -72,7 +71,7 @@ function Brand({ logoUrl, institutionLogoUrl, collapsed }: { logoUrl?: string | 
 }
 
 function NavigationLink({ item, pathname, collapsed, onNavigate }: { item: DashboardNavigationItem; pathname: string; collapsed: boolean; onNavigate?: () => void }) {
-  const active = routeIsActive(pathname, item.href);
+  const active = routeIsActive(pathname, item);
   return <Link href={item.disabled ? pathname : item.href} aria-current={active ? "page" : undefined} aria-disabled={item.disabled || undefined} title={collapsed ? item.label : undefined} onClick={(event) => { if (item.disabled) event.preventDefault(); else onNavigate?.(); }} data-active={active} data-disabled={item.disabled || undefined} className="acadlyx-sidebar-item group flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-semibold">
     <span className="acadlyx-sidebar-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg"><SvgIcon name={iconKey(item)} /></span>
     {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
