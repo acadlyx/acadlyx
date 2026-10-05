@@ -1505,6 +1505,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
 export function getNavigationForRoles(
   roles: string[],
   permissions: string[] = [],
+  tenantFeatures: string[] = [],
 ): NavigationItem[] {
   const roleSet = new Set(
     roles.map((role) =>
@@ -1530,7 +1531,7 @@ export function getNavigationForRoles(
       item.permissions.length === 0 ||
       item.permissions.every((permission) => permissionSet.has(permission));
 
-    return roleAllowed && permissionAllowed;
+    const feature = tenantFeatureForNavigation(item);\n    const featureAllowed = !feature || tenantFeatures.length === 0 || tenantFeatures.includes(feature);\n\n    return roleAllowed && permissionAllowed && featureAllowed;
   });
 
   // One destination gets one navigation entry. If several visible entries
@@ -1573,6 +1574,7 @@ export function navigationForUser(
   user: {
     roles: string[];
     permissions: string[];
+    tenantFeatures?: string[];
   } | null,
 ): NavigationItem[] {
   if (!user) {
@@ -1582,6 +1584,7 @@ export function navigationForUser(
   return getNavigationForRoles(
     user.roles,
     user.permissions,
+    user.tenantFeatures ?? [],
   );
 }
 
