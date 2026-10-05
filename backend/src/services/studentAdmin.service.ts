@@ -434,7 +434,7 @@ export async function listStudents(
 ) {
   const search = params.search?.trim();
   await assertStudentListContext(institutionId, actor, params);
-  const scope = await getStudentAccessScope(institutionId, actor);
+  const scope = getStudentWhereScope(institutionId, actor);
 
   const where: Prisma.UserWhereInput = {
     institutionId,
