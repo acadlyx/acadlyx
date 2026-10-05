@@ -192,7 +192,6 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
     }),
   ]);
 
-  const studentById = new Map(students.map((student) => [student.id, student]));
   const attendanceByStudent = new Map<string, Map<string, { present: number; total: number; name: string }>>();
   for (const row of attendance) {
     const course = row.attendanceSession.courseOffering.course;
