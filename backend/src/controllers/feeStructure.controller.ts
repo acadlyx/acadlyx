@@ -147,9 +147,5 @@ export const approveFeeStructure = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
-export const assignFeeStructure = asyncHandler(async (req, res) => {
-  const data = await feeStructure.assignFeeStructure(
-    requireInstitution(req), actor(req), req.params.id, req.body.studentIds
-  );
-  res.json({ success: true, data });
+
 });
