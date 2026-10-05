@@ -1039,6 +1039,7 @@ export async function getMyWorkspace(
       notices,
       notifications,
       documents,
+      libraryLoans,
     ] = await Promise.all([
       prisma.timetableEntry.findMany({
         where: {
@@ -1203,6 +1204,17 @@ export async function getMyWorkspace(
         },
         take: 20,
       }),
+      prisma.libraryIssue.findMany({
+        where: {
+          institutionId,
+          borrowerId: actor.id,
+        },
+        include: {
+          book: { select: { id: true, title: true, author: true, isbn: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
     ]);
 
     return {
@@ -1224,6 +1236,7 @@ export async function getMyWorkspace(
       notices,
       notifications,
       documents,
+      libraryLoans,
     };
   }
 
