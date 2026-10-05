@@ -42,6 +42,20 @@ export async function enqueueJob(input: EnqueueJobInput) {
   }
 }
 
+
+export async function loadActiveJobActor(institutionId: string, userId: string): Promise<AuthenticatedUser> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, institutionId, isActive: true, deletedAt: null },
+    include: { userRoles: { include: { role: true } } },
+  });
+  if (!user) throw new AppError("The job creator is no longer an active institutional user.", 409);
+  return {
+    id: user.id, institutionId: user.institutionId, email: user.email, idNumber: user.idNumber,
+    firstName: user.firstName, lastName: user.lastName,
+    roles: user.userRoles.map(x => x.role.name), permissions: [],
+  };
+}
+
 export async function getJob(institutionId: string, actor: AuthenticatedUser, id: string) {
   const job = await prisma.backgroundJob.findFirst({ where: { id, institutionId }});
   if (!job) throw new AppError("Job not found.", 404);
