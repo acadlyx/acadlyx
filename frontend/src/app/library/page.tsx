@@ -27,10 +27,14 @@ import {
   reserveBook,
   returnLoan,
   updateBook,
+  LibraryFine,
+  listLibraryFines,
+  requestFineWaiver,
+  approveFineWaiver,
 } from "@/lib/libraryApi";
 
 type ViewState = "loading" | "ready" | "error";
-type Tab = "catalogue" | "circulation" | "mine";
+type Tab = "catalogue" | "circulation" | "fines" | "mine";
 
 const emptyBook = {
   title: "",
@@ -77,6 +81,7 @@ export default function LibraryPage() {
 
   const [myLoans, setMyLoans] = useState<LibraryLoan[]>([]);
   const [myFine, setMyFine] = useState(0);
+  const [fines, setFines] = useState<LibraryFine[]>([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -117,6 +122,8 @@ export default function LibraryPage() {
         const circulation = await listLoans({ status: loanStatus || undefined });
         setLoans(circulation.items);
         setOutstandingFines(circulation.outstandingFines);
+        const fineList = await listLibraryFines({ page: 1 });
+        setFines(fineList.items);
       }
 
       if (borrow) {
@@ -659,6 +666,37 @@ export default function LibraryPage() {
                       </td>
                     </tr>
                   )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {tab === "fines" && canManage && (
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Library financial charges</h2>
+              <p className="mt-1 text-sm text-slate-500">Every fine is linked to the Library issue and the canonical Accounts invoice.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-slate-500"><tr>
+                  <th className="py-2">Book</th><th>Type</th><th>Original</th><th>Waived</th><th>Financial balance</th><th>Status</th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {fines.map((fine) => {
+                    const invoice = fine.financialInvoice;
+                    const balance = invoice ? Math.max(0, invoice.amount - invoice.paidAmount) : 0;
+                    return <tr key={fine.id}>
+                      <td className="py-3 font-semibold text-slate-900">{fine.issue.book.title}</td>
+                      <td className="text-slate-600">{fine.type}</td>
+                      <td className="text-slate-600">{money(Number(fine.originalAmount))}</td>
+                      <td className="text-slate-600">{money(Number(fine.waivedAmount))}</td>
+                      <td className="text-slate-600">{money(balance)}</td>
+                      <td><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold">{fine.status}</span></td>
+                    </tr>;
+                  })}
+                  {fines.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-slate-500">No library financial charges.</td></tr>}
                 </tbody>
               </table>
             </div>
