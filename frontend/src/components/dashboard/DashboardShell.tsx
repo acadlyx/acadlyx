@@ -7,46 +7,22 @@ import { usePathname, useRouter } from "next/navigation";
 import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboardFrame";
 import { useWorkspaceShellContext } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
-import { apiUrl } from "@/lib/api";
-import { AuthRequiredError, AuthUser, getAccessToken, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
+import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
+import { workspaceGet } from "@/lib/workspaceCache";
 import { GlobalSearchBar } from "./GlobalSearchBar";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: {
-    "/reports": "/chairman/reports",
-    "/examinations": "/chairman/examinations",
-  },
-  DIRECTOR: {
-    "/reports": "/director/reports",
-    "/erp": "/director/operations",
-    "/examinations": "/director/examinations",
-    "/fees": "/director/fees",
-  },
-  DEAN: {
-    "/reports": "/dean/reports",
-    "/erp": "/dean/operations",
-    "/examinations": "/dean/examinations",
-    "/fees": "/dean/fees",
-  },
-  REGISTRAR: {
-    "/reports": "/registrar/reports",
-    "/erp": "/registrar/academic-masters",
-  },
-  HOD: {
-    "/erp": "/hod/operations",
-  },
-  FACULTY: {
-    "/erp": "/faculty/operations",
-  },
-  STAFF: {
-    "/erp": "/staff/operations",
-  },
-  EXAMINATION: {
-    "/examinations": "/examination",
-  },
+  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations" },
+  DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations", "/examinations": "/director/examinations", "/fees": "/director/fees" },
+  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees" },
+  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters" },
+  HOD: { "/erp": "/hod/operations" },
+  FACULTY: { "/erp": "/faculty/operations" },
+  STAFF: { "/erp": "/staff/operations" },
+  EXAMINATION: { "/examinations": "/examination" },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
@@ -76,21 +52,14 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    // Never issue protected workspace requests until authentication has been
-    // resolved. sessionStorage is intentionally tab-scoped; an empty token
-    // must not become a request that can race the auth boundary.
+    // Auth is already resolved by ProtectedRouteBoundary. Reuse its cache,
+    // then share the workspace-context request with InstitutionalCmsProvider.
     getCurrentUser({ background: Boolean(cached) }).then(async (current) => {
       if (!alive) return;
       setUser(current);
-      const token = getAccessToken();
-      if (!token) return;
       try {
-        const response = await fetch(apiUrl("/workspace/context"), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) return;
-        const responseBody = await response.json();
-        const institution = responseBody?.data?.institution;
+        const response = await workspaceGet<{ data?: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context");
+        const institution = response?.data?.institution;
         if (alive && institution) {
           setInstitutionBrand({
             name: institution.name || "",
@@ -98,8 +67,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
           });
         }
       } catch {
-        // Branding is non-critical; authorization/data loading remains
-        // independent and fail-closed.
+        // Branding is non-critical.
       }
     }).catch((error) => {
       if (alive && error instanceof AuthRequiredError) router.replace("/login");
@@ -128,37 +96,23 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     if (workspaceRole === "INSTITUTION_ADMIN") {
       return getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group }));
     }
-
     const role = workspaceRole;
     if (!role) return [];
-
-    return navigationForUser({
-      roles: [role],
-      permissions: user.permissions || [],
-    }).map((item) => {
+    return navigationForUser({ roles: [role], permissions: user.permissions || [] }).map((item) => {
       const href = roleOwnedHref(role, item.href);
-      return {
-        id: href,
-        label: item.label,
-        href,
-        icon: item.icon,
-        group: item.group || "Workspace",
-      };
+      return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace" };
     });
   }, [user, workspaceRole]);
 
-  // DashboardShell is a secondary fail-closed guard. The global ProtectedRouteBoundary
-  // prevents children from mounting before authentication/authorization is resolved,
-  // while this shell independently refuses to render workspace chrome without a user.
   if (!user) return null;
 
-  const roles = user?.roles?.length ? user.roles : allowedRoles || [];
+  const roles = user.roles?.length ? user.roles : allowedRoles || [];
   const role = getPrimaryRole(roles);
   async function signOut() { await logout(); router.replace("/login"); }
 
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
-  return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={user ? `${user.firstName} ${user.lastName}`.trim() : "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
+  return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
     <InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{children}</main></InstitutionalCmsProvider>
   </UnifiedDashboardFrame>;
 }
