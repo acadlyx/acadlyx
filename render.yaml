@@ -88,3 +88,5 @@ services:
         value: "15000"
       - key: JOB_STALE_MS
         value: "120000"
+      - key: JOB_SHUTDOWN_TIMEOUT_MS
+        value: "110000"
