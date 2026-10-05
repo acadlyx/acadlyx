@@ -52,15 +52,17 @@ export async function getCurrentEnrollment(
 }
 
 export async function getMyProfile(institutionId: string, userId: string) {
-  const user = await prisma.user.findFirst({
-    where: { id: userId, institutionId },
-    select: { id: true, firstName: true, lastName: true, email: true },
-  });
+  const [user, enrollment] = await Promise.all([
+    prisma.user.findFirst({
+      where: { id: userId, institutionId },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    }),
+    getCurrentEnrollment(institutionId, userId),
+  ]);
+
   if (!user) {
     throw new AppError("User not found", 404);
   }
-
-  const enrollment = await getCurrentEnrollment(institutionId, userId);
 
   return { user, enrollment };
 }
