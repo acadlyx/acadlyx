@@ -192,13 +192,14 @@ export async function createConcession(
   await prisma.$executeRaw`
     INSERT INTO "fee_concessions"
       ("id", "institutionId", "studentId", "feeStructureId", "academicYearId",
-       "name", "concessionType", "amount", "percentage", "status", "reason",
-       "requestedById")
+       "name", "concessionType", "type", "amount", "percentage", "status", "reason",
+       "createdById", "requestedById")
     VALUES
       (${id}, ${institutionId}, ${input.studentId}, ${input.feeStructureId ?? null},
        ${input.academicYearId ?? null}, ${input.name.trim()},
-       ${input.concessionType}, ${input.amount ?? null}, ${input.percentage ?? null},
-       'PENDING', ${input.reason ?? null}, ${actor.id})
+       ${input.concessionType}, ${input.concessionType}, ${input.amount ?? 0},
+       ${input.percentage ?? null}, 'PENDING',
+       ${input.reason?.trim() || input.name.trim()}, ${actor.id}, ${actor.id})
   `;
 
   await recordAuditLog({
@@ -1221,16 +1222,22 @@ export async function getReceipt(
 export async function requestRefund(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { feePaymentId: string; amount: number; reason: string },
+  input: { paymentId: string; amount: number; reason: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanManageFees(actor);
   const payment = await requireTenantRow<{
     id: string;
+    invoiceId: string;
     amount: number;
     refundedAmount: number;
     status: string;
   }>(prisma, "fee_payments", institutionId, input.feePaymentId, "Payment");
+
+  const invoice = await requireTenantRow<{
+    id: string;
+    studentId: string;
+  }>(prisma, "fee_invoices", institutionId, payment.invoiceId, "Invoice");
 
   const refundable = round2(payment.amount - payment.refundedAmount);
   if (input.amount > refundable) {
@@ -1243,11 +1250,11 @@ export async function requestRefund(
   const id = randomUUID();
   await prisma.$executeRaw`
     INSERT INTO "fee_refunds"
-      ("id", "institutionId", "feePaymentId", "amount", "reason", "status",
-       "requestedById")
+      ("id", "institutionId", "paymentId", "invoiceId", "studentId",
+       "amount", "reason", "status", "requestedById")
     VALUES
-      (${id}, ${institutionId}, ${input.feePaymentId}, ${input.amount},
-       ${input.reason.trim()}, 'REQUESTED', ${actor.id})
+      (${id}, ${institutionId}, ${payment.id}, ${invoice.id}, ${invoice.studentId},
+       ${input.amount}, ${input.reason.trim()}, 'REQUESTED', ${actor.id})
   `;
 
   await recordAuditLog({
@@ -1279,7 +1286,7 @@ export async function decideRefund(
 
   const refund = await requireTenantRow<{
     id: string;
-    feePaymentId: string;
+    paymentId: string;
     amount: number;
     status: string;
     requestedById: string;
@@ -1300,6 +1307,7 @@ export async function decideRefund(
       UPDATE "fee_refunds"
       SET "status" = ${input.status}, "approvedById" = ${actor.id},
           "reference" = ${input.reference ?? null},
+          "processedById" = CASE WHEN ${input.status} = 'PROCESSED' THEN ${actor.id} ELSE NULL END,
           "processedAt" = CASE WHEN ${input.status} = 'PROCESSED'
             THEN CURRENT_TIMESTAMP ELSE NULL END
       WHERE "id" = ${refundId} AND "institutionId" = ${institutionId}
@@ -1312,7 +1320,7 @@ export async function decideRefund(
     >(Prisma.sql`
       SELECT "id", "invoiceId", "amount", "refundedAmount"
       FROM "fee_payments"
-      WHERE "id" = ${refund.feePaymentId} AND "institutionId" = ${institutionId}
+      WHERE "id" = ${refund.paymentId} AND "institutionId" = ${institutionId}
       FOR UPDATE
     `);
     const payment = payments[0];
@@ -1400,7 +1408,7 @@ export async function listRefunds(
              r."createdAt", r."processedAt", p."receiptNumber",
              u."firstName" || ' ' || u."lastName" AS "studentName"
       FROM "fee_refunds" r
-      JOIN "fee_payments" p ON p."id" = r."feePaymentId"
+      JOIN "fee_payments" p ON p."id" = r."paymentId"
       JOIN "fee_invoices" i ON i."id" = p."invoiceId"
       JOIN "users" u ON u."id" = i."studentId"
       ${where}
@@ -1486,7 +1494,7 @@ export async function createReconciliation(
 
       await tx.$executeRaw`
         INSERT INTO "payment_reconciliation_entries"
-          ("id", "institutionId", "reconciliationId", "feePaymentId",
+          ("id", "institutionId", "reconciliationId", "paymentId",
            "externalReference", "amount", "valueDate", "matchStatus", "note")
         VALUES
           (${randomUUID()}, ${institutionId}, ${id},
@@ -1558,7 +1566,7 @@ export async function getReconciliation(
     SELECT e."id", e."externalReference", e."amount", e."matchStatus",
            e."note", e."valueDate", p."receiptNumber"
     FROM "payment_reconciliation_entries" e
-    LEFT JOIN "fee_payments" p ON p."id" = e."feePaymentId"
+    LEFT JOIN "fee_payments" p ON p."id" = e."paymentId"
     WHERE e."reconciliationId" = ${reconciliationId}
       AND e."institutionId" = ${institutionId}
     ORDER BY e."matchStatus" ASC, e."createdAt" ASC
