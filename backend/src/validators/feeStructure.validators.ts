@@ -236,3 +236,8 @@ export const feeStructureListSchema =
         .enum(["true", "false"])
         .optional(),
   });
+
+
+export const feeStructureAssignmentSchema = z.object({
+  studentIds: z.array(uuid).max(10000).optional(),
+});
