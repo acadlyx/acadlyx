@@ -34,7 +34,7 @@ function routeIsAllowedForRole(pathname: string, role: string | null, roles: str
   if (canAccessRoute(pathname, roles, permissions)) return true;
   const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
   const sourceRoute = Object.entries(overrides).find(([, destination]) => destination === pathname)?.[0];
-  return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions) : false;
+  return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions, tenantFeatures) : false;
 }
 
 export function DashboardShell({ title, subtitle, children, allowedRoles }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[] }) {
@@ -103,7 +103,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
         return;
       }
     }
-    if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [])) router.replace(workspaceHome(roles));
+    if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
   }, [pathname, router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
@@ -115,7 +115,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     }
     const role = workspaceRole;
     if (!role) return [];
-    return navigationForUser({ roles: [role], permissions: user.permissions || [] }).map((item) => {
+    return navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
       const href = roleOwnedHref(role, item.href);
       return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace" };
     });
