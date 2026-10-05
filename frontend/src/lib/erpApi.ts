@@ -378,7 +378,7 @@ export async function listUsers(
       const params =
         new URLSearchParams({
           page: "1",
-          pageSize: "100",
+          pageSize: "50",
         });
 
       if (role) {
@@ -457,7 +457,7 @@ export async function listOfferings(): Promise<
               }
           >
         >(
-          "/course-offerings?page=1&pageSize=100"
+          "/course-offerings?page=1&pageSize=50&isActive=true"
         );
 
       if (
