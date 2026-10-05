@@ -40,7 +40,7 @@ export const examSessionListQuery = z.object({
 export const createExamSessionSchema = z.object({
   name: shortText(150),
   code: shortText(40),
-  examType: z.enum(["REGULAR", "SUPPLEMENTARY", "REVALUATION", "IMPROVEMENT"]),
+  examType: z.enum(["REGULAR", "MID_SEMESTER", "INTERNAL_ASSESSMENT", "END_SEMESTER", "SEMESTER", "PRACTICAL", "VIVA", "UNIVERSITY", "SUPPLEMENTARY", "BACK_PAPER", "IMPROVEMENT", "REAPPEAR", "MAKE_UP", "SPECIAL", "REVALUATION"]),
   startDate: dateInput,
   endDate: dateInput,
   academicYearId: optionalUuid,
