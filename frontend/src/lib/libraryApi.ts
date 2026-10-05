@@ -171,7 +171,7 @@ export async function issueBook(input: {
 
 export async function returnLoan(
   id: string,
-  input: { condition: "RETURNED" | "LOST"; waiveFine?: boolean; note?: string }
+  input: { condition: "RETURNED" | "LOST" | "DAMAGED"; waiveFine?: boolean; note?: string }
 ): Promise<LibraryLoan> {
   const res = await authedFetch<Envelope<LibraryLoan>>(
     `/library/loans/${id}/return`,
