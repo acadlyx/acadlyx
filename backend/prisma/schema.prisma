@@ -683,6 +683,8 @@ model CourseOffering {
   @@index([semesterId])
   @@index([sectionId])
   @@index([facultyId])
+  @@index([institutionId, semesterId, sectionId, isActive])
+  @@index([institutionId, facultyId, semesterId, isActive])
   @@map("course_offerings")
 }
 
@@ -773,6 +775,7 @@ model StudentEnrollment {
   @@index([academicYearId])
   @@index([batchId])
   @@index([institutionId, batchId, semesterId, sectionId])
+  @@index([institutionId, academicYearId, sectionId, status])
   @@map("student_enrollments")
 }
 
@@ -815,6 +818,7 @@ model AttendanceSession {
   @@index([institutionId, isSubmitted])
   @@index([facultyId])
   @@index([sessionDate])
+  @@index([institutionId, courseOfferingId, sessionDate])
   @@map("attendance_sessions")
 }
 
@@ -869,6 +873,7 @@ model Assignment {
   @@index([courseOfferingId])
   @@index([status])
   @@index([dueDate])
+  @@index([institutionId, courseOfferingId, status, dueDate])
   @@map("assignments")
 }
 
@@ -901,6 +906,7 @@ model AssignmentSubmission {
   @@index([institutionId])
   @@index([studentId])
   @@index([status])
+  @@index([institutionId, studentId, status, submittedAt])
   @@map("assignment_submissions")
 }
 
@@ -934,6 +940,7 @@ model InternalMark {
   @@index([institutionId])
   @@index([studentId])
   @@index([courseOfferingId])
+  @@index([institutionId, courseOfferingId, studentId])
   @@map("internal_marks")
 }
 
@@ -1069,6 +1076,7 @@ model Application {
   @@unique([studentId, opportunityId])
   @@index([institutionId])
   @@index([opportunityId])
+  @@index([institutionId, studentId, status])
   @@map("applications")
 }
 
@@ -1125,6 +1133,7 @@ model Exam {
 
   @@index([institutionId, examDate])
   @@index([courseOfferingId])
+  @@index([institutionId, courseOfferingId, examDate])
   @@map("exams")
 }
 
@@ -1424,6 +1433,7 @@ model Notice {
   updatedAt     DateTime    @updatedAt
 
   @@index([institutionId, publishedAt])
+  @@index([institutionId, audience, publishedAt])
   @@map("notices")
 }
 
@@ -1477,6 +1487,7 @@ model Notification {
   createdAt     DateTime    @default(now())
 
   @@index([institutionId, userId, readAt])
+  @@index([institutionId, userId, readAt, createdAt])
   @@map("notifications")
 }
 
