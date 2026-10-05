@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as courseOfferingController from "../controllers/courseOffering.controller";
 import { authenticate } from "../middleware/authenticate";
+import { requireFeature } from "../middleware/requireFeature";
 import {
   authorize,
   authorizeAnyPermission,
@@ -18,6 +19,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("academics"));
 
 router.get(
   "/",
