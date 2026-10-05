@@ -634,6 +634,10 @@ export async function createFeeStructure(
   const status =
     input.status ?? "DRAFT";
 
+  if (status === "ACTIVE" && !actor.permissions.includes("fees.structure.approve")) {
+    throw new AppError("Only an authorized fee approver may activate a fee structure", 403);
+  }
+
   if (
     !STRUCTURE_STATUSES.includes(status)
   ) {
@@ -1057,6 +1061,10 @@ export async function updateFeeStructure(
   const status =
     input.status ??
     (current.status as FeeStructureStatus);
+
+  if (status === "ACTIVE" && current.status !== "ACTIVE" && !actor.permissions.includes("fees.structure.approve")) {
+    throw new AppError("Only an authorized fee approver may activate a fee structure", 403);
+  }
 
   if (
     !STRUCTURE_STATUSES.includes(status)
