@@ -35,9 +35,9 @@ function studentFinancialFilter(s:Scope):Record<string,any>{
 function dec(v:unknown){const x=new Prisma.Decimal(String(v??"0"));if(x.lte(0))throw new AppError("Amount must be greater than zero",400);return x}
 async function audit(institutionId:string,userId:string,action:string,entityType:string,entityId:string,metadata?:Prisma.InputJsonValue){await recordAuditLog({institutionId,userId,action,entityType,entityId,metadata})}
 
-export async function overview(institutionId:string,a:AuthenticatedUser,filters:{period?:string;academicYearId?:string}={}){
+export async function overview(institutionId:string,a:AuthenticatedUser,filters:{period?:string;academicYearId?:string}={},resolvedScope?:Scope){
  if(!has(a,"fees.read")&&!has(a,"fees.collection.read"))throw new AppError("Financial visibility permission required",403);
- const s=await scope(institutionId,a);
+ const s=resolvedScope ?? await scope(institutionId,a);
  const invoiceFilter:any={...invoiceWhere(s)}, paymentFilter:any={...paymentWhere(s)};
  const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
  const month=new Date(now.getFullYear(),now.getMonth(),1);
@@ -77,7 +77,7 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  const scopedPayment=paymentWhere(s);
  const invoiceFilter:any=academicYearId?{...scopedInvoice,academicYearId}:scopedInvoice;
  const paymentFilter:any=academicYearId?{...scopedPayment,invoice:{...(scopedPayment.invoice as any),academicYearId}}:scopedPayment;
- const base=await overview(institutionId,a,{period:input.period,academicYearId});
+ const base=await overview(institutionId,a,{period:input.period,academicYearId},s);
  const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
  const [methods,todayMethods,trendPayments,recentPayments,recentInvoices,pendingRefunds,pendingConcessions,pendingInvoices,departments]=await Promise.all([
   prisma.feePayment.groupBy({by:["method"],where:{...paymentFilter,status:"SUCCESS"},_sum:{amount:true},_count:{_all:true}}),
