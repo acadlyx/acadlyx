@@ -227,6 +227,7 @@ model User {
   feeConcessionsCreated   FeeConcession[] @relation("FeeConcessionCreatedBy")
   feeConcessionStudents   FeeConcession[] @relation("FeeConcessionStudent")
   feeConcessionsApproved  FeeConcession[] @relation("FeeConcessionApprovedBy")
+  feeConcessionsRequested FeeConcession[] @relation("FeeConcessionRequestedBy")
   feeRefundsRequested     FeeRefund[] @relation("FeeRefundRequestedBy")
   feeRefundsApproved      FeeRefund[] @relation("FeeRefundApprovedBy")
   feeRefundsProcessed     FeeRefund[] @relation("FeeRefundProcessedBy")
@@ -492,6 +493,7 @@ model Program {
 
   studentEnrollments StudentEnrollment[]
   feeStructures FeeStructure[]
+  feeConcessions FeeConcession[]
 
   admissionApplications AdmissionApplication[]
 
@@ -1312,6 +1314,7 @@ model FeeStructure {
   createdBy      User         @relation("FeeStructureCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   items          FeeStructureItem[]
   invoices       FeeInvoice[]
+  concessions    FeeConcession[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   @@index([institutionId, status])
@@ -1350,28 +1353,39 @@ model FeeInvoiceItem {
 }
 
 model FeeConcession {
-  id            String      @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  invoiceId     String
-  invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  studentId     String
-  student       User        @relation("FeeConcessionStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  type          String
-  amount        Decimal     @db.Decimal(14,2)
-  percentage    Decimal?    @db.Decimal(7,4)
-  reason        String
-  status        String      @default("PENDING")
-  createdById   String
-  createdBy     User        @relation("FeeConcessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  approvedById  String?
-  approvedBy    User?       @relation("FeeConcessionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt    DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String        @id @default(uuid())
+  institutionId   String
+  institution     Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  invoiceId       String?
+  invoice         FeeInvoice?   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeStructureId  String?
+  feeStructure    FeeStructure? @relation(fields: [feeStructureId], references: [id], onDelete: SetNull)
+  academicYearId  String?
+  academicYear    AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  studentId       String
+  student         User          @relation("FeeConcessionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  name            String?
+  concessionType  String?
+  type            String
+  amount          Decimal       @db.Decimal(14,2)
+  percentage      Decimal?      @db.Decimal(7,4)
+  reason          String
+  status          String        @default("PENDING")
+  createdById     String
+  createdBy       User          @relation("FeeConcessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  requestedById   String?
+  requestedBy     User?         @relation("FeeConcessionRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById    String?
+  approvedBy      User?         @relation("FeeConcessionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   @@index([institutionId, studentId, status])
   @@index([institutionId, status, createdAt])
   @@index([invoiceId])
+  @@index([feeStructureId])
+  @@index([academicYearId])
+  @@index([requestedById])
   @@map("fee_concessions")
 }
 
