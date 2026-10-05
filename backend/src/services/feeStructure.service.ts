@@ -957,7 +957,7 @@ export async function assignFeeStructure(
         const dueDate = dueDays == null ? null : new Date(Date.now() + dueDays * 86400000);
         const invoice = await tx.feeInvoice.create({
           data: {
-            institutionId, studentId, title: `${structure[0].id} — Installment ${installment}`,
+            institutionId, studentId, title: `Fee structure — Installment ${installment}`,
             amount: gross, grossAmount: gross, dueDate, status: "PENDING",
             feeStructureId: structureId, academicYearId: structure[0].academicYearId, semesterId: structure[0].semesterId,
             installmentNumber: installment, sourceModule: "FEES", sourceType: "FEE_STRUCTURE_ASSIGNMENT",
