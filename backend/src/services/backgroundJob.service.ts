@@ -171,11 +171,25 @@ export async function completeJob(id: string, workerId: string, result?: Prisma.
   return updated.count > 0;
 }
 
+function isTransientDatabaseError(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  return ["P1001", "P1002", "P1008", "P1017", "P2024", "P2034"].includes(error.code);
+}
+
+function isPermanentDatabaseError(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  return ["P2002", "P2003", "P2004", "P2011", "P2012", "P2014", "P2015", "P2025"].includes(error.code);
+}
+
 export async function failJob(id: string, workerId: string, error: unknown, retryable: boolean) {
   const job = await prisma.backgroundJob.findUnique({ where: { id }});
   if (!job || job.workerId !== workerId || ![JOB_STATUS.PROCESSING, JOB_STATUS.CANCEL_REQUESTED].includes(job.status as JobStatus)) return;
   const message = error instanceof Error ? error.message : String(error);
-  const retry = retryable && job.attemptCount < job.maxAttempts && job.status !== JOB_STATUS.CANCEL_REQUESTED;
+  const shouldRetry = retryable && (
+    isTransientDatabaseError(error) ||
+    (!isPermanentDatabaseError(error) && !(error instanceof AppError && error.statusCode < 500))
+  );
+  const retry = shouldRetry && job.attemptCount < job.maxAttempts && job.status !== JOB_STATUS.CANCEL_REQUESTED;
   await prisma.backgroundJob.update({ where: { id }, data: retry
     ? { status: JOB_STATUS.QUEUED, availableAt: new Date(Date.now() + backoffMs(job.attemptCount)),
         workerId: null, errorCode: "RETRY_SCHEDULED", errorMessage: message.slice(0,1000), updatedAt: new Date() }
