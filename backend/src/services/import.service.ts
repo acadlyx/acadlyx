@@ -401,7 +401,7 @@ export async function commit(
         await processImportRow(tx, type, institutionId, actor, rows[i]);
       });
       imported += 1;
-      if (options.onProgress) await options.onProgress(imported, errors.length, rows.length);
+      if (options.onProgress && (imported + errors.length) % 25 === 0) await options.onProgress(imported, errors.length, rows.length);
     } catch (error) {
       errors.push({ row: i + 2, message: error instanceof Error ? error.message : "Unknown row error" });
     }
