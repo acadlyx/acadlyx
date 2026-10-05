@@ -1,4 +1,4 @@
-import ExaminationsPage from "@/app/examinations/page";
+import ExaminationsPage from "@/app/examination/page";
 
 export default function DeanExaminationsPage() {
   return <ExaminationsPage />;
