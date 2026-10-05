@@ -889,7 +889,7 @@ export async function approveFeeStructure(
   actor: AuthenticatedUser,
   structureId: string
 ) {
-  if (!actor.permissions.includes("fees.structure.approve") && !actor.roles.includes("INSTITUTION_ADMIN")) {
+  if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
   const rows = await prisma.$queryRaw<Array<{ id: string; status: string }>>(Prisma.sql`
