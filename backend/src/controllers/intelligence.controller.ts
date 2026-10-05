@@ -15,7 +15,6 @@ async function permittedDepartments(institutionId: string, userId: string, roles
 }
 
 export const student = asyncHandler(async (req, res) => {
-  await assertCanViewStudent(institutionId, actor, studentId);
   const institutionId = requireInstitution(req); const actor = user(req);
   const studentId = req.params.id === "me" ? actor.id : req.params.id;
   if (studentId !== actor.id) await assertCanViewStudent(institutionId, actor, studentId);
