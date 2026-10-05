@@ -6,6 +6,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { andWhere } from "../utils/sqlScope";
 import {
   getManagedDepartmentIds,
+  getDirectorDepartmentIds,
   isInstitutionWide,
 } from "./accessScope.service";
 
@@ -92,15 +93,12 @@ export async function searchStudents(
   ];
 
   if (!isInstitutionWide(actor)) {
-    if (actor.roles.includes("HOD")) {
-      const managed = await getManagedDepartmentIds(
-        institutionId,
-        actor.id
-      );
+    if (actor.roles.includes("DIRECTOR") || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
+      const scopedDepartments = actor.roles.includes("DIRECTOR")
+        ? await getDirectorDepartmentIds(institutionId, actor.id)
+        : await getManagedDepartmentIds(institutionId, actor.id);
 
-      if (managed.length === 0) {
-        return [];
-      }
+      if (scopedDepartments.length === 0) return [];
 
       conditions.push(
         Prisma.sql`EXISTS (
@@ -109,7 +107,7 @@ export async function searchStudents(
           JOIN "programs" p
             ON p."id" = e."programId"
           WHERE e."userId" = u."id"
-            AND p."departmentId" IN (${Prisma.join(managed)})
+            AND p."departmentId" IN (${Prisma.join(scopedDepartments)})
         )`
       );
     } else if (actor.roles.includes("FACULTY")) {
