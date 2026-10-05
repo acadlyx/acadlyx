@@ -4,7 +4,8 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm ci && npx prisma generate && (npx prisma migrate resolve --rolled-back 20261003030000_user_lifecycle_90_day_recovery || true) && (npx prisma migrate resolve --rolled-back 20261005010000_finance_domain || true) && npx prisma migrate deploy && npm run prisma:rbac:sync && npx tsc -p tsconfig.json
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npx prisma migrate deploy && npm run prisma:rbac:sync
     startCommand: npm start
     healthCheckPath: /api/v1/health
     autoDeploy: true
@@ -54,4 +55,34 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
       - key: RBAC_SYNC_ON_BOOT
-        value: "true"
+        value: "false"
+
+  - type: worker
+    name: acadlyx-worker
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: JOB_CONCURRENCY
+        value: "2"
+      - key: JOB_POLL_MS
+        value: "1000"
+      - key: JOB_HEARTBEAT_MS
+        value: "15000"
+      - key: JOB_STALE_MS
+        value: "120000"
