@@ -155,6 +155,9 @@ export async function authenticate(
           id: true,
           institutionId: true,
           email: true,
+          idNumber: true,
+          firstName: true,
+          lastName: true,
           isActive: true,
 
           userRoles: {
@@ -315,6 +318,9 @@ export async function authenticate(
       institutionId:
         effectiveInstitutionId,
       email: user.email,
+      idNumber: user.idNumber,
+      firstName: user.firstName,
+      lastName: user.lastName,
       roles,
       permissions,
     };
