@@ -15,13 +15,11 @@ export interface AuditLogInput {
 
 /**
  * Foundation for audit logging of sensitive actions.
- * Intentionally fire-and-forget-safe: a logging failure must never
- * break the request that triggered it, so errors are swallowed
- * (and logged locally) rather than propagated.
+ * Audit logging is failure-isolated: a logging failure is recorded locally
+ * and never masks the business operation that triggered it.
  *
- * Future phases will call this from every sensitive mutation
- * (user management, RBAC changes, marks entry, fee updates, etc.),
- * not just auth events.
+ * Sensitive mutations should call this after their authoritative state
+ * transition so the audit record captures the completed operation.
  */
 export async function recordAuditLog(input: AuditLogInput): Promise<void> {
   try {
@@ -38,6 +36,6 @@ export async function recordAuditLog(input: AuditLogInput): Promise<void> {
       },
     });
   } catch (err) {
-    logger.error("Failed to write audit log", { action: input.action, err });
+    logger.error("Failed to write audit log", { action: input.action, error: err instanceof Error ? err.message : String(err) });
   }
 }
