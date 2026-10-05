@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
+import { authorize, authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import {
   validateBody,
@@ -66,7 +66,7 @@ router.get(
 
 router.post(
   "/admit-card-templates",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -91,7 +91,7 @@ router.get(
 
 router.patch(
   "/admit-card-templates/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -108,7 +108,7 @@ router.patch(
 
 router.delete(
   "/admit-card-templates/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -145,7 +145,7 @@ router.get(
 
 router.post(
   "/sessions",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateBody(createExamSessionSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -175,7 +175,7 @@ router.get(
 
 router.patch(
   "/sessions/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(updateExamSessionSchema),
   asyncHandler(async (req, res) =>
@@ -194,7 +194,7 @@ router.patch(
 
 router.patch(
   "/sessions/:id/status",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   validateBody(examSessionStatusSchema),
   asyncHandler(async (req, res) =>
@@ -229,7 +229,7 @@ router.get(
 
 router.post(
   "/rooms",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateBody(createExamRoomSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -247,7 +247,7 @@ router.post(
 
 router.patch(
   "/rooms/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(updateExamRoomSchema),
   asyncHandler(async (req, res) =>
@@ -268,7 +268,7 @@ router.patch(
 
 router.post(
   "/schedules",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateBody(createExamScheduleSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -302,7 +302,7 @@ router.get(
 
 router.patch(
   "/schedules/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(updateExamScheduleSchema),
   asyncHandler(async (req, res) =>
@@ -321,7 +321,7 @@ router.patch(
 
 router.post(
   "/schedules/:id/seating",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(allocateSeatingSchema),
   asyncHandler(async (req, res) =>
@@ -340,7 +340,7 @@ router.post(
 
 router.post(
   "/schedules/:id/invigilators",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(assignInvigilatorsSchema),
   asyncHandler(async (req, res) =>
@@ -359,7 +359,7 @@ router.post(
 
 router.post(
   "/schedules/:id/attendance",
-  authorize("exams.invigilate"),
+  authorizeWorkflow("exams.invigilate"),
   validateParams(idParams),
   validateBody(examAttendanceSchema),
   asyncHandler(async (req, res) =>
@@ -396,7 +396,7 @@ router.get(
 
 router.put(
   "/schedules/:id/marks",
-  authorize("marks.enter"),
+  authorizeWorkflow("marks.enter"),
   validateParams(idParams),
   validateBody(saveExamMarksSchema),
   asyncHandler(async (req, res) =>
@@ -416,7 +416,7 @@ router.put(
 
 router.post(
   "/schedules/:id/marks/approve",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -433,7 +433,7 @@ router.post(
 
 router.post(
   "/schedules/:id/lock",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -450,7 +450,7 @@ router.post(
 
 router.post(
   "/schedules/:id/publish",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -485,7 +485,7 @@ router.get(
 
 router.post(
   "/sessions/:id/hall-tickets",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -502,7 +502,7 @@ router.post(
 
 router.post(
   "/sessions/:id/hall-tickets/bulk.zip",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   asyncHandler(async (req, res) => {
     const result = await admitCardGenerationService.generateBulkAdmitCardsZip(
@@ -535,7 +535,7 @@ router.get(
 
 router.patch(
   "/hall-tickets/:id",
-  authorize("exams.manage"),
+  authorizeWorkflow("exams.manage"),
   validateParams(idParams),
   validateBody(hallTicketStatusSchema),
   asyncHandler(async (req, res) =>
@@ -600,7 +600,7 @@ router.get(
 
 router.get(
   "/my/invigilation",
-  authorize("exams.invigilate"),
+  authorizeWorkflow("exams.invigilate"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -654,7 +654,7 @@ router.post(
 
 router.patch(
   "/revaluations/:id",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   validateBody(decideRevaluationSchema),
   asyncHandler(async (req, res) =>
@@ -693,7 +693,7 @@ router.get(
 
 router.post(
   "/incidents",
-  authorize("exams.invigilate"),
+  authorizeWorkflow("exams.invigilate"),
   validateBody(reportIncidentSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -711,7 +711,7 @@ router.post(
 
 router.patch(
   "/incidents/:id",
-  authorize("exams.approve"),
+  authorizeWorkflow("exams.approve"),
   validateParams(idParams),
   validateBody(decideIncidentSchema),
   asyncHandler(async (req, res) =>
