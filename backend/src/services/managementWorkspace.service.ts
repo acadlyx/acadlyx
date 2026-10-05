@@ -183,39 +183,28 @@ async function getInstitutionAdminWorkspace(
 
     stats: {
       users,
-
-      usersWithProfilePhoto,
-
-      usersMissingProfilePhoto:
-        Math.max(
-          0,
-          users -
-            usersWithProfilePhoto
-        ),
-
+      usersWithProfilePhoto: 0,
+      usersMissingProfilePhoto: 0,
       students,
-      faculty,
-
+      faculty: 0,
       departments,
       programs,
-      academicYears,
-      semesters,
-      sections,
+      academicYears: 0,
+      semesters: 0,
+      sections: 0,
       courses,
       offerings,
       campuses,
-
-      timetableEntries,
+      timetableEntries: 0,
       notices,
-      documents,
-      notifications,
-      parentLinks,
-
-      admissions,
-      registrations,
-      promotions,
-      certificates,
-      auditLogs,
+      documents: 0,
+      notifications: 0,
+      parentLinks: 0,
+      admissions: 0,
+      registrations: 0,
+      promotions: 0,
+      certificates: 0,
+      auditLogs: 0,
     },
 
     modules: {
