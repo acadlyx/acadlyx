@@ -17,6 +17,8 @@ ALTER TABLE "library_issues"
   DROP COLUMN IF EXISTS "notes";
 
 
+ALTER TABLE "library_books" DROP CONSTRAINT IF EXISTS "library_books_updated_at_check";
+
 -- Seed a configurable baseline fee-head catalogue for every tenant. These
 -- are defaults, not a closed enum; administrators may add or deactivate heads.
 INSERT INTO "fee_heads" ("id","institutionId","name","code","description")
