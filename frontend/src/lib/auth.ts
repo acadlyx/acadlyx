@@ -901,7 +901,7 @@ export async function authedFetch<T>(
   const dedupeEligible =
     method === "GET" &&
     !init?.signal &&
-    requestHeaders.size === 1 &&
+    Array.from(requestHeaders.keys()).length === 1 &&
     requestHeaders.has("Content-Type");
 
   const inflightMap = dedupeEligible ? getInflightMap() : null;
