@@ -140,6 +140,28 @@ let refreshRequest:
   | null = null;
 
 /*
+ * Request-level GET deduplication only. This intentionally caches nothing:
+ * completed responses are never retained, so critical financial/examination
+ * data cannot become stale through this mechanism. Identical simultaneous
+ * GETs share one in-flight request and the cache is isolated by the current
+ * auth realm.
+ */
+const inflightGetRequests = new Map<number, Map<string, Promise<unknown>>>();
+
+function getInflightMap(): Map<string, Promise<unknown>> {
+  let map = inflightGetRequests.get(authCacheScope);
+  if (!map) {
+    map = new Map();
+    inflightGetRequests.set(authCacheScope, map);
+    if (inflightGetRequests.size > 2) {
+      const oldest = [...inflightGetRequests.keys()].sort((a, b) => a - b)[0];
+      if (oldest !== authCacheScope) inflightGetRequests.delete(oldest);
+    }
+  }
+  return map;
+}
+
+/*
  * In-memory API caches must never survive an account transition. This value
  * changes whenever tokens are written or cleared and lets feature modules
  * scope their ephemeral caches without storing or deriving a cache key from
@@ -876,15 +898,30 @@ export async function authedFetch<T>(
     );
   };
 
-  let res =
-    await performFetch(
-      token
-    );
+  const dedupeEligible =
+    method === "GET" &&
+    !init?.signal &&
+    requestHeaders.size === 1 &&
+    requestHeaders.has("Content-Type");
 
-  if (
-    res.status ===
-    401
-  ) {
+  const inflightMap = dedupeEligible ? getInflightMap() : null;
+  const inflightKey = dedupeEligible ? path : null;
+
+  if (inflightMap && inflightKey) {
+    const existing = inflightMap.get(inflightKey);
+    if (existing) return existing as Promise<T>;
+  }
+
+  const request = (async (): Promise<T> => {
+    let res =
+      await performFetch(
+        token
+      );
+
+    if (
+      res.status ===
+      401
+    ) {
     const refreshed =
       await tryRefresh();
 
@@ -924,7 +961,19 @@ export async function authedFetch<T>(
     );
   }
 
-  return res.json() as Promise<T>;
+    return res.json() as Promise<T>;
+  })();
+
+  if (inflightMap && inflightKey) {
+    inflightMap.set(inflightKey, request);
+    void request.finally(() => {
+      if (inflightMap.get(inflightKey) === request) {
+        inflightMap.delete(inflightKey);
+      }
+    });
+  }
+
+  return request;
 }
 
 export async function authedBlobFetch(path: string): Promise<Response> {
