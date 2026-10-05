@@ -10,7 +10,7 @@ useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { DirectoryPicker } from "@/components/erp/DirectoryPicker";
+import { DirectoryPicker, ExamPicker, InvoicePicker } from "@/components/erp/DirectoryPicker";
 import { useMutationState } from "@/hooks/useMutationState";
 import {
 AuthRequiredError,
