@@ -352,7 +352,7 @@ export async function listAdminDepartments(): Promise<AdminDepartment[]> {
   const response = await authedFetch<
     ApiEnvelope<AdminDepartment[] | { items: AdminDepartment[] }>
   >(
-    "/departments?page=1&pageSize=500&isActive=true",
+    "/departments?page=1&pageSize=100&isActive=true",
   );
 
   return Array.isArray(response.data)
