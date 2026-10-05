@@ -11,6 +11,7 @@ import {
 import * as service from "../services/examination.service";
 import * as templateService from "../services/admitCardTemplate.service";
 import * as admitCardGenerationService from "../services/admitCardGeneration.service";
+import { getFileDelivery } from "../services/fileStorage.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { auditMeta, searchTerm, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
@@ -504,20 +505,13 @@ router.post(
   "/sessions/:id/hall-tickets/bulk.zip",
   authorizeWorkflow("exams.manage"),
   validateParams(idParams),
-  asyncHandler(async (req, res) => {
-    const result = await admitCardGenerationService.generateBulkAdmitCardsZip(
+  asyncHandler(async (req, res) =>
+    sendOk(res, await admitCardGenerationService.enqueueBulkAdmitCardsZip(
       requireInstitution(req),
       requireAuthenticatedUser(req),
       req.params.id,
-    );
-    res.status(200);
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
-    res.setHeader("Content-Length", String(result.buffer.length));
-    res.setHeader("Cache-Control", "private, no-store");
-    res.setHeader("X-Admit-Card-Job-Id", result.jobId);
-    res.send(result.buffer);
-  })
+    ), 202)
+  )
 );
 
 router.get(
@@ -531,6 +525,37 @@ router.get(
       req.params.id,
     ))
   )
+);
+
+router.post(
+  "/admit-card-generation-jobs/:id/cancel",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(res, await admitCardGenerationService.cancelAdmitCardGenerationJob(
+      requireInstitution(req), requireAuthenticatedUser(req), req.params.id
+    ))
+  )
+);
+
+router.get(
+  "/admit-card-generation-jobs/:id/download",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const job = await admitCardGenerationService.getAdmitCardGenerationJob(
+      requireInstitution(req), requireAuthenticatedUser(req), req.params.id
+    );
+    const fileId = job.result && typeof job.result === "object" && job.result !== null
+      ? (job.result as { fileId?: unknown }).fileId
+      : undefined;
+    if (job.status !== "COMPLETED" || typeof fileId !== "string") {
+      return res.status(409).json({ success: false, error: { code: "JOB_NOT_COMPLETE", message: "The admit-card package is not ready yet." }});
+    }
+    const delivery = await getFileDelivery(fileId, requireInstitution(req), true);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.redirect(delivery.url);
+  })
 );
 
 router.patch(
