@@ -128,32 +128,6 @@ async function buildWorkspaceContext(
 
   const selectedDepartment = departments[0] ?? null;
 
-  if (input.batchId) {
-    const batch = await prisma.batch.findFirst({
-      where: {
-        id: input.batchId,
-        institutionId,
-        isActive: true,
-        ...(input.programId ? { programId: input.programId } : {}),
-      },
-      select: { id: true },
-    });
-    if (!batch) throw new AppError("Batch is not valid for the selected program", 404);
-  }
-
-  if (input.programId) {
-    const program = await prisma.program.findFirst({
-      where: {
-        id: input.programId,
-        institutionId,
-        isActive: true,
-        ...(selectedDepartment ? { departmentId: selectedDepartment.id } : {}),
-      },
-      select: { id: true },
-    });
-    if (!program) throw new AppError("Program is not valid for the selected department", 404);
-  }
-
   const institutionPromise = prisma.institution.findUnique({
     where: { id: institutionId },
     select: { name: true, logoUrl: true },
@@ -253,6 +227,14 @@ async function buildWorkspaceContext(
   const selectedProgram = input.programId
     ? programs.find((program) => program.id === input.programId) ?? null
     : null;
+
+  if (input.programId && !selectedProgram) {
+    throw new AppError("Program is not valid for the selected department", 404);
+  }
+
+  if (input.batchId && !selectedBatch) {
+    throw new AppError("Batch is not valid for the selected program", 404);
+  }
 
   const selectedYear = input.academicYearId
     ? academicYears.find((year) => year.id === input.academicYearId) ?? null
