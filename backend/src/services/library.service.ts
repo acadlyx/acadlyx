@@ -836,7 +836,7 @@ export async function approveFineWaiver(
         const newAmount = Math.max(0, Number(invoice.amount) - amount);
         await tx.feeInvoice.update({
           where: { id: invoice.id },
-          data: { amount: newAmount, discountAmount: Number(invoice.discountAmount ?? 0) + amount, status: newAmount <= Number(invoice.paidAmount ?? 0) ? "PAID" : "PARTIAL" },
+          data: { amount: newAmount, discountAmount: Number(invoice.discountAmount ?? 0) + amount, status: newAmount <= Number(invoice.paidAmount ?? 0) ? "PAID" : "PARTIALLY_PAID" },
         });
       }
     }
