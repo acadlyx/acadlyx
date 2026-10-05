@@ -15,7 +15,7 @@ import {
   requireAuthenticatedUser,
   requireInstitution,
 } from "../utils/requireInstitution";
-import { idParams } from "../validators/common";
+import { idParams, pageQuery } from "../validators/common";
 import {
   bookListQuery,
   circulationListQuery,
@@ -219,6 +219,43 @@ router.post(
       )
     )
   )
+);
+
+router.get(
+  "/fines",
+  authorize("library.read"),
+  validateQuery(pageQuery),
+  asyncHandler(async (req, res) => {
+    const pagination = parsePagination(req);
+    const result = await service.listFines(requireInstitution(req), requireAuthenticatedUser(req), pagination);
+    res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, pagination) });
+  })
+);
+
+router.post(
+  "/fines/:id/waiver-request",
+  authorizeWorkflow("library.fines.waive.request"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const result = await service.requestFineWaiver(
+      requireInstitution(req), requireAuthenticatedUser(req), req.params.id,
+      req.body.reason, req.body.amount, auditMeta(req)
+    );
+    sendOk(res, result);
+  })
+);
+
+router.post(
+  "/fines/:id/waiver-approve",
+  authorizeWorkflow("library.fines.waive.approve"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const result = await service.approveFineWaiver(
+      requireInstitution(req), requireAuthenticatedUser(req), req.params.id,
+      Number(req.body.amount), req.body.reason, auditMeta(req)
+    );
+    sendOk(res, result);
+  })
 );
 
 export default router;
