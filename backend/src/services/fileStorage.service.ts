@@ -38,6 +38,7 @@ const MODULE_MIME_ALLOWLIST: Record<string, readonly string[]> = {
   lms: ["application/pdf", "image/jpeg", "image/png", "image/webp", "video/mp4", "audio/mpeg", "application/zip"],
   library: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
   operations: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
+  imports: ["text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
 };
 
 export interface StoredFile {
