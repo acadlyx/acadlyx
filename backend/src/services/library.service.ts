@@ -767,7 +767,7 @@ export async function listMyLoans(institutionId: string, actor: AuthenticatedUse
 
 export async function getLibrarySummary(institutionId: string) {
   const now = new Date();
-  const [titles, copies, issued, reserved, overdue, libraryFineTotals, financialTotals] = await Promise.all([
+  const [titles, copies, issued, reserved, overdue, financialTotals] = await Promise.all([
     prisma.libraryBook.count({ where: { institutionId, isActive: true } }),
     prisma.libraryBook.aggregate({
       where: { institutionId, isActive: true },
