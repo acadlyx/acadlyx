@@ -1764,6 +1764,7 @@ model LibraryIssue {
   dueDate       DateTime
   returnedAt    DateTime?
   fineAmount    Float       @default(0)
+  note          String?
   /// ISSUED | RETURNED | LOST | DAMAGED
   status        String      @default("ISSUED")
   createdAt     DateTime    @default(now())
