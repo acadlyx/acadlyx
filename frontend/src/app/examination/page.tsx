@@ -1,25 +1,13 @@
 "use client";
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { useRouter } from "next/navigation";
-
-import EntityPicker from "@/components/common/EntityPicker";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
-import { DirectoryOption } from "@/lib/directoryApi";
 import {
   ExamRoom,
   ExamSchedule,
   ExamSession,
-  MarksRow,
-  allocateSeating,
-  approveMarks,
   createExamRoom,
   createExamSchedule,
   createExamSession,
@@ -28,2281 +16,245 @@ import {
   getMarksSheet,
   listExamRooms,
   listExamSessions,
+  listIncidents,
+  listMyInvigilation,
+  listRevaluations,
   lockSchedule,
   publishResults,
   saveMarks,
   setSessionStatus,
+  allocateSeating,
+  approveMarks,
+  recordExamAttendance,
 } from "@/lib/examinationsApi";
 
-type Tab = "sessions" | "marks";
+type View =
+  | "overview" | "examinations" | "create" | "calendar" | "schedule"
+  | "rooms" | "invigilators" | "exam-day" | "admit-cards"
+  | "incidents" | "marks" | "revaluation" | "reports";
 
-/*
- * Capability keys, mirrored 1:1 from the backend route gates in
- * backend/src/routes/examination.routes.ts.
- *
- * The workspace used to decide visibility from a hardcoded role list
- * ("EXAMINATION", "DIRECTOR"), which desynchronised from the API:
- * a DIRECTOR was shown "New session", room, seating and hall-ticket
- * controls that call `exams.manage` endpoints they do not hold, and
- * an INSTITUTION_ADMIN was shown operator controls they must not have.
- * Every save returned 403.
- *
- * These flags are derived from the permissions the backend already
- * returns on /auth/me, so the UI offers exactly the operations the
- * API will authorise. The backend remains the security boundary.
- */
-const EXAMS_MANAGE = "exams.manage";
-const EXAMS_APPROVE = "exams.approve";
-const MARKS_READ = "marks.read";
-const MARKS_ENTER = "marks.enter";
+const TYPES = [
+  ["REGULAR", "Regular"],
+  ["MID_SEMESTER", "Mid Semester"],
+  ["INTERNAL_ASSESSMENT", "Internal Assessment"],
+  ["END_SEMESTER", "End Semester"],
+  ["SEMESTER", "Semester Examination"],
+  ["PRACTICAL", "Practical"],
+  ["VIVA", "Viva"],
+  ["UNIVERSITY", "University"],
+  ["SUPPLEMENTARY", "Supplementary"],
+  ["BACK_PAPER", "Back Paper"],
+  ["IMPROVEMENT", "Improvement"],
+  ["REAPPEAR", "Reappear"],
+  ["MAKE_UP", "Make-up"],
+  ["SPECIAL", "Special"],
+  ["REVALUATION", "Revaluation"],
+] as const;
 
-const EXAM_TYPES = [
-  "REGULAR",
-  "SUPPLEMENTARY",
-  "REVALUATION",
-  "IMPROVEMENT",
-];
-
-function formatDate(value: string | Date | null | undefined) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+function date(v?: string | null) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function statusClass(status: string) {
-  switch (status) {
-    case "PUBLISHED":
-    case "RESULTS_PUBLISHED":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+function time(v?: string | null) { return v || "—"; }
 
-    case "ONGOING":
-      return "bg-blue-50 text-blue-700 ring-blue-200";
-
-    case "SCHEDULED":
-    case "PUBLISHED":
-      return "bg-indigo-50 text-indigo-700 ring-indigo-200";
-
-    case "COMPLETED":
-    case "APPROVED":
-      return "bg-violet-50 text-violet-700 ring-violet-200";
-
-    case "LOCKED":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
-
-    case "CANCELLED":
-      return "bg-red-50 text-red-700 ring-red-200";
-
-    default:
-      return "bg-slate-100 text-slate-700 ring-slate-200";
-  }
+function statusTone(s: string) {
+  if (["PUBLISHED","RESULTS_PUBLISHED","APPROVED"].includes(s)) return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (["ONGOING","SCHEDULED","READY"].includes(s)) return "bg-blue-50 text-blue-700 ring-blue-200";
+  if (["LOCKED","AWAITING_APPROVAL"].includes(s)) return "bg-amber-50 text-amber-700 ring-amber-200";
+  if (["CANCELLED","REJECTED"].includes(s)) return "bg-red-50 text-red-700 ring-red-200";
+  return "bg-slate-100 text-slate-700 ring-slate-200";
 }
 
-function isValidNumber(value: string) {
-  if (value.trim() === "") return true;
-
-  const number = Number(value);
-
-  return Number.isFinite(number) && number >= 0;
+function Pill({ value }: { value: string }) {
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${statusTone(value)}`}>{value.replaceAll("_", " ")}</span>;
 }
 
-export default function ExaminationsPage() {
-  const router = useRouter();
-
-  const [tab, setTab] = useState<Tab>("sessions");
+export default function ExaminationPage() {
+  const params = useSearchParams();
+  const initial = (params.get("view") as View) || "overview";
+  const [view, setView] = useState<View>(initial);
   const [permissions, setPermissions] = useState<string[]>([]);
-
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [rooms, setRooms] = useState<ExamRoom[]>([]);
-
-  const [active, setActive] = useState<
-    (ExamSession & { schedules: ExamSchedule[] }) | null
-  >(null);
-
-  const [sheet, setSheet] = useState<{
-    schedule: ExamSchedule;
-    rows: MarksRow[];
-  } | null>(null);
-
-  const [draft, setDraft] = useState<Record<string, string>>({});
-
+  const [schedules, setSchedules] = useState<(ExamSchedule & { examName: string; examType: string })[]>([]);
+  const [invigilation, setInvigilation] = useState<Record<string, unknown>[]>([]);
+  const [incidents, setIncidents] = useState<Record<string, unknown>[]>([]);
+  const [revaluations, setRevaluations] = useState<Record<string, unknown>[]>([]);
+  const [selected, setSelected] = useState<(ExamSession & { schedules: ExamSchedule[] }) | null>(null);
+  const [marks, setMarks] = useState<{ schedule: ExamSchedule; rows: any[] } | null>(null);
+  const [draft, setDraft] = useState<Record<string,string>>({});
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const can = useCallback(
-    (permission: string) =>
-      permissions.includes(permission),
-    [permissions]
-  );
+  const can = (p: string) => permissions.includes(p);
+  const canManage = can("exams.manage");
+  const canApprove = can("exams.approve");
+  const canMarks = can("marks.read");
+  const canEnter = can("marks.enter");
+  const canInvigilate = can("exams.invigilate");
 
-  const canManage = can(EXAMS_MANAGE);
-  const canApprove = can(EXAMS_APPROVE);
-  const canReadMarks = can(MARKS_READ);
-  const canEnterMarks = can(MARKS_ENTER);
+  async function run(fn: () => Promise<void>) {
+    setBusy(true); setError(""); setNotice("");
+    try { await fn(); }
+    catch (e) {
+      if (e instanceof AuthRequiredError) { window.location.href = "/login"; return; }
+      setError(e instanceof Error ? e.message : "Examination operation failed.");
+    } finally { setBusy(false); }
+  }
 
-  const run = useCallback(
-    async (fn: () => Promise<void>) => {
-      setBusy(true);
-      setError("");
-      setNotice("");
-
-      try {
-        await fn();
-      } catch (err) {
-        if (err instanceof AuthRequiredError) {
-          router.replace("/login");
-          return;
-        }
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong while processing the request."
-        );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [router]
-  );
-
-  const reload = useCallback(async () => {
-    const [sessionResult, roomResult] = await Promise.all([
-      listExamSessions({ page: 1 }),
-      listExamRooms().catch(() => [] as ExamRoom[]),
-    ]);
-
-    setSessions(sessionResult.items);
-    setRooms(roomResult);
-  }, []);
-
-  const loadInitialData = useCallback(async () => {
-    setInitialLoading(true);
-    setError("");
-
+  async function load() {
+    setLoading(true); setError("");
     try {
       const user = await getCurrentUser();
-
       setPermissions(user?.permissions ?? []);
-
-      await reload();
-    } catch (err) {
-      if (err instanceof AuthRequiredError) {
-        router.replace("/login");
-        return;
-      }
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load the examination workspace."
-      );
-    } finally {
-      setInitialLoading(false);
-    }
-  }, [reload, router]);
-
-  useEffect(() => {
-    void loadInitialData();
-  }, [loadInitialData]);
-
-  async function openSession(id: string) {
-    await run(async () => {
-      const session = await getExamSession(id);
-
-      setActive(session);
-      setSheet(null);
-      setTab("sessions");
-    });
+      const [ss, rr, ii, rv] = await Promise.all([
+        listExamSessions({ page: 1 }),
+        listExamRooms().catch(() => []),
+        listIncidents({ page: 1 }).then(x => x.items).catch(() => []),
+        listRevaluations({ page: 1 }).then(x => x.items).catch(() => []),
+      ]);
+      setSessions(ss.items); setRooms(rr); setIncidents(ii); setRevaluations(rv);
+      if (can("exams.invigilate")) setInvigilation(await listMyInvigilation().catch(() => []));
+      const details = await Promise.all(ss.items.slice(0, 12).map(s => getExamSession(s.id).catch(() => null)));
+      setSchedules(details.flatMap((d: any) => (d?.schedules ?? []).map((x: any) => ({ ...x, examName: d.name, examType: d.examType }))));
+    } catch (e) {
+      if (e instanceof AuthRequiredError) { window.location.href = "/login"; return; }
+      setError(e instanceof Error ? e.message : "Unable to load examination workspace.");
+    } finally { setLoading(false); }
   }
 
-  async function openMarks(scheduleId: string) {
-    await run(async () => {
-      const data = await getMarksSheet(scheduleId);
-
-      setSheet(data);
-
-      setDraft(
-        Object.fromEntries(
-          data.rows.map((row) => [
-            row.studentId,
-            row.isAbsent
-              ? "AB"
-              : row.marksObtained?.toString() ?? "",
-          ])
-        )
-      );
-
-      setTab("marks");
-    });
-  }
-
-  function marksPayload() {
-    if (!sheet) {
-      return [];
-    }
-
-    return sheet.rows.map((row) => {
-      const raw = (draft[row.studentId] ?? "")
-        .trim()
-        .toUpperCase();
-
-      if (raw === "AB") {
-        return {
-          studentId: row.studentId,
-          isAbsent: true,
-          marksObtained: null,
-        };
-      }
-
-      return {
-        studentId: row.studentId,
-        isAbsent: false,
-        marksObtained:
-          raw === "" ? null : Number(raw),
-      };
-    });
-  }
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { setView(initial); }, [initial]);
 
   const metrics = useMemo(() => {
-    const activeSessions = sessions.filter(
-      (session) =>
-        session.status !== "CANCELLED" &&
-        session.status !== "PUBLISHED"
-    ).length;
-
-    const publishedSessions = sessions.filter(
-      (session) => session.status === "PUBLISHED"
-    ).length;
-
-    const scheduledSessions = sessions.filter(
-      (session) =>
-        session.status === "SCHEDULED" ||
-        session.status === "ONGOING"
-    ).length;
-
+    const today = new Date().toISOString().slice(0,10);
     return {
-      totalSessions: sessions.length,
-      activeSessions,
-      scheduledSessions,
-      publishedSessions,
+      total: sessions.length,
+      upcoming: sessions.filter(s => new Date(s.startDate) > new Date() && !["CANCELLED","PUBLISHED"].includes(s.status)).length,
+      active: sessions.filter(s => ["SCHEDULED","ONGOING","COMPLETED"].includes(s.status)).length,
+      today: schedules.filter(s => new Date(s.examDate).toISOString().slice(0,10) === today).length,
       rooms: rooms.length,
+      missingMarks: schedules.filter(s => ["DRAFT","PUBLISHED"].includes(s.status) && !s.markCount).length,
+      ready: schedules.filter(s => s.status === "LOCKED").length,
+      incidents: incidents.length,
+      revaluation: revaluations.length,
     };
-  }, [sessions, rooms]);
+  }, [sessions, schedules, rooms, incidents, revaluations]);
+
+  async function openSession(id: string) {
+    await run(async () => setSelected(await getExamSession(id)));
+  }
+
+  async function openMarks(id: string) {
+    await run(async () => {
+      const x = await getMarksSheet(id); setMarks(x);
+      setDraft(Object.fromEntries(x.rows.map((r: any) => [r.studentId, r.isAbsent ? "AB" : String(r.marksObtained ?? "")])));
+      setView("marks");
+    });
+  }
+
+  const nav = [
+    ["overview","Overview"],["examinations","All Examinations"],["create","Create Examination"],
+    ["calendar","Examination Calendar"],["schedule","Schedule & Subjects"],["rooms","Rooms & Seating"],
+    ["invigilators","Invigilators"],["exam-day","Exam Day"],["admit-cards","Admit Cards"],
+    ["incidents","Incidents"],["marks","Marks & Results"],["revaluation","Revaluation / Backlog"],["reports","Reports"],
+  ] as const;
 
   return (
-    <DashboardShell
-      title="Examination Cell"
-      subtitle="Examination control, scheduling, seating, admit cards, marks and result publication"
-      allowedRoles={["EXAMINATION", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "CHAIRMAN", "STUDENT"]}
-    >
+    <DashboardShell title="Examination Cell" subtitle="Examination operating system — schedule, conduct, marks, results and publication" allowedRoles={["EXAMINATION","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","CHAIRMAN","STUDENT"]}>
       <div className="mx-auto max-w-7xl space-y-6 pb-12">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white shadow-xl">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                Examination operations
-              </p>
-
-              <h1 className="mt-2 text-3xl font-black tracking-tight">
-                Examination Control Center
-              </h1>
-
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                Manage the complete controlled examination lifecycle:
-                session creation, paper scheduling, room allocation,
-                seating, admit-card generation, marks approval,
-                locking and result publication.
-              </p>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">EXAMINATION OPERATIONS</p>
+              <h1 className="mt-2 text-3xl font-black">Examination Command Center</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Start with the examination, then operate its scope, subjects, schedule, rooms, invigilators, admit cards, attendance, marks, results and approvals.</p>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void reload()}
-                disabled={busy || initialLoading}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/15 disabled:opacity-50"
-              >
-                Refresh
-              </button>
-
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => setTab("sessions")}
-                  className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
-                >
-                  Examination sessions
-                </button>
-              )}
-            </div>
+            <button onClick={() => void load()} disabled={busy || loading} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">Refresh</button>
           </div>
-        </section>
+        </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <MetricCard
-            label="Total sessions"
-            value={metrics.totalSessions}
-            detail="All examination windows"
-          />
-
-          <MetricCard
-            label="Active pipeline"
-            value={metrics.activeSessions}
-            detail="Not cancelled or published"
-          />
-
-          <MetricCard
-            label="Scheduled / ongoing"
-            value={metrics.scheduledSessions}
-            detail="Current operational sessions"
-          />
-
-          <MetricCard
-            label="Published"
-            value={metrics.publishedSessions}
-            detail="Completed result lifecycle"
-          />
-
-          <MetricCard
-            label="Exam rooms"
-            value={metrics.rooms}
-            detail="Active room inventory"
-          />
-        </section>
-
-        <section className="flex flex-wrap gap-2">
-          <TabButton
-            active={tab === "sessions"}
-            onClick={() => setTab("sessions")}
-          >
-            Sessions & schedules
-          </TabButton>
-
-          {canReadMarks && (
-            <TabButton
-              active={tab === "marks"}
-              onClick={() => setTab("marks")}
-            >
-              Marks & approvals
-            </TabButton>
+        <div className="flex flex-wrap gap-2">
+          {nav.filter(([key]) => key === "overview" || key === "examinations" || key === "calendar" || (key === "create" && canManage) || (key === "schedule" && canManage) || (key === "rooms" && canManage) || (key === "invigilators" && canManage) || (key === "exam-day" && canInvigilate) || (key === "admit-cards" && canManage) || key === "incidents" || (key === "marks" && canMarks) || (key === "revaluation" && can("exams.revaluate")) || (key === "reports" && can("reports.read"))).map(([key,label]) =>
+            <button key={key} onClick={() => setView(key)} className={view===key ? "rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white" : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"}>{label}</button>
           )}
-        </section>
+        </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
-          >
-            {error}
-          </div>
-        )}
+        {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+        {notice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{notice}</div>}
 
-        {notice && (
-          <div
-            role="status"
-            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
-          >
-            {notice}
-          </div>
-        )}
-
-        {initialLoading ? (
-          <LoadingWorkspace />
-        ) : tab === "sessions" ? (
-          <SessionsWorkspace
-            sessions={sessions}
-            rooms={rooms}
-            active={active}
-            busy={busy}
-            canManage={canManage}
-            canApprove={canApprove}
-            onCreateSession={(body) =>
-              void run(async () => {
-                const created = await createExamSession(body);
-
-                setNotice(
-                  `Examination session "${created.name}" created successfully.`
-                );
-
-                await reload();
-              })
-            }
-            onOpenSession={(id) => void openSession(id)}
-            onRefreshSession={() => {
-              if (active) {
-                void openSession(active.id);
-              }
-            }}
-            onSchedule={(body) =>
-              void run(async () => {
-                if (!active) return;
-
-                await createExamSchedule({
-                  ...body,
-                  examSessionId: active.id,
-                });
-
-                setNotice("Examination paper scheduled successfully.");
-
-                setActive(await getExamSession(active.id));
-                await reload();
-              })
-            }
-            onCreateRoom={(body) =>
-              void run(async () => {
-                await createExamRoom(body);
-
-                setNotice("Examination room created successfully.");
-
-                setRooms(await listExamRooms());
-              })
-            }
-            onSeating={(scheduleId, roomIds) =>
-              void run(async () => {
-                if (!active) return;
-
-                const result = await allocateSeating(
-                  scheduleId,
-                  roomIds
-                );
-
-                setNotice(
-                  `Seating allocated for ${result.seated} students across ${result.rooms} room(s).`
-                );
-
-                setActive(await getExamSession(active.id));
-              })
-            }
-            onHallTickets={() =>
-              void run(async () => {
-                if (!active) return;
-
-                const result = await generateHallTickets(
-                  active.id
-                );
-
-                setNotice(
-                  `Admit-card generation completed: ${result.issued} issued, ${result.blocked} blocked by eligibility rules.`
-                );
-
-                setActive(await getExamSession(active.id));
-              })
-            }
-            onStatus={(status) =>
-              void run(async () => {
-                if (!active) return;
-
-                await setSessionStatus(
-                  active.id,
-                  status
-                );
-
-                setNotice(
-                  `Examination session moved to ${status}.`
-                );
-
-                setActive(await getExamSession(active.id));
-                await reload();
-              })
-            }
-            onOpenMarks={(scheduleId) =>
-              void openMarks(scheduleId)
-            }
-            onLock={(scheduleId) =>
-              void run(async () => {
-                if (!active) return;
-
-                await lockSchedule(scheduleId);
-
-                setNotice(
-                  "Marks schedule locked successfully."
-                );
-
-                setActive(await getExamSession(active.id));
-              })
-            }
-            onPublish={(scheduleId) =>
-              void run(async () => {
-                if (!active) return;
-
-                const result =
-                  await publishResults(scheduleId);
-
-                setNotice(
-                  `Results published for ${result.published} student result(s).`
-                );
-
-                setActive(await getExamSession(active.id));
-              })
-            }
-          />
-        ) : (
-          <MarksWorkspace
-            sheet={sheet}
-            draft={draft}
-            busy={busy}
-            canEnterMarks={canEnterMarks}
-            canApprove={canApprove}
-            setDraft={setDraft}
-            onSave={() =>
-              void run(async () => {
-                if (!sheet) return;
-
-                const payload = marksPayload();
-
-                const invalid = payload.some(
-                  (entry) =>
-                    entry.marksObtained !== null &&
-                    (!Number.isFinite(
-                      entry.marksObtained
-                    ) ||
-                      entry.marksObtained < 0)
-                );
-
-                if (invalid) {
-                  throw new Error(
-                    "One or more marks entries are invalid."
-                  );
-                }
-
-                await saveMarks(
-                  sheet.schedule.id,
-                  payload,
-                  false
-                );
-
-                setNotice("Marks draft saved successfully.");
-
-                const refreshed =
-                  await getMarksSheet(
-                    sheet.schedule.id
-                  );
-
-                setSheet(refreshed);
-
-                setDraft(
-                  Object.fromEntries(
-                    refreshed.rows.map((row) => [
-                      row.studentId,
-                      row.isAbsent
-                        ? "AB"
-                        : row.marksObtained?.toString() ??
-                          "",
-                    ])
-                  )
-                );
-              })
-            }
-            onSubmit={() =>
-              void run(async () => {
-                if (!sheet) return;
-
-                const payload = marksPayload();
-
-                await saveMarks(
-                  sheet.schedule.id,
-                  payload,
-                  true
-                );
-
-                setNotice(
-                  "Marks submitted for approval."
-                );
-
-                const refreshed =
-                  await getMarksSheet(
-                    sheet.schedule.id
-                  );
-
-                setSheet(refreshed);
-              })
-            }
-            onApprove={() =>
-              void run(async () => {
-                if (!sheet) return;
-
-                const result =
-                  await approveMarks(
-                    sheet.schedule.id
-                  );
-
-                setNotice(
-                  `${result.approved} mark entries approved successfully.`
-                );
-
-                const refreshed =
-                  await getMarksSheet(
-                    sheet.schedule.id
-                  );
-
-                setSheet(refreshed);
-              })
-            }
-          />
+        {loading ? <Loading /> : (
+          <>
+            {view === "overview" && <Overview metrics={metrics} sessions={sessions} schedules={schedules} incidents={incidents} onOpen={openSession} onView={setView} />}
+            {view === "examinations" && <Examinations sessions={sessions} selected={selected} onOpen={openSession} onView={setView} canManage={canManage} canApprove={canApprove} busy={busy} onStatus={(id,status)=>void run(async()=>{await setSessionStatus(id,status); await load();})} onAdmit={(id)=>void run(async()=>{const r=await generateHallTickets(id); setNotice(`Admit cards: ${r.issued} issued, ${r.blocked} blocked.`);})} />}
+            {view === "create" && canManage && <CreateExam busy={busy} onSubmit={(body)=>void run(async()=>{const x=await createExamSession(body); setNotice(`Examination "${x.name}" created.`); await load(); setView("examinations");})} />}
+            {view === "calendar" && <Calendar schedules={schedules} />}
+            {view === "schedule" && <Schedule selected={selected} schedules={schedules} rooms={rooms} canManage={canManage} busy={busy} onOpen={openSession} onMarks={openMarks} onSeat={(id,roomIds)=>void run(async()=>{const r=await allocateSeating(id,roomIds); setNotice(`Seating allocated for ${r.seated} students across ${r.rooms} rooms.`); await load();})} onSchedule={(body)=>void run(async()=>{if(!selected) throw new Error("Open an examination first."); await createExamSchedule({...body,examSessionId:selected.id}); setNotice("Examination subject scheduled."); await openSession(selected.id); await load();})} />}
+            {view === "rooms" && canManage && <Rooms rooms={rooms} busy={busy} onCreate={(body)=>void run(async()=>{await createExamRoom(body); setNotice("Room created."); await load();})} />}
+            {view === "invigilators" && <SimpleList title="Invigilators" description="Faculty duty assignments are tied to examination schedules. Conflict validation is enforced by the examination API." rows={invigilation} empty="No invigilation duties are assigned to you." />}
+            {view === "exam-day" && <ExamDay schedules={schedules} incidents={incidents} onAttendance={openMarks} />}
+            {view === "admit-cards" && <AdmitCards sessions={sessions} canManage={canManage} busy={busy} onGenerate={(id)=>void run(async()=>{const r=await generateHallTickets(id); setNotice(`Generated ${r.issued} admit cards; ${r.blocked} blocked by eligibility rules.`);})} />}
+            {view === "incidents" && <SimpleList title="Examination Incidents" description="Malpractice, medical, late-arrival, paper and room incidents requiring examination-cell attention." rows={incidents} empty="No incidents require attention." />}
+            {view === "revaluation" && <SimpleList title="Revaluation / Backlog" description="Requests remain tied to examination schedules and are governed by examination permissions." rows={revaluations} empty="No revaluation requests." />}
+            {view === "reports" && <Reports sessions={sessions} schedules={schedules} />}
+            {view === "marks" && canMarks && <Marks marks={marks} draft={draft} setDraft={setDraft} busy={busy} canEnter={canEnter} canApprove={canApprove} onSave={(submit)=>void run(async()=>{if(!marks) return; await saveMarks(marks.schedule.id,Object.entries(draft).map(([studentId,v])=>({studentId,isAbsent:v.trim().toUpperCase()==="AB",marksObtained:v.trim()===""||v.trim().toUpperCase()==="AB"?null:Number(v)})),submit); setNotice(submit?"Marks submitted for approval.":"Marks draft saved."); setMarks(await getMarksSheet(marks.schedule.id));})} onApprove={()=>void run(async()=>{if(!marks)return; await approveMarks(marks.schedule.id); setNotice("Marks approved."); setMarks(await getMarksSheet(marks.schedule.id));})} onLock={()=>void run(async()=>{if(!marks)return; await lockSchedule(marks.schedule.id); setNotice("Marks locked."); await load();})} onPublish={()=>void run(async()=>{if(!marks)return; const r=await publishResults(marks.schedule.id); setNotice(`Published ${r.published} results.`); await load();})} />}
+          </>
         )}
       </div>
     </DashboardShell>
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-        {label}
-      </p>
+function Loading(){return <div className="grid gap-4 md:grid-cols-4">{Array.from({length:8}).map((_,i)=><div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-100"/>)}</div>}
 
-      <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-        {value}
-      </p>
+function Metric({label,value,detail}:{label:string;value:number|string;detail:string}){return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-slate-400">{label}</p><p className="mt-2 text-3xl font-black text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></div>}
 
-      <p className="mt-1 text-xs text-slate-500">
-        {detail}
-      </p>
-    </div>
-  );
+function Overview({metrics,sessions,schedules,incidents,onOpen,onView}:{metrics:any;sessions:ExamSession[];schedules:any[];incidents:any[];onOpen:(id:string)=>void;onView:(v:View)=>void}){
+ return <div className="space-y-6">
+  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Examinations" value={metrics.total} detail="Controlled examination records"/><Metric label="Upcoming" value={metrics.upcoming} detail="Not yet completed"/><Metric label="Today" value={metrics.today} detail="Scheduled papers today"/><Metric label="Rooms" value={metrics.rooms} detail="Active examination rooms"/><Metric label="Ready to publish" value={metrics.ready} detail="Locked result schedules"/></div>
+  <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+   <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Upcoming examinations</p><h2 className="mt-1 text-xl font-black text-slate-950">What is happening next?</h2></div><button onClick={()=>onView("calendar")} className="text-xs font-bold text-slate-700">Calendar →</button></div><div className="mt-5 space-y-3">{schedules.slice(0,6).map(s=><button key={s.id} onClick={()=>onOpen(s.examSessionId)} className="w-full rounded-2xl border border-slate-100 p-4 text-left hover:border-slate-300"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold text-slate-950">{s.examName}</p><p className="text-sm text-slate-600">{s.courseCode} · {s.courseName}</p></div><Pill value={s.status}/></div><p className="mt-2 text-xs text-slate-500">{date(s.examDate)} · {time(s.startTime)}–{time(s.endTime)} · {s.seatCount ?? 0} seats</p></button>)}{!schedules.length&&<Empty text="No scheduled examination papers are available yet."/>}</div></section>
+   <section className="space-y-5"><Action title="Needs attention" value={metrics.incidents+metrics.missingMarks} text={`${metrics.incidents} incidents · ${metrics.missingMarks} schedules with pending marks`} onClick={()=>onView(metrics.incidents?"incidents":"marks")}/><Action title="Revaluation / backlog" value={metrics.revaluation} text="Requests awaiting examination-cell action" onClick={()=>onView("revaluation")}/><Action title="Active pipeline" value={metrics.active} text="Scheduled, ongoing or completed examinations" onClick={()=>onView("examinations")}/></section>
+  </div>
+  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Lifecycle</p><div className="mt-4 grid gap-2 sm:grid-cols-4 lg:grid-cols-8">{["Draft","Configuring","Scheduled","Ready","Ongoing","Marks Pending","Awaiting Approval","Published"].map(x=><div key={x} className="rounded-xl bg-slate-50 p-3 text-center text-xs font-bold text-slate-700">{x}</div>)}</div></section>
+ </div>
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm"
-          : "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-      }
-    >
-      {children}
-    </button>
-  );
+function Action({title,value,text,onClick}:{title:string;value:number;text:string;onClick:()=>void}){return <button onClick={onClick} className="w-full rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-slate-300"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{title}</p><p className="mt-2 text-3xl font-black text-slate-950">{value}</p><p className="mt-1 text-xs text-slate-500">{text}</p><p className="mt-4 text-xs font-bold text-slate-700">Review →</p></button>}
+function Empty({text}:{text:string}){return <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">{text}</div>}
+
+function Examinations({sessions,selected,onOpen,onView,canManage,canApprove,busy,onStatus,onAdmit}:{sessions:ExamSession[];selected:any;onOpen:(id:string)=>void;onView:(v:View)=>void;canManage:boolean;canApprove:boolean;busy:boolean;onStatus:(id:string,s:string)=>void;onAdmit:(id:string)=>void}){
+ return <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]"><section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-xl font-black">All Examinations</h2>{canManage&&<button onClick={()=>onView("create")} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white">+ Create</button>}</div><div className="mt-5 space-y-2">{sessions.map(s=><button key={s.id} onClick={()=>onOpen(s.id)} className={`w-full rounded-2xl border p-4 text-left ${selected?.id===s.id?"border-slate-950":"border-slate-100"}`}><div className="flex items-center justify-between gap-2"><p className="font-bold text-slate-950">{s.name}</p><Pill value={s.status}/></div><p className="mt-1 text-xs text-slate-500">{s.examType.replaceAll("_"," ")} · {date(s.startDate)}–{date(s.endDate)} · {s.code}</p></button>)}{!sessions.length&&<Empty text="Create the first examination to start the operating lifecycle."/>}</div></section><section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">{selected?<><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Examination</p><h2 className="mt-1 text-2xl font-black">{selected.name}</h2><p className="mt-1 text-sm text-slate-500">{selected.code} · {selected.examType.replaceAll("_"," ")}</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><Info label="Start" value={date(selected.startDate)}/><Info label="End" value={date(selected.endDate)}/><Info label="Subjects scheduled" value={selected.schedules.length}/><Info label="Status" value={selected.status}/></div><div className="mt-6 flex flex-wrap gap-2">{canManage&&selected.status==="DRAFT"&&<button onClick={()=>onStatus(selected.id,"SCHEDULED")} disabled={busy} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white">Mark Scheduled</button>}{canManage&&<button onClick={()=>onAdmit(selected.id)} disabled={busy} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Generate Admit Cards</button>}<button onClick={()=>onView("schedule")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Open Schedule</button></div></>:<Empty text="Select an examination to see its operational lifecycle."/>}</section></div>
+}
+function Info({label,value}:{label:string;value:any}){return <div className="rounded-2xl bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 font-bold text-slate-900">{value}</p></div>}
+
+function CreateExam({busy,onSubmit}:{busy:boolean;onSubmit:(x:any)=>void}){
+ const [f,setF]=useState<any>({name:"",code:"",examType:"END_SEMESTER",startDate:"",endDate:"",academicYearId:"",semesterId:"",campusIds:"",departmentIds:"",programIds:"",semesterIds:"",sectionIds:"",instructions:""});
+ const set=(k:string,v:string)=>setF((x:any)=>({...x,[k]:v}));
+ return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Create Examination</p><h2 className="mt-1 text-2xl font-black">Start with the examination</h2><p className="mt-2 text-sm text-slate-500">Define one institutional examination first. Its scope can cover multiple departments, programmes and semesters.</p><form className="mt-6 grid gap-4 md:grid-cols-2" onSubmit={e=>{e.preventDefault();onSubmit({...f, campusIds:f.campusIds.split(",").map((x:string)=>x.trim()).filter(Boolean),departmentIds:f.departmentIds.split(",").map((x:string)=>x.trim()).filter(Boolean),programIds:f.programIds.split(",").map((x:string)=>x.trim()).filter(Boolean),semesterIds:f.semesterIds.split(",").map((x:string)=>x.trim()).filter(Boolean),sectionIds:f.sectionIds.split(",").map((x:string)=>x.trim()).filter(Boolean),academicYearId:f.academicYearId||undefined,semesterId:f.semesterId||undefined});}}><Field label="Examination name" value={f.name} onChange={v=>set("name",v)} placeholder="B.Tech End Semester Examination — Odd Semester 2026" required/><Field label="Examination code" value={f.code} onChange={v=>set("code",v)} placeholder="BTECH-END-2026" required/><label className="space-y-1"><span className="text-xs font-bold text-slate-500">Examination type</span><select value={f.examType} onChange={e=>set("examType",e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm">{TYPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><Field label="Academic year ID" value={f.academicYearId} onChange={v=>set("academicYearId",v)} placeholder="Optional UUID"/><Field label="Start date" type="date" value={f.startDate} onChange={v=>set("startDate",v)} required/><Field label="End date" type="date" value={f.endDate} onChange={v=>set("endDate",v)} required/><Field label="Campus IDs (comma separated)" value={f.campusIds} onChange={v=>set("campusIds",v)} placeholder="One examination can span campuses"/><Field label="Department IDs (comma separated)" value={f.departmentIds} onChange={v=>set("departmentIds",v)} placeholder="CSE,ECE,ME scope UUIDs"/><Field label="Programme IDs (comma separated)" value={f.programIds} onChange={v=>set("programIds",v)} placeholder="Programme scope UUIDs"/><Field label="Semester IDs (comma separated)" value={f.semesterIds} onChange={v=>set("semesterIds",v)} placeholder="Semester scope UUIDs"/><Field label="Section IDs (optional)" value={f.sectionIds} onChange={v=>set("sectionIds",v)} placeholder="Optional section scope UUIDs"/><label className="space-y-1 md:col-span-2"><span className="text-xs font-bold text-slate-500">Instructions</span><textarea value={f.instructions} onChange={e=>set("instructions",e.target.value)} rows={4} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"/></label><button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white disabled:opacity-50 md:col-span-2">Create Examination</button></form></section>
+}
+function Field({label,value,onChange,placeholder,type="text",required=false}:{label:string;value:string;onChange:(v:string)=>void;placeholder?:string;type?:string;required?:boolean}){return <label className="space-y-1"><span className="text-xs font-bold text-slate-500">{label}</span><input required={required} type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"/></label>}
+
+function Calendar({schedules}:{schedules:any[]}){return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Examination Calendar</p><h2 className="mt-1 text-2xl font-black">Schedule at a glance</h2><div className="mt-6 overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead className="border-b text-left text-xs uppercase tracking-wider text-slate-400"><tr><th className="pb-3">Date</th><th>Time</th><th>Examination</th><th>Subject</th><th>Room seats</th><th>Status</th></tr></thead><tbody className="divide-y">{schedules.map(s=><tr key={s.id}><td className="py-3">{date(s.examDate)}</td><td>{s.startTime}–{s.endTime}</td><td className="font-bold">{s.examName}</td><td>{s.courseCode} · {s.courseName}</td><td>{s.seatCount??0}</td><td><Pill value={s.status}/></td></tr>)}</tbody></table>{!schedules.length&&<Empty text="No schedules available."/>}</div></section>}
+
+function Schedule({selected,schedules,rooms,canManage,busy,onOpen,onMarks,onSeat,onSchedule}:{selected:any;schedules:any[];rooms:ExamRoom[];canManage:boolean;busy:boolean;onOpen:(id:string)=>void;onMarks:(id:string)=>void;onSeat:(id:string,r:string[])=>void;onSchedule:(x:any)=>void}){
+ const [f,setF]=useState({courseOfferingId:"",examDate:"",startTime:"10:00",endTime:"13:00",maxMarks:"100",passMarks:"40",instructions:""});
+ const [roomIds,setRoomIds]=useState<string[]>([]);
+ return <div className="space-y-5"><section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Examination Subjects</p><h2 className="text-2xl font-black">{selected?.name||"Open an examination"}</h2></div>{selected&&<Pill value={selected.status}/>}</div><p className="mt-2 text-sm text-slate-500">Subjects are presented as examination papers. Course-offering identifiers remain an internal implementation detail for the API.</p>{canManage&&selected&&<form className="mt-5 grid gap-3 md:grid-cols-3" onSubmit={e=>{e.preventDefault();onSchedule(f);}}><Field label="Subject reference" value={f.courseOfferingId} onChange={v=>setF({...f,courseOfferingId:v})} placeholder="Subject internal reference" required/><Field label="Exam date" type="date" value={f.examDate} onChange={v=>setF({...f,examDate:v})} required/><Field label="Maximum marks" value={f.maxMarks} onChange={v=>setF({...f,maxMarks:v})}/><Field label="Start time" type="time" value={f.startTime} onChange={v=>setF({...f,startTime:v})}/><Field label="End time" type="time" value={f.endTime} onChange={v=>setF({...f,endTime:v})}/><Field label="Pass marks" value={f.passMarks} onChange={v=>setF({...f,passMarks:v})}/><button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white md:col-span-3">Schedule Examination Paper</button></form>}</section><section className="space-y-3">{(selected?.schedules??[]).map((s:ExamSchedule)=><article key={s.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold">{s.courseCode} · {s.courseName}</p><p className="text-xs text-slate-500">{date(s.examDate)} · {s.startTime}–{s.endTime} · {s.seatCount??0} seats · {s.markCount??0} marks</p></div><div className="flex flex-wrap gap-2"><Pill value={s.status}/><button onClick={()=>onMarks(s.id)} className="rounded-lg border px-3 py-2 text-xs font-bold">Marks</button></div></div>{canManage&&<div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]"><select multiple value={roomIds} onChange={e=>setRoomIds(Array.from(e.target.selectedOptions).map(x=>x.value))} className="min-h-24 rounded-xl border p-2 text-xs">{rooms.map(r=><option key={r.id} value={r.id}>{r.name} — {r.capacity} seats</option>)}</select><button disabled={busy||!roomIds.length} onClick={()=>onSeat(s.id,roomIds)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40">Generate Seating Plan</button></div>}</article>)}</section></div>
 }
 
-function LoadingWorkspace() {
-  return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <div
-          key={index}
-          className="animate-pulse rounded-3xl border border-slate-200 bg-white p-6"
-        >
-          <div className="h-5 w-40 rounded bg-slate-200" />
-          <div className="mt-4 h-3 w-full rounded bg-slate-100" />
-          <div className="mt-2 h-3 w-4/5 rounded bg-slate-100" />
-          <div className="mt-6 h-10 w-32 rounded-xl bg-slate-200" />
-        </div>
-      ))}
-    </div>
-  );
-}
+function Rooms({rooms,busy,onCreate}:{rooms:ExamRoom[];busy:boolean;onCreate:(x:any)=>void}){const [f,setF]=useState({name:"",code:"",capacity:"60"});return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Operations</p><h2 className="text-2xl font-black">Rooms & Seating</h2><form className="mt-5 grid gap-3 md:grid-cols-4" onSubmit={e=>{e.preventDefault();onCreate({...f,capacity:Number(f.capacity)});setF({name:"",code:"",capacity:"60"});}}><Field label="Room" value={f.name} onChange={v=>setF({...f,name:v})} placeholder="Room 201" required/><Field label="Code" value={f.code} onChange={v=>setF({...f,code:v})} placeholder="R201" required/><Field label="Capacity" value={f.capacity} onChange={v=>setF({...f,capacity:v})}/><button disabled={busy} className="rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-bold text-white">Add Room</button></form><div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rooms.map(r=><div key={r.id} className="rounded-2xl border p-4"><p className="font-bold">{r.name}</p><p className="text-xs text-slate-500">{r.code} · Capacity {r.capacity}</p><p className="mt-3 text-xs font-bold text-emerald-700">Available for allocation</p></div>)}</div></section>}
 
-function SessionsWorkspace({
-  sessions,
-  rooms,
-  active,
-  busy,
-  canManage,
-  canApprove,
-  onCreateSession,
-  onOpenSession,
-  onRefreshSession,
-  onSchedule,
-  onCreateRoom,
-  onSeating,
-  onHallTickets,
-  onStatus,
-  onOpenMarks,
-  onLock,
-  onPublish,
-}: {
-  sessions: ExamSession[];
-  rooms: ExamRoom[];
-  active:
-    | (ExamSession & {
-        schedules: ExamSchedule[];
-      })
-    | null;
-  busy: boolean;
-  canManage: boolean;
-  canApprove: boolean;
-  onCreateSession: (body: {
-    name: string;
-    code: string;
-    examType: string;
-    startDate: string;
-    endDate: string;
-  }) => void;
-  onOpenSession: (id: string) => void;
-  onRefreshSession: () => void;
-  onSchedule: (body: {
-    courseOfferingId: string;
-    examDate: string;
-    startTime: string;
-    endTime: string;
-    maxMarks: number;
-    passMarks: number;
-  }) => void;
-  onCreateRoom: (body: {
-    name: string;
-    code: string;
-    capacity: number;
-  }) => void;
-  onSeating: (
-    scheduleId: string,
-    roomIds: string[]
-  ) => void;
-  onHallTickets: () => void;
-  onStatus: (status: string) => void;
-  onOpenMarks: (scheduleId: string) => void;
-  onLock: (scheduleId: string) => void;
-  onPublish: (scheduleId: string) => void;
-}) {
-  return (
-    <>
-      {canManage && (
-        <NewSessionForm
-          busy={busy}
-          onCreate={onCreateSession}
-        />
-      )}
+function ExamDay({schedules,incidents,onAttendance}:{schedules:any[];incidents:any[];onAttendance:(id:string)=>void}){return <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]"><section className="rounded-3xl border bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">EXAMINATION DAY</p><h2 className="text-2xl font-black">Today's operational board</h2><div className="mt-5 space-y-3">{schedules.slice(0,10).map(s=><div key={s.id} className="rounded-2xl border p-4"><div className="flex justify-between gap-3"><div><p className="font-bold">{s.courseCode} · {s.courseName}</p><p className="text-xs text-slate-500">{s.examName} · {s.startTime}–{s.endTime}</p></div><button onClick={()=>onAttendance(s.id)} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Attendance</button></div></div>)}{!schedules.length&&<Empty text="No examinations scheduled."/>}</div></section><section className="rounded-3xl border bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Incidents</p><h2 className="mt-1 text-xl font-black">{incidents.length} requiring attention</h2><p className="mt-2 text-sm text-slate-500">Cheating, malpractice, medical, late-arrival, paper and room issues stay tied to the examination paper.</p></section></div>}
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              Master examination windows
-            </p>
+function AdmitCards({sessions,canManage,busy,onGenerate}:{sessions:ExamSession[];canManage:boolean;busy:boolean;onGenerate:(id:string)=>void}){return <section className="rounded-3xl border bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">ADMIT CARDS</p><h2 className="text-2xl font-black">Generate from an examination</h2><div className="mt-5 space-y-3">{sessions.map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4"><div><p className="font-bold">{s.name}</p><p className="text-xs text-slate-500">{s.code} · {s.status}</p></div>{canManage&&<button disabled={busy} onClick={()=>onGenerate(s.id)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white">Generate Admit Cards</button>}</div>)}</div></section>}
 
-            <h2 className="mt-1 text-xl font-black text-slate-950">
-              Examination sessions
-            </h2>
+function SimpleList({title,description,rows,empty}:{title:string;description:string;rows:Record<string,unknown>[];empty:string}){return <section className="rounded-3xl border bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">EXAMINATION OPERATIONS</p><h2 className="mt-1 text-2xl font-black">{title}</h2><p className="mt-2 text-sm text-slate-500">{description}</p><div className="mt-6 space-y-3">{rows.map((r,i)=><pre key={i} className="overflow-auto rounded-2xl bg-slate-50 p-4 text-xs text-slate-700">{JSON.stringify(r,null,2)}</pre>)}{!rows.length&&<Empty text={empty}/>}</div></section>}
 
-            <p className="mt-1 text-sm text-slate-500">
-              Every paper, seating allocation, admit card and result
-              publication belongs to one controlled session.
-            </p>
-          </div>
+function Reports({sessions,schedules}:{sessions:ExamSession[];schedules:any[]}){return <section className="rounded-3xl border bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">REPORTS</p><h2 className="text-2xl font-black">Examination reporting</h2><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[["Examination schedule",schedules.length],["Examinations",sessions.length],["Scheduled papers",schedules.filter(s=>s.status==="PUBLISHED").length],["Locked results",schedules.filter(s=>s.status==="LOCKED").length]].map(([a,b])=><div key={String(a)} className="rounded-2xl border p-5"><p className="text-xs font-bold text-slate-500">{a}</p><p className="mt-2 text-3xl font-black">{b}</p></div>)}</div><p className="mt-6 text-sm text-slate-500">Detailed PDF/XLSX exports should use the same institution-scoped reporting services as the rest of ACADLYX; this workspace never fetches institution-wide students just to render the command center.</p></section>}
 
-          <p className="text-xs font-medium text-slate-400">
-            {sessions.length} session(s)
-          </p>
-        </div>
-
-        {sessions.length === 0 ? (
-          <EmptyState
-            title="No examination sessions"
-            description={
-              canManage
-                ? "Create the first examination session to start the examination workflow."
-                : "No examination sessions are currently available."
-            }
-          />
-        ) : (
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="border-b border-slate-100 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                <tr>
-                  <th className="pb-3 pr-4">
-                    Session
-                  </th>
-                  <th className="pb-3 pr-4">
-                    Type
-                  </th>
-                  <th className="pb-3 pr-4">
-                    Examination window
-                  </th>
-                  <th className="pb-3 pr-4">
-                    Status
-                  </th>
-                  <th className="pb-3 text-right">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {sessions.map((session) => (
-                  <tr
-                    key={session.id}
-                    className="hover:bg-slate-50/70"
-                  >
-                    <td className="py-4 pr-4">
-                      <div className="font-bold text-slate-900">
-                        {session.name}
-                      </div>
-
-                      <div className="mt-0.5 text-xs text-slate-400">
-                        {session.code}
-                      </div>
-                    </td>
-
-                    <td className="py-4 pr-4 text-slate-600">
-                      {session.examType}
-                    </td>
-
-                    <td className="py-4 pr-4 text-slate-600">
-                      <div>
-                        {formatDate(
-                          session.startDate
-                        )}
-                      </div>
-
-                      <div className="text-xs text-slate-400">
-                        to{" "}
-                        {formatDate(
-                          session.endDate
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-4 pr-4">
-                      <StatusPill
-                        status={session.status}
-                      />
-                    </td>
-
-                    <td className="py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenSession(session.id)
-                        }
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                      >
-                        Open workspace
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {active && (
-        <SessionWorkspace
-          session={active}
-          rooms={rooms}
-          busy={busy}
-          canManage={canManage}
-          canApprove={canApprove}
-          onRefresh={onRefreshSession}
-          onSchedule={onSchedule}
-          onCreateRoom={onCreateRoom}
-          onSeating={onSeating}
-          onHallTickets={onHallTickets}
-          onStatus={onStatus}
-          onOpenMarks={onOpenMarks}
-          onLock={onLock}
-          onPublish={onPublish}
-        />
-      )}
-    </>
-  );
-}
-
-function NewSessionForm({
-  busy,
-  onCreate,
-}: {
-  busy: boolean;
-  onCreate: (body: {
-    name: string;
-    code: string;
-    examType: string;
-    startDate: string;
-    endDate: string;
-  }) => void;
-}) {
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    examType: "REGULAR",
-    startDate: "",
-    endDate: "",
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-
-    if (!form.name.trim()) {
-      return;
-    }
-
-    if (!form.code.trim()) {
-      return;
-    }
-
-    if (!form.startDate || !form.endDate) {
-      return;
-    }
-
-    if (
-      new Date(form.endDate) <
-      new Date(form.startDate)
-    ) {
-      return;
-    }
-
-    onCreate({
-      ...form,
-      name: form.name.trim(),
-      code: form.code.trim(),
-    });
-
-    setForm({
-      name: "",
-      code: "",
-      examType: form.examType,
-      startDate: "",
-      endDate: "",
-    });
-  }
-
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-          Session control
-        </p>
-
-        <h2 className="mt-1 text-xl font-black text-slate-950">
-          Create examination session
-        </h2>
-
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          This is the master examination window. Papers, seating,
-          admit cards and results are controlled beneath this session.
-        </p>
-      </div>
-
-      <form
-        onSubmit={submit}
-        className="grid gap-4 lg:grid-cols-12"
-      >
-        <label className="space-y-1.5 lg:col-span-4">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Session name
-          </span>
-
-          <input
-            required
-            value={form.name}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                name: event.target.value,
-              }))
-            }
-            placeholder="End Semester Examination — Nov 2026"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-          />
-        </label>
-
-        <label className="space-y-1.5 lg:col-span-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Code
-          </span>
-
-          <input
-            required
-            value={form.code}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                code: event.target.value,
-              }))
-            }
-            placeholder="ESE-NOV26"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm uppercase outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-          />
-        </label>
-
-        <label className="space-y-1.5 lg:col-span-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Examination type
-          </span>
-
-          <select
-            value={form.examType}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                examType: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400"
-          >
-            {EXAM_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-1.5 lg:col-span-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            Start date
-          </span>
-
-          <input
-            required
-            type="date"
-            value={form.startDate}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                startDate: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-          />
-        </label>
-
-        <label className="space-y-1.5 lg:col-span-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            End date
-          </span>
-
-          <input
-            required
-            type="date"
-            value={form.endDate}
-            min={form.startDate || undefined}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                endDate: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-          />
-        </label>
-
-        <div className="lg:col-span-12">
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {busy
-              ? "Creating session..."
-              : "Create examination session"}
-          </button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-function SessionWorkspace({
-  session,
-  rooms,
-  busy,
-  canManage,
-  canApprove,
-  onRefresh,
-  onSchedule,
-  onCreateRoom,
-  onSeating,
-  onHallTickets,
-  onStatus,
-  onOpenMarks,
-  onLock,
-  onPublish,
-}: {
-  session: ExamSession & {
-    schedules: ExamSchedule[];
-  };
-  rooms: ExamRoom[];
-  busy: boolean;
-  canManage: boolean;
-  canApprove: boolean;
-  onRefresh: () => void;
-  onSchedule: (body: {
-    courseOfferingId: string;
-    examDate: string;
-    startTime: string;
-    endTime: string;
-    maxMarks: number;
-    passMarks: number;
-  }) => void;
-  onCreateRoom: (body: {
-    name: string;
-    code: string;
-    capacity: number;
-  }) => void;
-  onSeating: (
-    scheduleId: string,
-    roomIds: string[]
-  ) => void;
-  onHallTickets: () => void;
-  onStatus: (status: string) => void;
-  onOpenMarks: (scheduleId: string) => void;
-  onLock: (scheduleId: string) => void;
-  onPublish: (scheduleId: string) => void;
-}) {
-  const [showScheduleForm, setShowScheduleForm] =
-    useState(false);
-
-  const [showRoomForm, setShowRoomForm] =
-    useState(false);
-
-  const [hallTicketBusy, setHallTicketBusy] =
-    useState(false);
-
-  return (
-    <section className="space-y-5 rounded-3xl border border-indigo-200 bg-indigo-50/60 p-5 sm:p-6">
-      <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-indigo-500">
-                Active examination session
-              </span>
-
-              <StatusPill status={session.status} />
-            </div>
-
-            <h2 className="mt-2 text-2xl font-black text-slate-950">
-              {session.name}
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {session.code} · {session.examType} ·{" "}
-              {formatDate(session.startDate)} —{" "}
-              {formatDate(session.endDate)}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
-            >
-              Refresh
-            </button>
-
-            {canApprove && (
-              <>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    session.status !== "DRAFT"
-                  }
-                  onClick={() =>
-                    onStatus("SCHEDULED")
-                  }
-                  className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Publish schedule
-                </button>
-
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    session.status !== "SCHEDULED"
-                  }
-                  onClick={() =>
-                    onStatus("ONGOING")
-                  }
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Start examination
-                </button>
-
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    session.status !== "ONGOING"
-                  }
-                  onClick={() =>
-                    onStatus("COMPLETED")
-                  }
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Complete session
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <OperationalCard
-          label="Papers"
-          value={session.schedules.length}
-          detail="Scheduled papers"
-        />
-
-        <OperationalCard
-          label="Seated"
-          value={session.schedules.reduce(
-            (total, item) =>
-              total + Number(item.seatCount ?? 0),
-            0
-          )}
-          detail="Seat allocations"
-        />
-
-        <OperationalCard
-          label="Marks"
-          value={session.schedules.reduce(
-            (total, item) =>
-              total + Number(item.markCount ?? 0),
-            0
-          )}
-          detail="Recorded mark entries"
-        />
-
-        <OperationalCard
-          label="Rooms"
-          value={rooms.length}
-          detail="Available exam rooms"
-        />
-      </div>
-
-      {canManage && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-slate-900">
-                  Paper scheduling
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Schedule a course offering into this examination
-                  window.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowScheduleForm(
-                    (current) => !current
-                  )
-                }
-                className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white"
-              >
-                {showScheduleForm
-                  ? "Close"
-                  : "Schedule paper"}
-              </button>
-            </div>
-
-            {showScheduleForm && (
-              <SchedulePaperForm
-                busy={busy}
-                onSubmit={(body) => {
-                  onSchedule(body);
-                  setShowScheduleForm(false);
-                }}
-              />
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-slate-900">
-                  Admit cards
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Generate hall tickets after seating has been
-                  allocated. Attendance and overdue fee rules are
-                  enforced by the backend.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={
-                  busy ||
-                  hallTicketBusy ||
-                  session.schedules.length === 0
-                }
-                onClick={() => {
-                  setHallTicketBusy(true);
-
-                  try {
-                    onHallTickets();
-                  } finally {
-                    window.setTimeout(
-                      () => setHallTicketBusy(false),
-                      300
-                    );
-                  }
-                }}
-                className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {hallTicketBusy
-                  ? "Generating..."
-                  : "Generate admit cards"}
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-xl bg-slate-50 p-3">
-              <div className="text-xs font-bold text-slate-700">
-                Eligibility workflow
-              </div>
-
-              <div className="mt-2 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
-                <span>1. Schedule papers</span>
-                <span>2. Allocate seating</span>
-                <span>3. Generate tickets</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h3 className="text-lg font-black text-slate-950">
-              Scheduled papers
-            </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Each paper carries its own seating, marks and
-              publication state.
-            </p>
-          </div>
-
-          <span className="text-xs font-semibold text-slate-400">
-            {session.schedules.length} paper(s)
-          </span>
-        </div>
-
-        {session.schedules.length === 0 ? (
-          <EmptyState
-            title="No papers scheduled"
-            description="Schedule the first course offering for this examination session."
-          />
-        ) : (
-          <div className="mt-5 space-y-3">
-            {session.schedules.map((schedule) => (
-              <ScheduleCard
-                key={schedule.id}
-                schedule={schedule}
-                rooms={rooms}
-                busy={busy}
-                canManage={canManage}
-                canApprove={canApprove}
-                onSeating={onSeating}
-                onOpenMarks={onOpenMarks}
-                onLock={onLock}
-                onPublish={onPublish}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {canManage && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="font-bold text-slate-900">
-                Examination room inventory
-              </h3>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Maintain the rooms available for seating allocation.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowRoomForm(
-                  (current) => !current
-                )
-              }
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
-            >
-              {showRoomForm
-                ? "Close"
-                : "Add room"}
-            </button>
-          </div>
-
-          {showRoomForm && (
-            <RoomForm
-              busy={busy}
-              onSubmit={(body) => {
-                onCreateRoom(body);
-                setShowRoomForm(false);
-              }}
-            />
-          )}
-
-          {rooms.length > 0 && (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {rooms.map((room) => (
-                <div
-                  key={room.id}
-                  className="rounded-xl border border-slate-200 p-3"
-                >
-                  <div className="font-bold text-slate-900">
-                    {room.name}
-                  </div>
-
-                  <div className="mt-1 text-xs text-slate-500">
-                    {room.code} · {room.capacity} seats
-                  </div>
-
-                  {"building" in room &&
-                    room.building && (
-                      <div className="mt-1 text-xs text-slate-400">
-                        {room.building}
-                      </div>
-                    )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-    </section>
-  );
-}
-
-function OperationalCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
-        {label}
-      </p>
-
-      <div className="mt-2 text-2xl font-black text-slate-950">
-        {value}
-      </div>
-
-      <div className="mt-1 text-xs text-slate-500">
-        {detail}
-      </div>
-    </div>
-  );
-}
-
-function SchedulePaperForm({
-  busy,
-  onSubmit,
-}: {
-  busy: boolean;
-  onSubmit: (body: {
-    courseOfferingId: string;
-    examDate: string;
-    startTime: string;
-    endTime: string;
-    maxMarks: number;
-    passMarks: number;
-  }) => void;
-}) {
-  const [offering, setOffering] =
-    useState<DirectoryOption | null>(null);
-
-  const [form, setForm] = useState({
-    examDate: "",
-    startTime: "10:00",
-    endTime: "13:00",
-    maxMarks: "100",
-    passMarks: "40",
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-
-    if (!offering) {
-      return;
-    }
-
-    const maxMarks = Number(form.maxMarks);
-    const passMarks = Number(form.passMarks);
-
-    if (
-      !Number.isFinite(maxMarks) ||
-      !Number.isFinite(passMarks) ||
-      maxMarks <= 0 ||
-      passMarks < 0 ||
-      passMarks > maxMarks
-    ) {
-      return;
-    }
-
-    if (form.endTime <= form.startTime) {
-      return;
-    }
-
-    onSubmit({
-      courseOfferingId: offering.id,
-      examDate: form.examDate,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      maxMarks,
-      passMarks,
-    });
-
-    setOffering(null);
-
-    setForm({
-      examDate: "",
-      startTime: "10:00",
-      endTime: "13:00",
-      maxMarks: "100",
-      passMarks: "40",
-    });
-  }
-
-  return (
-    <form
-      onSubmit={submit}
-      className="mt-5 space-y-4 border-t border-slate-100 pt-5"
-    >
-      <EntityPicker
-        kind="courseOffering"
-        label="Course offering"
-        value={offering}
-        onChange={setOffering}
-        required
-      />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-xs font-bold text-slate-500">
-            Exam date
-          </span>
-
-          <input
-            required
-            type="date"
-            value={form.examDate}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                examDate: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-xs font-bold text-slate-500">
-            Start time
-          </span>
-
-          <input
-            required
-            type="time"
-            value={form.startTime}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                startTime: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-xs font-bold text-slate-500">
-            End time
-          </span>
-
-          <input
-            required
-            type="time"
-            value={form.endTime}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                endTime: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-xs font-bold text-slate-500">
-            Maximum marks
-          </span>
-
-          <input
-            required
-            type="number"
-            min="1"
-            value={form.maxMarks}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                maxMarks: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <label className="space-y-1 sm:col-span-2">
-          <span className="text-xs font-bold text-slate-500">
-            Pass marks
-          </span>
-
-          <input
-            required
-            type="number"
-            min="0"
-            value={form.passMarks}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                passMarks: event.target.value,
-              }))
-            }
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
-
-      <button
-        type="submit"
-        disabled={busy || !offering}
-        className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Schedule paper
-      </button>
-    </form>
-  );
-}
-
-function RoomForm({
-  busy,
-  onSubmit,
-}: {
-  busy: boolean;
-  onSubmit: (body: {
-    name: string;
-    code: string;
-    capacity: number;
-  }) => void;
-}) {
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    capacity: "60",
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-
-    const capacity = Number(form.capacity);
-
-    if (
-      !form.name.trim() ||
-      !form.code.trim() ||
-      !Number.isFinite(capacity) ||
-      capacity <= 0
-    ) {
-      return;
-    }
-
-    onSubmit({
-      name: form.name.trim(),
-      code: form.code.trim(),
-      capacity,
-    });
-
-    setForm({
-      name: "",
-      code: "",
-      capacity: "60",
-    });
-  }
-
-  return (
-    <form
-      onSubmit={submit}
-      className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-3"
-    >
-      <label className="space-y-1">
-        <span className="text-xs font-bold text-slate-500">
-          Room name
-        </span>
-
-        <input
-          required
-          value={form.name}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              name: event.target.value,
-            }))
-          }
-          placeholder="Room 101"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-        />
-      </label>
-
-      <label className="space-y-1">
-        <span className="text-xs font-bold text-slate-500">
-          Room code
-        </span>
-
-        <input
-          required
-          value={form.code}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              code: event.target.value,
-            }))
-          }
-          placeholder="R101"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm uppercase"
-        />
-      </label>
-
-      <label className="space-y-1">
-        <span className="text-xs font-bold text-slate-500">
-          Capacity
-        </span>
-
-        <input
-          required
-          type="number"
-          min="1"
-          value={form.capacity}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              capacity: event.target.value,
-            }))
-          }
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-        />
-      </label>
-
-      <div className="sm:col-span-3">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-        >
-          Add examination room
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function ScheduleCard({
-  schedule,
-  rooms,
-  busy,
-  canManage,
-  canApprove,
-  onSeating,
-  onOpenMarks,
-  onLock,
-  onPublish,
-}: {
-  schedule: ExamSchedule;
-  rooms: ExamRoom[];
-  busy: boolean;
-  canManage: boolean;
-  canApprove: boolean;
-  onSeating: (
-    scheduleId: string,
-    roomIds: string[]
-  ) => void;
-  onOpenMarks: (scheduleId: string) => void;
-  onLock: (scheduleId: string) => void;
-  onPublish: (scheduleId: string) => void;
-}) {
-  const [selectedRooms, setSelectedRooms] =
-    useState<string[]>([]);
-
-  const canChangeSeating = [
-    "DRAFT",
-    "PUBLISHED",
-  ].includes(schedule.status);
-
-  const selectedCapacity = rooms
-    .filter((room) =>
-      selectedRooms.includes(room.id)
-    )
-    .reduce(
-      (total, room) =>
-        total + Number(room.capacity),
-      0
-    );
-
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="font-bold text-slate-950">
-              {schedule.courseCode}
-            </h4>
-
-            <StatusPill
-              status={schedule.status}
-            />
-          </div>
-
-          <p className="mt-1 text-sm font-medium text-slate-700">
-            {schedule.courseName}
-          </p>
-
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span>
-              {formatDate(schedule.examDate)}
-            </span>
-
-            <span>
-              {schedule.startTime} —{" "}
-              {schedule.endTime}
-            </span>
-
-            <span>
-              {schedule.maxMarks} max /{" "}
-              {schedule.passMarks} pass
-            </span>
-
-            <span>
-              {schedule.seatCount ?? 0} seats
-            </span>
-
-            <span>
-              {schedule.markCount ?? 0} marks
-            </span>
-          </div>
-
-          {schedule.sectionName && (
-            <p className="mt-1 text-xs text-slate-400">
-              Section: {schedule.sectionName}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              onOpenMarks(schedule.id)
-            }
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-          >
-            Open marks
-          </button>
-
-          {canApprove &&
-            schedule.status === "LOCKED" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  onPublish(schedule.id)
-                }
-                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
-              >
-                Publish results
-              </button>
-            )}
-
-          {canApprove &&
-            schedule.status === "PUBLISHED" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  onLock(schedule.id)
-                }
-                className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"
-              >
-                Lock marks
-              </button>
-            )}
-        </div>
-      </div>
-
-      {canManage && canChangeSeating && (
-        <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 lg:grid-cols-[1fr_auto] lg:items-end">
-          <label className="space-y-1.5">
-            <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Examination rooms for seating
-            </span>
-
-            <select
-              multiple
-              value={selectedRooms}
-              onChange={(event) => {
-                const values = Array.from(
-                  event.target.selectedOptions
-                ).map((option) => option.value);
-
-                setSelectedRooms(values);
-              }}
-              className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              {rooms.map((room) => (
-                <option
-                  key={room.id}
-                  value={room.id}
-                >
-                  {room.name} — {room.capacity} seats
-                </option>
-              ))}
-            </select>
-
-            <p className="text-[11px] text-slate-400">
-              Hold Cmd/Ctrl to select multiple rooms.
-              Selected capacity: {selectedCapacity}.
-            </p>
-          </label>
-
-          <button
-            type="button"
-            disabled={
-              busy ||
-              selectedRooms.length === 0
-            }
-            onClick={() =>
-              onSeating(
-                schedule.id,
-                selectedRooms
-              )
-            }
-            className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Allocate seating
-          </button>
-        </div>
-      )}
-    </article>
-  );
-}
-
-function MarksWorkspace({
-  sheet,
-  draft,
-  busy,
-  canEnterMarks,
-  canApprove,
-  setDraft,
-  onSave,
-  onSubmit,
-  onApprove,
-}: {
-  sheet: {
-    schedule: ExamSchedule;
-    rows: MarksRow[];
-  } | null;
-  draft: Record<string, string>;
-  busy: boolean;
-  canEnterMarks: boolean;
-  canApprove: boolean;
-  setDraft: React.Dispatch<
-    React.SetStateAction<
-      Record<string, string>
-    >
-  >;
-  onSave: () => void;
-  onSubmit: () => void;
-  onApprove: () => void;
-}) {
-  if (!sheet) {
-    return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-        <div className="mx-auto max-w-md">
-          <div className="text-4xl">📝</div>
-
-          <h2 className="mt-4 text-xl font-black text-slate-950">
-            Marks control
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Open a scheduled examination paper from the Sessions &
-            schedules tab to enter, submit, approve and lock marks.
-          </p>
-        </div>
-      </section>
-    );
-  }
-
-  const editable =
-    canEnterMarks &&
-    !["LOCKED", "RESULTS_PUBLISHED"].includes(
-      sheet.schedule.status
-    );
-
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-            Marks sheet
-          </p>
-
-          <h2 className="mt-1 text-xl font-black text-slate-950">
-            {sheet.schedule.courseCode} —{" "}
-            {sheet.schedule.courseName}
-          </h2>
-
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span>
-              Maximum:{" "}
-              {sheet.schedule.maxMarks}
-            </span>
-
-            <span>
-              Pass:{" "}
-              {sheet.schedule.passMarks}
-            </span>
-
-            <StatusPill
-              status={sheet.schedule.status}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {editable && (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onSave}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 disabled:opacity-40"
-              >
-                Save draft
-              </button>
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onSubmit}
-                className="rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-              >
-                Submit for approval
-              </button>
-            </>
-          )}
-
-          {canApprove &&
-            sheet.schedule.status ===
-              "PUBLISHED" && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onApprove}
-                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-              >
-                Approve marks
-              </button>
-            )}
-        </div>
-      </div>
-
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="border-b border-slate-100 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            <tr>
-              <th className="pb-3 pr-4">
-                Student
-              </th>
-
-              <th className="pb-3 pr-4">
-                Roll number
-              </th>
-
-              <th className="pb-3 pr-4">
-                Exam attendance
-              </th>
-
-              <th className="pb-3 pr-4">
-                Marks
-              </th>
-
-              <th className="pb-3">
-                State
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-slate-100">
-            {sheet.rows.map((row) => {
-              const value =
-                draft[row.studentId] ?? "";
-
-              const valid =
-                isValidNumber(value) ||
-                value.trim().toUpperCase() ===
-                  "AB";
-
-              return (
-                <tr key={row.studentId}>
-                  <td className="py-3 pr-4">
-                    <div className="font-bold text-slate-900">
-                      {row.firstName}{" "}
-                      {row.lastName}
-                    </div>
-                  </td>
-
-                  <td className="py-3 pr-4 text-slate-500">
-                    {row.rollNumber ?? "—"}
-                  </td>
-
-                  <td className="py-3 pr-4 text-slate-500">
-                    {row.examAttendance ?? "—"}
-                  </td>
-
-                  <td className="py-3 pr-4">
-                    {editable ? (
-                      <div>
-                        <input
-                          value={value}
-                          disabled={
-                            row.status ===
-                              "APPROVED" ||
-                            row.status ===
-                              "PUBLISHED"
-                          }
-                          onChange={(event) =>
-                            setDraft(
-                              (current) => ({
-                                ...current,
-                                [row.studentId]:
-                                  event.target
-                                    .value,
-                              })
-                            )
-                          }
-                          placeholder="0–100 / AB"
-                          className={`w-28 rounded-lg border px-3 py-2 text-sm outline-none ${
-                            valid
-                              ? "border-slate-200"
-                              : "border-red-300 bg-red-50"
-                          }`}
-                        />
-
-                        {!valid && (
-                          <p className="mt-1 text-[10px] font-medium text-red-600">
-                            Invalid value
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="font-bold text-slate-700">
-                        {row.isAbsent
-                          ? "AB"
-                          : row.marksObtained ??
-                            "—"}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="py-3">
-                    <StatusPill
-                      status={
-                        row.status ??
-                        "DRAFT"
-                      }
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function StatusPill({
-  status,
-}: {
-  status: string;
-}) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${statusClass(
-        status
-      )}`}
-    >
-      {status.replaceAll("_", " ")}
-    </span>
-  );
-}
-
-function EmptyState({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-      <h3 className="font-bold text-slate-800">
-        {title}
-      </h3>
-
-      <p className="mx-auto mt-1 max-w-lg text-sm text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
-}
+function Marks({marks,draft,setDraft,busy,canEnter,canApprove,onSave,onApprove,onLock,onPublish}:{marks:any;draft:Record<string,string>;setDraft:any;busy:boolean;canEnter:boolean;canApprove:boolean;onSave:(submit:boolean)=>void;onApprove:()=>void;onLock:()=>void;onPublish:()=>void}){if(!marks)return <Empty text="Open Marks from an examination paper to enter or review marks."/>;const editable=canEnter&&!["LOCKED","RESULTS_PUBLISHED"].includes(marks.schedule.status);return <section className="rounded-3xl border bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">MARKS & RESULTS</p><h2 className="text-2xl font-black">{marks.schedule.courseCode} · {marks.schedule.courseName}</h2><p className="mt-1 text-xs text-slate-500">Max {marks.schedule.maxMarks} · Pass {marks.schedule.passMarks}</p></div><div className="flex gap-2">{editable&&<><button disabled={busy} onClick={()=>onSave(false)} className="rounded-xl border px-3 py-2 text-xs font-bold">Save Draft</button><button disabled={busy} onClick={()=>onSave(true)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white">Submit Marks</button></>}{canApprove&&marks.schedule.status==="PUBLISHED"&&<button disabled={busy} onClick={onApprove} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Approve</button>}{canApprove&&marks.schedule.status==="LOCKED"&&<button disabled={busy} onClick={onPublish} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Publish</button>}</div></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead className="border-b text-left text-[10px] font-bold uppercase tracking-wider text-slate-400"><tr><th className="pb-3">Student</th><th>Roll</th><th>Attendance</th><th>Marks</th><th>State</th></tr></thead><tbody className="divide-y">{marks.rows.map((r:any)=><tr key={r.studentId}><td className="py-3 font-bold">{r.firstName} {r.lastName}</td><td>{r.rollNumber||"—"}</td><td>{r.examAttendance||"—"}</td><td>{editable?<input className="w-24 rounded-lg border px-2 py-1" value={draft[r.studentId]??""} onChange={e=>setDraft((x:any)=>({...x,[r.studentId]:e.target.value}))}/>:r.isAbsent?"AB":r.marksObtained??"—"}</td><td><Pill value={r.status||"DRAFT"}/></td></tr>)}</tbody></table></div><div className="mt-5 rounded-2xl bg-amber-50 p-4 text-xs text-amber-800">State machine: Draft → Submitted → Approved → Locked → Results Published. Once locked, normal mark entry is disabled.</div></section>}
