@@ -465,7 +465,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Academic masters",
-    href: "/erp",
+    href: "/registrar/academic-masters",
     icon: "▦",
     roles: ["REGISTRAR"],
     permissions: ["academic-years.read"],
