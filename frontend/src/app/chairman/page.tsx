@@ -1,5 +1,2 @@
-import { LeadershipDashboard } from "@/components/dashboard/LeadershipDashboard";
-
-export default function Page() {
-  return <LeadershipDashboard role="CHAIRMAN" />;
-}
+import { ChairmanDashboard } from "@/components/dashboard/ChairmanDashboard";
+export default function Page(){return <ChairmanDashboard/>;}
