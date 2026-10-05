@@ -53,7 +53,7 @@ async function assertDepartmentScope(
   }
 }
 
-export async function getWorkspaceContext(
+async function buildWorkspaceContext(
   institutionId: string,
   actor: AuthenticatedUser,
   input: WorkspaceContextInput = {}
@@ -314,4 +314,75 @@ export async function getWorkspaceContext(
     breadcrumbs,
     children: { departments, programs, academicYears, batches, semesters, sections },
   };
+}
+
+
+type WorkspaceCacheEntry = {
+  expiresAt: number;
+  value?: Awaited<ReturnType<typeof buildWorkspaceContext>>;
+  promise?: Promise<Awaited<ReturnType<typeof buildWorkspaceContext>>>;
+};
+
+const WORKSPACE_CONTEXT_CACHE_TTL_MS = 2_000;
+const workspaceContextCache = new Map<string, WorkspaceCacheEntry>();
+
+function workspaceContextCacheKey(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: WorkspaceContextInput,
+): string {
+  return [
+    institutionId,
+    actor.id,
+    actor.roles.slice().sort().join(","),
+    input.departmentId ?? "",
+    input.programId ?? "",
+    input.academicYearId ?? "",
+    input.semesterId ?? "",
+    input.sectionId ?? "",
+    input.batchId ?? "",
+  ].join("|");
+}
+
+export function invalidateWorkspaceContextCache(institutionId?: string): void {
+  if (!institutionId) {
+    workspaceContextCache.clear();
+    return;
+  }
+  for (const key of workspaceContextCache.keys()) {
+    if (key.startsWith(institutionId + "|")) workspaceContextCache.delete(key);
+  }
+}
+
+export async function getWorkspaceContext(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: WorkspaceContextInput = {}
+) {
+  const key = workspaceContextCacheKey(institutionId, actor, input);
+  const now = Date.now();
+  const cached = workspaceContextCache.get(key);
+
+  if (cached?.value && cached.expiresAt > now) return cached.value;
+  if (cached?.promise) return cached.promise;
+
+  const promise = buildWorkspaceContext(institutionId, actor, input)
+    .then((value) => {
+      workspaceContextCache.set(key, {
+        value,
+        expiresAt: Date.now() + WORKSPACE_CONTEXT_CACHE_TTL_MS,
+      });
+      return value;
+    })
+    .catch((error) => {
+      workspaceContextCache.delete(key);
+      throw error;
+    });
+
+  workspaceContextCache.set(key, {
+    promise,
+    expiresAt: now + WORKSPACE_CONTEXT_CACHE_TTL_MS,
+  });
+
+  return promise;
 }
