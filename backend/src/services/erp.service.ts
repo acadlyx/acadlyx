@@ -2016,7 +2016,7 @@ export async function recordPayment(
       });
 
       const totalPaid = alreadyPaid + amount;
-      const newStatus = totalPaid >= Number(current.amount) - 0.005 ? "PAID" : "PARTIAL";
+      const newStatus = totalPaid >= Number(current.amount) - 0.005 ? "PAID" : "PARTIALLY_PAID";
 
       await tx.feeInvoice.update({
         where: { id: invoiceId },
@@ -3254,7 +3254,7 @@ export async function updateFeeInvoice(
           ? "PENDING"
           : paid >= nextAmount
             ? "PAID"
-            : "PARTIAL",
+            : "PARTIALLY_PAID",
     },
   });
 
