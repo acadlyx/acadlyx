@@ -38,20 +38,22 @@ export async function getManagedDepartmentIds(institutionId: string, userId: str
 }
 
 /**
- * Director scope is campus-level. The current schema does not yet contain a
- * Director→Campus assignment, so we resolve the campus from the director's
- * existing DepartmentAccess records and expand only to departments in those
- * campuses. This is fail-closed and never becomes institution-wide.
+ * Director scope is campus-level. CampusAccess is the sole source of truth;
+ * department assignments are never treated as a proxy for campus authority.
  */
-export async function getDirectorDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
-  const accesses = await prisma.departmentAccess.findMany({
-    where: { userId, department: { institutionId } },
-    select: { department: { select: { id: true, campusId: true } } },
+export async function getDirectorCampusIds(institutionId: string, userId: string): Promise<string[]> {
+  const rows = await prisma.campusAccess.findMany({
+    where: {
+      userId,
+      campus: { institutionId, isActive: true },
+    },
+    select: { campusId: true },
   });
+  return Array.from(new Set(rows.map((row) => row.campusId)));
+}
 
-  const campusIds = Array.from(
-    new Set(accesses.map((row) => row.department.campusId).filter((id): id is string => Boolean(id))),
-  );
+export async function getDirectorDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
+  const campusIds = await getDirectorCampusIds(institutionId, userId);
   if (campusIds.length === 0) return [];
 
   const departments = await prisma.department.findMany({
@@ -59,6 +61,61 @@ export async function getDirectorDepartmentIds(institutionId: string, userId: st
     select: { id: true },
   });
   return departments.map((row) => row.id);
+}
+
+export async function getStudentWhereScope(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<Prisma.UserWhereInput> {
+  if (actor.id && isInstitutionWide(actor)) return {};
+
+  const roles = getCanonicalRoleNames(actor.roles);
+
+  if (roles.includes("DIRECTOR")) {
+    const departments = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
+    return {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          program: { departmentId: { in: departments } },
+        },
+      },
+    };
+  }
+
+  if (roles.includes("DEAN") || roles.includes("HOD")) {
+    const departments = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
+    return {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          program: { departmentId: { in: departments } },
+        },
+      },
+    };
+  }
+
+  if (roles.includes("FACULTY")) {
+    const offerings = await prisma.courseOffering.findMany({
+      where: { institutionId, facultyId: actor.id, isActive: true },
+      select: { sectionId: true, semesterId: true },
+    });
+    if (!offerings.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
+    return {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          OR: offerings.map((o) => ({ sectionId: o.sectionId, semesterId: o.semesterId })),
+        },
+      },
+    };
+  }
+
+  if (roles.includes("STUDENT")) return { id: actor.id };
+
+  throw new AppError("Student access is not available for this role", 403);
 }
 
 export async function getStudentDepartmentIds(institutionId: string, studentId: string): Promise<string[]> {
