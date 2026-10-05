@@ -98,6 +98,27 @@ export function createApp(): Application {
 
   app.use(requestContext);
 
+  // Lightweight production timing telemetry. It adds no database work and
+  // makes slow API endpoints visible immediately in browser/network traces.
+  app.use((req, res, next) => {
+    const startedAt = process.hrtime.bigint();
+    res.on("finish", () => {
+      const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+      res.setHeader("Server-Timing", `app;dur=${elapsedMs.toFixed(1)}`);
+      res.setHeader("X-Response-Time", `${elapsedMs.toFixed(0)}ms`);
+      if (isProduction && elapsedMs >= 750) {
+        console.warn(JSON.stringify({
+          type: "slow_api",
+          method: req.method,
+          path: req.originalUrl,
+          status: res.statusCode,
+          durationMs: Math.round(elapsedMs),
+        }));
+      }
+    });
+    next();
+  });
+
   app.use(
     cors({
       origin(origin, callback) {
