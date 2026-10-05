@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { authedFetch } from "@/lib/auth";
+import { workspaceGet } from "@/lib/workspaceCache";
 
 export interface InstitutionalCmsContent {
   brand: {
@@ -53,9 +53,13 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     let active = true;
+
+    // Both endpoints are shared through workspaceGet. Navigation between ERP
+    // pages therefore reuses the same read-mostly data instead of waking the
+    // API on every page mount.
     Promise.all([
-      authedFetch<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms"),
-      authedFetch<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context"),
+      workspaceGet<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms"),
+      workspaceGet<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context"),
     ])
       .then(([cms, workspace]) => {
         if (!active) return;
@@ -72,13 +76,13 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
         });
       })
       .catch(() => undefined);
+
     return () => {
       active = false;
     };
   }, []);
 
   const value = useMemo(() => content, [content]);
-
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
