@@ -303,3 +303,31 @@ BEGIN
     ALTER TABLE "fee_receipts" ADD CONSTRAINT "fee_receipts_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_invoices_createdById_fkey') THEN
+    ALTER TABLE "fee_invoices" ADD CONSTRAINT "fee_invoices_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_payments_userId_fkey') THEN
+    ALTER TABLE "fee_payments" ADD CONSTRAINT "fee_payments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_payments_recordedById_fkey') THEN
+    ALTER TABLE "fee_payments" ADD CONSTRAINT "fee_payments_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_concessions_approvedById_fkey') THEN
+    ALTER TABLE "fee_concessions" ADD CONSTRAINT "fee_concessions_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_refunds_approvedById_fkey') THEN
+    ALTER TABLE "fee_refunds" ADD CONSTRAINT "fee_refunds_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_refunds_processedById_fkey') THEN
+    ALTER TABLE "fee_refunds" ADD CONSTRAINT "fee_refunds_processedById_fkey" FOREIGN KEY ("processedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fee_receipts_issuedById_fkey') THEN
+    ALTER TABLE "fee_receipts" ADD CONSTRAINT "fee_receipts_issuedById_fkey" FOREIGN KEY ("issuedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='library_issues_issuedById_fkey') THEN
+    ALTER TABLE "library_issues" ADD CONSTRAINT "library_issues_issuedById_fkey" FOREIGN KEY ("issuedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
