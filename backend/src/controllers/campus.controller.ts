@@ -198,6 +198,58 @@ export const update =
     }
   );
 
+export const listAccess =
+  asyncHandler(async (req: Request, res: Response) => {
+    const data = await campusService.listCampusAccess(
+      requireInstitution(req),
+      req.params.id
+    );
+    res.status(200).json({ success: true, data });
+  });
+
+export const assignAccess =
+  asyncHandler(async (req: Request, res: Response) => {
+    const institutionId = requireInstitution(req);
+    const user = requireAuthenticatedUser(req);
+    const data = await campusService.assignCampusAccess(
+      institutionId,
+      req.params.id,
+      req.body.userId,
+      req.body.scope
+    );
+    await recordAuditLog({
+      institutionId,
+      userId: user.id,
+      action: "campus.access.assign",
+      entityType: "CampusAccess",
+      entityId: req.params.id + ":" + req.body.userId,
+      metadata: { userId: req.body.userId, scope: req.body.scope || "DIRECTOR" },
+      ...auditRequestMetadata(req),
+    });
+    res.status(201).json({ success: true, data });
+  });
+
+export const revokeAccess =
+  asyncHandler(async (req: Request, res: Response) => {
+    const institutionId = requireInstitution(req);
+    const user = requireAuthenticatedUser(req);
+    const data = await campusService.revokeCampusAccess(
+      institutionId,
+      req.params.id,
+      req.params.userId
+    );
+    await recordAuditLog({
+      institutionId,
+      userId: user.id,
+      action: "campus.access.revoke",
+      entityType: "CampusAccess",
+      entityId: req.params.id + ":" + req.params.userId,
+      metadata: { userId: req.params.userId },
+      ...auditRequestMetadata(req),
+    });
+    res.status(200).json({ success: true, data });
+  });
+
 export const deactivate =
   asyncHandler(
     async (
