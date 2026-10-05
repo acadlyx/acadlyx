@@ -108,14 +108,12 @@ CREATE INDEX IF NOT EXISTS "library_fines_institution_issue_idx" ON "library_fin
 
 ALTER TABLE "fee_invoices"
   ADD COLUMN IF NOT EXISTS "sourceModule" TEXT,
-  ADD COLUMN "sourceType" TEXT,
-  ADD COLUMN "sourceEntityId" TEXT,
-  ADD COLUMN "sourceEventKey" TEXT,
-  ADD COLUMN "libraryIssueId" TEXT;
-ALTER TABLE "fee_invoices"
-  ADD CONSTRAINT "fee_invoices_library_issue_fkey" FOREIGN KEY ("libraryIssueId") REFERENCES "library_issues"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD COLUMN IF NOT EXISTS "sourceType" TEXT,
+  ADD COLUMN IF NOT EXISTS "sourceEntityId" TEXT,
+  ADD COLUMN IF NOT EXISTS "sourceEventKey" TEXT,
+  ADD COLUMN IF NOT EXISTS "libraryIssueId" TEXT;
+DO $ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fee_invoices_library_issue_fkey') THEN ALTER TABLE "fee_invoices" ADD CONSTRAINT "fee_invoices_library_issue_fkey" FOREIGN KEY ("libraryIssueId") REFERENCES "library_issues"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $;
 CREATE UNIQUE INDEX IF NOT EXISTS "fee_invoices_institution_source_event_key" ON "fee_invoices"("institutionId","sourceEventKey");
 CREATE INDEX IF NOT EXISTS "fee_invoices_institution_source_idx" ON "fee_invoices"("institutionId","sourceModule","sourceType");
 CREATE INDEX IF NOT EXISTS "fee_invoices_library_issue_idx" ON "fee_invoices"("libraryIssueId");
 
-ALTER TABLE "library_books" ADD CONSTRAINT "library_books_updated_at_check" CHECK ("updatedAt" >= "createdAt");
