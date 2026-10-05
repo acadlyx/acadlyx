@@ -5,6 +5,35 @@ import { TENANT_FEATURES, TenantFeature } from "../config/features";
 import { recordAuditLog } from "./audit.service";
 
 const unavailableStatuses = new Set(["EXPIRED", "SUSPENDED", "CANCELLED"]);
+const FEATURE_DEPENDENCIES: Partial<Record<TenantFeature, readonly TenantFeature[]>> = {
+  attendance: ["academics", "students"],
+  timetable: ["academics", "faculty"],
+  assignments: ["academics", "students", "faculty"],
+  exams: ["academics", "students"],
+  results: ["academics", "students"],
+  registration: ["academics", "students"],
+  obe: ["academics"],
+  placements: ["students"],
+  library: ["students"],
+  leave: ["students"],
+  certificates: ["students"],
+};
+
+function normalizeFeatureChanges(current: Array<{ featureKey: string; isEnabled: boolean }>, changes: Array<{ featureKey: TenantFeature; isEnabled: boolean }> | undefined) {
+  const enabled = new Map(current.map((item) => [item.featureKey as TenantFeature, item.isEnabled]));
+  for (const change of changes ?? []) enabled.set(change.featureKey, change.isEnabled);
+  return enabled;
+}
+
+function assertFeatureDependencyIntegrity(current: Array<{ featureKey: string; isEnabled: boolean }>, changes: Array<{ featureKey: TenantFeature; isEnabled: boolean }> | undefined) {
+  const enabled = normalizeFeatureChanges(current, changes);
+  for (const [feature, dependencies] of Object.entries(FEATURE_DEPENDENCIES) as Array<[TenantFeature, readonly TenantFeature[]]>) {
+    if (!enabled.get(feature)) continue;
+    const missing = dependencies.filter((dependency) => !enabled.get(dependency));
+    if (missing.length) throw new AppError("Cannot disable " + missing.join(", ") + " while " + feature + " is enabled. Disable dependent modules first.", 409);
+  }
+}
+
 
 export async function provisionTenantEntitlements(
   tx: Prisma.TransactionClient,
@@ -109,6 +138,7 @@ export async function updateTenantEntitlements(input: {
   features?: Array<{ featureKey: TenantFeature; isEnabled: boolean; limitValue?: number | null; override?: Prisma.InputJsonValue | null }>;
 }) {
   const before = await getTenantEntitlements(input.institutionId);
+  assertFeatureDependencyIntegrity(before.entitlements, input.features);
   const updated = await prisma.$transaction(async (tx) => {
     const subscription = await tx.tenantSubscription.update({
       where: { institutionId: input.institutionId },
