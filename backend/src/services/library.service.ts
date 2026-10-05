@@ -27,6 +27,13 @@ const issueInclude = {
   borrower: {
     select: { id: true, firstName: true, lastName: true, email: true },
   },
+  fines: {
+    include: {
+      financialInvoice: {
+        select: { id: true, amount: true, paidAmount: true, status: true },
+      },
+    },
+  },
 } satisfies Prisma.LibraryIssueInclude;
 
 function addDays(from: Date, days: number): Date {
@@ -56,6 +63,11 @@ function shape(row: Prisma.LibraryIssueGetPayload<{ include: typeof issueInclude
     ...row,
     accruedFine: accrued,
     isOverdue: row.status === "ISSUED" && row.dueDate.getTime() < Date.now(),
+    financialBalance: round2(row.fines.reduce((sum, fine) => {
+      const invoice = fine.financialInvoice;
+      if (!invoice) return sum;
+      return sum + Math.max(0, Number(invoice.amount) - Number(invoice.paidAmount ?? 0));
+    }, 0)),
   };
 }
 
@@ -710,12 +722,14 @@ export async function getLibrarySummary(institutionId: string) {
     prisma.libraryIssue.count({
       where: { institutionId, status: "ISSUED", dueDate: { lt: now } },
     }),
-    prisma.libraryIssue.aggregate({
-      where: { institutionId, fineAmount: { gt: 0 } },
-      _sum: { fineAmount: true },
+    prisma.feeInvoice.aggregate({
+      where: { institutionId, sourceModule: "LIBRARY", sourceType: { in: ["OVERDUE", "LIBRARY_FINE", "LOST_BOOK", "LIBRARY_LOST_BOOK_CHARGE"] } },
+      _sum: { amount: true, paidAmount: true },
     }),
   ]);
 
+  const billed = Number(fines._sum.amount ?? 0);
+  const paid = Number(fines._sum.paidAmount ?? 0);
   return {
     titles,
     totalCopies: copies._sum.totalCopies ?? 0,
@@ -723,6 +737,7 @@ export async function getLibrarySummary(institutionId: string) {
     issued,
     reserved,
     overdue,
-    collectedFines: round2(fines._sum.fineAmount ?? 0),
+    collectedFines: round2(paid),
+    outstandingFines: round2(Math.max(0, billed - paid)),
   };
 }
