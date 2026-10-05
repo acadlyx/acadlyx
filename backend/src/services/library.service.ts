@@ -778,10 +778,6 @@ export async function getLibrarySummary(institutionId: string) {
     prisma.libraryIssue.count({
       where: { institutionId, status: "ISSUED", dueDate: { lt: now } },
     }),
-    prisma.libraryFine.aggregate({
-      where: { institutionId },
-      _sum: { originalAmount: true, waivedAmount: true },
-    }),
     prisma.feeInvoice.aggregate({
       where: {
         institutionId,
