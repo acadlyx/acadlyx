@@ -13,6 +13,7 @@ import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
 import { GlobalSearchBar } from "./GlobalSearchBar";
+import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations" },
@@ -44,6 +45,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   const cachedUser = getCachedCurrentUser();
   const [user, setUser] = useState<AuthUser | null>(cachedUser);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
+  const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
   useEffect(() => {
@@ -58,8 +60,9 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
       if (!alive) return;
       setUser(current);
       try {
-        const response = await workspaceGet<{ data?: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context");
+        const response = await workspaceGet<{ data?: { institution?: { name?: string; logoUrl?: string | null }; breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } }>("/workspace/context");
         const institution = response?.data?.institution;
+        if (alive) setWorkspaceContext({ breadcrumbs: response?.data?.breadcrumbs || [] });
         if (alive && institution) {
           setInstitutionBrand({
             name: institution.name || "",
@@ -127,6 +130,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{children}</main></InstitutionalCmsProvider>
+    <InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceContext?.breadcrumbs?.length ? <WorkspaceContextHeader breadcrumbs={workspaceContext.breadcrumbs} /> : null}{children}</main></InstitutionalCmsProvider>
   </UnifiedDashboardFrame>;
 }
