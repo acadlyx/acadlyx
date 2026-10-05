@@ -20,24 +20,16 @@ export const INSTITUTION_WIDE_ROLES = [
   "SUPER_ADMIN",
 ];
 
-export function hasAnyRole(
-  actor: Pick<AuthenticatedUser, "roles">,
-  roles: readonly string[],
-): boolean {
+export function hasAnyRole(actor: Pick<AuthenticatedUser, "roles">, roles: readonly string[]): boolean {
   const canonical = getCanonicalRoleNames(actor.roles);
   return canonical.some((role) => roles.includes(role));
 }
 
-export function isInstitutionWide(
-  actor: Pick<AuthenticatedUser, "roles">,
-): boolean {
+export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): boolean {
   return hasAnyRole(actor, INSTITUTION_WIDE_ROLES);
 }
 
-export async function getManagedDepartmentIds(
-  institutionId: string,
-  userId: string,
-): Promise<string[]> {
+export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
   const rows = await prisma.departmentAccess.findMany({
     where: { userId, department: { institutionId } },
     select: { departmentId: true },
@@ -45,10 +37,31 @@ export async function getManagedDepartmentIds(
   return rows.map((row) => row.departmentId);
 }
 
-export async function getStudentDepartmentIds(
-  institutionId: string,
-  studentId: string,
-): Promise<string[]> {
+/**
+ * Director scope is campus-level. The current schema does not yet contain a
+ * Director→Campus assignment, so we resolve the campus from the director's
+ * existing DepartmentAccess records and expand only to departments in those
+ * campuses. This is fail-closed and never becomes institution-wide.
+ */
+export async function getDirectorDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
+  const accesses = await prisma.departmentAccess.findMany({
+    where: { userId, department: { institutionId } },
+    select: { department: { select: { id: true, campusId: true } } },
+  });
+
+  const campusIds = Array.from(
+    new Set(accesses.map((row) => row.department.campusId).filter((id): id is string => Boolean(id))),
+  );
+  if (campusIds.length === 0) return [];
+
+  const departments = await prisma.department.findMany({
+    where: { institutionId, campusId: { in: campusIds }, isActive: true },
+    select: { id: true },
+  });
+  return departments.map((row) => row.id);
+}
+
+export async function getStudentDepartmentIds(institutionId: string, studentId: string): Promise<string[]> {
   const rows = await prisma.studentEnrollment.findMany({
     where: { institutionId, userId: studentId, status: "ACTIVE" },
     select: { program: { select: { departmentId: true } } },
@@ -56,10 +69,7 @@ export async function getStudentDepartmentIds(
   return Array.from(new Set(rows.map((row) => row.program.departmentId)));
 }
 
-export async function getUserRoleNames(
-  institutionId: string,
-  userId: string,
-): Promise<string[]> {
+export async function getUserRoleNames(institutionId: string, userId: string): Promise<string[]> {
   const user = await prisma.user.findFirst({
     where: { id: userId, institutionId },
     select: { userRoles: { select: { role: { select: { name: true } } } } },
@@ -68,10 +78,7 @@ export async function getUserRoleNames(
   return user.userRoles.map((binding) => binding.role.name);
 }
 
-export async function getStaffDepartmentIds(
-  institutionId: string,
-  userId: string,
-): Promise<string[]> {
+export async function getStaffDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
   const [teaching, employee, access] = await Promise.all([
     prisma.courseOffering.findMany({
       where: { institutionId, facultyId: userId, isActive: true },
@@ -94,23 +101,7 @@ export async function getStaffDepartmentIds(
   return Array.from(ids);
 }
 
-/**
- * Director scope. The current schema has no dedicated Director→Campus
- * relation, so explicit DepartmentAccess rows are used as a fail-closed
- * campus proxy until a dedicated campus assignment is introduced.
- */
-export async function getDirectorDepartmentIds(
-  institutionId: string,
-  userId: string,
-): Promise<string[]> {
-  return getManagedDepartmentIds(institutionId, userId);
-}
-
-export async function assertHodCanReachUser(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  targetUserId: string,
-): Promise<void> {
+export async function assertHodCanReachUser(institutionId: string, actor: AuthenticatedUser, targetUserId: string): Promise<void> {
   if (actor.id === targetUserId) return;
   const managed = await getManagedDepartmentIds(institutionId, actor.id);
   if (managed.length === 0) throw new AppError("You have no department scope assigned", 403);
@@ -125,25 +116,15 @@ export async function assertHodCanReachUser(
   }
 }
 
-export async function assertCanViewStudent(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  studentId: string,
-): Promise<void> {
+export async function assertCanViewStudent(institutionId: string, actor: AuthenticatedUser, studentId: string): Promise<void> {
   const student = await prisma.user.findFirst({
-    where: {
-      id: studentId,
-      institutionId,
-      userRoles: { some: { role: { name: "STUDENT" } } },
-    },
+    where: { id: studentId, institutionId, userRoles: { some: { role: { name: "STUDENT" } } } },
     select: { id: true },
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
-
   if (actor.id === studentId || isInstitutionWide(actor)) return;
 
   const roles = getCanonicalRoleNames(actor.roles);
-
   if (roles.includes("PARENT")) {
     const link = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
@@ -152,7 +133,15 @@ export async function assertCanViewStudent(
     if (link) return;
   }
 
-  if (roles.includes("DIRECTOR") || roles.includes("DEAN") || roles.includes("HOD")) {
+  if (roles.includes("DIRECTOR")) {
+    const [allowedDepartments, studentDepartments] = await Promise.all([
+      getDirectorDepartmentIds(institutionId, actor.id),
+      getStudentDepartmentIds(institutionId, studentId),
+    ]);
+    if (studentDepartments.some((id) => allowedDepartments.includes(id))) return;
+  }
+
+  if (roles.includes("DEAN") || roles.includes("HOD")) {
     const [managed, studentDepartments] = await Promise.all([
       getManagedDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -179,15 +168,8 @@ export async function assertCanViewStudent(
   throw new AppError("This student is outside your authorized scope", 403);
 }
 
-export async function assertUsersInInstitution(
-  institutionId: string,
-  userIds: string[],
-): Promise<void> {
+export async function assertUsersInInstitution(institutionId: string, userIds: string[]): Promise<void> {
   const unique = Array.from(new Set(userIds));
-  const count = await prisma.user.count({
-    where: { institutionId, id: { in: unique }, isActive: true },
-  });
-  if (count !== unique.length) {
-    throw new AppError("One or more users are not in this institution", 404);
-  }
+  const count = await prisma.user.count({ where: { institutionId, id: { in: unique }, isActive: true } });
+  if (count !== unique.length) throw new AppError("One or more users are not in this institution", 404);
 }
