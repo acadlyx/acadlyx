@@ -24,6 +24,8 @@ import {
   reserveBookSchema,
   returnBookSchema,
   updateBookSchema,
+  fineWaiverRequestSchema,
+  fineWaiverApprovalSchema,
 } from "../validators/library.validators";
 
 const router = Router();
@@ -236,6 +238,7 @@ router.post(
   "/fines/:id/waiver-request",
   authorizeWorkflow("library.fines.waive.request"),
   validateParams(idParams),
+  validateBody(fineWaiverRequestSchema),
   asyncHandler(async (req, res) => {
     const result = await service.requestFineWaiver(
       requireInstitution(req), requireAuthenticatedUser(req), req.params.id,
@@ -249,6 +252,7 @@ router.post(
   "/fines/:id/waiver-approve",
   authorizeWorkflow("library.fines.waive.approve"),
   validateParams(idParams),
+  validateBody(fineWaiverApprovalSchema),
   asyncHandler(async (req, res) => {
     const result = await service.approveFineWaiver(
       requireInstitution(req), requireAuthenticatedUser(req), req.params.id,
