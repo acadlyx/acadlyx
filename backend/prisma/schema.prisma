@@ -1428,53 +1428,6 @@ model FeeTransaction {
   @@map("fee_transactions")
 }
 
-model LibraryBook {
-  id             String   @id @default(uuid())
-  institutionId  String
-  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  title          String
-  author         String?
-  publisher      String?
-  isbn           String?
-  category       String?
-  shelfLocation  String?
-  totalCopies    Int      @default(1)
-  availableCopies Int     @default(1)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  issues         LibraryIssue[]
-  @@index([institutionId, isActive])
-  @@index([institutionId, title])
-  @@index([institutionId, isbn])
-  @@map("library_books")
-}
-
-model LibraryIssue {
-  id            String   @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  bookId        String
-  book          LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  borrowerId    String
-  borrower      User @relation("LibraryBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
-  issuedById    String?
-  issuedAt      DateTime @default(now())
-  dueDate       DateTime
-  returnedAt    DateTime?
-  status        String   @default("ISSUED")
-  fineAmount    Float    @default(0)
-  note          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  fines         LibraryFine[]
-  financialInvoices FeeInvoice[]
-  @@index([institutionId, borrowerId, status])
-  @@index([institutionId, dueDate, status])
-  @@index([institutionId, bookId, status])
-  @@map("library_issues")
-}
-
 model LibraryFine {
   id                 String   @id @default(uuid())
   institutionId      String
@@ -1811,7 +1764,7 @@ model LibraryIssue {
   dueDate       DateTime
   returnedAt    DateTime?
   fineAmount    Float       @default(0)
-  /// ISSUED | RETURNED | LOST
+  /// ISSUED | RETURNED | LOST | DAMAGED
   status        String      @default("ISSUED")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
