@@ -190,14 +190,11 @@ async function loadRolesAndPermissions(
       id: true,
       institutionId: true,
       userRoles: {
-        include: {
+        select: {
           role: {
-            include: {
-              rolePermissions: {
-                include: {
-                  permission: true,
-                },
-              },
+            select: {
+              name: true,
+              institutionId: true,
             },
           },
         },
