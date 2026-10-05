@@ -158,7 +158,9 @@ export async function failJob(id: string, workerId: string, error: unknown, retr
     ? { status: JOB_STATUS.QUEUED, availableAt: new Date(Date.now() + backoffMs(job.attemptCount)),
         workerId: null, errorCode: "RETRY_SCHEDULED", errorMessage: message.slice(0,1000), updatedAt: new Date() }
     : { status: job.status === JOB_STATUS.CANCEL_REQUESTED ? JOB_STATUS.CANCELLED : JOB_STATUS.FAILED,
-        failedAt: new Date(), workerId: null, errorCode: "JOB_FAILED",
+        failedAt: job.status === JOB_STATUS.CANCEL_REQUESTED ? undefined : new Date(),
+        cancelledAt: job.status === JOB_STATUS.CANCEL_REQUESTED ? new Date() : undefined,
+        workerId: null, errorCode: "JOB_FAILED",
         errorMessage: message.slice(0,1000), updatedAt: new Date() }});
 }
 
