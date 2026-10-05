@@ -132,343 +132,50 @@ async function getInstitutionAdminWorkspace(
       permission
     );
 
+  // Keep the admin landing workspace intentionally cheap. Detailed records
+  // are loaded by their domain pages; the command center only needs the
+  // eight KPI counts displayed above the fold.
   const [
     users,
-    usersWithProfilePhoto,
     students,
-    faculty,
     departments,
     programs,
-    academicYears,
-    semesters,
-    sections,
     courses,
     offerings,
     campuses,
-    timetableEntries,
     notices,
-    documents,
-    notifications,
-    parentLinks,
-    admissions,
-    registrations,
-    promotions,
-    certificates,
-    auditLogs,
-  ] =
-    await Promise.all([
-      can("users.read")
-        ? prisma.user.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("users.read")
-        ? getUsersWithProfilePhotoCount(
-            institutionId
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("students.read")
-        ? prisma.user.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-                userRoles: {
-                  some: {
-                    role: {
-                      name:
-                        "STUDENT",
-                    },
-                  },
-                },
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("users.read")
-        ? prisma.user.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-                userRoles: {
-                  some: {
-                    role: {
-                      name:
-                        "FACULTY",
-                    },
-                  },
-                },
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "departments.read"
-      )
-        ? prisma.department.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("programs.read")
-        ? prisma.program.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "academic-years.read"
-      )
-        ? prisma.academicYear.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("semesters.read")
-        ? prisma.semester.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("sections.read")
-        ? prisma.section.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("courses.read")
-        ? prisma.course.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "course-offerings.read"
-      )
-        ? prisma.courseOffering.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("campuses.read")
-        ? prisma.campus.count(
-            {
-              where: {
-                institutionId,
-                isActive:
-                  true,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("timetable.read")
-        ? prisma.timetableEntry.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("notices.read")
-        ? prisma.notice.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("documents.read")
-        ? prisma.document.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "notifications.read"
-      )
-        ? prisma.notification.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "parent-links.read"
-      )
-        ? prisma.parentStudentLink.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "admissions.read"
-      )
-        ? prisma.admissionApplication.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "registration.read"
-      )
-        ? prisma.courseRegistration.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "promotions.read"
-      )
-        ? prisma.studentMovementRequest.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can(
-        "certificates.read"
-      )
-        ? prisma.certificate.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-
-      can("audit.read")
-        ? prisma.auditLog.count(
-            {
-              where: {
-                institutionId,
-              },
-            }
-          )
-        : Promise.resolve(
-            0
-          ),
-    ]);
+  ] = await Promise.all([
+    can("users.read")
+      ? prisma.user.count({ where: { institutionId } })
+      : Promise.resolve(0),
+    can("students.read")
+      ? prisma.user.count({
+          where: {
+            institutionId,
+            isActive: true,
+            userRoles: { some: { role: { name: "STUDENT" } } },
+          },
+        })
+      : Promise.resolve(0),
+    can("departments.read")
+      ? prisma.department.count({ where: { institutionId, isActive: true } })
+      : Promise.resolve(0),
+    can("programs.read")
+      ? prisma.program.count({ where: { institutionId, isActive: true } })
+      : Promise.resolve(0),
+    can("courses.read")
+      ? prisma.course.count({ where: { institutionId, isActive: true } })
+      : Promise.resolve(0),
+    can("course-offerings.read")
+      ? prisma.courseOffering.count({ where: { institutionId, isActive: true } })
+      : Promise.resolve(0),
+    can("campuses.read")
+      ? prisma.campus.count({ where: { institutionId, isActive: true } })
+      : Promise.resolve(0),
+    can("notices.read")
+      ? prisma.notice.count({ where: { institutionId } })
+      : Promise.resolve(0),
+  ]);
 
   return {
     workspaceType:
