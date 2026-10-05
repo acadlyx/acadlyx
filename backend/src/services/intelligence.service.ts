@@ -173,7 +173,12 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
         id: true,
         title: true,
         dueDate: true,
-        courseOffering: { select: { course: { select: { code: true } } } },
+        courseOffering: {
+          select: {
+            course: { select: { code: true } },
+            section: { select: { studentEnrollments: { select: { userId: true } } } },
+          },
+        },
         submissions: {
           where: { studentId: { in: studentIds } },
           select: { studentId: true },
