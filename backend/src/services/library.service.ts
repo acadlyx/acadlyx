@@ -21,6 +21,7 @@ export const FINE_PER_DAY = 5;
 export const MAX_ACTIVE_LOANS = 5;
 export const RESERVATION_HOLD_DAYS = 3;
 export const LOST_BOOK_FINE = 500;
+export const DAMAGED_BOOK_FINE = 250;
 
 const issueInclude = {
   book: { select: { id: true, title: true, author: true, isbn: true } },
@@ -504,7 +505,9 @@ export async function returnBook(
   const fine =
     input.condition === "LOST"
       ? round2(computeFine(existing.dueDate) + LOST_BOOK_FINE)
-      : computeFine(existing.dueDate);
+      : input.condition === "DAMAGED"
+        ? DAMAGED_BOOK_FINE
+        : computeFine(existing.dueDate);
 
   if (input.waiveFine && fine > 0 && !actor.permissions.includes("fees.approve")) {
     throw new AppError("Fine waiver requires financial approval authority", 403);
@@ -512,11 +515,10 @@ export async function returnBook(
 
   const result = await prisma.$transaction(async (tx) => {
     if (input.condition === "LOST") {
-      await tx.libraryBook.update({
-        where: { id: existing.bookId },
-        data: { totalCopies: { decrement: 1 } },
-      });
+      await tx.libraryBook.update({ where: { id: existing.bookId }, data: { totalCopies: { decrement: 1 } } });
     } else {
+      await tx.libraryBook.update({ where: { id: existing.bookId }, data: { availableCopies: { increment: 1 } } });
+    }
       await tx.libraryBook.update({
         where: { id: existing.bookId },
         data: { availableCopies: { increment: 1 } },
@@ -544,11 +546,13 @@ export async function returnBook(
         select: { id: true },
       });
 
-      const type = input.condition === "LOST" ? "LOST_BOOK" : "OVERDUE";
+      const type = input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE";
       const reason =
         input.condition === "LOST"
           ? `Lost book: "${existing.book.title}"`
-          : `Late return of "${existing.book.title}"`;
+          : input.condition === "DAMAGED"
+            ? `Damaged book: "${existing.book.title}"`
+            : `Late return of "${existing.book.title}"`;
 
       const fineRow = await tx.libraryFine.upsert({
         where: { issueId_type: { issueId: existing.id, type } },
@@ -590,7 +594,7 @@ export async function returnBook(
           grossAmount: fine,
           discountAmount: input.waiveFine ? fine : 0,
           sourceModule: "LIBRARY",
-          sourceType: type === "OVERDUE" ? "LIBRARY_FINE" : "LIBRARY_LOST_BOOK_CHARGE",
+          sourceType: type === "OVERDUE" ? "LIBRARY_FINE" : type === "LOST_BOOK" ? "LIBRARY_LOST_BOOK_CHARGE" : "LIBRARY_DAMAGED_BOOK_CHARGE",
           sourceEntityId: existing.id,
           sourceEventKey: eventKey,
           libraryIssueId: existing.id,
