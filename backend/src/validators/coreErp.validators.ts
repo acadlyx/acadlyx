@@ -45,6 +45,11 @@ export const createExamSessionSchema = z.object({
   endDate: dateInput,
   academicYearId: optionalUuid,
   semesterId: optionalUuid,
+  campusIds: z.array(z.string().uuid()).max(100).optional(),
+  departmentIds: z.array(z.string().uuid()).max(100).optional(),
+  programIds: z.array(z.string().uuid()).max(100).optional(),
+  semesterIds: z.array(z.string().uuid()).max(100).optional(),
+  sectionIds: z.array(z.string().uuid()).max(100).optional(),
   hallTicketReleaseAt: optionalDate,
   instructions: optionalText(2000),
 });
