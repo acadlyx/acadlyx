@@ -1532,9 +1532,12 @@ export function getNavigationForRoles(
       item.permissions.length === 0 ||
       item.permissions.every((permission) => permissionSet.has(permission));
 
-    const feature = tenantFeatureForNavigation(item);\n    const featureAllowed = !feature || tenantFeatures.length === 0 || tenantFeatures.includes(feature);\n\n    return roleAllowed && permissionAllowed && featureAllowed;
-  });
+    const feature = tenantFeatureForNavigation(item);
+    const featureAllowed =
+      !feature || tenantFeatures.length === 0 || tenantFeatures.includes(feature);
 
+    return roleAllowed && permissionAllowed && featureAllowed;
+  });
   // One destination gets one navigation entry. If several visible entries
   // intentionally land on the same page (including tab/query variants),
   // combine their names instead of making users choose between duplicates.
