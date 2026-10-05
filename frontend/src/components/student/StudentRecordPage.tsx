@@ -293,7 +293,7 @@ function Content({
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
-                Due {date(item.dueDate)} · {item.status}
+                {item.sourceModule} · {item.sourceType} · Due {date(item.dueDate)} · {item.status}
               </p>
             </div>
 
