@@ -26,8 +26,11 @@ export interface StorageObject {
   version?: number;
 }
 
+import { Readable } from "stream";
+
 export interface FileStorageProvider {
   upload(input: StorageUploadInput): Promise<StorageObject>;
+  uploadStream(input: Omit<StorageUploadInput, "buffer"> & { stream: Readable; size?: number }): Promise<StorageObject>;
   delete(input: { publicId: string; resourceType?: string }): Promise<void>;
   getDeliveryUrl(input: {
     publicId: string;
