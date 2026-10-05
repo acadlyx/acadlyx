@@ -18,6 +18,8 @@ import {
   requireTenantRow,
 } from "../utils/sqlScope";
 import { recordAuditLog } from "./audit.service";
+import { enqueueJob } from "./backgroundJob.service";
+import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
 import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
@@ -1790,6 +1792,29 @@ export async function lockExamSchedule(
  * module show up in existing transcripts, grade sheets and CGPA without
  * duplicating the grading rules.
  */
+export async function enqueuePublishExamResults(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examScheduleId: string,
+) {
+  assertExamController(actor);
+  const schedule = await loadSchedule(institutionId, examScheduleId);
+  if (schedule.status !== "LOCKED") throw new AppError("Lock the schedule before publishing its results", 409);
+  const marks = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+    SELECT COUNT(*)::int AS count FROM "exam_marks"
+    WHERE "examScheduleId" = ${examScheduleId} AND "institutionId" = ${institutionId} AND "status" = 'APPROVED'
+  `);
+  const total = marks[0]?.count ?? 0;
+  if (!total) throw new AppError("There are no approved marks to publish", 409);
+  const job = await enqueueJob({
+    institutionId, type: JOB_TYPES.RESULT_PROCESSING,
+    payload: { examScheduleId }, createdById: actor.id, total,
+    priority: 10, maxAttempts: 2,
+    idempotencyKey: "RESULT_PUBLICATION:" + examScheduleId,
+  });
+  return { jobId: job.id, status: job.status, total: job.total, progress: job.progress };
+}
+
 export async function publishExamResults(
   institutionId: string,
   actor: AuthenticatedUser,
