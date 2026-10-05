@@ -33,6 +33,8 @@ const studentInclude = {
           name: true,
           code: true,
           level: true,
+          isActive: true,
+          department: { select: { id: true, name: true, code: true, isActive: true } },
         },
       },
       academicYear: {
@@ -85,7 +87,7 @@ const studentListInclude = {
     },
   },
   studentEnrollments: {
-    take: 1,
+    take: 20,
     orderBy: [
       { enrolledAt: "desc" },
       { createdAt: "desc" },
@@ -94,12 +96,17 @@ const studentListInclude = {
       id: true,
       status: true,
       enrolledAt: true,
+      rollNumber: true,
       program: {
         select: {
           id: true,
           name: true,
           code: true,
           level: true,
+          isActive: true,
+          department: {
+            select: { id: true, name: true, code: true, isActive: true },
+          },
         },
       },
       academicYear: {
@@ -107,6 +114,8 @@ const studentListInclude = {
           id: true,
           name: true,
           isCurrent: true,
+          startDate: true,
+          endDate: true,
         },
       },
       semester: {
@@ -114,17 +123,22 @@ const studentListInclude = {
           id: true,
           number: true,
           name: true,
+          programId: true,
+          academicYearId: true,
+          isActive: true,
         },
       },
       section: {
         select: {
           id: true,
           name: true,
+          isActive: true,
+          semesterId: true,
         },
       },
     },
   },
-} satisfies Prisma.UserInclude;
+} satisfies Prisma.UserInclude; satisfies Prisma.UserInclude;
 
 function parseDate(value?: string) {
   if (!value) return undefined;
@@ -202,6 +216,8 @@ async function validateAcademicPlacement(
       select: {
         id: true,
         name: true,
+        departmentId: true,
+        department: { select: { id: true, name: true, isActive: true } },
       },
     }),
 
@@ -237,6 +253,10 @@ async function validateAcademicPlacement(
 
   if (!academicYear) {
     throw new AppError("Academic year not found", 404);
+  }
+
+  if (!program.department?.isActive) {
+    throw new AppError("The selected program belongs to an inactive department", 400);
   }
 
   if (!semester) {
@@ -337,6 +357,23 @@ async function assertStudentReadAccess(
   if (!allowed) throw new AppError("You are not authorized to access this student", 403);
 }
 
+function isValidCurrentEnrollment(student: any, enrollment: any) {
+  if (!student.profile || !enrollment) return false;
+  if (enrollment.status !== "ACTIVE") return false;
+  if (!enrollment.program?.isActive || !enrollment.program?.department?.isActive) return false;
+  if (!enrollment.academicYear?.isCurrent) return false;
+  if (!enrollment.semester?.isActive) return false;
+  if (
+    enrollment.semester.programId !== enrollment.program.id ||
+    enrollment.semester.academicYearId !== enrollment.academicYear.id
+  ) return false;
+  if (
+    enrollment.section &&
+    (!enrollment.section.isActive || enrollment.section.semesterId !== enrollment.semester.id)
+  ) return false;
+  return true;
+}
+
 function serializeStudent(student: any) {
   const {
     passwordHash: _passwordHash,
@@ -344,15 +381,28 @@ function serializeStudent(student: any) {
     ...safeUser
   } = student;
 
+  const enrollments = student.studentEnrollments ?? [];
+  const currentEnrollment =
+    enrollments.find((item: any) => item.academicYear?.isCurrent) ??
+    enrollments[0] ??
+    null;
+
+  const enrollmentState =
+    !student.profile
+      ? "PROFILE_MISSING"
+      : !currentEnrollment
+        ? "MISSING"
+        : isValidCurrentEnrollment(student, currentEnrollment)
+          ? "ENROLLED"
+          : "INVALID";
+
   return {
     ...safeUser,
-    roles: userRoles?.map(
-      (binding: any) => binding.role
-    ) ?? [],
+    roles: userRoles?.map((binding: any) => binding.role) ?? [],
     profile: student.profile,
-    enrollments: student.studentEnrollments ?? [],
-    currentEnrollment:
-      student.studentEnrollments?.[0] ?? null,
+    enrollments,
+    currentEnrollment,
+    enrollmentState,
   };
 }
 
@@ -1006,18 +1056,29 @@ export async function enrollStudent(
   input: EnrollStudentInput,
   actor: AuthenticatedUser
 ) {
-  await assertStudentReadAccess(institutionId, userId, actor);
-  const student = await getStudentOrThrow(
-    institutionId,
-    userId
-  );
+  const student = await getStudentOrThrow(institutionId, userId);
   requireStudentProfile(student);
 
-  const placement =
-    await validateAcademicPlacement(
-      institutionId,
-      input
-    );
+  const placement = await validateAcademicPlacement(institutionId, input);
+
+  const roles = actor.roles;
+  if (roles.includes("STUDENT") || roles.includes("PARENT") || roles.includes("FACULTY")) {
+    throw new AppError("This role cannot modify authoritative student enrollment", 403);
+  }
+
+  if (roles.includes("DEAN") || roles.includes("HOD")) {
+    const managed = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!managed.includes(placement.program.departmentId)) {
+      throw new AppError("The selected program is outside your department scope", 403);
+    }
+  } else if (roles.includes("DIRECTOR")) {
+    const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!allowed.includes(placement.program.departmentId)) {
+      throw new AppError("The selected program is outside your campus scope", 403);
+    }
+  } else if (!isInstitutionWide(actor)) {
+    throw new AppError("You are not authorized to manage student enrollment", 403);
+  }
 
   if (placement.section) {
     const enrolledCount =
