@@ -19,6 +19,44 @@ datasource db {
 
 /// A single institution (tenant).
 /// not a special case in code.
+model BackgroundJob {
+  id              String   @id @default(uuid())
+  institutionId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  type            String
+  status          String   @default("QUEUED")
+  priority        Int      @default(100)
+  payload         Json
+  progress        Int      @default(0)
+  total           Int      @default(0)
+  processed       Int      @default(0)
+  failed          Int      @default(0)
+  attemptCount    Int      @default(0)
+  maxAttempts     Int      @default(5)
+  availableAt     DateTime @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  cancelledAt     DateTime?
+  lastHeartbeatAt DateTime?
+  workerId        String?
+  errorCode       String?
+  errorMessage    String?
+  idempotencyKey  String?
+  createdById     String?
+  createdBy       User?    @relation("BackgroundJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  result         Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([institutionId, idempotencyKey])
+  @@index([status, priority, availableAt])
+  @@index([institutionId, status, createdAt])
+  @@index([institutionId, type, status, createdAt])
+  @@index([lastHeartbeatAt])
+  @@map("background_jobs")
+}
+
 model Institution {
   id             String   @id @default(uuid())
   name           String
@@ -79,6 +117,7 @@ model Institution {
   subscription          TenantSubscription?
   featureEntitlements   TenantFeatureEntitlement[]
   files                 FileAsset[]
+  backgroundJobs        BackgroundJob[]
 
   admissionApplications AdmissionApplication[]
   employeeProfiles EmployeeProfile[]
@@ -249,6 +288,7 @@ model User {
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
   certificates Certificate[] @relation("CertificateStudent")
+  backgroundJobsCreated BackgroundJob[] @relation("BackgroundJobCreatedBy")
 
   obeMappingsCreated    CourseOutcomeMapping[] @relation("ObeMappingCreatedBy")
   obeMappingsApproved   CourseOutcomeMapping[] @relation("ObeMappingApprovedBy")
