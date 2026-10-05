@@ -307,6 +307,7 @@ export const SYSTEM_ROLE_NAMES = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
@@ -350,13 +351,7 @@ export const INSTITUTION_ROLES = SYSTEM_ROLE_NAMES.filter(
  * Existing production records are not silently destroyed.
  * New application logic should use the canonical role names.
  */
-export const LEGACY_ROLE_ALIASES: Record<
-  string,
-  SystemRoleName
-> = {
-  MANAGEMENT: "CHAIRMAN",
-  STAFF: "ACCOUNTS",
-};
+export const LEGACY_ROLE_ALIASES: Record<string, SystemRoleName> = {};
 
 export function normalizeRoleName(
   role: string
@@ -619,6 +614,19 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "fees.collection.read",
+    "fees.reports.read",
+    "fees.reports.export",
+    "fees.structure.read",
+    "fees.structure.manage",
+    "fees.structure.approve",
+    "obe.read", "obe.reports.read",
+    ...LEADERSHIP_READ,
+
+    "audit.read",
+  ],
+
+  MANAGEMENT: [
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
