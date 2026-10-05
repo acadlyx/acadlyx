@@ -7,6 +7,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
 import { assertTenantQuota } from "./entitlement.service";
+import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
 import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide } from "./accessScope.service";
 import {
   CreateStudentInput,
@@ -357,23 +358,6 @@ async function assertStudentReadAccess(
   if (!allowed) throw new AppError("You are not authorized to access this student", 403);
 }
 
-function isValidCurrentEnrollment(student: any, enrollment: any) {
-  if (!student.profile || !enrollment) return false;
-  if (enrollment.status !== "ACTIVE") return false;
-  if (!enrollment.program?.isActive || !enrollment.program?.department?.isActive) return false;
-  if (!enrollment.academicYear?.isCurrent) return false;
-  if (!enrollment.semester?.isActive) return false;
-  if (
-    enrollment.semester.programId !== enrollment.program.id ||
-    enrollment.semester.academicYearId !== enrollment.academicYear.id
-  ) return false;
-  if (
-    enrollment.section &&
-    (!enrollment.section.isActive || enrollment.section.semesterId !== enrollment.semester.id)
-  ) return false;
-  return true;
-}
-
 function serializeStudent(student: any) {
   const {
     passwordHash: _passwordHash,
@@ -392,9 +376,7 @@ function serializeStudent(student: any) {
       ? "PROFILE_MISSING"
       : !currentEnrollment
         ? "MISSING"
-        : isValidCurrentEnrollment(student, currentEnrollment)
-          ? "ENROLLED"
-          : "INVALID";
+        : classifyStudentEnrollmentState(student.profile, currentEnrollment);
 
   return {
     ...safeUser,
