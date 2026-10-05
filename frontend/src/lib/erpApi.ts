@@ -20,6 +20,7 @@ export interface ErpWorkspace {
   students?: Array<Record<string, unknown>>;
   facultyOfferings?: Array<Record<string, unknown>>;
   departments?: Array<Record<string, unknown>>;
+  libraryLoans?: Array<Record<string, unknown>>;
 }
 
 export interface DirectoryOption {
@@ -228,7 +229,7 @@ function invalidate(
   }
 }
 
-function invalidateWorkspace(): void {
+export function invalidateErpWorkspace(): void {
   invalidate((key) =>
     key.startsWith(
       "erp:workspace"
@@ -243,7 +244,7 @@ function invalidateOfferings(): void {
     )
   );
 
-  invalidateWorkspace();
+  invalidateErpWorkspace();
 }
 
 function invalidateFeeData(): void {
@@ -461,7 +462,7 @@ export async function setUserActive(
   );
 
   invalidateUsers();
-  invalidateWorkspace();
+  invalidateErpWorkspace();
   return response.data;
 }
 
@@ -670,7 +671,7 @@ export async function createTimetableEntry(
       }
     );
 
-  invalidateWorkspace();
+  invalidateErpWorkspace();
   invalidateOfferings();
 
   return response.data;
@@ -725,7 +726,7 @@ export async function createNotice(
       }
     );
 
-  invalidateWorkspace();
+  invalidateErpWorkspace();
   invalidate((key) =>
     key.startsWith("erp:notices:")
   );
@@ -825,7 +826,7 @@ export async function createExam(
       }
     );
 
-  invalidateWorkspace();
+  invalidateErpWorkspace();
 
   return response.data;
 }
@@ -853,7 +854,7 @@ export async function upsertExamResult(
       }
     );
 
-  invalidateWorkspace();
+  invalidateErpWorkspace();
 
   return response.data;
 }
@@ -949,7 +950,7 @@ export async function createParentLink(
 
   invalidateUsers("PARENT");
   invalidateUsers("STUDENT");
-  invalidateWorkspace();
+  invalidateErpWorkspace();
 
   return response.data;
 }
