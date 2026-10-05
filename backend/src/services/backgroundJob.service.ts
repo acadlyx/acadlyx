@@ -46,13 +46,35 @@ export async function enqueueJob(input: EnqueueJobInput) {
 export async function loadActiveJobActor(institutionId: string, userId: string): Promise<AuthenticatedUser> {
   const user = await prisma.user.findFirst({
     where: { id: userId, institutionId, isActive: true, deletedAt: null },
-    include: { userRoles: { include: { role: true } } },
+    include: {
+      userRoles: {
+        include: {
+          role: {
+            include: {
+              rolePermissions: { include: { permission: true } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!user) throw new AppError("The job creator is no longer an active institutional user.", 409);
+
+  const permissions = Array.from(new Set(
+    user.userRoles.flatMap(binding =>
+      binding.role.rolePermissions.map(rolePermission => rolePermission.permission.key)
+    )
+  ));
+
   return {
-    id: user.id, institutionId: user.institutionId, email: user.email, idNumber: user.idNumber,
-    firstName: user.firstName, lastName: user.lastName,
-    roles: user.userRoles.map(x => x.role.name), permissions: [],
+    id: user.id,
+    institutionId: user.institutionId,
+    email: user.email,
+    idNumber: user.idNumber,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    roles: user.userRoles.map(x => x.role.name),
+    permissions,
   };
 }
 
