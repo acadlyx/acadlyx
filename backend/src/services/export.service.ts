@@ -193,7 +193,7 @@ export async function exportData(
   if (type === "fees" || type === "fee-payments") {
     const data = await prisma.feeInvoice.findMany({ where: { institutionId }, include: { student: { include: { profile: true } }, payments: true }, orderBy: { createdAt: "desc" } });
     for (const i of data) {
-      if (type === "fees") rows.push({ id: i.id, studentEmail: i.student.email, admissionNumber: i.student.profile?.admissionNumber ?? null, title: i.title, amount: i.amount, paid: i.payments.reduce((sum, p) => sum + p.amount, 0), balance: Math.max(0, i.amount - i.payments.reduce((sum, p) => sum + p.amount, 0)), status: i.status, dueDate: clean(i.dueDate), createdAt: clean(i.createdAt) });
+      if (type === "fees") rows.push({ id: i.id, studentEmail: i.student.email, admissionNumber: i.student.profile?.admissionNumber ?? null, title: i.title, amount: i.amount, paid: i.payments.reduce((sum, p) => sum + p.amount, 0), balance: Math.max(0, i.amount - i.payments.reduce((sum, p) => sum + p.amount, 0)), status: i.status, sourceModule: i.sourceModule ?? "FEES", sourceType: i.sourceType ?? "FEE", sourceEntityId: i.sourceEntityId ?? null, feeStructureId: i.feeStructureId ?? null, dueDate: clean(i.dueDate), createdAt: clean(i.createdAt) });
       else for (const p of i.payments) rows.push({ id: p.id, invoiceId: i.id, studentEmail: i.student.email, admissionNumber: i.student.profile?.admissionNumber ?? null, invoiceTitle: i.title, amount: p.amount, reference: p.reference, paidAt: clean(p.paidAt), createdAt: clean(p.createdAt) });
     }
   }
