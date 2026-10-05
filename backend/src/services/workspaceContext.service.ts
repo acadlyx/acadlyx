@@ -154,6 +154,11 @@ async function buildWorkspaceContext(
     if (!program) throw new AppError("Program is not valid for the selected department", 404);
   }
 
+  const institutionPromise = prisma.institution.findUnique({
+    where: { id: institutionId },
+    select: { name: true, logoUrl: true },
+  });
+
   const programsPromise = prisma.program.findMany({
     where: {
       institutionId,
@@ -253,10 +258,7 @@ async function buildWorkspaceContext(
     ? academicYears.find((year) => year.id === input.academicYearId) ?? null
     : null;
 
-  const institution = await prisma.institution.findUnique({
-    where: { id: institutionId },
-    select: { name: true, logoUrl: true },
-  });
+  const institution = await institutionPromise;
 
   const basePath = workspaceBasePath(roles);
   const contextHref = (extra: Record<string, string | undefined> = {}) => {
