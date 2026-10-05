@@ -10,7 +10,34 @@ function normalizeRoleName(role: string): string {
   return ROLE_ALIASES[normalized] ?? normalized;
 }
 
-export type NavigationItem = {
+const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
+  [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
+  [/^\/examination(\/|$)/, "exams"],
+  [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
+  [/^\/((student)\/)?results?(\/|$)/, "results"],
+  [/^\/((student)\/)?attendance(\/|$)/, "attendance"],
+  [/^\/((student)\/)?assignments?(\/|$)/, "assignments"],
+  [/^\/((student)\/)?(fees|accounts)(\/|$)/, "fees"],
+  [/^\/((student)\/)?library(\/|$)/, "library"],
+  [/^\/((student)\/)?placements?(\/|$)/, "placements"],
+  [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
+  [/^\/(hr|employees|leave-management)(\/|$)/, "hr"],
+  [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
+  [/^\/lms(\/|$)/, "lms"],
+  [/^\/course-registration(\/|$)|^\/student\/course-registration(\/|$)/, "registration"],
+  [/^\/certificates?(\/|$)/, "certificates"],
+  [/^\/library(\/|$)/, "library"],
+  [/^\/students(\/|$)/, "students"],
+  [/^\/faculty(\/|$)/, "faculty"],
+  [/^\/admin\/(students|departments|programs|academic|courses|sections|semesters|student-setup)(\/|$)/, "academics"],
+];
+
+function tenantFeatureForNavigation(item: NavigationItem): string | null {
+  const match = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(item.href.split("?")[0]));
+  return match?.[1] ?? null;
+}
+
+
   label: string;
   href: string;
   icon?: string;
