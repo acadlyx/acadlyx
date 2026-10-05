@@ -175,3 +175,9 @@ export async function cancelClaimedJob(id: string, workerId: string) {
     data: { status: JOB_STATUS.CANCELLED, cancelledAt: new Date(), workerId: null, updatedAt: new Date() },
   });
 }
+
+export async function getOwnedJob(institutionId: string, actor: AuthenticatedUser, id: string) {
+  const job = await prisma.backgroundJob.findFirst({ where: { id, institutionId, createdById: actor.id } });
+  if (!job) throw new AppError("Job not found.", 404);
+  return job;
+}
