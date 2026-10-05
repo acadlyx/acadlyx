@@ -66,10 +66,17 @@ export async function requestCancellation(institutionId: string, actor: Authenti
   const job = await prisma.backgroundJob.findFirst({ where: { id, institutionId }});
   if (!job) throw new AppError("Job not found.", 404);
   if ([JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED].includes(job.status as JobStatus)) return job;
-  await prisma.backgroundJob.updateMany({
-    where: { id, institutionId, status: { in: [JOB_STATUS.QUEUED, JOB_STATUS.PROCESSING] }},
-    data: { status: JOB_STATUS.CANCEL_REQUESTED, updatedAt: new Date() },
-  });
+  if (job.status === JOB_STATUS.QUEUED) {
+    await prisma.backgroundJob.updateMany({
+      where: { id, institutionId, status: JOB_STATUS.QUEUED },
+      data: { status: JOB_STATUS.CANCELLED, cancelledAt: new Date(), updatedAt: new Date() },
+    });
+  } else {
+    await prisma.backgroundJob.updateMany({
+      where: { id, institutionId, status: JOB_STATUS.PROCESSING },
+      data: { status: JOB_STATUS.CANCEL_REQUESTED, updatedAt: new Date() },
+    });
+  }
   await recordAuditLog({ institutionId, userId: actor.id, action: "job.cancel_requested", entityType: "BackgroundJob", entityId: id });
   return prisma.backgroundJob.findFirstOrThrow({ where: { id, institutionId }});
 }
