@@ -115,7 +115,7 @@ export const upsertExamResultSchema = z.object({
 
 export const invoiceListQuerySchema = z.object({
   studentId: z.string().uuid().optional(),
-  status: z.enum(["PENDING", "PARTIAL", "PAID"]).optional(),
+  status: z.enum(["PENDING", "PARTIAL", "PAID", "WAIVED", "CANCELLED"]).optional(),
 });
 
 export const createInvoiceSchema = z.object({
@@ -138,6 +138,8 @@ export const updateInvoiceSchema = z
 export const recordPaymentSchema = z.object({
   amount: z.number().positive().max(100000000),
   reference: z.string().trim().max(200).optional(),
+  method: z.enum(["OFFLINE", "CASH", "BANK_TRANSFER", "UPI", "CARD", "CHEQUE", "ONLINE"]).optional(),
+  idempotencyKey: z.string().trim().min(8).max(120).optional(),
 });
 
 export const parentLinkListQuerySchema = z.object({
