@@ -8,10 +8,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AuthRequiredError,
   AuthUser,
   getCachedCurrentUser,
-  getCurrentUser,
 } from "@/lib/auth";
 
 import {
@@ -70,35 +68,10 @@ export function AdminPortal() {
         setError("");
 
         try {
-          const [
-            currentUser,
-            workspace,
-          ] =
-            await Promise.all([
-              getCurrentUser({
-                background: true,
-              }),
-              getAdminWorkspace(),
-            ]);
-
-          if (
-            !currentUser.roles.includes(
-              "INSTITUTION_ADMIN",
-            )
-          ) {
-            router.replace(
-              "/login",
-            );
-            return;
-          }
-
-          setUser(
-            currentUser,
-          );
-
-          setData(
-            workspace,
-          );
+          // DashboardShell already resolves and caches the authenticated user.
+          // Do not issue a second /auth/me request just to render this page.
+          const workspace = await getAdminWorkspace();
+          setData(workspace);
         } catch (
           reason
         ) {
