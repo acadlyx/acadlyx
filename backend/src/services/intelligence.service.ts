@@ -131,27 +131,158 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
     distinct: ["userId"],
   });
 
-  // Keep the expensive intelligence queries below the DB connection-pool
-  // ceiling. The old Promise.all could fan out 5 queries per student at once.
-  const rows: NonNullable<Awaited<ReturnType<typeof getStudentIntelligence>>>[] = [];
-  const concurrency = 4;
+  if (enrollments.length === 0) return [];
 
-  for (let index = 0; index < enrollments.length; index += concurrency) {
-    const batch = enrollments.slice(index, index + concurrency);
-    const results = await Promise.all(
-      batch.map((enrollment) =>
-        getStudentIntelligence(institutionId, enrollment.userId)
-      )
-    );
-    rows.push(
-      ...results.filter(
-        (row): row is NonNullable<typeof row> => !!row
-      )
-    );
+  // Batch the raw signals once instead of running five Prisma queries per
+  // candidate. This keeps connection usage bounded and makes the cost scale
+  // with the candidate set rather than query count per student.
+  const studentIds = enrollments.map((row) => row.userId);
+  const now = new Date();
+
+  const [students, attendance, assignments, marks, skills] = await Promise.all([
+    prisma.user.findMany({
+      where: { institutionId, id: { in: studentIds } },
+      select: { id: true, firstName: true, lastName: true },
+    }),
+    prisma.attendanceRecord.findMany({
+      where: {
+        studentId: { in: studentIds },
+        attendanceSession: { institutionId, isSubmitted: true },
+      },
+      select: {
+        studentId: true,
+        status: true,
+        attendanceSession: {
+          select: {
+            courseOffering: {
+              select: { course: { select: { code: true, name: true } } },
+            },
+          },
+        },
+      },
+    }),
+    prisma.assignment.findMany({
+      where: {
+        institutionId,
+        status: "PUBLISHED",
+        courseOffering: {
+          section: { studentEnrollments: { some: { userId: { in: studentIds } } } },
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        dueDate: true,
+        courseOffering: { select: { course: { select: { code: true } } } },
+        submissions: {
+          where: { studentId: { in: studentIds } },
+          select: { studentId: true },
+        },
+      },
+    }),
+    prisma.internalMark.groupBy({
+      by: ["studentId"],
+      where: { institutionId, studentId: { in: studentIds } },
+      _avg: { marksObtained: true, maxMarks: true },
+    }),
+    prisma.studentSkill.groupBy({
+      by: ["studentId"],
+      where: { institutionId, studentId: { in: studentIds }, proficiency: { gte: 60 } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const studentById = new Map(students.map((student) => [student.id, student]));
+  const attendanceByStudent = new Map<string, Map<string, { present: number; total: number; name: string }>>();
+  for (const row of attendance) {
+    const course = row.attendanceSession.courseOffering.course;
+    const byCourse = attendanceByStudent.get(row.studentId) ?? new Map();
+    const item = byCourse.get(course.code) ?? { present: 0, total: 0, name: course.name };
+    item.total += 1;
+    if (row.status === "PRESENT") item.present += 1;
+    byCourse.set(course.code, item);
+    attendanceByStudent.set(row.studentId, byCourse);
   }
 
-  return rows
-    .filter((x) => x.risk === "CRITICAL" || x.risk === "HIGH")
+  const assignmentsByStudent = new Map<string, typeof assignments>();
+  for (const assignment of assignments) {
+    for (const submission of assignment.submissions) {
+      const list = assignmentsByStudent.get(submission.studentId) ?? [];
+      list.push(assignment);
+      assignmentsByStudent.set(submission.studentId, list);
+    }
+  }
+
+  const marksByStudent = new Map(marks.map((row) => [row.studentId, row]));
+  const skillsByStudent = new Map(skills.map((row) => [row.studentId, row._count._all]));
+  const result = students.map((student) => {
+    const byCourse = attendanceByStudent.get(student.id) ?? new Map();
+    const present = [...byCourse.values()].reduce((n, x) => n + x.present, 0);
+    const sessions = [...byCourse.values()].reduce((n, x) => n + x.total, 0);
+    const attendanceScore = sessions ? round((present / sessions) * 100) : 0;
+
+    const studentAssignments = assignments.filter(
+      (assignment) =>
+        assignment.dueDate < now &&
+        !assignment.submissions.some((submission) => submission.studentId === student.id),
+    );
+    const overdue = studentAssignments;
+    const assignmentScore = assignments.length
+      ? round(((assignments.length - overdue.length) / assignments.length) * 100)
+      : 100;
+
+    const mark = marksByStudent.get(student.id);
+    const marksScore =
+      mark?._avg.maxMarks && mark._avg.marksObtained
+        ? round((mark._avg.marksObtained / mark._avg.maxMarks) * 100)
+        : 0;
+    const skillCount = skillsByStudent.get(student.id) ?? 0;
+    const engagementScore = Math.min(100, 50 + skillCount * 10);
+    const healthScore = round(
+      attendanceScore * 0.35 +
+        assignmentScore * 0.25 +
+        marksScore * 0.25 +
+        engagementScore * 0.15,
+    );
+    const byCourseWarnings = [...byCourse.entries()].filter(
+      ([, value]) => value.total && value.present / value.total < 0.75,
+    );
+    const recommendations = [
+      ...[...byCourseWarnings].map(
+        ([code, value]) =>
+          `${value.present / value.total < 0.6 ? "Improve" : "Monitor"} ${code} attendance`,
+      ),
+      ...overdue.map(
+        (assignment) =>
+          `Submit pending ${assignment.courseOffering.course.code} assignment: ${assignment.title}`,
+      ),
+      ...(marksScore && marksScore < 60
+        ? ["Meet your faculty mentor to improve internal marks"]
+        : []),
+      ...(skillCount < 2 ? ["Add verified skills to improve career readiness"] : []),
+    ].slice(0, 6);
+
+    return {
+      student,
+      scores: {
+        attendance: attendanceScore,
+        assignments: assignmentScore,
+        internalMarks: marksScore,
+        engagement: engagementScore,
+        academicHealth: healthScore,
+      },
+      risk: riskFromScore(healthScore),
+      reasons: {
+        lowAttendanceSubjects: [...byCourseWarnings].map(([code]) => code),
+        overdueAssignments: overdue.length,
+        marksBelowTarget: marksScore > 0 && marksScore < 60,
+      },
+      recommendations,
+    };
+  });
+
+  return result
+    .filter((row) => row.risk === "CRITICAL" || row.risk === "HIGH")
     .sort((a, b) => a.scores.academicHealth - b.scores.academicHealth)
     .slice(0, safeLimit);
 }
