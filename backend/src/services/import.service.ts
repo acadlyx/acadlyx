@@ -359,7 +359,7 @@ export async function commit(
           try {
             await processImportRow(tx, type, institutionId, actor, rows[i]);
             imported += 1;
-            if (options.onProgress) await options.onProgress(imported, 0, rows.length);
+            if (options.onProgress && (imported % 25 === 0 || imported === rows.length)) await options.onProgress(imported, 0, rows.length);
           } catch (error) {
             const message = error instanceof Error ? error.message : "Unknown row error";
             throw new AppError(`Import rolled back at row ${i + 2}: ${message}`, 400);
