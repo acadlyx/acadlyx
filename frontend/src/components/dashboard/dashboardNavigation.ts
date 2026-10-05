@@ -30,6 +30,7 @@ export const ROLE_PRIORITY: CanonicalRole[] = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
@@ -55,6 +56,7 @@ const HOME_BY_ROLE: Record<
   SUPER_ADMIN: "/superadmin",
   INSTITUTION_ADMIN: "/admin",
   CHAIRMAN: "/chairman",
+  MANAGEMENT: "/management",
   DIRECTOR: "/director",
   DEAN: "/dean",
   REGISTRAR: "/registrar",
@@ -106,6 +108,14 @@ export const WORKSPACE_META: Record<
     eyebrow:
       "Management oversight",
     home: HOME_BY_ROLE.CHAIRMAN,
+  },
+
+  MANAGEMENT: {
+    label: "Management",
+    title: "Management Workspace",
+    subtitle: "Institutional performance and decision support",
+    eyebrow: "Management oversight",
+    home: HOME_BY_ROLE.MANAGEMENT,
   },
 
   DIRECTOR: {
