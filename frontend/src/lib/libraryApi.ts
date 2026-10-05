@@ -50,6 +50,7 @@ export interface LibrarySummary {
   reserved: number;
   overdue: number;
   collectedFines: number;
+  outstandingFines: number;
 }
 
 export async function getLibrarySummary(): Promise<LibrarySummary> {
