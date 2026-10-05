@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-screen antialiased">
         <ServiceWorkerRegistration />
         <ResponsiveNavigationGuard />
-        <ProtectedRouteBoundary>{children}</ProtectedRouteBoundary>
+        <Suspense fallback={null}>
+          <ProtectedRouteBoundary>{children}</ProtectedRouteBoundary>
+        </Suspense>
       </body>
     </html>
   );
