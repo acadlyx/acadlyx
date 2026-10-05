@@ -736,7 +736,7 @@ export async function getLibrarySummary(institutionId: string) {
     }),
     prisma.libraryFine.aggregate({ where: { institutionId }, _sum: { originalAmount: true, waivedAmount: true } }),
     prisma.feeInvoice.aggregate({
-      where: { institutionId, sourceModule: "LIBRARY", sourceType: { in: ["OVERDUE", "LIBRARY_FINE", "LOST_BOOK", "LIBRARY_LOST_BOOK_CHARGE"] } },
+      where: { institutionId, sourceModule: "LIBRARY", sourceType: { in: ["OVERDUE", "LIBRARY_FINE", "LOST_BOOK", "LIBRARY_LOST_BOOK_CHARGE", "DAMAGED_BOOK", "LIBRARY_DAMAGED_BOOK_CHARGE"] } },
       _sum: { amount: true, paidAmount: true },
     }),
   ]);
