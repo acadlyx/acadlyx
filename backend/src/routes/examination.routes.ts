@@ -456,11 +456,10 @@ router.post(
   asyncHandler(async (req, res) =>
     sendOk(
       res,
-      await service.publishExamResults(
+      await service.enqueuePublishExamResults(
         requireInstitution(req),
         requireAuthenticatedUser(req),
-        req.params.id,
-        auditMeta(req)
+        req.params.id
       )
     )
   )
