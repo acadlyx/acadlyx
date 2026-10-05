@@ -15,6 +15,7 @@ import {
   requireAuthenticatedUser,
   requireInstitution,
 } from "../utils/requireInstitution";
+import { z } from "zod";
 import { idParams, pageQuery } from "../validators/common";
 import {
   bookListQuery,
@@ -226,7 +227,7 @@ router.post(
 router.get(
   "/fines",
   authorize("library.read"),
-  validateQuery(pageQuery),
+  validateQuery(z.object(pageQuery)),
   asyncHandler(async (req, res) => {
     const pagination = parsePagination(req);
     const result = await service.listFines(requireInstitution(req), requireAuthenticatedUser(req), pagination);
