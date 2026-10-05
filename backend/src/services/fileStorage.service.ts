@@ -1,5 +1,4 @@
 import { env } from "../config/env";
-import { createReadStream } from "fs";
 import { stat } from "fs/promises";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
@@ -197,15 +196,15 @@ export async function storeFileFromPath(input: {
 }): Promise<StoredFile> {
   const fileStat = await stat(input.path);
   if (!fileStat.isFile() || fileStat.size <= 0) throw new AppError("Generated file is empty", 422);
-  if (fileStat.size > MAX_FILE_BYTES) throw new AppError("Generated file exceeds the 25 MB limit", 413);
+  if (fileStat.size > 500 * 1024 * 1024) throw new AppError("Generated artifact exceeds the 500 MB limit", 413);
   const folder = buildTenantFolder(input.institutionId, input.module, input.ownerId);
   const allowed = MODULE_MIME_ALLOWLIST[input.module];
   if (!allowed) throw new AppError("Unsupported storage module", 400);
   validateAllowedMime(input.mimeType, allowed);
   let uploaded: StorageObject;
   try {
-    uploaded = await provider().uploadStream({
-      stream: createReadStream(input.path),
+    uploaded = await provider().uploadPath({
+      path: input.path,
       size: fileStat.size,
       filename: input.filename,
       mimeType: input.mimeType,
