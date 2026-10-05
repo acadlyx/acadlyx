@@ -159,7 +159,7 @@ export function AdminStudentsPage() {
     <DashboardShell
       title="Students"
       subtitle="Institution-scoped administration"
-      allowedRoles={["INSTITUTION_ADMIN"]}
+      allowedRoles={["INSTITUTION_ADMIN", "REGISTRAR"]}
     >
       <AdminStudentsPageContent />
     </DashboardShell>
