@@ -165,14 +165,12 @@ export async function getAttendanceOverview(
 export async function getAtRiskStudents(
   institutionId: string,
   facultyId: string,
-  thresholdPercent = 75
+  thresholdPercent = 75,
+  offeringsOverride?: Awaited<ReturnType<typeof getMyCourseOfferings>>,
 ) {
   await assertFacultyInInstitution(institutionId, facultyId);
 
-  const offerings = await prisma.courseOffering.findMany({
-    where: { institutionId, facultyId, isActive: true },
-    select: { id: true },
-  });
+  const offerings = offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
   const offeringIds = offerings.map((o) => o.id);
   if (offeringIds.length === 0) return { count: 0, students: [] };
 
