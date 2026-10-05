@@ -84,7 +84,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Institutions",
-    href: "/superadmin/institutions",
+    href: "/superadmin?section=institutions",
     icon: "▦",
     roles: ["SUPER_ADMIN"],
     permissions: ["institutions.manage"],
@@ -92,18 +92,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Platform users",
-    href: "/superadmin/users",
+    href: "/superadmin?section=users",
     icon: "♙",
     roles: ["SUPER_ADMIN"],
     permissions: ["users.read"],
-    group: "Platform",
-  },
-  {
-    label: "Platform audit",
-    href: "/superadmin/audit",
-    icon: "▤",
-    roles: ["SUPER_ADMIN"],
-    permissions: ["audit.read"],
     group: "Platform",
   },
   {
@@ -1528,7 +1520,8 @@ export function getNavigationForRoles(
   const merged = new Map<string, NavigationItem>();
 
   for (const item of visible) {
-    const destination = item.href.split("?")[0].replace(/\/+$/, "") || "/";
+    const [destinationPath, destinationQuery] = item.href.split("?");
+    const destination = (destinationPath.replace(/\/+$/, "") || "/") + (destinationQuery ? `?${destinationQuery}` : "");
     const existing = merged.get(destination);
 
     if (!existing) {
