@@ -630,7 +630,13 @@ async function getFeeSummary(
       status:
         balance <= 0
           ? "PAID"
-          : invoice.status,
+          : invoice.dueDate && invoice.dueDate < new Date()
+            ? "OVERDUE"
+            : invoice.status,
+      sourceModule: invoice.sourceModule ?? "FEES",
+      sourceType: invoice.sourceType ?? "FEE",
+      sourceEntityId: invoice.sourceEntityId ?? null,
+      feeStructureId: invoice.feeStructureId ?? null,
       payments: invoice.payments,
     };
   });
