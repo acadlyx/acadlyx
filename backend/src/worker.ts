@@ -30,6 +30,7 @@ async function execute(job: NonNullable<Awaited<ReturnType<typeof claimNextJob>>
     progress: (processed: number, failed: number, total: number) => updateJobProgress(job.id, workerId, processed, failed, total),
     isCancellationRequested: () => isCancellationRequested(job.id),
   };
+  const heartbeatTimer = setInterval(() => { void heartbeatJob(job.id, workerId); }, HEARTBEAT_MS);
   try {
     logger.info("Background job started", { jobId: job.id, type: job.type, workerId });
     const result = await getJobHandler(job.type as never)(ctx);
@@ -40,6 +41,8 @@ async function execute(job: NonNullable<Awaited<ReturnType<typeof claimNextJob>>
   } catch (error) {
     await failJob(job.id, workerId, error, retryable(error));
     logger.error("Background job failed", { jobId: job.id, type: job.type, workerId, error: error instanceof Error ? error.message : String(error) });
+  } finally {
+    clearInterval(heartbeatTimer);
   }
 }
 
