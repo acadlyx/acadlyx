@@ -1,5 +1,5 @@
-import { registerJobHandler } from "./registry";
-import { JOB_TYPES } from "./types";
+import { registerJobHandler } from "../registry";
+import { JOB_TYPES } from "../types";
 import { processBulkAdmitCardsJob } from "../../services/admitCardGeneration.service";
 
 registerJobHandler(JOB_TYPES.ADMIT_CARD_GENERATION, async ctx => {
