@@ -1,16 +1,19 @@
 import { authedFetch } from "./auth";
 import { buildQuery, Envelope } from "./httpShared";
 
-/**
- * Typeahead lookups backing the searchable selectors.
- * The backend scopes every result to what the caller may actually see,
- * so these can be called from any screen without extra guarding.
- */
-
 export interface DirectoryOption {
   id: string;
   label: string;
   hint: string | null;
+}
+
+export interface LibraryStudentSearchFilters {
+  search?: string;
+  department?: string;
+  program?: string;
+  session?: string;
+  semester?: string;
+  section?: string;
 }
 
 export async function searchStudents(
@@ -18,6 +21,15 @@ export async function searchStudents(
 ): Promise<DirectoryOption[]> {
   const res = await authedFetch<Envelope<DirectoryOption[]>>(
     `/directory/students${buildQuery({ search })}`
+  );
+  return res.data;
+}
+
+export async function searchLibraryStudents(
+  filters: LibraryStudentSearchFilters
+): Promise<DirectoryOption[]> {
+  const res = await authedFetch<Envelope<DirectoryOption[]>>(
+    `/directory/library-students${buildQuery(filters)}`
   );
   return res.data;
 }
