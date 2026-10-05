@@ -3,6 +3,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
+import { assertCanViewStudent } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
 import { getCanonicalRoleNames } from "../config/rbac";
@@ -137,34 +138,26 @@ async function assertHodStudentAccess(
   actorId: string,
   studentId: string
 ): Promise<void> {
-  const accesses = await prisma.departmentAccess.findMany({
-    where: { userId: actorId, department: { institutionId } },
-    select: { departmentId: true },
-  });
-  const departmentIds = accesses.map((item) => item.departmentId);
-
-  if (!departmentIds.length) {
-    throw new AppError(
-      "You are not authorized to access this student's information",
-      403
-    );
-  }
-
-  const allowed = await prisma.studentEnrollment.findFirst({
-    where: {
-      institutionId,
-      userId: studentId,
-      program: { departmentId: { in: departmentIds } },
+  const actor = await prisma.user.findFirst({
+    where: { id: actorId, institutionId, isActive: true },
+    select: {
+      id: true,
+      roles: {
+        select: { name: true },
+      },
     },
-    select: { id: true },
   });
+  if (!actor) throw new AppError("User not found", 404);
 
-  if (!allowed) {
-    throw new AppError(
-      "You are not authorized to access this student's information",
-      403
-    );
-  }
+  await assertCanViewStudent(
+    institutionId,
+    {
+      ...actor,
+      roles: actor.roles.map((role) => role.name),
+      permissions: [],
+    } as any,
+    studentId,
+  );
 }
 
 async function assertStudentExists(
