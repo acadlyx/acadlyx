@@ -63,6 +63,70 @@ const studentInclude = {
   },
 } satisfies Prisma.UserInclude;
 
+const studentListInclude = {
+  profile: {
+    select: {
+      id: true,
+      admissionNumber: true,
+      dateOfBirth: true,
+      gender: true,
+      status: true,
+      profilePhotoUrl: true,
+    },
+  },
+  userRoles: {
+    select: {
+      role: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+    },
+  },
+  studentEnrollments: {
+    take: 1,
+    orderBy: [
+      { enrolledAt: "desc" },
+      { createdAt: "desc" },
+    ],
+    select: {
+      id: true,
+      status: true,
+      enrolledAt: true,
+      program: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          level: true,
+        },
+      },
+      academicYear: {
+        select: {
+          id: true,
+          name: true,
+          isCurrent: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          number: true,
+          name: true,
+        },
+      },
+      section: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserInclude;
+
 function parseDate(value?: string) {
   if (!value) return undefined;
 
@@ -473,7 +537,7 @@ export async function listStudents(
           firstName: "asc",
         },
       ],
-      include: studentInclude,
+      include: studentListInclude,
     }),
     prisma.user.count({ where }),
   ]);
