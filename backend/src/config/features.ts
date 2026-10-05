@@ -1,6 +1,6 @@
 /** Canonical tenant modules. Feature keys are intentionally independent of RBAC permission keys. */
 export const TENANT_FEATURES = [
-  "students", "faculty", "attendance", "timetable", "exams", "results",
+  "academics", "students", "faculty", "attendance", "timetable", "exams", "results",
   "assignments", "fees", "payments", "parent_portal", "notices",
   "notifications", "reports", "import_export", "cms", "documents",
   "analytics", "intelligence", "placements",
