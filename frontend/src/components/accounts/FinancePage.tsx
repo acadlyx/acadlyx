@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { financeAudit, financeCollections, financeConcessions, financeCommandCenter, financeHeads, financeInvoices, financePayments, financeReceipts, financeRefunds, financeStructures, financeTransactions, downloadFinanceExport } from "@/lib/financeApi";
 import { getCachedCurrentUser } from "@/lib/auth";
@@ -35,6 +35,7 @@ export default function FinancePage({view}:{view:View}){
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [period,setPeriod]=useState<Period>("academic");
  const [search,setSearch]=useState("");
+ const deferredSearch=useDeferredValue(search);
  const can=(p:string)=>permissions.has(p)||permissions.has("fees.manage")||permissions.has("fees.admin");
  useEffect(()=>{let live=true;setLoading(true);setError("");const load=async()=>{try{
    let x:any;
@@ -42,7 +43,7 @@ export default function FinancePage({view}:{view:View}){
    else if(view==="fee-structures") x=await financeStructures();
    else if(view==="fee-heads") x=await financeHeads();
    else if(view==="audit") x=await financeAudit();
-   else if(view==="invoices") x=await financeInvoices({pageSize:25,search:search||undefined});
+   else if(view==="invoices") x=await financeInvoices({pageSize:25,search:deferredSearch||undefined});
    else if(view==="payments") x=await financePayments();
    else if(view==="receipts") x=await financeReceipts();
    else if(view==="collections") x=await financeCollections();
@@ -50,7 +51,7 @@ export default function FinancePage({view}:{view:View}){
    else if(view==="refunds") x=await financeRefunds();
    else x=await financeTransactions();
    if(live)setData(x);
- }catch(e){if(live)setError(e instanceof Error?e.message:"Unable to load financial data")}finally{if(live)setLoading(false)}};void load();return()=>{live=false}},[view,search,period]);
+ }catch(e){if(live)setError(e instanceof Error?e.message:"Unable to load financial data")}finally{if(live)setLoading(false)}};void load();return()=>{live=false}},[view,deferredSearch,period]);
  const title=nav.find(x=>x.key===view)?.label||"Accounts";
  return <DashboardShell title="ACADLYX Finance" subtitle="Accounts & Financial Management" allowedRoles={["ACCOUNTS"]}>
    <div className="mx-auto max-w-[1500px]">
