@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as programController from "../controllers/program.controller";
 import { authenticate } from "../middleware/authenticate";
+import { requireFeature } from "../middleware/requireFeature";
 import { authorize } from "../middleware/authorize";
 import { validateBody, validateQuery } from "../middleware/validate";
 import {
@@ -12,6 +13,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("academics"));
 
 router.get(
   "/",
