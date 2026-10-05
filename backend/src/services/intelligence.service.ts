@@ -212,9 +212,9 @@ export async function getAtRiskStudents(institutionId: string, departmentIds?: s
     const attendanceScore = sessions ? round((present / sessions) * 100) : 0;
 
     const studentAssignments = assignments.filter((assignment) =>
-      assignment.courseOffering.section.studentEnrollments.some(
+      assignment.courseOffering.section?.studentEnrollments?.some(
         (enrollment) => enrollment.userId === student.id,
-      ),
+      ) ?? false,
     );
     const overdue = studentAssignments.filter(
       (assignment) =>
