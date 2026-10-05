@@ -819,7 +819,7 @@ export async function listFines(institutionId: string, actor: AuthenticatedUser,
       take: pagination.take,
       include: {
         issue: { include: { book: { select: { id: true, title: true } } } },
-        financialInvoice: { select: { id: true, amount: true, paidAmount: true, status: true, receiptNumber: false } },
+        financialInvoice: { select: { id: true, amount: true, paidAmount: true, status: true } },
       },
     }),
     prisma.libraryFine.count({ where: { institutionId } }),
