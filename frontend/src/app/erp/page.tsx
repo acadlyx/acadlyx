@@ -777,6 +777,10 @@ feeStructures.length,
 notifications.unread,
 ],
 [
+"Library loans",
+Array.isArray(workspace?.libraryLoans) ? workspace.libraryLoans.length : 0,
+],
+[
 "Documents",
 documents.length,
 ],
