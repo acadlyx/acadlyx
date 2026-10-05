@@ -1575,11 +1575,13 @@ export function canAccessRoute(
   permissions: string[] = [],
   tenantFeatures: string[] = [],
 ): boolean {
+  const [rawPath, rawQuery] = pathname.split("?");
   const normalizedPath =
-    pathname.replace(
+    rawPath.replace(
       /\/+$/,
       "",
     ) || "/";
+  const currentQuery = new URLSearchParams(rawQuery || "");
 
   const normalizedRoles =
     roles.map((role) =>
@@ -1635,8 +1637,16 @@ export function canAccessRoute(
 
   const matchingItems = ROLE_NAVIGATION
     .filter((item) => {
-      const href = item.href.replace(/\/+$/, "") || "/";
-      return normalizedPath === href || normalizedPath.startsWith(href + "/");
+      const [itemPath, itemQuery] = item.href.split("?");
+      const href = itemPath.replace(/\/+$/, "") || "/";
+      if (normalizedPath !== href && !normalizedPath.startsWith(href + "/")) return false;
+      if (itemQuery) {
+        const required = new URLSearchParams(itemQuery);
+        for (const [key, value] of required.entries()) {
+          if (currentQuery.get(key) !== value) return false;
+        }
+      }
+      return true;
     })
     .sort((a, b) => b.href.length - a.href.length);
 
