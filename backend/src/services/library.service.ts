@@ -741,3 +741,88 @@ export async function getLibrarySummary(institutionId: string) {
     outstandingFines: round2(Math.max(0, billed - paid)),
   };
 }
+
+
+export async function requestFineWaiver(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  fineId: string,
+  reason: string,
+  amount?: number,
+  meta: Meta = {}
+) {
+  if (!actor.permissions.includes("library.fines.waive.request")) {
+    throw new AppError("Library fine waiver requests are not authorized", 403);
+  }
+  if (!reason?.trim()) throw new AppError("Waiver reason is required", 400);
+  const fine = await prisma.libraryFine.findFirst({ where: { id: fineId, institutionId } });
+  if (!fine) throw new AppError("Library fine not found", 404);
+  const remaining = Math.max(0, Number(fine.originalAmount) - Number(fine.waivedAmount));
+  const requested = amount === undefined ? remaining : amount;
+  if (requested <= 0 || requested > remaining) throw new AppError("Waiver amount must be within the remaining fine balance", 400);
+  const updated = await prisma.libraryFine.update({
+    where: { id: fineId },
+    data: { requestedById: actor.id, status: "WAIVER_REQUESTED", waiverReason: reason.trim() },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "library.fine.waiver.request", entityType: "LibraryFine", entityId: fineId, metadata: { requestedAmount: requested, remainingAmount: remaining, reason: reason.trim() }, ...meta });
+  return updated;
+}
+
+export async function approveFineWaiver(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  fineId: string,
+  amount: number,
+  reason: string,
+  meta: Meta = {}
+) {
+  if (!actor.permissions.includes("library.fines.waive.approve")) {
+    throw new AppError("Library fine waiver approval is not authorized", 403);
+  }
+  if (!Number.isFinite(amount) || amount <= 0 || !reason?.trim()) {
+    throw new AppError("A positive waiver amount and reason are required", 400);
+  }
+  const result = await prisma.$transaction(async tx => {
+    const fine = await tx.libraryFine.findFirst({ where: { id: fineId, institutionId } });
+    if (!fine) throw new AppError("Library fine not found", 404);
+    const remaining = Math.max(0, Number(fine.originalAmount) - Number(fine.waivedAmount));
+    if (amount > remaining + 0.005) throw new AppError("Waiver exceeds the remaining fine balance", 400);
+    const newWaived = Number(fine.waivedAmount) + amount;
+    const newStatus = newWaived >= Number(fine.originalAmount) - 0.005 ? "WAIVED" : "PARTIAL";
+    await tx.libraryFine.update({
+      where: { id: fineId },
+      data: { waivedAmount: newWaived, status: newStatus, approvedById: actor.id, approvedAt: new Date(), waiverReason: reason.trim() },
+    });
+    if (fine.financialInvoiceId) {
+      const invoice = await tx.feeInvoice.findFirst({ where: { id: fine.financialInvoiceId, institutionId } });
+      if (invoice) {
+        const newAmount = Math.max(0, Number(invoice.amount) - amount);
+        await tx.feeInvoice.update({
+          where: { id: invoice.id },
+          data: { amount: newAmount, discountAmount: Number(invoice.discountAmount ?? 0) + amount, status: newAmount <= Number(invoice.paidAmount ?? 0) ? "PAID" : "PARTIAL" },
+        });
+      }
+    }
+    return { id: fine.id, originalAmount: Number(fine.originalAmount), waivedAmount: newWaived, remainingAmount: Math.max(0, Number(fine.originalAmount) - newWaived), status: newStatus };
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "library.fine.waiver.approve", entityType: "LibraryFine", entityId: fineId, metadata: { ...result, amount, reason: reason.trim() }, ...meta });
+  return result;
+}
+
+export async function listFines(institutionId: string, actor: AuthenticatedUser, pagination: PaginationParams) {
+  if (!actor.permissions.includes("library.read")) throw new AppError("Library access is not authorized", 403);
+  const [items, total] = await Promise.all([
+    prisma.libraryFine.findMany({
+      where: { institutionId },
+      orderBy: { createdAt: "desc" },
+      skip: pagination.skip,
+      take: pagination.take,
+      include: {
+        issue: { include: { book: { select: { id: true, title: true } } } },
+        financialInvoice: { select: { id: true, amount: true, paidAmount: true, status: true, receiptNumber: false } },
+      },
+    }),
+    prisma.libraryFine.count({ where: { institutionId } }),
+  ]);
+  return { items, total };
+}
