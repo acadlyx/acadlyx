@@ -125,6 +125,7 @@ async function uploadPath(input: Omit<import("./FileStorageProvider").StorageUpl
 export const cloudinaryProvider: FileStorageProvider = {
   upload,
   uploadStream,
+  uploadPath,
 
   async delete({ publicId, resourceType = "image" }) {
     configure();
