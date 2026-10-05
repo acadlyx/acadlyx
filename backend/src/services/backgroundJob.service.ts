@@ -111,14 +111,14 @@ export function backoffMs(attempt: number) {
 export async function recoverStaleJobs(staleAfterMs: number) {
   const cutoff = new Date(Date.now() - staleAfterMs);
   const stale = await prisma.backgroundJob.findMany({
-    where: { status: JOB_STATUS.PROCESSING, lastHeartbeatAt: { lt: cutoff } },
+    where: { status: JOB_STATUS.PROCESSING, OR: [{ lastHeartbeatAt: { lt: cutoff } }, { lastHeartbeatAt: null, startedAt: { lt: cutoff } }] },
     select: { id: true, attemptCount: true, maxAttempts: true }, take: 100,
   });
   let recovered = 0;
   for (const job of stale) {
     const retry = job.attemptCount < job.maxAttempts;
     const result = await prisma.backgroundJob.updateMany({
-      where: { id: job.id, status: JOB_STATUS.PROCESSING, lastHeartbeatAt: { lt: cutoff }},
+      where: { id: job.id, status: JOB_STATUS.PROCESSING, OR: [{ lastHeartbeatAt: { lt: cutoff } }, { lastHeartbeatAt: null, startedAt: { lt: cutoff } }] },
       data: retry
         ? { status: JOB_STATUS.QUEUED, availableAt: new Date(Date.now() + backoffMs(job.attemptCount)),
             workerId: null, lastHeartbeatAt: null, errorCode: "STALE_WORKER",
