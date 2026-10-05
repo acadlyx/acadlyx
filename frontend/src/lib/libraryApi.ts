@@ -1,5 +1,6 @@
 import { authedFetch } from "./auth";
 import { buildQuery, Envelope, PagedEnvelope, PageMeta } from "./httpShared";
+import { invalidateErpWorkspace } from "./erpApi";
 
 export const LOAN_STATUSES = [
   "RESERVED",
@@ -163,6 +164,7 @@ export async function issueBook(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+  invalidateErpWorkspace();
   return res.data;
 }
 
@@ -174,6 +176,7 @@ export async function returnLoan(
     `/library/loans/${id}/return`,
     { method: "POST", body: JSON.stringify(input) }
   );
+  invalidateErpWorkspace();
   return res.data;
 }
 
