@@ -907,6 +907,110 @@ export async function approveFeeStructure(
 }
 
 
+
+export async function assignFeeStructure(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string,
+  requestedStudentIds?: string[]
+) {
+  if (!actor.permissions.includes("fees.assign")) {
+    throw new AppError("Fee assignment is not authorized", 403);
+  }
+
+  const structure = await prisma.$queryRaw<Array<{
+    id: string; status: string; academicYearId: string | null; programId: string | null; semesterId: string | null;
+  }>>(Prisma.sql`
+    SELECT "id","status","academicYearId","programId","semesterId"
+    FROM "fee_structures" WHERE "id"=${structureId} AND "institutionId"=${institutionId} LIMIT 1
+  `);
+  if (!structure[0]) throw new AppError("Fee structure not found", 404);
+  if (structure[0].status !== "ACTIVE") throw new AppError("Only an ACTIVE fee structure can be assigned", 409);
+
+  const items = await prisma.$queryRaw<Array<{ feeHeadId: string; feeHeadName: string; amount: number; dueDays: number | null; installmentNumber: number }>>(Prisma.sql`
+    SELECT fsi."feeHeadId", fh."name" AS "feeHeadName", fsi."amount"::double precision AS "amount",
+           fsi."dueDays", fsi."installmentNumber"
+    FROM "fee_structure_items" fsi
+    JOIN "fee_heads" fh ON fh."id"=fsi."feeHeadId"
+    WHERE fsi."feeStructureId"=${structureId}
+    ORDER BY fsi."installmentNumber", fh."name"
+  `);
+  if (!items.length) throw new AppError("Fee structure has no billable items", 409);
+
+  let studentIds: string[];
+  if (requestedStudentIds?.length) {
+    studentIds = [...new Set(requestedStudentIds)];
+    const count = await prisma.user.count({
+      where: { institutionId, id: { in: studentIds }, isActive: true, userRoles: { some: { role: { name: "STUDENT" } } } },
+    });
+    if (count !== studentIds.length) throw new AppError("One or more students are not valid members of this institution", 400);
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: {
+        institutionId, userId: { in: studentIds }, status: "ACTIVE",
+        ...(structure[0].academicYearId ? { academicYearId: structure[0].academicYearId } : {}),
+        ...(structure[0].programId ? { programId: structure[0].programId } : {}),
+        ...(structure[0].semesterId ? { semesterId: structure[0].semesterId } : {}),
+      },
+      select: { userId: true }, distinct: ["userId"],
+    });
+    const enrolled = new Set(enrollments.map(x => x.userId));
+    studentIds = studentIds.filter(id => enrolled.has(id));
+  } else {
+    if (!structure[0].academicYearId && !structure[0].programId && !structure[0].semesterId) {
+      throw new AppError("Fee structure requires academic context or an explicit student selection before assignment", 400);
+    }
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: {
+        institutionId, status: "ACTIVE",
+        ...(structure[0].academicYearId ? { academicYearId: structure[0].academicYearId } : {}),
+        ...(structure[0].programId ? { programId: structure[0].programId } : {}),
+        ...(structure[0].semesterId ? { semesterId: structure[0].semesterId } : {}),
+      },
+      select: { userId: true }, distinct: ["userId"],
+    });
+    studentIds = enrollments.map(x => x.userId);
+  }
+  if (!studentIds.length) return { structureId, generated: 0, skipped: 0 };
+
+  const groups = new Map<number, typeof items>();
+  for (const item of items) groups.set(item.installmentNumber, [...(groups.get(item.installmentNumber) ?? []), item]);
+
+  let generated = 0;
+  let skipped = 0;
+  await prisma.$transaction(async tx => {
+    for (const studentId of studentIds) {
+      for (const [installment, installmentItems] of groups) {
+        const eventKey = `FEE_STRUCTURE_ASSIGNMENT:${structureId}:${studentId}:${installment}`;
+        const existing = await tx.feeInvoice.findFirst({ where: { institutionId, sourceEventKey: eventKey }, select: { id: true } });
+        if (existing) { skipped++; continue; }
+        const gross = installmentItems.reduce((sum, item) => sum + Number(item.amount), 0);
+        const dueDays = installmentItems.reduce<number | null>((max, item) => item.dueDays == null ? max : Math.max(max ?? 0, item.dueDays), null);
+        const dueDate = dueDays == null ? null : new Date(Date.now() + dueDays * 86400000);
+        const invoice = await tx.feeInvoice.create({
+          data: {
+            institutionId, studentId, title: `Fee structure — Installment ${installment}`,
+            amount: gross, grossAmount: gross, dueDate, status: "PENDING",
+            feeStructureId: structureId, academicYearId: structure[0].academicYearId, semesterId: structure[0].semesterId,
+            installmentNumber: installment, sourceModule: "FEES", sourceType: "FEE_STRUCTURE_ASSIGNMENT",
+            sourceEntityId: structureId, sourceEventKey: eventKey,
+            items: { create: installmentItems.map(item => ({ feeHeadId: item.feeHeadId, description: item.feeHeadName, amount: item.amount })) },
+          },
+        });
+        await tx.feeTransaction.create({
+          data: { institutionId, studentId, invoiceId: invoice.id, amount: gross, type: "INVOICE", reference: eventKey, createdById: actor.id, metadata: { sourceModule: "FEES", feeStructureId: structureId, installmentNumber: installment } },
+        });
+        generated++;
+      }
+    }
+  });
+
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "fee-structure.assign", entityType: "FeeStructure", entityId: structureId,
+    metadata: { generated, skipped, studentCount: studentIds.length },
+  });
+  return { structureId, generated, skipped, studentCount: studentIds.length };
+}
+
 export async function updateFeeStructure(
   institutionId: string,
   actor: AuthenticatedUser,
