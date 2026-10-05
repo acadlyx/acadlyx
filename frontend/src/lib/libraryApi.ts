@@ -199,3 +199,31 @@ export async function cancelReservation(id: string): Promise<LibraryLoan> {
   );
   return res.data;
 }
+
+export interface LibraryFine {
+  id: string;
+  type: string;
+  originalAmount: number | string;
+  waivedAmount: number | string;
+  reason: string;
+  status: string;
+  issue: { id: string; book: { id: string; title: string } };
+  financialInvoice: { id: string; amount: number; paidAmount: number; status: string } | null;
+}
+
+export async function listLibraryFines(params: { page?: number } = {}) {
+  const res = await authedFetch<PagedEnvelope<LibraryFine>>("/library/fines" + buildQuery(params as Record<string, string | number | undefined>));
+  return { items: res.data, meta: res.meta };
+}
+
+export async function requestFineWaiver(id: string, reason: string, amount?: number) {
+  const res = await authedFetch<Envelope<LibraryFine>>("/library/fines/" + id + "/waiver-request", { method: "POST", body: JSON.stringify({ reason, amount }) });
+  invalidateErpWorkspace();
+  return res.data;
+}
+
+export async function approveFineWaiver(id: string, amount: number, reason: string) {
+  const res = await authedFetch<Envelope<unknown>>("/library/fines/" + id + "/waiver-approve", { method: "POST", body: JSON.stringify({ amount, reason }) });
+  invalidateErpWorkspace();
+  return res.data;
+}
