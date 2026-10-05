@@ -236,7 +236,3 @@ export const feeStructureListSchema =
         .enum(["true", "false"])
         .optional(),
   });
-
-
-  studentIds: z.array(uuid).max(10000).optional(),
-});
