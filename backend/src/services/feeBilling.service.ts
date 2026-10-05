@@ -1222,7 +1222,7 @@ export async function getReceipt(
 export async function requestRefund(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { paymentId: string; amount: number; reason: string },
+  input: { feePaymentId: string; amount: number; reason: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanManageFees(actor);
