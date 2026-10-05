@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { normalizeRoleName } from "../config/rbac";
 import { hashPassword } from "../utils/password";
+import { recordAuditLog } from "./audit.service";
 
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
 export type ImportType = typeof IMPORT_TYPES[number];
@@ -343,7 +344,7 @@ export async function commit(
   const rows = parseWorkbook(buffer).rows;
   if (!rows.length) throw new AppError("The first sheet contains no data rows", 400);
 
-  const mode = options.mode === "atomic" ? "atomic" : "partial";
+  // Safe ERP default: bulk mutations are atomic unless an operator explicitly opts into partial mode.\n  const mode = options.mode === "partial" ? "partial" : "atomic";
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
 
@@ -361,13 +362,28 @@ export async function commit(
         }
       });
     } catch (error) {
-      return {
+      const result = {
+      mode,
+      imported: 0,
+      failed: rows.length,
+      rolledBack: true,
+      errors: [{ row: 0, message: error instanceof Error ? error.message : "Atomic import failed and was rolled back." }],
+    };
+    await recordAuditLog({
+      institutionId,
+      userId: actor.id,
+      action: "import.commit",
+      entityType: "Import",
+      metadata: {
+        type,
         mode,
-        imported: 0,
-        failed: rows.length,
-        rolledBack: true,
-        errors: [{ row: 0, message: error instanceof Error ? error.message : "Atomic import failed and was rolled back." }],
-      };
+        totalRows: rows.length,
+        imported: result.imported,
+        failed: result.failed,
+        rolledBack: result.rolledBack,
+      },
+    });
+    return result;
     }
 
     return { mode, imported, failed: 0, rolledBack: false, errors: [] };
@@ -384,11 +400,26 @@ export async function commit(
     }
   }
 
-  return {
+  const result = {
     mode,
     imported,
     failed: errors.length,
     rolledBack: false,
     errors,
   };
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "import.commit",
+    entityType: "Import",
+    metadata: {
+      type,
+      mode,
+      totalRows: rows.length,
+      imported,
+      failed: errors.length,
+      rolledBack: false,
+    },
+  });
+  return result;
 }
