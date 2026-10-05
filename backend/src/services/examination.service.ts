@@ -185,6 +185,11 @@ export interface CreateExamSessionInput {
   endDate: Date;
   academicYearId?: string;
   semesterId?: string;
+  campusIds?: string[];
+  departmentIds?: string[];
+  programIds?: string[];
+  semesterIds?: string[];
+  sectionIds?: string[];
   hallTicketReleaseAt?: Date;
   instructions?: string;
 }
