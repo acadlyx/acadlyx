@@ -82,7 +82,7 @@ export const updateTenantEntitlementsSchema = z.object({
   renewsAt: z.coerce.date().nullable().optional(),
   studentLimit: optionalLimit, userLimit: optionalLimit, facultyLimit: optionalLimit, storageLimitMb: optionalLimit,
   features: z.array(z.object({
-    featureKey: z.enum(["students", "faculty", "attendance", "timetable", "exams", "results", "assignments", "fees", "payments", "parent_portal", "notices", "notifications", "reports", "import_export", "cms", "documents", "analytics", "intelligence", "placements"]),
+    featureKey: z.enum(["academics", "students", "faculty", "attendance", "timetable", "exams", "results", "assignments", "fees", "payments", "parent_portal", "notices", "notifications", "reports", "import_export", "cms", "documents", "analytics", "intelligence", "placements", "admissions", "hr", "leave", "library", "calendar", "registration", "promotions", "certificates", "audit", "lms", "operations", "obe"]),
     isEnabled: z.boolean(), limitValue: optionalLimit, override: z.record(z.unknown()).nullable().optional(),
   })).max(32).optional(),
 });
