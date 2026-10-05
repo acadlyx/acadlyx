@@ -466,8 +466,8 @@ export async function generateInvoicesFromStructure(
              ${input.feeStructureId}, ${structure.academicYearId},
              ${structure.semesterId}, ${item.installmentNumber}, ${item.amount},
              ${itemDiscount}, ${structure.currency ?? paymentCurrency()}, ${actor.id},
-             "FEES", "FEE_STRUCTURE_ASSIGNMENT", ${input.feeStructureId},
-             "FEE_STRUCTURE_ASSIGNMENT:" + input.feeStructureId + ":" + studentId + ":" + item.installmentNumber)
+             ${"FEES"}, ${"FEE_STRUCTURE_ASSIGNMENT"}, ${input.feeStructureId},
+             ${"FEE_STRUCTURE_ASSIGNMENT:" + input.feeStructureId + ":" + studentId + ":" + item.installmentNumber})
         `;
         created += 1;
       }
