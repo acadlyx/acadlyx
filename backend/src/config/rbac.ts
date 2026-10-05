@@ -864,6 +864,7 @@ export const ROLE_PERMISSIONS: Record<
 
   ACCOUNTS: [
     "students.read",
+    "programs.read",
     "fees.collection.read",
     "fees.structure.read",
     "fees.structure.manage",
