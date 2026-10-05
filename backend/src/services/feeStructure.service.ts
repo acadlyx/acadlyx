@@ -705,6 +705,24 @@ export async function createFeeStructure(
     );
   }
 
+  if (input.programId && input.semesterId) {
+    const semesterContext = await prisma.semester.findFirst({
+      where: {
+        id: input.semesterId,
+        institutionId,
+        programId: input.programId,
+        ...(input.academicYearId ? { academicYearId: input.academicYearId } : {}),
+      },
+      select: { id: true },
+    });
+    if (!semesterContext) {
+      throw new AppError(
+        "Semester must belong to the selected program and academic year",
+        400
+      );
+    }
+  }
+
   const seen =
     new Set<string>();
 
@@ -925,7 +943,14 @@ export async function assignFeeStructure(
     });
     if (count !== studentIds.length) throw new AppError("One or more students are not valid members of this institution", 400);
     const enrollments = await prisma.studentEnrollment.findMany({
-      where: { institutionId, userId: { in: studentIds }, status: "ACTIVE" },
+      where: {
+        institutionId,
+        userId: { in: studentIds },
+        status: "ACTIVE",
+        ...(structure[0].academicYearId ? { academicYearId: structure[0].academicYearId } : {}),
+        ...(structure[0].programId ? { programId: structure[0].programId } : {}),
+        ...(structure[0].semesterId ? { semesterId: structure[0].semesterId } : {}),
+      },
       select: { userId: true },
       distinct: ["userId"],
     });
