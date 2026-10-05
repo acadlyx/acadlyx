@@ -227,15 +227,19 @@ export async function getPendingAttendanceCount(
 /** Real count: submissions awaiting review (SUBMITTED or LATE, not yet REVIEWED) across this faculty's assignments. */
 export async function getPendingAssignmentReviewCount(
   institutionId: string,
-  facultyId: string
+  facultyId: string,
+  offeringsOverride?: Awaited<ReturnType<typeof getMyCourseOfferings>>,
 ): Promise<number> {
-  await assertFacultyInInstitution(institutionId, facultyId);
+  const offerings =
+    offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
+  const offeringIds = offerings.map((offering) => offering.id);
+  if (offeringIds.length === 0) return 0;
 
   return prisma.assignmentSubmission.count({
     where: {
       institutionId,
       status: { in: ["SUBMITTED", "LATE"] },
-      assignment: { courseOffering: { facultyId } },
+      assignment: { courseOfferingId: { in: offeringIds } },
     },
   });
 }
