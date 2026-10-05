@@ -1994,7 +1994,8 @@ export async function recordPayment(
       });
       if (!current) throw new AppError("Invoice not found", 404);
 
-      const alreadyPaid = Number(current.paidAmount || 0);
+      const paymentTotals = await tx.feePayment.aggregate({ where: { institutionId, invoiceId, status: "SUCCESS" }, _sum: { amount: true } });
+      const alreadyPaid = Math.max(Number(current.paidAmount || 0), Number(paymentTotals._sum.amount || 0));
       const outstanding = Math.max(0, Number(current.amount) - alreadyPaid);
       if (amount > outstanding + 0.005) {
         throw new AppError("Payment exceeds the outstanding invoice balance", 400);
