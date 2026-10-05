@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 
 import * as campusController from "../controllers/campus.controller";
 
@@ -56,6 +57,28 @@ router.patch(
     updateCampusSchema
   ),
   campusController.update
+);
+
+router.get(
+  "/:id/access",
+  authorize("campuses.read"),
+  campusController.listAccess
+);
+
+router.post(
+  "/:id/access",
+  authorize("campuses.update"),
+  validateBody(z.object({
+    userId: z.string().uuid(),
+    scope: z.string().trim().min(1).max(50).optional(),
+  })),
+  campusController.assignAccess
+);
+
+router.delete(
+  "/:id/access/:userId",
+  authorize("campuses.update"),
+  campusController.revokeAccess
 );
 
 router.delete(
