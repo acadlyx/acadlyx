@@ -42,6 +42,7 @@ export interface SafeUser {
   lastName: string;
   roles: string[];
   permissions: string[];
+  tenantFeatures?: string[];
 }
 
 type RoleBinding = {
@@ -229,7 +230,8 @@ function toSafeUser(
   user: User,
   roles: string[],
   permissions: string[],
-  institutionId: string | null
+  institutionId: string | null,
+  tenantFeatures: string[] = []
 ): SafeUser {
   return {
     id: user.id,
@@ -240,6 +242,7 @@ function toSafeUser(
     lastName: user.lastName,
     roles,
     permissions,
+    tenantFeatures,
   };
 }
 
@@ -825,11 +828,19 @@ export async function getCurrentUser(
     institutionId
   );
 
+  const tenantFeatures = institutionId
+    ? (await prisma.tenantFeatureEntitlement.findMany({
+        where: { institutionId, isEnabled: true },
+        select: { featureKey: true },
+      })).map((item) => item.featureKey)
+    : [];
+
   return toSafeUser(
     user,
     roles,
     permissions,
-    institutionId
+    institutionId,
+    tenantFeatures
   );
 }
 
