@@ -209,6 +209,7 @@ export const PERMISSIONS = [
   { key: "fees.collection.read", module: "fees", description: "View authorized fee collection summaries" },
   { key: "fees.structure.read", module: "fees", description: "View fee structures and heads" },
   { key: "fees.structure.manage", module: "fees", description: "Create and update fee structures and heads" },
+  { key: "fees.structure.approve", module: "fees", description: "Approve fee structures for institutional billing" },
   { key: "fees.assign", module: "fees", description: "Assign fees and generate invoices" },
   { key: "fees.invoice.read", module: "fees", description: "View authorized invoices" },
   { key: "fees.invoice.manage", module: "fees", description: "Create, update and cancel invoices" },
@@ -507,6 +508,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
     INSTITUTION_ADMIN: [
+    "fees.structure.read",
+    "fees.structure.manage",
     /*
      * Institution-wide administrative role.
      *
@@ -617,6 +620,9 @@ export const ROLE_PERMISSIONS: Record<
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "fees.structure.read",
+    "fees.structure.manage",
+    "fees.structure.approve",
     "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
