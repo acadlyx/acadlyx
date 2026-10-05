@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../lib/prisma";
 import { logger } from "../utils/logger";
-import { claimNextJob, completeJob, failJob, heartbeatJob, recoverStaleJobs, isCancellationRequested, updateJobProgress } from "../services/backgroundJob.service";
+import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, recoverStaleJobs, isCancellationRequested, updateJobProgress } from "../services/backgroundJob.service";
 import { getJobHandler } from "./registry";
 import "./handlers/admitCard.handler";
 
@@ -33,7 +33,8 @@ async function execute(job: NonNullable<Awaited<ReturnType<typeof claimNextJob>>
     logger.info("Background job started", { jobId: job.id, type: job.type, workerId });
     const result = await getJobHandler(job.type as never)(ctx);
     const cancelled = await isCancellationRequested(job.id);
-    if (!cancelled && (result?.cancelled !== true)) await completeJob(job.id, workerId, (result ?? undefined) as never);
+    if (cancelled || result?.cancelled === true) await cancelClaimedJob(job.id, workerId);
+    else await completeJob(job.id, workerId, (result ?? undefined) as never);
     logger.info("Background job finished", { jobId: job.id, type: job.type, workerId, cancelled });
   } catch (error) {
     await failJob(job.id, workerId, error, retryable(error));
