@@ -1,3 +1,5 @@
+ALTER TABLE "library_issues" ADD COLUMN IF NOT EXISTS "note" TEXT;
+
 -- The existing ERP expansion already owns LibraryBook/LibraryIssue stock
 -- columns. This migration only provisions the configurable default financial
 -- heads required by the Library -> Accounts pipeline.
