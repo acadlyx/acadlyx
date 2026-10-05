@@ -20,6 +20,7 @@ export const DASHBOARD_IDS = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
@@ -41,18 +42,13 @@ export const DASHBOARD_IDS = [
 export type DashboardId =
   (typeof DASHBOARD_IDS)[number];
 
-const ROLE_ALIASES: Record<
-  string,
-  string
-> = {
-  MANAGEMENT: "CHAIRMAN",
-  STAFF: "ACCOUNTS",
-};
+const ROLE_ALIASES: Record<string, string> = {};
 
 const DASHBOARD_PRIORITY = [
   "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
