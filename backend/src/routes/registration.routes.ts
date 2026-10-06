@@ -94,6 +94,11 @@ router.get(
           typeof req.query.studentId === "string" ? req.query.studentId : undefined,
         semesterId:
           typeof req.query.semesterId === "string" ? req.query.semesterId : undefined,
+        programId: typeof req.query.programId === "string" ? req.query.programId : undefined,
+        academicYearId: typeof req.query.academicYearId === "string" ? req.query.academicYearId : undefined,
+        sectionId: typeof req.query.sectionId === "string" ? req.query.sectionId : undefined,
+        courseId: typeof req.query.courseId === "string" ? req.query.courseId : undefined,
+        facultyId: typeof req.query.facultyId === "string" ? req.query.facultyId : undefined,
         search: searchTerm(req.query.search),
       }
     );
