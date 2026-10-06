@@ -342,3 +342,12 @@ export const deactivate =
         });
     }
   );
+
+
+export const workspace = asyncHandler(async (req: Request, res: Response) => {
+  const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertDepartmentInScope(institutionId, actor, req.params.id);
+  const data = await departmentService.getDepartmentWorkspace(institutionId, req.params.id);
+  res.status(200).json({ success: true, data });
+});
