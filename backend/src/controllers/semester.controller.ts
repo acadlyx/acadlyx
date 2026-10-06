@@ -18,6 +18,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const programId = (req.query.programId as string | undefined) || undefined;
   const academicYearId =
     (req.query.academicYearId as string | undefined) || undefined;
+  const departmentId =
+    (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
 
