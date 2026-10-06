@@ -125,6 +125,7 @@ model Institution {
   libraryFines LibraryFine[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
+  studentEnrollmentRequests StudentEnrollmentRequest[]
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
 
@@ -283,6 +284,8 @@ model User {
   libraryIssues LibraryIssue[] @relation("LibraryBorrower")
   libraryFines LibraryFine[] @relation("LibraryFineStudent")
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
+  studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
+  enrollmentRequestsDecided StudentEnrollmentRequest[] @relation("EnrollmentRequestDecider")
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
   certificates Certificate[] @relation("CertificateStudent")
   backgroundJobsCreated BackgroundJob[] @relation("BackgroundJobCreatedBy")
@@ -529,6 +532,7 @@ model Program {
   obePolicies ObeAttainmentPolicy[]
 
   studentEnrollments StudentEnrollment[]
+  studentEnrollmentRequests StudentEnrollmentRequest[]
   feeStructures FeeStructure[]
 
   admissionApplications AdmissionApplication[]
@@ -619,6 +623,7 @@ model Semester {
   courseOfferings CourseOffering[]
   feeStructures FeeStructure[]
   studentEnrollments StudentEnrollment[]
+  studentEnrollmentRequests StudentEnrollmentRequest[]
 
   @@unique([programId, academicYearId, number])
   @@index([institutionId])
@@ -646,6 +651,7 @@ model Section {
   courseOfferings CourseOffering[]
 
   studentEnrollments StudentEnrollment[]
+  studentEnrollmentRequests StudentEnrollmentRequest[]
 
   @@unique([semesterId, name])
   @@index([institutionId])
@@ -824,6 +830,40 @@ model StudentEnrollment {
   @@index([institutionId, academicYearId, sectionId, status])
   @@map("student_enrollments")
 }
+
+model StudentEnrollmentRequest {
+  id              String   @id @default(uuid())
+  institutionId   String
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User     @relation("EnrollmentRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  programId       String
+  program         Program  @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId  String
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  semesterId      String
+  semester        Semester @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  sectionId       String?
+  section         Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  requestedById   String
+  requestedBy     User     @relation("EnrollmentRequestRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  status          String   @default("PENDING") // DRAFT | PENDING | APPROVED | REJECTED | NEEDS_CORRECTION | CANCELLED
+  decidedById     String?
+  decidedBy       User?    @relation("EnrollmentRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  rejectionReason String?
+  correctionNote  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([studentId, academicYearId])
+  @@index([institutionId, status, createdAt])
+  @@index([institutionId, programId, academicYearId, semesterId, status])
+  @@index([studentId, status])
+  @@index([sectionId, status])
+  @@map("student_enrollment_requests")
+}
+
 
 // ==========================================================
 // ATTENDANCE (Phase 4 — foundation; reports/analytics land in
