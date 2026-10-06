@@ -30,6 +30,7 @@ export const listCourseOfferingsQuerySchema = z.object({
   semesterId: z.string().uuid().optional(),
   sectionId: z.string().uuid().optional(),
   facultyId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
   isActive: z.enum(["true", "false"]).optional(),
 });
 
