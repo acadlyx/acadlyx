@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
 import { AuthRequiredError, authedFetch, getCurrentUser, type AuthUser } from "@/lib/auth";
@@ -239,6 +239,8 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const departmentId = searchParams.get("departmentId") || "";
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
   const [lookupData, setLookupData] = useState<Record<LookupSource, Row[]>>({
@@ -264,7 +266,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const sources = Array.from(new Set(config.fields.map((field) => field.source).filter(Boolean))) as LookupSource[];
     const entries = await Promise.all(sources.map(async (source) => {
       try {
-        const response = await authedFetch<{ data: unknown }>(LOOKUPS[source]);
+        const response = await authedFetch<{ data: unknown }>(`${LOOKUPS[source]}${LOOKUPS[source].includes("?") ? "&" : "?"}${departmentId && ["programs","semesters","sections","courses"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
         return [source, normalizeRows(response.data)] as const;
       } catch {
         return [source, []] as const;
@@ -272,7 +274,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     }));
     setLookupData((current) => ({ ...current, ...Object.fromEntries(entries) }));
     setLookupsLoading(false);
-  }, [config.fields]);
+  }, [config.fields, departmentId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,7 +282,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ background: true }),
-        authedFetch<{ data: unknown }>(`${config.endpoint}?page=1&pageSize=500`),
+        authedFetch<{ data: unknown }>(`${config.endpoint}?page=1&pageSize=500${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -294,13 +296,13 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, loadLookups, router]);
+  }, [config.endpoint, departmentId, loadLookups, router]);
 
   useEffect(() => { void load(); }, [load]);
 
   const openCreate = () => {
     setEditingRow(null);
-    setForm(initialForm(module, lookupData));
+    const next = initialForm(module, lookupData);\n    if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;\n    setForm(next);
     setNotice("");
     setError("");
     setEditorOpen(true);
@@ -413,7 +415,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
         <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Academic structure management</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{departmentId ? "Department-scoped academic structure" : "Academic structure management"}</p>
             <h1 className="mt-1 text-2xl font-black text-slate-950">{config.title}</h1>
             <p className="mt-1 text-sm text-slate-500">{loading ? "Loading…" : `${rows.length} records returned from the institution.`}</p>
           </div>
@@ -464,7 +466,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                     onChange={(value) => setField(field, value)}
                     placeholder={dependencyMissing ? `Select ${field.label.toLowerCase()} after its parent` : (field.placeholder ?? `Select ${field.label.toLowerCase()}`)}
                     searchPlaceholder={`Search ${field.label.toLowerCase()}…`}
-                    disabled={Boolean(dependencyMissing)}
+                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId")}
                     loading={lookupsLoading}
                     getLabel={(item) => labelFor(field.source as LookupSource, item)}
                   /> : <input
