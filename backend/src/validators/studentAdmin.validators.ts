@@ -24,6 +24,7 @@ export const listStudentsQuerySchema = z.object({
     ])
     .optional(),
   academicYearId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
   programId: z.string().uuid().optional(),
   semesterId: z.string().uuid().optional(),
   sectionId: z.string().uuid().optional(),
