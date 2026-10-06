@@ -22,6 +22,11 @@ router.get(
   departmentController.list
 );
 router.get(
+  "/:id/workspace",
+  authorize("departments.read"),
+  departmentController.workspace
+);
+router.get(
   "/:id",
   authorize("departments.read"),
   departmentController.getById
