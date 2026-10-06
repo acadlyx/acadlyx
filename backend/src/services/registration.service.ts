@@ -87,11 +87,15 @@ export async function listAvailableOfferings(
 ) {
   const enrollment = await activeEnrollment(institutionId, studentId);
   const semesterId = filters.semesterId ?? enrollment.semesterId ?? undefined;
+  if (filters.semesterId && filters.semesterId !== enrollment.semesterId) {
+    throw new AppError("You may only register courses for your active enrolled semester", 403);
+  }
 
   const where: Prisma.CourseOfferingWhereInput = {
     institutionId,
     isActive: true,
     ...(semesterId ? { semesterId } : {}),
+    ...(enrollment.sectionId ? { sectionId: enrollment.sectionId } : {}),
     ...(filters.electivesOnly ? { isElective: true } : {}),
     ...(filters.search
       ? {
@@ -226,7 +230,7 @@ export async function register(
         capacity: true,
         registrationOpen: true,
         semesterId: true,
-        course: { select: { id: true, credits: true, code: true } },
+        course: { select: { id: true, credits: true, code: true, departmentId: true } },
         section: { select: { id: true, capacity: true } },
       },
     });
@@ -237,11 +241,14 @@ export async function register(
 
     /* A student may only register inside the semester they are enrolled
        in — cross-semester registration corrupts attendance and results. */
-    if (enrollment.semesterId && offering.semesterId !== enrollment.semesterId) {
-      throw new AppError(
-        "This offering belongs to a different semester than your enrollment",
-        422
-      );
+    if (!enrollment.semesterId || offering.semesterId !== enrollment.semesterId) {
+      throw new AppError("This offering belongs to a different semester than your enrollment", 422);
+    }
+    if (offering.section?.id !== enrollment.sectionId) {
+      throw new AppError("This offering belongs to a different section than your enrollment", 422);
+    }
+    if (offering.course.departmentId !== enrollment.program.departmentId) {
+      throw new AppError("This course is outside your enrolled department", 403);
     }
 
     const existing = await tx.courseRegistration.findUnique({
