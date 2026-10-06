@@ -61,7 +61,12 @@ export async function commitImport(type: DataType, file: File): Promise<ImportCo
   return body.data;
 }
 
-export async function getImportJob(jobId: string) {\n  const body = await authedFetch<{ data: { id: string; status: string; progress: number; processed: number; failed: number; total: number; errorMessage: string | null; result: ImportCommitResult | null } }>(`/imports/jobs/${encodeURIComponent(jobId)}`);\n  return body.data;\n}\n\nexport async function exportData(type: DataType, format: "xlsx" | "csv") {
+export async function getImportJob(jobId: string) {
+  const body = await authedFetch<{ data: { id: string; status: string; progress: number; processed: number; failed: number; total: number; errorMessage: string | null; result: ImportCommitResult | null } }>(`/imports/jobs/${encodeURIComponent(jobId)}`);
+  return body.data;
+}
+
+export async function exportData(type: DataType, format: "xlsx" | "csv") {
   const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
