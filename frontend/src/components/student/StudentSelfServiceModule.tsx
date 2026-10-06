@@ -729,7 +729,7 @@ function RegistrationView() {
     setError("");
     try {
       const result = await bulkRegisterForOfferings(selected);
-      const skipped = result.length < selected.length;
+      const skipped = result.skipped > 0;
       setSelected([]);
       if (skipped) setError("Some selected courses could not be submitted. Review their current status and eligibility.");
       await load();
