@@ -3,7 +3,6 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
   getAuthorizedDepartmentIds,
-  getStaffDepartmentIds,
   isInstitutionWide,
 } from "./accessScope.service";
 
