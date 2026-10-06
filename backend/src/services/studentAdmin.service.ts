@@ -393,11 +393,31 @@ async function assertStudentListContext(
   actor: AuthenticatedUser,
   params: {
     academicYearId?: string;
+    departmentId?: string;
     programId?: string;
     semesterId?: string;
     sectionId?: string;
   }
 ) {
+  const department = params.departmentId
+    ? await prisma.department.findFirst({ where: { id: params.departmentId, institutionId, isActive: true }, select: { id: true } })
+    : null;
+  if (params.departmentId && !department) throw new AppError("Selected department is not available in this institution", 404);
+
+  const scope = await getStudentWhereScope(institutionId, actor);
+  if (params.departmentId) {
+    const probe = await prisma.user.findFirst({
+      where: {
+        institutionId,
+        userRoles: { some: { role: { name: "STUDENT", institutionId } } },
+        studentEnrollments: { some: { program: { departmentId: params.departmentId }, ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}), ...(params.programId ? { programId: params.programId } : {}), ...(params.semesterId ? { semesterId: params.semesterId } : {}), ...(params.sectionId ? { sectionId: params.sectionId } : {}) } },
+        ...scope,
+      },
+      select: { id: true },
+    });
+    if (!probe) throw new AppError("Selected department or academic context is outside your authorized scope", 403);
+  }
+
   const program = params.programId
     ? await prisma.program.findFirst({
         where: { id: params.programId, institutionId, isActive: true },
@@ -407,7 +427,7 @@ async function assertStudentListContext(
   if (params.programId && !program) throw new AppError("Selected program is not available in this institution", 404);
 
   const scope = await getStudentWhereScope(institutionId, actor);
-  if (program) {
+  if (program && !params.departmentId) {
     const probe = await prisma.user.findFirst({
       where: {
         institutionId,
@@ -528,6 +548,7 @@ export async function listStudents(
       ? {
           studentEnrollments: {
             some: {
+              ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
               ...(params.academicYearId
                 ? {
                     academicYearId:
