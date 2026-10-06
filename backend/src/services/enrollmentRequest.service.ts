@@ -6,7 +6,6 @@ import { getManagedDepartmentIds } from "./accessScope.service";
 import { PaginationParams } from "../utils/pagination";
 import { validateAcademicPlacement } from "./studentAdmin.service";
 
-const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED", "NEEDS_CORRECTION", "CANCELLED"] as const;
 
 const requestInclude = {
   student: {
