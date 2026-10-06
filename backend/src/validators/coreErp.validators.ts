@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordSchema } from "../utils/passwordPolicy";
 
 import {
   dateInput,
@@ -654,13 +655,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(32).max(200),
-  newPassword: z
-    .string()
-    .min(10, "must be at least 10 characters")
-    .max(200)
-    .regex(/[a-z]/, "must contain a lowercase letter")
-    .regex(/[A-Z]/, "must contain an uppercase letter")
-    .regex(/\d/, "must contain a digit"),
+  newPassword: passwordSchema,
 });
 
 // ==========================================================
