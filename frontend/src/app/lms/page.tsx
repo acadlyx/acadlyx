@@ -179,7 +179,7 @@ export default function LmsPage() {
         {tab !== "learning" && <section className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black text-slate-950">Assignments & Assessments</h2><p className="mt-1 text-sm text-slate-500">Uses the existing ACADLYX assignment, submission and marks architecture; this workspace does not create a duplicate assignment system.</p><a href={isStudent ? "/student/assignments" : "/faculty/assignments"} className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">{isStudent ? "My assignments" : "Open assignments"}</a></section>
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black text-slate-950">Attendance & Academic Records</h2><p className="mt-1 text-sm text-slate-500">Attendance, marks and course offerings remain connected to the canonical ERP records.</p><a href={isStudent ? "/student/attendance" : "/faculty/attendance"} className="mt-4 inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Open academic records</a></section>
-        </section>
+        </section>}
 
         {paper && (
           <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6">
