@@ -433,6 +433,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
             {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
             <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
           </div>
+          </div>
         </section>
 
         {notice ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</section> : null}
