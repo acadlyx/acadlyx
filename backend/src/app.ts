@@ -65,6 +65,7 @@ import userRoutes from "./routes/user.routes";
 import examinationRoutes from "./routes/examination.routes";
 import attendanceGovernanceRoutes from "./routes/attendanceGovernance.routes";
 import lmsRoutes from "./routes/lms.routes";
+import lmsProductionRoutes from "./routes/lmsProduction.routes";
 import feeBillingRoutes from "./routes/feeBilling.routes";
 import financeRoutes from "./routes/finance.routes";
 import parentPortalRoutes from "./routes/parentPortal.routes";
@@ -222,6 +223,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/examinations`, examinationRoutes);
   app.use(`${apiPrefix}/attendance`, attendanceGovernanceRoutes);
   app.use(`${apiPrefix}/lms`, lmsRoutes);
+  app.use(`${apiPrefix}/lms`, lmsProductionRoutes);
   app.use(`${apiPrefix}/billing`, feeBillingRoutes);
   app.use(`${apiPrefix}/finance`, financeRoutes);
   app.use(`${apiPrefix}/parent`, parentPortalRoutes);
