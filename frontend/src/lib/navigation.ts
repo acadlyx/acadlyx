@@ -46,6 +46,8 @@ export type NavigationItem = {
   permissions?: PermissionKey[];
   group?: string;
   children?: NavigationItem[];
+  /** Route matching strategy for active state. Nested is boundary-safe; exact is exact-only. */
+  activeMatch?: "exact" | "nested";
   /** Optional query parameters that must match for this item to be active. */
   activeQuery?: Record<string, string | null>;
 };
@@ -191,6 +193,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/admin",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["INSTITUTION_ADMIN"],
     group: "Administration",
@@ -279,6 +282,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/chairman",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["CHAIRMAN"],
     group: "Workspace",
@@ -342,6 +346,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/director",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["DIRECTOR"],
     group: "Workspace",
@@ -422,6 +427,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/dean",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["DEAN"],
     group: "Workspace",
@@ -502,6 +508,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/registrar",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["REGISTRAR"],
     group: "Workspace",
@@ -566,6 +573,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/hod",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["HOD"],
     group: "Workspace",
@@ -655,6 +663,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/faculty",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["FACULTY"],
     group: "Workspace",
@@ -734,6 +743,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/accounts",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["ACCOUNTS"],
     group: "Workspace",
@@ -838,6 +848,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/hr",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["HR"],
     group: "Workspace",
@@ -895,6 +906,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/examination",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["EXAMINATION"],
     group: "Workspace",
@@ -927,6 +939,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/library",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["LIBRARIAN"],
     group: "Workspace",
@@ -951,6 +964,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/placements",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["PLACEMENT"],
     group: "Workspace",
@@ -975,6 +989,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/it",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["IT"],
     group: "Workspace",
@@ -1000,6 +1015,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/student",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["STUDENT"],
     group: "Workspace",
@@ -1171,6 +1187,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/parent",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["PARENT"],
     group: "Workspace",
@@ -1179,6 +1196,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Overview",
     href: "/club-president",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["CLUB_PRESIDENT"],
     group: "Workspace",
@@ -1526,31 +1544,40 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem): boolean {
   const normalize = (value: string) => value.replace(/\/+$/, "") || "/";
-  const [hrefPath, hrefQuery] = item.href.split("?");
-  const currentPath = normalize(pathname.split("?")[0]);
-  const targetPath = normalize(hrefPath);
+  const [currentPathRaw, currentQueryRaw] = pathname.split("?");
+  const [hrefPathRaw, hrefQueryRaw] = item.href.split("?");
+  const currentPath = normalize(currentPathRaw);
+  const targetPath = normalize(hrefPathRaw);
 
-  if (currentPath !== targetPath && !currentPath.startsWith(targetPath + "/")) {
-    return false;
+  const matchMode = item.activeMatch ?? "nested";
+  const pathMatches =
+    matchMode === "exact"
+      ? currentPath === targetPath
+      : currentPath === targetPath || currentPath.startsWith(targetPath + "/");
+
+  if (!pathMatches) return false;
+
+  const requiredQuery = new URLSearchParams(hrefQueryRaw || "");
+  if (item.activeQuery) {
+    for (const [key, value] of Object.entries(item.activeQuery)) {
+      if (value === null) requiredQuery.delete(key);
+      else requiredQuery.set(key, value);
+    }
   }
 
-  const query = item.activeQuery;
-  if (!query) {
-    // Dashboard roots are exact-only. Other routes remain active for children.
-    return targetPath !== normalize("/") ? true : currentPath === "/";
+  const currentQuery =
+    currentQueryRaw !== undefined
+      ? new URLSearchParams(currentQueryRaw)
+      : typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : new URLSearchParams();
+
+  for (const [key, value] of requiredQuery.entries()) {
+    if (currentQuery.get(key) !== value) return false;
   }
 
-  const currentParams = new URLSearchParams(hrefQuery || "");
-  const required = { ...Object.fromEntries(currentParams.entries()), ...query };
-  const currentSearch = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search)
-    : new URLSearchParams();
-
-  return Object.entries(required).every(([key, value]) =>
-    value === null ? !currentSearch.has(key) : currentSearch.get(key) === value
-  );
+  return true;
 }
-
 export function getNavigationForRoles(
   roles: string[],
   permissions: string[] = [],
