@@ -28,7 +28,6 @@ const studentInclude = {
       { createdAt: "desc" },
     ],
     include: {
-      institutionId: true,
       program: {
         select: {
           id: true,
