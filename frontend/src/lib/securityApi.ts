@@ -2,7 +2,65 @@ import { apiFetch } from "./api";
 import { authedFetch } from "./auth";
 import { Envelope } from "./httpShared";
 
-/** Account security: MFA, password reset and session control. */
+/** Account security: password, MFA, recovery, sessions and login activity. */
+
+export interface SecuritySession {
+  id: string;
+  current: boolean;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  browser: string;
+  os: string;
+  device: string;
+}
+
+export interface LoginActivityEntry {
+  id: string;
+  action: string;
+  createdAt: string;
+  ipAddress: string | null;
+  browser: string;
+  os: string;
+  device: string;
+}
+
+export async function getSecuritySessions(): Promise<SecuritySession[]> {
+  const res = await authedFetch<Envelope<SecuritySession[]>>("/security/sessions");
+  return res.data;
+}
+
+export async function revokeSecuritySession(id: string) {
+  const res = await authedFetch<Envelope<{ revoked: boolean; current: boolean }>>(
+    "/security/sessions/" + encodeURIComponent(id),
+    { method: "DELETE" }
+  );
+  return res.data;
+}
+
+export async function revokeOtherSecuritySessions() {
+  const res = await authedFetch<Envelope<{ revoked: number }>>(
+    "/security/sessions/revoke-other",
+    { method: "POST" }
+  );
+  return res.data;
+}
+
+export async function getLoginActivity(): Promise<LoginActivityEntry[]> {
+  const res = await authedFetch<Envelope<LoginActivityEntry[]>>("/security/login-activity");
+  return res.data;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const res = await authedFetch<Envelope<{ message: string }>>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  return res.data;
+}
+
+
 
 export interface MfaStatus {
   mfaEnabled: boolean;
