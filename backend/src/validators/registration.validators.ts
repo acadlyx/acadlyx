@@ -15,6 +15,11 @@ export const registrationListQuery = z.object({
   courseOfferingId: z.string().uuid().optional(),
   studentId: z.string().uuid().optional(),
   semesterId: z.string().uuid().optional(),
+  programId: z.string().uuid().optional(),
+  academicYearId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+  courseId: z.string().uuid().optional(),
+  facultyId: z.string().uuid().optional(),
 });
 
 export const registerSchema = z.object({
