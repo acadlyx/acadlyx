@@ -369,6 +369,8 @@ export default function HODDashboardPage() {
               >
                 Students & assignment
               </a>
+              <a href="/hod/enrollment-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Enrollment requests</a>
+              <a href="/hod/course-registration-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Course registrations</a>
               <a
                 href="/hod?tab=registrations"
                 className={`rounded-xl px-4 py-2 text-sm font-semibold ${
