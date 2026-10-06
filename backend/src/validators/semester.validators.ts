@@ -7,6 +7,9 @@ export const createSemesterSchema = z.object({
   name: z.string().trim().min(1).max(50),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
+  // Backward-compatible with older admin clients that sent
+  // the default active state during semester creation.
+  isActive: z.boolean().optional(),
 });
 
 export const updateSemesterSchema = z
