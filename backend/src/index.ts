@@ -16,6 +16,11 @@ const server = app.listen(env.port, () => {
 
   logger.info(`ACADLYX API running on http://localhost:${env.port}`);
   logger.info(`Health check: http://localhost:${env.port}/api/${env.apiVersion}/health`);
+  logger.info("ACADLYX deployment metadata", {
+    renderGitBranch: process.env.RENDER_GIT_BRANCH ?? null,
+    renderGitCommit: process.env.RENDER_GIT_COMMIT ?? null,
+    renderGitRepo: process.env.RENDER_GIT_REPO_SLUG ?? null,
+  });
   void cleanupExpiredDeletedUsers().catch((error) => logger.error("Initial deleted-user cleanup failed", { error }));
   void drainDomainEventOutbox(50).catch((error) => logger.error("Initial domain-event outbox drain failed", { error }));
 
