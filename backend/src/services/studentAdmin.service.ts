@@ -16,7 +16,7 @@ import {
 } from "../validators/studentAdmin.validators";
 
 const studentInclude = {
-  profile: true,
+  profile: { select: { id: true, institutionId: true, admissionNumber: true, dateOfBirth: true, gender: true, bloodGroup: true, nationality: true, address: true, city: true, state: true, postalCode: true, guardianName: true, guardianPhone: true, guardianEmail: true, emergencyContactName: true, emergencyContactPhone: true, admissionDate: true, status: true } },
   userRoles: {
     include: {
       role: true,
@@ -28,6 +28,7 @@ const studentInclude = {
       { createdAt: "desc" },
     ],
     include: {
+      institutionId: true,
       program: {
         select: {
           id: true,
@@ -36,12 +37,13 @@ const studentInclude = {
           code: true,
           level: true,
           isActive: true,
-          department: { select: { id: true, name: true, code: true, isActive: true } },
+          department: { select: { id: true, institutionId: true, name: true, code: true, isActive: true } },
         },
       },
       academicYear: {
         select: {
           id: true,
+          institutionId: true,
           name: true,
           startDate: true,
           endDate: true,
@@ -51,6 +53,7 @@ const studentInclude = {
       semester: {
         select: {
           id: true,
+          institutionId: true,
           number: true,
           name: true,
         },
@@ -58,6 +61,7 @@ const studentInclude = {
       section: {
         select: {
           id: true,
+          institutionId: true,
           name: true,
           capacity: true,
           semesterId: true,
