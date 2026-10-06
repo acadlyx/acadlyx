@@ -23,6 +23,7 @@ export interface ListFilters
   extends PaginationParams {
   search?: string;
   isActive?: boolean;
+  departmentIds?: string[];
 }
 
 const departmentInclude = {
@@ -86,6 +87,8 @@ export async function listDepartments(
   const where: Prisma.DepartmentWhereInput =
     {
       institutionId,
+
+      ...(filters.departmentIds ? { id: { in: filters.departmentIds } } : {}),
 
       ...(filters.isActive !==
       undefined
