@@ -394,6 +394,7 @@ export async function createLesson(
     metadata: { courseModuleId: input.courseModuleId },
     ...meta,
   });
+  publishDomainEvent("lms.lesson.created",{institutionId,actorId:actor.id,payload:{lessonId:id,courseOfferingId:module.courseOfferingId}});
 
   return requireTenantRow(
     prisma,
@@ -539,6 +540,7 @@ export async function addLessonResource(
     metadata: { lessonId, resourceType: input.resourceType ?? "LINK" },
     ...meta,
   });
+  publishDomainEvent("lms.resource.created",{institutionId,actorId:actor.id,payload:{resourceId:id,lessonId}});
 
   return requireTenantRow(
     prisma,
@@ -957,6 +959,7 @@ export async function createQuiz(
     metadata: { courseOfferingId: input.courseOfferingId, title: input.title },
     ...meta,
   });
+  publishDomainEvent("lms.quiz.created",{institutionId,actorId:actor.id,payload:{quizId:id,courseOfferingId:input.courseOfferingId}});
 
   return requireTenantRow<QuizRow>(prisma, "quizzes", institutionId, id, "Quiz");
 }
@@ -1100,6 +1103,7 @@ export async function updateQuizStatus(
     metadata: { from: quiz.status, to: status },
     ...meta,
   });
+  publishDomainEvent("lms.quiz.status_changed",{institutionId,actorId:actor.id,payload:{quizId,courseOfferingId:quiz.courseOfferingId,status}});
 
   return requireTenantRow<QuizRow>(prisma, "quizzes", institutionId, quizId, "Quiz");
 }
