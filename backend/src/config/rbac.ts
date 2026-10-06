@@ -265,6 +265,10 @@ export const PERMISSIONS = [
   { key: "club.read", module: "clubs", description: "View assigned club within scope" },
   { key: "club.manage", module: "clubs", description: "Manage assigned club within scope" },
 
+  { key: "enrollment.submit", module: "enrollment", description: "Submit own academic enrollment requests" },
+  { key: "enrollment.read", module: "enrollment", description: "View academic enrollment requests within scope" },
+  { key: "enrollment.approve", module: "enrollment", description: "Approve or reject academic enrollment requests within scope" },
+
   { key: "registration.submit", module: "registration", description: "Submit course registration" },
   { key: "registration.read", module: "registration", description: "View registrations within scope" },
   { key: "registration.approve", module: "registration", description: "Approve course registrations" },
@@ -647,6 +651,8 @@ export const ROLE_PERMISSIONS: Record<
     ...LEADERSHIP_READ,
 
     "registration.approve",
+    "enrollment.read",
+    "enrollment.approve",
     "promotions.approve",
     "certificates.issue",
 
@@ -696,6 +702,8 @@ export const ROLE_PERMISSIONS: Record<
 
     "registration.read",
     "registration.approve",
+    "enrollment.read",
+    "enrollment.approve",
 
     "promotions.read",
     "promotions.approve",
@@ -741,6 +749,8 @@ export const ROLE_PERMISSIONS: Record<
 
     "registration.read",
     "registration.approve",
+    "enrollment.read",
+    "enrollment.approve",
 
     "promotions.read",
     "promotions.manage",
@@ -1106,6 +1116,8 @@ export const ROLE_PERMISSIONS: Record<
     "calendar.read",
 
     "registration.submit",
+    "enrollment.submit",
+    "enrollment.read",
 
     "certificates.request",
 
