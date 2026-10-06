@@ -50,7 +50,9 @@ export async function listSections(
 ) {
   const where: Prisma.SectionWhereInput = {
     institutionId,
-    ...(filters.departmentId ? { semester: { program: { departmentId: filters.departmentId } } } : {}),
+    ...((filters.departmentIds || filters.departmentId)
+      ? { semester: { program: { departmentId: filters.departmentId ?? { in: filters.departmentIds ?? [] } } } }
+      : {}),
     ...(filters.semesterId ? { semesterId: filters.semesterId } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
