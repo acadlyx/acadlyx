@@ -463,11 +463,16 @@ export async function getDepartmentWorkspace(
         program: { departmentId },
       },
     }),
-    prisma.employeeProfile.count({
+    prisma.user.count({
       where: {
         institutionId,
-        departmentId,
-        status: "ACTIVE",
+        isActive: true,
+        userRoles: { some: { role: { name: "FACULTY", institutionId } } },
+        OR: [
+          { employeeProfile: { departmentId } },
+          { departmentAccesses: { some: { departmentId } } },
+          { facultyCourseOfferings: { some: { institutionId, course: { departmentId } } } },
+        ],
       },
     }),
     prisma.program.count({
