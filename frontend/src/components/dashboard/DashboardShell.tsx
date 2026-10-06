@@ -46,6 +46,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   const [user, setUser] = useState<AuthUser | null>(cachedUser);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
   const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
+  const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
   useEffect(() => {
@@ -77,6 +78,19 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     });
     return () => { alive = false; };
   }, [router, embeddedInWorkspaceShell]);
+
+  useEffect(() => {
+    if (embeddedInWorkspaceShell || workspaceRole !== "INSTITUTION_ADMIN") return;
+    let alive = true;
+    workspaceGet<{ data?: Array<{ id: string; name: string; code?: string }> }>("/departments?page=1&pageSize=100&isActive=true")
+      .then((response) => {
+        if (alive) setAdminDepartments(response?.data || []);
+      })
+      .catch(() => {
+        if (alive) setAdminDepartments([]);
+      });
+    return () => { alive = false; };
+  }, [embeddedInWorkspaceShell, workspaceRole]);
 
   useEffect(() => {
     if (embeddedInWorkspaceShell || !user) return;
@@ -111,7 +125,15 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
     if (workspaceRole === "INSTITUTION_ADMIN") {
-      return getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group }));
+      const base = getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group }));
+      const departmentItems = adminDepartments.map((department) => ({
+        id: `/admin/departments/${department.id}`,
+        label: department.name,
+        href: `/admin/departments/${department.id}`,
+        icon: "academic",
+        group: "Departments",
+      }));
+      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems];
     }
     const role = workspaceRole;
     if (!role) return [];
@@ -119,7 +141,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
       const href = roleOwnedHref(role, item.href);
       return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace" };
     });
-  }, [user, workspaceRole]);
+  }, [adminDepartments, user, workspaceRole]);
 
   if (!user) return null;
 
