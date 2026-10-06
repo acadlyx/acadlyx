@@ -49,6 +49,10 @@ export const list = asyncHandler(
             typeof req.query.academicYearId === "string"
               ? req.query.academicYearId
               : undefined,
+          departmentId:
+            typeof req.query.departmentId === "string"
+              ? req.query.departmentId
+              : undefined,
           programId:
             typeof req.query.programId === "string"
               ? req.query.programId
