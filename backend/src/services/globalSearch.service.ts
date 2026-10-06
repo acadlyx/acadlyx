@@ -20,8 +20,8 @@ export async function globalSearch(
   const out: GlobalSearchResult[] = [];
   const roles = getCanonicalRoleNames(actor.roles);
   const canPeople = actor.permissions.includes("users.read") || actor.permissions.includes("students.read") || actor.permissions.includes("faculty.read");
-  const canCourses = actor.permissions.includes("courses.read");
-  const canNotices = actor.permissions.includes("notices.read");
+  const canCourses = actor.permissions.includes("courses.read") || roles.includes("STUDENT");
+  const canNotices = actor.permissions.includes("notices.read") || roles.includes("STUDENT");
 
   const managedDepartments = !isInstitutionWide(actor) && (roles.includes("HOD") || roles.includes("DEAN") || roles.includes("DIRECTOR"))
     ? await getManagedDepartmentIds(institutionId, actor.id)
