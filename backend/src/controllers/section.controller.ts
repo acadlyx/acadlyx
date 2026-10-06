@@ -20,6 +20,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     ...pagination,
     search,
     semesterId,
+    departmentId,
     isActive,
   });
 
