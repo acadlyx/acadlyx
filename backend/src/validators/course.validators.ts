@@ -6,6 +6,9 @@ export const createCourseSchema = z.object({
   name: z.string().trim().min(2).max(150),
   credits: z.number().int().min(1).max(10),
   description: z.string().trim().max(2000).optional(),
+  // Backward-compatible with older admin clients that sent
+  // the default active state during course creation.
+  isActive: z.boolean().optional(),
 });
 
 export const updateCourseSchema = createCourseSchema.partial().extend({
