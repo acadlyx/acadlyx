@@ -283,7 +283,7 @@ async function ensureSuperAdmin(
      * Existing platform account:
      * - repair name
      * - ensure active
-     * - synchronize password
+     * - preserve the existing password
      * - preserve platform institutionId = null
      */
     user =
@@ -303,6 +303,9 @@ async function ensureSuperAdmin(
     /*
      * First-time platform Super Admin.
      */
+    const passwordHash =
+      await hashPassword(password);
+
     user =
       await prisma.user.create({
         data: {
