@@ -13,7 +13,9 @@ type Workspace = {
 
 const modules = [
   { key: "students", label: "Students", description: "Student master records and canonical academic enrollment.", href: "/admin/students", metric: "students", group: "People" },
+  { key: "faculty", label: "Faculty", description: "Teaching people assigned to this department.", href: "/admin/users?category=faculty", metric: "faculty", group: "People" },
   { key: "programs", label: "Programs", description: "Programs owned by this department.", href: "/admin/programs", metric: "programs", group: "Academic Structure" },
+  { key: "academic-years", label: "Academic Years", description: "Institution-wide academic year definitions used by this department.", href: "/admin/academic-years", metric: null, group: "Academic Structure" },
   { key: "semesters", label: "Semesters", description: "Program and academic-year semester contexts.", href: "/admin/semesters", metric: null, group: "Academic Structure" },
   { key: "sections", label: "Sections", description: "Sections under the department's semester contexts.", href: "/admin/sections", metric: "sections", group: "Academic Structure" },
   { key: "courses", label: "Courses", description: "Department-owned curriculum and course master data.", href: "/admin/courses", metric: "courses", group: "Curriculum" },
@@ -94,7 +96,7 @@ export default function DepartmentWorkspacePage() {
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => {
-                const href = item.key === "students" ? `${item.href}?departmentId=${encodeURIComponent(departmentId)}` : `${item.href}?departmentId=${encodeURIComponent(departmentId)}`;
+                const href = item.key === "academic-years" ? item.href : `${item.href}${item.href.includes("?") ? "&" : "?"}departmentId=${encodeURIComponent(departmentId)}`;
                 const metric = item.metric ? data.metrics[item.metric as keyof Workspace["metrics"]] : null;
                 return <Link key={item.key} href={href} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg">
                   <div className="flex items-start justify-between gap-4">
