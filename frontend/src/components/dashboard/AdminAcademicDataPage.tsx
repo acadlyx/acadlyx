@@ -240,7 +240,7 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");\n  const [searchQuery, setSearchQuery] = useState("");
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
   const [page, setPage] = useState(1);
@@ -285,7 +285,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ background: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -301,10 +301,10 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, loadLookups, page, router, search]);
+  }, [config.endpoint, departmentId, loadLookups, page, router, searchQuery]);
 
   useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); setPage(1); }, []);
-  useEffect(() => { const timer = window.setTimeout(() => setPage(1), 250); return () => window.clearTimeout(timer); }, [search]);
+  useEffect(() => { const timer = window.setTimeout(() => { setSearchQuery(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
   const openCreate = () => {
