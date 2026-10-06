@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, authedFetch, isAuthenticated } from "@/lib/auth";
 import { decideRegistration } from "@/lib/registrationApi";
+import { listEnrollmentRequests } from "@/lib/enrollmentRequestApi";
 import { useWorkspaceContext } from "@/lib/workspaceContext";
 import { ContextBreadcrumbs } from "@/components/dashboard/ContextBreadcrumbs";
 
@@ -98,6 +99,7 @@ export default function HODDashboardPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [pendingEnrollmentRequests, setPendingEnrollmentRequests] = useState(0);
 
   const [semesterId, setSemesterId] = useState("");
   const [sectionId, setSectionId] = useState("");
@@ -212,6 +214,12 @@ export default function HODDashboardPage() {
       mounted = false;
     };
   }, [loadBase]);
+
+  useEffect(() => {
+    listEnrollmentRequests({ status: "PENDING" })
+      .then((result) => setPendingEnrollmentRequests(result.total))
+      .catch(() => setPendingEnrollmentRequests(0));
+  }, [semesterId]);
 
   useEffect(() => {
     if (!semesterId) return;
@@ -381,7 +389,7 @@ export default function HODDashboardPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-5">
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Students
@@ -389,6 +397,10 @@ export default function HODDashboardPage() {
             <p className="mt-2 text-2xl font-black text-slate-950">
               {students.length}
             </p>
+          </div>
+          <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pending enrollments</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">{pendingEnrollmentRequests}</p>
           </div>
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
