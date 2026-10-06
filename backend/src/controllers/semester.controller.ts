@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { requireAuthenticatedUser } from "../utils/requireInstitution";
+import { assertProgramInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as semesterService from "../services/semester.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -10,6 +12,7 @@ import {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
   const programId = (req.query.programId as string | undefined) || undefined;
@@ -23,6 +26,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     search,
     programId,
     departmentId,
+    departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor),
     academicYearId,
     isActive,
   });
@@ -36,6 +40,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 
 export const getById = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSemesterInScope(institutionId, actor, req.params.id);
   const semester = await semesterService.getSemesterById(
     institutionId,
     req.params.id
@@ -45,6 +51,8 @@ export const getById = asyncHandler(async (req: Request, res: Response) => {
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertProgramInScope(institutionId, actor, (req.body as CreateSemesterInput).programId);
   const semester = await semesterService.createSemester(
     institutionId,
     req.body as CreateSemesterInput
@@ -54,6 +62,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSemesterInScope(institutionId, actor, req.params.id);
   const semester = await semesterService.updateSemester(
     institutionId,
     req.params.id,
@@ -64,6 +74,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
 export const deactivate = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSemesterInScope(institutionId, actor, req.params.id);
   const semester = await semesterService.deactivateSemester(
     institutionId,
     req.params.id
