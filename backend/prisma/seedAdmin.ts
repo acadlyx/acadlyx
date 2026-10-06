@@ -247,9 +247,9 @@ async function setSingleRole(
  * - The account must remain platform-level.
  * - An existing institution user with the same email
  *   is never automatically moved to the platform.
- * - Password is synchronized from SUPER_ADMIN_PASSWORD
- *   so rotating the Render secret also rotates the
- *   bootstrap password on the next deployment.
+ * - An existing platform account is never password-rotated by a normal
+ *   bootstrap run. Password rotation is an explicit operation, not a
+ *   side effect of deployment.
  */
 async function ensureSuperAdmin(
   email: string,
@@ -276,9 +276,6 @@ async function ensureSuperAdmin(
     );
   }
 
-  const passwordHash =
-    await hashPassword(password);
-
   let user;
 
   if (existing) {
@@ -297,7 +294,6 @@ async function ensureSuperAdmin(
         data: {
           institutionId: null,
           idNumber: process.env.SUPER_ADMIN_ID_NUMBER?.trim().toUpperCase() || "SUPER-ADMIN",
-          passwordHash,
           firstName,
           lastName,
           isActive: true,
