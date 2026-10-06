@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
+import { passwordSchema } from "../utils/passwordPolicy";
 
 export const loginSchema = z.object({
   identifier: z.string().trim().min(1, "ID number, email or roll number is required").max(200),
@@ -16,7 +16,7 @@ export const logoutSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+  newPassword: passwordSchema,
 });
 
 export const updateMyProfileSchema = z.object({
