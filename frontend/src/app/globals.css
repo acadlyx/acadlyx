@@ -737,6 +737,16 @@ a[class*="bg-white"][class*="text-white"] {
   line-height: 1.3;
 }
 
+/* Intentional dark-surface headings keep their explicit contrast token. */
+.acadlyx-dashboard-root h1.text-white,
+.acadlyx-dashboard-root h2.text-white,
+.acadlyx-dashboard-root h3.text-white,
+.acadlyx-dashboard-root h4.text-white,
+.acadlyx-dashboard-root h5.text-white,
+.acadlyx-dashboard-root h6.text-white {
+  color: #ffffff !important;
+}
+
 .acadlyx-shell-title {
   color: var(--acadlyx-text) !important;
   font-family: var(--acadlyx-font-sans);
