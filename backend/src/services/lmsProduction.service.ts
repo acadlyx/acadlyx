@@ -8,6 +8,7 @@ import { assertOwnsCourseOffering, loadCourseOfferingOrThrow } from "../utils/co
 import { getCourseOfferingRoster, assertStudentEnrolledInCourseOffering } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
 import { publishDomainEvent } from "./domainEvent.service";
+import { requestCertificate } from "./certificate.service";
 
 const LEADERSHIP = ["HOD", "DEAN", "DIRECTOR"];
 
@@ -283,6 +284,14 @@ export async function updateSettings(institutionId: string, actor: Authenticated
   for (const key of allowed) if (input[key] !== undefined) { values.push(input[key]); sets.push('"' + key + '"=$' + values.length); }
   if (sets.length) { values.push(actor.id, institutionId); await x('UPDATE "lms_settings" SET ' + sets.join(',') + ',"updatedById"=$' + (values.length - 1) + ',"updatedAt"=CURRENT_TIMESTAMP WHERE "institutionId"=$' + values.length, ...values); }
   return settings(institutionId);
+}
+
+export async function requestCompletionCertificate(institutionId: string, actor: AuthenticatedUser, offeringId: string) {
+  const studentId = actor.roles.includes("STUDENT") ? actor.id : String((await prisma.parentStudentLink.findFirst({ where: { institutionId, parentId: actor.id }, select: { studentId: true } }))?.studentId || "");
+  if (!studentId) throw new AppError("A student context is required", 403);
+  const eligibility = await certificateEligibility(institutionId, actor, studentId, offeringId);
+  if (!eligibility.eligible) throw new AppError("Course completion certificate eligibility has not been reached", 409);
+  return requestCertificate(institutionId, actor, { studentId, certificateType: "COURSE_COMPLETION", purpose: "LMS course completion" }, {});
 }
 
 export async function certificateEligibility(institutionId: string, actor: AuthenticatedUser, studentId: string, offeringId: string) {
