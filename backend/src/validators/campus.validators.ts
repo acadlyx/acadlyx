@@ -30,6 +30,11 @@ export const createCampusSchema = z
       .toUpperCase(),
 
     address: optionalText(500),
+
+    // Backward-compatible with older admin clients that sent the
+    // default active state during campus creation. The database also
+    // defaults this to true when the field is omitted.
+    isActive: z.boolean().optional(),
   })
   .strict();
 
