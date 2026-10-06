@@ -51,8 +51,9 @@ export async function listPrograms(
 
   const where: Prisma.ProgramWhereInput = {
     institutionId,
-    ...(filters.departmentIds ? { departmentId: { in: filters.departmentIds } } : {}),
-    ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+    ...((filters.departmentIds || filters.departmentId)
+      ? { departmentId: filters.departmentId ?? { in: filters.departmentIds ?? [] } }
+      : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
       ? {
