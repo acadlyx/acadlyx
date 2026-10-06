@@ -19,7 +19,7 @@ function ResetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(false);\n  const [showPasswords, setShowPasswords] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
