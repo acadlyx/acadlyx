@@ -33,6 +33,10 @@ export const decideRegistrationSchema = z
     path: ["remarks"],
   });
 
+export const bulkRegisterSchema = z.object({
+  courseOfferingIds: z.array(z.string().uuid()).min(1).max(100),
+});
+
 export const bulkDecisionSchema = z.object({
   registrationIds: z.array(z.string().uuid()).min(1).max(500),
   decision: z.enum(["APPROVED", "REJECTED", "NEEDS_CORRECTION"]),
