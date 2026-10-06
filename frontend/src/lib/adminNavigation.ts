@@ -5,6 +5,7 @@ export type AdminNavItem = {
   href: string;
   icon: string;
   group: string;
+  activeMatch?: "exact" | "nested";
   description: string;
   read: string[];
   create?: string[];
@@ -17,6 +18,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Overview",
     href: "/admin",
     icon: "home",
+    activeMatch: "exact",
     group: "Workspace",
     description:
       "Institution-wide administrative command center.",
