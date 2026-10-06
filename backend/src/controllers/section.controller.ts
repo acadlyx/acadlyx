@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
-import { assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
+import { assertDepartmentInScope, assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as sectionService from "../services/section.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -19,6 +19,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const departmentId = (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+  if (departmentId) await assertDepartmentInScope(institutionId, actor, departmentId);
 
   const { items, total } = await sectionService.listSections(institutionId, {
     ...pagination,
