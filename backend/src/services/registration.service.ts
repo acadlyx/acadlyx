@@ -100,6 +100,7 @@ export async function listAvailableOfferings(
     isActive: true,
     ...(semesterId ? { semesterId } : {}),
     ...(enrollment.sectionId ? { sectionId: enrollment.sectionId } : {}),
+    course: { departmentId: enrollment.program.departmentId },
     ...(filters.electivesOnly ? { isElective: true } : {}),
     ...(filters.search
       ? {
