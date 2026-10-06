@@ -424,6 +424,15 @@ export async function decide(
     existing.courseOffering.course.departmentId
   );
 
+  const enrollment = await activeEnrollment(institutionId, existing.studentId);
+  if (
+    enrollment.semesterId !== existing.courseOffering.semester.id ||
+    enrollment.sectionId !== existing.courseOffering.section.id ||
+    enrollment.program.departmentId !== existing.courseOffering.course.departmentId
+  ) {
+    throw new AppError("The student's current academic enrollment no longer matches this course offering", 422);
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     if (decision === "APPROVED") {
       const offering = await tx.courseOffering.findUniqueOrThrow({
