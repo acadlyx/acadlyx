@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { assertOwnsCourseOffering } from "../utils/courseOfferingAccess";
+import { assertAcademicContextScope, assertFacultyEligibleForAcademicContext, resolveAcademicContext } from "./academicContext.service";
 import { PaginationParams } from "../utils/pagination";
 import {
   CreateCourseOfferingInput,
@@ -296,25 +297,48 @@ export async function getRoster(
 
 export async function createCourseOffering(
   institutionId: string,
-  input: CreateCourseOfferingInput
+  input: CreateCourseOfferingInput,
+  actor: AuthenticatedUser
 ) {
-  await assertOfferingAcademicIntegrity(
+  const {
+    departmentId,
+    programId,
+    academicYearId,
+    courseId,
+    semesterId,
+    sectionId,
+    facultyId,
+    ...offeringData
+  } = input;
+
+  const context = await resolveAcademicContext({
     institutionId,
-    input.courseId,
-    input.semesterId,
-    input.sectionId
-  );
-  if (input.facultyId) {
-    await assertFacultyEligible(institutionId, input.facultyId);
+    departmentId,
+    programId,
+    academicYearId,
+    semesterId,
+    sectionId,
+    courseId,
+    facultyId,
+  });
+
+  await assertAcademicContextScope(context, institutionId, actor);
+  if (facultyId) {
+    await assertFacultyEligibleForAcademicContext(
+      institutionId,
+      actor,
+      facultyId,
+      departmentId,
+    );
   }
 
   if (
-    input.capacity !== undefined &&
-    input.capacity !== null
+    offeringData.capacity !== undefined &&
+    offeringData.capacity !== null
   ) {
     const section = await prisma.section.findFirst({
       where: {
-        id: input.sectionId,
+        id: sectionId,
         institutionId,
       },
       select: { capacity: true },
@@ -331,9 +355,9 @@ export async function createCourseOffering(
   const existing = await prisma.courseOffering.findFirst({
     where: {
       institutionId,
-      courseId: input.courseId,
-      semesterId: input.semesterId,
-      sectionId: input.sectionId,
+      courseId,
+      semesterId,
+      sectionId,
     },
   });
   if (existing) {
@@ -346,7 +370,11 @@ export async function createCourseOffering(
   return prisma.courseOffering.create({
     data: {
       institutionId,
-      ...input,
+      ...offeringData,
+      courseId,
+      semesterId,
+      sectionId,
+      facultyId,
     },
     include,
   });
