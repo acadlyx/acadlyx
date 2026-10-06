@@ -74,7 +74,15 @@ export const ROLE_LABELS: Record<string, string> = {
   STAFF: "Staff",
 };
 
+export const COMMON_ACCOUNT_NAVIGATION: NavigationItem = {
+  label: "Account Security",
+  href: "/account-security",
+  icon: "◉",
+  group: "Account",
+};
+
 export const ROLE_NAVIGATION: NavigationItem[] = [
+  COMMON_ACCOUNT_NAVIGATION,
   {
     label: "Platform overview",
     href: "/superadmin",
@@ -97,13 +105,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["SUPER_ADMIN"],
     permissions: ["users.read"],
     group: "Platform",
-  },
-  {
-    label: "Account security",
-    href: "/account-security",
-    icon: "◉",
-    roles: ["SUPER_ADMIN"],
-    group: "Account",
   },
   {
     label: "Public website",
@@ -200,13 +201,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["INSTITUTION_ADMIN"],
     permissions: ["operations.read"],
     group: "Institution",
-  },
-  {
-    label: "Account security",
-    href: "/account-security",
-    icon: "◉",
-    roles: ["INSTITUTION_ADMIN"],
-    group: "Account",
   },
 
   {
@@ -1122,33 +1116,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["MANAGEMENT"],
     group: "Workspace",
-  },
-  {
-    label: "Account security",
-    href: "/account-security",
-    icon: "◉",
-    roles: [
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-      "REGISTRAR",
-      "HOD",
-      "FACULTY",
-      "ACCOUNTS",
-      "HR",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
-      "PLACEMENT",
-      "IT",
-      "CMS",
-      "STUDENT",
-      "PARENT",
-      "CLUB_PRESIDENT",
-      "MANAGEMENT",
-      "STAFF",
-    ],
-    group: "Account",
   },
 ];
 
