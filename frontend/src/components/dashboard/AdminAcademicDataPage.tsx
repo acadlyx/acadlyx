@@ -267,7 +267,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const entries = await Promise.all(sources.map(async (source) => {
       try {
         const response = await authedFetch<{ data: unknown }>(`${source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}` : LOOKUPS[source]}${source !== "departments" && LOOKUPS[source].includes("?") ? "&" : source !== "departments" ? "?" : ""}${source !== "departments" && departmentId && ["programs","semesters","sections","courses","course-offerings"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
-        return [source, normalizeRows(response.data)] as const;
+        return [source, source === "departments" && departmentId ? (response.data ? [response.data as Row] : []) : normalizeRows(response.data)] as const;
       } catch {
         return [source, []] as const;
       }
