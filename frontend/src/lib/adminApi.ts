@@ -198,6 +198,7 @@ export async function listAdminUsers(
   options?: {
     role?: string;
     search?: string;
+    departmentId?: string;
     pageSize?: number;
   },
 ): Promise<AdminUser[]> {
@@ -216,6 +217,10 @@ export async function listAdminUsers(
         50,
     ),
   );
+
+  if (options?.departmentId) {
+    params.set("departmentId", options.departmentId);
+  }
 
   if (options?.role) {
     params.set(
