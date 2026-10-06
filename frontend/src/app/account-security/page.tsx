@@ -126,7 +126,7 @@ export default function AccountSecurityPage() {
 
   return <DashboardShell title="Account Security" subtitle="Manage your password, sessions, and account security.">
     <div className="mx-auto max-w-5xl space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Personal security</p><h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Account Security</h1><p className="mt-1 text-sm text-slate-600">Only your authenticated account is managed here. Role, department, campus, and institution permissions do not grant access to another user's security data.</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Personal security</p><h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Account Security</h1><p className="mt-1 text-sm text-slate-600">Only your authenticated account is managed here. Role, department, campus, and institution permissions do not grant access to another user&apos;s security data.</p></div>
       {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{loadError}</div>}
 
       <Card title="Password" description="Change the password for your own account.">
