@@ -381,6 +381,18 @@ export async function createInstitution(
     input.admin.password
   );
 
+  const requestedAdminIdNumber = input.admin.idNumber?.trim().toUpperCase();
+  let adminIdNumber = requestedAdminIdNumber;
+  if (!adminIdNumber) {
+    const prefix = "ADM";
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const candidate = prefix + "-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+      const exists = await prisma.user.findUnique({ where: { idNumber: candidate }, select: { id: true } });
+      if (!exists) { adminIdNumber = candidate; break; }
+    }
+    if (!adminIdNumber) throw new AppError("Unable to generate a unique administrator ID number", 503);
+  }
+
   try {
     /*
      * Explicitly extend the transaction timeout.
@@ -437,7 +449,7 @@ export async function createInstitution(
             institutionId:
               createdInstitution.id,
             email: normalizedEmail,
-            idNumber: input.admin.idNumber.trim().toUpperCase(),
+            idNumber: adminIdNumber,
             passwordHash,
             firstName:
               input.admin.firstName.trim(),
