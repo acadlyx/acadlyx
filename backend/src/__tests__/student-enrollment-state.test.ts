@@ -3,11 +3,12 @@ import test from "node:test";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
 
 const valid = {
+  institutionId: "i1",
   status: "ACTIVE",
-  program: { id: "p1", isActive: true, department: { id: "d1", isActive: true } },
-  academicYear: { id: "y1", isCurrent: true },
-  semester: { id: "s1", isActive: true, programId: "p1", academicYearId: "y1" },
-  section: { id: "sec1", isActive: true, semesterId: "s1" },
+  program: { id: "p1", institutionId: "i1", isActive: true, department: { id: "d1", institutionId: "i1", isActive: true } },
+  academicYear: { id: "y1", institutionId: "i1", isCurrent: true },
+  semester: { id: "s1", institutionId: "i1", isActive: true, programId: "p1", academicYearId: "y1" },
+  section: { id: "sec1", institutionId: "i1", isActive: true, semesterId: "s1" },
 };
 
 test("student without master profile is PROFILE_MISSING", () => {
@@ -46,6 +47,16 @@ test("historical enrollment is not treated as the current enrolled state", () =>
       ...valid,
       academicYear: { id: "old-year", isCurrent: false },
     }),
+    "INVALID"
+  );
+});
+
+test("cross-tenant academic relationships are INVALID", () => {
+  assert.equal(
+    classifyStudentEnrollmentState(
+      { institutionId: "i1" },
+      { ...valid, program: { ...valid.program, institutionId: "i2" } }
+    ),
     "INVALID"
   );
 });
