@@ -21,6 +21,10 @@ type Meta = { ipAddress?: string; userAgent?: string };
 export const MAX_CREDITS_PER_SEMESTER = 30;
 export const MIN_CREDITS_PER_SEMESTER = 12;
 
+async function notifyUser(institutionId: string, userId: string, title: string, body: string, actionUrl: string) {
+  await prisma.notification.create({ data: { institutionId, userId, title, body, actionUrl, priority: "NORMAL" } });
+}
+
 const include = {
   student: {
     select: { id: true, firstName: true, lastName: true, email: true },
@@ -342,6 +346,10 @@ export async function register(
     });
   });
 
+  const departmentId = registration.courseOffering.course.departmentId;
+  const hods = await prisma.employeeProfile.findMany({ where: { institutionId, departmentId, status: "ACTIVE", user: { userRoles: { some: { role: { name: "HOD", institutionId } } } } }, select: { userId: true } });
+  await Promise.all(hods.map((hod) => notifyUser(institutionId, hod.userId, "New course registration request", "A student submitted a course registration request for your department.", "/hod/course-registration-requests")));
+
   await recordAuditLog({
     institutionId,
     userId: actor.id,
@@ -467,6 +475,8 @@ export async function decide(
       include,
     });
   });
+
+  await notifyUser(institutionId, existing.studentId, decision === "APPROVED" ? "Course registration approved" : decision === "REJECTED" ? "Course registration rejected" : "Course registration needs correction", decision === "APPROVED" ? "Your course registration was approved." : (remarks ?? "Please review and update your course registration."), "/student/course-registration");
 
   await recordAuditLog({
     institutionId,
