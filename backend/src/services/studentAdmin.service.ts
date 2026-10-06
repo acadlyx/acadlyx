@@ -74,6 +74,7 @@ const studentListInclude = {
   profile: {
     select: {
       id: true,
+      institutionId: true,
       admissionNumber: true,
       dateOfBirth: true,
       gender: true,
