@@ -1560,10 +1560,17 @@ export function isNavigationItemActive(pathname: string, item: NavigationItem): 
   if (!pathMatches) return false;
 
   const requiredQuery = new URLSearchParams(hrefQueryRaw || "");
+  const absentQueryKeys = new Set<string>();
+
   if (item.activeQuery) {
     for (const [key, value] of Object.entries(item.activeQuery)) {
-      if (value === null) requiredQuery.delete(key);
-      else requiredQuery.set(key, value);
+      if (value === null) {
+        requiredQuery.delete(key);
+        absentQueryKeys.add(key);
+      } else {
+        requiredQuery.set(key, value);
+        absentQueryKeys.delete(key);
+      }
     }
   }
 
@@ -1573,6 +1580,10 @@ export function isNavigationItemActive(pathname: string, item: NavigationItem): 
       : typeof window !== "undefined"
         ? new URLSearchParams(window.location.search)
         : new URLSearchParams();
+
+  for (const key of absentQueryKeys) {
+    if (currentQuery.has(key)) return false;
+  }
 
   for (const [key, value] of requiredQuery.entries()) {
     if (currentQuery.get(key) !== value) return false;
