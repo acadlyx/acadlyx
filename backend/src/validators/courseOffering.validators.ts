@@ -11,6 +11,9 @@ export const createCourseOfferingSchema = z.object({
   capacity: capacitySchema.optional(),
   registrationOpen: z.boolean().optional(),
   isElective: z.boolean().optional(),
+  // Backward-compatible with older admin clients that sent
+  // the default active state during course-offering creation.
+  isActive: z.boolean().optional(),
 });
 
 export const updateCourseOfferingSchema = z
