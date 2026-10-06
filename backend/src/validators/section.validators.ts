@@ -19,6 +19,7 @@ export const listSectionsQuerySchema = z.object({
   pageSize: z.string().optional(),
   search: z.string().trim().optional(),
   semesterId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
   isActive: z.enum(["true", "false"]).optional(),
 });
 
