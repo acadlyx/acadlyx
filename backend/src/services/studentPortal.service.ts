@@ -40,12 +40,14 @@ export async function getCurrentEnrollment(
       where: { institutionId, userId, academicYearId: currentYear.id },
       include: enrollmentInclude,
     });
-    if (enrollment) return enrollment;
+    // The current academic year is authoritative. Do not silently surface
+    // historical placement when the student has no current enrollment.
+    return enrollment;
   }
 
-  // Fall back to the most recent enrollment on record.
+  // Only fall back when the institution itself has not configured a current year.
   return prisma.studentEnrollment.findFirst({
-    where: { institutionId, userId },
+    where: { institutionId, userId, status: "ACTIVE" },
     include: enrollmentInclude,
     orderBy: { academicYear: { startDate: "desc" } },
   });
