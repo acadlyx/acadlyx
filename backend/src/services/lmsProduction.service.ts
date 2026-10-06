@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
-import { assertCanViewStudent, assertCourseOfferingInScope, isInstitutionWide } from "./accessScope.service";
+import { assertCanViewStudent, assertCourseOfferingInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
 import { assertOwnsCourseOffering, loadCourseOfferingOrThrow } from "../utils/courseOfferingAccess";
 import { getCourseOfferingRoster, assertStudentEnrolledInCourseOffering } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
@@ -260,6 +260,16 @@ export async function getStudentOverview(institutionId: string, actor: Authentic
   const rows = [];
   for (const r of registrations) rows.push({ courseOfferingId: r.courseOfferingId, analytics: await getAnalytics(institutionId, actor, r.courseOfferingId) });
   return { studentId, offerings: rows };
+}
+
+export async function filterOptions(institutionId: string, actor: AuthenticatedUser) {
+  const allowedDepartments = await getAuthorizedDepartmentIds(institutionId, actor);
+  const departments = await prisma.department.findMany({ where: { institutionId, isActive: true, ...(allowedDepartments.length ? { id: { in: allowedDepartments } } : {}) }, select: { id: true, name: true, code: true }, orderBy: { name: "asc" } });
+  const programs = await prisma.program.findMany({ where: { institutionId, isActive: true, ...(allowedDepartments.length ? { departmentId: { in: allowedDepartments } } : {}) }, select: { id: true, name: true, code: true, departmentId: true }, orderBy: { name: "asc" } });
+  const semesters = await prisma.semester.findMany({ where: { institutionId, isActive: true, ...(allowedDepartments.length ? { program: { departmentId: { in: allowedDepartments } } } : {}) }, select: { id: true, name: true, number: true, programId: true, academicYearId: true }, orderBy: [{ number: "asc" }, { name: "asc" }] });
+  const sections = await prisma.section.findMany({ where: { institutionId, isActive: true, ...(allowedDepartments.length ? { semester: { program: { departmentId: { in: allowedDepartments } } } } : {}) }, select: { id: true, name: true, semesterId: true }, orderBy: { name: "asc" } });
+  const academicYears = await prisma.academicYear.findMany({ where: { institutionId }, select: { id: true, name: true, isCurrent: true }, orderBy: { startDate: "desc" } });
+  return { departments, programs, semesters, sections, academicYears };
 }
 
 export async function getSettings(institutionId: string, actor: AuthenticatedUser) {
