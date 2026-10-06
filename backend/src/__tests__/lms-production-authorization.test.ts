@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { authorize } from "../middleware/authorize";
-import { getEffectivePermissions, hasPermission } from "../config/rbac";
+import { getEffectivePermissions, hasPermission, type PermissionKey } from "../config/rbac";
 import type { AuthenticatedUser } from "../types/auth";
 import { AppError } from "../middleware/errorHandler";
 
 function user(roles:AuthenticatedUser["roles"]):AuthenticatedUser{
   return {id:"test-user",institutionId:"tenant-a",email:"test@example.edu",idNumber:"TEST",firstName:"Test",lastName:"User",roles,permissions:getEffectivePermissions(roles)};
 }
-function middleware(permission:string,actor:AuthenticatedUser){
+function middleware(permission: PermissionKey,actor:AuthenticatedUser){
   let captured:unknown;
   authorize(permission)({user:actor} as any,{} as any,(e?:unknown)=>{captured=e});
   return captured;
