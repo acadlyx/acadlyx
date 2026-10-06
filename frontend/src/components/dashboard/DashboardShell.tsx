@@ -49,14 +49,14 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const allowedRolesKey = allowedRoles?.join(",") || "";
 
+  const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
+
   useEffect(() => {
     if (embeddedInWorkspaceShell) return;
     let alive = true;
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    // Auth is already resolved by ProtectedRouteBoundary. Reuse its cache,
-    // then share the workspace-context request with InstitutionalCmsProvider.
     getCurrentUser({ background: Boolean(cached) }).then(async (current) => {
       if (!alive) return;
       setUser(current);
@@ -98,8 +98,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
     const home = workspaceHome(roles);
     const timer = window.setTimeout(() => {
-      // Warm the next workspace chunk during idle time so navigation does not
-      // wait for both JS download and API work after the click.
       router.prefetch(home);
     }, 350);
 
@@ -119,8 +117,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
     }
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
   }, [pathname, router, user, allowedRolesKey, embeddedInWorkspaceShell]);
-
-  const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
 
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
