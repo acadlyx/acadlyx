@@ -155,6 +155,11 @@ export async function createCampus(
       code,
       address:
         input.address?.trim() || null,
+      ...(input.isActive !== undefined
+        ? {
+            isActive: input.isActive,
+          }
+        : {}),
     },
 
     include: campusInclude,
