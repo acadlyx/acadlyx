@@ -19,7 +19,7 @@ import {
   countRows,
   requireTenantRow,
 } from "../utils/sqlScope";
-import { assertCanViewStudent, assertCourseOfferingInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { assertCanViewStudent, assertCourseOfferingInScope, isInstitutionWide } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 /**
