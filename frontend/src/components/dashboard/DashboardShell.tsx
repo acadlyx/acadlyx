@@ -121,7 +121,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
     if (workspaceRole === "INSTITUTION_ADMIN") {
-      const base = getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group }));
+      const base = getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group, activeMatch: item.activeMatch }));
       const departmentItems = adminDepartments.map((department) => ({
         id: `/admin/departments/${department.id}`,
         label: department.name,
@@ -129,13 +129,13 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
         icon: "academic",
         group: "Departments",
       }));
-      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: COMMON_ACCOUNT_NAVIGATION.href, label: COMMON_ACCOUNT_NAVIGATION.label, href: COMMON_ACCOUNT_NAVIGATION.href, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group }];
+      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: COMMON_ACCOUNT_NAVIGATION.href, label: COMMON_ACCOUNT_NAVIGATION.label, href: COMMON_ACCOUNT_NAVIGATION.href, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group, activeMatch: COMMON_ACCOUNT_NAVIGATION.activeMatch }];
     }
     const role = workspaceRole;
     if (!role) return [];
     return navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
       const href = roleOwnedHref(role, item.href);
-      return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace" };
+      return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace", activeMatch: item.activeMatch, activeQuery: item.activeQuery };
     });
   }, [adminDepartments, user, workspaceRole]);
 
