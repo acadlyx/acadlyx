@@ -1594,6 +1594,10 @@ export async function getStudentCourseProgress(
   studentId: string
 ) {
   await assertCanViewStudent(institutionId, actor, studentId);
+  await assertCanLearn(institutionId, actor, courseOfferingId);
+  if (actor.roles.includes("STUDENT") && actor.id !== studentId) {
+    throw new AppError("You may only view your own learning progress", 403);
+  }
 
   const rows = await prisma.$queryRaw<
     Array<{ totalLessons: number; completedLessons: number }>
