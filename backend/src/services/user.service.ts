@@ -184,6 +184,7 @@ export async function listUsers(params: {
   search?: string;
   institutionId?: string;
   role?: string;
+  departmentId?: string;
   isActive?: boolean;
   scopeInstitutionId?: string | null;
 }) {
@@ -226,6 +227,14 @@ export async function listUsers(params: {
           mode: "insensitive",
         },
       },
+    ];
+  }
+
+  if (params.departmentId) {
+    where.OR = [
+      { employeeProfile: { departmentId: params.departmentId } },
+      { departmentAccesses: { some: { departmentId: params.departmentId } } },
+      { facultyCourseOfferings: { some: { course: { departmentId: params.departmentId } } } },
     ];
   }
 
