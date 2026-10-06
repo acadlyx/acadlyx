@@ -259,7 +259,7 @@ async function decideOne(
 ) {
   const existing = await prisma.studentEnrollmentRequest.findFirst({ where: { id, institutionId }, include: requestInclude });
   if (!existing) throw new AppError("Enrollment request not found", 404);
-  if (existing.status !== "PENDING" && !(decision === "PENDING" as never)) throw new AppError("Only pending enrollment requests can be decided", 422);
+  if (existing.status !== "PENDING") throw new AppError("Only pending enrollment requests can be decided", 422);
   if (actor.roles.includes("STUDENT") || !actor.permissions.includes("enrollment.approve")) throw new AppError("You are not authorized to decide enrollment requests", 403);
 
   await validateRequestContext(institutionId, existing);
