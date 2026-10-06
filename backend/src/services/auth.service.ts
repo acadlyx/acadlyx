@@ -945,19 +945,21 @@ export async function changeMyPassword(
       },
     });
 
-  if (
-    !user ||
-    !(
-      await comparePassword(
-        currentPassword,
-        user.passwordHash
-      )
-    )
-  ) {
-    throw new AppError(
-      "Current password is incorrect",
-      400
-    );
+  if (!user) {
+    throw new AppError("Current password is incorrect", 400);
+  }
+
+  const currentPasswordMatches = await comparePassword(currentPassword, user.passwordHash);
+  if (!currentPasswordMatches) {
+    await recordAuditLog({
+      institutionId: user.institutionId,
+      userId,
+      action: "account.password_change_failed",
+      metadata: { reason: "incorrect_current_password" },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+    throw new AppError("Current password is incorrect", 400);
   }
 
   if (
@@ -978,10 +980,11 @@ export async function changeMyPassword(
         id: userId,
       },
       data: {
-        passwordHash:
-          await hashPassword(
-            newPassword
-          ),
+        passwordHash: await hashPassword(newPassword),
+        passwordChangedAt: new Date(),
+        mustChangePassword: false,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       },
     }),
     prisma.refreshToken.updateMany({
