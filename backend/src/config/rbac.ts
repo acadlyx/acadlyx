@@ -615,6 +615,7 @@ export const ROLE_PERMISSIONS: Record<
     "campuses.create",
     "campuses.update",
     "campuses.delete",
+    "lms.read",
   ],
 
   CHAIRMAN: [
@@ -628,6 +629,7 @@ export const ROLE_PERMISSIONS: Record<
     ...LEADERSHIP_READ,
 
     "audit.read",
+    "lms.read",
   ],
 
   MANAGEMENT: [
@@ -641,6 +643,7 @@ export const ROLE_PERMISSIONS: Record<
     ...LEADERSHIP_READ,
 
     "audit.read",
+    "lms.read",
   ],
 
   DIRECTOR: [
@@ -666,6 +669,7 @@ export const ROLE_PERMISSIONS: Record<
     "library.fines.waive.approve",
 
     "audit.read",
+    "lms.read",
   ],
 
   DEAN: [
@@ -714,6 +718,7 @@ export const ROLE_PERMISSIONS: Record<
     "attendance.lock",
 
     "operations.read",
+    "lms.read",
   ],
 
 
@@ -775,6 +780,7 @@ export const ROLE_PERMISSIONS: Record<
     "calendar.manage",
 
     "audit.read",
+    "lms.read",
   ],
 
   HOD: [
@@ -1022,6 +1028,7 @@ export const ROLE_PERMISSIONS: Record<
     "documents.read",
 
     "audit.read",
+    "lms.read",
   ],
 
   LIBRARIAN: [
