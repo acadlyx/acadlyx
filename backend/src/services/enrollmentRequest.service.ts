@@ -3,6 +3,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { getManagedDepartmentIds } from "./accessScope.service";
+import { PaginationParams } from "../utils/pagination";
 import { validateAcademicPlacement } from "./studentAdmin.service";
 
 const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED", "NEEDS_CORRECTION", "CANCELLED"] as const;
@@ -223,6 +224,7 @@ export async function submitEnrollmentRequest(
 export async function listEnrollmentRequests(
   institutionId: string,
   actor: AuthenticatedUser,
+  pagination: PaginationParams,
   filters: { status?: string; programId?: string; academicYearId?: string; semesterId?: string; sectionId?: string; search?: string }
 ) {
   if (!actor.permissions.includes("enrollment.read")) throw new AppError("You do not have permission to view enrollment requests", 403);
@@ -244,7 +246,7 @@ export async function listEnrollmentRequests(
   if (managed) where.program = { departmentId: { in: managed.length ? managed : ["__none__"] } };
 
   const [items, total] = await Promise.all([
-    prisma.studentEnrollmentRequest.findMany({ where, include: requestInclude, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.studentEnrollmentRequest.findMany({ where, include: requestInclude, orderBy: { createdAt: "desc" }, skip: pagination.skip, take: pagination.take }),
     prisma.studentEnrollmentRequest.count({ where }),
   ]);
   return { items, total };
