@@ -367,9 +367,7 @@ function serializeStudent(student: any) {
 
   const enrollments = student.studentEnrollments ?? [];
   const currentEnrollment =
-    enrollments.find((item: any) => item.academicYear?.isCurrent) ??
-    enrollments[0] ??
-    null;
+    enrollments.find((item: any) => item.academicYear?.isCurrent) ?? null;
 
   const enrollmentState =
     !student.profile
