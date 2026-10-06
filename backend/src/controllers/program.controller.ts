@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
+import { requireAuthenticatedUser } from "../utils/requireInstitution";
+import { assertDepartmentInScope, assertProgramInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as programService from "../services/program.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -21,6 +23,7 @@ function requireInstitution(req: Request): string {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
   const departmentId =
@@ -34,6 +37,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     ...pagination,
     search,
     departmentId,
+    departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor),
     isActive,
   });
 
@@ -46,6 +50,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 
 export const getById = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertProgramInScope(institutionId, actor, req.params.id);
   const program = await programService.getProgramById(
     institutionId,
     req.params.id
@@ -55,6 +61,8 @@ export const getById = asyncHandler(async (req: Request, res: Response) => {
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertDepartmentInScope(institutionId, actor, (req.body as CreateProgramInput).departmentId);
   const program = await programService.createProgram(
     institutionId,
     req.body as CreateProgramInput
@@ -64,6 +72,9 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertProgramInScope(institutionId, actor, req.params.id);
+  if ((req.body as UpdateProgramInput).departmentId) await assertDepartmentInScope(institutionId, actor, (req.body as UpdateProgramInput).departmentId!);
   const program = await programService.updateProgram(
     institutionId,
     req.params.id,
@@ -74,6 +85,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
 export const deactivate = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertProgramInScope(institutionId, actor, req.params.id);
   const program = await programService.deactivateProgram(
     institutionId,
     req.params.id
