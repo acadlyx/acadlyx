@@ -19,7 +19,7 @@ import {
   countRows,
   requireTenantRow,
 } from "../utils/sqlScope";
-import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
+import { assertCanViewStudent, assertCourseOfferingInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 /**
@@ -94,6 +94,10 @@ async function assertCanTeach(
     courseOfferingId
   );
   if (isInstitutionWide(actor)) return offering;
+  if (actor.roles.includes("HOD") || actor.roles.includes("DEAN") || actor.roles.includes("DIRECTOR")) {
+    await assertCourseOfferingInScope(institutionId, actor, courseOfferingId);
+    return offering;
+  }
   assertOwnsCourseOffering(actor, offering.facultyId);
   return offering;
 }
