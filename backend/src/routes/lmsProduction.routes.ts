@@ -11,6 +11,8 @@ import * as service from "../services/lmsProduction.service";
 const router = Router();
 router.use(authenticate, requireFeature("lms"));
 
+router.get("/filter-options", authorize("lms.read"), asyncHandler(async(req,res)=>sendOk(res,await service.filterOptions(requireInstitution(req),requireAuthenticatedUser(req)))));
+
 router.get("/catalog", authorize("lms.read"), asyncHandler(async (req,res)=>{
   const p=parsePagination(req);
   const result=await service.listCatalog(requireInstitution(req),requireAuthenticatedUser(req),p,{
