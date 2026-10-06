@@ -5,7 +5,7 @@ import { getEffectivePermissions, hasPermission } from "../config/rbac";
 import type { AuthenticatedUser } from "../types/auth";
 import { AppError } from "../middleware/errorHandler";
 
-function user(roles:string[]):AuthenticatedUser{
+function user(roles:AuthenticatedUser["roles"]):AuthenticatedUser{
   return {id:"test-user",institutionId:"tenant-a",email:"test@example.edu",idNumber:"TEST",firstName:"Test",lastName:"User",roles,permissions:getEffectivePermissions(roles)};
 }
 function middleware(permission:string,actor:AuthenticatedUser){
