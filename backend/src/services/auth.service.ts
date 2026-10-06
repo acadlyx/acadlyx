@@ -300,35 +300,30 @@ async function issueTokens(
   institutionId: string | null,
   meta: RequestMeta
 ): Promise<AuthTokens> {
+  const refreshTokenPlain = generateRefreshToken();
+  const refreshRecord = await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashToken(refreshTokenPlain),
+      expiresAt: refreshTokenExpiryDate(),
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    },
+    select: { id: true },
+  });
+
+  // Correlate the short-lived access token with its refresh-token session.
+  // This is an opaque internal id; no token value is exposed to the client.
   const payload: AccessTokenPayload = {
     sub: user.id,
+    sid: refreshRecord.id,
     institutionId,
     email: user.email,
     roles,
     permissions,
   };
 
-  const accessToken =
-    signAccessToken(payload);
-
-  const refreshTokenPlain =
-    generateRefreshToken();
-
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenHash:
-        hashToken(
-          refreshTokenPlain
-        ),
-      expiresAt:
-        refreshTokenExpiryDate(),
-      ipAddress:
-        meta.ipAddress,
-      userAgent:
-        meta.userAgent,
-    },
-  });
+  const accessToken = signAccessToken(payload);
 
   return {
     accessToken,
