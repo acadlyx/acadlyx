@@ -266,7 +266,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const sources = Array.from(new Set(config.fields.map((field) => field.source).filter(Boolean))) as LookupSource[];
     const entries = await Promise.all(sources.map(async (source) => {
       try {
-        const response = await authedFetch<{ data: unknown }>(`${LOOKUPS[source]}${LOOKUPS[source].includes("?") ? "&" : "?"}${departmentId && ["programs","semesters","sections","courses"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
+        const response = await authedFetch<{ data: unknown }>(`${source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}` : LOOKUPS[source]}${source !== "departments" && LOOKUPS[source].includes("?") ? "&" : source !== "departments" ? "?" : ""}${source !== "departments" && departmentId && ["programs","semesters","sections","courses","course-offerings"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
         return [source, normalizeRows(response.data)] as const;
       } catch {
         return [source, []] as const;
@@ -282,7 +282,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ background: true }),
-        authedFetch<{ data: unknown }>(`${config.endpoint}?page=1&pageSize=500${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown }>(`${config.endpoint}?page=1&pageSize=100${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
