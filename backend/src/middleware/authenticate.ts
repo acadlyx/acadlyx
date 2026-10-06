@@ -323,6 +323,7 @@ export async function authenticate(
       lastName: user.lastName,
       roles,
       permissions,
+      sessionId: payload.sid,
     };
 
     next();
