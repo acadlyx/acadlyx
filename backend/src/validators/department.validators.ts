@@ -50,6 +50,13 @@ export const createDepartmentSchema =
 
       campusId:
         optionalUuid,
+
+      // Backward-compatible with older admin clients that sent
+      // the default active state during department creation.
+      isActive:
+        z
+          .boolean()
+          .optional(),
     })
     .strict();
 
