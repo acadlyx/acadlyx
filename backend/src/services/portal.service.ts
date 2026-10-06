@@ -233,10 +233,6 @@ async function getStudentEnrollment(
       userId: studentId,
       status: "ACTIVE",
     },
-    where: {
-      institutionId,
-      userId: studentId,
-    },
     include: {
       program: {
         select: {
