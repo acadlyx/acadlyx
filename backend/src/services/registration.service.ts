@@ -553,6 +553,11 @@ export async function listRegistrations(
     courseOfferingId?: string;
     studentId?: string;
     semesterId?: string;
+    programId?: string;
+    academicYearId?: string;
+    sectionId?: string;
+    courseId?: string;
+    facultyId?: string;
     search?: string;
   }
 ) {
@@ -563,8 +568,8 @@ export async function listRegistrations(
       ? { courseOfferingId: filters.courseOfferingId }
       : {}),
     ...(filters.studentId ? { studentId: filters.studentId } : {}),
-    ...(filters.semesterId
-      ? { courseOffering: { semesterId: filters.semesterId } }
+    ...(filters.semesterId || filters.programId || filters.academicYearId || filters.sectionId || filters.courseId || filters.facultyId
+      ? { courseOffering: { ...(filters.semesterId ? { semesterId: filters.semesterId } : {}), ...(filters.sectionId ? { sectionId: filters.sectionId } : {}), ...(filters.courseId ? { courseId: filters.courseId } : {}), ...(filters.facultyId ? { facultyId: filters.facultyId } : {}), ...(filters.programId || filters.academicYearId ? { semester: { ...(filters.programId ? { programId: filters.programId } : {}), ...(filters.academicYearId ? { academicYearId: filters.academicYearId } : {}) } } : {}) } }
       : {}),
     ...(filters.search
       ? {
