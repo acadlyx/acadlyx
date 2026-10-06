@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { requireAuthenticatedUser } from "../utils/requireInstitution";
+import { assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as sectionService from "../services/section.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -10,6 +12,7 @@ import {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
@@ -21,6 +24,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     search,
     semesterId,
     departmentId,
+    departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor),
     isActive,
   });
 
@@ -33,6 +37,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 
 export const getById = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSectionInScope(institutionId, actor, req.params.id);
   const section = await sectionService.getSectionById(
     institutionId,
     req.params.id
@@ -42,6 +48,8 @@ export const getById = asyncHandler(async (req: Request, res: Response) => {
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSemesterInScope(institutionId, actor, (req.body as CreateSectionInput).semesterId);
   const section = await sectionService.createSection(
     institutionId,
     req.body as CreateSectionInput
@@ -51,6 +59,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSectionInScope(institutionId, actor, req.params.id);
   const section = await sectionService.updateSection(
     institutionId,
     req.params.id,
@@ -61,6 +71,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
 export const deactivate = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertSectionInScope(institutionId, actor, req.params.id);
   const section = await sectionService.deactivateSection(
     institutionId,
     req.params.id
