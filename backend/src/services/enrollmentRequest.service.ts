@@ -129,7 +129,7 @@ export async function listEligibleContexts(institutionId: string, studentId: str
   if (!programId) return [];
 
   const semesters = await prisma.semester.findMany({
-    where: { institutionId, programId, academicYearId: yearId, isActive: true },
+    where: { institutionId, programId, academicYearId: yearId, isActive: true, program: { isActive: true, department: { isActive: true } } },
     orderBy: { number: "asc" },
     select: {
       id: true, name: true, number: true,
