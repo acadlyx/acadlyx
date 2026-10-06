@@ -15,7 +15,7 @@ import {
   getCurrentUser,
 } from "@/lib/auth";
 
-function AdminStudentsPageContent() {
+function AdminStudentsPageContent({ departmentId }: { departmentId?: string }) {
   const [user, setUser] =
     useState<AuthUser | null>(
       () =>
@@ -148,20 +148,20 @@ function AdminStudentsPageContent() {
         </div>
       </section>
 
-      <StudentManagement />
+      <StudentManagement departmentId={departmentId} />
     </div>
   );
 }
 
 
-export function AdminStudentsPage() {
+export function AdminStudentsPage({ departmentId }: { departmentId?: string }) {
   return (
     <DashboardShell
       title="Students"
       subtitle="Institution-scoped administration"
       allowedRoles={["INSTITUTION_ADMIN", "REGISTRAR"]}
     >
-      <AdminStudentsPageContent />
+      <AdminStudentsPageContent departmentId={departmentId} />
     </DashboardShell>
   );
 }
