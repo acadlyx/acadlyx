@@ -62,6 +62,35 @@ router.post(
 router.use(authenticate);
 
 router.get(
+  "/sessions",
+  asyncHandler(async (req, res) => {
+    sendOk(res, await service.listSessions(requireAuthenticatedUser(req)));
+  })
+);
+
+router.delete(
+  "/sessions/:id",
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    sendOk(res, await service.revokeSession(requireAuthenticatedUser(req), req.params.id, auditMeta(req)));
+  })
+);
+
+router.post(
+  "/sessions/revoke-other",
+  asyncHandler(async (req, res) => {
+    sendOk(res, await service.revokeOtherSessions(requireAuthenticatedUser(req), auditMeta(req)));
+  })
+);
+
+router.get(
+  "/login-activity",
+  asyncHandler(async (req, res) => {
+    sendOk(res, await service.getLoginActivity(requireAuthenticatedUser(req)));
+  })
+);
+
+router.get(
   "/mfa",
   asyncHandler(async (req, res) => {
     const result = await service.getMfaStatus(requireAuthenticatedUser(req));
