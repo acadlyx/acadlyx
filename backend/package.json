@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "prisma migrate deploy && if [ -n \"$SUPER_ADMIN_EMAIL\" ] && [ -n \"$SUPER_ADMIN_PASSWORD\" ]; then npm run prisma:seed:admin; else echo \"SUPER_ADMIN bootstrap skipped: SUPER_ADMIN_EMAIL/SUPER_ADMIN_PASSWORD not configured\"; fi && node dist/index.js",
     "lint": "eslint . --ext .ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
