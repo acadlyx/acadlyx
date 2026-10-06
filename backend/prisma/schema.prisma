@@ -125,9 +125,7 @@ model Institution {
   libraryFines LibraryFine[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
-  studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
-  studentEnrollmentRequestsByInstitution StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
-  enrollmentRequestsRequested StudentEnrollmentRequest[] @relation("EnrollmentRequestRequester")
+  studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
 
