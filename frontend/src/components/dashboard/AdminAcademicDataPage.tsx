@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
 import { AuthRequiredError, authedFetch, getCurrentUser, type AuthUser } from "@/lib/auth";
@@ -239,8 +239,7 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const departmentId = searchParams.get("departmentId") || "";
+  const [departmentId, setDepartmentId] = useState("");
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
   const [lookupData, setLookupData] = useState<Record<LookupSource, Row[]>>({
@@ -298,6 +297,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     }
   }, [config.endpoint, departmentId, loadLookups, router]);
 
+  useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); }, []);
   useEffect(() => { void load(); }, [load]);
 
   const openCreate = () => {
