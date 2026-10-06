@@ -541,39 +541,15 @@ export async function listStudents(
         }
       : {}),
 
-    ...(params.academicYearId ||
-    params.programId ||
-    params.semesterId ||
-    params.sectionId
+    ...(params.departmentId || params.academicYearId || params.programId || params.semesterId || params.sectionId
       ? {
           studentEnrollments: {
             some: {
               ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
-              ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
-              ...(params.academicYearId
-                ? {
-                    academicYearId:
-                      params.academicYearId,
-                  }
-                : {},
-              ...(params.programId
-                ? {
-                    programId:
-                      params.programId,
-                  }
-                : {}),
-              ...(params.semesterId
-                ? {
-                    semesterId:
-                      params.semesterId,
-                  }
-                : {}),
-              ...(params.sectionId
-                ? {
-                    sectionId:
-                      params.sectionId,
-                  }
-                : {}),
+              ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
+              ...(params.programId ? { programId: params.programId } : {}),
+              ...(params.semesterId ? { semesterId: params.semesterId } : {}),
+              ...(params.sectionId ? { sectionId: params.sectionId } : {}),
             },
           },
         }
