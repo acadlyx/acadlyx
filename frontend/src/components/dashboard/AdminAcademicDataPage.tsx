@@ -242,6 +242,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
   const [departmentId, setDepartmentId] = useState("");
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [lookupData, setLookupData] = useState<Record<LookupSource, Row[]>>({
     campuses: [], departments: [], programs: [], years: [], semesters: [], sections: [], courses: [], faculty: [],
   });
@@ -281,10 +284,12 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ background: true }),
-        authedFetch<{ data: unknown }>(`${config.endpoint}?page=1&pageSize=100${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
+      setTotal(response.meta?.total ?? normalizeRows(response.data).length);
+      setTotalPages(Math.max(1, response.meta?.totalPages ?? 1));
       void loadLookups();
     } catch (reason) {
       if (reason instanceof AuthRequiredError) {
@@ -295,9 +300,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, loadLookups, router]);
+  }, [config.endpoint, departmentId, loadLookups, page, router]);
 
-  useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); }, []);
+  useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); setPage(1); }, []);
   useEffect(() => { void load(); }, [load]);
 
   const openCreate = () => {
@@ -445,7 +450,15 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                   {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
                 </div></td> : null}
               </tr>)}
-            </tbody></table></div>
+            </tbody></table>
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <span>{total.toLocaleString("en-IN")} records · Page {page} of {totalPages}</span>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Previous</button>
+                <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page >= totalPages || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Next</button>
+              </div>
+            </div>
+            </div>
           )}
         </section>
       </main>
