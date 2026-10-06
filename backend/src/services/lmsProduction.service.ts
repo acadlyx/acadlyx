@@ -71,7 +71,7 @@ export async function getWorkspace(institutionId: string, actor: AuthenticatedUs
     q<any>('SELECT * FROM "quizzes" WHERE "institutionId"=$1 AND "courseOfferingId"=$2 ORDER BY "createdAt" DESC LIMIT 100', institutionId, offeringId),
     q<any>('SELECT * FROM "lms_live_classes" WHERE "institutionId"=$1 AND "courseOfferingId"=$2 ORDER BY "startsAt" DESC LIMIT 100', institutionId, offeringId),
     q<any>('SELECT id,title,body,audience,"departmentId","courseOfferingId","publishedAt","expiresAt" FROM "notices" WHERE "institutionId"=$1 AND ("courseOfferingId"=$2 OR ("courseOfferingId" IS NULL AND "audience" IN (\'ALL\',\'INSTITUTION\',\'COURSE\'))) ORDER BY "publishedAt" DESC LIMIT 100', institutionId, offeringId),
-    listDiscussions(institutionId, actor, offeringId, { skip: 0, take: 50 }),
+    listDiscussions(institutionId, actor, offeringId, { page: 1, pageSize: 50, skip: 0, take: 50 }),
   ]);
   return { offering, workflow: wf, modules, assignments, quizzes, liveClasses, announcements, discussion };
 }
