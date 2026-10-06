@@ -99,6 +99,7 @@ router.get(
         sectionId: typeof req.query.sectionId === "string" ? req.query.sectionId : undefined,
         courseId: typeof req.query.courseId === "string" ? req.query.courseId : undefined,
         facultyId: typeof req.query.facultyId === "string" ? req.query.facultyId : undefined,
+        courseType: typeof req.query.courseType === "string" ? req.query.courseType : undefined,
         search: searchTerm(req.query.search),
       }
     );
