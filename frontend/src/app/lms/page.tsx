@@ -31,6 +31,40 @@ import {
  * page only decides what to render.
  */
 
+function ModuleForm({ busy, onSubmit }: { busy: boolean; onSubmit: (title: string, description: string) => void }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  return <form className="mt-5 grid gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 sm:grid-cols-[1fr_1.5fr_auto]" onSubmit={(event) => {
+    event.preventDefault();
+    const value = title.trim();
+    if (!value) return;
+    onSubmit(value, description.trim());
+    setTitle("");
+    setDescription("");
+  }}>
+    <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Module title" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+    <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description (optional)" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+    <button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Add module</button>
+  </form>;
+}
+
+function LessonForm({ busy, onSubmit }: { busy: boolean; onSubmit: (title: string, content: string) => void }) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  return <form className="mt-4 grid gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 sm:grid-cols-[1fr_1.5fr_auto]" onSubmit={(event) => {
+    event.preventDefault();
+    const value = title.trim();
+    if (!value) return;
+    onSubmit(value, content.trim());
+    setTitle("");
+    setContent("");
+  }}>
+    <input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Lesson title" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+    <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Lesson content (optional)" rows={1} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+    <button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Add lesson</button>
+  </form>;
+}
+
 type Tab = "content" | "quizzes";
 
 export default function LmsPage() {
@@ -129,7 +163,7 @@ export default function LmsPage() {
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex flex-wrap gap-2">{(["learning","assessments","progress"] as const).map((key) => <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-xl px-4 py-2 text-sm font-bold capitalize ${tab === key ? "bg-slate-950 text-white" : "border border-slate-200 text-slate-600"}`}>{key}</button>)}</div>
           <h2 className="text-lg font-black text-slate-950">{isStudent ? "My Courses" : "Course Offerings"}</h2>
-          <p className="mt-1 text-sm text-slate-500">Selections are resolved by the authenticated user's permissions and academic scope.</p>
+          <p className="mt-1 text-sm text-slate-500">Selections are resolved by the authenticated user&apos;s permissions and academic scope.</p>
           <div className="mt-4">
             {visibleOfferings.length ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
