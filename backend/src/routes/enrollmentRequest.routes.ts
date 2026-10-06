@@ -4,7 +4,7 @@ import { authorize } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateQuery, validateParams } from "../middleware/validate";
 import { asyncHandler } from "../utils/asyncHandler";
-import { auditMeta, sendOk, searchTerm } from "../utils/http";
+import { sendOk, searchTerm } from "../utils/http";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import { idParams } from "../validators/common";
 import {
