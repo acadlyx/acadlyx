@@ -62,6 +62,7 @@ router.get("/submissions/:id/files", authorize("lms.read"), asyncHandler(async(r
 router.get("/parent/students", authorize("lms.read"), asyncHandler(async(req,res)=>sendOk(res,await service.linkedStudents(requireInstitution(req),requireAuthenticatedUser(req)))));
 router.get("/parent/students/:studentId", authorize("lms.read"), asyncHandler(async(req,res)=>sendOk(res,await service.getParentStudentOverview(requireInstitution(req),requireAuthenticatedUser(req),req.params.studentId))));
 
+router.post("/offerings/:offeringId/certificate-request", authorize("certificates.request"), asyncHandler(async(req,res)=>sendOk(res,await service.requestCompletionCertificate(requireInstitution(req),requireAuthenticatedUser(req),req.params.offeringId),201)));
 router.get("/students/:studentId/offerings/:offeringId/certificate-eligibility", authorize("certificates.read"), asyncHandler(async(req,res)=>sendOk(res,await service.certificateEligibility(requireInstitution(req),requireAuthenticatedUser(req),req.params.studentId,req.params.offeringId))));
 
 export default router;
