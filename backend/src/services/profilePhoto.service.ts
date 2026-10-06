@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
-import { storeFile, deleteFile, getFileDelivery } from "./fileStorage.service";\nimport { recordAuditLog } from "./audit.service";
+import { storeFile, deleteFile, getFileDelivery } from "./fileStorage.service";
+import { recordAuditLog } from "./audit.service";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 
 export interface ProfilePhoto {
