@@ -240,6 +240,7 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
+  const [search, setSearch] = useState("");
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
   const [page, setPage] = useState(1);
@@ -284,7 +285,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ background: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -300,9 +301,10 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, loadLookups, page, router]);
+  }, [config.endpoint, departmentId, loadLookups, page, router, search]);
 
   useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); setPage(1); }, []);
+  useEffect(() => { const timer = window.setTimeout(() => setPage(1), 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
   const openCreate = () => {
@@ -367,7 +369,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     setNotice("");
     try {
       for (const field of config.fields) {
-        if (editingRow && field.update === false) continue;
+        if (editingRow ? field.update === false : field.update === true) continue;
         if (field.required && (form[field.key] === undefined || form[field.key] === null || form[field.key] === "")) {
           setError(`Please select or enter ${field.label.toLowerCase()}.`);
           setSaving(false);
@@ -426,7 +428,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
             <h1 className="mt-1 text-2xl font-black text-slate-950">{config.title}</h1>
             <p className="mt-1 text-sm text-slate-500">{loading ? "Loading…" : `${rows.length} records returned from the institution.`}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><label className="sr-only" htmlFor="academic-structure-search">Search records</label><input id="academic-structure-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${config.title.toLowerCase()}…`} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-72" /><div className="flex flex-wrap gap-2">
             {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
             <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
           </div>
