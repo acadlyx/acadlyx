@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeMfaLogin, login } from "@/lib/auth";
-import { workspaceHome } from "@/lib/navigation";\nimport Link from "next/link";
+import { workspaceHome } from "@/lib/navigation";
+import Link from "next/link";
 
 export function InlineLogin() {
   const router = useRouter();
@@ -13,7 +14,8 @@ export function InlineLogin() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [mfa, setMfa] = useState("");
-  const [challenge, setChallenge] = useState("");\n  const [showPassword, setShowPassword] = useState(false);
+  const [challenge, setChallenge] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!challenge) identifierRef.current?.focus();
