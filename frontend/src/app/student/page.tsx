@@ -15,6 +15,8 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
+import { getMyEnrollmentWorkflow } from "@/lib/enrollmentRequestApi";
+import { getMyRegistrations } from "@/lib/registrationApi";
 import { StudentDashboardData } from "@/types/dashboard";
 
 function greeting() {
@@ -43,12 +45,19 @@ export default function StudentDashboardPage() {
   const [data, setData] = useState<StudentDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [workflow, setWorkflow] = useState<{ enrollment: any; request: any; state: string; registrations: any } | null>(null);
 
   async function load() {
     setLoading(true); setError("");
     try {
       if (!isAuthenticated()) { router.replace("/login"); return; }
       setData(await getMyDashboard());
+      try {
+        const [enrollment, registrations] = await Promise.all([getMyEnrollmentWorkflow(), getMyRegistrations()]);
+        setWorkflow({ ...enrollment, registrations });
+      } catch {
+        setWorkflow(null);
+      }
     } catch (err) {
       if (err instanceof AuthRequiredError) { router.replace("/login"); return; }
       setError(err instanceof Error ? err.message : "Unable to load your workspace.");
@@ -58,11 +67,11 @@ export default function StudentDashboardPage() {
   useEffect(() => { void load(); }, []);
 
   return <DashboardShell title="Student workspace" subtitle="Your classes, progress and next actions" allowedRoles={["STUDENT"]}>
-    {loading && !data ? <DashboardSkeleton /> : error && !data ? <ErrorState message={error} retry={load} /> : data ? <StudentDashboardContent data={data} /> : null}
+    {loading && !data ? <DashboardSkeleton /> : error && !data ? <ErrorState message={error} retry={load} /> : data ? <StudentDashboardContent data={data} workflow={workflow} /> : null}
   </DashboardShell>;
 }
 
-function StudentDashboardContent({ data }: { data: StudentDashboardData }) {
+function StudentDashboardContent({ data, workflow }: { data: StudentDashboardData; workflow: { enrollment: any; request: any; state: string; registrations: any } | null }) {
   const { student, program, section, todaysClasses, assignments, announcements, upcomingEvents, academicHealth, academicRisk, recommendations, attendancePercentage } = data;
 
   return <div className="space-y-6">
@@ -76,7 +85,18 @@ function StudentDashboardContent({ data }: { data: StudentDashboardData }) {
       </div>
     </section>
 
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Attendance" value={`${attendancePercentage}%`} detail="Overall attendance" /><Metric label="Assignments" value={String(assignments.length)} detail="Upcoming work" /><Metric label="Today's classes" value={String(todaysClasses.length)} detail="Scheduled today" /><Metric label="Academic health" value={`${Math.round(academicHealth.academicHealth ?? 0)}%`} detail={`${academicRisk} risk`} /></div>
+    {workflow ? <div className="grid gap-4 lg:grid-cols-2">
+      <Link href="/student/enrollment" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Academic Enrollment</p>
+        <p className="mt-2 text-xl font-black text-slate-950">{workflow.enrollment ? "✓ Approved" : workflow.request ? (workflow.request.status === "NEEDS_CORRECTION" ? "Needs Correction" : "⏳ Pending HOD Approval") : "Not Started"}</p>
+        <p className="mt-1 text-sm text-slate-500">{workflow.enrollment ? workflow.enrollment.program.name : "Open enrollment workflow →"}</p>
+      </Link>
+      <Link href="/student/course-registration" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Course Registration</p>
+        <p className="mt-2 text-xl font-black text-slate-950">{workflow.registrations.items.some((x:any)=>x.status === "REQUESTED") ? "⏳ Pending HOD Approval" : workflow.registrations.items.some((x:any)=>x.status === "APPROVED") ? "✓ Approved" : "Not Started"}</p>
+        <p className="mt-1 text-sm text-slate-500">{workflow.registrations.registeredCredits} registered credit(s)</p>
+      </Link>
+    </div>\n\n    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Attendance" value={`${attendancePercentage}%`} detail="Overall attendance" /><Metric label="Assignments" value={String(assignments.length)} detail="Upcoming work" /><Metric label="Today's classes" value={String(todaysClasses.length)} detail="Scheduled today" /><Metric label="Academic health" value={`${Math.round(academicHealth.academicHealth ?? 0)}%`} detail={`${academicRisk} risk`} /></div>
 
     <div className="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
       <DashboardCard title="Today's classes" action={<Link href="/student/timetable" className="text-xs font-bold text-blue-600 hover:text-blue-700">Weekly timetable</Link>}><ClassSchedule classes={todaysClasses} /></DashboardCard>
