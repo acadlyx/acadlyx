@@ -504,6 +504,23 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Enrollment Requests",
+    href: "/hod/enrollment-requests",
+    icon: "✓",
+    roles: ["HOD"],
+    permissions: ["enrollment.read"],
+    group: "Academic",
+  },
+  {
+    label: "Course Registration Requests",
+    href: "/hod/course-registration-requests",
+    icon: "▦",
+    roles: ["HOD"],
+    permissions: ["registration.read"],
+    group: "Academic",
+  },
+
+  {
     label: "Outcome Based Education",
     href: "/hod/obe",
     icon: "◎",
@@ -1007,6 +1024,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "◎",
     roles: ["STUDENT"],
     permissions: ["obe.read"],
+    group: "Academic",
+  },
+  {
+    label: "Enrollment",
+    href: "/student/enrollment",
+    icon: "✓",
+    roles: ["STUDENT"],
+    permissions: ["enrollment.read"],
     group: "Academic",
   },
   {
