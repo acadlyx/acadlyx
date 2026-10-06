@@ -6,6 +6,9 @@ export const createProgramSchema = z.object({
   code: z.string().trim().min(2).max(20).toUpperCase(),
   level: z.string().trim().min(1).max(30),
   durationYears: z.number().int().min(1).max(10),
+  // Backward-compatible with older admin clients that sent
+  // the default active state during program creation.
+  isActive: z.boolean().optional(),
 });
 
 export const updateProgramSchema = createProgramSchema.partial().extend({
