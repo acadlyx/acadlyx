@@ -48,6 +48,7 @@ import movementRoutes from "./routes/movement.routes";
 import portalRoutes from "./routes/portal.routes";
 import programRoutes from "./routes/program.routes";
 import registrationRoutes from "./routes/registration.routes";
+import enrollmentRequestRoutes from "./routes/enrollmentRequest.routes";
 import sectionRoutes from "./routes/section.routes";
 import semesterRoutes from "./routes/semester.routes";
 import studentRoutes from "./routes/student.routes";
@@ -210,6 +211,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/library`, libraryRoutes);
   app.use(`${apiPrefix}/calendar`, calendarRoutes);
   app.use(`${apiPrefix}/registrations`, registrationRoutes);
+  app.use(`${apiPrefix}/enrollment-requests`, enrollmentRequestRoutes);
   app.use(`${apiPrefix}/movements`, movementRoutes);
   app.use(`${apiPrefix}/certificates`, certificateRoutes);
   app.use(`${apiPrefix}/attendance-sessions`, attendanceSessionRoutes);
