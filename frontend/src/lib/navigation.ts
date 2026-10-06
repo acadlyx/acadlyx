@@ -161,6 +161,8 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   {
     label: "Platform overview",
     href: "/superadmin",
+    activeMatch: "exact",
+    activeQuery: { section: null },
     icon: "⌂",
     roles: ["SUPER_ADMIN"],
     group: "Platform",
