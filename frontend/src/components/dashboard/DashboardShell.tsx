@@ -9,7 +9,7 @@ import { useWorkspaceShellContext } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
-import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome } from "@/lib/navigation";
+import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
 import { GlobalSearchBar } from "./GlobalSearchBar";
@@ -129,7 +129,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
         icon: "academic",
         group: "Departments",
       }));
-      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems];
+      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: COMMON_ACCOUNT_NAVIGATION.href, label: COMMON_ACCOUNT_NAVIGATION.label, href: COMMON_ACCOUNT_NAVIGATION.href, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group }];
     }
     const role = workspaceRole;
     if (!role) return [];
