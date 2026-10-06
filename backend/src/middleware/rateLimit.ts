@@ -26,3 +26,10 @@ export const tokenRateLimit = rateLimit({
   ...common,
   max: 60,
 });
+
+/** Sensitive authenticated password changes are intentionally stricter than ordinary API traffic. */
+export const passwordChangeRateLimit = rateLimit({
+  ...common,
+  max: 5,
+  skipSuccessfulRequests: true,
+});
