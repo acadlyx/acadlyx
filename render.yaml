@@ -2,15 +2,16 @@ services:
   - type: web
     name: acadlyx-api
     runtime: node
+    repo: https://github.com/acadlyx/acadlyx
+    branch: production-upgrade-2026-09-20
     rootDir: backend
     plan: 0.5c-512mb
-    buildCommand: npm ci && npm run build
-    preDeployCommand: >-
-      status=$(npx prisma migrate status 2>&1 || true); echo "$status"; if echo "$status" | grep -q "20261005060000_align_library_existing_architecture"; then npx prisma migrate resolve --rolled-back 20261005060000_align_library_existing_architecture; fi; npx prisma migrate deploy && npm run prisma:rbac:sync
+    buildCommand: rm -rf dist && npm ci && npm run build
+    preDeployCommand: npx prisma migrate deploy && npm run prisma:rbac:sync
     startCommand: npm start
     maxShutdownDelaySeconds: 60
     healthCheckPath: /api/v1/health
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
@@ -38,8 +39,6 @@ services:
         value: 8
       - key: AUTH_LOCKOUT_MINUTES
         value: 15
-      - key: AUTH_RESET_TTL_MINUTES
-        value: 30
       - key: MAIL_ENABLED
         value: "false"
       - key: PAYMENT_PROVIDER
@@ -62,12 +61,14 @@ services:
   - type: worker
     name: acadlyx-worker
     runtime: node
+    repo: https://github.com/acadlyx/acadlyx
+    branch: production-upgrade-2026-09-20
     rootDir: backend
     plan: 0.5c-512mb
-    buildCommand: npm ci && npm run build
+    buildCommand: rm -rf dist && npm ci && npm run build
     startCommand: npm run worker
     maxShutdownDelaySeconds: 120
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
