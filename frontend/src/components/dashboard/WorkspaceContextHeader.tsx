@@ -31,7 +31,7 @@ export function WorkspaceContextHeader({
             ))}
           </nav>
         ) : null}
-        {title ? <h1 className="text-xl font-bold tracking-tight text-slate-950">{title}</h1> : null}
+        {title ? <h2 className="acadlyx-context-title">{title}</h2> : null}
         {description ? <p className="text-sm text-slate-500">{description}</p> : null}
       </div>
     </section>
