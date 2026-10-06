@@ -558,6 +558,7 @@ export async function listRegistrations(
     sectionId?: string;
     courseId?: string;
     facultyId?: string;
+    courseType?: "core" | "elective";
     search?: string;
   }
 ) {
@@ -568,8 +569,9 @@ export async function listRegistrations(
       ? { courseOfferingId: filters.courseOfferingId }
       : {}),
     ...(filters.studentId ? { studentId: filters.studentId } : {}),
-    ...(filters.semesterId || filters.programId || filters.academicYearId || filters.sectionId || filters.courseId || filters.facultyId
-      ? { courseOffering: { ...(filters.semesterId ? { semesterId: filters.semesterId } : {}), ...(filters.sectionId ? { sectionId: filters.sectionId } : {}), ...(filters.courseId ? { courseId: filters.courseId } : {}), ...(filters.facultyId ? { facultyId: filters.facultyId } : {}), ...(filters.programId || filters.academicYearId ? { semester: { ...(filters.programId ? { programId: filters.programId } : {}), ...(filters.academicYearId ? { academicYearId: filters.academicYearId } : {}) } } : {}) } }
+    ...(filters.semesterId || filters.programId || filters.academicYearId || filters.sectionId || filters.courseId || filters.facultyId || filters.courseType
+      ? { courseOffering: { ...(filters.semesterId ? { semesterId: filters.semesterId } : {}), ...(filters.sectionId ? { sectionId: filters.sectionId } : {}), ...(filters.courseId ? { courseId: filters.courseId } : {}), ...(filters.facultyId ? { facultyId: filters.facultyId } : {}),
+            ...(filters.courseType ? { isElective: filters.courseType === "elective" } : {}), ...(filters.programId || filters.academicYearId ? { semester: { ...(filters.programId ? { programId: filters.programId } : {}), ...(filters.academicYearId ? { academicYearId: filters.academicYearId } : {}) } } : {}) } }
       : {}),
     ...(filters.search
       ? {
