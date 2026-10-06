@@ -426,7 +426,6 @@ async function assertStudentListContext(
     : null;
   if (params.programId && !program) throw new AppError("Selected program is not available in this institution", 404);
 
-  const scope = await getStudentWhereScope(institutionId, actor);
   if (program && !params.departmentId) {
     const probe = await prisma.user.findFirst({
       where: {
@@ -478,6 +477,7 @@ export async function listStudents(
     search?: string;
     status?: string;
     academicYearId?: string;
+    departmentId?: string;
     programId?: string;
     semesterId?: string;
     sectionId?: string;
@@ -549,12 +549,13 @@ export async function listStudents(
           studentEnrollments: {
             some: {
               ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
+              ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
               ...(params.academicYearId
                 ? {
                     academicYearId:
                       params.academicYearId,
                   }
-                : {}),
+                : {},
               ...(params.programId
                 ? {
                     programId:
