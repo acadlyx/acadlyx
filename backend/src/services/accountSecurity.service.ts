@@ -531,6 +531,65 @@ export async function resetPassword(
   return { reset: true };
 }
 
+function describeUserAgent(userAgent: string | null): { browser: string; os: string; device: string } {
+  const ua = userAgent || "";
+  const browser = /Edg\\//i.test(ua) ? "Edge" : /Chrome\\//i.test(ua) ? "Chrome" : /Firefox\\//i.test(ua) ? "Firefox" : /Safari\\//i.test(ua) && !/Chrome\\//i.test(ua) ? "Safari" : /OPR\\//i.test(ua) ? "Opera" : /MSIE|Trident/i.test(ua) ? "Internet Explorer" : "Browser";
+  const os = /Windows/i.test(ua) ? "Windows" : /Mac OS X/i.test(ua) ? "macOS" : /Android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) ? "iOS" : /Linux/i.test(ua) ? "Linux" : "Unknown OS";
+  const device = /iPhone|iPad|Android.*Mobile|Mobile/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
+  return { browser, os, device };
+}
+
+export async function listSessions(actor: AuthenticatedUser) {
+  const now = new Date();
+  const sessions = await prisma.refreshToken.findMany({
+    where: { userId: actor.id, revokedAt: null, expiresAt: { gt: now } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, expiresAt: true, createdAt: true, ipAddress: true, userAgent: true },
+  });
+  return sessions.map((session) => ({
+    id: session.id,
+    current: session.id === actor.sessionId,
+    createdAt: session.createdAt,
+    lastActiveAt: session.createdAt,
+    expiresAt: session.expiresAt,
+    ipAddress: session.ipAddress,
+    ...describeUserAgent(session.userAgent),
+  }));
+}
+
+export async function revokeSession(actor: AuthenticatedUser, sessionId: string, meta: { ipAddress?: string; userAgent?: string }) {
+  const result = await prisma.refreshToken.updateMany({
+    where: { id: sessionId, userId: actor.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  if (!result.count) throw new AppError("Session was not found or is already signed out", 404);
+  await recordAuditLog({ institutionId: actor.institutionId, userId: actor.id, action: "auth.session_revoked", entityType: "RefreshToken", entityId: sessionId, metadata: { current: sessionId === actor.sessionId }, ...meta });
+  return { revoked: true, current: sessionId === actor.sessionId };
+}
+
+export async function revokeOtherSessions(actor: AuthenticatedUser, meta: { ipAddress?: string; userAgent?: string }) {
+  if (!actor.sessionId) throw new AppError("Current session could not be identified. Please sign in again.", 409);
+  const result = await prisma.refreshToken.updateMany({
+    where: { userId: actor.id, revokedAt: null, id: { not: actor.sessionId } },
+    data: { revokedAt: new Date() },
+  });
+  await recordAuditLog({ institutionId: actor.institutionId, userId: actor.id, action: "auth.other_sessions_revoked", metadata: { revoked: result.count }, ...meta });
+  return { revoked: result.count };
+}
+
+export async function getLoginActivity(actor: AuthenticatedUser) {
+  const rows = await prisma.auditLog.findMany({
+    where: {
+      userId: actor.id,
+      action: { in: ["auth.login", "auth.login_failed", "auth.logout", "auth.password_changed", "auth.password_reset_completed", "auth.refresh_token_reuse_detected"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, action: true, createdAt: true, ipAddress: true, userAgent: true },
+  });
+  return rows.map((row) => ({ id: row.id, action: row.action, createdAt: row.createdAt, ipAddress: row.ipAddress, ...describeUserAgent(row.userAgent) }));
+}
+
 /** Ends every other session for the caller. */
 export async function revokeAllSessions(
   actor: AuthenticatedUser,
