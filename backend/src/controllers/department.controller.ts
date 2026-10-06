@@ -26,6 +26,7 @@ import {
   requireAuthenticatedUser,
   requireInstitution,
 } from "../utils/requireInstitution";
+import { assertDepartmentInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 
 import {
   CreateDepartmentInput,
@@ -56,6 +57,8 @@ export const list =
         requireInstitution(
           req
         );
+      const actor = requireAuthenticatedUser(req);
+      const allowedDepartmentIds = isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor);
 
       const pagination =
         parsePagination(
@@ -89,6 +92,7 @@ export const list =
             ...pagination,
             search,
             isActive,
+            departmentIds: allowedDepartmentIds,
           }
         );
 
@@ -119,6 +123,8 @@ export const getById =
         requireInstitution(
           req
         );
+      const actor = requireAuthenticatedUser(req);
+      await assertDepartmentInScope(institutionId, actor, req.params.id);
 
       const department =
         await departmentService.getDepartmentById(
@@ -151,6 +157,9 @@ export const create =
         requireAuthenticatedUser(
           req
         );
+
+      if (!isInstitutionWide(user)) throw new Error("Only institution-wide administrators can manage departments");
+
 
       const department =
         await departmentService.createDepartment(
@@ -210,6 +219,9 @@ export const update =
         requireAuthenticatedUser(
           req
         );
+
+      await assertDepartmentInScope(institutionId, user, req.params.id);
+
 
       const before =
         await departmentService.getDepartmentById(
@@ -277,6 +289,9 @@ export const deactivate =
         requireAuthenticatedUser(
           req
         );
+
+      await assertDepartmentInScope(institutionId, user, req.params.id);
+
 
       const before =
         await departmentService.getDepartmentById(
