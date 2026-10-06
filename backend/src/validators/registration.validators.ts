@@ -33,6 +33,16 @@ export const decideRegistrationSchema = z
     path: ["remarks"],
   });
 
+export const bulkDecisionSchema = z.object({
+  registrationIds: z.array(z.string().uuid()).min(1).max(500),
+  decision: z.enum(["APPROVED", "REJECTED", "NEEDS_CORRECTION"]),
+  remarks: optionalText(500),
+}).superRefine((value, ctx) => {
+  if (value.decision !== "APPROVED" && !value.remarks) {
+    ctx.addIssue({ code: "custom", path: ["remarks"], message: "Remarks are required for rejection or correction" });
+  }
+});
+
 export const dropSchema = z.object({
   reason: optionalText(500),
 });
