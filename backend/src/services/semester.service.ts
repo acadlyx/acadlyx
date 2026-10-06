@@ -58,8 +58,9 @@ export async function listSemesters(
 ) {
   const where: Prisma.SemesterWhereInput = {
     institutionId,
-    ...(filters.departmentIds ? { program: { departmentId: { in: filters.departmentIds } } } : {}),
-    ...(filters.departmentId ? { program: { departmentId: filters.departmentId } } : {}),
+    ...((filters.departmentIds || filters.departmentId)
+      ? { program: { departmentId: filters.departmentId ?? { in: filters.departmentIds ?? [] } } }
+      : {}),
     ...(filters.programId ? { programId: filters.programId } : {}),
     ...(filters.academicYearId
       ? { academicYearId: filters.academicYearId }
