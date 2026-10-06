@@ -30,6 +30,37 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
   return hasAnyRole(actor, INSTITUTION_WIDE_ROLES);
 }
 
+export async function getAuthorizedDepartmentIds(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<string[]> {
+  if (isInstitutionWide(actor)) {
+    const rows = await prisma.department.findMany({
+      where: { institutionId, isActive: true },
+      select: { id: true },
+      orderBy: { name: "asc" },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  const roles = getCanonicalRoleNames(actor.roles);
+  if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, actor.id);
+  if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
+  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
+  return [];
+}
+
+export async function assertDepartmentInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  departmentId: string
+): Promise<void> {
+  const allowed = await getAuthorizedDepartmentIds(institutionId, actor);
+  if (!allowed.includes(departmentId)) {
+    throw new AppError("This department is outside your authorized scope", 403);
+  }
+}
+
 export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
   const rows = await prisma.departmentAccess.findMany({
     where: { userId, department: { institutionId } },
