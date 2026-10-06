@@ -41,7 +41,8 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
         : authedFetch<ListResponse<Lookup>>("/departments?page=1&pageSize=100&isActive=true"),
       authedFetch<ListResponse<Lookup>>("/academic-years?page=1&pageSize=100")
     ]);
-    const departmentItems = Array.isArray(d.data) ? d.data : d.data ? [d.data] : [];\n    setDepartments(departmentItems);
+    const departmentItems = Array.isArray(d.data) ? d.data : d.data ? [d.data] : [];
+    setDepartments(departmentItems);
     setAcademicYears(y.data||[]);
   },[departmentId]);
   const loadPrograms = useCallback(async (departmentId: string) => { if (!departmentId) { setPrograms([]); return []; } const r=await authedFetch<ListResponse<Lookup>>(`/programs?page=1&pageSize=100&isActive=true&departmentId=${encodeURIComponent(departmentId)}`); const items=r.data||[]; setPrograms(items); return items; },[]);
