@@ -158,7 +158,7 @@ export const create =
           req
         );
 
-      if (!isInstitutionWide(user)) throw new Error("Only institution-wide administrators can manage departments");
+      if (!isInstitutionWide(user)) throw new AppError("Only institution-wide administrators can manage departments", 403);
 
 
       const department =
