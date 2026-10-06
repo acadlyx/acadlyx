@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { isNavigationItemActive } from "@/lib/navigation";
 
 export type DashboardNavigationItem = { id?: string; label: string; href: string; icon?: string; group?: string; badge?: string | number; children?: DashboardNavigationItem[]; disabled?: boolean; activeMatch?: "exact" | "nested"; activeQuery?: Record<string, string | null> };
@@ -55,8 +55,8 @@ export function SvgIcon({ name, className = "h-[18px] w-[18px]" }: { name?: stri
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true"><path d={path} /></svg>;
 }
 
-function routeIsActive(pathname: string, routeQuery: string, item: DashboardNavigationItem) {
-  return isNavigationItemActive(routeQuery ? `${pathname}?${routeQuery}` : pathname, item);
+function routeIsActive(pathname: string, item: DashboardNavigationItem) {
+  return isNavigationItemActive(pathname, item);
 }
 
 function flatten(items: DashboardNavigationItem[]): DashboardNavigationItem[] {
@@ -70,8 +70,8 @@ function Brand({ logoUrl, institutionLogoUrl, collapsed }: { logoUrl?: string | 
   </div>;
 }
 
-function NavigationLink({ item, pathname, routeQuery, collapsed, onNavigate }: { item: DashboardNavigationItem; pathname: string; routeQuery: string; collapsed: boolean; onNavigate?: () => void }) {
-  const active = routeIsActive(pathname, routeQuery, item);
+function NavigationLink({ item, pathname, collapsed, onNavigate }: { item: DashboardNavigationItem; pathname: string; collapsed: boolean; onNavigate?: () => void }) {
+  const active = routeIsActive(pathname, item);
   return <Link href={item.disabled ? pathname : item.href} aria-current={active ? "page" : undefined} aria-disabled={item.disabled || undefined} title={collapsed ? item.label : undefined} onClick={(event) => { if (item.disabled) event.preventDefault(); else onNavigate?.(); }} data-active={active} data-disabled={item.disabled || undefined} className="acadlyx-sidebar-item group flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-semibold">
     <span className="acadlyx-sidebar-icon grid h-9 w-9 shrink-0 place-items-center rounded-lg"><SvgIcon name={iconKey(item)} /></span>
     {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
@@ -81,8 +81,6 @@ function NavigationLink({ item, pathname, routeQuery, collapsed, onNavigate }: {
 
 export function UnifiedDashboardFrame({ children, navigation = [], title, subtitle, userName, userRole, institutionName, logoUrl, institutionLogoUrl, onSignOut }: { children: ReactNode; navigation?: DashboardNavigationItem[]; title?: string; subtitle?: string; userName?: string; userRole?: string; userEmail?: string; institutionName?: string; logoUrl?: string | null; institutionLogoUrl?: string | null; onSignOut?: () => void | Promise<void> }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const routeQuery = searchParams.toString();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(false);
@@ -102,12 +100,12 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
     <aside className="acadlyx-dashboard-sidebar fixed inset-y-0 left-0 hidden flex-col overflow-hidden border-r p-3 shadow-[4px_0_18px_rgba(15,23,42,0.12)] lg:flex">
       <div className="flex h-14 shrink-0 items-center justify-center"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={collapsed} /></div>
       <nav aria-label="Workspace navigation" className="acadlyx-dashboard-navigation mt-5 min-h-0 flex-1 overflow-y-auto space-y-5 pb-3 pr-1">
-        {groups.map(([group, items]) => <div key={group}>{!collapsed && <p className="acadlyx-sidebar-group-label mb-2 px-2 text-[9px] font-black uppercase tracking-[0.18em]">{group}</p>}<div className="space-y-1">{items.map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} routeQuery={routeQuery} collapsed={collapsed} />)}</div></div>)}
+        {groups.map(([group, items]) => <div key={group}>{!collapsed && <p className="acadlyx-sidebar-group-label mb-2 px-2 text-[9px] font-black uppercase tracking-[0.18em]">{group}</p>}<div className="space-y-1">{items.map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} collapsed={collapsed} />)}</div></div>)}
       </nav>
       <div className="shrink-0 border-t border-slate-700/70 pt-3"><button type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-600/70 bg-slate-800 px-3 text-xs font-black text-slate-100 hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"><SvgIcon name="chevron" className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />{!collapsed && "Collapse"}</button></div>
     </aside>
 
-    {mobile && <div className="fixed inset-0 z-[500] bg-slate-950/60 lg:hidden" role="presentation" onClick={() => setMobile(false)}><aside className="flex h-[100dvh] w-[min(86vw,300px)] flex-col overflow-hidden border-r border-slate-700 bg-[var(--acadlyx-sidebar-bg)] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()} aria-label="Mobile workspace navigation"><div className="flex h-14 shrink-0 items-center justify-between"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false}/><button type="button" onClick={() => setMobile(false)} aria-label="Close navigation" className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/20"><span className="text-xl leading-none">×</span></button></div><nav className="acadlyx-dashboard-navigation mt-6 min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">{groups.flatMap(([, items]) => items).map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} routeQuery={routeQuery} collapsed={false} onNavigate={() => setMobile(false)} />)}</nav></aside></div>}
+    {mobile && <div className="fixed inset-0 z-[500] bg-slate-950/60 lg:hidden" role="presentation" onClick={() => setMobile(false)}><aside className="flex h-[100dvh] w-[min(86vw,300px)] flex-col overflow-hidden border-r border-slate-700 bg-[var(--acadlyx-sidebar-bg)] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()} aria-label="Mobile workspace navigation"><div className="flex h-14 shrink-0 items-center justify-between"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false}/><button type="button" onClick={() => setMobile(false)} aria-label="Close navigation" className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/20"><span className="text-xl leading-none">×</span></button></div><nav className="acadlyx-dashboard-navigation mt-6 min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">{groups.flatMap(([, items]) => items).map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} collapsed={false} onNavigate={() => setMobile(false)} />)}</nav></aside></div>}
 
     <div className="acadlyx-dashboard-main transition-[margin] duration-200">
       <header className="acadlyx-dashboard-header sticky top-0 border-b shadow-[0_1px_12px_rgba(51,45,36,0.07)] backdrop-blur-xl"><div className="flex min-h-[72px] items-center justify-between gap-3 px-4 sm:px-6"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setMobile(true)} aria-label="Open navigation" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#d8d0c4] bg-[#f5efe4] text-slate-800 hover:bg-[#ebe4d8] lg:hidden"><SvgIcon name="menu" /></button><div className="hidden shrink-0 lg:block"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false} /></div><div className="min-w-0"><h1 className="acadlyx-shell-title truncate">{title || "ACADLYX"}</h1>{(subtitle || institutionName) && <p className="hidden truncate text-[11px] font-semibold text-slate-600 sm:block">{subtitle || institutionName}</p>}</div></div>
