@@ -3,6 +3,9 @@ import { z } from "zod";
 const capacitySchema = z.number().int().min(1).max(100000);
 
 export const createCourseOfferingSchema = z.object({
+  departmentId: z.string().uuid(),
+  programId: z.string().uuid(),
+  academicYearId: z.string().uuid(),
   courseId: z.string().uuid(),
   semesterId: z.string().uuid(),
   sectionId: z.string().uuid(),
