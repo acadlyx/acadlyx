@@ -370,7 +370,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     setNotice("");
     try {
       for (const field of config.fields) {
-        if (editingRow ? field.update === false : field.update === true) continue;
+        if (editingRow ? field.update === false : field.update === true || field.key === "isActive") continue;
         if (field.required && (form[field.key] === undefined || form[field.key] === null || form[field.key] === "")) {
           setError(`Please select or enter ${field.label.toLowerCase()}.`);
           setSaving(false);
