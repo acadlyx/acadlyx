@@ -38,6 +38,7 @@ export default function LmsPage() {
   const [roles, setRoles] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [offerings, setOfferings] = useState<DirectoryOption[]>([]);
+  const [tab, setTab] = useState<"learning" | "assessments" | "progress">("learning");
   const [offering, setOffering] = useState<DirectoryOption | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -126,6 +127,7 @@ export default function LmsPage() {
         {notice && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</p>}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex flex-wrap gap-2">{(["learning","assessments","progress"] as const).map((key) => <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-xl px-4 py-2 text-sm font-bold capitalize ${tab === key ? "bg-slate-950 text-white" : "border border-slate-200 text-slate-600"}`}>{key}</button>)}</div>
           <h2 className="text-lg font-black text-slate-950">{isStudent ? "My Courses" : "Course Offerings"}</h2>
           <p className="mt-1 text-sm text-slate-500">Selections are resolved by the authenticated user's permissions and academic scope.</p>
           <div className="mt-4">
@@ -174,7 +176,7 @@ export default function LmsPage() {
           </section>
         )}
 
-        <section className="grid gap-6 lg:grid-cols-2">
+        {tab !== "learning" && <section className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black text-slate-950">Assignments & Assessments</h2><p className="mt-1 text-sm text-slate-500">Uses the existing ACADLYX assignment, submission and marks architecture; this workspace does not create a duplicate assignment system.</p><a href={isStudent ? "/student/assignments" : "/faculty/assignments"} className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">{isStudent ? "My assignments" : "Open assignments"}</a></section>
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black text-slate-950">Attendance & Academic Records</h2><p className="mt-1 text-sm text-slate-500">Attendance, marks and course offerings remain connected to the canonical ERP records.</p><a href={isStudent ? "/student/attendance" : "/faculty/attendance"} className="mt-4 inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Open academic records</a></section>
         </section>
