@@ -7,6 +7,7 @@ export const createCourseOfferingSchema = z.object({
   semesterId: z.string().uuid(),
   sectionId: z.string().uuid(),
   facultyId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
   capacity: capacitySchema.optional(),
   registrationOpen: z.boolean().optional(),
   isElective: z.boolean().optional(),
