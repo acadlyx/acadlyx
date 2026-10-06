@@ -441,3 +441,59 @@ export async function deactivateDepartment(
     }
   );
 }
+
+
+export async function getDepartmentWorkspace(
+  institutionId: string,
+  departmentId: string
+) {
+  const department = await getDepartmentById(institutionId, departmentId);
+  const [
+    students,
+    faculty,
+    programs,
+    sections,
+    courses,
+    offerings,
+  ] = await Promise.all([
+    prisma.studentEnrollment.count({
+      where: {
+        institutionId,
+        status: "ACTIVE",
+        program: { departmentId },
+      },
+    }),
+    prisma.employeeProfile.count({
+      where: {
+        institutionId,
+        departmentId,
+        status: "ACTIVE",
+      },
+    }),
+    prisma.program.count({
+      where: { institutionId, departmentId, isActive: true },
+    }),
+    prisma.section.count({
+      where: {
+        institutionId,
+        isActive: true,
+        semester: { program: { departmentId } },
+      },
+    }),
+    prisma.course.count({
+      where: { institutionId, departmentId, isActive: true },
+    }),
+    prisma.courseOffering.count({
+      where: {
+        institutionId,
+        isActive: true,
+        semester: { program: { departmentId } },
+      },
+    }),
+  ]);
+
+  return {
+    department,
+    metrics: { students, faculty, programs, sections, courses, offerings },
+  };
+}
