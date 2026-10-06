@@ -41,12 +41,12 @@ router.get("/", authorize("enrollment.read"), validateQuery(enrollmentRequestLis
   }))
 ));
 
-router.post("/:id/decision", authorize("enrollment.approve"), validateParams(idParams), validateBody(decideEnrollmentRequestSchema), asyncHandler(async(req,res) =>
-  sendOk(res, await service.decideEnrollmentRequest(requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body.decision, req.body.reason, auditMeta(req)))
-));
-
 router.post("/bulk-decision", authorize("enrollment.approve"), validateBody(bulkEnrollmentDecisionSchema), asyncHandler(async(req,res) =>
   sendOk(res, await service.bulkDecideEnrollmentRequests(requireInstitution(req), requireAuthenticatedUser(req), req.body.requestIds, req.body.decision, req.body.reason))
+));
+
+router.post("/:id/decision", authorize("enrollment.approve"), validateParams(idParams), validateBody(decideEnrollmentRequestSchema), asyncHandler(async(req,res) =>
+  sendOk(res, await service.decideEnrollmentRequest(requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body.decision, req.body.reason))
 ));
 
 export default router;
