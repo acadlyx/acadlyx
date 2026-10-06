@@ -31,6 +31,7 @@ const studentInclude = {
       program: {
         select: {
           id: true,
+          institutionId: true,
           name: true,
           code: true,
           level: true,
@@ -95,6 +96,7 @@ const studentListInclude = {
     ],
     select: {
       id: true,
+      institutionId: true,
       status: true,
       enrolledAt: true,
       rollNumber: true,
@@ -113,6 +115,7 @@ const studentListInclude = {
       academicYear: {
         select: {
           id: true,
+          institutionId: true,
           name: true,
           isCurrent: true,
           startDate: true,
@@ -122,6 +125,7 @@ const studentListInclude = {
       semester: {
         select: {
           id: true,
+          institutionId: true,
           number: true,
           name: true,
           programId: true,
@@ -132,6 +136,7 @@ const studentListInclude = {
       section: {
         select: {
           id: true,
+          institutionId: true,
           name: true,
           isActive: true,
           semesterId: true,
