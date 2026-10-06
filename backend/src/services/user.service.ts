@@ -231,10 +231,17 @@ export async function listUsers(params: {
   }
 
   if (params.departmentId) {
-    where.OR = [
-      { employeeProfile: { departmentId: params.departmentId } },
-      { departmentAccesses: { some: { departmentId: params.departmentId } } },
-      { facultyCourseOfferings: { some: { course: { departmentId: params.departmentId } } } },
+    const searchOr = where.OR;
+    delete where.OR;
+    where.AND = [
+      ...(searchOr ? [{ OR: searchOr }] : []),
+      {
+        OR: [
+          { employeeProfile: { departmentId: params.departmentId } },
+          { departmentAccesses: { some: { departmentId: params.departmentId } } },
+          { facultyCourseOfferings: { some: { course: { departmentId: params.departmentId } } } },
+        ],
+      },
     ];
   }
 
