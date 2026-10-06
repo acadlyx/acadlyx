@@ -830,6 +830,8 @@ export const ROLE_PERMISSIONS: Record<
 
     "registration.read",
     "registration.approve",
+    "enrollment.read",
+    "enrollment.approve",
 
     "promotions.read",
     "promotions.manage",
