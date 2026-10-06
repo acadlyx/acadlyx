@@ -32,6 +32,7 @@ const STATUS_STYLES: Record<RegistrationStatus, string> = {
   REQUESTED: "bg-amber-100 text-amber-700",
   APPROVED: "bg-emerald-100 text-emerald-700",
   REJECTED: "bg-red-100 text-red-700",
+  NEEDS_CORRECTION: "bg-orange-100 text-orange-700",
   DROPPED: "bg-slate-100 text-slate-600",
 };
 
@@ -407,6 +408,7 @@ export default function CourseRegistrationPage() {
                 <option value="REQUESTED">Requested</option>
                 <option value="APPROVED">Approved</option>
                 <option value="REJECTED">Rejected</option>
+                <option value="NEEDS_CORRECTION">Needs correction</option>
                 <option value="DROPPED">Dropped</option>
               </select>
               <p className="text-sm text-slate-500">
