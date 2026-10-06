@@ -22,6 +22,7 @@ import {
   dropSchema,
   offeringCapacitySchema,
   bulkAssignCoursesSchema,
+  bulkDecisionSchema,
   registerSchema,
   registrationListQuery,
 } from "../validators/registration.validators";
@@ -136,6 +137,25 @@ router.post(
         auditMeta(req)
       ),
       201
+    )
+  )
+);
+
+router.post(
+  "/bulk-decision",
+  authorize("registration.approve"),
+  validateBody(bulkDecisionSchema),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await service.bulkDecideRegistrations(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.body.registrationIds,
+        req.body.decision,
+        req.body.remarks,
+        auditMeta(req)
+      )
     )
   )
 );
