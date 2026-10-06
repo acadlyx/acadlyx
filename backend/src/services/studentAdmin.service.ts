@@ -207,7 +207,7 @@ function requireStudentProfile(
   return student.profile;
 }
 
-async function validateAcademicPlacement(
+export async function validateAcademicPlacement(
   institutionId: string,
   input: {
     programId: string;
