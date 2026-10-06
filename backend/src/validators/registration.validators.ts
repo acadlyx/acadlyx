@@ -5,6 +5,7 @@ export const REGISTRATION_STATUSES = [
   "REQUESTED",
   "APPROVED",
   "REJECTED",
+  "NEEDS_CORRECTION",
   "DROPPED",
 ] as const;
 
@@ -24,7 +25,7 @@ export const registerSchema = z.object({
 
 export const decideRegistrationSchema = z
   .object({
-    decision: z.enum(["APPROVED", "REJECTED"]),
+    decision: z.enum(["APPROVED", "REJECTED", "NEEDS_CORRECTION"]),
     remarks: optionalText(500),
   })
   .refine((value) => value.decision === "APPROVED" || !!value.remarks, {
