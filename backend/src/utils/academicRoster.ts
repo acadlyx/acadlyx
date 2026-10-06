@@ -90,11 +90,16 @@ export async function getStudentCourseOfferingIds(
   institutionId: string,
   studentId: string
 ): Promise<string[]> {
+  const currentYear = await prisma.academicYear.findFirst({
+    where: { institutionId, isCurrent: true },
+    select: { id: true },
+  });
   const enrollments = await prisma.studentEnrollment.findMany({
     where: {
       institutionId,
       userId: studentId,
       status: "ACTIVE",
+      ...(currentYear ? { academicYearId: currentYear.id } : {}),
       semesterId: { not: null },
       sectionId: { not: null },
     },
