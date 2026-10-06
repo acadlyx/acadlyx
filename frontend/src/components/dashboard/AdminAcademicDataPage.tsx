@@ -42,14 +42,14 @@ type ModuleConfig = {
 };
 
 const LOOKUPS: Record<LookupSource, string> = {
-  campuses: "/campuses?page=1&pageSize=500",
-  departments: "/departments?page=1&pageSize=500",
-  programs: "/programs?page=1&pageSize=500",
-  years: "/academic-years?page=1&pageSize=500",
-  semesters: "/semesters?page=1&pageSize=500",
-  sections: "/sections?page=1&pageSize=500",
-  courses: "/courses?page=1&pageSize=500",
-  faculty: "/users?page=1&pageSize=500&role=FACULTY",
+  campuses: "/campuses?page=1&pageSize=100",
+  departments: "/departments?page=1&pageSize=100",
+  programs: "/programs?page=1&pageSize=100",
+  years: "/academic-years?page=1&pageSize=100",
+  semesters: "/semesters?page=1&pageSize=100",
+  sections: "/sections?page=1&pageSize=100",
+  courses: "/courses?page=1&pageSize=100",
+  faculty: "/users?page=1&pageSize=100&role=FACULTY",
 };
 
 const CONFIG: Record<ModuleKey, ModuleConfig> = {
