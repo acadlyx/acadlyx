@@ -23,7 +23,8 @@ export default function HODEnrollmentRequestsPage() {
   const [result,setResult]=useState<{processed:number;skipped:number}|null>(null);
 
   const load=useCallback(async()=>{try{const r=await listEnrollmentRequests({status:status as any,search:search||undefined,programId:programId||undefined,academicYearId:academicYearId||undefined,semesterId:semesterId||undefined,sectionId:sectionId||undefined});setItems(r.items);setSelected([]);}catch(e){setError(e instanceof Error?e.message:"Unable to load enrollment requests.");}},[status,search,programId,academicYearId,semesterId,sectionId]);
-  useEffect(()=>{void load();},[load]);\n  useEffect(()=>{ Promise.all([authedFetch<any>("/programs?pageSize=100"),authedFetch<any>("/academic-years?pageSize=100"),authedFetch<any>("/semesters?pageSize=100"),authedFetch<any>("/sections?pageSize=100")]).then(([p,y,m,se])=>{setPrograms(p.data??[]);setYears(y.data??[]);setSemesters(m.data??[]);setSections(se.data??[]);}).catch(()=>{}); },[]);
+  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{ Promise.all([authedFetch<any>("/programs?pageSize=100"),authedFetch<any>("/academic-years?pageSize=100"),authedFetch<any>("/semesters?pageSize=100"),authedFetch<any>("/sections?pageSize=100")]).then(([p,y,m,se])=>{setPrograms(p.data??[]);setYears(y.data??[]);setSemesters(m.data??[]);setSections(se.data??[]);}).catch(()=>{}); },[]);
 
   async function decide(ids:string[], decision:"APPROVED"|"REJECTED"|"NEEDS_CORRECTION"){
     const reason=decision==="APPROVED"?undefined:window.prompt(decision==="REJECTED"?"Reason for rejection":"Correction note")||undefined;
