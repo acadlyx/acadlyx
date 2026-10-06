@@ -224,12 +224,15 @@ async function getStudentEnrollment(
       },
     });
 
-    if (current) {
-      return current;
-    }
+    return current;
   }
 
   return prisma.studentEnrollment.findFirst({
+    where: {
+      institutionId,
+      userId: studentId,
+      status: "ACTIVE",
+    },
     where: {
       institutionId,
       userId: studentId,
