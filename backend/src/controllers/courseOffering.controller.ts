@@ -24,12 +24,13 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
   const sectionId = (req.query.sectionId as string | undefined) || undefined;
   const facultyId = (req.query.facultyId as string | undefined) || undefined;
+  const departmentId = (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
 
   const { items, total } = await courseOfferingService.listCourseOfferings(
     institutionId,
-    { ...pagination, courseId, semesterId, sectionId, facultyId, isActive }
+    { ...pagination, courseId, semesterId, sectionId, facultyId, departmentId, departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor), isActive }
   );
 
   res.status(200).json({
