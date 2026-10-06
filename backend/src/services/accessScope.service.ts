@@ -61,6 +61,38 @@ export async function assertDepartmentInScope(
   }
 }
 
+export async function assertProgramInScope(institutionId: string, actor: AuthenticatedUser, programId: string) {
+  const row = await prisma.program.findFirst({ where: { id: programId, institutionId }, select: { departmentId: true } });
+  if (!row) throw new AppError("Program not found in this institution", 404);
+  await assertDepartmentInScope(institutionId, actor, row.departmentId);
+}
+
+export async function assertSemesterInScope(institutionId: string, actor: AuthenticatedUser, semesterId: string) {
+  const row = await prisma.semester.findFirst({ where: { id: semesterId, institutionId }, select: { program: { select: { departmentId: true } } } });
+  if (!row) throw new AppError("Semester not found in this institution", 404);
+  await assertDepartmentInScope(institutionId, actor, row.program.departmentId);
+}
+
+export async function assertSectionInScope(institutionId: string, actor: AuthenticatedUser, sectionId: string) {
+  const row = await prisma.section.findFirst({ where: { id: sectionId, institutionId }, select: { semester: { select: { program: { select: { departmentId: true } } } } } });
+  if (!row) throw new AppError("Section not found in this institution", 404);
+  await assertDepartmentInScope(institutionId, actor, row.semester.program.departmentId);
+}
+
+export async function assertCourseInScope(institutionId: string, actor: AuthenticatedUser, courseId: string) {
+  const row = await prisma.course.findFirst({ where: { id: courseId, institutionId }, select: { departmentId: true } });
+  if (!row) throw new AppError("Course not found in this institution", 404);
+  await assertDepartmentInScope(institutionId, actor, row.departmentId);
+}
+
+export async function assertCourseOfferingInScope(institutionId: string, actor: AuthenticatedUser, offeringId: string) {
+  const row = await prisma.courseOffering.findFirst({ where: { id: offeringId, institutionId }, select: { semester: { select: { program: { select: { departmentId: true } } } } } });
+  if (!row) throw new AppError("Course offering not found in this institution", 404);
+  await assertDepartmentInScope(institutionId, actor, row.semester.program.departmentId);
+}
+
+
+
 export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
   const rows = await prisma.departmentAccess.findMany({
     where: { userId, department: { institutionId } },
