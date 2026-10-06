@@ -145,6 +145,7 @@ export async function listRegistrations(params: {
   sectionId?: string;
   courseId?: string;
   facultyId?: string;
+  courseType?: "core" | "elective";
   search?: string;
 } = {}): Promise<{
   items: Registration[];
