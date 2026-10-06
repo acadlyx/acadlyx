@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
+import { requireAuthenticatedUser } from "../utils/requireInstitution";
 import * as courseOfferingService from "../services/courseOffering.service";
+import { assertCourseInScope, assertCourseOfferingInScope, assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -16,6 +18,7 @@ function requireUser(req: Request) {
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const courseId = (req.query.courseId as string | undefined) || undefined;
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
@@ -38,6 +41,8 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 
 export const getById = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertCourseOfferingInScope(institutionId, actor, req.params.id);
   const offering = await courseOfferingService.getCourseOfferingById(
     institutionId,
     req.params.id
@@ -47,6 +52,11 @@ export const getById = asyncHandler(async (req: Request, res: Response) => {
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  const body = req.body as CreateCourseOfferingInput;
+  await assertCourseInScope(institutionId, actor, body.courseId);
+  await assertSemesterInScope(institutionId, actor, body.semesterId);
+  await assertSectionInScope(institutionId, actor, body.sectionId);
   const offering = await courseOfferingService.createCourseOffering(
     institutionId,
     req.body as CreateCourseOfferingInput
@@ -56,6 +66,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertCourseOfferingInScope(institutionId, actor, req.params.id);
   const offering = await courseOfferingService.updateCourseOffering(
     institutionId,
     req.params.id,
@@ -66,6 +78,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
 export const deactivate = asyncHandler(async (req: Request, res: Response) => {
   const institutionId = requireInstitution(req);
+  const actor = requireAuthenticatedUser(req);
+  await assertCourseOfferingInScope(institutionId, actor, req.params.id);
   const offering = await courseOfferingService.deactivateCourseOffering(
     institutionId,
     req.params.id
