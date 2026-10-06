@@ -2,19 +2,28 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { authedFetch } from "@/lib/auth";
 import { bulkDecideEnrollmentRequests, decideEnrollmentRequest, listEnrollmentRequests, EnrollmentRequest } from "@/lib/enrollmentRequestApi";
 
 export default function HODEnrollmentRequestsPage() {
   const [items,setItems]=useState<EnrollmentRequest[]>([]);
   const [status,setStatus]=useState("PENDING");
   const [search,setSearch]=useState("");
+  const [programId,setProgramId]=useState("");
+  const [academicYearId,setAcademicYearId]=useState("");
+  const [semesterId,setSemesterId]=useState("");
+  const [sectionId,setSectionId]=useState("");
+  const [programs,setPrograms]=useState<Array<{id:string;name:string;code:string}>>([]);
+  const [years,setYears]=useState<Array<{id:string;name:string}>>([]);
+  const [semesters,setSemesters]=useState<Array<{id:string;name:string}>>([]);
+  const [sections,setSections]=useState<Array<{id:string;name:string}>>([]);
   const [selected,setSelected]=useState<string[]>([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [result,setResult]=useState<{processed:number;skipped:number}|null>(null);
 
-  const load=useCallback(async()=>{try{const r=await listEnrollmentRequests({status:status as any,search:search||undefined});setItems(r.items);setSelected([]);}catch(e){setError(e instanceof Error?e.message:"Unable to load enrollment requests.");}},[status,search]);
-  useEffect(()=>{void load();},[load]);
+  const load=useCallback(async()=>{try{const r=await listEnrollmentRequests({status:status as any,search:search||undefined,programId:programId||undefined,academicYearId:academicYearId||undefined,semesterId:semesterId||undefined,sectionId:sectionId||undefined});setItems(r.items);setSelected([]);}catch(e){setError(e instanceof Error?e.message:"Unable to load enrollment requests.");}},[status,search,programId,academicYearId,semesterId,sectionId]);
+  useEffect(()=>{void load();},[load]);\n  useEffect(()=>{ Promise.all([authedFetch<any>("/programs?pageSize=100"),authedFetch<any>("/academic-years?pageSize=100"),authedFetch<any>("/semesters?pageSize=100"),authedFetch<any>("/sections?pageSize=100")]).then(([p,y,m,se])=>{setPrograms(p.data??[]);setYears(y.data??[]);setSemesters(m.data??[]);setSections(se.data??[]);}).catch(()=>{}); },[]);
 
   async function decide(ids:string[], decision:"APPROVED"|"REJECTED"|"NEEDS_CORRECTION"){
     const reason=decision==="APPROVED"?undefined:window.prompt(decision==="REJECTED"?"Reason for rejection":"Correction note")||undefined;
@@ -28,7 +37,7 @@ export default function HODEnrollmentRequestsPage() {
       {error?<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}{result?<div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Processed: {result.processed} · Skipped: {result.skipped}</div>:null}
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap gap-3">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search student…" className="min-w-[240px] flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search student…" className="min-w-[240px] flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"/><select value={programId} onChange={e=>setProgramId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Program</option>{programs.map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select><select value={academicYearId} onChange={e=>setAcademicYearId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Academic Year</option>{years.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select value={semesterId} onChange={e=>setSemesterId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Semester</option>{semesters.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select value={sectionId} onChange={e=>setSectionId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Section</option>{sections.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
           <select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
             <option value="PENDING">Pending</option><option value="NEEDS_CORRECTION">Needs Correction</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option>
           </select>
