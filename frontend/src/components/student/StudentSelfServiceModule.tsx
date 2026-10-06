@@ -32,6 +32,7 @@ import {
   getMyRegistrations,
   listAvailableOfferings,
   registerForOffering,
+  bulkRegisterForOfferings,
   dropRegistration,
 } from "@/lib/registrationApi";
 import {
@@ -700,7 +701,8 @@ function LibraryView() {
 function RegistrationView() {
   const [offerings, setOfferings] = useState<AvailableOffering[]>([]);
   const [mine, setMine] = useState<MyRegistrationSummary | null>(null);
-  const [busy, setBusy] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -709,92 +711,78 @@ function RegistrationView() {
         listAvailableOfferings({}),
         getMyRegistrations(),
       ]);
-
       setOfferings(available.items);
       setMine(current);
-    } catch {
-      setError(
-        "We could not load your course registration information.",
-      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "We could not load your course registration information.");
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  async function register(id: string) {
-    setBusy(id);
+  const toggle = (id: string) =>
+    setSelected((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
+
+  async function submit() {
+    if (!selected.length) return;
+    setBusy(true);
     setError("");
-
     try {
-      await registerForOffering(id);
+      const result = await bulkRegisterForOfferings(selected);
+      const skipped = result.length < selected.length;
+      setSelected([]);
+      if (skipped) setError("Some selected courses could not be submitted. Review their current status and eligibility.");
       await load();
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Registration could not be submitted.",
-      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Registration could not be submitted.");
     } finally {
-      setBusy("");
+      setBusy(false);
     }
   }
 
   async function drop(id: string) {
-    setBusy(id);
+    setBusy(true);
     setError("");
-
     try {
       await dropRegistration(id);
       await load();
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Registration could not be dropped.",
-      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Registration could not be dropped.");
     } finally {
-      setBusy("");
+      setBusy(false);
     }
   }
 
-  if (!mine) {
-    return <Empty>Loading your registration…</Empty>;
-  }
+  if (!mine) return <Empty>Loading your registration…</Empty>;
+
+  const selectedCredits = offerings.filter((o) => selected.includes(o.id)).reduce((sum, o) => sum + o.course.credits, 0);
 
   return (
     <div className="space-y-5">
       {error ? <ErrorBox message={error} /> : null}
 
+      <Card title="Academic context">
+        <p className="text-sm text-slate-600">
+          Course registration is available only for your active academic enrollment and eligible course offerings.
+        </p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">
+          Current credits: {mine.registeredCredits} · Selected: {selectedCredits} · Limit: {mine.maxCredits}
+        </p>
+      </Card>
+
       <Card title="My registrations">
-        {mine.items.length === 0 ? (
-          <Empty>You have no course registrations yet.</Empty>
-        ) : (
+        {mine.items.length === 0 ? <Empty>You have no course registrations yet.</Empty> : (
           <div className="space-y-3">
             {mine.items.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4"
-              >
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
                 <div>
-                  <p className="font-semibold">
-                    {item.courseOffering.course.name}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {item.courseOffering.course.code} · {item.status}
-                  </p>
+                  <p className="font-semibold">{item.courseOffering.course.name}</p>
+                  <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_"," ")}</p>
+                  {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
                 </div>
-
-                {item.status === "REQUESTED" ||
-                item.status === "APPROVED" ? (
-                  <button
-                    type="button"
-                    disabled={busy === item.id}
-                    onClick={() => void drop(item.id)}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
-                  >
-                    {busy === item.id ? "Working…" : "Drop"}
+                {item.status === "REQUESTED" || item.status === "APPROVED" ? (
+                  <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
+                    {busy ? "Working…" : "Drop"}
                   </button>
                 ) : null}
               </div>
@@ -804,38 +792,33 @@ function RegistrationView() {
       </Card>
 
       <Card title="Eligible courses">
-        {offerings.length === 0 ? (
-          <Empty>No eligible courses are currently open for registration.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {offerings.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4"
-              >
-                <div>
-                  <p className="font-semibold">{item.course.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {item.course.code} · {item.seatsLeft ?? 0} seat(s)
-                    available
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={
-                    busy === item.id ||
-                    item.seatsLeft === 0 ||
-                    item.registrationOpen === false
-                  }
-                  onClick={() => void register(item.id)}
-                  className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
-                >
-                  {busy === item.id ? "Working…" : "Register"}
-                </button>
+        {offerings.length === 0 ? <Empty>No eligible courses are currently open for registration.</Empty> : (
+          <>
+            <div className="space-y-3">
+              {offerings.map((item) => {
+                const held = Boolean(item.myStatus);
+                const checked = selected.includes(item.id);
+                return (
+                  <label key={item.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
+                    <input type="checkbox" checked={checked} disabled={held || item.seatsLeft === 0 || !item.registrationOpen || busy} onChange={() => toggle(item.id)} className="h-4 w-4" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{item.course.name}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{item.course.code} · {item.course.credits} credit(s) · {item.seatsLeft === null ? "Capacity open" : `${item.seatsLeft} seat(s) available`}</span>
+                    </span>
+                    <span className="text-xs font-bold text-slate-600">{held ? item.myStatus?.replaceAll("_"," ") : item.isElective ? "Elective" : "Core"}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm">
+                <span className="font-bold">{selected.length}</span> course(s) selected · <span className="font-bold">{selectedCredits}</span> credits
               </div>
-            ))}
-          </div>
+              <button type="button" disabled={!selected.length || busy} onClick={() => void submit()} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
+                {busy ? "Submitting…" : "Submit Registration"}
+              </button>
+            </div>
+          </>
         )}
       </Card>
     </div>
