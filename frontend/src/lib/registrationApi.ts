@@ -140,6 +140,11 @@ export async function listRegistrations(params: {
   courseOfferingId?: string;
   studentId?: string;
   semesterId?: string;
+  programId?: string;
+  academicYearId?: string;
+  sectionId?: string;
+  courseId?: string;
+  facultyId?: string;
   search?: string;
 } = {}): Promise<{
   items: Registration[];
