@@ -50,20 +50,7 @@ export default function ForgotPasswordPage() {
               {result.message} The link is valid for {result.expiresInMinutes}{" "}
               minutes.
             </p>
-            {result.resetToken && (
-              <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                <p className="font-semibold">No mailer is configured</p>
-                <p className="mt-1 break-all font-mono text-xs">
-                  {result.resetToken}
-                </p>
-                <Link
-                  href={`/reset-password?token=${result.resetToken}`}
-                  className="mt-2 inline-block font-semibold underline"
-                >
-                  Continue to reset →
-                </Link>
-              </div>
-            )}
+
           </div>
         ) : (
           <form onSubmit={submit} className="mt-6 space-y-4">
