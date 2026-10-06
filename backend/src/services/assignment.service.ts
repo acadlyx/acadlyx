@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
+import { publishDomainEvent } from "./domainEvent.service";
 import { AuthenticatedUser } from "../types/auth";
 import {
   assertOwnsCourseOffering,
@@ -137,10 +138,9 @@ export async function createAssignment(
   const offering = await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
   assertOwnsCourseOffering(user, offering.facultyId);
 
-  return prisma.assignment.create({
-    data: { institutionId, createdById: user.id, ...input },
-    include: assignmentInclude,
-  });
+  const created = await prisma.assignment.create({ data: { institutionId, createdById: user.id, ...input }, include: assignmentInclude });
+  publishDomainEvent("lms.assignment.created",{institutionId,actorId:user.id,payload:{assignmentId:created.id,courseOfferingId:input.courseOfferingId}});
+  return created;
 }
 
 export async function updateAssignment(
@@ -152,11 +152,9 @@ export async function updateAssignment(
   const assignment = await loadAssignmentOrThrow(institutionId, id);
   assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
 
-  return prisma.assignment.update({
-    where: { id },
-    data: input,
-    include: assignmentInclude,
-  });
+  const updated = await prisma.assignment.update({ where: { id }, data: input, include: assignmentInclude });
+  publishDomainEvent("lms.assignment.updated",{institutionId,actorId:user.id,payload:{assignmentId:id,courseOfferingId:assignment.courseOfferingId,status:updated.status}});
+  return updated;
 }
 
 /**
@@ -259,6 +257,7 @@ export async function submitAssignment(
     },
   });
 
+  publishDomainEvent("lms.assignment.submitted",{institutionId,actorId:user.id,payload:{assignmentId,courseOfferingId:assignment.courseOfferingId,submissionId:submission.id,studentId:user.id}});
   return submission;
 }
 
@@ -312,6 +311,7 @@ export async function reviewSubmission(
     },
   });
 
+  publishDomainEvent("lms.assignment.reviewed",{institutionId,actorId:user.id,payload:{assignmentId,courseOfferingId:assignment.courseOfferingId,submissionId:updated.id,studentId}});
   return updated;
 }
 
