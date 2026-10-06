@@ -7,6 +7,7 @@ import { authenticate } from "../middleware/authenticate";
 import {
   loginRateLimit,
   tokenRateLimit,
+  passwordChangeRateLimit,
 } from "../middleware/rateLimit";
 
 import {
@@ -142,6 +143,7 @@ router.patch(
 router.post(
   "/change-password",
   authenticate,
+  passwordChangeRateLimit,
   validateBody(
     changePasswordSchema
   ),
