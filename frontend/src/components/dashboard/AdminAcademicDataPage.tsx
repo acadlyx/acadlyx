@@ -240,7 +240,8 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
-  const [search, setSearch] = useState("");\n  const [searchQuery, setSearchQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const config = CONFIG[module];
   const [rows, setRows] = useState<Row[]>([]);
   const [page, setPage] = useState(1);
