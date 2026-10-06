@@ -242,6 +242,14 @@ export async function createDepartment(
 
         campusId:
           input.campusId,
+
+        ...(input.isActive !==
+        undefined
+          ? {
+              isActive:
+                input.isActive,
+            }
+          : {}),
       },
 
       include:
