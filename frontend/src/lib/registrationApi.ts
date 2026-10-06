@@ -111,6 +111,23 @@ export async function bulkRegisterForOfferings(
   return res.data;
 }
 
+export async function bulkDecideRegistrations(
+  registrationIds: string[],
+  decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
+  remarks?: string
+): Promise<{ requested: number; processed: number; skipped: number; results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }> }> {
+  const res = await authedFetch<Envelope<{
+    requested: number;
+    processed: number;
+    skipped: number;
+    results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }>;
+  }>>("/registrations/bulk-decision", {
+    method: "POST",
+    body: JSON.stringify({ registrationIds, decision, remarks }),
+  });
+  return res.data;
+}
+
 export async function dropRegistration(
   id: string,
   reason?: string
