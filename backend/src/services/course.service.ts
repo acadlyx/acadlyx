@@ -10,6 +10,7 @@ import {
 export interface ListFilters extends PaginationParams {
   search?: string;
   departmentId?: string;
+  departmentIds?: string[];
   isActive?: boolean;
 }
 
@@ -39,6 +40,7 @@ const include = {
 export async function listCourses(institutionId: string, filters: ListFilters) {
   const where: Prisma.CourseWhereInput = {
     institutionId,
+    ...(filters.departmentIds ? { departmentId: { in: filters.departmentIds } } : {}),
     ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
