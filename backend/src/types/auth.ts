@@ -14,6 +14,8 @@ export interface AuthenticatedUser {
   lastName?: string;
   roles: string[];
   permissions: string[];
+  /** Refresh-token record represented by the current access token. */
+  sessionId?: string;
 }
 
 /** Claims embedded in a signed access token. Runtime auth does not trust
@@ -24,4 +26,6 @@ export interface AccessTokenPayload {
   email: string;
   roles: string[];
   permissions: string[];
+  /** Stable correlation to the refresh-token session for security UI. */
+  sid?: string;
 }
