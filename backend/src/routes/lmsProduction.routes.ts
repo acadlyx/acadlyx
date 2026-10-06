@@ -55,7 +55,7 @@ router.post("/announcements", authorize("notices.manage"), asyncHandler(async(re
 router.get("/settings", authorize("lms.manage"), asyncHandler(async(req,res)=>sendOk(res,await service.getSettings(requireInstitution(req),requireAuthenticatedUser(req)))));
 router.patch("/settings", authorize("lms.manage"), asyncHandler(async(req,res)=>sendOk(res,await service.updateSettings(requireInstitution(req),requireAuthenticatedUser(req),req.body||{}))));
 
-router.post("/resources/:id/file", authorize("lms.manage"), asyncHandler(async(req,res)=>sendOk(res,await service.uploadLink(requireInstitution(req),requireAuthenticatedUser(req),req.params.id,String(req.body?.fileAssetId||"")))));
+router.post("/resources/:id/file", authorize("lms.manage"), asyncHandler(async(req,res)=>sendOk(res,await service.linkLessonFile(requireInstitution(req),requireAuthenticatedUser(req),req.params.id,String(req.body?.fileAssetId||"")))));
 router.post("/submissions/:id/files", authorize("lms.attempt"), asyncHandler(async(req,res)=>sendOk(res,await service.linkSubmissionFile(requireInstitution(req),requireAuthenticatedUser(req),req.params.id,String(req.body?.fileAssetId||"")))));
 router.get("/submissions/:id/files", authorize("lms.read"), asyncHandler(async(req,res)=>sendOk(res,await service.getSubmissionFiles(requireInstitution(req),requireAuthenticatedUser(req),req.params.id))));
 
