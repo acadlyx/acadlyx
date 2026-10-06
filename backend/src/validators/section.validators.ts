@@ -4,6 +4,9 @@ export const createSectionSchema = z.object({
   semesterId: z.string().uuid(),
   name: z.string().trim().min(1).max(50),
   capacity: z.number().int().min(1).max(1000).optional(),
+  // Backward-compatible with older admin clients that sent
+  // the default active state during section creation.
+  isActive: z.boolean().optional(),
 });
 
 export const updateSectionSchema = z
