@@ -15,6 +15,7 @@ export interface ListFilters extends PaginationParams {
   sectionId?: string;
   facultyId?: string;
   departmentId?: string;
+  departmentIds?: string[];
   isActive?: boolean;
 }
 
