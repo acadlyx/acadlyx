@@ -10,6 +10,7 @@ import {
 export interface ListFilters extends PaginationParams {
   search?: string;
   semesterId?: string;
+  departmentId?: string;
   isActive?: boolean;
 }
 
@@ -48,6 +49,7 @@ export async function listSections(
 ) {
   const where: Prisma.SectionWhereInput = {
     institutionId,
+    ...(filters.departmentId ? { semester: { program: { departmentId: filters.departmentId } } } : {}),
     ...(filters.semesterId ? { semesterId: filters.semesterId } : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search
