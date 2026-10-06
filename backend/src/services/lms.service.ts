@@ -21,6 +21,7 @@ import {
 } from "../utils/sqlScope";
 import { assertCanViewStudent, assertCourseOfferingInScope, isInstitutionWide } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
+import { publishDomainEvent } from "./domainEvent.service";
 
 /**
  * Learning management.
@@ -241,6 +242,8 @@ export async function createModule(
     ...meta,
   });
 
+  publishDomainEvent("lms.module.created",{institutionId,actorId:actor.id,payload:{moduleId:id,courseOfferingId:input.courseOfferingId}});
+
   return requireTenantRow<ModuleRow>(
     prisma,
     "course_modules",
@@ -292,13 +295,8 @@ export async function updateModule(
     ...meta,
   });
 
-  return requireTenantRow<ModuleRow>(
-    prisma,
-    "course_modules",
-    institutionId,
-    moduleId,
-    "Course module"
-  );
+  publishDomainEvent("lms.module.updated",{institutionId,actorId:actor.id,payload:{moduleId,courseOfferingId:module.courseOfferingId}});
+  return requireTenantRow<ModuleRow>(prisma,"course_modules",institutionId,moduleId,"Course module");
 }
 
 export async function deleteModule(
