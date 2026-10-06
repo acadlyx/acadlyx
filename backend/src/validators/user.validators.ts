@@ -126,6 +126,9 @@ export const updateUserSchema =
     role:
       roleNameSchema.optional(),
 
+    departmentId:
+      z.string().uuid().optional(),
+
     email:
       z
         .string()
