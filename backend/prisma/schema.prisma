@@ -126,6 +126,7 @@ model Institution {
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
+  studentEnrollmentRequestsByInstitution StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
   enrollmentRequestsRequested StudentEnrollmentRequest[] @relation("EnrollmentRequestRequester")
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
@@ -286,6 +287,7 @@ model User {
   libraryFines LibraryFine[] @relation("LibraryFineStudent")
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
+  enrollmentRequestsRequested StudentEnrollmentRequest[] @relation("EnrollmentRequestRequester")
   enrollmentRequestsDecided StudentEnrollmentRequest[] @relation("EnrollmentRequestDecider")
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
   certificates Certificate[] @relation("CertificateStudent")
@@ -836,7 +838,7 @@ model StudentEnrollment {
 model StudentEnrollmentRequest {
   id              String   @id @default(uuid())
   institutionId   String
-  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution     Institution @relation("EnrollmentRequestInstitution", fields: [institutionId], references: [id], onDelete: Cascade)
   studentId       String
   student         User     @relation("EnrollmentRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
   programId       String
