@@ -51,5 +51,5 @@ CROSS JOIN (VALUES
   ('Discipline Fine','DISCIPLINE_FINE','Approved discipline penalty'),
   ('Other Institutional Fine','OTHER_INSTITUTIONAL_FINE','Other approved institutional penalty'),
   ('Miscellaneous Fee','MISCELLANEOUS_FEE','Configurable miscellaneous charge')
-) AS d(name,code,description) ON TRUE
+) AS d(name,code,description)
 ON CONFLICT ("institutionId","code") DO NOTHING;
