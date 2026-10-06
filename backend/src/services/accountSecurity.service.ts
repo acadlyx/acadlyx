@@ -533,7 +533,7 @@ export async function resetPassword(
 
 function describeUserAgent(userAgent: string | null): { browser: string; os: string; device: string } {
   const ua = userAgent || "";
-  const browser = /Edg\\//i.test(ua) ? "Edge" : /Chrome\\//i.test(ua) ? "Chrome" : /Firefox\\//i.test(ua) ? "Firefox" : /Safari\\//i.test(ua) && !/Chrome\\//i.test(ua) ? "Safari" : /OPR\\//i.test(ua) ? "Opera" : /MSIE|Trident/i.test(ua) ? "Internet Explorer" : "Browser";
+  const browser = /Edg\//i.test(ua) ? "Edge" : /Chrome\//i.test(ua) ? "Chrome" : /Firefox\//i.test(ua) ? "Firefox" : /Safari\//i.test(ua) && !/Chrome\//i.test(ua) ? "Safari" : /OPR\//i.test(ua) ? "Opera" : /MSIE|Trident/i.test(ua) ? "Internet Explorer" : "Browser";
   const os = /Windows/i.test(ua) ? "Windows" : /Mac OS X/i.test(ua) ? "macOS" : /Android/i.test(ua) ? "Android" : /iPhone|iPad|iPod/i.test(ua) ? "iOS" : /Linux/i.test(ua) ? "Linux" : "Unknown OS";
   const device = /iPhone|iPad|Android.*Mobile|Mobile/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
   return { browser, os, device };
