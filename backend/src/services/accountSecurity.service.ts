@@ -459,7 +459,7 @@ export async function requestPasswordReset(
     ...meta,
   });
 
-  if (process.env.EMAIL_PROVIDER && process.env.EMAIL_PROVIDER !== "disabled") {
+  if (env.emailProvider !== "disabled") {
     const resetUrl = `${env.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
     await sendEmail({
       to: email.trim().toLowerCase(),
