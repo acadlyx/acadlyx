@@ -1,4 +1,3 @@
-import { prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { prisma as db } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
