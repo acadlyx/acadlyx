@@ -181,7 +181,88 @@ export default function LmsPage() {
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black text-slate-950">Attendance & Academic Records</h2><p className="mt-1 text-sm text-slate-500">Attendance, marks and course offerings remain connected to the canonical ERP records.</p><a href={isStudent ? "/student/attendance" : "/faculty/attendance"} className="mt-4 inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Open academic records</a></section>
         </section>
 
-        {paper && <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6"><h2 className="text-lg font-black text-slate-950">{paper.quiz.title}</h2>{paper.questions.map((q) => <div key={q.questionBankItemId} className="mt-4 rounded-xl bg-white p-4"><p className="font-semibold">{q.sequence}. {q.prompt}</p>{q.options.length ? q.options.map((o) => <label key={o.id} className="mt-2 flex gap-2 text-sm"><input type={q.questionType === "MULTIPLE_CHOICE" ? "checkbox" : "radio"} name={q.questionBankItemId} checked={((answers[q.questionBankItemId] as string[]) ?? []).includes(o.id)} onChange={() => setAnswers((s) => ({ ...s, [q.questionBankItemId]: [o.id] }))}/>{o.label}</label>) : <textarea value={(answers[q.questionBankItemId] as string) ?? ""} onChange={(e) => setAnswers((s) => ({ ...s, [q.questionBankItemId]: e.target.value }))} className="mt-2 w-full rounded-xl border p-2" />}</div>)}<button type="button" disabled={busy} onClick={() => run(async () => { const result = await submitAttempt(paper.attemptId, paper.questions.map(q => { const v = answers[q.questionBankItemId]; return Array.isArray(v) ? { questionBankItemId: q.questionBankItemId, selectedOptionIds: v } : { questionBankItemId: q.questionBankItemId, textAnswer: v ?? "" }; })); setPaper(null); setNotice(result.showResults && result.score !== null ? `Submitted — scored ${result.score} of ${result.maxScore}` : "Submitted. Results will appear once graded."); if (offering) await load(offering.id); })} className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">Submit attempt</button></section>}
+        {paper && (
+          <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6">
+            <h2 className="text-lg font-black text-slate-950">{paper.quiz.title}</h2>
+            {paper.questions.map((q) => (
+              <div key={q.questionBankItemId} className="mt-4 rounded-xl bg-white p-4">
+                <p className="font-semibold">{q.sequence}. {q.prompt}</p>
+                {q.options.length > 0 ? (
+                  q.options.map((o) => {
+                    const selected = answers[q.questionBankItemId];
+                    const selectedIds = Array.isArray(selected) ? selected : [];
+                    const isMultiple = q.questionType === "MULTIPLE_CHOICE";
+                    return (
+                      <label key={o.id} className="mt-2 flex gap-2 text-sm">
+                        <input
+                          type={isMultiple ? "checkbox" : "radio"}
+                          name={q.questionBankItemId}
+                          checked={selectedIds.includes(o.id)}
+                          onChange={() =>
+                            setAnswers((state) => ({
+                              ...state,
+                              [q.questionBankItemId]: isMultiple
+                                ? selectedIds.includes(o.id)
+                                  ? selectedIds.filter((id) => id !== o.id)
+                                  : [...selectedIds, o.id]
+                                : [o.id],
+                            }))
+                          }
+                        />
+                        {o.label}
+                      </label>
+                    );
+                  })
+                ) : (
+                  <textarea
+                    value={typeof answers[q.questionBankItemId] === "string" ? answers[q.questionBankItemId] as string : ""}
+                    onChange={(e) =>
+                      setAnswers((state) => ({
+                        ...state,
+                        [q.questionBankItemId]: e.target.value,
+                      }))
+                    }
+                    className="mt-2 w-full rounded-xl border p-2"
+                  />
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  const result = await submitAttempt(
+                    paper.attemptId,
+                    paper.questions.map((q) => {
+                      const value = answers[q.questionBankItemId];
+                      if (Array.isArray(value)) {
+                        return {
+                          questionBankItemId: q.questionBankItemId,
+                          selectedOptionIds: value,
+                        };
+                      }
+                      return {
+                        questionBankItemId: q.questionBankItemId,
+                        textAnswer: value ?? "",
+                      };
+                    }),
+                  );
+                  setPaper(null);
+                  setNotice(
+                    result.showResults && result.score !== null
+                      ? `Submitted — scored ${result.score} of ${result.maxScore}`
+                      : "Submitted. Results will appear once graded.",
+                  );
+                  if (offering) await load(offering.id);
+                })
+              }
+              className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
+            >
+              Submit attempt
+            </button>
+          </section>
+        )}
       </div>
     </DashboardShell>
   );
