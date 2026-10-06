@@ -482,6 +482,28 @@ export async function decide(
 }
 
 
+
+export async function bulkRegister(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  courseOfferingIds: string[],
+  meta: Meta
+) {
+  if (!actor.roles.includes("STUDENT")) throw new AppError("Only students may submit their own course registration", 403);
+  const unique = [...new Set(courseOfferingIds)];
+  const results: { courseOfferingId: string; status: "SUBMITTED" | "SKIPPED"; reason?: string; registration?: unknown }[] = [];
+  for (const courseOfferingId of unique) {
+    try {
+      const registration = await register(institutionId, actor, { courseOfferingId }, meta);
+      results.push({ courseOfferingId, status: "SUBMITTED", registration });
+    } catch (error) {
+      results.push({ courseOfferingId, status: "SKIPPED", reason: error instanceof Error ? error.message : "Unable to submit registration" });
+    }
+  }
+  const submitted = results.filter((r) => r.status === "SUBMITTED").map((r) => r.registration);
+  return { requested: unique.length, submitted: submitted.length, skipped: results.filter((r) => r.status === "SKIPPED").length, results };
+}
+
 export async function bulkDecideRegistrations(
   institutionId: string,
   actor: AuthenticatedUser,
