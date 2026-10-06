@@ -73,7 +73,7 @@ export async function globalSearch(
       `) as typeof people;
     }
 
-    for (const p of people) out.push({ type: "person", id: p.id, title: `${p.firstName} ${p.lastName}`.trim(), subtitle: `${p.idNumber} · ${p.email}`, href: "/erp?tab=people" });
+    for (const p of people) out.push({ type: "person", id: p.id, title: `${p.firstName} ${p.lastName}`.trim(), subtitle: `${p.idNumber} · ${p.email}`, href: roles.includes("STUDENT") ? "/student/profile" : "/erp?tab=people" });
   }
 
   if (canCourses) {
@@ -108,7 +108,7 @@ export async function globalSearch(
           AND (c."code" ILIKE ${like} OR c."name" ILIKE ${like}) ORDER BY c."code" LIMIT 8
       `) as typeof courses;
     }
-    for (const c of courses) out.push({ type: "course", id: c.id, title: c.code, subtitle: c.name, href: "/erp?tab=academics" });
+    for (const c of courses) out.push({ type: "course", id: c.id, title: c.code, subtitle: c.name, href: roles.includes("STUDENT") ? "/student/course-registration" : "/erp?tab=academics" });
   }
 
   if (canNotices) {
