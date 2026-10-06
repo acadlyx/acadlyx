@@ -24,6 +24,7 @@ export const listSemestersQuerySchema = z.object({
   pageSize: z.string().optional(),
   search: z.string().trim().optional(),
   programId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
   academicYearId: z.string().uuid().optional(),
   isActive: z.enum(["true", "false"]).optional(),
 });
