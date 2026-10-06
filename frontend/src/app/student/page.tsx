@@ -96,7 +96,7 @@ function StudentDashboardContent({ data, workflow }: { data: StudentDashboardDat
         <p className="mt-2 text-xl font-black text-slate-950">{workflow.registrations.items.some((x:any)=>x.status === "REQUESTED") ? "⏳ Pending HOD Approval" : workflow.registrations.items.some((x:any)=>x.status === "APPROVED") ? "✓ Approved" : "Not Started"}</p>
         <p className="mt-1 text-sm text-slate-500">{workflow.registrations.registeredCredits} registered credit(s)</p>
       </Link>
-    </div>
+    </div> : null}
 
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Attendance" value={`${attendancePercentage}%`} detail="Overall attendance" /><Metric label="Assignments" value={String(assignments.length)} detail="Upcoming work" /><Metric label="Today's classes" value={String(todaysClasses.length)} detail="Scheduled today" /><Metric label="Academic health" value={`${Math.round(academicHealth.academicHealth ?? 0)}%`} detail={`${academicRisk} risk`} /></div>
 
