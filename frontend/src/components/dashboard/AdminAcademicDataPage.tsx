@@ -307,7 +307,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
 
   const openCreate = () => {
     setEditingRow(null);
-    const next = initialForm(module, lookupData);\n    if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;\n    setForm(next);
+    const next = initialForm(module, lookupData);
+    if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;
+    setForm(next);
     setNotice("");
     setError("");
     setEditorOpen(true);
