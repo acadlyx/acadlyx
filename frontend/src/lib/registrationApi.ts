@@ -124,7 +124,7 @@ export async function dropRegistration(
 
 export async function decideRegistration(
   id: string,
-  decision: "APPROVED" | "REJECTED",
+  decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
   remarks?: string
 ): Promise<Registration> {
   const res = await authedFetch<Envelope<Registration>>(
