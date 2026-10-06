@@ -131,6 +131,8 @@ export const list = asyncHandler(
 
         role: requestedRole,
 
+        departmentId: typeof req.query.departmentId === "string" ? req.query.departmentId : undefined,
+
         isActive,
 
         scopeInstitutionId:
