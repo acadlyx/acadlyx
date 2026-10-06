@@ -51,7 +51,7 @@ export async function commitPartialStudentImport(file: File): Promise<ImportComm
   const body = await authedFetch<{ data: ImportCommitResult & { incomplete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; complete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; failedRows?: Array<{ row: number; message: string }> } }>(`/imports/students/commit-partial`, { method: "POST", body: form });
   return body.data;
 }
-export async function commitImport(type: DataType, file: File): Promise<ImportCommitResult> {
+export async function commitImport(type: DataType, file: File): Promise<ImportCommitResult & { jobId?: string; status?: string }> {
   const form = new FormData();
   form.append("file", file);
   const body = await authedFetch<{ data: ImportCommitResult }>(`/imports/${type}/commit`, {
@@ -61,7 +61,7 @@ export async function commitImport(type: DataType, file: File): Promise<ImportCo
   return body.data;
 }
 
-export async function exportData(type: DataType, format: "xlsx" | "csv") {
+export async function getImportJob(jobId: string) {\n  const body = await authedFetch<{ data: { id: string; status: string; progress: number; processed: number; failed: number; total: number; errorMessage: string | null; result: ImportCommitResult | null } }>(`/imports/jobs/${encodeURIComponent(jobId)}`);\n  return body.data;\n}\n\nexport async function exportData(type: DataType, format: "xlsx" | "csv") {
   const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
