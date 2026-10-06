@@ -62,7 +62,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Departments",
     href: "/admin/departments",
     icon: "academic",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage departments and campus assignment.",
     read: ["departments.read"],
@@ -75,7 +75,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Programs",
     href: "/admin/programs",
     icon: "academic",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage programs, levels, duration and ownership.",
     read: ["programs.read"],
@@ -88,7 +88,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Academic years",
     href: "/admin/academic-years",
     icon: "calendar",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage academic-year windows and the current year.",
     read: ["academic-years.read"],
@@ -100,7 +100,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Semesters",
     href: "/admin/semesters",
     icon: "academic",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage semester definitions under programs and years.",
     read: ["semesters.read"],
@@ -113,7 +113,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Sections",
     href: "/admin/sections",
     icon: "people",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage class sections and capacity.",
     read: ["sections.read"],
@@ -126,7 +126,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Courses",
     href: "/admin/courses",
     icon: "document",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Manage the institution course catalogue.",
     read: ["courses.read"],
@@ -139,7 +139,7 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
     label: "Course offerings",
     href: "/admin/course-offerings",
     icon: "academic",
-    group: "Academic structure",
+    group: "Academics",
     description:
       "Assign courses to semesters, sections and faculty.",
     read: ["course-offerings.read"],
