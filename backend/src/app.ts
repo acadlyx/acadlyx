@@ -76,6 +76,7 @@ import obeRoutes from "./routes/obe.routes";
 import fileStorageRoutes from "./routes/fileStorage.routes";
 import paymentWebhookRoutes from "./routes/paymentWebhook.routes";
 import workspaceContextRoutes from "./routes/workspaceContext.routes";
+import academicContextRoutes from "./routes/academicContext.routes";
 import myWorkRoutes from "./routes/myWork.routes";
 import globalSearchRoutes from "./routes/globalSearch.routes";
 import workflowRoutes from "./routes/workflow.routes";
@@ -187,6 +188,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/health`, healthRoutes);
   app.use(`${apiPrefix}/auth`, authRoutes);
   app.use(`${apiPrefix}/workspace`, workspaceContextRoutes);
+  app.use(`${apiPrefix}/academic-context`, academicContextRoutes);
   app.use(`${apiPrefix}/my-work`, myWorkRoutes);
   app.use(`${apiPrefix}/search`, globalSearchRoutes);
   app.use(`${apiPrefix}/workflow`, workflowRoutes);
