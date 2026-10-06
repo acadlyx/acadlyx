@@ -406,7 +406,7 @@ export async function decide(
   institutionId: string,
   actor: AuthenticatedUser,
   id: string,
-  decision: "APPROVED" | "REJECTED",
+  decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
   remarks: string | undefined,
   meta: Meta
 ) {
@@ -479,6 +479,36 @@ export async function decide(
   });
 
   return updated;
+}
+
+
+export async function bulkDecideRegistrations(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  ids: string[],
+  decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
+  remarks: string | undefined,
+  meta: Meta
+) {
+  if (!actor.permissions.includes("registration.approve") || actor.roles.includes("STUDENT")) {
+    throw new AppError("You are not authorized to decide course registrations", 403);
+  }
+  const unique = [...new Set(ids)];
+  const results: { id: string; status: "APPROVED" | "SKIPPED"; reason?: string }[] = [];
+  for (const id of unique) {
+    try {
+      await decide(institutionId, actor, id, decision, remarks, meta);
+      results.push({ id, status: "APPROVED" });
+    } catch (error) {
+      results.push({ id, status: "SKIPPED", reason: error instanceof Error ? error.message : "Unable to process request" });
+    }
+  }
+  return {
+    requested: unique.length,
+    processed: results.filter((r) => r.status === "APPROVED").length,
+    skipped: results.filter((r) => r.status === "SKIPPED").length,
+    results,
+  };
 }
 
 export async function listRegistrations(
