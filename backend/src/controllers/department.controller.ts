@@ -1,3 +1,4 @@
+import { AppError } from "../middleware/errorHandler";
 import {
   Prisma,
 } from "@prisma/client";
