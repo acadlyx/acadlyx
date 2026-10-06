@@ -61,7 +61,8 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
   await assertSectionInScope(institutionId, actor, body.sectionId);
   const offering = await courseOfferingService.createCourseOffering(
     institutionId,
-    req.body as CreateCourseOfferingInput
+    req.body as CreateCourseOfferingInput,
+    actor
   );
   res.status(201).json({ success: true, data: offering });
 });
