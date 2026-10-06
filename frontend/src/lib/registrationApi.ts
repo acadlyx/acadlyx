@@ -100,6 +100,16 @@ export async function registerForOffering(
   return res.data;
 }
 
+export async function bulkRegisterForOfferings(
+  courseOfferingIds: string[]
+): Promise<Registration[]> {
+  const res = await authedFetch<Envelope<Registration[]>>("/registrations/bulk-submit", {
+    method: "POST",
+    body: JSON.stringify({ courseOfferingIds }),
+  });
+  return res.data;
+}
+
 export async function dropRegistration(
   id: string,
   reason?: string
