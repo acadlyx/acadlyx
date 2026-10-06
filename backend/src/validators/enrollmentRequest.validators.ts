@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { pageQuery } from "./common";
 
 export const enrollmentRequestListQuery = z.object({
+  ...pageQuery,
   status: z.enum(["PENDING","APPROVED","REJECTED","NEEDS_CORRECTION","CANCELLED"]).optional(),
   programId: z.string().uuid().optional(),
   academicYearId: z.string().uuid().optional(),
