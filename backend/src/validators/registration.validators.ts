@@ -20,6 +20,7 @@ export const registrationListQuery = z.object({
   sectionId: z.string().uuid().optional(),
   courseId: z.string().uuid().optional(),
   facultyId: z.string().uuid().optional(),
+  courseType: z.enum(["core","elective"]).optional(),
 });
 
 export const registerSchema = z.object({
