@@ -5,6 +5,7 @@ export const REGISTRATION_STATUSES = [
   "REQUESTED",
   "APPROVED",
   "REJECTED",
+  "NEEDS_CORRECTION",
   "DROPPED",
 ] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
@@ -102,8 +103,8 @@ export async function registerForOffering(
 
 export async function bulkRegisterForOfferings(
   courseOfferingIds: string[]
-): Promise<Registration[]> {
-  const res = await authedFetch<Envelope<Registration[]>>("/registrations/bulk-submit", {
+): Promise<{ submitted: number; skipped: number; results: Array<{ courseOfferingId: string; status: string; reason?: string }> }> {
+  const res = await authedFetch<Envelope<{ submitted: number; skipped: number; results: Array<{ courseOfferingId: string; status: string; reason?: string }> }>>("/registrations/bulk-submit", {
     method: "POST",
     body: JSON.stringify({ courseOfferingIds }),
   });
