@@ -798,6 +798,7 @@ export async function createQuestion(
     metadata: { questionType: type, optionCount: options.length },
     ...meta,
   });
+  publishDomainEvent("lms.question.created",{institutionId,actorId:actor.id,payload:{questionId:id}});
 
   return getQuestion(institutionId, actor, id);
 }
@@ -1045,6 +1046,7 @@ export async function setQuizQuestions(
     metadata: { questionCount: questions.length, totalMarks: total },
     ...meta,
   });
+  publishDomainEvent("lms.quiz.questions_set",{institutionId,actorId:actor.id,payload:{quizId,questionCount:questions.length,totalMarks:total}});
 
   return { quizId, questionCount: questions.length, totalMarks: total };
 }
@@ -1371,6 +1373,7 @@ export async function submitQuizAttempt(
     },
     ...meta,
   });
+  publishDomainEvent("lms.quiz.submitted",{institutionId,actorId:actor.id,payload:{attemptId,quizId:attempt.quizId,studentId:actor.id,status:needsReview?"SUBMITTED":"GRADED"}});
 
   return {
     attemptId,
@@ -1584,6 +1587,7 @@ export async function gradeQuizAttempt(
     metadata: { quizId: attempt.quizId, score: total },
     ...meta,
   });
+  publishDomainEvent("lms.quiz.graded",{institutionId,actorId:actor.id,payload:{attemptId,quizId:attempt.quizId,studentId:attempt.studentId,score:total}});
 
   return { attemptId, score: total };
 }
