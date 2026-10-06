@@ -264,6 +264,7 @@ function AdminPeopleManagerContent() {
         "category",
       ),
     );
+  const departmentId = searchParams.get("departmentId") || undefined;
 
   const [user, setUser] =
     useState<AuthUser | null>(
