@@ -11,6 +11,7 @@ export default function HODCourseRegistrationRequestsPage() {
   const [selected,setSelected]=useState<string[]>([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const [result,setResult]=useState<{processed:number;skipped:number}|null>(null);
 
   const load=useCallback(async()=>{try{const r=await listRegistrations({status,search:search||undefined});setItems(r.items);setSelected([]);}catch(e){setError(e instanceof Error?e.message:"Unable to load registration requests.");}},[status,search]);
   useEffect(()=>{void load();},[load]);
@@ -19,13 +20,13 @@ export default function HODCourseRegistrationRequestsPage() {
   async function decide(ids:string[], decision:"APPROVED"|"REJECTED"|"NEEDS_CORRECTION"){
     const remarks=decision==="APPROVED"?undefined:window.prompt(decision==="REJECTED"?"Reason for rejection":"Correction note")||undefined;
     if(decision!=="APPROVED"&&!remarks)return;
-    setBusy(true);setError("");
-    try{if(ids.length===1)await decideRegistration(ids[0],decision,remarks);else await bulkDecideRegistrations(ids,decision,remarks);await load();}catch(e){setError(e instanceof Error?e.message:"Unable to process registrations.");}finally{setBusy(false);}
+    setBusy(true);setError("");setResult(null);
+    try{if(ids.length===1)await decideRegistration(ids[0],decision,remarks);else {const r=await bulkDecideRegistrations(ids,decision,remarks);setResult({processed:r.processed,skipped:r.skipped});}await load();}catch(e){setError(e instanceof Error?e.message:"Unable to process registrations.");}finally{setBusy(false);}
   }
   const all=items.length>0&&selected.length===items.length;
   return <DashboardShell title="Course Registration Requests" subtitle="Department-scoped HOD review and bulk approval" allowedRoles={["HOD"]}>
     <div className="space-y-5">
-      {error?<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}
+      {error?<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>:null}{result?<div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Processed: {result.processed} · Skipped: {result.skipped}</div>:null}
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm flex flex-wrap gap-3">
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search student…" className="min-w-[240px] flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"/>
         <select value={status} onChange={e=>setStatus(e.target.value as typeof status)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="REQUESTED">Pending</option><option value="NEEDS_CORRECTION">Needs Correction</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select>
