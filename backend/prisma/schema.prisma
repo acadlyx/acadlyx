@@ -563,6 +563,7 @@ model AcademicYear {
   feeConcessions FeeConcession[]
 
   studentEnrollments StudentEnrollment[]
+  studentEnrollmentRequests StudentEnrollmentRequest[]
   feeStructures FeeStructure[]
 
   admissionApplications AdmissionApplication[]
