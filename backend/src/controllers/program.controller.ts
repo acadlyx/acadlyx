@@ -32,6 +32,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     req.query.isActive === undefined
       ? undefined
       : req.query.isActive === "true";
+  if (departmentId) await assertDepartmentInScope(institutionId, actor, departmentId);
 
   const { items, total } = await programService.listPrograms(institutionId, {
     ...pagination,
