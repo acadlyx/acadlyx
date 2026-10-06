@@ -16,6 +16,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
+  const departmentId = (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
 
