@@ -98,7 +98,8 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
     setError("");
 
     try {
-      const value = await fetchWorkspaceContext(params);
+      const requestParams = JSON.parse(serializedParams) as Record<string, string | undefined>;
+      const value = await fetchWorkspaceContext(requestParams);
       setData(value);
     } catch (err) {
       setError(
