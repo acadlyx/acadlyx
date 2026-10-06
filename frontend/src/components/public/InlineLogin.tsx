@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeMfaLogin, login } from "@/lib/auth";
-import { workspaceHome } from "@/lib/navigation";
+import { workspaceHome } from "@/lib/navigation";\nimport Link from "next/link";
 
 export function InlineLogin() {
   const router = useRouter();
@@ -13,7 +13,7 @@ export function InlineLogin() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [mfa, setMfa] = useState("");
-  const [challenge, setChallenge] = useState("");
+  const [challenge, setChallenge] = useState("");\n  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!challenge) identifierRef.current?.focus();
@@ -60,7 +60,7 @@ export function InlineLogin() {
           ) : (
             <>
               <label className="block"><span className="text-xs font-black text-slate-600">ID number / email / roll number</span><input ref={identifierRef} value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" required className="mt-1.5 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
-              <label className="block"><span className="text-xs font-black text-slate-600">Password</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" required className="mt-1.5 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+              <label className="block"><span className="text-xs font-black text-slate-600">Password</span><div className="relative mt-1.5"><input value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} autoComplete="current-password" required className="w-full rounded-xl border border-slate-300 px-4 py-3 pr-16 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100">{showPassword ? "Hide" : "Show"}</button></div><Link href="/forgot-password" className="mt-2 inline-flex text-xs font-bold text-blue-700 hover:underline">Forgot password?</Link></label>
             </>
           )}
           {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
