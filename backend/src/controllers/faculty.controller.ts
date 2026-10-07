@@ -48,13 +48,14 @@ export const dashboard = asyncHandler(async (req: Request, res: Response) => {
     user.id
   );
 
-  const attendanceOverview = await facultyService.getAttendanceOverview(institutionId, user.id, new Date(), offerings);
   const [
+    attendanceOverview,
     atRisk,
     pendingReviewCount,
     submissionGaps,
     timetable,
   ] = await Promise.all([
+    facultyService.getAttendanceOverview(institutionId, user.id, new Date(), offerings),
     facultyService.getAtRiskStudents(institutionId, user.id, 75, offerings),
     facultyService.getPendingAssignmentReviewCount(institutionId, user.id, offerings),
     facultyService.getAssignmentSubmissionGaps(institutionId, user.id, 5, offerings),
