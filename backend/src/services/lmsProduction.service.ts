@@ -9,6 +9,7 @@ import { getCourseOfferingRoster, assertStudentEnrolledInCourseOffering } from "
 import { recordAuditLog } from "./audit.service";
 import { publishDomainEvent } from "./domainEvent.service";
 import { requestCertificate } from "./certificate.service";
+import { logger } from "../utils/logger";
 
 async function query<T = any>(sql: string, ...params: unknown[]): Promise<T[]> {
   return db.$queryRawUnsafe<T[]>(sql, ...params);
