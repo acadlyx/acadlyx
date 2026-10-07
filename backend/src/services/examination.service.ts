@@ -2843,6 +2843,30 @@ export async function getStudentExaminations(
 
   return { upcoming, results };
 }
+export async function getExaminationReadiness(
+  institutionId: string,
+  actor: AuthenticatedUser,
+) {
+  const sessions = await listExamSessions(institutionId, actor, { page: 1, take: 500 } as PaginationParams, {});
+  const [eligible, registered, issued, pendingMarks, pendingResults] = await Promise.all([
+    countRows(prisma,"exam_eligibilities",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='ELIGIBLE'`),
+    countRows(prisma,"exam_registrations",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='REGISTERED'`),
+    countRows(prisma,"hall_tickets",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='ISSUED'`),
+    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status" IN ('DRAFT','PUBLISHED','CORRECTION_OPEN')`),
+    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='LOCKED'`),
+  ]);
+  const pct=(n:number,d:number)=>d?Math.round((n/d)*100):100;
+  return {
+    examinations: sessions.total,
+    registration: pct(registered, eligible),
+    eligibility: pct(eligible, eligible),
+    admitCards: pct(issued, Math.max(registered,1)),
+    facultyMarks: pct(Math.max(0,sessions.total-pendingMarks), Math.max(sessions.total,1)),
+    resultProcessing: pct(Math.max(0,sessions.total-pendingResults), Math.max(sessions.total,1)),
+    exceptions: { registrationPending: Math.max(0,eligible-registered), admitCardPending: Math.max(0,registered-issued), marksPending: pendingMarks, resultsPending: pendingResults },
+  };
+}
+
 /* ==========================================================
  * STUDENT REGISTRATION + CENTRAL ELIGIBILITY
  * ========================================================== */
