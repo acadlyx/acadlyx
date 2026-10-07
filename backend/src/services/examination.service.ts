@@ -3024,7 +3024,19 @@ export async function listStudentExamEligibility(
       : registrationStatus === "NOT_OPEN" && !registration[0]
         ? { ...eligibility, status: "REGISTRATION_PENDING", reasons: [...eligibility.reasons, "Registration window has not opened"] }
         : eligibility;
-    items.push({ session: { ...session, registrationStatus }, eligibility: effectiveEligibility, registration: registration[0] ?? null });
+    const schedules = await prisma.$queryRaw<Array<{
+      id:string; courseCode:string; courseName:string; examDate:Date; startTime:string; endTime:string; maxMarks:number; passMarks:number;
+    }>>(Prisma.sql`
+      SELECT s."id",c."code" AS "courseCode",c."name" AS "courseName",
+             s."examDate",s."startTime",s."endTime",s."maxMarks",s."passMarks"
+      FROM "exam_schedules" s
+      JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+      JOIN "courses" c ON c."id"=co."courseId"
+      WHERE s."institutionId"=${institutionId} AND s."examSessionId"=${session.id}
+        AND s."status" <> 'CANCELLED'
+      ORDER BY s."examDate" ASC,s."startTime" ASC
+    `);
+    items.push({ session: { ...session, registrationStatus }, eligibility: effectiveEligibility, registration: registration[0] ?? null, schedules });
   }
   return items;
 }
