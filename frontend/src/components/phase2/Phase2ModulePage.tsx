@@ -233,7 +233,7 @@ export default function Phase2ModulePage({
   }
 
   return (
-    <main className="acadlyx-page-container">
+    <main className="acadlyx-page-container min-w-0 max-w-full">
       <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
@@ -255,7 +255,7 @@ export default function Phase2ModulePage({
             setShowForm((value) => !value);
             setMessage("");
           }}
-          className="acadlyx-button acadlyx-button-primary"
+          className="acadlyx-button acadlyx-button-primary w-full sm:w-auto"
         >
           {showForm ? "Close" : config.action}
         </button>
@@ -349,7 +349,7 @@ export default function Phase2ModulePage({
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 {config.columns.map((column) => (
-                  <th key={column} className="whitespace-nowrap px-5 py-4 font-bold">
+                  <th key={column} className="px-5 py-4 font-bold">
                     {column}
                   </th>
                 ))}
@@ -362,7 +362,7 @@ export default function Phase2ModulePage({
                   {row.map((cell, cellIndex) => (
                     <td
                       key={`${rowIndex}-${cellIndex}`}
-                      className="whitespace-nowrap px-5 py-4 font-medium text-slate-700"
+                      className="px-5 py-4 font-medium text-slate-700"
                     >
                       {cellIndex === row.length - 1 ? (
                         <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
