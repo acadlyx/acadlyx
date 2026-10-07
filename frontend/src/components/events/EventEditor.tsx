@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
 import { createEvent, getEvent, getEventCategories, updateEvent, uploadEventMedia, addEventMedia, removeEventMedia, reorderEventMedia, type InstitutionalEvent } from "@/lib/eventsApi";
 
 type Props = { eventId?: string };
