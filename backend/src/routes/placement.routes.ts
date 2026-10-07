@@ -5,9 +5,30 @@ import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import * as placement from "../services/placement.service";
+import { prisma } from "../lib/prisma";
 
 const router = Router();
 router.use(authenticate);
+router.use(asyncHandler(async (req, _res, next) => {
+  if (req.user?.roles.includes("SUPER_ADMIN")) {
+    next();
+    return;
+  }
+  const institutionId = req.user?.institutionId;
+  if (!institutionId) {
+    next(new Error("Institution context is required for placement."));
+    return;
+  }
+  const entitlement = await prisma.tenantFeatureEntitlement.findFirst({
+    where: { institutionId, featureKey: "placements" },
+    select: { isEnabled: true },
+  });
+  if (entitlement && !entitlement.isEnabled) {
+    next(new Error("Placement is not enabled for this institution."));
+    return;
+  }
+  next();
+}));
 
 const idParams = z.object({ id: z.string().uuid() });
 const opportunityCreate = z.object({
