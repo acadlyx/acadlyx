@@ -336,21 +336,40 @@ async function ensureStudentRole(
   tx: Prisma.TransactionClient,
   institutionId: string
 ) {
-  const roles = await ensureInstitutionSystemRoles(
-    tx,
-    institutionId
-  );
+  /*
+   * Student creation already runs inside a short-lived transaction.
+   * Do not rebuild the entire institution role/permission catalog here:
+   * ensureInstitutionSystemRoles() touches every system role and can
+   * exhaust the transaction timeout on Supabase's pooled connection.
+   *
+   * Production startup/RBAC synchronization is responsible for repairing
+   * the complete catalog. The student transaction only needs its own role.
+   */
+  const existing = await tx.role.findFirst({
+    where: {
+      institutionId,
+      name: "STUDENT",
+    },
+    select: {
+      id: true,
+    },
+  });
 
-  const roleId = roles.get("STUDENT");
+  if (existing) return existing.id;
 
-  if (!roleId) {
-    throw new AppError(
-      "STUDENT role is not initialized for this institution",
-      500
-    );
-  }
+  const created = await tx.role.create({
+    data: {
+      institutionId,
+      name: "STUDENT",
+      isSystem: true,
+      description: "STUDENT role",
+    },
+    select: {
+      id: true,
+    },
+  });
 
-  return roleId;
+  return created.id;
 }
 
 
