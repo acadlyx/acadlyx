@@ -26,6 +26,7 @@ import {
   allocateSeating,
   approveMarks,
   recordExamAttendance,
+  getExaminationReadiness,
 } from "@/lib/examinationsApi";
 
 type View =
@@ -89,6 +90,7 @@ export default function ExaminationPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [readiness, setReadiness] = useState<any>(null);
 
   const can = (p: string) => permissions.includes(p);
   const canManage = can("exams.manage");
@@ -111,13 +113,14 @@ export default function ExaminationPage() {
     try {
       const user = await getCurrentUser();
       setPermissions(user?.permissions ?? []);
-      const [ss, rr, ii, rv] = await Promise.all([
+      const [ss, rr, ii, rv, rd] = await Promise.all([
         listExamSessions({ page: 1 }),
         listExamRooms().catch(() => []),
         listIncidents({ page: 1 }).then(x => x.items).catch(() => []),
         listRevaluations({ page: 1 }).then(x => x.items).catch(() => []),
+        getExaminationReadiness().catch(() => null),
       ]);
-      setSessions(ss.items); setRooms(rr); setIncidents(ii); setRevaluations(rv);
+      setSessions(ss.items); setRooms(rr); setIncidents(ii); setRevaluations(rv); setReadiness(rd);
       if (can("exams.invigilate")) setInvigilation(await listMyInvigilation().catch(() => []));
       const details = await Promise.all(ss.items.slice(0, 12).map(s => getExamSession(s.id).catch(() => null)));
       setSchedules(details.flatMap((d: any) => (d?.schedules ?? []).map((x: any) => ({ ...x, examName: d.name, examType: d.examType }))));
@@ -184,6 +187,7 @@ export default function ExaminationPage() {
           )}
         </div>
 
+        {readiness && <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.18em] text-slate-400">Examination readiness</p><h2 className="mt-1 text-xl font-black text-slate-950">Live lifecycle completion</h2></div><span className="text-xs text-slate-500">Database-backed</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{[["Registration","registration"],["Eligibility","eligibility"],["Admit Cards","admitCards"],["Faculty Marks","facultyMarks"],["Result Processing","resultProcessing"]].map(([label,key])=><div key={key} className="rounded-2xl bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-2xl font-black text-slate-950">{readiness[key]}%</p></div>)}</div><div className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-4"><span>Registration pending: <b>{readiness.exceptions.registrationPending}</b></span><span>Admit cards pending: <b>{readiness.exceptions.admitCardPending}</b></span><span>Marks pending: <b>{readiness.exceptions.marksPending}</b></span><span>Results pending: <b>{readiness.exceptions.resultsPending}</b></span></div></section>}
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
         {notice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{notice}</div>}
 
