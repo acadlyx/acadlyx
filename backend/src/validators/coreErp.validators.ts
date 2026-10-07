@@ -51,6 +51,13 @@ export const createExamSessionSchema = z.object({
   programIds: z.array(z.string().uuid()).max(100).optional(),
   semesterIds: z.array(z.string().uuid()).max(100).optional(),
   sectionIds: z.array(z.string().uuid()).max(100).optional(),
+  studentIds: z.array(z.string().uuid()).max(10000).optional(),
+  registrationRequired: z.boolean().optional(),
+  registrationStart: optionalDate,
+  registrationEnd: optionalDate,
+  examFee: z.coerce.number().min(0).max(10000000).optional(),
+  attendanceRequirement: z.coerce.number().min(0).max(100).optional(),
+  eligibilityRules: z.record(z.unknown()).optional(),
   hallTicketReleaseAt: optionalDate,
   instructions: optionalText(2000),
 });
