@@ -86,6 +86,15 @@ export const COMMON_ACCOUNT_NAVIGATION: NavigationItem = {
 export const ROLE_NAVIGATION: NavigationItem[] = [
   COMMON_ACCOUNT_NAVIGATION,
   {
+    label: "Events & Gallery",
+    href: "/events-gallery",
+    icon: "◫",
+    roles: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
+    permissions: ["events.read"],
+    group: "Institution",
+  },
+
+  {
     label: "Learning",
     href: "/lms",
     icon: "▥",
@@ -1250,6 +1259,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/imports", ["INSTITUTION_ADMIN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "EXAMINATION", "HR"]],
   ["/examination", ["EXAMINATION"]],
   ["/site-content", ["SUPER_ADMIN", "CMS"]],
+  ["/events-gallery", ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"]],
 
   [
     "/operations",
