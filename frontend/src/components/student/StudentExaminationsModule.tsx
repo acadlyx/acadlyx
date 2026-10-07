@@ -100,6 +100,7 @@ export function StudentExaminationsModule({ view }: { view: View }) {
           <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-black uppercase text-slate-400">Fee</p><p className="mt-1 text-sm font-bold">{Number(x.session.examFee||0)>0 ? "₹"+Number(x.session.examFee).toLocaleString("en-IN")+" · "+(x.registration?.feeStatus||"PENDING") : "Not required"}</p></div>
           <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-black uppercase text-slate-400">Deadline</p><p className="mt-1 text-sm font-bold">{date(x.session.registrationEnd)}</p></div>
         </div>
+        {x.schedules?.length ? <div className="mt-4 space-y-2">{x.schedules.map((s:any)=><div key={s.id} className="rounded-xl border border-slate-100 p-3"><p className="text-sm font-bold">{s.courseCode} — {s.courseName}</p><p className="text-xs text-slate-500">{date(s.examDate)} · {s.startTime}–{s.endTime} · Max {s.maxMarks} · Pass {s.passMarks}</p></div>)}</div> : null}
         {x.eligibility.reasons?.length ? <p className="mt-3 text-xs font-semibold text-amber-700">{x.eligibility.reasons.join(" · ")}</p> : null}
         {view==="registration" && x.session.registrationRequired && x.eligibility.status==="ELIGIBLE" && x.registration?.status!=="REGISTERED" && <button onClick={()=>void register(x.session.id)} disabled={busy===x.session.id} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{busy===x.session.id ? "Registering…" : "Register"}</button>}
       </section>)}
