@@ -94,6 +94,17 @@ model Institution {
   opportunities         Opportunity[]
   studentSkills         StudentSkill[]
   applications          Application[]
+  placementCompanies        PlacementCompany[]
+  placementDrives          PlacementDrive[]
+  placementOpenings        PlacementOpening[]
+  placementVisits          PlacementVisit[]
+  placementApplications    Application[]
+  placementInterviews      PlacementInterview[]
+  placementOffers          PlacementOffer[]
+  placementProfiles        PlacementProfile[]
+  placementCertifications  PlacementCertification[]
+  placementProjects        PlacementProject[]
+  placementResumes         PlacementResume[]
   timetableEntries      TimetableEntry[]
   exams                 Exam[]
   examResults           ExamResult[]
@@ -258,6 +269,15 @@ model User {
   studentSkills           StudentSkill[]
   careerPaths             CareerPath[]
   applications            Application[]
+  placementApplicationsOwned Application[] @relation("PlacementApplicationStudent")
+  placementApplicationsReviewed Application[] @relation("PlacementApplicationReviewedBy")
+  placementInterviews        PlacementInterviewParticipant[]
+  placementOffers             PlacementOffer[]
+  placementProfile            PlacementProfile?
+  placementCertifications     PlacementCertification[]
+  placementProjects           PlacementProject[]
+  placementResumes            PlacementResume[]
+  placementCompaniesCreated   PlacementCompany[] @relation("PlacementCompanyCreatedBy")
   parentLinks             ParentStudentLink[]    @relation("ParentLinks")
   childLinks              ParentStudentLink[]    @relation("ChildLinks")
   examResults             ExamResult[]
@@ -1181,14 +1201,279 @@ model Application {
   student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   opportunityId String
   opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  status        String      @default("APPLIED")
+  placementDriveId String?
+  placementDrive PlacementDrive? @relation(fields: [placementDriveId], references: [id], onDelete: SetNull)
+  placementOpeningId String?
+  placementOpening PlacementOpening? @relation(fields: [placementOpeningId], references: [id], onDelete: SetNull)
+  status        String      @default("APPLICATION_SUBMITTED")
   appliedAt     DateTime    @default(now())
 
   @@unique([studentId, opportunityId])
   @@index([institutionId])
   @@index([opportunityId])
   @@index([institutionId, studentId, status])
+  @@index([institutionId, placementDriveId, status])
+  @@index([institutionId, placementOpeningId, status])
   @@map("applications")
+}
+
+// ==========================================================
+// ENTERPRISE PLACEMENT DOMAIN
+// ==========================================================
+
+model PlacementCompany {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  name String
+  logoUrl String?
+  industry String?
+  companyType String?
+  website String?
+  description String?
+  headquarters String?
+  relationshipStatus String @default("PROSPECT")
+  notes String?
+  createdById String
+  createdBy User @relation("PlacementCompanyCreatedBy", fields:[createdById], references:[id], onDelete:Restrict)
+  contacts PlacementCompanyContact[]
+  visits PlacementVisit[]
+  openings PlacementOpening[]
+  drives PlacementDrive[]
+  offers PlacementOffer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([institutionId,name])
+  @@index([institutionId, relationshipStatus])
+}
+
+model PlacementCompanyContact {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  name String
+  designation String?
+  email String?
+  phone String?
+  isPrimary Boolean @default(false)
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, companyId])
+}
+
+model PlacementDrive {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Restrict)
+  title String
+  campusId String?
+  openingId String?
+  opening PlacementOpening? @relation("DriveOpening", fields:[openingId], references:[id], onDelete:SetNull)
+  status String @default("DRAFT")
+  applicationDeadline DateTime?
+  driveDate DateTime?
+  venue String?
+  onlineLink String?
+  cgpaRequirement Float?
+  maxBacklogs Int?
+  vacancies Int?
+  eligiblePrograms Json?
+  eligibleDepartments Json?
+  eligibleBatches Json?
+  eligibleSemesters Json?
+  academicRequirements Json?
+  requiredSkills Json?
+  recruiterId String?
+  notes String?
+  applications Application[]
+  interviews PlacementInterview[]
+  visits PlacementVisit[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, status, applicationDeadline])
+  @@index([institutionId, companyId, driveDate])
+}
+
+model PlacementOpening {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Restrict)
+  role String
+  description String?
+  employmentType String?
+  location String?
+  totalCtc Decimal? @db.Decimal(12,2)
+  fixedCtc Decimal? @db.Decimal(12,2)
+  variableCtc Decimal? @db.Decimal(12,2)
+  bonus Decimal? @db.Decimal(12,2)
+  stipend Decimal? @db.Decimal(12,2)
+  currency String @default("INR")
+  packagePeriod String?
+  requiredSkills Json?
+  eligibility Json?
+  hiringBatchIds Json?
+  deadline DateTime?
+  applicationProcess String?
+  drives PlacementDrive[] @relation("DriveOpening")
+  applications Application[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, companyId, deadline])
+}
+
+model PlacementVisit {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Restrict)
+  driveId String?
+  drive PlacementDrive? @relation(fields:[driveId], references:[id], onDelete:SetNull)
+  type String
+  startsAt DateTime
+  endsAt DateTime?
+  venue String?
+  purpose String?
+  representatives Json?
+  participatingStudentIds Json?
+  notes String?
+  followUp String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, startsAt])
+  @@index([institutionId, companyId])
+}
+
+model PlacementInterview {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  driveId String
+  drive PlacementDrive @relation(fields:[driveId], references:[id], onDelete:Cascade)
+  roundNumber Int
+  roundType String
+  startsAt DateTime
+  endsAt DateTime?
+  venue String?
+  onlineLink String?
+  interviewer String?
+  status String @default("SCHEDULED")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  participants PlacementInterviewParticipant[]
+  @@unique([driveId, roundNumber])
+  @@index([institutionId, startsAt])
+}
+
+model PlacementInterviewParticipant {
+  interviewId String
+  interview PlacementInterview @relation(fields:[interviewId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  attendanceStatus String @default("PENDING")
+  resultStatus String @default("PENDING")
+  feedback String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@id([interviewId, studentId])
+  @@index([studentId])
+}
+
+model PlacementOffer {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Restrict)
+  applicationId String?
+  role String
+  status String @default("OFFERED")
+  totalCtc Decimal? @db.Decimal(12,2)
+  fixedCtc Decimal? @db.Decimal(12,2)
+  variableCtc Decimal? @db.Decimal(12,2)
+  bonus Decimal? @db.Decimal(12,2)
+  currency String @default("INR")
+  offerDate DateTime
+  acceptanceAt DateTime?
+  joiningDate DateTime?
+  joiningStatus String @default("PENDING")
+  joiningVerifiedAt DateTime?
+  joiningVerifiedById String?
+  offerDocumentUrl String?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, studentId, status])
+  @@index([institutionId, companyId])
+}
+
+model PlacementProfile {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String @unique
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  portfolioUrl String?
+  githubUrl String?
+  linkedInUrl String?
+  otherLinks Json?
+  placementStatus String @default("SEEKING")
+  bio String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, placementStatus])
+}
+
+model PlacementCertification {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  name String
+  issuer String?
+  issuedAt DateTime?
+  credentialUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, studentId])
+}
+
+model PlacementProject {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  title String
+  description String?
+  technologies Json?
+  projectUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, studentId])
+}
+
+model PlacementResume {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  url String
+  fileName String?
+  isCurrent Boolean @default(true)
+  createdAt DateTime @default(now())
+  @@index([institutionId, studentId, isCurrent])
 }
 
 // ==========================================================
