@@ -401,6 +401,18 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
   if (list(drive.eligibleDepartments).length && !list(drive.eligibleDepartments).includes(enrollment.program.departmentId)) reasons.push("Department is not eligible.");
   if (list(drive.eligibleBatches).length && (!enrollment.batchId || !list(drive.eligibleBatches).includes(enrollment.batchId))) reasons.push("Batch is not eligible.");
   if (list(drive.eligibleSemesters).length && (!enrollment.semesterId || !list(drive.eligibleSemesters).includes(enrollment.semesterId))) reasons.push("Semester is not eligible.");
+
+  const requiredSkillIds = list(drive.requiredSkills);
+  if (requiredSkillIds.length) {
+    const skillRows = await prisma.studentSkill.findMany({
+      where: { institutionId, studentId: target, skillId: { in: requiredSkillIds } },
+      select: { skillId: true },
+    });
+    const owned = new Set(skillRows.map((row) => row.skillId));
+    const missingSkills = requiredSkillIds.filter((skillId) => !owned.has(skillId));
+    if (missingSkills.length) reasons.push("Required placement skills are missing from the student profile.");
+  }
+
   return { eligible: reasons.length === 0, reasons, studentId: target };
 }
 
@@ -485,7 +497,14 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
 
 export async function placementProfile(institutionId: string, actor: AuthenticatedUser, studentId?: string) {
   assertInstitution(actor, institutionId);
-  const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  let target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  if (actor.roles.includes("PARENT") && !target) {
+    const link = await prisma.parentStudentLink.findFirst({
+      where: { institutionId, parentId: actor.id },
+      select: { studentId: true },
+    });
+    target = link?.studentId;
+  }
   if (!target) throw new AppError("Student scope is required.", 400);
   await assertCanViewStudent(institutionId, actor, target);
   const [profile, enrollment, skills, certifications, projects, resumes] = await Promise.all([
