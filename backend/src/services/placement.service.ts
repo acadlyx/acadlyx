@@ -521,3 +521,18 @@ export async function transitionPlacementOffer(institutionId: string, actor: Aut
   await recordAuditLog({institutionId,userId:actor.id,action:"placements.offer.status_changed",entityType:"PlacementOffer",entityId:offerId,metadata:{from:offer.status,to:next}});
   return updated;
 }
+
+export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const offer=await prisma.placementOffer.findFirst({where:{id:offerId,institutionId},select:{id:true,studentId:true,joiningDate:true}});
+  if(!offer) throw new AppError("Placement offer not found.",404);
+  const verification=await prisma.placementJoiningVerification.upsert({
+    where:{offerId},
+    create:{institutionId,offerId,studentId:offer.studentId,expectedJoiningDate:offer.joiningDate,actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):null,status:input.status,proofUrl:input.proofUrl||null,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes||null},
+    update:{actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):undefined,status:input.status,proofUrl:input.proofUrl,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes},
+  });
+  if(input.status==="VERIFIED") await prisma.placementOffer.update({where:{id:offerId},data:{status:"JOINED",joiningStatus:"VERIFIED",joiningVerifiedAt:new Date(),joiningVerifiedById:actor.id}});
+  await recordAuditLog({institutionId,userId:actor.id,action:"placements.joining.verified",entityType:"PlacementJoiningVerification",entityId:verification.id,metadata:{offerId,status:input.status}});
+  return verification;
+}
