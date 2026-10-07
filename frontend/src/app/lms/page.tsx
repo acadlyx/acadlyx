@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import EntityPicker from "@/components/common/EntityPicker";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { AuthRequiredError, getCurrentUser, authedFetch } from "@/lib/auth";
-import { DirectoryOption } from "@/lib/directoryApi";
+import { AuthRequiredError, HttpRequestError, getCurrentUser } from "@/lib/auth";
 import {
   AttemptPaper,
   CourseModule,
   Quiz,
+  CourseOfferingSummary,
+  listCatalog,
   createLesson,
   createModule,
   listModules,
@@ -71,7 +71,7 @@ export default function LmsPage() {
   const router = useRouter();
   const [roles, setRoles] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [offerings, setOfferings] = useState<DirectoryOption[]>([]);
+  const [offerings, setOfferings] = useState<CourseOfferingSummary[]>([]);
   const [tab, setTab] = useState<"learning" | "assessments" | "progress">("learning");
   const [offering, setOffering] = useState<DirectoryOption | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -81,6 +81,8 @@ export default function LmsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const role = roles[0] ?? "";
   const isStudent = roles.includes("STUDENT");
@@ -105,8 +107,16 @@ export default function LmsPage() {
     try { await fn(); }
     catch (err) {
       if (err instanceof AuthRequiredError) { router.replace("/login"); return; }
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally { setBusy(false); }
+      if (err instanceof HttpRequestError && err.status === 403) {
+        setAccessDenied(true);
+        setError("");
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Unable to load LMS right now.");
+    } finally {
+      setInitialized(true);
+      setBusy(false);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -118,10 +128,13 @@ export default function LmsPage() {
   }, [run]);
 
   useEffect(() => {
-    if (!permissions.includes("lms.read")) return;
+    if (!permissions.includes("lms.read")) {
+      setInitialized(true);
+      return;
+    }
     void run(async () => {
-      const response = await authedFetch<{ data: DirectoryOption[] }>("/directory/course-offerings");
-      setOfferings(response.data ?? []);
+      const response = await listCatalog(1, 24);
+      setOfferings(response.items);
     });
   }, [permissions, run]);
 
@@ -139,6 +152,38 @@ export default function LmsPage() {
   };
 
   const visibleOfferings = offerings;
+  const primaryAction =
+    isStudent ? "Continue learning" :
+    role === "FACULTY" ? "Manage my courses" :
+    ["HOD", "DEAN"].includes(role) ? "Review academic LMS activity" :
+    ["CHAIRMAN", "MANAGEMENT", "DIRECTOR"].includes(role) ? "Review LMS adoption" :
+    role === "EXAMINATION" ? "Review LMS assessments" :
+    "Manage LMS";
+
+  if (!initialized) {
+    return (
+      <DashboardShell title="LMS" subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
+        <div className="mx-auto max-w-7xl">
+          <section role="status" className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <p className="text-sm font-bold text-slate-600">Loading your LMS...</p>
+          </section>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  if (!permissions.includes("lms.read") || accessDenied) {
+    return (
+      <DashboardShell title="LMS" subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
+        <div className="mx-auto max-w-3xl">
+          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <h2 className="text-xl font-black text-slate-950">LMS access is not assigned to your role</h2>
+            <p className="mt-2 text-sm text-slate-600">You don't have access to this LMS workspace.</p>
+          </section>
+        </div>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell title={workspaceTitle} subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
@@ -157,13 +202,21 @@ export default function LmsPage() {
           ))}
         </section>
 
-        {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">Unable to load LMS right now.</p>}
         {notice && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</p>}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex flex-wrap gap-2">{(["learning","assessments","progress"] as const).map((key) => <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-xl px-4 py-2 text-sm font-bold capitalize ${tab === key ? "bg-slate-950 text-white" : "border border-slate-200 text-slate-600"}`}>{key}</button>)}</div>
-          <h2 className="text-lg font-black text-slate-950">{isStudent ? "My Courses" : "Course Offerings"}</h2>
-          <p className="mt-1 text-sm text-slate-500">Selections are resolved by the authenticated user&apos;s permissions and academic scope.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">
+                {isStudent ? "My Courses" : role === "FACULTY" ? "My Teaching" : role === "HOD" ? "Department Courses" : "Course Offerings"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {primaryAction}. Access is resolved by the authenticated role and academic scope.
+              </p>
+            </div>
+          </div>
           <div className="mt-4">
             {visibleOfferings.length ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -174,7 +227,7 @@ export default function LmsPage() {
                   </button>
                 ))}
               </div>
-            ) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No authorized course offerings are available.</p>}
+            ) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No LMS courses are available for your current academic scope.</p>}
           </div>
         </section>
 
