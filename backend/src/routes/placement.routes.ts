@@ -28,6 +28,7 @@ const driveCreate = z.object({
   eligibleSemesters: z.array(z.string().uuid()).optional(), requiredSkills: z.array(z.string().uuid()).optional(),
 });
 const statusBody = z.object({ status: z.string().trim().min(3).max(32) });
+const contactCreate = z.object({ name: z.string().trim().min(2).max(160), designation: z.string().max(160).optional(), email: z.string().email().optional(), phone: z.string().max(40).optional(), isPrimary: z.boolean().optional(), notes: z.string().max(2000).optional() });
 const profileUpdate = z.object({ portfolioUrl: z.string().url().nullable().optional(), githubUrl: z.string().url().nullable().optional(), linkedInUrl: z.string().url().nullable().optional(), bio: z.string().max(2000).nullable().optional() });
 
 
@@ -116,6 +117,11 @@ router.get("/companies", authorize("placements.read"), asyncHandler(async (req,r
 }));
 router.post("/companies", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementCompany(requireInstitution(req),requireAuthenticatedUser(req),companyCreate.parse(req.body));
+  res.status(201).json({success:true,data:item});
+}));
+router.post("/companies/:id/contacts", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const {id}=idParams.parse(req.params);
+  const item=await placement.createPlacementCompanyContact(requireInstitution(req),requireAuthenticatedUser(req),id,contactCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
