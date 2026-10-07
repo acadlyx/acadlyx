@@ -9,7 +9,8 @@ import { assertExaminationController } from "./workflowAuthority.service";
 import { generateStudentMarksheetPdf } from "./examination.service";
 import {
   enqueueJob,
-  getJob,\n  getOwnedJob,
+  getJob,
+  getOwnedJob,
   requestCancellation,
   loadActiveJobActor,
 } from "./backgroundJob.service";
