@@ -121,9 +121,16 @@ export async function deleteEvent(institutionId:string,actor:AuthenticatedUser,i
   const existing=await prisma.institutionalEvent.findFirst({where:{id,institutionId},include:{media:{select:{fileAssetId:true}}}});
   if(!existing) throw new AppError("Event not found",404);
   await prisma.institutionalEvent.delete({where:{id}});
-  for(const media of existing.media) { try { await deleteFile(media.fileAssetId,institutionId); } catch {} }
-  if(existing.coverFileId) { try { await deleteFile(existing.coverFileId,institutionId); } catch {} }
-  await recordAuditLog({institutionId,userId:actor.id,action:"events.delete",entityType:"InstitutionalEvent",entityId:id,metadata:{title:existing.title},...meta});
+  const cleanupFailures: string[] = [];
+  for (const media of existing.media) {
+    try { await deleteFile(media.fileAssetId, institutionId); }
+    catch (error) { cleanupFailures.push(media.fileAssetId); logger.warn("Event media cleanup failed", { mediaId: media.fileAssetId, error: error instanceof Error ? error.message : String(error) }); }
+  }
+  if (existing.coverFileId) {
+    try { await deleteFile(existing.coverFileId, institutionId); }
+    catch (error) { cleanupFailures.push(existing.coverFileId); logger.warn("Event cover cleanup failed", { fileId: existing.coverFileId, error: error instanceof Error ? error.message : String(error) }); }
+  }
+  await recordAuditLog({institutionId,userId:actor.id,action:"events.delete",entityType:"InstitutionalEvent",entityId:id,metadata:{title:existing.title,cleanupFailures},...meta});
   return {id,deleted:true};
 }
 
