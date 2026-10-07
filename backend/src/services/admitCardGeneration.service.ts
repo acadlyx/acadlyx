@@ -64,7 +64,7 @@ export async function enqueueBulkAdmitCardsZip(institutionId: string, actor: Aut
   const job = await enqueueJob({
     institutionId, type: JOB_TYPES.ADMIT_CARD_GENERATION, payload: { examSessionId },
     createdById: actor.id, total, maxAttempts: 3, priority: 20,
-    idempotencyKey: "ADMIT_CARD_ZIP:" + examSessionId + ":" + actor.id,
+    idempotencyKey: "ADMIT_CARD_ZIP:" + examSessionId,
   });
   return { jobId: job.id, status: job.status, total: job.total, progress: job.progress };
 }
