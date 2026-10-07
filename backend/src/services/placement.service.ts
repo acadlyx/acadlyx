@@ -260,28 +260,70 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
   if (!isPlacementManager(actor) && !actor.permissions.includes("placements.read")) {
     throw new AppError("Placement intelligence access is not permitted.", 403);
   }
-  const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
+
+  const institutionWide = hasAnyRole(actor, [
+    "SUPER_ADMIN",
+    "INSTITUTION_ADMIN",
+    "CHAIRMAN",
+    "MANAGEMENT",
+    "DIRECTOR",
+    "REGISTRAR",
+    "DEAN",
+    "PLACEMENT",
+  ]);
   const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
   const applicationWhere: Prisma.ApplicationWhereInput = { institutionId, student: studentWhere };
-  const [opportunities, applications, statusRows, organizations, placedStudents] = await Promise.all([
-    prisma.opportunity.count({ where: { institutionId, isActive: true } }),
+  const offerWhere: Prisma.PlacementOfferWhereInput = { institutionId, student: studentWhere };
+
+  const [
+    drives,
+    openDrives,
+    applications,
+    statusRows,
+    offers,
+    acceptedOffers,
+    joinedOffers,
+    packageStats,
+    companies,
+  ] = await Promise.all([
+    prisma.placementDrive.count({ where: { institutionId } }),
+    prisma.placementDrive.count({ where: { institutionId, status: { in: ["PUBLISHED", "APPLICATION_OPEN", "SHORTLISTING", "TEST", "INTERVIEW"] } } }),
     prisma.application.count({ where: applicationWhere }),
     prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
-    prisma.opportunity.groupBy({ by: ["organization"], where: { institutionId }, _count: { _all: true }, orderBy: { _count: { organization: "desc" } }, take: 10 }),
-    prisma.application.findMany({ where: { ...applicationWhere, status: { in: ["OFFERED","ACCEPTED","JOINED"] } }, distinct: ["studentId"], select: { studentId: true } }),
+    prisma.placementOffer.count({ where: offerWhere }),
+    prisma.placementOffer.count({ where: { ...offerWhere, status: "ACCEPTED" } }),
+    prisma.placementOffer.count({ where: { ...offerWhere, status: "JOINED" } }),
+    prisma.placementOffer.aggregate({
+      where: offerWhere,
+      _avg: { totalCtc: true },
+      _max: { totalCtc: true },
+      _min: { totalCtc: true },
+    }),
+    prisma.placementCompany.count({ where: { institutionId } }),
   ]);
-  const status = Object.fromEntries(statusRows.map(row => [row.status, row._count._all]));
-  const selected = (status.OFFERED ?? 0) + (status.ACCEPTED ?? 0) + (status.JOINED ?? 0);
+
+  const status = Object.fromEntries(statusRows.map((row) => [row.status, row._count._all]));
+  const selected = (status.SELECTED ?? 0) + (status.OFFERED ?? 0) + (status.ACCEPTED ?? 0) + (status.JOINED ?? 0);
+
   return {
-    opportunities,
+    drives,
+    openDrives,
+    companies,
     applications,
+    offers,
+    acceptedOffers,
+    joinedOffers,
+    placedStudents: joinedOffers,
     status,
-    organizations: organizations.map(row => ({ organization: row.organization, opportunities: row._count._all })),
-    placedStudents: placedStudents.length,
+    placementRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
     applicationSuccessRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
+    offerAcceptanceRate: offers ? Math.round((acceptedOffers / offers) * 1000) / 10 : 0,
+    joiningRate: acceptedOffers ? Math.round((joinedOffers / acceptedOffers) * 1000) / 10 : 0,
+    averagePackage: packageStats._avg.totalCtc ? Number(packageStats._avg.totalCtc) : 0,
+    highestPackage: packageStats._max.totalCtc ? Number(packageStats._max.totalCtc) : 0,
+    lowestPackage: packageStats._min.totalCtc ? Number(packageStats._min.totalCtc) : 0,
   };
 }
-
 
 export async function listPlacementCompanies(institutionId: string, actor: AuthenticatedUser, search?: string) {
   assertInstitution(actor, institutionId);
