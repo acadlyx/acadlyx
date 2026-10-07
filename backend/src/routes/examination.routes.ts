@@ -140,6 +140,7 @@ router.get(
     const pagination = parsePagination(req);
     const { items, total } = await service.listExamSessions(
       requireInstitution(req),
+      requireAuthenticatedUser(req),
       pagination,
       {
         status: req.query.status as string | undefined,
@@ -176,7 +177,7 @@ router.get(
   asyncHandler(async (req, res) =>
     sendOk(
       res,
-      await service.getExamSession(requireInstitution(req), req.params.id)
+      await service.getExamSession(requireInstitution(req), requireAuthenticatedUser(req), req.params.id)
     )
   )
 );
