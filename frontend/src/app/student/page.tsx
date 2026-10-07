@@ -55,7 +55,7 @@ export default function StudentDashboardPage() {
       const workflowPromise = Promise.all([
         getMyEnrollmentWorkflow(),
         getMyRegistrations(),
-      ]);
+      ]).catch(() => null);
 
       const [dashboard, workflowResult] = await Promise.all([
         dashboardPromise,
@@ -63,10 +63,10 @@ export default function StudentDashboardPage() {
       ]);
 
       setData(dashboard);
-      try {
+      if (workflowResult) {
         const [enrollment, registrations] = workflowResult;
         setWorkflow({ ...enrollment, registrations });
-      } catch {
+      } else {
         setWorkflow(null);
       }
     } catch (err) {
