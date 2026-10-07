@@ -281,7 +281,7 @@ export function authorizeAnyPermission(
     if (!allowed) {
       next(
         new AppError(
-          "You do not have access to this feature.",
+          `At least one required permission is needed: ${permissions.join(", ")}`,
           403
         )
       );
