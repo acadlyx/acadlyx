@@ -6,7 +6,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 
 export const JOB_STATUS = {
-  QUEUED: "QUEUED", PROCESSING: "PROCESSING", COMPLETED: "COMPLETED",
+  QUEUED: "QUEUED", PROCESSING: "PROCESSING", COMPLETED: "COMPLETED", PARTIAL: "PARTIAL",
   FAILED: "FAILED", CANCEL_REQUESTED: "CANCEL_REQUESTED", CANCELLED: "CANCELLED",
 } as const;
 export type JobStatus = typeof JOB_STATUS[keyof typeof JOB_STATUS];
@@ -163,10 +163,15 @@ export async function updateJobProgress(id: string, workerId: string, processed:
 }
 
 export async function completeJob(id: string, workerId: string, result?: Prisma.InputJsonValue) {
+  const resultRecord = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : null;
+  const failed = typeof resultRecord?.failed === "number" ? resultRecord.failed : 0;
+  const processed = typeof resultRecord?.processed === "number" ? resultRecord.processed : 0;
+  const total = typeof resultRecord?.total === "number" ? resultRecord.total : undefined;
+  const finalStatus = failed > 0 ? JOB_STATUS.PARTIAL : JOB_STATUS.COMPLETED;
   const updated = await prisma.backgroundJob.updateMany({
     where: { id, workerId, status: JOB_STATUS.PROCESSING },
-    data: { status: JOB_STATUS.COMPLETED, progress: 100, completedAt: new Date(),
-      result, lastHeartbeatAt: new Date(), updatedAt: new Date() },
+    data: { status: finalStatus, progress: 100, processed, ...(total !== undefined ? { total } : {}), failed,
+      completedAt: new Date(), result, lastHeartbeatAt: new Date(), updatedAt: new Date() },
   });
   return updated.count > 0;
 }
