@@ -132,6 +132,14 @@ router.delete(
 // ---------- Sessions ----------
 
 router.get(
+  "/readiness",
+  authorize("exams.read"),
+  asyncHandler(async (req,res)=>sendOk(res,await service.getExaminationReadiness(
+    requireInstitution(req),requireAuthenticatedUser(req)
+  )))
+);
+
+router.get(
   "/sessions",
   authorize("exams.read"),
   validateQuery(examSessionListQuery),
