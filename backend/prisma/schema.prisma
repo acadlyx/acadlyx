@@ -96,11 +96,14 @@ model Institution {
   applications          Application[]
   placementCompanies        PlacementCompany[]
   placementCompanyContacts  PlacementCompanyContact[]
+  placementCompanyHistory    PlacementCompanyHistory[]
+  placementJoiningVerifications PlacementJoiningVerification[]
   placementDrives          PlacementDrive[]
   placementOpenings        PlacementOpening[]
   placementVisits          PlacementVisit[]
   placementInterviews      PlacementInterview[]
   placementOffers          PlacementOffer[]
+  placementJoiningVerifications PlacementJoiningVerification[] @relation("PlacementJoiningVerifiedBy")
   placementProfiles        PlacementProfile[]
   placementCertifications  PlacementCertification[]
   placementProjects        PlacementProject[]
@@ -1235,6 +1238,7 @@ model PlacementCompany {
   createdById String
   createdBy User @relation("PlacementCompanyCreatedBy", fields:[createdById], references:[id], onDelete:Restrict)
   contacts PlacementCompanyContact[]
+  history PlacementCompanyHistory[]
   visits PlacementVisit[]
   openings PlacementOpening[]
   drives PlacementDrive[]
@@ -1243,6 +1247,25 @@ model PlacementCompany {
   updatedAt DateTime @updatedAt
   @@unique([institutionId,name])
   @@index([institutionId, relationshipStatus])
+}
+
+model PlacementCompanyHistory {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  companyId String
+  company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Cascade)
+  visitCount Int @default(0)
+  driveCount Int @default(0)
+  hiredCount Int @default(0)
+  averagePackage Decimal? @db.Decimal(12,2)
+  highestPackage Decimal? @db.Decimal(12,2)
+  lastInteractionAt DateTime?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([institutionId, companyId])
+  @@index([institutionId, lastInteractionAt])
 }
 
 model PlacementCompanyContact {
@@ -1412,6 +1435,27 @@ model PlacementOffer {
   updatedAt DateTime @updatedAt
   @@index([institutionId, studentId, status])
   @@index([institutionId, companyId])
+}
+
+model PlacementJoiningVerification {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  offerId String
+  offer PlacementOffer @relation(fields:[offerId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation("PlacementJoiningVerifiedBy", fields:[studentId], references:[id], onDelete:Cascade)
+  expectedJoiningDate DateTime?
+  actualJoiningDate DateTime?
+  status String @default("PENDING")
+  proofUrl String?
+  verifiedById String?
+  verifiedAt DateTime?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([offerId])
+  @@index([institutionId, studentId, status])
 }
 
 model PlacementProfile {
