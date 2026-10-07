@@ -81,6 +81,7 @@ import workspaceContextRoutes from "./routes/workspaceContext.routes";
 import myWorkRoutes from "./routes/myWork.routes";
 import globalSearchRoutes from "./routes/globalSearch.routes";
 import workflowRoutes from "./routes/workflow.routes";
+import placementRoutes from "./routes/placement.routes";
 
 export function createApp(): Application {
   const app: Application = express();
@@ -192,6 +193,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/my-work`, myWorkRoutes);
   app.use(`${apiPrefix}/search`, globalSearchRoutes);
   app.use(`${apiPrefix}/workflow`, workflowRoutes);
+  app.use(`${apiPrefix}/placements`, placementRoutes);
   app.use(`${apiPrefix}/institutions`, institutionRoutes);
   app.use(`${apiPrefix}/users`, userRoutes);
   app.use(`${apiPrefix}/campuses`, campusRoutes);
