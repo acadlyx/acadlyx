@@ -2071,6 +2071,23 @@ export async function recordPayment(
       return { payment: { ...payment, receiptNumber }, transaction, receipt, invoiceId, duplicate: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
+    const paidInvoice = await prisma.feeInvoice.findFirst({
+      where: { id: invoiceId, institutionId },
+      select: { status: true, paidAmount: true, amount: true },
+    });
+    if (paidInvoice) {
+      const feeStatus = paidInvoice.status === "PAID"
+        ? "PAID"
+        : Number(paidInvoice.paidAmount || 0) > 0
+          ? "PARTIALLY_PAID"
+          : "PENDING";
+      await prisma.$executeRaw`
+        UPDATE "exam_registrations"
+        SET "feeStatus"=${feeStatus}, "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "institutionId"=${institutionId} AND "feeInvoiceId"=${invoiceId}
+      `;
+    }
+
     await recordAuditLog({
       institutionId,
       userId: actor.id,
