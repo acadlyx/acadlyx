@@ -16,6 +16,8 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_ci?schema=public
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +40,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Backend production build
+        run: npm run build
 
       - name: Lint
         run: npm run lint

@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import multer from "multer";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
@@ -8,8 +7,6 @@ import { storeFile } from "../services/fileStorage.service";
 import * as service from "../services/events.service";
 import { auditMeta, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
-
-const upload = multer({storage:multer.memoryStorage(),limits:{fileSize:25*1024*1024,files:20}});
 
 export const list=asyncHandler(async(req:Request,res:Response)=>{
   const p=parsePagination(req);

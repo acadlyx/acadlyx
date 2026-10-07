@@ -140,7 +140,6 @@ router.post(
   "/exams",
   requireFeature("exams"),
   authorize("exams.manage"),
-  validateBody(createExamSchema),
   canonicalExaminationGone
 );
 router.patch(
@@ -148,7 +147,6 @@ router.patch(
   requireFeature("exams"),
   authorize("exams.manage"),
   validateParams(idParamSchema),
-  validateBody(updateExamSchema),
   canonicalExaminationGone
 );
 router.delete(
@@ -162,7 +160,6 @@ router.put(
   "/exam-results",
   requireFeature("results"),
   authorize("exams.manage"),
-  validateBody(upsertExamResultSchema),
   canonicalExaminationGone
 );
 

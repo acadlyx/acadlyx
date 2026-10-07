@@ -33,7 +33,7 @@ test("finance schema exposes the refund settlement reference", () => {
   const modelStart = schema.indexOf("model FeeRefund {");
   const modelEnd = schema.indexOf("\n}\n\nmodel FeeTransaction", modelStart);
   assert.ok(modelStart >= 0 && modelEnd > modelStart);
-  assert.match(schema.slice(modelStart, modelEnd), /reference\\s+String\\?/);
+  assert.match(schema.slice(modelStart, modelEnd), /reference\s+String\?/);
 });
 
 test("billing SQL uses canonical refund paymentId while preserving the API feePaymentId input", () => {

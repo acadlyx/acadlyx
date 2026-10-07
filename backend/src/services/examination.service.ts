@@ -5,10 +5,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
-import {
-  assertOwnsCourseOffering,
-  loadCourseOfferingOrThrow,
-} from "../utils/courseOfferingAccess";
+import { loadCourseOfferingOrThrow } from "../utils/courseOfferingAccess";
 import { PaginationParams } from "../utils/pagination";
 import {
   andWhere,
@@ -49,8 +46,6 @@ const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISH
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "CORRECTION_OPEN", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
-const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION"];
-
 export type ExamType = (typeof EXAM_TYPES)[number];
 export type ExamSessionStatus = (typeof SESSION_STATUSES)[number];
 export type ExamScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
@@ -119,6 +114,165 @@ interface ExamScheduleRow {
   legacyExamId: string | null;
   createdById: string;
 }
+
+interface StudentExamContext {
+  campusId: string | null;
+  departmentId: string | null;
+  programId: string | null;
+  batchId: string | null;
+  semesterId: string | null;
+  sectionId: string | null;
+  academicYearId: string | null;
+}
+
+function jsonStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+async function assertStudentExists(institutionId: string, studentId: string): Promise<void> {
+  const student = await prisma.user.findFirst({
+    where: {
+      id: studentId,
+      institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+    },
+    select: { id: true },
+  });
+  if (!student) throw new AppError("Student not found in this institution", 404);
+}
+
+async function loadStudentExamContext(
+  institutionId: string,
+  studentId: string,
+): Promise<StudentExamContext> {
+  const enrollment = await prisma.studentEnrollment.findFirst({
+    where: { institutionId, userId: studentId, status: "ACTIVE" },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      programId: true,
+      academicYearId: true,
+      batchId: true,
+      semesterId: true,
+      sectionId: true,
+      program: { select: { departmentId: true, department: { select: { campusId: true } } } },
+    },
+  });
+  if (!enrollment) {
+    throw new AppError("Student has no active academic enrollment", 403);
+  }
+  return {
+    campusId: enrollment.program.department.campusId ?? null,
+    departmentId: enrollment.program.departmentId ?? null,
+    programId: enrollment.programId,
+    batchId: enrollment.batchId ?? null,
+    semesterId: enrollment.semesterId ?? null,
+    sectionId: enrollment.sectionId ?? null,
+    academicYearId: enrollment.academicYearId ?? null,
+  };
+}
+
+function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext, studentId: string): boolean {
+  const checks: Array<[unknown, string | null]> = [
+    [session.campusIds, context.campusId],
+    [session.departmentIds, context.departmentId],
+    [session.programIds, context.programId],
+    [session.semesterIds, context.semesterId],
+    [session.sectionIds, context.sectionId],
+  ];
+  return checks.every(([raw, current]) => {
+    const ids = jsonStringArray(raw);
+    return ids.length === 0 || (current !== null && ids.includes(current));
+  }) && (() => {
+    const students = jsonStringArray(session.studentIds);
+    return students.length === 0 || students.includes(studentId);
+  })();
+}
+
+async function evaluateExamEligibility(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+) {
+  const session = await loadSession(institutionId, examSessionId);
+  await assertStudentExists(institutionId, studentId);
+  const context = await loadStudentExamContext(institutionId, studentId);
+  const reasons: string[] = [];
+  const targetedStudents = jsonStringArray(session.studentIds);
+  const targetsMatch =
+    (targetedStudents.length === 0 || targetedStudents.includes(studentId)) &&
+    [
+      [session.campusIds, context.campusId],
+      [session.departmentIds, context.departmentId],
+      [session.programIds, context.programId],
+      [session.semesterIds, context.semesterId],
+      [session.sectionIds, context.sectionId],
+    ].every(([raw, current]) => {
+      const ids = jsonStringArray(raw);
+      return ids.length === 0 || (typeof current === "string" && ids.includes(current));
+    });
+  if (!targetsMatch) reasons.push("Student is outside the examination target scope");
+
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId: studentId },
+    select: { status: true },
+  });
+  if (!profile || profile.status !== "ACTIVE") reasons.push("Student academic status is not ACTIVE");
+
+  if (session.attendanceRequirement !== null) {
+    const schedules = await prisma.$queryRaw<Array<{ courseOfferingId: string }>>(Prisma.sql`
+      SELECT DISTINCT "courseOfferingId"
+      FROM "exam_schedules"
+      WHERE "institutionId"=${institutionId}
+        AND "examSessionId"=${examSessionId}
+        AND "status" <> 'CANCELLED'
+    `);
+    for (const schedule of schedules) {
+      const percentage = await getStudentAttendancePercentage(
+        institutionId,
+        studentId,
+        schedule.courseOfferingId,
+      );
+      if (percentage.percentage !== null && percentage.percentage < session.attendanceRequirement) {
+        reasons.push(`Attendance below required ${session.attendanceRequirement}%`);
+        break;
+      }
+    }
+  }
+
+  const activeHold = await prisma.$queryRaw<Array<{ reasonCode: string; reason: string }>>(Prisma.sql`
+    SELECT "reasonCode","reason"
+    FROM "admit_card_holds"
+    WHERE "institutionId"=${institutionId}
+      AND "examSessionId"=${examSessionId}
+      AND "studentId"=${studentId}
+      AND "status"='ACTIVE'
+      AND "reasonCode" IN ('DEBARMENT','ADMIN_HOLD')
+    LIMIT 1
+  `);
+  if (activeHold.length) reasons.push(activeHold[0].reason || activeHold[0].reasonCode);
+
+  const status = reasons.length ? "INELIGIBLE" : "ELIGIBLE";
+  const evaluatedAt = new Date();
+  const contextSnapshot = { ...context, studentId, evaluatedAt: evaluatedAt.toISOString() };
+  await prisma.$executeRaw`
+    INSERT INTO "exam_eligibilities"
+      ("id","institutionId","examSessionId","studentId","status","reasons","contextSnapshot","evaluatedAt","evaluatedById")
+    VALUES
+      (${randomUUID()},${institutionId},${examSessionId},${studentId},${status},
+       ${JSON.stringify(reasons)}::jsonb,${JSON.stringify(contextSnapshot)}::jsonb,${evaluatedAt},${actor.id})
+    ON CONFLICT ("examSessionId","studentId") DO UPDATE SET
+      "status"=EXCLUDED."status",
+      "reasons"=EXCLUDED."reasons",
+      "contextSnapshot"=EXCLUDED."contextSnapshot",
+      "evaluatedAt"=EXCLUDED."evaluatedAt",
+      "evaluatedById"=EXCLUDED."evaluatedById",
+      "updatedAt"=CURRENT_TIMESTAMP
+  `;
+  return { status, reasons, context: contextSnapshot };
+}
+
 
 /**
  * Official examination approval, locking and publication are controlled by
@@ -469,7 +623,7 @@ export async function getExamSession(
   const session = await loadSession(institutionId, examSessionId);
   if (actor.roles.includes("STUDENT")) {
     const context = await loadStudentExamContext(institutionId, actor.id);
-    if (!sessionTargetsStudent(session, context)) throw new AppError("Examination is outside your academic scope",403);
+    if (!sessionTargetsStudent(session, context, actor.id)) throw new AppError("Examination is outside your academic scope",403);
   } else if (actor.roles.includes("FACULTY")) {
     const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT es."id" FROM "exam_schedules" es
@@ -3039,7 +3193,7 @@ export async function listStudentExamEligibility(
   `);
   const items = [];
   for (const session of sessions) {
-    if (!sessionTargetsStudent(session, context)) continue;
+    if (!sessionTargetsStudent(session, context, studentId)) continue;
     const now = new Date();
     const registrationStatus = !session.registrationRequired
       ? "NOT_REQUIRED"
@@ -3183,7 +3337,7 @@ export async function createAdmitCardHold(
   meta: { ipAddress?: string; userAgent?: string },
 ) {
   assertExamController(actor);
-  const session = await loadSession(institutionId, examSessionId);
+  await loadSession(institutionId, examSessionId);
   const eligibility = await evaluateExamEligibility(institutionId, actor, examSessionId, input.studentId);
   if (eligibility.status === "ELIGIBLE" && input.reasonCode !== "OTHER") {
     // A manual hold may still be applied; it is intentionally independent of eligibility.

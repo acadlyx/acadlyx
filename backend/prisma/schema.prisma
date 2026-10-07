@@ -503,6 +503,7 @@ model Department {
   programs           Program[]
   courses            Course[]
   departmentAccesses DepartmentAccess[]
+  events             InstitutionalEvent[]
 
   employeeProfiles EmployeeProfile[]
 
