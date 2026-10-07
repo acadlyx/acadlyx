@@ -98,7 +98,6 @@ model Institution {
   placementDrives          PlacementDrive[]
   placementOpenings        PlacementOpening[]
   placementVisits          PlacementVisit[]
-  placementApplications    Application[]
   placementInterviews      PlacementInterview[]
   placementOffers          PlacementOffer[]
   placementProfiles        PlacementProfile[]
@@ -268,7 +267,6 @@ model User {
   campusAccesses           CampusAccess[]
   studentSkills           StudentSkill[]
   careerPaths             CareerPath[]
-  applications            Application[]
   placementApplicationsOwned Application[] @relation("PlacementApplicationStudent")
   placementApplicationsReviewed Application[] @relation("PlacementApplicationReviewedBy")
   placementInterviews        PlacementInterviewParticipant[]
@@ -1198,7 +1196,7 @@ model Application {
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   studentId     String
-  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       User        @relation("PlacementApplicationStudent", fields: [studentId], references: [id], onDelete: Cascade)
   opportunityId String
   opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   placementDriveId String?
