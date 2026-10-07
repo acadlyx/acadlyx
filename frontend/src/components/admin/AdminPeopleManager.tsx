@@ -1485,7 +1485,7 @@ function AdminPeopleManagerContent() {
           setActiveModal(null);
           setSelected(null);
         }}>
-        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
+        
           <div className="mx-auto my-8 max-w-2xl overflow-hidden rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
@@ -1517,9 +1517,10 @@ function AdminPeopleManagerContent() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setSelected(null)
-                }
+                onClick={() => {
+                  setActiveModal(null);
+                  setSelected(null);
+                }}
                 className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200"
               >
                 ×
@@ -1653,16 +1654,16 @@ function AdminPeopleManagerContent() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setSelected(null)
-                }
+                onClick={() => {
+                  setActiveModal(null);
+                  setSelected(null);
+                }}
                 className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold"
               >
                 Close
               </button>
             </div>
           </div>
-        </div>
       </ModalPortal>
       ) : null}
 
@@ -1671,7 +1672,7 @@ function AdminPeopleManagerContent() {
           setActiveModal(null);
           setSelected(null);
         }}>
-        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
+        
           <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div>
@@ -1682,8 +1683,10 @@ function AdminPeopleManagerContent() {
               </div>
               <button
                 type="button"
-                onClick={() => setActiveModal(null);
-                  setSelected(null);}
+                onClick={() => {
+                  setActiveModal(null);
+                  setSelected(null);
+                }}
                 className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200"
               >
                 ×
@@ -1751,15 +1754,16 @@ function AdminPeopleManagerContent() {
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-                <button type="button" onClick={() => setActiveModal(null);
-                  setSelected(null);} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
+                <button type="button" onClick={() => {
+                  setActiveModal(null);
+                  setSelected(null);
+                }} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
                 <button type="submit" disabled={savingEdit} className="rounded-[13px] bg-blue-600 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-50">
                   {savingEdit ? "Saving…" : "Save changes"}
                 </button>
               </div>
             </form>
           </div>
-        </div>
       </ModalPortal>
       ) : null}
 
@@ -1767,7 +1771,7 @@ function AdminPeopleManagerContent() {
         <ModalPortal onBackdropClick={() => {
           setActiveModal(null);
         }}>
-        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
+        
           <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div>
@@ -1905,7 +1909,6 @@ function AdminPeopleManagerContent() {
               </div>
             </form>
           </div>
-        </div>
       </ModalPortal>
       ) : null}
     </div>
