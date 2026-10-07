@@ -273,3 +273,151 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     applicationSuccessRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
   };
 }
+
+
+export async function listPlacementCompanies(institutionId: string, actor: AuthenticatedUser, search?: string) {
+  assertInstitution(actor, institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  return prisma.placementCompany.findMany({
+    where: { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" } } : {}) },
+    include: { contacts: true },
+    orderBy: { name: "asc" },
+    take: 100,
+  });
+}
+
+export async function createPlacementCompany(institutionId: string, actor: AuthenticatedUser, input: {
+  name: string; logoUrl?: string; industry?: string; companyType?: string; website?: string; description?: string; headquarters?: string;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const name = input.name.trim();
+  if (name.length < 2) throw new AppError("Company name is required.", 400);
+  const company = await prisma.placementCompany.create({
+    data: { institutionId, name, logoUrl: input.logoUrl || null, industry: input.industry || null, companyType: input.companyType || null, website: input.website || null, description: input.description || null, headquarters: input.headquarters || null, createdById: actor.id },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.company.created", entityType: "PlacementCompany", entityId: company.id, metadata: { name } });
+  return company;
+}
+
+export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string } = {}) {
+  assertInstitution(actor, institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  return prisma.placementDrive.findMany({
+    where: {
+      institutionId,
+      ...(options.status ? { status: options.status } : {}),
+      ...(options.search ? { OR: [{ title: { contains: options.search, mode: "insensitive" } }, { company: { name: { contains: options.search, mode: "insensitive" } } }] } : {}),
+      ...(actor.roles.includes("STUDENT") ? { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED"] } } : {}),
+    },
+    include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
+    orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
+    take: 100,
+  });
+}
+
+export async function createPlacementDrive(institutionId: string, actor: AuthenticatedUser, input: {
+  companyId: string; title: string; openingId?: string; campusId?: string; applicationDeadline?: string; driveDate?: string;
+  venue?: string; onlineLink?: string; cgpaRequirement?: number; maxBacklogs?: number; vacancies?: number;
+  eligiblePrograms?: string[]; eligibleDepartments?: string[]; eligibleBatches?: string[]; eligibleSemesters?: string[]; requiredSkills?: string[];
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const company = await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true } });
+  if (!company) throw new AppError("Company not found in this institution.", 404);
+  if (input.openingId && !(await prisma.placementOpening.findFirst({ where: { id: input.openingId, institutionId, companyId: input.companyId }, select: { id: true } }))) {
+    throw new AppError("Opening does not belong to the selected company.", 422);
+  }
+  const drive = await prisma.placementDrive.create({
+    data: {
+      institutionId, companyId: input.companyId, title: input.title.trim(), openingId: input.openingId || null, campusId: input.campusId || null,
+      applicationDeadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+      driveDate: input.driveDate ? new Date(input.driveDate) : null, venue: input.venue || null, onlineLink: input.onlineLink || null,
+      cgpaRequirement: input.cgpaRequirement, maxBacklogs: input.maxBacklogs, vacancies: input.vacancies,
+      eligiblePrograms: input.eligiblePrograms ?? undefined, eligibleDepartments: input.eligibleDepartments ?? undefined,
+      eligibleBatches: input.eligibleBatches ?? undefined, eligibleSemesters: input.eligibleSemesters ?? undefined,
+      requiredSkills: input.requiredSkills ?? undefined,
+    },
+    include: { company: true, opening: true },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.created", entityType: "PlacementDrive", entityId: drive.id, metadata: { title: drive.title, companyId: drive.companyId } });
+  return drive;
+}
+
+const DRIVE_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ["PUBLISHED"],
+  PUBLISHED: ["APPLICATION_OPEN", "CLOSED"],
+  APPLICATION_OPEN: ["APPLICATION_CLOSED", "CLOSED"],
+  APPLICATION_CLOSED: ["SHORTLISTING", "CLOSED"],
+  SHORTLISTING: ["TEST", "INTERVIEW", "CLOSED"],
+  TEST: ["INTERVIEW", "OFFERED", "CLOSED"],
+  INTERVIEW: ["OFFERED", "CLOSED"],
+  OFFERED: ["ACCEPTED", "CLOSED"],
+  ACCEPTED: ["JOINED", "CLOSED"],
+  JOINED: ["CLOSED"],
+  CLOSED: [],
+};
+
+export async function transitionPlacementDrive(institutionId: string, actor: AuthenticatedUser, id: string, status: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const drive = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
+  if (!drive) throw new AppError("Placement drive not found.", 404);
+  const next = status.toUpperCase();
+  if (!DRIVE_TRANSITIONS[drive.status]?.includes(next)) throw new AppError(`Invalid placement drive transition: ${drive.status} -> ${next}`, 409);
+  const updated = await prisma.placementDrive.update({ where: { id }, data: { status: next } });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.status_changed", entityType: "PlacementDrive", entityId: id, metadata: { from: drive.status, to: next } });
+  return updated;
+}
+
+export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
+  assertInstitution(actor, institutionId);
+  const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  if (!target) throw new AppError("Student scope is required.", 400);
+  await assertCanViewStudent(institutionId, actor, target);
+  const [drive, enrollment] = await Promise.all([
+    prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, status: true, applicationDeadline: true, cgpaRequirement: true, maxBacklogs: true, eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true, requiredSkills: true } }),
+    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, select: { programId: true, batchId: true, semesterId: true, program: { select: { departmentId: true } } } }),
+  ]);
+  if (!drive) throw new AppError("Placement drive not found.", 404);
+  if (!enrollment) return { eligible: false, reasons: ["No active academic enrollment found."] };
+  const reasons: string[] = [];
+  const list = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  if (drive.status !== "APPLICATION_OPEN") reasons.push("Applications are not open for this drive.");
+  if (drive.applicationDeadline && drive.applicationDeadline.getTime() < Date.now()) reasons.push("The application deadline has passed.");
+  if (list(drive.eligiblePrograms).length && !list(drive.eligiblePrograms).includes(enrollment.programId)) reasons.push("Program is not eligible.");
+  if (list(drive.eligibleDepartments).length && !list(drive.eligibleDepartments).includes(enrollment.program.departmentId)) reasons.push("Department is not eligible.");
+  if (list(drive.eligibleBatches).length && (!enrollment.batchId || !list(drive.eligibleBatches).includes(enrollment.batchId))) reasons.push("Batch is not eligible.");
+  if (list(drive.eligibleSemesters).length && (!enrollment.semesterId || !list(drive.eligibleSemesters).includes(enrollment.semesterId))) reasons.push("Semester is not eligible.");
+  return { eligible: reasons.length === 0, reasons, studentId: target };
+}
+
+export async function applyToDrive(institutionId: string, actor: AuthenticatedUser, driveId: string) {
+  assertInstitution(actor, institutionId);
+  if (!actor.roles.includes("STUDENT") || !actor.permissions.includes("placements.apply")) throw new AppError("Student placement application authority is required.", 403);
+  const eligibility = await checkDriveEligibility(institutionId, actor, driveId);
+  if (!eligibility.eligible) throw new AppError(eligibility.reasons.join(" "), 409);
+  const drive = await prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, openingId: true } });
+  if (!drive) throw new AppError("Placement drive not found.", 404);
+  const opportunity = await prisma.opportunity.findFirst({ where: { institutionId, title: { contains: "drive:" + drive.id } }, select: { id: true } });
+  if (!opportunity) {
+    throw new AppError("This drive is not linked to an application record yet.", 409);
+  }
+  return applyToOpportunity(institutionId, actor, opportunity.id);
+}
+
+export async function placementProfile(institutionId: string, actor: AuthenticatedUser, studentId?: string) {
+  assertInstitution(actor, institutionId);
+  const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  if (!target) throw new AppError("Student scope is required.", 400);
+  await assertCanViewStudent(institutionId, actor, target);
+  const [profile, enrollment, skills, certifications, projects, resumes] = await Promise.all([
+    prisma.placementProfile.findUnique({ where: { studentId: target } }),
+    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, include: { program: { include: { department: true } }, batch: true, semester: true } }),
+    prisma.studentSkill.findMany({ where: { institutionId, studentId: target }, include: { skill: true }, orderBy: { updatedAt: "desc" } }),
+    prisma.placementCertification.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
+    prisma.placementProject.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
+    prisma.placementResume.findMany({ where: { institutionId, studentId: target }, orderBy: [{ isCurrent: "desc" }, { createdAt: "desc" }] }),
+  ]);
+  return { profile, enrollment, skills, certifications, projects, resumes };
+}
