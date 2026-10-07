@@ -1,11 +1,4 @@
-import { RoleScopedReports } from "@/components/reports/RoleScopedReports";
-
-export default function Page() {
-  return (
-    <RoleScopedReports
-      role="PLACEMENT"
-      title="Placement Reports"
-      subtitle="Placement reporting within authorised scope"
-    />
-  );
-}
+"use client";
+import{useEffect,useState}from"react";import{apiFetch,ApiRequestError}from"@/lib/api";import{DashboardShell}from"@/components/dashboard/DashboardShell";
+type M=Record<string,unknown>;
+export default function PlacementReportsPage(){const[m,setM]=useState<M|null>(null);const[e,setE]=useState("");useEffect(()=>{void apiFetch<{data:M}>("/placements/metrics").then(r=>setM(r.data)).catch(x=>setE(x instanceof ApiRequestError?x.message:"Unable to load placement intelligence."))},[]);const rows=[["Companies",m?.companies],["Drives",m?.drives],["Applications",m?.applications],["Offers",m?.offers],["Accepted offers",m?.acceptedOffers],["Joined",m?.joinedOffers],["Placement rate",m?String(m.placementRate)+"%":"—"],["Offer acceptance",m?String(m.offerAcceptanceRate)+"%":"—"],["Joining rate",m?String(m.joiningRate)+"%":"—"],["Average package",m?"INR "+Number(m.averagePackage||0).toLocaleString("en-IN"):"—"],["Highest package",m?"INR "+Number(m.highestPackage||0).toLocaleString("en-IN"):"—"]];return <DashboardShell title="Placement Intelligence" subtitle="Authoritative placement outcomes calculated from canonical drives, applications, offers and joining records." allowedRoles={["PLACEMENT"]}><div className="mx-auto max-w-6xl space-y-6">{e&&<div className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{e}</div>}<section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{rows.map(([a,b])=><article key={String(a)} className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase text-slate-500">{a}</p><p className="mt-2 text-2xl font-black text-slate-950">{b==null?"—":String(b)}</p></article>)}</section></div></DashboardShell>}
