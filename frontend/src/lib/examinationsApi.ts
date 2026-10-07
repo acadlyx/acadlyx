@@ -514,3 +514,12 @@ export async function getMyPublishedExamResults() {
   );
   return res.data;
 }
+
+export async function downloadMarksheetPdf(sessionId: string) {
+  const response = await authedBlobFetch(`/examinations/sessions/${sessionId}/marksheet.pdf`);
+  const blob = await response.blob();
+  if (blob.size < 500 || (blob.type && blob.type !== "application/pdf")) throw new Error("The server returned an invalid marksheet PDF.");
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return { blob, filename: match?.[1] || "ACADLYX_Marksheet.pdf" };
+}
