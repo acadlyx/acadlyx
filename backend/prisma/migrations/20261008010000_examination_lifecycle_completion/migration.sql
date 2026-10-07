@@ -132,16 +132,9 @@ CREATE INDEX IF NOT EXISTS "hall_tickets_institution_status_idx"
 CREATE INDEX IF NOT EXISTS "hall_tickets_reissued_from_idx"
   ON "hall_tickets" ("reissuedFromId");
 
-DO $
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'hall_tickets_reissued_from_fk'
-  ) THEN
-    ALTER TABLE "hall_tickets"
-      ADD CONSTRAINT "hall_tickets_reissued_from_fk"
-      FOREIGN KEY ("reissuedFromId") REFERENCES "hall_tickets"("id") ON DELETE SET NULL;
-  END IF;
-END $;
+ALTER TABLE "hall_tickets"
+  ADD CONSTRAINT "hall_tickets_reissued_from_fk"
+  FOREIGN KEY ("reissuedFromId") REFERENCES "hall_tickets"("id") ON DELETE SET NULL;
 
 ALTER TABLE "exam_marks"
   ADD COLUMN IF NOT EXISTS "correctionRequestId" TEXT;
@@ -152,17 +145,10 @@ CREATE INDEX IF NOT EXISTS "exam_marks_schedule_status_idx"
 CREATE INDEX IF NOT EXISTS "exam_marks_correction_request_idx"
   ON "exam_marks" ("correctionRequestId");
 
-DO $
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'exam_marks_correction_request_fk'
-  ) THEN
-    ALTER TABLE "exam_marks"
-      ADD CONSTRAINT "exam_marks_correction_request_fk"
-      FOREIGN KEY ("correctionRequestId")
-      REFERENCES "exam_mark_correction_requests"("id") ON DELETE SET NULL;
-  END IF;
-END $;
+ALTER TABLE "exam_marks"
+  ADD CONSTRAINT "exam_marks_correction_request_fk"
+  FOREIGN KEY ("correctionRequestId")
+  REFERENCES "exam_mark_correction_requests"("id") ON DELETE SET NULL;
 
 -- Keep updatedAt correct for lifecycle tables.
 CREATE OR REPLACE FUNCTION "acadlyx_exam_lifecycle_updated_at"()
