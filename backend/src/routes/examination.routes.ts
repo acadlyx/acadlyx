@@ -24,6 +24,11 @@ import {
 import { idParams } from "../validators/common";
 import {
   allocateSeatingSchema,
+  admitCardHoldSchema,
+  admitCardHoldResolveSchema,
+  examMarkCorrectionSchema,
+  examRegistrationParams,
+  studentExamListQuery,
   assignInvigilatorsSchema,
   createExamRoomSchema,
   createExamScheduleSchema,
@@ -781,6 +786,71 @@ router.patch(
       )
     )
   )
+);
+
+
+/* ---------- Student examination lifecycle ---------- */
+
+router.get(
+  "/students/:studentId/eligibility",
+  authorize("exams.read"),
+  validateParams(studentIdParams),
+  asyncHandler(async (req, res) => sendOk(res, await service.listStudentExamEligibility(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.studentId
+  )))
+);
+
+router.post(
+  "/sessions/:id/registration",
+  authorize("exams.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    sendOk(res, await service.registerStudentForExam(
+      requireInstitution(req), actor, req.params.id, actor.id, auditMeta(req)
+    ), 201);
+  })
+);
+
+router.post(
+  "/sessions/:id/admit-card-holds",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  validateBody(admitCardHoldSchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.createAdmitCardHold(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body, auditMeta(req)
+  ), 201))
+);
+
+router.patch(
+  "/admit-card-holds/:id/resolve",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  validateBody(admitCardHoldResolveSchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.resolveAdmitCardHold(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body.resolution, auditMeta(req)
+  )))
+);
+
+router.post(
+  "/mark-correction-requests",
+  authorize("marks.enter"),
+  validateBody(examMarkCorrectionSchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.requestExamMarkCorrection(
+    requireInstitution(req), requireAuthenticatedUser(req), req.body, auditMeta(req)
+  ), 201))
+);
+
+router.get(
+  "/mark-correction-requests",
+  authorize("exams.approve"),
+  asyncHandler(async (req, res) => {
+    const pagination = parsePagination(req);
+    const result = await service.listExamMarkCorrectionRequests(
+      requireInstitution(req), requireAuthenticatedUser(req), pagination
+    );
+    sendPage(res, result.items, result.total, pagination);
+  })
 );
 
 // ---------- Student view ----------
