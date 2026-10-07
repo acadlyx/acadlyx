@@ -978,6 +978,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     activeMatch: "exact",
     icon: "⌂",
     roles: ["PLACEMENT"],
+    permissions: ["placements.read"],
     group: "Workspace",
   },
   {
