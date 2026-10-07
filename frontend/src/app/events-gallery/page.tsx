@@ -6,7 +6,7 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { listEvents, type InstitutionalEvent } from "@/lib/eventsApi";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-export default function AdminEventsGalleryPage() {
+export default function EventsGalleryPage({ embedded = false }: { embedded?: boolean }) {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [events,setEvents]=useState<InstitutionalEvent[]>([]);
   const [busy,setBusy]=useState(true);
@@ -19,7 +19,7 @@ export default function AdminEventsGalleryPage() {
   useEffect(()=>{const t=setTimeout(()=>void load(),250);return()=>clearTimeout(t);},[status]);
   const canManage=!!user?.permissions.includes("events.manage");
 
-  return <DashboardShell title="Events & Gallery" subtitle="Create, publish and manage institutional events, posts and photos" allowedRoles={["INSTITUTION_ADMIN","DIRECTOR","REGISTRAR","CMS"]}>
+  const content = (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
         <div><p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Admin content management</p><h1 className="mt-2 text-3xl font-black text-slate-950">Events & Gallery</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage events, announcements/posts, publication status and event photography from one institutional workspace.</p></div>
