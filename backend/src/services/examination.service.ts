@@ -2019,6 +2019,11 @@ export async function lockExamSchedule(
     throw new AppError("This schedule is already locked", 409);
   }
 
+  const roster = await getCourseOfferingRoster(institutionId, schedule.courseOfferingId);
+  const enteredCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}`);
+  if (enteredCount !== roster.length) {
+    throw new AppError(`Cannot lock results: ${roster.length - enteredCount} student mark(s) are missing`,409);
+  }
   const outstanding = await countRows(
     prisma,
     "exam_marks",
