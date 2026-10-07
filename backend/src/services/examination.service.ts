@@ -1882,6 +1882,34 @@ export async function saveExamMarks(
 
   const nextStatus: ExamMarkStatus = submit ? "SUBMITTED" : "DRAFT";
 
+  if (schedule.status === "CORRECTION_OPEN") {
+    const approved = await prisma.$queryRaw<Array<{ examMarkId: string; newMarks: number | null }>>(Prisma.sql`
+      SELECT "examMarkId", "newMarks"
+      FROM "exam_mark_correction_requests"
+      WHERE "institutionId"=${institutionId}
+        AND "examScheduleId"=${examScheduleId}
+        AND "status"='APPROVED'
+    `);
+    const allowed = new Map(approved.map(row => [row.examMarkId, row.newMarks]));
+    const markRows = await prisma.$queryRaw<Array<{ id: string; studentId: string }>>(Prisma.sql`
+      SELECT "id", "studentId"
+      FROM "exam_marks"
+      WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}
+    `);
+    const markIdByStudent = new Map(markRows.map(row => [row.studentId, row.id]));
+    for (const entry of entries) {
+      const markId = markIdByStudent.get(entry.studentId);
+      if (!markId || !allowed.has(markId)) {
+        throw new AppError("Only marks covered by an approved correction request may be edited", 403);
+      }
+      const requestedMarks = allowed.get(markId);
+      const correctedMarks = entry.isAbsent ? null : entry.marksObtained ?? null;
+      if (requestedMarks !== correctedMarks) {
+        throw new AppError("Corrected marks must match the approved correction request", 400);
+      }
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     for (const entry of entries) {
       const existing = await tx.$queryRaw<
