@@ -9,7 +9,7 @@ import { assertExaminationController } from "./workflowAuthority.service";
 import { generateStudentMarksheetPdf } from "./examination.service";
 import {
   enqueueJob,
-  getOwnedJob,
+  getJob,\n  getOwnedJob,
   requestCancellation,
   loadActiveJobActor,
 } from "./backgroundJob.service";
@@ -229,7 +229,7 @@ export async function getMarksheetGenerationJob(
   actor: AuthenticatedUser,
   id: string,
 ) {
-  return getOwnedJob(institutionId, actor, id);
+  return getJob(institutionId, actor, id);
 }
 
 export async function cancelMarksheetGenerationJob(
