@@ -24,6 +24,7 @@ const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   FACULTY: { "/erp": "/faculty/operations" },
   HR: { "/reports": "/hr/reports" },
   STAFF: { "/erp": "/staff/operations" },
+  MANAGEMENT: { "/operations": "/management/operations", "/intelligence": "/management/intelligence", "/reports": "/management/reports" },
   EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
 };
 
