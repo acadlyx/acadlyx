@@ -48,7 +48,7 @@ const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISH
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
-const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION", "DIRECTOR"];
+const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION"];
 
 export type ExamType = (typeof EXAM_TYPES)[number];
 export type ExamSessionStatus = (typeof SESSION_STATUSES)[number];
@@ -127,6 +127,12 @@ interface ExamScheduleRow {
  */
 function assertExamController(actor: AuthenticatedUser): void {
   assertExaminationController(actor);
+}
+
+function assertExamApprover(actor: AuthenticatedUser): void {
+  if (!actor.roles.some((role) => ["EXAMINATION","DIRECTOR","REGISTRAR","CHAIRMAN"].includes(role))) {
+    throw new AppError("Examination approval authority is required for this operation", 403);
+  }
 }
 
 function assertValue<T extends string>(
@@ -1812,7 +1818,7 @@ export async function approveExamMarks(
   examScheduleId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
 
   const pending = await prisma.$queryRaw<
@@ -1876,7 +1882,7 @@ export async function lockExamSchedule(
   examScheduleId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
   if (schedule.status === "LOCKED" || schedule.status === "RESULTS_PUBLISHED") {
     throw new AppError("This schedule is already locked", 409);
@@ -1928,7 +1934,7 @@ export async function enqueuePublishExamResults(
   actor: AuthenticatedUser,
   examScheduleId: string,
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
   if (schedule.status !== "LOCKED") throw new AppError("Lock the schedule before publishing its results", 409);
   const marks = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
@@ -1952,7 +1958,7 @@ export async function publishExamResults(
   examScheduleId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
   if (schedule.status !== "LOCKED") {
     throw new AppError(
