@@ -38,7 +38,31 @@ export function EventEditor({ eventId }: Props) {
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState(""); const [newCategory,setNewCategory]=useState("");
 
   useEffect(()=>{ Promise.all([getEventCategories(), eventId?getEvent(eventId):Promise.resolve(null)]).then(([c,e])=>{
-    setCategories(c.data||[]); if(e){setEvent(e.data); setForm((x)=>({...x,...e.data,eventDate:e.data.eventDate?.slice(0,10)||"",categoryId:e.data.category?.id||"",highlights:(e.data.highlights||[]).join("\n"),tags:(e.data.tags||[]).join(", "),videoUrls:(e.data.videoUrls||[]).join("\n"),organizers:JSON.stringify(e.data.organizers||[]),speakers:JSON.stringify(e.data.speakers||[])}));}
+    setCategories(c.data||[]);
+    if(e){
+      setEvent(e.data);
+      setForm({
+        title: e.data.title || "",
+        categoryId: e.data.category?.id || "",
+        departmentId: e.data.department?.id || "",
+        shortDescription: e.data.shortDescription || "",
+        description: e.data.description || "",
+        eventDate: e.data.eventDate?.slice(0,10) || "",
+        startTime: e.data.startTime || "",
+        endTime: e.data.endTime || "",
+        venue: e.data.venue || "",
+        status: e.data.status || "DRAFT",
+        publicationStatus: e.data.publicationStatus || "DRAFT",
+        isFeatured: e.data.isFeatured,
+        highlights: (e.data.highlights || []).join("\n"),
+        tags: (e.data.tags || []).join(", "),
+        videoUrls: (e.data.videoUrls || []).join("\n"),
+        organizers: JSON.stringify(e.data.organizers || []),
+        speakers: JSON.stringify(e.data.speakers || []),
+        coverImageUrl: e.data.coverImageUrl || "",
+        coverFileId: e.data.coverFileId || "",
+      });
+    }
   }).catch(e=>setMessage(e instanceof Error?e.message:"Unable to load event."));},[eventId]);
 
   function set(key: keyof EventForm, value: EventForm[keyof EventForm]) { setForm((x)=>({...x,[key]:value})); }
@@ -51,7 +75,6 @@ export function EventEditor({ eventId }: Props) {
         eventDate:new Date(form.eventDate+"T00:00:00").toISOString(),highlights:form.highlights.split("\n").map((x)=>x.trim()).filter(Boolean),
         tags:form.tags.split(",").map((x)=>x.trim()).filter(Boolean),videoUrls:form.videoUrls.split("\n").map((x)=>x.trim()).filter(Boolean),
         organizers:jsonArray(form.organizers),speakers:jsonArray(form.speakers),publicationStatus:publish?"PUBLISHED":form.publicationStatus};
-      delete payload.media; delete payload.category; delete payload.department; delete payload.id; delete payload.slug; delete payload.createdAt; delete payload.updatedAt; delete payload.publishedAt;
       const response=eventId?await updateEvent(eventId,payload):await createEvent(payload);
       const saved=response.data; setEvent(saved); if(!eventId) router.replace(`/events-gallery/${saved.id}/edit`); else setMessage(publish?"Event published.":"Event saved.");
     }catch(e){setMessage(e instanceof Error?e.message:"Save failed.");}finally{setBusy(false);}
