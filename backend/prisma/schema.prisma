@@ -1215,6 +1215,7 @@ model Application {
   @@index([institutionId, studentId, status])
   @@index([institutionId, placementDriveId, status])
   @@index([institutionId, placementOpeningId, status])
+  @@unique([studentId, placementDriveId])
   @@map("applications")
 }
 
