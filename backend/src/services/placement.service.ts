@@ -1,7 +1,8 @@
 import { prisma } from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent } from "./accessScope.service";
+import { assertCanViewStudent, getStudentWhereScope, hasAnyRole } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 const APPLICATION_TRANSITIONS: Record<string, string[]> = {
@@ -257,11 +258,16 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
   if (!isPlacementManager(actor) && !actor.permissions.includes("placements.read")) {
     throw new AppError("Placement intelligence access is not permitted.", 403);
   }
-  const [opportunities, applications, statusRows, organizations] = await Promise.all([
+  const roles = actor.roles;
+  const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
+  const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
+  const applicationWhere: Prisma.ApplicationWhereInput = { institutionId, student: studentWhere };
+  const [opportunities, applications, statusRows, organizations, placedStudents] = await Promise.all([
     prisma.opportunity.count({ where: { institutionId, isActive: true } }),
-    prisma.application.count({ where: { institutionId } }),
-    prisma.application.groupBy({ by: ["status"], where: { institutionId }, _count: { _all: true } }),
+    prisma.application.count({ where: applicationWhere }),
+    prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
     prisma.opportunity.groupBy({ by: ["organization"], where: { institutionId }, _count: { _all: true }, orderBy: { _count: { organization: "desc" } }, take: 10 }),
+    prisma.application.findMany({ where: { ...applicationWhere, status: { in: ["OFFERED","ACCEPTED","JOINED"] } }, distinct: ["studentId"], select: { studentId: true } }),
   ]);
   const status = Object.fromEntries(statusRows.map(row => [row.status, row._count._all]));
   const selected = (status.OFFERED ?? 0) + (status.ACCEPTED ?? 0) + (status.JOINED ?? 0);
@@ -270,6 +276,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     applications,
     status,
     organizations: organizations.map(row => ({ organization: row.organization, opportunities: row._count._all })),
+    placedStudents: placedStudents.length,
     applicationSuccessRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
   };
 }
