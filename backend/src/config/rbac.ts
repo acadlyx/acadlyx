@@ -246,6 +246,10 @@ export const PERMISSIONS = [
   { key: "admissions.read", module: "admissions", description: "View admission applications" },
   { key: "admissions.manage", module: "admissions", description: "Process admission applications" },
 
+  { key: "placements.read", module: "placements", description: "View placement opportunities, applications and placement intelligence" },
+  { key: "placements.manage", module: "placements", description: "Manage placement opportunities and application workflow" },
+  { key: "placements.apply", module: "placements", description: "Apply to eligible placement opportunities" },
+
   { key: "hr.read", module: "hr", description: "View employee records" },
   { key: "hr.manage", module: "hr", description: "Manage employee records" },
 
@@ -1079,6 +1083,8 @@ export const ROLE_PERMISSIONS: Record<
   PLACEMENT: [
     ...EVENTS_READ,
     "students.read",
+    "placements.read",
+    "placements.manage",
 
     "reports.read",
 
@@ -1116,6 +1122,8 @@ export const ROLE_PERMISSIONS: Record<
 
   STUDENT: [
     ...EVENTS_READ,
+    "placements.read",
+    "placements.apply",
     "obe.read",
     "attendance.read",
 
