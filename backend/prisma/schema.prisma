@@ -115,6 +115,8 @@ model Institution {
   featureEntitlements   TenantFeatureEntitlement[]
   files                 FileAsset[]
   backgroundJobs        BackgroundJob[]
+  events                InstitutionalEvent[]
+  eventCategories      EventCategory[]
 
   admissionApplications AdmissionApplication[]
   employeeProfiles EmployeeProfile[]
@@ -290,6 +292,8 @@ model User {
   movementRequests StudentMovementRequest[] @relation("MovementStudent")
   certificates Certificate[] @relation("CertificateStudent")
   backgroundJobsCreated BackgroundJob[] @relation("BackgroundJobCreatedBy")
+  eventsCreated        InstitutionalEvent[] @relation("InstitutionalEventCreatedBy")
+  eventsUpdated        InstitutionalEvent[] @relation("InstitutionalEventUpdatedBy")
 
   obeMappingsCreated    CourseOutcomeMapping[] @relation("ObeMappingCreatedBy")
   obeMappingsApproved   CourseOutcomeMapping[] @relation("ObeMappingApprovedBy")
@@ -1978,6 +1982,89 @@ model Certificate {
   @@map("certificates")
 }
 
+
+// ==========================================================
+// EVENTS & GALLERY
+// ==========================================================
+
+model EventCategory {
+  id            String       @id @default(uuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String
+  description   String?
+  isActive      Boolean      @default(true)
+  events        InstitutionalEvent[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([institutionId, slug])
+  @@index([institutionId, isActive])
+  @@map("event_categories")
+}
+
+model InstitutionalEvent {
+  id              String       @id @default(uuid())
+  institutionId   String
+  institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  categoryId      String?
+  category        EventCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  departmentId    String?
+  department      Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  title           String
+  slug            String
+  shortDescription String?
+  description     String?
+  eventDate       DateTime
+  startTime       String?
+  endTime         String?
+  venue           String?
+  organizers      Json?
+  speakers        Json?
+  highlights      Json?
+  videoUrls       Json?
+  tags            Json?
+  status          String       @default("DRAFT")
+  publicationStatus String     @default("DRAFT")
+  isFeatured      Boolean      @default(false)
+  coverImageUrl   String?
+  coverFileId     String?
+  createdById     String
+  createdBy       User         @relation("InstitutionalEventCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedById     String?
+  updatedBy       User?        @relation("InstitutionalEventUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  media           EventMedia[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  publishedAt     DateTime?
+
+  @@unique([institutionId, slug])
+  @@index([institutionId, publicationStatus, eventDate])
+  @@index([institutionId, categoryId])
+  @@index([institutionId, departmentId])
+  @@index([institutionId, isFeatured, eventDate])
+  @@map("institutional_events")
+}
+
+model EventMedia {
+  id          String            @id @default(uuid())
+  eventId     String
+  event       InstitutionalEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  institutionId String
+  fileAssetId String
+  url         String
+  publicId    String?
+  title       String?
+  altText     String?
+  displayOrder Int               @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([eventId, displayOrder])
+  @@index([institutionId, fileAssetId])
+  @@map("event_media")
+}
 
 // ==========================================================
 // OUTCOME BASED EDUCATION (OBE)
