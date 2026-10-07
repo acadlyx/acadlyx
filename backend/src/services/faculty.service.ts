@@ -170,47 +170,71 @@ export async function getAtRiskStudents(
 ) {
   await assertFacultyInInstitution(institutionId, facultyId);
 
-  const offerings = offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
+  const offerings =
+    offeringsOverride ?? (await getMyCourseOfferings(institutionId, facultyId));
   const offeringIds = offerings.map((o) => o.id);
   if (offeringIds.length === 0) return { count: 0, students: [] };
 
-  const records = await prisma.attendanceRecord.findMany({
+  const grouped = await prisma.attendanceRecord.groupBy({
+    by: ["studentId", "status"],
     where: {
-      attendanceSession: { courseOfferingId: { in: offeringIds } },
+      attendanceSession: {
+        institutionId,
+        courseOfferingId: { in: offeringIds },
+      },
+    },
+    _count: { _all: true },
+  });
+
+  if (grouped.length === 0) return { count: 0, students: [] };
+
+  const studentIds = [...new Set(grouped.map((row) => row.studentId))];
+  const students = await prisma.user.findMany({
+    where: {
+      institutionId,
+      id: { in: studentIds },
+      isActive: true,
     },
     select: {
-      status: true,
-      studentId: true,
-      student: { select: { firstName: true, lastName: true } },
+      id: true,
+      firstName: true,
+      lastName: true,
     },
   });
 
-  const byStudent = new Map<
-    string,
-    { name: string; present: number; total: number }
-  >();
-
-  for (const r of records) {
-    const entry = byStudent.get(r.studentId) ?? {
-      name: `${r.student.firstName} ${r.student.lastName}`,
-      present: 0,
-      total: 0,
-    };
-    entry.total += 1;
-    if (r.status === "PRESENT") entry.present += 1;
-    byStudent.set(r.studentId, entry);
+  const stats = new Map<string, { present: number; total: number }>();
+  for (const row of grouped) {
+    const current = stats.get(row.studentId) ?? { present: 0, total: 0 };
+    const count = row._count._all;
+    current.total += count;
+    if (row.status === "PRESENT") current.present += count;
+    stats.set(row.studentId, current);
   }
 
-  const atRisk = Array.from(byStudent.entries())
-    .map(([studentId, v]) => ({
+  const nameById = new Map(
+    students.map((student) => [
+      student.id,
+      `${student.firstName} ${student.lastName}`.trim(),
+    ]),
+  );
+
+  const atRisk = [...stats.entries()]
+    .filter(([studentId]) => nameById.has(studentId))
+    .map(([studentId, value]) => ({
       studentId,
-      name: v.name,
-      percentage: v.total > 0 ? Math.round((v.present / v.total) * 100) : 0,
+      name: nameById.get(studentId)!,
+      percentage:
+        value.total > 0
+          ? Math.round((value.present / value.total) * 100)
+          : 0,
     }))
-    .filter((s) => s.percentage < thresholdPercent)
+    .filter((student) => student.percentage < thresholdPercent)
     .sort((a, b) => a.percentage - b.percentage);
 
-  return { count: atRisk.length, students: atRisk.slice(0, 5) };
+  return {
+    count: atRisk.length,
+    students: atRisk.slice(0, 5),
+  };
 }
 
 export async function getPendingAttendanceCount(
