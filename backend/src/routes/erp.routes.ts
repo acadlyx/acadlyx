@@ -13,7 +13,6 @@ import {
 } from "../middleware/validate";
 
 import {
-  createExamSchema,
   createInvoiceSchema,
   createNoticeSchema,
   createParentLinkSchema,
@@ -26,11 +25,9 @@ import {
   parentLinkParamsSchema,
   recordPaymentSchema,
   timetableListQuerySchema,
-  updateExamSchema,
   updateInvoiceSchema,
   updateNoticeSchema,
   updateTimetableEntrySchema,
-  upsertExamResultSchema,
 } from "../validators/erp.validators";
 
 import {
