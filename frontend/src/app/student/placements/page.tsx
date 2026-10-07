@@ -1,5 +1,3 @@
-import { PlacementDashboard } from "@/components/dashboard/PlacementDashboard";
-
-export default function StudentPlacementsPage() {
-  return <PlacementDashboard />;
-}
+"use client";
+import { useEffect,useState } from "react"; import { apiFetch } from "@/lib/api"; import { DashboardShell } from "@/components/dashboard/DashboardShell";
+export default function StudentPlacementsPage(){const [p,setP]=useState<Record<string,unknown>|null>(null);useEffect(()=>{void apiFetch<{data:Record<string,unknown>}>("/placements/profile").then(r=>setP(r.data));},[]);return <DashboardShell title="My Placement" subtitle="Your placement profile, skills, opportunities, applications, interviews and offers." allowedRoles={["STUDENT"]}><div className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl border bg-white p-5"><p className="text-xs uppercase text-slate-500">Placement status</p><p className="mt-2 text-xl font-black">{String((p?.profile as {placementStatus?:string}|null)?.placementStatus??"SEEKING")}</p></div><div className="rounded-2xl border bg-white p-5"><p className="text-xs uppercase text-slate-500">Skills</p><p className="mt-2 text-3xl font-black">{Array.isArray(p?.skills)?p.skills.length:"—"}</p></div><div className="rounded-2xl border bg-white p-5"><p className="text-xs uppercase text-slate-500">Resumes</p><p className="mt-2 text-3xl font-black">{Array.isArray(p?.resumes)?p.resumes.length:"—"}</p></div></div><div className="mt-6 rounded-2xl border bg-white p-6"><h2 className="text-lg font-black">Professional profile</h2><p className="mt-2 text-sm text-slate-600">Maintain skills, certifications, projects, resume and approved professional links. Academic eligibility remains authoritative from institutional records.</p></div></DashboardShell>}
