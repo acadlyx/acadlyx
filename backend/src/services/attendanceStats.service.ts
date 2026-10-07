@@ -24,7 +24,8 @@ export async function getStudentAttendanceSummary(
   institutionId: string,
   studentId: string
 ): Promise<StudentAttendanceSummary> {
-  const records = await prisma.attendanceRecord.findMany({
+  const grouped = await prisma.attendanceRecord.groupBy({
+    by: ["attendanceSessionId", "status"],
     where: {
       studentId,
       attendanceSession: {
@@ -32,19 +33,35 @@ export async function getStudentAttendanceSummary(
         isSubmitted: true,
       },
     },
+    _count: { _all: true },
+  });
+
+  if (grouped.length === 0) {
+    return {
+      overallPercentage: 0,
+      totalSessions: 0,
+      totalPresent: 0,
+      totalLate: 0,
+      totalAbsent: 0,
+      subjects: [],
+    };
+  }
+
+  const sessionIds = [...new Set(grouped.map((row) => row.attendanceSessionId))];
+  const sessions = await prisma.attendanceSession.findMany({
+    where: {
+      institutionId,
+      id: { in: sessionIds },
+    },
     select: {
-      status: true,
-      attendanceSession: {
+      id: true,
+      courseOffering: {
         select: {
-          courseOffering: {
+          id: true,
+          course: {
             select: {
-              id: true,
-              course: {
-                select: {
-                  code: true,
-                  name: true,
-                },
-              },
+              code: true,
+              name: true,
             },
           },
         },
@@ -52,6 +69,7 @@ export async function getStudentAttendanceSummary(
     },
   });
 
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
   const bySubject = new Map<
     string,
     {
@@ -63,8 +81,11 @@ export async function getStudentAttendanceSummary(
     }
   >();
 
-  for (const record of records) {
-    const offering = record.attendanceSession.courseOffering;
+  for (const row of grouped) {
+    const session = sessionById.get(row.attendanceSessionId);
+    if (!session) continue;
+
+    const offering = session.courseOffering;
     const entry = bySubject.get(offering.id) ?? {
       courseCode: offering.course.code,
       courseName: offering.course.name,
@@ -73,9 +94,10 @@ export async function getStudentAttendanceSummary(
       absent: 0,
     };
 
-    if (record.status === "PRESENT") entry.present += 1;
-    else if (record.status === "LATE") entry.late += 1;
-    else entry.absent += 1;
+    const count = row._count._all;
+    if (row.status === "PRESENT") entry.present += count;
+    else if (row.status === "LATE") entry.late += count;
+    else entry.absent += count;
 
     bySubject.set(offering.id, entry);
   }
@@ -92,7 +114,6 @@ export async function getStudentAttendanceSummary(
         late: value.late,
         absent: value.absent,
         total,
-        // Late is not counted as fully present.
         percentage: total > 0 ? Math.round((value.present / total) * 100) : 0,
       };
     }
