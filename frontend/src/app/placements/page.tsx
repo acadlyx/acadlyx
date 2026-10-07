@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect,useState } from "react";
 import { apiFetch,ApiRequestError } from "@/lib/api";
-import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { PlacementTeamShell } from "@/components/placement/PlacementTeamShell";
 
 type Metrics=Record<string,unknown>;
 type Company={id:string;name:string;industry:string|null;relationshipStatus:string};
@@ -16,7 +16,7 @@ export default function PlacementTeamWorkspace(){
  async function load(){setLoading(true);setError("");try{const [metrics,cs,ds,as]=await Promise.all([apiFetch<{data:Metrics}>("/placements/metrics"),apiFetch<{data:Company[]}>("/placements/companies"),apiFetch<{data:Drive[]}>("/placements/drives"),apiFetch<{data:Application[]}>("/placements/applications")]);setM(metrics.data);setCompanies(cs.data||[]);setDrives(ds.data||[]);setApps(as.data||[]);}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to load placement operations.");}finally{setLoading(false);}} async function transition(id:string,status:string){setBusy(id+status);setError("");try{await apiFetch("/placements/applications/"+id+"/status",{method:"POST",body:JSON.stringify({status})});await load()}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to update application.")}finally{setBusy(null)}}
  useEffect(()=>{void load();},[]);
  const cards=[["Companies",m?.companies],["Active drives",m?.openDrives],["Applications",m?.applications],["Offers",m?.offers],["Joined",m?.joinedOffers],["Average package",m?("INR "+Number(m.averagePackage||0).toLocaleString("en-IN")):"—"],["Highest package",m?("INR "+Number(m.highestPackage||0).toLocaleString("en-IN")):"—"],["Joining rate",m?String(m.joiningRate)+"%":"—"]];
- return <DashboardShell title="Placement Command Center" subtitle="Operational placement control across employers, drives, applications, interviews, offers and joining verification." allowedRoles={["PLACEMENT"]}>
+ return <PlacementTeamShell>
   <div className="mx-auto max-w-7xl space-y-6">
    {error&&<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([a,b])=><div key={String(a)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{String(a)}</p><p className="mt-2 text-2xl font-black text-slate-950">{loading?"—":String(b??0)}</p></div>)}</section>
@@ -36,5 +36,5 @@ export default function PlacementTeamWorkspace(){
    </section>
    <button onClick={()=>void load()} disabled={loading} className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">Refresh operational data</button>
   </div>
- </DashboardShell>;
+ </PlacementTeamShell>;
 }
