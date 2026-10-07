@@ -84,11 +84,21 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   COMMON_ACCOUNT_NAVIGATION,
   {
     label: "Events & Gallery",
+    href: "/admin/events-gallery",
+    icon: "◫",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["events.manage"],
+    group: "Administration",
+    activeMatch: "nested",
+  },
+  {
+    label: "Events & Gallery",
     href: "/events-gallery",
     icon: "◫",
     roles: ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
     permissions: ["events.read"],
     group: "Institution",
+    activeMatch: "nested",
   },
 
   {
