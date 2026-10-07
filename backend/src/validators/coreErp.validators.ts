@@ -706,3 +706,28 @@ export const tenantStatusSchema = z.object({
 
 export const institutionIdParams = z.object({ institutionId: uuid });
 export const studentIdParams = z.object({ studentId: uuid });
+
+
+export const studentExamListQuery = z.object({
+  studentId: z.string().uuid().optional(),
+});
+
+export const examRegistrationParams = z.object({
+  id: z.string().uuid(),
+});
+
+export const admitCardHoldSchema = z.object({
+  studentId: z.string().uuid(),
+  reasonCode: z.enum(["FEE_DUES","ATTENDANCE_SHORTAGE","EXAMINATION_DEBARMENT","ADMINISTRATIVE_HOLD","OTHER"]),
+  reason: z.string().trim().min(1).max(1000),
+});
+
+export const admitCardHoldResolveSchema = z.object({
+  resolution: z.string().trim().min(1).max(1000),
+});
+
+export const examMarkCorrectionSchema = z.object({
+  examMarkId: z.string().uuid(),
+  newMarks: z.number().min(0).max(10000).nullable(),
+  reason: z.string().trim().min(1).max(2000),
+});
