@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboardFrame";
-import { useWorkspaceShellContext } from "./WorkspaceShellContext";
+import { useWorkspaceShellContext, WorkspaceShellProvider } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
