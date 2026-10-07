@@ -92,7 +92,11 @@ export async function processBulkAdmitCardsJob(ctx: {
 
 export async function getAdmitCardGenerationJob(institutionId: string, actor: AuthenticatedUser, id: string) {
   assertExaminationController(actor);
-  return getJob(institutionId, actor, id);
+  const job = await getJob(institutionId, actor, id);
+  if (job.type !== JOB_TYPES.ADMIT_CARD_GENERATION) {
+    throw new AppError("Admit-card generation job not found.", 404);
+  }
+  return job;
 }
 export async function cancelAdmitCardGenerationJob(institutionId: string, actor: AuthenticatedUser, id: string) {
   assertExaminationController(actor);
