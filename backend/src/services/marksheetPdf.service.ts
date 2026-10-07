@@ -47,7 +47,6 @@ export function createMarksheetPdf(input: {
     (row) => row.absent || (row.marks !== null && row.marks < row.pass),
   );
 
-  const pageObjects: string[] = [];
   const pageContents: string[] = [];
 
   for (let pageIndex = 0; pageIndex < chunks.length; pageIndex += 1) {
