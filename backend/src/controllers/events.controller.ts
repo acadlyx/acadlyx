@@ -1,16 +1,11 @@
 import { Request, Response } from "express";
 import multer from "multer";
-import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 import { storeFile } from "../services/fileStorage.service";
 import * as service from "../services/events.service";
-import { validateBody, validateParams, validateQuery } from "../middleware/validate";
-import { idParams } from "../validators/common";
-import { eventListQuery, createEventSchema, updateEventSchema, categorySchema, mediaSchema } from "../validators/events.validators";
-import { authorize } from "../middleware/authorize";
 import { auditMeta, sendOk, sendPage } from "../utils/http";
 import { parsePagination } from "../utils/pagination";
 
