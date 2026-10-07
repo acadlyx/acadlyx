@@ -124,6 +124,23 @@ function prismaMessage(
   }
 }
 
+function userFacingMessage(message: string, statusCode: number): string {
+  if (statusCode !== 403) return message;
+  if (/missing required permission|at least one required permission|workflow dependency permission/i.test(message)) {
+    return "You do not have access to this feature.";
+  }
+  if (/institution context is required/i.test(message)) {
+    return "This workspace requires a valid institution context.";
+  }
+  if (/outside your permitted scope|institution context mismatch|not allowed to manage another institution/i.test(message)) {
+    return "This resource is outside your permitted scope.";
+  }
+  if (/approval authority|requires approval/i.test(message)) {
+    return "This action requires approval.";
+  }
+  return message;
+}
+
 function isJsonSyntaxError(
   error: unknown,
 ): boolean {
@@ -168,7 +185,7 @@ export function errorHandler(
                   : 500
         );
 
-  const message =
+  const rawMessage =
     err instanceof AppError
       ? err.message
       : prismaMessage(err) ||
@@ -188,6 +205,8 @@ export function errorHandler(
                   ? "Request origin is not allowed"
                   : "Internal server error"
         );
+
+  const message = userFacingMessage(rawMessage, statusCode);
 
   logger.error(
     `${req.method} ${req.originalUrl} -> ${statusCode}`,
