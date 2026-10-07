@@ -85,6 +85,11 @@ interface ExamSessionRow {
   examFee: number;
   attendanceRequirement: number | null;
   eligibilityRules: unknown;
+  campusIds: unknown;
+  departmentIds: unknown;
+  programIds: unknown;
+  semesterIds: unknown;
+  sectionIds: unknown;
   studentIds: unknown;
   registrationStatus: string;
   eligibilityStatus: string;
@@ -2579,7 +2584,7 @@ async function loadStudentExamContext(
 ): Promise<StudentExamContext> {
   const row = await prisma.studentEnrollment.findFirst({
     where: { institutionId, userId: studentId, status: "ACTIVE" },
-    orderBy: [{ academicYear: { isCurrent: "desc" } }, { createdAt: "desc" }],
+    orderBy: { createdAt: "desc" },
     select: {
       userId: true,
       institutionId: true,
