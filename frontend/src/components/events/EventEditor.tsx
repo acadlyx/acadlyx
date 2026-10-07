@@ -33,7 +33,8 @@ export function EventEditor({ eventId }: Props) {
     }catch(e){setMessage(e instanceof Error?e.message:"Save failed.");}finally{setBusy(false);}
   }
 
-  async function uploadCover(file:File){ setBusy(true); setMessage(""); try { const uploaded=await uploadEventMedia(file); set("coverImageUrl",uploaded.data.url); set("coverFileId",uploaded.data.id); setMessage("Cover image uploaded. Save the event to persist it."); } catch(e){ setMessage(e instanceof Error?e.message:"Cover upload failed."); } finally { setBusy(false); } }\n  async function upload(file:File){
+  async function uploadCover(file:File){ setBusy(true); setMessage(""); try { const uploaded=await uploadEventMedia(file); set("coverImageUrl",uploaded.data.url); set("coverFileId",uploaded.data.id); setMessage("Cover image uploaded. Save the event to persist it."); } catch(e){ setMessage(e instanceof Error?e.message:"Cover upload failed."); } finally { setBusy(false); } }
+  async function upload(file:File){
     if(!event) return; setBusy(true);setMessage("");
     try{const uploaded=await uploadEventMedia(file); await addEventMedia(event.id,{fileAssetId:uploaded.data.id,url:uploaded.data.url,publicId:uploaded.data.publicId}); const refreshed=await getEvent(event.id);setEvent(refreshed.data);setMessage("Image added to gallery.");}
     catch(e){setMessage(e instanceof Error?e.message:"Upload failed.");}finally{setBusy(false);}
