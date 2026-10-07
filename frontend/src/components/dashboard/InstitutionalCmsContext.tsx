@@ -54,18 +54,31 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     let active = true;
 
-    // Both endpoints are shared through workspaceGet. Navigation between ERP
-    // pages therefore reuses the same read-mostly data instead of waking the
-    // API on every page mount.
+    // Workspace context is readable by institutional users and is enough
+    // to provide safe fallback branding. The full CMS document is intentionally
+    // fetched only by users who are authorized to manage/review it; ordinary
+    // dashboards must never generate a predictable 403 against the CMS endpoint.
     Promise.all([
-      workspaceGet<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms"),
       workspaceGet<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context"),
+      workspaceGet<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms").catch(() => null),
     ])
-      .then(([cms, workspace]) => {
+      .then(([workspace, cms]) => {
         if (!active) return;
-        const next = cms?.data?.content;
-        if (!next) return;
         const institution = workspace?.data?.institution;
+        const next = cms?.data?.content;
+        if (!next) {
+          if (institution) {
+            setContent((current) => ({
+              ...current,
+              brand: {
+                ...current.brand,
+                institutionName: institution.name || current.brand.institutionName,
+                institutionLogoUrl: institution.logoUrl || current.brand.institutionLogoUrl,
+              },
+            }));
+          }
+          return;
+        }
         setContent({
           ...next,
           brand: {
@@ -74,8 +87,7 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
             institutionLogoUrl: next.brand.institutionLogoUrl || institution?.logoUrl || "",
           },
         });
-      })
-      .catch(() => undefined);
+      });
 
     return () => {
       active = false;
