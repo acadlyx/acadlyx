@@ -4,7 +4,10 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { authedFetch, getAccessToken } from "@/lib/auth";
 
-const fallback: any = {
+type CmsValue = string | number | boolean | null;
+type CmsRecord = { [key: string]: CmsValue | CmsRecord | CmsRecord[] };
+
+const fallback: CmsRecord = {
   brand: { siteName: "ACADLYX", tagline: "", logoUrl: "/branding/acadlyx-logo.png", faviconUrl: "" },
   navigation: [],
   pages: {
@@ -24,18 +27,18 @@ const fallback: any = {
 };
 
 export default function SiteContentPage() {
-  const [data, setData] = useState<any>(fallback);
+  const [data, setData] = useState<CmsRecord>(fallback);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    authedFetch<any>("/site-content")
+    authedFetch<{ data?: { content?: CmsRecord } }>("/site-content")
       .then((response) => setData(response.data?.content || fallback))
       .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to load website CMS."));
   }, []);
 
   function set(path: string, value: unknown) {
-    setData((current: any) => {
+    setData((current) => {
       const next = structuredClone(current);
       const parts = path.split(".");
       let cursor = next;
@@ -141,7 +144,7 @@ function Header({ busy, save, message }: { busy: boolean; save: () => void; mess
   return <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Public website control</p><h1 className="mt-2 text-2xl font-black">100% CMS-driven external site</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage the landing page, About, Team, Contact, navigation, visuals and public copy from this workspace.</p>{message ? <p className="mt-3 text-sm font-bold text-blue-700">{message}</p> : null}</div><button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button></div>;
 }
 
-function PageEditor({ title, data, set, upload, imageKey }: any) {
+function PageEditor({ title, data, set, upload, imageKey }: { title: string; data: CmsRecord; set: (key: string, value: string) => void; upload?: (event: ChangeEvent<HTMLInputElement>) => void; imageKey?: string }) {
   return <Card title={title}><div className="grid gap-4 lg:grid-cols-2"><Field label="Eyebrow" value={data.eyebrow} onChange={(v) => set("eyebrow", v)} /><Field label="Title" value={data.title} onChange={(v) => set("title", v)} /><div className="lg:col-span-2"><TextArea label="Description" value={data.description} onChange={(v) => set("description", v)} /></div>{imageKey ? <ImageField label="Page image" value={data[imageKey]} onChange={(v) => set(imageKey, v)} upload={upload} /> : null}</div></Card>;
 }
 
