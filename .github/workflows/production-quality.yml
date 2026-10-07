@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Backend production build
+        run: npm run build
+
       - name: Lint
         run: npm run lint
 
