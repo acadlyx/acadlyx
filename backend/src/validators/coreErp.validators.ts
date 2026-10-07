@@ -727,14 +727,6 @@ export const institutionIdParams = z.object({ institutionId: uuid });
 export const studentIdParams = z.object({ studentId: uuid });
 
 
-export const studentExamListQuery = z.object({
-  studentId: z.string().uuid().optional(),
-});
-
-export const examRegistrationParams = z.object({
-  id: z.string().uuid(),
-});
-
 export const admitCardHoldSchema = z.object({
   studentId: z.string().uuid(),
   reasonCode: z.enum(["FEE_DUES","ATTENDANCE_SHORTAGE","EXAMINATION_DEBARMENT","ADMINISTRATIVE_HOLD","OTHER"]),
