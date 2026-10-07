@@ -2815,12 +2815,25 @@ export async function listStudentExamEligibility(
   const items = [];
   for (const session of sessions) {
     if (!sessionTargetsStudent(session, context)) continue;
+    const now = new Date();
+    const registrationStatus = !session.registrationRequired
+      ? "NOT_REQUIRED"
+      : session.registrationStart && now < session.registrationStart
+        ? "NOT_OPEN"
+        : session.registrationEnd && now > session.registrationEnd
+          ? "CLOSED"
+          : "OPEN";
     const eligibility = await evaluateExamEligibility(institutionId, actor, session.id, studentId);
     const registration = await prisma.$queryRaw<Array<{status:string;feeStatus:string;feeInvoiceId:string|null}>>(Prisma.sql`
       SELECT "status","feeStatus","feeInvoiceId" FROM "exam_registrations"
       WHERE "institutionId"=${institutionId} AND "examSessionId"=${session.id} AND "studentId"=${studentId} LIMIT 1
     `);
-    items.push({ session, eligibility, registration: registration[0] ?? null });
+    const effectiveEligibility = registrationStatus === "CLOSED" && !registration[0]
+      ? { ...eligibility, status: "REGISTRATION_CLOSED", reasons: [...eligibility.reasons, "Registration window is closed"] }
+      : registrationStatus === "NOT_OPEN" && !registration[0]
+        ? { ...eligibility, status: "REGISTRATION_PENDING", reasons: [...eligibility.reasons, "Registration window has not opened"] }
+        : eligibility;
+    items.push({ session: { ...session, registrationStatus }, eligibility: effectiveEligibility, registration: registration[0] ?? null });
   }
   return items;
 }
