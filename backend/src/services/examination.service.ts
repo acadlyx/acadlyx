@@ -341,7 +341,21 @@ export async function listExamSessions(
     Prisma.sql`"institutionId" = ${institutionId}`,
   ];
   const roles = actor.roles;
-  if (roles.includes("FACULTY")) {
+  if (roles.includes("STUDENT")) {
+    const context = await loadStudentExamContext(institutionId, actor.id);
+    conditions.push(Prisma.sql`(
+      ("studentIds" = '[]'::jsonb OR "studentIds" ? ${actor.id})
+      AND ("campusIds" = '[]'::jsonb OR ("campusIds" ? ${context.campusId ?? ""}))
+      AND ("departmentIds" = '[]'::jsonb OR ("departmentIds" ? ${context.departmentId ?? ""}))
+      AND ("programIds" = '[]'::jsonb OR ("programIds" ? ${context.programId ?? ""}))
+      AND ("semesterIds" = '[]'::jsonb OR ("semesterIds" ? ${context.semesterId ?? ""}))
+      AND ("sectionIds" = '[]'::jsonb OR ("sectionIds" ? ${context.sectionId ?? ""}))
+      AND ("academicYearId" IS NULL OR "academicYearId"=${context.academicYearId})
+      AND ("semesterId" IS NULL OR "semesterId"=${context.semesterId})
+    )`);
+  } else if (roles.includes("PARENT")) {
+    return { items: [], total: 0 };
+  } else if (roles.includes("FACULTY")) {
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" es
       JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
@@ -419,7 +433,10 @@ export async function getExamSession(
   examSessionId: string
 ) {
   const session = await loadSession(institutionId, examSessionId);
-  if (actor.roles.includes("FACULTY")) {
+  if (actor.roles.includes("STUDENT")) {
+    const context = await loadStudentExamContext(institutionId, actor.id);
+    if (!sessionTargetsStudent(session, context)) throw new AppError("Examination is outside your academic scope",403);
+  } else if (actor.roles.includes("FACULTY")) {
     const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT es."id" FROM "exam_schedules" es
       JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
