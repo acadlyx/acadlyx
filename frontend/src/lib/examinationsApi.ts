@@ -523,3 +523,11 @@ export async function downloadMarksheetPdf(sessionId: string) {
   const match = disposition.match(/filename="([^"]+)"/i);
   return { blob, filename: match?.[1] || "ACADLYX_Marksheet.pdf" };
 }
+
+export async function getExaminationReadiness() {
+  const res = await authedFetch<Envelope<{
+    examinations:number; registration:number; eligibility:number; admitCards:number; facultyMarks:number; resultProcessing:number;
+    exceptions:{registrationPending:number;admitCardPending:number;marksPending:number;resultsPending:number};
+  }>>("/examinations/readiness");
+  return res.data;
+}
