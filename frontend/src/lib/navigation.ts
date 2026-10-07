@@ -1325,7 +1325,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "CMS",
   },,
   { label: "Placement", href: "/admin/placements", icon: "◎", roles: ["INSTITUTION_ADMIN"], permissions: ["placements.read"], group: "Administration", activeMatch: "nested" },
-  { label: "Placement", href: "/superadmin/placements", icon: "◎", roles: ["SUPER_ADMIN"], permissions: ["placements.read"], group: "Platform", activeMatch: "nested" },
+  { label: "Placement", href: "/superadmin/placements", icon: "◎", roles: ["SUPER_ADMIN"], permissions: ["plans.manage"], group: "Platform", activeMatch: "nested" },
   { label: "Placement", href: "/chairman/placements", icon: "◎", roles: ["CHAIRMAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
   { label: "Placement", href: "/management/placements", icon: "◎", roles: ["MANAGEMENT"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
   { label: "Placement", href: "/director/placements", icon: "◎", roles: ["DIRECTOR"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
