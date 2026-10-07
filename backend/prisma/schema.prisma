@@ -932,6 +932,8 @@ model AttendanceRecord {
 
   @@unique([attendanceSessionId, studentId])
   @@index([studentId])
+  @@index([attendanceSessionId, status])
+  @@index([studentId, attendanceSessionId])
   @@map("attendance_records")
 }
 
@@ -999,6 +1001,7 @@ model AssignmentSubmission {
   @@index([institutionId])
   @@index([studentId])
   @@index([status])
+  @@index([assignmentId, status])
   @@index([institutionId, studentId, status, submittedAt])
   @@map("assignment_submissions")
 }
