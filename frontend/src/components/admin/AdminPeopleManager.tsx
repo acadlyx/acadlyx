@@ -10,6 +10,7 @@ import {
 import { useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 
 import {
   AdminUser,
@@ -309,19 +310,13 @@ function AdminPeopleManagerContent() {
     string | null
   >(null);
 
-  const [
-    showCreate,
-    setShowCreate,
-  ] = useState(false);
+  const [activeModal, setActiveModal] = useState<
+    "details" | "edit" | "create" | null
+  >(null);
 
   const [
     creating,
     setCreating,
-  ] = useState(false);
-
-  const [
-    editing,
-    setEditing,
   ] = useState(false);
 
   const [
@@ -643,6 +638,7 @@ function AdminPeopleManagerContent() {
       await deleteAdminUser(person.id, reason);
       setUsers((current) => current.filter((item) => item.id !== person.id));
       setSelected(null);
+      setActiveModal(null);
       setMessage("User moved to Deleted Users. The 90-day recovery period has started.");
     } catch (reasonError) {
       setError(reasonError instanceof Error ? reasonError.message : "Unable to delete user.");
@@ -707,12 +703,14 @@ function AdminPeopleManagerContent() {
         );
 
         setSelected(null);
+      setActiveModal(null);
       } else {
         setRequests(
           await listAdminUserDeletionRequests(),
         );
 
         setSelected(null);
+      setActiveModal(null);
       }
 
       setMessage(
@@ -784,6 +782,7 @@ function AdminPeopleManagerContent() {
           request.targetUserId
         ) {
           setSelected(null);
+      setActiveModal(null);
         }
       } else {
         await rejectAdminUserDeletionRequest(
@@ -858,7 +857,7 @@ function AdminPeopleManagerContent() {
         ),
       );
       setSelected(updated);
-      setEditing(false);
+      setActiveModal("details");
       setMessage("User details updated successfully.");
     } catch (reason) {
       setError(
@@ -973,7 +972,7 @@ function AdminPeopleManagerContent() {
       );
 
       setSelected(created);
-      setShowCreate(false);
+      setActiveModal("details");
 
       event.currentTarget.reset();
 
@@ -1323,7 +1322,7 @@ function AdminPeopleManagerContent() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowCreate(true)
+                  setActiveModal("create")
                 }
                 className="rounded-[14px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-blue-700"
               >
@@ -1377,9 +1376,7 @@ function AdminPeopleManagerContent() {
                   <button
                     type="button"
                     onClick={() =>
-                      setShowCreate(
-                        true,
-                      )
+                      setActiveModal("create")
                     }
                     className="rounded-[14px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white"
                   >
@@ -1408,11 +1405,10 @@ function AdminPeopleManagerContent() {
                   <button
                     key={person.id}
                     type="button"
-                    onClick={() =>
-                      setSelected(
-                        person,
-                      )
-                    }
+                    onClick={() => {
+                      setSelected(person);
+                      setActiveModal("details");
+                    }}
                     className="group rounded-[22px] border border-slate-200 bg-white p-4 text-left shadow-sm hover:-translate-y-0.5 hover:border-blue-200"
                   >
                     <div className="flex gap-3">
@@ -1484,8 +1480,12 @@ function AdminPeopleManagerContent() {
         </>
       )}
 
-      {selected ? (
-        <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/30 p-4 backdrop-blur-sm">
+      {activeModal === "details" && selected ? (
+        <ModalPortal onBackdropClick={() => {
+          setActiveModal(null);
+          setSelected(null);
+        }}>
+        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
           <div className="mx-auto my-8 max-w-2xl overflow-hidden rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
@@ -1585,7 +1585,7 @@ function AdminPeopleManagerContent() {
               {canUpdate ? (
                 <button
                   type="button"
-                  onClick={() => setEditing(true)}
+                  onClick={() => setActiveModal("edit")}
                   className="rounded-[13px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white"
                 >
                   Edit user
@@ -1663,10 +1663,15 @@ function AdminPeopleManagerContent() {
             </div>
           </div>
         </div>
+      </ModalPortal>
       ) : null}
 
-      {editing && selected ? (
-        <div className="fixed inset-0 z-[90] overflow-y-auto bg-slate-950/30 p-4 backdrop-blur-sm">
+      {activeModal === "edit" && selected ? (
+        <ModalPortal onBackdropClick={() => {
+          setActiveModal(null);
+          setSelected(null);
+        }}>
+        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
           <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div>
@@ -1677,7 +1682,8 @@ function AdminPeopleManagerContent() {
               </div>
               <button
                 type="button"
-                onClick={() => setEditing(false)}
+                onClick={() => setActiveModal(null);
+                  setSelected(null);}
                 className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200"
               >
                 ×
@@ -1745,7 +1751,8 @@ function AdminPeopleManagerContent() {
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-                <button type="button" onClick={() => setEditing(false)} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
+                <button type="button" onClick={() => setActiveModal(null);
+                  setSelected(null);} className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold">Cancel</button>
                 <button type="submit" disabled={savingEdit} className="rounded-[13px] bg-blue-600 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-50">
                   {savingEdit ? "Saving…" : "Save changes"}
                 </button>
@@ -1753,10 +1760,14 @@ function AdminPeopleManagerContent() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       ) : null}
 
-      {showCreate ? (
-        <div className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/30 p-4 backdrop-blur-sm">
+      {activeModal === "create" ? (
+        <ModalPortal onBackdropClick={() => {
+          setActiveModal(null);
+        }}>
+        <div className="w-full max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
           <div className="mx-auto my-8 max-w-2xl rounded-[28px] bg-[#f8fafc] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white p-6">
               <div>
@@ -1772,9 +1783,7 @@ function AdminPeopleManagerContent() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowCreate(
-                    false,
-                  )
+                  setActiveModal(null)
                 }
                 className="grid h-10 w-10 place-items-center rounded-[14px] border border-slate-200"
               >
@@ -1875,9 +1884,7 @@ function AdminPeopleManagerContent() {
                 <button
                   type="button"
                   onClick={() =>
-                    setShowCreate(
-                      false,
-                    )
+                    setActiveModal(null)
                   }
                   className="rounded-[13px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold"
                 >
@@ -1899,6 +1906,7 @@ function AdminPeopleManagerContent() {
             </form>
           </div>
         </div>
+      </ModalPortal>
       ) : null}
     </div>
   );
