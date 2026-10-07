@@ -68,6 +68,7 @@ export default function LmsPage() {
   const [roles, setRoles] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [offerings, setOfferings] = useState<CourseOfferingSummary[]>([]);
+  const [offering, setOffering] = useState<CourseOfferingSummary | null>(null);
   const [tab, setTab] = useState<"learning" | "assessments" | "progress">("learning");
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -230,7 +231,7 @@ export default function LmsPage() {
             {visibleOfferings.length ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleOfferings.map((item) => (
-                  <button key={item.id} type="button" onClick={() => router.push(`/lms/${item.id}`)} className={`rounded-2xl border p-4 text-left transition hover:border-slate-400 ${offering?.id === item.id ? "border-slate-950 ring-2 ring-slate-200" : "border-slate-200"}`}>
+                  <button key={item.id} type="button" onClick={() => { setOffering(item); void load(item.id); }} className={`rounded-2xl border p-4 text-left transition hover:border-slate-400 ${offering?.id === item.id ? "border-slate-950 ring-2 ring-slate-200" : "border-slate-200"}`}>
                     <p className="font-black text-slate-900">{item.label}</p>
                     <p className="mt-1 text-xs text-slate-500">Open LMS workspace</p>
                   </button>
