@@ -100,6 +100,6 @@ export function assertFeeApprovalAuthority(actor: AuthenticatedUser): void {
 }
 
 export function assertExaminationController(actor: AuthenticatedUser): void {
-  if (actor.roles.some((role) => ["EXAMINATION", "DIRECTOR"].includes(role))) return;
-  throw new AppError("Only the Examination Cell or configured examination leadership may perform this action", 403);
+  if (actor.roles.includes("EXAMINATION")) return;
+  throw new AppError("Only the Examination Cell may perform this operational examination action", 403);
 }
