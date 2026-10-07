@@ -105,9 +105,8 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   }, [router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   useEffect(() => {
-    if (embeddedInWorkspaceShell || !user) return;
+    if (!user) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
-    const primaryRole = getPrimaryRole(roles);
     if (allowedRoles?.length) {
       const canonicalRoles = getCanonicalRoles(roles);
       if (!allowedRoles.some((role) => canonicalRoles.includes(normalizeRole(role)))) {
@@ -115,6 +114,8 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
         return;
       }
     }
+    if (embeddedInWorkspaceShell) return;
+    const primaryRole = getPrimaryRole(roles);
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
   }, [pathname, router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
