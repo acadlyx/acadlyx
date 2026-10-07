@@ -2899,33 +2899,129 @@ export async function getExaminationReadiness(
   institutionId: string,
   actor: AuthenticatedUser,
 ) {
-  const page = { page: 1, pageSize: 100, skip: 0, take: 100 };
-  const sessions = await listExamSessions(institutionId, actor, page, {});
-  const ids = sessions.items.map((x) => x.id);
-  if (!ids.length) return {
-    examinations: 0, registration: 100, eligibility: 100, admitCards: 100, facultyMarks: 100, resultProcessing: 100,
-    exceptions: { registrationPending: 0, admitCardPending: 0, marksPending: 0, resultsPending: 0 }
-  };
-  const inSessions = Prisma.join(ids);
-  const [eligible, registered, issued, pendingMarks, pendingResults] = await Promise.all([
-    countRows(prisma,"exam_eligibilities",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='ELIGIBLE'`),
-    countRows(prisma,"exam_registrations",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='REGISTERED'`),
-    countRows(prisma,"hall_tickets",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='ISSUED'`),
-    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status" IN ('DRAFT','PUBLISHED','CORRECTION_OPEN')`),
-    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='LOCKED'`),
+  const pageSize = 500;
+  const sessionIds: string[] = [];
+  let page = 1;
+  let total = 0;
+
+  do {
+    const result = await listExamSessions(
+      institutionId,
+      actor,
+      { page, pageSize, skip: (page - 1) * pageSize, take: pageSize },
+      {}
+    );
+    sessionIds.push(...result.items.map(session => session.id));
+    total = result.total;
+    page += 1;
+  } while (sessionIds.length < total);
+
+  if (!sessionIds.length) {
+    return {
+      examinations: 0,
+      registration: 100,
+      eligibility: 100,
+      admitCards: 100,
+      facultyMarks: 100,
+      resultProcessing: 100,
+      exceptions: {
+        registrationPending: 0,
+        admitCardPending: 0,
+        marksPending: 0,
+        resultsPending: 0,
+      },
+    };
+  }
+
+  const ids = Prisma.join(sessionIds);
+  const [eligibility, registered, issued, scheduleRows] = await Promise.all([
+    countRows(
+      prisma,
+      "exam_eligibilities",
+      Prisma.sql`WHERE "institutionId"=${institutionId}
+        AND "examSessionId" IN (${ids})`
+    ),
+    countRows(
+      prisma,
+      "exam_registrations",
+      Prisma.sql`WHERE "institutionId"=${institutionId}
+        AND "examSessionId" IN (${ids}) AND "status"='REGISTERED'`
+    ),
+    countRows(
+      prisma,
+      "hall_tickets",
+      Prisma.sql`WHERE "institutionId"=${institutionId}
+        AND "examSessionId" IN (${ids}) AND "status"='ISSUED'`
+    ),
+    prisma.$queryRaw<Array<{
+      id: string;
+      expectedMarks: number;
+      enteredMarks: number;
+      approvedMarks: number;
+      status: string;
+    }>>(Prisma.sql`
+      SELECT
+        s."id",
+        CASE
+          WHEN es."registrationRequired" THEN (
+            SELECT COUNT(*)::int
+            FROM "exam_registrations" r
+            WHERE r."institutionId"=${institutionId}
+              AND r."examSessionId"=s."examSessionId"
+              AND r."status"='REGISTERED'
+          )
+          ELSE (
+            SELECT COUNT(*)::int
+            FROM "student_enrollments" se
+            WHERE se."institutionId"=${institutionId}
+              AND se."sectionId"=co."sectionId"
+              AND se."semesterId"=co."semesterId"
+              AND se."status"='ACTIVE'
+          )
+        END AS "expectedMarks",
+        (SELECT COUNT(*)::int FROM "exam_marks" m
+          WHERE m."institutionId"=${institutionId} AND m."examScheduleId"=s."id") AS "enteredMarks",
+        (SELECT COUNT(*)::int FROM "exam_marks" m
+          WHERE m."institutionId"=${institutionId} AND m."examScheduleId"=s."id"
+            AND m."status" IN ('APPROVED','PUBLISHED')) AS "approvedMarks",
+        s."status"
+      FROM "exam_schedules" s
+      JOIN "exam_sessions" es ON es."id"=s."examSessionId"
+      JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+      WHERE s."institutionId"=${institutionId}
+        AND s."examSessionId" IN (${ids})
+        AND s."status" <> 'CANCELLED'
+    `)
   ]);
-  const pct=(n:number,d:number)=>d?Math.min(100,Math.round((n/d)*100)):100;
+
+  const eligibleCount = await countRows(
+    prisma,
+    "exam_eligibilities",
+    Prisma.sql`WHERE "institutionId"=${institutionId}
+      AND "examSessionId" IN (${ids}) AND "status"='ELIGIBLE'`
+  );
+  const expectedMarks = scheduleRows.reduce((sum, row) => sum + row.expectedMarks, 0);
+  const enteredMarks = scheduleRows.reduce((sum, row) => sum + row.enteredMarks, 0);
+  const approvedMarks = scheduleRows.reduce((sum, row) => sum + row.approvedMarks, 0);
+  const publishedSchedules = scheduleRows.filter(row => row.status === "RESULTS_PUBLISHED").length;
+  const totalSchedules = scheduleRows.length;
+  const pct = (n: number, d: number) => d > 0 ? Math.min(100, Math.round((n / d) * 100)) : 100;
+
   return {
-    examinations: sessions.total,
-    registration: pct(registered, eligible),
-    eligibility: pct(eligible, eligible),
-    admitCards: pct(issued, Math.max(registered,1)),
-    facultyMarks: pct(Math.max(0,ids.length-pendingMarks), Math.max(ids.length,1)),
-    resultProcessing: pct(Math.max(0,ids.length-pendingResults), Math.max(ids.length,1)),
-    exceptions: { registrationPending: Math.max(0,eligible-registered), admitCardPending: Math.max(0,registered-issued), marksPending: pendingMarks, resultsPending: pendingResults }
+    examinations: total,
+    registration: pct(registered, eligibleCount),
+    eligibility: pct(eligibleCount, eligibility),
+    admitCards: pct(issued, registered),
+    facultyMarks: pct(approvedMarks, expectedMarks),
+    resultProcessing: pct(publishedSchedules, totalSchedules),
+    exceptions: {
+      registrationPending: Math.max(0, eligibleCount - registered),
+      admitCardPending: Math.max(0, registered - issued),
+      marksPending: Math.max(0, expectedMarks - enteredMarks),
+      resultsPending: Math.max(0, totalSchedules - publishedSchedules),
+    },
   };
 }
-
 
 export async function listStudentExamEligibility(
   institutionId: string,
