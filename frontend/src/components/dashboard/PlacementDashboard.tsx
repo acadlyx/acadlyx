@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { apiFetch, ApiRequestError } from "@/lib/api";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { DashboardShell } from "./DashboardShell";
@@ -65,7 +65,7 @@ export function PlacementDashboard() {
 
   useEffect(() => { void load(); }, []);
 
-  async function createOpportunity(event: React.FormEvent<HTMLFormElement>) {
+  async function createOpportunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusyId("create");
