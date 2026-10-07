@@ -225,6 +225,18 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
+    label: "Events & Gallery",
+    href: "/events-gallery",
+    icon: "calendar",
+    group: "Institution",
+    description: "Publish institutional events and manage event galleries.",
+    read: ["events.read"],
+    create: ["events.manage"],
+    update: ["events.manage"],
+    delete: ["events.manage"],
+  },
+
+  {
     label: "Operations",
     href: "/admin/operations",
     icon: "settings",
