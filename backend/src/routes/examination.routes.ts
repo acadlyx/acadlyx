@@ -12,6 +12,7 @@ import {
 import * as service from "../services/examination.service";
 import * as templateService from "../services/admitCardTemplate.service";
 import * as admitCardGenerationService from "../services/admitCardGeneration.service";
+import * as marksheetGenerationService from "../services/marksheetGeneration.service";
 import { getFileDelivery } from "../services/fileStorage.service";
 import { getOwnedJob, requestCancellation } from "../services/backgroundJob.service";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -523,6 +524,91 @@ router.post(
     }
     sendOk(res, await requestCancellation(institutionId, actor, req.params.id));
   })
+);
+
+// ---------- Bulk marksheet generation ----------
+
+router.post(
+  "/sessions/:id/marksheets/bulk.zip",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await marksheetGenerationService.enqueueBulkMarksheets(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+      ),
+      202,
+    )
+  ),
+);
+
+router.get(
+  "/marksheet-generation-jobs/:id",
+  authorize("results.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await marksheetGenerationService.getMarksheetGenerationJob(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+      ),
+    )
+  ),
+);
+
+router.post(
+  "/marksheet-generation-jobs/:id/cancel",
+  authorizeWorkflow("exams.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await marksheetGenerationService.cancelMarksheetGenerationJob(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+      ),
+    )
+  ),
+);
+
+router.get(
+  "/marksheet-generation-jobs/:id/download",
+  authorize("results.read"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    const institutionId = requireInstitution(req);
+    const job = await marksheetGenerationService.getMarksheetGenerationJob(
+      institutionId,
+      actor,
+      req.params.id,
+    );
+    if (job.type !== "MARKSHEET_GENERATION") {
+      throw new AppError("Marksheet generation job not found.", 404);
+    }
+    const fileId =
+      job.result && typeof job.result === "object" && job.result !== null
+        ? (job.result as { fileId?: unknown }).fileId
+        : undefined;
+    if (job.status !== "COMPLETED" || typeof fileId !== "string") {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: "JOB_NOT_COMPLETE",
+          message: "The marksheet package is not ready yet.",
+        },
+      });
+    }
+    const delivery = await getFileDelivery(fileId, institutionId, true);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.redirect(delivery.url);
+  }),
 );
 
 // ---------- Hall tickets ----------
