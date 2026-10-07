@@ -6,6 +6,7 @@ import { authorize } from "../middleware/authorize";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import * as placement from "../services/placement.service";
 import { prisma } from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
 
 const router = Router();
 router.use(authenticate);
@@ -16,7 +17,7 @@ router.use(asyncHandler(async (req, _res, next) => {
   }
   const institutionId = req.user?.institutionId;
   if (!institutionId) {
-    next(new Error("Institution context is required for placement."));
+    next(new AppError("Institution context is required for placement.", 403));
     return;
   }
   const entitlement = await prisma.tenantFeatureEntitlement.findFirst({
@@ -24,7 +25,7 @@ router.use(asyncHandler(async (req, _res, next) => {
     select: { isEnabled: true },
   });
   if (entitlement && !entitlement.isEnabled) {
-    next(new Error("Placement is not enabled for this institution."));
+    next(new AppError("Placement is not enabled for this institution.", 403));
     return;
   }
   next();
