@@ -49,7 +49,10 @@
     "@types/node": "^20.14.0",
     "prisma": "^5.20.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "eslint": "9.39.5",
+    "@eslint/js": "9.39.5",
+    "typescript-eslint": "8.70.0"
   },
   "prisma": {
     "seed": "tsx prisma/seedAdmin.ts"
