@@ -483,3 +483,41 @@ export async function createPlacementOpening(institutionId: string, actor: Authe
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.opening.created", entityType: "PlacementOpening", entityId: opening.id, metadata: { companyId: input.companyId, role: input.role }});
   return opening;
 }
+
+export async function createPlacementOffer(institutionId: string, actor: AuthenticatedUser, input: {
+  applicationId: string; role: string; offerDate: string; joiningDate?: string; totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; currency?: string; offerDocumentUrl?: string;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const application = await prisma.application.findFirst({ where: { id: input.applicationId, institutionId }, include: { student: { select: { id: true } }, opportunity: { select: { organization: true } } } });
+  if (!application) throw new AppError("Application not found.", 404);
+  if (!["INTERVIEW","OFFERED","ACCEPTED"].includes(application.status)) throw new AppError("Application is not in an offerable state.", 409);
+  const company = await prisma.placementCompany.findFirst({ where: { institutionId, name: application.opportunity.organization }, select: { id: true } });
+  if (!company) throw new AppError("Create the canonical company record before issuing an offer.", 409);
+  const offer = await prisma.placementOffer.create({ data: {
+    institutionId, studentId: application.student.id, companyId: company.id, applicationId: application.id, role: input.role.trim(),
+    offerDate: new Date(input.offerDate), joiningDate: input.joiningDate ? new Date(input.joiningDate) : null, totalCtc: input.totalCtc,
+    fixedCtc: input.fixedCtc, variableCtc: input.variableCtc, bonus: input.bonus, currency: input.currency || "INR", offerDocumentUrl: input.offerDocumentUrl || null,
+  }});
+  await prisma.application.update({ where: { id: application.id }, data: { status: "OFFERED" } });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.created", entityType: "PlacementOffer", entityId: offer.id, metadata: { applicationId: application.id, studentId: application.student.id }});
+  return offer;
+}
+
+export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
+  assertInstitution(actor, institutionId);
+  const offer = await prisma.placementOffer.findFirst({ where: { id: offerId, institutionId } });
+  if (!offer) throw new AppError("Placement offer not found.", 404);
+  const next=status.toUpperCase();
+  const allowed: Record<string,string[]>={OFFERED:["ACCEPTED","REJECTED"],ACCEPTED:["JOINING_PENDING","JOINED"],JOINING_PENDING:["JOINED"],REJECTED:[],JOINED:[]};
+  if (actor.roles.includes("STUDENT")) {
+    if (offer.studentId !== actor.id) throw new AppError("This offer is outside your scope.",403);
+    if (!["ACCEPTED","REJECTED"].includes(next) || offer.status !== "OFFERED") throw new AppError("Invalid student offer transition.",409);
+  } else {
+    if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.",403);
+    if (!allowed[offer.status]?.includes(next)) throw new AppError(`Invalid offer transition: ${offer.status} -> ${next}`,409);
+  }
+  const updated=await prisma.placementOffer.update({ where:{id:offerId}, data:{status:next, acceptanceAt:next==="ACCEPTED"?new Date():offer.acceptanceAt, joiningStatus:next==="JOINING_PENDING"?"PENDING":offer.joiningStatus} });
+  await recordAuditLog({institutionId,userId:actor.id,action:"placements.offer.status_changed",entityType:"PlacementOffer",entityId:offerId,metadata:{from:offer.status,to:next}});
+  return updated;
+}
