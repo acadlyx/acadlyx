@@ -1,5 +1,5 @@
 import FinancePage from "@/components/accounts/FinancePage";
 
 export default function ChairmanFeeCollectionsPage() {
-  return <FinancePage view="collections" />;
+  return <FinancePage view="collections" allowedRoles={["CHAIRMAN"]} />;
 }
