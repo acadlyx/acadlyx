@@ -262,6 +262,8 @@ export const PERMISSIONS = [
 
   { key: "calendar.read", module: "calendar", description: "View academic calendar" },
   { key: "calendar.manage", module: "calendar", description: "Manage academic calendar" },
+  { key: "events.read", module: "events", description: "View institutional events" },
+  { key: "events.manage", module: "events", description: "Manage institutional events" },
   { key: "club.read", module: "clubs", description: "View assigned club within scope" },
   { key: "club.manage", module: "clubs", description: "Manage assigned club within scope" },
 
