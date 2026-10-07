@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import multer from "multer";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
