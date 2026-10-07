@@ -3068,6 +3068,8 @@ export async function getStudentPublishedResults(
     FROM "exam_marks" m
     JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
     JOIN "exam_sessions" es ON es."id"=s."examSessionId"
+    JOIN "exam_result_publications" rp ON rp."examScheduleId"=s."id"
+      AND rp."institutionId"=m."institutionId" AND rp."status"='PUBLISHED'
     JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
     JOIN "courses" c ON c."id"=co."courseId"
     WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
