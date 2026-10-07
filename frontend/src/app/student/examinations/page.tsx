@@ -1,7 +1,2 @@
-import { StudentSelfServiceModule } from "@/components/student/StudentSelfServiceModule";
-
-export default function StudentExaminationsPage() {
-  return (
-    <StudentSelfServiceModule module="examinations" />
-  );
-}
+import { StudentExaminationsModule } from "@/components/student/StudentExaminationsModule";
+export default function Page(){ return <StudentExaminationsModule view="upcoming" />; }
