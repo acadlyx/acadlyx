@@ -244,7 +244,7 @@ export default function LmsPage() {
         {offering && (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="text-lg font-black text-slate-950">{offering.label}</h2><p className="text-sm text-slate-500">{canAuthor ? "Teaching and course authoring" : canGrade ? "Teaching, assessment and grading" : "Published learning content"}</p></div>
+              <div><h2 className="text-lg font-black text-slate-950">{offering.code ? `${offering.code} · ${offering.name}` : offering.name}</h2><p className="text-sm text-slate-500">{canAuthor ? "Teaching and course authoring" : canGrade ? "Teaching, assessment and grading" : "Published learning content"}</p></div>
               {canAuthor && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">Author</span>}
             </div>
 
