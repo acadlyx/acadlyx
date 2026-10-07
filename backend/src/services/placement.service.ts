@@ -77,7 +77,7 @@ export async function createOpportunity(
     throw new AppError("Opportunity deadline must be in the future.", 400);
   }
   if (input.targetRoleId) {
-    const role = await prisma.targetRole.findFirst({ where: { id: input.targetRoleId }, select: { id: true } });
+    const role = await prisma.targetRole.findFirst({ where: { id: input.targetRoleId, institutionId, isActive: true }, select: { id: true } });
     if (!role) throw new AppError("Target role not found.", 404);
   }
 
