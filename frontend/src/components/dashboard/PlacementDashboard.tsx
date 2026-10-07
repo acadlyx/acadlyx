@@ -41,6 +41,7 @@ export function PlacementDashboard() {
   const [error, setError] = useState("");
 
   const isManager = user?.roles.includes("PLACEMENT") ?? false;
+  const isStudent = user?.roles.includes("STUDENT") ?? false;
 
   async function load() {
     setLoading(true);
@@ -106,7 +107,7 @@ export function PlacementDashboard() {
   }
 
   return (
-    <DashboardShell title="Placement Workspace" subtitle="Employer opportunities, applications and placement outcomes" allowedRoles={["PLACEMENT"]}>
+    <DashboardShell title={isStudent ? "My Placement" : "Placement Workspace"} subtitle={isStudent ? "Eligible opportunities and your application progress" : "Employer opportunities, applications and placement outcomes"} allowedRoles={["PLACEMENT", "STUDENT"]}>
       <div className="mx-auto min-w-0 max-w-7xl space-y-6">
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -114,7 +115,7 @@ export function PlacementDashboard() {
               <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-700">Career services</p>
               <h1 className="mt-2 break-words text-2xl font-black sm:text-3xl text-slate-950">Placement Command Center</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                This workspace is connected to the institutional placement opportunity and application records. Every application transition is server-authorized and audited.
+                {isStudent ? "Your placement opportunities and application history are scoped to your own student record. Eligibility and application actions are enforced by the server." : "This workspace is connected to the institutional placement opportunity and application records. Every application transition is server-authorized and audited."}
               </p>
             </div>
             <button onClick={() => void load()} className="min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-bold text-slate-800 sm:w-auto" disabled={loading}>Refresh</button>
