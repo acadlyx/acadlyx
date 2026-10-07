@@ -1,5 +1,8 @@
 import { authedFetch } from "./auth";
 
+type ApiResponse<T> = { data: T; meta?: { total?: number; page?: number; pageSize?: number; totalPages?: number } };
+async function request<T>(path: string, init?: RequestInit): Promise<ApiResponse<T>> { return authedFetch<ApiResponse<T>>(path, init); }
+
 export type EventMedia = {
   id: string;
   fileAssetId: string;
@@ -39,18 +42,18 @@ export type InstitutionalEvent = {
 export async function listEvents(params: Record<string, string | number | boolean | undefined> = {}) {
   const query = new URLSearchParams();
   for (const [key,value] of Object.entries(params)) if (value !== undefined && value !== "") query.set(key,String(value));
-  return authedFetch<InstitutionalEvent[]>(`/events${query.size ? `?${query.toString()}` : ""}`);
+  return request<InstitutionalEvent[]>(`/events${query.size ? `?${query.toString()}` : ""}`);
 }
-export async function getEvent(id: string) { return authedFetch<InstitutionalEvent>(`/events/${id}`); }
-export async function getEventCategories() { return authedFetch<Array<{id:string;name:string;slug:string}>>("/events/categories"); }
-export async function createEvent(payload: Record<string, unknown>) { return authedFetch<InstitutionalEvent>("/events",{method:"POST",body:JSON.stringify(payload)}); }
-export async function updateEvent(id:string,payload:Record<string, unknown>) { return authedFetch<InstitutionalEvent>(`/events/${id}`,{method:"PATCH",body:JSON.stringify(payload)}); }
-export async function deleteEvent(id:string) { return authedFetch<{id:string;deleted:boolean}>(`/events/${id}`,{method:"DELETE"}); }
+export async function getEvent(id: string) { return request<InstitutionalEvent>(`/events/${id}`); }
+export async function getEventCategories() { return request<Array<{id:string;name:string;slug:string}>>("/events/categories"); }
+export async function createEvent(payload: Record<string, unknown>) { return request<InstitutionalEvent>("/events",{method:"POST",body:JSON.stringify(payload)}); }
+export async function updateEvent(id:string,payload:Record<string, unknown>) { return request<InstitutionalEvent>(`/events/${id}`,{method:"PATCH",body:JSON.stringify(payload)}); }
+export async function deleteEvent(id:string) { return request<{id:string;deleted:boolean}>(`/events/${id}`,{method:"DELETE"}); }
 export async function uploadEventMedia(file: File) {
   const form = new FormData();
   form.append("file",file);
-  return authedFetch<{id:string;url:string;publicId:string}>("/events/media/upload",{method:"POST",body:form});
+  return request<{id:string;url:string;publicId:string}>("/events/media/upload",{method:"POST",body:form});
 }
-export async function addEventMedia(id:string,payload:Record<string,unknown>) { return authedFetch<EventMedia>(`/events/${id}/media`,{method:"POST",body:JSON.stringify(payload)}); }
-export async function removeEventMedia(mediaId:string) { return authedFetch<{id:string;deleted:boolean}>(`/events/media/${mediaId}`,{method:"DELETE"}); }
-export async function reorderEventMedia(id:string,ids:string[]) { return authedFetch<EventMedia[]>(`/events/${id}/media/reorder`,{method:"POST",body:JSON.stringify({ids})}); }
+export async function addEventMedia(id:string,payload:Record<string,unknown>) { return request<EventMedia>(`/events/${id}/media`,{method:"POST",body:JSON.stringify(payload)}); }
+export async function removeEventMedia(mediaId:string) { return request<{id:string;deleted:boolean}>(`/events/media/${mediaId}`,{method:"DELETE"}); }
+export async function reorderEventMedia(id:string,ids:string[]) { return request<EventMedia[]>(`/events/${id}/media/reorder`,{method:"POST",body:JSON.stringify({ids})}); }
