@@ -2020,9 +2020,13 @@ export async function lockExamSchedule(
   }
 
   const roster = await getCourseOfferingRoster(institutionId, schedule.courseOfferingId);
+  const sessionForLock = await loadSession(institutionId, schedule.examSessionId);
+  const expectedCandidates = sessionForLock.registrationRequired
+    ? await countRows(prisma, "exam_registrations", Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId"=${schedule.examSessionId} AND "status"='REGISTERED' AND "feeStatus" IN ('PAID','WAIVED')`)
+    : roster.length;
   const enteredCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}`);
-  if (enteredCount !== roster.length) {
-    throw new AppError(`Cannot lock results: ${roster.length - enteredCount} student mark(s) are missing`,409);
+  if (enteredCount !== expectedCandidates) {
+    throw new AppError(`Cannot lock results: ${Math.max(0, expectedCandidates - enteredCount)} student mark(s) are missing`,409);
   }
   const outstanding = await countRows(
     prisma,
