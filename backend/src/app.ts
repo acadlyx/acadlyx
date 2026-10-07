@@ -59,6 +59,7 @@ import exportRoutes from "./routes/export.routes";
 import importRoutes from "./routes/import.routes";
 import peopleImportRoutes from "./routes/peopleImport.routes";
 import siteContentRoutes from "./routes/siteContent.routes";
+import eventsRoutes from "./routes/events.routes";
 import institutionalCmsRoutes from "./routes/institutionalCms.routes";
 import institutionRoutes from "./routes/institution.routes";
 import userRoutes from "./routes/user.routes";
@@ -237,6 +238,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/people-imports`, peopleImportRoutes);
   app.use(`${apiPrefix}/exports`, exportRoutes);
   app.use(`${apiPrefix}/site-content`, siteContentRoutes);
+  app.use(`${apiPrefix}/events`, eventsRoutes);
   app.use(`${apiPrefix}/institutional-cms`, institutionalCmsRoutes);
   app.use(`${apiPrefix}/files`, fileStorageRoutes);
   app.use(`${apiPrefix}/payment-webhooks`, paymentWebhookRoutes);
