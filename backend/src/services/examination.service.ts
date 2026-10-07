@@ -1849,7 +1849,7 @@ export async function saveExamMarks(
       SELECT r."studentId" FROM "exam_registrations" r
       JOIN "exam_eligibilities" e ON e."examSessionId"=r."examSessionId" AND e."studentId"=r."studentId"
       WHERE r."institutionId"=${institutionId} AND r."examSessionId"=${schedule.examSessionId}
-        AND r."status"='REGISTERED' AND r."feeStatus" IN ('PAID','WAIVED') AND e."status"='ELIGIBLE'
+        AND r."status"='REGISTERED' AND e."status"='ELIGIBLE'
     `);
     rosterIds = new Set(candidates.map(x=>x.studentId).filter(id=>rosterIds.has(id)));
   }
@@ -3104,6 +3104,10 @@ export async function decideExamMarkCorrection(
     prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request"
   );
   if (req.status !== "PENDING") throw new AppError("This correction request has already been decided",409);
+  const correctionSchedule = await loadSchedule(institutionId, req.examScheduleId);
+  if (correctionSchedule.status === "RESULTS_PUBLISHED") {
+    throw new AppError("Published results require the controlled revaluation workflow", 409);
+  }
   if (decision === "APPROVED") {
     await prisma.$transaction(async tx => {
       await tx.$executeRaw`
