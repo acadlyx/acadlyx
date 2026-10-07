@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { authedFetch, getAccessToken } from "@/lib/auth";
+import { authedFetch } from "@/lib/auth";
 
 type CmsTeamMember = { name: string; role: string; bio: string; imageUrl: string };
 type CmsPage = { eyebrow: string; title: string; description: string; imageUrl?: string };
@@ -153,7 +153,7 @@ export default function SiteContentPage() {
 
         <Card title="Public contact & footer">
           <div className="grid gap-4 lg:grid-cols-2">
-            {["email", "phone", "address", "website"].map((key) => <Field key={key} label={humanize(key)} value={data.contact[key]} onChange={(v) => set(`contact.${key}`, v)} />)}
+            {(["email", "phone", "address", "website"] as Array<keyof CmsData["contact"]>).map((key) => <Field key={key} label={humanize(key)} value={data.contact[key]} onChange={(v) => set(`contact.${key}`, v)} />)}
             <div className="lg:col-span-2"><TextArea label="Footer text" value={data.footer.text} onChange={(v) => set("footer.text", v)} /></div>
           </div>
         </Card>
