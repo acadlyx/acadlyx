@@ -177,7 +177,7 @@ async function loadStudentExamContext(
   };
 }
 
-function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext): boolean {
+function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext, studentId: string): boolean {
   const checks: Array<[unknown, string | null]> = [
     [session.campusIds, context.campusId],
     [session.departmentIds, context.departmentId],
@@ -190,11 +190,9 @@ function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamCont
     return ids.length === 0 || (current !== null && ids.includes(current));
   }) && (() => {
     const students = jsonStringArray(session.studentIds);
-    return students.length === 0 || students.includes(contextStudentIdPlaceholder);
+    return students.length === 0 || students.includes(studentId);
   })();
 }
-
-const contextStudentIdPlaceholder = "__context_student_id__";
 
 async function evaluateExamEligibility(
   institutionId: string,
@@ -630,7 +628,7 @@ export async function getExamSession(
   const session = await loadSession(institutionId, examSessionId);
   if (actor.roles.includes("STUDENT")) {
     const context = await loadStudentExamContext(institutionId, actor.id);
-    if (!sessionTargetsStudent(session, context)) throw new AppError("Examination is outside your academic scope",403);
+    if (!sessionTargetsStudent(session, context, actor.id)) throw new AppError("Examination is outside your academic scope",403);
   } else if (actor.roles.includes("FACULTY")) {
     const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT es."id" FROM "exam_schedules" es
@@ -3200,7 +3198,7 @@ export async function listStudentExamEligibility(
   `);
   const items = [];
   for (const session of sessions) {
-    if (!sessionTargetsStudent(session, context)) continue;
+    if (!sessionTargetsStudent(session, context, actor.id)) continue;
     const now = new Date();
     const registrationStatus = !session.registrationRequired
       ? "NOT_REQUIRED"
