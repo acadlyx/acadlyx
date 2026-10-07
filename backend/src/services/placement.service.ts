@@ -460,3 +460,26 @@ export async function createPlacementCompanyContact(institutionId: string, actor
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.company_contact.created", entityType: "PlacementCompanyContact", entityId: contact.id, metadata: { companyId } });
   return contact;
 }
+
+export async function listPlacementOpenings(institutionId: string, actor: AuthenticatedUser) {
+  assertInstitution(actor, institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  return prisma.placementOpening.findMany({ where: { institutionId }, include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
+}
+export async function createPlacementOpening(institutionId: string, actor: AuthenticatedUser, input: {
+  companyId: string; role: string; description?: string; employmentType?: string; location?: string;
+  totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; stipend?: number; currency?: string; packagePeriod?: string;
+  requiredSkills?: string[]; eligibility?: Record<string, unknown>; hiringBatchIds?: string[]; deadline?: string; applicationProcess?: string;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  if (!(await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true } }))) throw new AppError("Company not found in this institution.", 404);
+  const opening = await prisma.placementOpening.create({ data: {
+    institutionId, companyId: input.companyId, role: input.role.trim(), description: input.description?.trim() || null, employmentType: input.employmentType?.trim() || null,
+    location: input.location?.trim() || null, totalCtc: input.totalCtc, fixedCtc: input.fixedCtc, variableCtc: input.variableCtc, bonus: input.bonus, stipend: input.stipend,
+    currency: input.currency || "INR", packagePeriod: input.packagePeriod || null, requiredSkills: input.requiredSkills ?? undefined, eligibility: input.eligibility as Prisma.InputJsonValue | undefined,
+    hiringBatchIds: input.hiringBatchIds ?? undefined, deadline: input.deadline ? new Date(input.deadline) : null, applicationProcess: input.applicationProcess?.trim() || null,
+  }, include: { company: true }});
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.opening.created", entityType: "PlacementOpening", entityId: opening.id, metadata: { companyId: input.companyId, role: input.role }});
+  return opening;
+}
