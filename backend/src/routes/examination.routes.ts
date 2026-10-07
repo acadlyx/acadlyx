@@ -27,6 +27,7 @@ import {
   admitCardHoldSchema,
   admitCardHoldResolveSchema,
   examMarkCorrectionSchema,
+  examMarkCorrectionDecisionSchema,
   assignInvigilatorsSchema,
   createExamRoomSchema,
   createExamScheduleSchema,
@@ -873,6 +874,16 @@ router.post(
   asyncHandler(async (req, res) => sendOk(res, await service.requestExamMarkCorrection(
     requireInstitution(req), requireAuthenticatedUser(req), req.body, auditMeta(req)
   ), 201))
+);
+
+router.patch(
+  "/mark-correction-requests/:id",
+  authorizeWorkflow("exams.approve"),
+  validateParams(idParams),
+  validateBody(examMarkCorrectionDecisionSchema),
+  asyncHandler(async (req,res)=>sendOk(res,await service.decideExamMarkCorrection(
+    requireInstitution(req),requireAuthenticatedUser(req),req.params.id,req.body.decision,req.body.decisionNote,auditMeta(req)
+  )))
 );
 
 router.get(
