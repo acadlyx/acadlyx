@@ -489,6 +489,8 @@ const LEADERSHIP_READ: PermissionKey[] = [
  * operational Accounts/HR/Faculty/Student/etc. operator merely by virtue
  * of being Super Admin.
  */
+const EVENTS_READ: PermissionKey[] = ["events.read"];
+
 export const ROLE_PERMISSIONS: Record<
   SystemRoleName,
   PermissionKey[]
@@ -509,6 +511,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
     INSTITUTION_ADMIN: [
+    ...EVENTS_READ,
+    "events.manage",
     "fees.structure.read",
     "fees.structure.manage",
     /*
@@ -619,6 +623,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
@@ -633,6 +638,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   MANAGEMENT: [
+    ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
@@ -647,6 +653,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    ...EVENTS_READ,
+    "events.manage",
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
@@ -673,6 +681,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DEAN: [
+    ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.read",
@@ -723,6 +732,8 @@ export const ROLE_PERMISSIONS: Record<
 
 
   REGISTRAR: [
+    ...EVENTS_READ,
+    "events.manage",
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read",
     "students.read",
     "students.update",
@@ -784,6 +795,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HOD: [
+    ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.read",
@@ -851,6 +863,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   FACULTY: [
+    ...EVENTS_READ,
     "obe.read", "obe.mapping.manage", "obe.mapping.submit", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.reports.read",
     "students.read",
 
@@ -898,6 +911,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   ACCOUNTS: [
+    ...EVENTS_READ,
     "students.read",
     "programs.read",
     "fees.collection.read",
@@ -941,6 +955,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HR: [
+    ...EVENTS_READ,
     "users.read",
     "users.create",
     "users.update",
@@ -964,6 +979,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   ADMISSIONS: [
+    ...EVENTS_READ,
     "admissions.read",
     "admissions.manage",
 
@@ -981,6 +997,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   EXAMINATION: [
+    ...EVENTS_READ,
     "obe.read", "obe.assessment.manage", "obe.reports.read",
 
     // Examination workspace needs read access to the people and
@@ -1032,6 +1049,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   LIBRARIAN: [
+    ...EVENTS_READ,
     // Library circulation is a people-facing workflow: librarians need
     // to resolve borrowers and their academic context without gaining
     // user-management or academic-management authority.
@@ -1057,6 +1075,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   PLACEMENT: [
+    ...EVENTS_READ,
     "students.read",
 
     "reports.read",
@@ -1071,6 +1090,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   IT: [
+    ...EVENTS_READ,
     "users.read",
     "users.update",
 
@@ -1087,10 +1107,13 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CMS: [
+    ...EVENTS_READ,
+    "events.manage",
     "site.manage",
   ],
 
   STUDENT: [
+    ...EVENTS_READ,
     "obe.read",
     "attendance.read",
 
@@ -1139,6 +1162,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   PARENT: [
+    ...EVENTS_READ,
     "attendance.read",
 
     "assignments.read",
@@ -1170,6 +1194,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CLUB_PRESIDENT: [
+    ...EVENTS_READ,
     "club.read",
     "club.manage",
     "calendar.read",
