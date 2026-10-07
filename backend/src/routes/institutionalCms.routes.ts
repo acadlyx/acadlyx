@@ -5,7 +5,6 @@ import { requireFeature } from "../middleware/requireFeature";
 import * as controller from "../controllers/institutionalCms.controller";
 
 const router = Router();
-router.get("/public", controller.get);
 router.use(authenticate);
 router.use(requireFeature("cms"));
 router.get("/", authorize("site.manage"), controller.get);
