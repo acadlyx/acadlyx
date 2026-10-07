@@ -6,6 +6,7 @@ import "./acadlyx-responsive.css";
 import "./acadlyx-dashboard-tokens.css";
 import "./acadlyx-modal-responsive.css";
 import { ProtectedRouteBoundary } from "@/components/auth/ProtectedRouteBoundary";
+import { PersistentDashboardRoute } from "@/components/dashboard/PersistentDashboardRoute";
 import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";
 import { ServiceWorkerRegistration } from "@/components/system/ServiceWorkerRegistration";
 import { API_BASE_URL } from "@/lib/api";
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ServiceWorkerRegistration />
         <ResponsiveNavigationGuard />
         <Suspense fallback={null}>
-          <ProtectedRouteBoundary>{children}</ProtectedRouteBoundary>
+          <ProtectedRouteBoundary><PersistentDashboardRoute>{children}</PersistentDashboardRoute></ProtectedRouteBoundary>
         </Suspense>
       </body>
     </html>
