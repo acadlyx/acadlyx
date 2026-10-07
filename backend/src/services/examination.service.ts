@@ -1932,6 +1932,13 @@ export async function lockExamSchedule(
         "marksLockedById" = ${actor.id}
     WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
   `;
+  const approvedCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId} AND "status"='APPROVED'`);
+  await prisma.$executeRaw`
+    INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
+    VALUES (${randomUUID()},${institutionId},${examScheduleId},'APPROVED',${approvedCount},0,${actor.id},CURRENT_TIMESTAMP)
+    ON CONFLICT ("examScheduleId") DO UPDATE SET
+      "status"='APPROVED',"totalCandidates"=${approvedCount},"approvedById"=${actor.id},"approvedAt"=CURRENT_TIMESTAMP
+  `;
 
   await recordAuditLog({
     institutionId,
@@ -2087,6 +2094,12 @@ export async function publishExamResults(
       UPDATE "exam_schedules"
       SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+    `;
+    await tx.$executeRaw`
+      UPDATE "exam_result_publications"
+      SET "status"='PUBLISHED',"processedCandidates"=${marks.length},
+          "publishedById"=${actor.id},"publishedAt"=CURRENT_TIMESTAMP
+      WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}
     `;
 
     // Tell every affected student, in the same transaction, that their
