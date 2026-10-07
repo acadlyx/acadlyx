@@ -66,7 +66,7 @@ export async function createAdmitCardTemplate(
         (${id}, ${institutionId}, ${name}, ${input.description ?? null}, 'DRAFT',
          ${JSON.stringify(input.config ?? {})}::jsonb, ${actor.id})
     `;
-  } catch (error) {
+  } catch {
     throw new AppError("An admit-card template with this name already exists.", 409);
   }
 
