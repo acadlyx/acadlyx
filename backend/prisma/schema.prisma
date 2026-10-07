@@ -95,6 +95,7 @@ model Institution {
   studentSkills         StudentSkill[]
   applications          Application[]
   placementCompanies        PlacementCompany[]
+  placementCompanyContacts  PlacementCompanyContact[]
   placementDrives          PlacementDrive[]
   placementOpenings        PlacementOpening[]
   placementVisits          PlacementVisit[]
