@@ -16,6 +16,30 @@ export interface LessonSummary {
   resourceCount: number;
 }
 
+export interface CourseOfferingSummary {
+  id: string;
+  courseId: string;
+  semesterId: string;
+  sectionId: string;
+  facultyId: string | null;
+  code: string;
+  name: string;
+  departmentId: string;
+  departmentName: string;
+  programName: string;
+  academicYearName: string;
+  semesterName: string;
+  sectionName: string;
+  lmsStatus: string;
+}
+
+export async function listCatalog(page = 1, pageSize = 24) {
+  const res = await authedFetch<PagedEnvelope<CourseOfferingSummary>>(
+    `/lms/catalog${buildQuery({ page, pageSize })}`,
+  );
+  return { items: res.data, total: res.meta.total, meta: res.meta };
+}
+
 export interface CourseModule {
   id: string;
   courseOfferingId: string;
