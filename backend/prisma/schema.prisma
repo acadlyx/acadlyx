@@ -1686,17 +1686,25 @@ model FileAsset {
 /// The JSON payload is intentionally flexible so the public website can
 /// evolve without repeated schema migrations for every text/image field.
 model InstitutionalCmsContent {
-  id            String      @id @default(uuid())
-  institutionId String      @unique
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  content       Json
-  version       Int         @default(1)
-  publishedAt   DateTime    @default(now())
-  updatedById   String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id             String      @id @default(uuid())
+  institutionId  String      @unique
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  content        Json
+  draftContent   Json?
+  version        Int         @default(1)
+  approvalStatus String      @default("PUBLISHED")
+  submittedById  String?
+  submittedAt    DateTime?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectionReason String?
+  publishedAt    DateTime    @default(now())
+  updatedById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@index([institutionId, updatedAt])
+  @@index([institutionId, approvalStatus])
   @@map("institutional_cms_contents")
 }
 
