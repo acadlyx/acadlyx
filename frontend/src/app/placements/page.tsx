@@ -26,6 +26,7 @@ export default function PlacementTeamWorkspace(){
     ["/placements/visits","Company Visits","Campus visits, recruiter meetings and pre-placement talks"],
     ["/placements/students","Placement Students","Readiness, eligibility and placement status for authorized students"],
     ["/placements/interviews","Interviews","Rounds, schedules, attendance and outcomes"],
+    ["/placements/offers","Offers & Joining","Offer acceptance, joining dates and verification"],
     ["/placements/reports","Placement Intelligence","Packages, joining, hiring and institutional trends"],
    ].map(([href,title,desc])=><Link key={href} href={href} className="rounded-2xl border bg-white p-5 transition hover:-translate-y-0.5"><h2 className="font-black text-slate-950">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p></Link>)}</section>
    <section className="grid gap-6 lg:grid-cols-2">
