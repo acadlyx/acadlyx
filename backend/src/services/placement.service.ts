@@ -27,6 +27,16 @@ function assertInstitution(actor: AuthenticatedUser, institutionId: string): voi
   if (actor.institutionId !== institutionId) throw new AppError("Institution context mismatch.", 403);
 }
 
+async function assertPlacementEntitlement(institutionId: string): Promise<void> {
+  const entitlement = await prisma.tenantFeatureEntitlement.findFirst({
+    where: { institutionId, featureKey: "placements" },
+    select: { isEnabled: true },
+  });
+  if (entitlement && !entitlement.isEnabled) {
+    throw new AppError("Placement is not enabled for this institution.", 403);
+  }
+}
+
 export async function listOpportunities(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -72,6 +82,7 @@ export async function createOpportunity(
   },
 ) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   if (!input.title.trim() || !input.organization.trim()) {
     throw new AppError("Title and organization are required.", 400);
@@ -327,6 +338,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
 
 export async function listPlacementCompanies(institutionId: string, actor: AuthenticatedUser, search?: string) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   return prisma.placementCompany.findMany({
     where: { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" } } : {}) },
@@ -352,6 +364,7 @@ export async function createPlacementCompany(institutionId: string, actor: Authe
 
 export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string } = {}) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   return prisma.placementDrive.findMany({
     where: {
@@ -586,6 +599,7 @@ export async function createPlacementCompanyContact(institutionId: string, actor
 
 export async function listPlacementOpenings(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   return prisma.placementOpening.findMany({ where: { institutionId }, include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
 }
@@ -667,6 +681,7 @@ export async function listPlacementInterviews(
   options: { studentId?: string; driveId?: string } = {},
 ) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const studentWhere = await getStudentWhereScope(institutionId, actor);
   return prisma.placementInterview.findMany({
@@ -753,6 +768,7 @@ export async function updatePlacementInterviewParticipant(
 
 export async function listPlacementVisits(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   return prisma.placementVisit.findMany({
     where: { institutionId },
