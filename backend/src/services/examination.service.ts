@@ -180,22 +180,56 @@ async function loadSchedule(
  * Faculty may act on a schedule only for the offering they teach.
  * Controllers and admins may act on any schedule in their tenant.
  */
+async function assertCanReadSchedule(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  schedule: ExamScheduleRow
+): Promise<void> {
+  if (actor.roles.includes("EXAMINATION") || actor.roles.includes("CHAIRMAN") || actor.roles.includes("REGISTRAR")) return;
+  const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
+  if (actor.roles.includes("FACULTY")) {
+    if (offering.facultyId !== actor.id) throw new AppError("Examination is outside your assignment scope",403);
+    return;
+  }
+  if (actor.roles.includes("HOD") || actor.roles.includes("DEAN")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
+    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized academic scope",403);
+    return;
+  }
+  if (actor.roles.includes("DIRECTOR")) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
+    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized campus scope",403);
+    return;
+  }
+  throw new AppError("You are not authorized to access this examination schedule",403);
+}
+
 async function assertCanActOnSchedule(
   institutionId: string,
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.some((role) => CONTROLLER_ROLES.includes(role))) return;
-  const offering = await loadCourseOfferingOrThrow(
-    institutionId,
-    schedule.courseOfferingId
-  );
-  if (actor.roles.includes("HOD")) {
-    // HOD authority is already department-scoped by the offering lookup
-    // plus the department access rows checked in accessScope.
-    if (isInstitutionWide(actor)) return;
+  if (actor.roles.includes("EXAMINATION")) return;
+  const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
+  if (!actor.roles.includes("FACULTY") || offering.facultyId !== actor.id) {
+    throw new AppError("You are not authorized to modify this examination schedule",403);
   }
-  assertOwnsCourseOffering(actor, offering.facultyId);
+}
+
+async function assertCanConductSchedule(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  schedule: ExamScheduleRow
+): Promise<void> {
+  if (actor.roles.includes("EXAMINATION")) return;
+  const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+    SELECT "id" FROM "exam_invigilators"
+    WHERE "institutionId"=${institutionId} AND "examScheduleId"=${schedule.id}
+      AND "facultyId"=${actor.id} LIMIT 1
+  `);
+  if (!rows.length) throw new AppError("You are not assigned to this examination duty",403);
 }
 
 // ==========================================================
@@ -1650,7 +1684,7 @@ export async function recordExamAttendance(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   const schedule = await loadSchedule(institutionId, examScheduleId);
-  await assertCanActOnSchedule(institutionId, actor, schedule);
+  await assertCanConductSchedule(institutionId, actor, schedule);
 
   if (["RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
     throw new AppError(
@@ -1719,7 +1753,7 @@ export async function getMarksSheet(
   examScheduleId: string
 ) {
   const schedule = await loadSchedule(institutionId, examScheduleId);
-  await assertCanActOnSchedule(institutionId, actor, schedule);
+  await assertCanReadSchedule(institutionId, actor, schedule);
 
   const roster = await getCourseOfferingRoster(
     institutionId,
