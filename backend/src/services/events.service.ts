@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
 import { deleteFile } from "./fileStorage.service";
+import { logger } from "../utils/logger";
 import type { CreateEventInput, UpdateEventInput, CategoryInput, MediaInput } from "../validators/events.validators";
 
 type Meta = { ipAddress?: string; userAgent?: string };
@@ -154,7 +155,7 @@ export async function removeMedia(institutionId:string,actor:AuthenticatedUser,m
   const media=await prisma.eventMedia.findFirst({where:{id:mediaId,institutionId}});
   if(!media) throw new AppError("Gallery image not found",404);
   await prisma.eventMedia.delete({where:{id:mediaId}});
-  try { await deleteFile(media.fileAssetId,institutionId); } catch {}
+  try { await deleteFile(media.fileAssetId,institutionId); } catch (error) { logger.warn("Event media cleanup failed", { mediaId: media.fileAssetId, error: error instanceof Error ? error.message : String(error) }); }
   await recordAuditLog({institutionId,userId:actor.id,action:"events.media.remove",entityType:"EventMedia",entityId:mediaId,metadata:{eventId:media.eventId},...meta});
   return {id:mediaId,deleted:true};
 }
