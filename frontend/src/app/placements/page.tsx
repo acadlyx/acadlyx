@@ -18,7 +18,7 @@ export default function PlacementTeamWorkspace(){
  return <DashboardShell title="Placement Command Center" subtitle="Operational placement control across employers, drives, applications, interviews, offers and joining verification." allowedRoles={["PLACEMENT"]}>
   <div className="mx-auto max-w-7xl space-y-6">
    {error&&<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
-   <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([a,b])=><article key={String(a)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{a}</p><p className="mt-2 text-2xl font-black text-slate-950">{loading?"—":String(b??0)}</p></article>)}</section>
+   <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([a,b])=><article key={String(a)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{String(a)}</p><p className="mt-2 text-2xl font-black text-slate-950">{loading?"—":String(b??0)}</p></article>)}</section>
    <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[
     ["/placements/companies","Company Master","Employers, recruiters, relationship history and contacts"],
     ["/placements/drives","Placement Drives","Lifecycle, eligibility, deadlines and vacancies"],
