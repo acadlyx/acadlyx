@@ -16,14 +16,14 @@ import { GlobalSearchBar } from "./GlobalSearchBar";
 import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations" },
-  DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations", "/examinations": "/director/examinations", "/fees": "/director/fees" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees" },
-  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters" },
-  HOD: { "/erp": "/hod/operations" },
+  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/operations": "/chairman/operations" },
+  DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations", "/examinations": "/director/examinations", "/fees": "/director/fees", "/students": "/director/students" },
+  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/students": "/dean/students" },
+  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
+  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence" },
   FACULTY: { "/erp": "/faculty/operations" },
   STAFF: { "/erp": "/staff/operations" },
-  EXAMINATION: { "/examinations": "/examination" },
+  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
