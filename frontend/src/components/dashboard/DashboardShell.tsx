@@ -31,10 +31,16 @@ function roleOwnedHref(role: string | null, href: string): string {
 }
 
 function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
-  if (canAccessRoute(pathname, roles, permissions, tenantFeatures)) return true;
   const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
-  const sourceRoute = Object.entries(overrides).find(([, destination]) => destination === pathname)?.[0];
-  return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions, tenantFeatures) : false;
+  const sourceRoute = Object.entries(overrides).find(([, destination]) => pathname === destination || pathname.startsWith(destination + "/"))?.[0];
+
+  // A role-owned destination must inherit the source navigation item's
+  // permission/feature contract. Namespace ownership alone is not enough.
+  if (sourceRoute) {
+    return canAccessRoute(sourceRoute, roles, permissions, tenantFeatures);
+  }
+
+  return canAccessRoute(pathname, roles, permissions, tenantFeatures);
 }
 
 export function DashboardShell({ title, subtitle, children, allowedRoles, forceShell = false }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[]; forceShell?: boolean }) {
