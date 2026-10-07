@@ -800,6 +800,24 @@ router.get(
   )))
 );
 
+router.get(
+  "/students/:studentId/performance",
+  authorize("exams.read"),
+  validateParams(studentIdParams),
+  asyncHandler(async (req, res) => sendOk(res, await service.getStudentExamPerformance(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.studentId
+  )))
+);
+
+router.get(
+  "/students/:studentId/results",
+  authorize("results.read"),
+  validateParams(studentIdParams),
+  asyncHandler(async (req, res) => sendOk(res, await service.getStudentPublishedResults(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.studentId
+  )))
+);
+
 router.post(
   "/sessions/:id/registration",
   authorize("exams.read"),
