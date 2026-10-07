@@ -2785,12 +2785,12 @@ async function loadStudentExamContext(
 
 function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext): boolean {
   const studentIds = jsonStringArray(session.studentIds);
-  if (studentIds.length > 0) return studentIds.includes(context.studentId);
-  const campuses = jsonStringArray((session as any).campusIds);
-  const departments = jsonStringArray((session as any).departmentIds);
-  const programs = jsonStringArray((session as any).programIds);
-  const semesters = jsonStringArray((session as any).semesterIds);
-  const sections = jsonStringArray((session as any).sectionIds);
+  if (studentIds.length > 0 && !studentIds.includes(context.studentId)) return false;
+  const campuses = jsonStringArray(session.campusIds);
+  const departments = jsonStringArray(session.departmentIds);
+  const programs = jsonStringArray(session.programIds);
+  const semesters = jsonStringArray(session.semesterIds);
+  const sections = jsonStringArray(session.sectionIds);
   if (campuses.length && (!context.campusId || !campuses.includes(context.campusId))) return false;
   if (departments.length && (!context.departmentId || !departments.includes(context.departmentId))) return false;
   if (programs.length && (!context.programId || !programs.includes(context.programId))) return false;
