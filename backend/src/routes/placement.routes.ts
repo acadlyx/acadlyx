@@ -28,6 +28,7 @@ const driveCreate = z.object({
   eligibleSemesters: z.array(z.string().uuid()).optional(), requiredSkills: z.array(z.string().uuid()).optional(),
 });
 const statusBody = z.object({ status: z.string().trim().min(3).max(32) });
+const profileUpdate = z.object({ portfolioUrl: z.string().url().nullable().optional(), githubUrl: z.string().url().nullable().optional(), linkedInUrl: z.string().url().nullable().optional(), bio: z.string().max(2000).nullable().optional() });
 
 
 router.get(
@@ -140,6 +141,10 @@ router.post("/drives/:id/apply", authorize("placements.apply"), asyncHandler(asy
   const {id}=idParams.parse(req.params);
   const item=await placement.applyToDrive(requireInstitution(req),requireAuthenticatedUser(req),id);
   res.status(201).json({success:true,data:item});
+}));
+router.patch("/profile", authorize("placements.apply"), asyncHandler(async (req,res) => {
+  const item=await placement.updatePlacementProfile(requireInstitution(req),requireAuthenticatedUser(req),profileUpdate.parse(req.body));
+  res.json({success:true,data:item});
 }));
 router.get("/profile", authorize("placements.read"), asyncHandler(async (req,res) => {
   const data=await placement.placementProfile(requireInstitution(req),requireAuthenticatedUser(req),typeof req.query.studentId==="string"?req.query.studentId:undefined);
