@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
@@ -45,7 +46,7 @@ function assertApprovalAuthority(actor: AuthenticatedUser) {
 
 export async function getInstitutionalCms(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
-  assertManage(actor);
+  if (!actor.permissions.includes("site.manage") && !canApprove(actor)) throw new AppError("Institutional CMS access is required", 403);
   const existing = await prisma.institutionalCmsContent.findUnique({ where: { institutionId } });
   if (!existing) return { institutionId, content: normalize({}), draftContent: null, version: 0, approvalStatus: "PUBLISHED", publishedAt: null, submittedAt: null, reviewedAt: null, rejectionReason: null };
   return { ...existing, content: normalize(existing.content), draftContent: existing.draftContent ? normalize(existing.draftContent) : null };
@@ -59,13 +60,13 @@ export async function updateInstitutionalCms(institutionId: string, actor: Authe
   const saved = await prisma.institutionalCmsContent.upsert({
     where: { institutionId },
     update: {
-      draftContent: normalized,
+      draftContent: normalized as Prisma.InputJsonObject,
       approvalStatus: existing?.approvalStatus === "SUBMITTED" ? "DRAFT" : (existing?.approvalStatus ?? "DRAFT") === "PUBLISHED" ? "DRAFT" : "DRAFT",
       submittedById: null, submittedAt: null, reviewedById: null, reviewedAt: null, rejectionReason: null,
       version: { increment: 1 }, updatedById: actor.id,
     },
     create: {
-      institutionId, content: normalize({}), draftContent: normalized,
+      institutionId, content: normalize({}) as Prisma.InputJsonObject, draftContent: normalized as Prisma.InputJsonObject,
       approvalStatus: "DRAFT", version: 1, updatedById: actor.id,
     },
   });
@@ -91,7 +92,7 @@ export async function approveInstitutionalCms(institutionId: string, actor: Auth
   if (!existing?.draftContent || existing.approvalStatus !== "SUBMITTED") throw new AppError("No submitted CMS change is awaiting approval.", 409);
   const updated = await prisma.institutionalCmsContent.update({
     where: { institutionId },
-    data: { content: existing.draftContent, draftContent: null, approvalStatus: "PUBLISHED", publishedAt: new Date(), reviewedById: actor.id, reviewedAt: new Date(), rejectionReason: null },
+    data: { content: existing.draftContent as Prisma.InputJsonValue, draftContent: Prisma.JsonNull, approvalStatus: "PUBLISHED", publishedAt: new Date(), reviewedById: actor.id, reviewedAt: new Date(), rejectionReason: null },
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "cms.approved", entityType: "InstitutionalCmsContent", entityId: updated.id, metadata: { submittedById: existing.submittedById } });
   return updated;
