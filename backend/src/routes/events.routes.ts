@@ -1,0 +1,22 @@
+import { Router } from "express";
+import * as controller from "../controllers/events.controller";
+import { authenticate } from "../middleware/authenticate";
+import { authorize } from "../middleware/authorize";
+import { validateBody, validateParams, validateQuery } from "../middleware/validate";
+import { idParams } from "../validators/common";
+import { eventListQuery, createEventSchema, updateEventSchema, categorySchema, mediaSchema } from "../validators/events.validators";
+
+const router=Router();
+router.use(authenticate);
+router.get("/",authorize("events.read"),validateQuery(eventListQuery),controller.list);
+router.get("/categories",authorize("events.read"),controller.categories);
+router.get("/:id",authorize("events.read"),validateParams(idParams),controller.get);
+router.post("/",authorize("events.manage"),validateBody(createEventSchema),controller.create);
+router.patch("/:id",authorize("events.manage"),validateParams(idParams),validateBody(updateEventSchema),controller.update);
+router.delete("/:id",authorize("events.manage"),validateParams(idParams),controller.remove);
+router.post("/media/upload",authorize("events.manage"),controller.uploadMedia);
+router.post("/:id/media",authorize("events.manage"),validateParams(idParams),validateBody(mediaSchema),controller.addMedia);
+router.delete("/media/:mediaId",authorize("events.manage"),controller.removeMedia);
+router.post("/:id/media/reorder",authorize("events.manage"),validateParams(idParams),controller.reorderMedia);
+router.post("/categories",authorize("events.manage"),validateBody(categorySchema),controller.createCategory);
+export default router;
