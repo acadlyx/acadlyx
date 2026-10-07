@@ -79,6 +79,17 @@ interface ExamSessionRow {
   hallTicketReleaseAt: Date | null;
   resultPublishedAt: Date | null;
   instructions: string | null;
+  registrationRequired: boolean;
+  registrationStart: Date | null;
+  registrationEnd: Date | null;
+  examFee: number;
+  attendanceRequirement: number | null;
+  eligibilityRules: unknown;
+  studentIds: unknown;
+  registrationStatus: string;
+  eligibilityStatus: string;
+  admitCardStatus: string;
+  resultStatus: string;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -2538,3 +2549,274 @@ export async function getStudentExaminations(
 
   return { upcoming, results };
 }
+/* ==========================================================
+ * STUDENT REGISTRATION + CENTRAL ELIGIBILITY
+ * ========================================================== */
+
+type StudentExamContext = {
+  studentId: string;
+  institutionId: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  campusId: string | null;
+  programId: string | null;
+  programName: string | null;
+  batchId: string | null;
+  academicYearId: string | null;
+  semesterId: string | null;
+  sectionId: string | null;
+  academicStatus: string | null;
+};
+
+function jsonStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+async function loadStudentExamContext(
+  institutionId: string,
+  studentId: string,
+): Promise<StudentExamContext> {
+  const row = await prisma.studentEnrollment.findFirst({
+    where: { institutionId, userId: studentId, status: "ACTIVE" },
+    orderBy: [{ academicYear: { isCurrent: "desc" } }, { createdAt: "desc" }],
+    select: {
+      userId: true,
+      institutionId: true,
+      programId: true,
+      batchId: true,
+      academicYearId: true,
+      semesterId: true,
+      sectionId: true,
+      program: {
+        select: {
+          id: true,
+          name: true,
+          departmentId: true,
+          department: { select: { id: true, name: true, campusId: true } },
+        },
+      },
+    },
+  });
+  if (!row) throw new AppError("No active academic enrollment was found for this student", 409);
+  const student = await prisma.user.findFirst({
+    where: { id: studentId, institutionId, isActive: true },
+    select: { profile: { select: { status: true } } },
+  });
+  if (!student) throw new AppError("Student not found in this institution", 404);
+  return {
+    studentId,
+    institutionId,
+    departmentId: row.program.departmentId,
+    departmentName: row.program.department.name,
+    campusId: row.program.department.campusId,
+    programId: row.programId,
+    programName: row.program.name,
+    batchId: row.batchId,
+    academicYearId: row.academicYearId,
+    semesterId: row.semesterId,
+    sectionId: row.sectionId,
+    academicStatus: student.profile?.status ?? "ACTIVE",
+  };
+}
+
+function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext): boolean {
+  const studentIds = jsonStringArray(session.studentIds);
+  if (studentIds.length > 0) return studentIds.includes(context.studentId);
+  const campuses = jsonStringArray((session as any).campusIds);
+  const departments = jsonStringArray((session as any).departmentIds);
+  const programs = jsonStringArray((session as any).programIds);
+  const semesters = jsonStringArray((session as any).semesterIds);
+  const sections = jsonStringArray((session as any).sectionIds);
+  if (campuses.length && (!context.campusId || !campuses.includes(context.campusId))) return false;
+  if (departments.length && (!context.departmentId || !departments.includes(context.departmentId))) return false;
+  if (programs.length && (!context.programId || !programs.includes(context.programId))) return false;
+  if (semesters.length && (!context.semesterId || !semesters.includes(context.semesterId))) return false;
+  if (sections.length && (!context.sectionId || !sections.includes(context.sectionId))) return false;
+  if (session.academicYearId && session.academicYearId !== context.academicYearId) return false;
+  if (session.semesterId && session.semesterId !== context.semesterId) return false;
+  return true;
+}
+
+async function evaluateExamEligibility(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+) {
+  const session = await loadSession(institutionId, examSessionId);
+  const context = await loadStudentExamContext(institutionId, studentId);
+  const reasons: string[] = [];
+  let status = "ELIGIBLE";
+  if (!sessionTargetsStudent(session, context)) {
+    status = "INELIGIBLE"; reasons.push("Student is outside the examination target scope");
+  }
+  if (!["ACTIVE"].includes(context.academicStatus ?? "ACTIVE")) {
+    status = "INELIGIBLE"; reasons.push(`Academic status is ${context.academicStatus}`);
+  }
+  const rules = session.eligibilityRules && typeof session.eligibilityRules === "object"
+    ? session.eligibilityRules as Record<string, unknown> : {};
+  const attendanceRequired = typeof session.attendanceRequirement === "number"
+    ? session.attendanceRequirement : (typeof rules.attendancePercentage === "number" ? Number(rules.attendancePercentage) : null);
+  if (attendanceRequired !== null) {
+    const attendance = await getStudentAttendancePercentage(institutionId, studentId);
+    if (attendance.percentage !== null && attendance.percentage < attendanceRequired) {
+      status = "ATTENDANCE_SHORTAGE";
+      reasons.push(`Attendance ${attendance.percentage}% is below required ${attendanceRequired}%`);
+    }
+  }
+  const debarred = await prisma.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
+    SELECT EXISTS(
+      SELECT 1 FROM "exam_incidents" i
+      WHERE i."institutionId" = ${institutionId} AND i."studentId" = ${studentId}
+        AND i."status" IN ('DEBARRED','UPHELD')
+        AND i."examScheduleId" IN (SELECT s."id" FROM "exam_schedules" s WHERE s."examSessionId" = ${examSessionId})
+    ) AS "exists"
+  `);
+  if (debarred[0]?.exists) { status = "DEBARRED"; reasons.push("Student is debarred from this examination"); }
+  const existingHold = await prisma.$queryRaw<Array<{ reason: string }>>(Prisma.sql`
+    SELECT "reason" FROM "admit_card_holds"
+    WHERE "institutionId" = ${institutionId} AND "examSessionId" = ${examSessionId}
+      AND "studentId" = ${studentId} AND "status" = 'ACTIVE' LIMIT 10
+  `);
+  if (existingHold.length) { status = "ADMINISTRATIVE_HOLD"; reasons.push(...existingHold.map(x => x.reason)); }
+  const eligibility = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    INSERT INTO "exam_eligibilities"
+      ("id","institutionId","examSessionId","studentId","status","reasons","contextSnapshot","evaluatedById")
+    VALUES
+      (${randomUUID()},${institutionId},${examSessionId},${studentId},${status},
+       ${JSON.stringify(reasons)}::jsonb,${JSON.stringify(context)}::jsonb,${actor.id})
+    ON CONFLICT ("examSessionId","studentId") DO UPDATE SET
+      "status"=EXCLUDED."status","reasons"=EXCLUDED."reasons",
+      "contextSnapshot"=EXCLUDED."contextSnapshot","evaluatedAt"=CURRENT_TIMESTAMP,
+      "evaluatedById"=EXCLUDED."evaluatedById"
+    RETURNING "id"
+  `);
+  return { status, reasons, context, eligibilityId: eligibility[0]?.id ?? null };
+}
+
+export async function listStudentExamEligibility(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+) {
+  await assertCanViewStudent(institutionId, actor, studentId);
+  const context = await loadStudentExamContext(institutionId, studentId);
+  const sessions = await prisma.$queryRaw<ExamSessionRow[]>(Prisma.sql`
+    SELECT * FROM "exam_sessions"
+    WHERE "institutionId" = ${institutionId}
+      AND "status" NOT IN ('CANCELLED','PUBLISHED')
+      AND "startDate" >= CURRENT_TIMESTAMP - INTERVAL '1 day'
+    ORDER BY "startDate" ASC LIMIT 200
+  `);
+  const items = [];
+  for (const session of sessions) {
+    if (!sessionTargetsStudent(session, context)) continue;
+    const eligibility = await evaluateExamEligibility(institutionId, actor, session.id, studentId);
+    const registration = await prisma.$queryRaw<Array<{status:string;feeStatus:string;feeInvoiceId:string|null}>>(Prisma.sql`
+      SELECT "status","feeStatus","feeInvoiceId" FROM "exam_registrations"
+      WHERE "institutionId"=${institutionId} AND "examSessionId"=${session.id} AND "studentId"=${studentId} LIMIT 1
+    `);
+    items.push({ session, eligibility, registration: registration[0] ?? null });
+  }
+  return items;
+}
+
+export async function registerStudentForExam(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+  meta: { ipAddress?: string; userAgent?: string },
+) {
+  if (actor.id !== studentId) await assertCanViewStudent(institutionId, actor, studentId);
+  if (!actor.roles.includes("STUDENT") && actor.id !== studentId) throw new AppError("Only the student can create their examination registration", 403);
+  const session = await loadSession(institutionId, examSessionId);
+  if (!session.registrationRequired) throw new AppError("Registration is not required for this examination", 409);
+  const now = new Date();
+  if (session.registrationStart && now < session.registrationStart) throw new AppError("Examination registration has not opened yet", 409);
+  if (session.registrationEnd && now > session.registrationEnd) throw new AppError("Examination registration is closed", 409);
+  if (["CANCELLED","PUBLISHED"].includes(session.status)) throw new AppError("This examination is not open for registration", 409);
+  const eligibility = await evaluateExamEligibility(institutionId, actor, examSessionId, studentId);
+  if (eligibility.status !== "ELIGIBLE") throw new AppError(`Student is not eligible: ${eligibility.reasons.join("; ") || eligibility.status}`, 409);
+  const existing = await prisma.$queryRaw<Array<{id:string;status:string;feeStatus:string}>>(Prisma.sql`
+    SELECT "id","status","feeStatus" FROM "exam_registrations"
+    WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId} AND "studentId"=${studentId} LIMIT 1
+  `);
+  if (existing[0] && existing[0].status === "REGISTERED") return existing[0];
+  const id = existing[0]?.id ?? randomUUID();
+  let invoiceId: string | null = null;
+  let feeStatus = session.examFee > 0 ? "PENDING" : "WAIVED";
+  await prisma.$transaction(async tx => {
+    if (session.examFee > 0) {
+      const invoice = await tx.feeInvoice.upsert({
+        where: { institutionId_sourceEventKey: { institutionId, sourceEventKey: `EXAM_REGISTRATION:${examSessionId}:${studentId}` } },
+        update: {},
+        create: {
+          institutionId, studentId, title: `Examination Fee — ${session.name}`,
+          amount: session.examFee, dueDate: session.registrationEnd ?? null,
+          status: "PENDING", sourceModule: "EXAMINATION", sourceType: "EXAM_REGISTRATION",
+          sourceEntityId: examSessionId, sourceEventKey: `EXAM_REGISTRATION:${examSessionId}:${studentId}`,
+        },
+        select: { id: true },
+      });
+      invoiceId = invoice.id;
+    }
+    await tx.$executeRaw`
+      INSERT INTO "exam_registrations"
+        ("id","institutionId","examSessionId","studentId","status","feeStatus","feeInvoiceId")
+      VALUES (${id},${institutionId},${examSessionId},${studentId},'REGISTERED',${feeStatus},${invoiceId})
+      ON CONFLICT ("examSessionId","studentId") DO UPDATE SET
+        "status"='REGISTERED',"feeStatus"=EXCLUDED."feeStatus","feeInvoiceId"=EXCLUDED."feeInvoiceId",
+        "cancelledAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP
+    `;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "exam.registration_created", entityType: "ExamRegistration", entityId: id, metadata: { examSessionId, studentId, feeStatus }, ...meta });
+  return { id, examSessionId, studentId, status: "REGISTERED", feeStatus, feeInvoiceId: invoiceId };
+}
+
+export async function getStudentExamPerformance(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+) {
+  await assertCanViewStudent(institutionId, actor, studentId);
+  return prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT s."id" AS "examScheduleId", es."id" AS "examSessionId", es."name" AS "examName",
+           c."code" AS "courseCode", c."name" AS "courseName", s."examDate",
+           s."maxMarks", s."passMarks", m."marksObtained", m."isAbsent", m."status",
+           m."remarks", m."publishedAt"
+    FROM "exam_marks" m
+    JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
+    JOIN "exam_sessions" es ON es."id"=s."examSessionId"
+    JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
+      AND m."status" IN ('APPROVED','PUBLISHED')
+    ORDER BY s."examDate" DESC LIMIT 500
+  `);
+}
+
+export async function getStudentPublishedResults(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+) {
+  await assertCanViewStudent(institutionId, actor, studentId);
+  return prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT s."id" AS "examScheduleId", es."id" AS "examSessionId", es."name" AS "examName",
+           c."code" AS "courseCode", c."name" AS "courseName", s."examDate",
+           s."maxMarks", s."passMarks", m."marksObtained", m."isAbsent", m."remarks",
+           m."publishedAt"
+    FROM "exam_marks" m
+    JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
+    JOIN "exam_sessions" es ON es."id"=s."examSessionId"
+    JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
+      AND m."status"='PUBLISHED'
+    ORDER BY m."publishedAt" DESC LIMIT 500
+  `);
+}
+
+
