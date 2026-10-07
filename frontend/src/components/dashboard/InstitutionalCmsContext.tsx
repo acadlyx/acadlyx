@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
 import { workspaceGet } from "@/lib/workspaceCache";
 
 export interface InstitutionalCmsContent {
@@ -54,40 +55,48 @@ export function InstitutionalCmsProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     let active = true;
 
-    // Workspace context is readable by institutional users and is enough
-    // to provide safe fallback branding. The full CMS document is intentionally
-    // fetched only by users who are authorized to manage/review it; ordinary
-    // dashboards must never generate a predictable 403 against the CMS endpoint.
-    Promise.all([
-      workspaceGet<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context"),
-      workspaceGet<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms").catch(() => null),
-    ])
-      .then(([workspace, cms]) => {
-        if (!active) return;
-        const institution = workspace?.data?.institution;
-        const next = cms?.data?.content;
-        if (!next) {
-          if (institution) {
-            setContent((current) => ({
-              ...current,
-              brand: {
-                ...current.brand,
-                institutionName: institution.name || current.brand.institutionName,
-                institutionLogoUrl: institution.logoUrl || current.brand.institutionLogoUrl,
-              },
-            }));
-          }
-          return;
+    // Workspace context is readable by institutional users and provides
+    // fallback branding. The CMS document itself is restricted to users who
+    // can manage or review institutional CMS, so ordinary dashboards do not
+    // generate unauthorized requests.
+    const cachedUser = getCachedCurrentUser();
+    const load = async () => {
+      const user = cachedUser ?? await getCurrentUser({ background: true });
+      const canReadCms = user.permissions.includes("site.manage")
+        || user.roles.some((role) => ["CHAIRMAN", "DIRECTOR", "MANAGEMENT"].includes(role));
+
+      const workspace = await workspaceGet<{ data: { institution?: { name?: string; logoUrl?: string | null } } }>("/workspace/context");
+      if (!active) return;
+
+      const institution = workspace?.data?.institution;
+      if (!canReadCms) {
+        if (institution) {
+          setContent((current) => ({
+            ...current,
+            brand: {
+              ...current.brand,
+              institutionName: institution.name || current.brand.institutionName,
+              institutionLogoUrl: institution.logoUrl || current.brand.institutionLogoUrl,
+            },
+          }));
         }
-        setContent({
-          ...next,
-          brand: {
-            ...next.brand,
-            institutionName: next.brand.institutionName || institution?.name || "",
-            institutionLogoUrl: next.brand.institutionLogoUrl || institution?.logoUrl || "",
-          },
-        });
+        return;
+      }
+
+      const cms = await workspaceGet<{ data: { content: InstitutionalCmsContent } }>("/institutional-cms");
+      if (!active || !cms?.data?.content) return;
+
+      setContent({
+        ...cms.data.content,
+        brand: {
+          ...cms.data.content.brand,
+          institutionName: cms.data.content.brand.institutionName || institution?.name || "",
+          institutionLogoUrl: cms.data.content.brand.institutionLogoUrl || institution?.logoUrl || "",
+        },
       });
+    };
+
+    void load().catch(() => undefined);
 
     return () => {
       active = false;
