@@ -8,9 +8,9 @@ import {
   type PermissionKey,
 } from "../config/rbac";
 
-test("legacy management aliases normalize to canonical roles", () => {
-  assert.equal(normalizeRoleName("MANAGEMENT"), "CHAIRMAN");
-  assert.equal(normalizeRoleName("STAFF"), "ACCOUNTS");
+test("management and staff role names are not silently remapped", () => {
+  assert.equal(normalizeRoleName("MANAGEMENT"), "MANAGEMENT");
+  assert.equal(normalizeRoleName("STAFF"), null);
 });
 
 test("institution admin is not a specialist operator", () => {
