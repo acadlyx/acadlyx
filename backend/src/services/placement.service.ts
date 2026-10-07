@@ -590,6 +590,21 @@ export async function placementProfile(institutionId: string, actor: Authenticat
   return { profile, enrollment, skills, certifications, projects, resumes };
 }
 
+export async function listPlacementOffers(institutionId: string, actor: AuthenticatedUser, studentId?: string) {
+  assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  if (target) await assertCanViewStudent(institutionId, actor, target);
+  return prisma.placementOffer.findMany({
+    where: { institutionId, ...(target ? { studentId: target } : {}) },
+    include: { company: { select: { id: true, name: true, logoUrl: true } } },
+    orderBy: { offerDate: "desc" },
+    take: 100,
+  });
+}
+
+
 export async function updatePlacementProfile(institutionId: string, actor: AuthenticatedUser, input: { portfolioUrl?: string|null; githubUrl?: string|null; linkedInUrl?: string|null; bio?: string|null }) {
   assertInstitution(actor, institutionId);
   if (!actor.roles.includes("STUDENT")) throw new AppError("Only students may edit their placement profile.", 403);
