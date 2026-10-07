@@ -1,3 +1,8 @@
+-- Normalize legacy placement application state before enforcing canonical lifecycle.
+UPDATE applications
+SET status = 'APPLICATION_SUBMITTED'
+WHERE status = 'APPLIED';
+
 -- Placement hardening: canonical student-to-drive application uniqueness
 CREATE UNIQUE INDEX IF NOT EXISTS applications_student_drive_unique
   ON applications ("studentId", "placementDriveId")
