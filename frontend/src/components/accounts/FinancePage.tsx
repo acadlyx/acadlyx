@@ -29,7 +29,7 @@ const nav:{key:View;label:string;group:string;permission?:string}[]=[
 function Card({children,className=""}:{children:React.ReactNode;className?:string}){return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>}
 function SectionTitle({title,subtitle,href}:{title:string;subtitle?:string;href?:string}){return <div className="flex items-start justify-between gap-4"><div><h2 className="text-sm font-black uppercase tracking-[.12em] text-slate-900">{title}</h2>{subtitle&&<p className="mt-1 text-xs text-slate-500">{subtitle}</p>}</div>{href&&<Link href={href} className="shrink-0 text-xs font-black text-emerald-700 hover:underline">View all</Link>}</div>}
 
-export default function FinancePage({view}:{view:View}){
+export default function FinancePage({view, allowedRoles = ["ACCOUNTS"]}:{view:View; allowedRoles?: string[]}){
  const user=getCachedCurrentUser();
  const permissions=new Set(user?.permissions||[]);
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
@@ -53,7 +53,7 @@ export default function FinancePage({view}:{view:View}){
    if(live)setData(x);
  }catch(e){if(live)setError(e instanceof Error?e.message:"Unable to load financial data")}finally{if(live)setLoading(false)}};void load();return()=>{live=false}},[view,deferredSearch,period]);
  const title=nav.find(x=>x.key===view)?.label||"Accounts";
- return <DashboardShell title="ACADLYX Finance" subtitle="Accounts & Financial Management" allowedRoles={["ACCOUNTS"]}>
+ return <DashboardShell title="ACADLYX Finance" subtitle="Accounts & Financial Management" allowedRoles={allowedRoles}>
    <div className="mx-auto max-w-[1500px]">
     {view==="overview" ? <CommandCenter d={data} period={period} setPeriod={setPeriod} can={can}/> :
      view==="dues" ? <Dues d={data} can={can}/> :
