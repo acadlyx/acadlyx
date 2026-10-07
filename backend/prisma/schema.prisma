@@ -120,6 +120,7 @@ model Institution {
 
   admissionApplications AdmissionApplication[]
   employeeProfiles EmployeeProfile[]
+  events           InstitutionalEvent[]
   leaveTypes LeaveType[]
   leaveRequests LeaveRequest[]
   libraryBooks LibraryBook[]
