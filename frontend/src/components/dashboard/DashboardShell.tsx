@@ -23,7 +23,7 @@ const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence" },
   FACULTY: { "/erp": "/faculty/operations" },
   STAFF: { "/erp": "/staff/operations" },
-  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },
+  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
 };
 
 function roleOwnedHref(role: string | null, href: string): string {
