@@ -166,7 +166,7 @@ export async function processBulkMarksheetsJob(ctx: {
       );
 
       for (const result of generated) {
-        if ("pdf" in result) {
+        if (result.pdf) {
           await appendZipEntry(zipPath, entries, result.pdf.filename, result.pdf.buffer);
           processed += 1;
         } else {
