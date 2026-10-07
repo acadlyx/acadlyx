@@ -87,7 +87,7 @@ export async function getJob(institutionId: string, _actor: AuthenticatedUser, i
 export async function requestCancellation(institutionId: string, actor: AuthenticatedUser, id: string) {
   const job = await prisma.backgroundJob.findFirst({ where: { id, institutionId }});
   if (!job) throw new AppError("Job not found.", 404);
-  if (([JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED] as JobStatus[]).includes(job.status as JobStatus)) return job;
+  if (([JOB_STATUS.COMPLETED, JOB_STATUS.PARTIAL, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED] as JobStatus[]).includes(job.status as JobStatus)) return job;
   if (job.status === JOB_STATUS.QUEUED) {
     await prisma.backgroundJob.updateMany({
       where: { id, institutionId, status: JOB_STATUS.QUEUED },
