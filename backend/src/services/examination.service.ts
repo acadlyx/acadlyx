@@ -2825,3 +2825,82 @@ export async function getStudentPublishedResults(
 }
 
 
+export async function createAdmitCardHold(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  input: { studentId: string; reasonCode: string; reason: string },
+  meta: { ipAddress?: string; userAgent?: string },
+) {
+  assertExamController(actor);
+  const session = await loadSession(institutionId, examSessionId);
+  const eligibility = await evaluateExamEligibility(institutionId, actor, examSessionId, input.studentId);
+  if (eligibility.status === "ELIGIBLE" && input.reasonCode !== "OTHER") {
+    // A manual hold may still be applied; it is intentionally independent of eligibility.
+  }
+  const id = randomUUID();
+  await prisma.$executeRaw`
+    INSERT INTO "admit_card_holds"
+      ("id","institutionId","examSessionId","studentId","reasonCode","reason","status","createdById")
+    VALUES (${id},${institutionId},${examSessionId},${input.studentId},${input.reasonCode},${input.reason},'ACTIVE',${actor.id})
+  `;
+  await recordAuditLog({ institutionId, userId: actor.id, action: "exam.admit_card_hold_created", entityType: "AdmitCardHold", entityId: id, metadata: { examSessionId, studentId: input.studentId, reasonCode: input.reasonCode }, ...meta });
+  return requireTenantRow(prisma, "admit_card_holds", institutionId, id, "Admit-card hold");
+}
+
+export async function resolveAdmitCardHold(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  holdId: string,
+  resolution: string,
+  meta: { ipAddress?: string; userAgent?: string },
+) {
+  assertExamController(actor);
+  const hold = await requireTenantRow<{ id:string; status:string }>(prisma, "admit_card_holds", institutionId, holdId, "Admit-card hold");
+  if (hold.status !== "ACTIVE") throw new AppError("Admit-card hold is already resolved", 409);
+  await prisma.$executeRaw`
+    UPDATE "admit_card_holds"
+    SET "status"='RESOLVED',"resolution"=${resolution},
+        "resolvedById"=${actor.id},"resolvedAt"=CURRENT_TIMESTAMP
+    WHERE "id"=${holdId} AND "institutionId"=${institutionId}
+  `;
+  await recordAuditLog({ institutionId, userId: actor.id, action: "exam.admit_card_hold_resolved", entityType: "AdmitCardHold", entityId: holdId, metadata: { resolution }, ...meta });
+  return requireTenantRow(prisma, "admit_card_holds", institutionId, holdId, "Admit-card hold");
+}
+
+export async function requestExamMarkCorrection(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: { examMarkId: string; newMarks: number | null; reason: string },
+  meta: { ipAddress?: string; userAgent?: string },
+) {
+  const mark = await requireTenantRow<{ id:string; examScheduleId:string; studentId:string; marksObtained:number|null; status:string }>(prisma, "exam_marks", institutionId, input.examMarkId, "Examination mark");
+  const schedule = await loadSchedule(institutionId, mark.examScheduleId);
+  await assertCanActOnSchedule(institutionId, actor, schedule);
+  if (!["APPROVED","PUBLISHED"].includes(mark.status) && schedule.status !== "LOCKED") {
+    throw new AppError("A correction request is only required for approved or locked marks", 409);
+  }
+  if (input.newMarks !== null && input.newMarks > schedule.maxMarks) throw new AppError(`newMarks cannot exceed ${schedule.maxMarks}`, 400);
+  const id = randomUUID();
+  await prisma.$executeRaw`
+    INSERT INTO "exam_mark_correction_requests"
+      ("id","institutionId","examScheduleId","examMarkId","studentId","requestedById","oldMarks","newMarks","reason")
+    VALUES (${id},${institutionId},${mark.examScheduleId},${mark.id},${mark.studentId},${actor.id},${mark.marksObtained},${input.newMarks},${input.reason})
+  `;
+  await recordAuditLog({ institutionId, userId: actor.id, action: "exam.mark_correction_requested", entityType: "ExamMarkCorrectionRequest", entityId: id, metadata: { examMarkId: mark.id, oldMarks: mark.marksObtained, newMarks: input.newMarks }, ...meta });
+  return requireTenantRow(prisma, "exam_mark_correction_requests", institutionId, id, "Mark correction request");
+}
+
+export async function listExamMarkCorrectionRequests(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  pagination: PaginationParams,
+) {
+  assertExamController(actor);
+  const where = Prisma.sql`WHERE "institutionId"=${institutionId} ORDER BY "createdAt" DESC LIMIT ${pagination.take} OFFSET ${pagination.skip}`;
+  const items = await prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT * FROM "exam_mark_correction_requests" ${where}`);
+  const total = await countRows(prisma, "exam_mark_correction_requests", Prisma.sql`WHERE "institutionId"=${institutionId}`);
+  return { items, total };
+}
+
+
