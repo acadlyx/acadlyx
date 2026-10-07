@@ -543,11 +543,35 @@ export async function updateExamSession(
     throw new AppError("endDate must not be before startDate", 400);
   }
 
+  if (input.registrationStart && input.registrationEnd && input.registrationEnd < input.registrationStart) throw new AppError("registrationEnd must not be before registrationStart",400);
+  if (input.examFee !== undefined && input.examFee < 0) throw new AppError("examFee cannot be negative",400);
+  if (input.attendanceRequirement !== undefined && (input.attendanceRequirement < 0 || input.attendanceRequirement > 100)) throw new AppError("attendanceRequirement must be between 0 and 100",400);
+  for (const [ids, table, label] of [
+    [input.campusIds ?? [], "campuses", "Campus"],
+    [input.departmentIds ?? [], "departments", "Department"],
+    [input.programIds ?? [], "programs", "Program"],
+    [input.semesterIds ?? [], "semesters", "Semester"],
+    [input.sectionIds ?? [], "sections", "Section"],
+  ] as Array<[string[], string, string]>) for (const id of ids) await assertTenantReference(prisma, table, institutionId, id, label);
+  for (const id of input.studentIds ?? []) await assertStudentExists(institutionId, id);
+
   await prisma.$executeRaw`
     UPDATE "exam_sessions"
     SET "name" = COALESCE(${input.name ?? null}, "name"),
         "startDate" = ${startDate},
         "endDate" = ${endDate},
+        "registrationRequired" = COALESCE(${input.registrationRequired ?? null}, "registrationRequired"),
+        "registrationStart" = COALESCE(${input.registrationStart ?? null}, "registrationStart"),
+        "registrationEnd" = COALESCE(${input.registrationEnd ?? null}, "registrationEnd"),
+        "examFee" = COALESCE(${input.examFee ?? null}, "examFee"),
+        "attendanceRequirement" = COALESCE(${input.attendanceRequirement ?? null}, "attendanceRequirement"),
+        "eligibilityRules" = COALESCE(${input.eligibilityRules ? JSON.stringify(input.eligibilityRules) : null}::jsonb, "eligibilityRules"),
+        "campusIds" = COALESCE(${input.campusIds ? JSON.stringify(input.campusIds) : null}::jsonb, "campusIds"),
+        "departmentIds" = COALESCE(${input.departmentIds ? JSON.stringify(input.departmentIds) : null}::jsonb, "departmentIds"),
+        "programIds" = COALESCE(${input.programIds ? JSON.stringify(input.programIds) : null}::jsonb, "programIds"),
+        "semesterIds" = COALESCE(${input.semesterIds ? JSON.stringify(input.semesterIds) : null}::jsonb, "semesterIds"),
+        "sectionIds" = COALESCE(${input.sectionIds ? JSON.stringify(input.sectionIds) : null}::jsonb, "sectionIds"),
+        "studentIds" = COALESCE(${input.studentIds ? JSON.stringify(input.studentIds) : null}::jsonb, "studentIds"),
         "hallTicketReleaseAt" = COALESCE(${input.hallTicketReleaseAt ?? null}, "hallTicketReleaseAt"),
         "instructions" = COALESCE(${input.instructions ?? null}, "instructions")
     WHERE "id" = ${examSessionId} AND "institutionId" = ${institutionId}
