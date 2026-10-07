@@ -25,6 +25,7 @@ import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDi
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
+import { createMarksheetPdf } from "./marksheetPdf.service";
 
 /**
  * Examinations.
@@ -1564,6 +1565,55 @@ export async function generateStudentHallTicketPdf(
     })),
   });
   return { buffer, filename: "ACADLYX_" + ticket.ticket.serialNumber + "_AdmitCard.pdf" };
+}
+
+
+export async function generateStudentMarksheetPdf(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+): Promise<{ buffer: Buffer; filename: string }> {
+  await assertCanViewStudent(institutionId, actor, studentId);
+  const session = await loadSession(institutionId, examSessionId);
+  const rows = await prisma.$queryRaw<Array<{
+    courseCode:string; courseName:string; examDate:Date; maxMarks:number; passMarks:number;
+    marksObtained:number|null; isAbsent:boolean;
+  }>>(Prisma.sql`
+    SELECT c."code" AS "courseCode", c."name" AS "courseName", s."examDate",
+           s."maxMarks", s."passMarks", m."marksObtained", m."isAbsent"
+    FROM "exam_marks" m
+    JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
+    JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
+      AND m."status"='PUBLISHED' AND s."examSessionId"=${examSessionId}
+    ORDER BY s."examDate" ASC, c."code" ASC
+  `);
+  if (!rows.length) throw new AppError("No published result is available for this examination",404);
+  const student = await prisma.$queryRaw<Array<{
+    firstName:string;lastName:string;enrollmentNumber:string|null;program:string|null;department:string|null;semester:string|null;institutionName:string;
+  }>>(Prisma.sql`
+    SELECT u."firstName",u."lastName",sp."admissionNumber" AS "enrollmentNumber",
+           p."name" AS "program",d."name" AS "department",sem."name" AS "semester",i."name" AS "institutionName"
+    FROM "users" u JOIN "student_profiles" sp ON sp."userId"=u."id"
+    JOIN "institutions" i ON i."id"=u."institutionId"
+    LEFT JOIN "student_enrollments" se ON se."userId"=u."id" AND se."institutionId"=${institutionId} AND se."status"='ACTIVE'
+    LEFT JOIN "programs" p ON p."id"=se."programId"
+    LEFT JOIN "departments" d ON d."id"=p."departmentId"
+    LEFT JOIN "semesters" sem ON sem."id"=se."semesterId"
+    WHERE u."id"=${studentId} AND u."institutionId"=${institutionId} LIMIT 1
+  `);
+  if (!student[0]) throw new AppError("Student profile not found",404);
+  const buffer=createMarksheetPdf({
+    institutionName:student[0].institutionName,
+    studentName:(student[0].firstName+" "+student[0].lastName).trim(),
+    enrollmentNumber:student[0].enrollmentNumber,program:student[0].program,
+    department:student[0].department,semester:student[0].semester,
+    examination:session.name,sessionCode:session.code,
+    rows:rows.map(r=>({code:r.courseCode,name:r.courseName,marks:r.marksObtained,max:r.maxMarks,pass:r.passMarks,absent:r.isAbsent}))
+  });
+  return {buffer,filename:"ACADLYX_"+session.code+"_Marksheet.pdf"};
 }
 
 // ==========================================================
