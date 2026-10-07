@@ -258,10 +258,10 @@ ALTER TABLE "placement_profiles" ADD CONSTRAINT "placement_profiles_institutionI
 ALTER TABLE "placement_profiles" ADD CONSTRAINT "placement_profiles_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "placement_certifications" ADD CONSTRAINT "placement_certifications_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "placement_certifications" ADD CONSTRAINT "placement_certifications_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "placement_projects" ADD CONSTRAINT "placement_projects_institutionId_fkey" REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "placement_projects" ADD CONSTRAINT "placement_projects_studentId_fkey" REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_projects" ADD CONSTRAINT "placement_projects_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_projects" ADD CONSTRAINT "placement_projects_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "placement_resumes" ADD CONSTRAINT "placement_resumes_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "placement_resumes" ADD CONSTRAINT "placement_resumes_studentId_fkey" REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_resumes" ADD CONSTRAINT "placement_resumes_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "applications" ADD CONSTRAINT "applications_placementDriveId_fkey" FOREIGN KEY ("placementDriveId") REFERENCES "placement_drives"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "applications" ADD CONSTRAINT "applications_placementOpeningId_fkey" FOREIGN KEY ("placementOpeningId") REFERENCES "placement_openings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
