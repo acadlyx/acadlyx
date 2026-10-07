@@ -1431,6 +1431,7 @@ model PlacementOffer {
   joiningVerifiedById String?
   offerDocumentUrl String?
   notes String?
+  joiningVerification PlacementJoiningVerification?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([institutionId, studentId, status])
