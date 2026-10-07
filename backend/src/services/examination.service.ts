@@ -46,7 +46,7 @@ import { createMarksheetPdf } from "./marksheetPdf.service";
 
 const EXAM_TYPES = ["REGULAR", "MID_SEMESTER", "INTERNAL_ASSESSMENT", "END_SEMESTER", "SEMESTER", "PRACTICAL", "VIVA", "UNIVERSITY", "SUPPLEMENTARY", "BACK_PAPER", "IMPROVEMENT", "REAPPEAR", "MAKE_UP", "SPECIAL", "REVALUATION"] as const;
 const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISHED", "CANCELLED"] as const;
-const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "RESULTS_PUBLISHED", "CANCELLED"] as const;
+const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "CORRECTION_OPEN", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
 const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION"];
@@ -3172,6 +3172,48 @@ export async function requestExamMarkCorrection(
   `;
   await recordAuditLog({ institutionId, userId: actor.id, action: "exam.mark_correction_requested", entityType: "ExamMarkCorrectionRequest", entityId: id, metadata: { examMarkId: mark.id, oldMarks: mark.marksObtained, newMarks: input.newMarks }, ...meta });
   return requireTenantRow(prisma, "exam_mark_correction_requests", institutionId, id, "Mark correction request");
+}
+
+export async function decideExamMarkCorrection(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  requestId: string,
+  decision: "APPROVED" | "REJECTED",
+  decisionNote: string | undefined,
+  meta: { ipAddress?: string; userAgent?: string },
+) {
+  assertExamApprover(actor);
+  const req = await requireTenantRow<{id:string;examScheduleId:string;examMarkId:string;status:string;newMarks:number|null}>(
+    prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request"
+  );
+  if (req.status !== "PENDING") throw new AppError("This correction request has already been decided",409);
+  if (decision === "APPROVED") {
+    await prisma.$transaction(async tx => {
+      await tx.$executeRaw`
+        UPDATE "exam_mark_correction_requests"
+        SET "status"='APPROVED',"decisionNote"=${decisionNote ?? null},
+            "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP,"unlockedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${requestId} AND "institutionId"=${institutionId}
+      `;
+      await tx.$executeRaw`
+        UPDATE "exam_marks" SET "status"='DRAFT',"correctionRequestId"=${requestId}
+        WHERE "id"=${req.examMarkId} AND "institutionId"=${institutionId}
+      `;
+      await tx.$executeRaw`
+        UPDATE "exam_schedules" SET "status"='CORRECTION_OPEN'
+        WHERE "id"=${req.examScheduleId} AND "institutionId"=${institutionId}
+      `;
+    });
+  } else {
+    await prisma.$executeRaw`
+      UPDATE "exam_mark_correction_requests"
+      SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
+          "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
+      WHERE "id"=${requestId} AND "institutionId"=${institutionId}
+    `;
+  }
+  await recordAuditLog({ institutionId,userId:actor.id,action:"exam.mark_correction_decided",entityType:"ExamMarkCorrectionRequest",entityId:requestId,metadata:{decision,decisionNote:decisionNote??null},...meta });
+  return requireTenantRow(prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request");
 }
 
 export async function listExamMarkCorrectionRequests(
