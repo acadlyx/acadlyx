@@ -37,11 +37,11 @@ function routeIsAllowedForRole(pathname: string, role: string | null, roles: str
   return sourceRoute ? canAccessRoute(sourceRoute, roles, permissions, tenantFeatures) : false;
 }
 
-export function DashboardShell({ title, subtitle, children, allowedRoles }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[] }) {
+export function DashboardShell({ title, subtitle, children, allowedRoles, forceShell = false }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[]; forceShell?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const workspaceShell = useWorkspaceShellContext();
-  const embeddedInWorkspaceShell = workspaceShell?.kind === "admin";
+  const embeddedInWorkspaceShell = Boolean(workspaceShell) && !forceShell;
   const cachedUser = getCachedCurrentUser();
   const [user, setUser] = useState<AuthUser | null>(cachedUser);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
@@ -148,6 +148,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles }: { ti
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceContext?.breadcrumbs?.length ? <WorkspaceContextHeader breadcrumbs={workspaceContext.breadcrumbs} /> : null}{children}</main></InstitutionalCmsProvider>
+    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceContext?.breadcrumbs?.length ? <WorkspaceContextHeader breadcrumbs={workspaceContext.breadcrumbs} /> : null}{children}</main></InstitutionalCmsProvider>
   </UnifiedDashboardFrame>;
 }
