@@ -277,9 +277,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     "INSTITUTION_ADMIN",
     "CHAIRMAN",
     "MANAGEMENT",
-    "DIRECTOR",
     "REGISTRAR",
-    "DEAN",
     "PLACEMENT",
   ]);
   const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
