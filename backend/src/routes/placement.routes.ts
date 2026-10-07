@@ -20,6 +20,7 @@ const opportunityCreate = z.object({
 const opportunityUpdate = opportunityCreate.partial().extend({ isActive: z.boolean().optional() });
 const transitionBody = z.object({ status: z.string().trim().min(3).max(32) });
 const companyCreate = z.object({ name: z.string().trim().min(2).max(200), logoUrl: z.string().url().optional(), industry: z.string().max(120).optional(), companyType: z.string().max(120).optional(), website: z.string().url().optional(), description: z.string().max(5000).optional(), headquarters: z.string().max(200).optional() });
+const openingCreate = z.object({ companyId:z.string().uuid(), role:z.string().trim().min(2).max(200), description:z.string().max(5000).optional(), employmentType:z.string().max(80).optional(), location:z.string().max(200).optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), stipend:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), packagePeriod:z.string().max(40).optional(), requiredSkills:z.array(z.string().uuid()).optional(), eligibility:z.record(z.string(),z.unknown()).optional(), hiringBatchIds:z.array(z.string().uuid()).optional(), deadline:z.string().datetime().optional(), applicationProcess:z.string().max(5000).optional() });
 const driveCreate = z.object({
   companyId: z.string().uuid(), title: z.string().trim().min(2).max(200), openingId: z.string().uuid().optional(), campusId: z.string().uuid().optional(),
   applicationDeadline: z.string().datetime().optional(), driveDate: z.string().datetime().optional(), venue: z.string().max(300).optional(), onlineLink: z.string().url().optional(),
@@ -110,6 +111,14 @@ router.get(
 );
 
 
+router.get("/openings", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data=await placement.listPlacementOpenings(requireInstitution(req),requireAuthenticatedUser(req));
+  res.json({success:true,data});
+}));
+router.post("/openings", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const item=await placement.createPlacementOpening(requireInstitution(req),requireAuthenticatedUser(req),openingCreate.parse(req.body));
+  res.status(201).json({success:true,data:item});
+}));
 router.get("/companies", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementCompanies(requireInstitution(req),actor,typeof req.query.search==="string"?req.query.search:undefined);
