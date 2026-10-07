@@ -1,7 +1,6 @@
-/* eslint-disable @next/next/no-html-link-for-pages */
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect,useState } from "react";
 import { apiFetch,ApiRequestError } from "@/lib/api";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
@@ -12,10 +11,10 @@ type Drive={id:string;title:string;status:string;driveDate:string|null;company:{
 type Application={id:string;status:string;student:{id:string;firstName:string;lastName:string};opportunity:{title:string;organization:string}};
 
 export default function PlacementTeamWorkspace(){
+ const router=useRouter();
  const [m,setM]=useState<Metrics|null>(null);const [busy,setBusy]=useState<string|null>(null);const [companies,setCompanies]=useState<Company[]>([]);const [drives,setDrives]=useState<Drive[]>([]);const [apps,setApps]=useState<Application[]>([]);const [error,setError]=useState("");const [loading,setLoading]=useState(true);
  async function load(){setLoading(true);setError("");try{const [metrics,cs,ds,as]=await Promise.all([apiFetch<{data:Metrics}>("/placements/metrics"),apiFetch<{data:Company[]}>("/placements/companies"),apiFetch<{data:Drive[]}>("/placements/drives"),apiFetch<{data:Application[]}>("/placements/applications")]);setM(metrics.data);setCompanies(cs.data||[]);setDrives(ds.data||[]);setApps(as.data||[]);}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to load placement operations.");}finally{setLoading(false);}} async function transition(id:string,status:string){setBusy(id+status);setError("");try{await apiFetch("/placements/applications/"+id+"/status",{method:"POST",body:JSON.stringify({status})});await load()}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to update application.")}finally{setBusy(null)}}
  useEffect(()=>{void load();},[]);
- // eslint-disable-next-line @next/next/no-html-link-for-pages
  const cards=[["Companies",m?.companies],["Active drives",m?.openDrives],["Applications",m?.applications],["Offers",m?.offers],["Joined",m?.joinedOffers],["Average package",m?("INR "+Number(m.averagePackage||0).toLocaleString("en-IN")):"—"],["Highest package",m?("INR "+Number(m.highestPackage||0).toLocaleString("en-IN")):"—"],["Joining rate",m?String(m.joiningRate)+"%":"—"]];
  return <DashboardShell title="Placement Command Center" subtitle="Operational placement control across employers, drives, applications, interviews, offers and joining verification." allowedRoles={["PLACEMENT"]}>
   <div className="mx-auto max-w-7xl space-y-6">
@@ -30,7 +29,7 @@ export default function PlacementTeamWorkspace(){
     ["/placements/interviews","Interviews","Rounds, schedules, attendance and outcomes"],
     ["/placements/offers","Offers & Joining","Offer acceptance, joining dates and verification"],
     ["/placements/reports","Placement Intelligence","Packages, joining, hiring and institutional trends"],
-   ].map(([href,title,desc])=><Link key={href} href={href} className="rounded-2xl border bg-white p-5 transition hover:-translate-y-0.5"><h2 className="font-black text-slate-950">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p></Link>)}</section>
+   ].map(([href,title,desc])=><button key={href} type="button" onClick={()=>router.push(href)} className="rounded-2xl border bg-white p-5 text-left transition hover:-translate-y-0.5"><h2 className="font-black text-slate-950">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p></button>)}</section>
    <section className="grid gap-6 lg:grid-cols-2">
     <div className="rounded-3xl border bg-white p-6"><div className="flex items-center justify-between"><h2 className="text-lg font-black">Upcoming / active drives</h2><span className="text-xs font-bold text-slate-500">{drives.length}</span></div><div className="mt-4 space-y-3">{drives.slice(0,8).map(d=><div key={d.id} className="rounded-xl border p-4"><div className="flex justify-between gap-3"><div><p className="font-black">{d.title}</p><p className="text-sm text-slate-600">{d.company.name}</p></div><span className="text-xs font-black">{d.status}</span></div></div>)}</div></div>
     <div className="rounded-3xl border bg-white p-6"><div className="flex items-center justify-between"><h2 className="text-lg font-black">Application pipeline</h2><span className="text-xs font-bold text-slate-500">{apps.length}</span></div><div className="mt-4 space-y-3">{apps.slice(0,8).map(a=><div key={a.id} className="rounded-xl border p-4"><div className="flex justify-between gap-3"><div><p className="font-black">{a.student.firstName} {a.student.lastName}</p><p className="text-sm text-slate-600">{a.opportunity.title} · {a.opportunity.organization}</p></div><div className="flex items-center gap-2"><span className="text-xs font-black">{a.status}</span>{a.status==="APPLICATION_SUBMITTED"&&<button disabled={busy===a.id+"SHORTLISTED"} onClick={()=>void transition(a.id,"SHORTLISTED")} className="rounded-lg border px-2 py-1 text-[11px] font-bold">{busy===a.id+"SHORTLISTED"?"…":"Shortlist"}</button>}{a.status==="SHORTLISTED"&&<button disabled={busy===a.id+"TEST"} onClick={()=>void transition(a.id,"TEST")} className="rounded-lg border px-2 py-1 text-[11px] font-bold">Test</button>}{a.status==="TEST"&&<button disabled={busy===a.id+"INTERVIEW"} onClick={()=>void transition(a.id,"INTERVIEW")} className="rounded-lg border px-2 py-1 text-[11px] font-bold">Interview</button>}{a.status==="INTERVIEW"&&<button disabled={busy===a.id+"SELECTED"} onClick={()=>void transition(a.id,"SELECTED")} className="rounded-lg border px-2 py-1 text-[11px] font-bold">Select</button>}</div></div></div>)}</div></div>
