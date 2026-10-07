@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { asyncHandler } from "../middleware/asyncHandler";
+import { asyncHandler } from "../utils/asyncHandler";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
-import { requireAuthenticatedUser, requireInstitution } from "../utils/requestContext";
+import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import * as placement from "../services/placement.service";
 
 const router = Router();
