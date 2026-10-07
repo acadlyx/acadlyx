@@ -88,7 +88,7 @@ export async function createEvent(institutionId:string,actor:AuthenticatedUser,i
     institutionId, categoryId:input.categoryId??null, departmentId:input.departmentId??null,
     title:input.title,slug,shortDescription:input.shortDescription??null,description:input.description??null,
     eventDate:input.eventDate,startTime:input.startTime??null,endTime:input.endTime??null,venue:input.venue??null,
-    organizers:input.organizers??undefined,speakers:input.speakers??undefined,highlights:input.highlights??undefined,
+    organizers:input.organizers ? (input.organizers as Prisma.InputJsonValue) : undefined,speakers:input.speakers ? (input.speakers as Prisma.InputJsonValue) : undefined,highlights:input.highlights??undefined,
     videoUrls:input.videoUrls??undefined,tags:input.tags??undefined,status:input.status??"DRAFT",
     publicationStatus:input.publicationStatus??"DRAFT",isFeatured:input.isFeatured??false,
     coverImageUrl:input.coverImageUrl??null,coverFileId:input.coverFileId??null,createdById:actor.id,
@@ -107,7 +107,7 @@ export async function updateEvent(institutionId:string,actor:AuthenticatedUser,i
   const event=await prisma.institutionalEvent.update({where:{id},data:{
     categoryId:input.categoryId,departmentId:input.departmentId,title:input.title,shortDescription:input.shortDescription,
     description:input.description,eventDate:input.eventDate,startTime:input.startTime,endTime:input.endTime,venue:input.venue,
-    organizers:input.organizers,speakers:input.speakers,highlights:input.highlights,videoUrls:input.videoUrls,tags:input.tags,
+    organizers:input.organizers ? (input.organizers as Prisma.InputJsonValue) : undefined,speakers:input.speakers ? (input.speakers as Prisma.InputJsonValue) : undefined,highlights:input.highlights,videoUrls:input.videoUrls,tags:input.tags,
     status:input.status,publicationStatus,isFeatured:input.isFeatured,coverImageUrl:input.coverImageUrl,coverFileId:input.coverFileId,
     updatedById:actor.id,publishedAt:publicationStatus==="PUBLISHED"?(existing.publishedAt??new Date()):null,
   },include});
