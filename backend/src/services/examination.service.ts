@@ -1362,6 +1362,12 @@ export async function generateHallTickets(
     }
   });
 
+  await prisma.$executeRaw`
+    UPDATE "exam_sessions"
+    SET "admitCardStatus" = CASE WHEN ${results.issued} > 0 THEN 'ISSUED' ELSE 'ON_HOLD' END
+    WHERE "id"=${examSessionId} AND "institutionId"=${institutionId}
+  `;
+
   await recordAuditLog({
     institutionId,
     userId: actor.id,
@@ -2195,6 +2201,11 @@ export async function publishExamResults(
       UPDATE "exam_schedules"
       SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+    `;
+    await tx.$executeRaw`
+      UPDATE "exam_sessions"
+      SET "resultStatus"='PUBLISHED', "registrationStatus"=CASE WHEN "registrationRequired" THEN 'CLOSED' ELSE "registrationStatus" END
+      WHERE "id"=${session.id} AND "institutionId"=${institutionId}
     `;
     await tx.$executeRaw`
       UPDATE "exam_result_publications"
