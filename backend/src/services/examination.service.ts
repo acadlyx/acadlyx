@@ -1294,6 +1294,16 @@ export async function generateHallTickets(
       ]);
 
       const reasons: string[] = [];
+      const eligibility = await tx.$queryRaw<Array<{status:string}>>(Prisma.sql`
+        SELECT "status" FROM "exam_eligibilities"
+        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
+          AND "studentId"=${studentId} LIMIT 1
+      `);
+      if (eligibility[0]?.status !== "ELIGIBLE") {
+        reasons.push(eligibility[0]?.status === "INELIGIBLE"
+          ? "Student is not eligible for this examination"
+          : "Examination eligibility has not been finalized");
+      }
       const registration = await tx.$queryRaw<Array<{status:string;feeStatus:string}>>(Prisma.sql`
         SELECT "status","feeStatus" FROM "exam_registrations"
         WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
