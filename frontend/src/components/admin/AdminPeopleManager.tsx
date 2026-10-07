@@ -58,6 +58,7 @@ const ROLES: Record<Category, string[]> = {
   ],
 
   operations: [
+    "STAFF",
     "ACCOUNTS",
     "HR",
     "ADMISSIONS",
@@ -146,6 +147,7 @@ const CREATION_ROLES = [
   "LIBRARIAN",
   "PLACEMENT",
   "IT",
+  "STAFF",
 ] as const;
 
 function roleLabel(role: string) {
@@ -1730,6 +1732,9 @@ function AdminPeopleManagerContent() {
                     {CREATION_ROLES.map((role) => (
                       <option key={role} value={role}>{roleLabel(role)}</option>
                     ))}
+                    <option value="CLUB_PRESIDENT" disabled>
+                      Club President — assign from Student/Club workflow
+                    </option>
                   </select>
                 </label>
                 <label>
@@ -1864,6 +1869,9 @@ function AdminPeopleManagerContent() {
                         </option>
                       ),
                     )}
+                    <option value="CLUB_PRESIDENT" disabled>
+                      Club President — assign from Student/Club workflow
+                    </option>
                   </select>
                 </label>
 
