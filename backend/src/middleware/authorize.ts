@@ -91,7 +91,7 @@ export function authorize(
     ) {
       next(
         new AppError(
-          "You do not have access to this feature.",
+          `Missing required permission(s): ${missing.join(", ")}`,
           403
         )
       );
@@ -364,7 +364,7 @@ export function authorizeWorkflow(...requiredPermissions: PermissionKey[]) {
     if (missing.length > 0) {
       next(
         new AppError(
-          "This action requires an additional approval or access capability.",
+          `Workflow dependency permission(s) missing: ${missing.map((item) => item.permission).join(", ")}`,
           403,
         ),
       );
