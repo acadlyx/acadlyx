@@ -14,7 +14,7 @@ import {
 const ROOT = path.resolve(__dirname, "../../..");
 
 function extractQuotedPermissionKeys(content: string): string[] {
-  const matches = content.matchAll(/authorize\(\s*['\"]([^'\"]+)['\"]/g);
+  const matches = content.matchAll(/authorize\(\s*['"]([^'"]+)['"]/g);
   return [...matches].map((match) => match[1]);
 }
 
@@ -23,7 +23,7 @@ function extractNavigationPermissionKeys(content: string): string[] {
   const keys: string[] = [];
 
   for (const match of matches) {
-    const values = match[1].matchAll(/['\"]([^'\"]+)['\"]/g);
+    const values = match[1].matchAll(/['"]([^'"]+)['"]/g);
     for (const value of values) keys.push(value[1]);
   }
 
