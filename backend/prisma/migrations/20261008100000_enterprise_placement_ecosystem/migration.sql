@@ -265,3 +265,45 @@ ALTER TABLE "placement_resumes" ADD CONSTRAINT "placement_resumes_studentId_fkey
 
 ALTER TABLE "applications" ADD CONSTRAINT "applications_placementDriveId_fkey" FOREIGN KEY ("placementDriveId") REFERENCES "placement_drives"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "applications" ADD CONSTRAINT "applications_placementOpeningId_fkey" FOREIGN KEY ("placementOpeningId") REFERENCES "placement_openings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE TABLE IF NOT EXISTS "placement_company_history" (
+  "id" TEXT NOT NULL,
+  "institutionId" TEXT NOT NULL,
+  "companyId" TEXT NOT NULL,
+  "visitCount" INTEGER NOT NULL DEFAULT 0,
+  "driveCount" INTEGER NOT NULL DEFAULT 0,
+  "hiredCount" INTEGER NOT NULL DEFAULT 0,
+  "averagePackage" DECIMAL(12,2),
+  "highestPackage" DECIMAL(12,2),
+  "lastInteractionAt" TIMESTAMP(3),
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "placement_company_history_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "placement_company_history_institutionId_companyId_key" ON "placement_company_history"("institutionId","companyId");
+CREATE INDEX IF NOT EXISTS "placement_company_history_institutionId_lastInteractionAt_idx" ON "placement_company_history"("institutionId","lastInteractionAt");
+
+CREATE TABLE IF NOT EXISTS "placement_joining_verifications" (
+  "id" TEXT NOT NULL,
+  "institutionId" TEXT NOT NULL,
+  "offerId" TEXT NOT NULL,
+  "studentId" TEXT NOT NULL,
+  "expectedJoiningDate" TIMESTAMP(3),
+  "actualJoiningDate" TIMESTAMP(3),
+  "status" TEXT NOT NULL DEFAULT 'PENDING',
+  "proofUrl" TEXT,
+  "verifiedById" TEXT,
+  "verifiedAt" TIMESTAMP(3),
+  "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "placement_joining_verifications_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "placement_joining_verifications_offerId_key" ON "placement_joining_verifications"("offerId");
+CREATE INDEX IF NOT EXISTS "placement_joining_verifications_institutionId_studentId_status_idx" ON "placement_joining_verifications"("institutionId","studentId","status");
+ALTER TABLE "placement_company_history" ADD CONSTRAINT "placement_company_history_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_company_history" ADD CONSTRAINT "placement_company_history_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "placement_companies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_joining_verifications" ADD CONSTRAINT "placement_joining_verifications_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_joining_verifications" ADD CONSTRAINT "placement_joining_verifications_offerId_fkey" FOREIGN KEY ("offerId") REFERENCES "placement_offers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "placement_joining_verifications" ADD CONSTRAINT "placement_joining_verifications_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
