@@ -1,9 +1,6 @@
 export type PermissionKey = string;
 
-const ROLE_ALIASES: Record<string, string> = {
-  MANAGEMENT: "CHAIRMAN",
-  STAFF: "ACCOUNTS",
-};
+const ROLE_ALIASES: Record<string, string> = {};
 
 function normalizeRoleName(role: string): string {
   const normalized = role.trim().toUpperCase();
@@ -1262,11 +1259,60 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
-    label: "Management workspace",
+    label: "Overview",
     href: "/management",
+    activeMatch: "exact",
     icon: "⌂",
     roles: ["MANAGEMENT"],
     group: "Workspace",
+  },
+  {
+    label: "Operations",
+    href: "/operations",
+    icon: "⚙",
+    roles: ["MANAGEMENT"],
+    permissions: ["operations.read"],
+    group: "Oversight",
+  },
+  {
+    label: "Intelligence",
+    href: "/intelligence",
+    icon: "✦",
+    roles: ["MANAGEMENT"],
+    permissions: ["intelligence.read"],
+    group: "Oversight",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "▤",
+    roles: ["MANAGEMENT"],
+    permissions: ["reports.read"],
+    group: "Oversight",
+  },
+  {
+    label: "Overview",
+    href: "/staff",
+    activeMatch: "exact",
+    icon: "⌂",
+    roles: ["STAFF"],
+    group: "Workspace",
+  },
+  {
+    label: "Operations",
+    href: "/staff/operations",
+    icon: "⚙",
+    roles: ["STAFF"],
+    group: "Workspace",
+  },
+  {
+    label: "Overview",
+    href: "/site-content",
+    activeMatch: "exact",
+    icon: "✦",
+    roles: ["CMS"],
+    permissions: ["site.manage"],
+    group: "CMS",
   },
 ];
 
