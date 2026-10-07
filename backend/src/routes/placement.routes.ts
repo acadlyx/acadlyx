@@ -20,6 +20,7 @@ const opportunityCreate = z.object({
 const opportunityUpdate = opportunityCreate.partial().extend({ isActive: z.boolean().optional() });
 const transitionBody = z.object({ status: z.string().trim().min(3).max(32) });
 const companyCreate = z.object({ name: z.string().trim().min(2).max(200), logoUrl: z.string().url().optional(), industry: z.string().max(120).optional(), companyType: z.string().max(120).optional(), website: z.string().url().optional(), description: z.string().max(5000).optional(), headquarters: z.string().max(200).optional() });
+const offerCreate = z.object({ applicationId:z.string().uuid(), role:z.string().trim().min(2).max(200), offerDate:z.string().datetime(), joiningDate:z.string().datetime().optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), offerDocumentUrl:z.string().url().optional() });
 const openingCreate = z.object({ companyId:z.string().uuid(), role:z.string().trim().min(2).max(200), description:z.string().max(5000).optional(), employmentType:z.string().max(80).optional(), location:z.string().max(200).optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), stipend:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), packagePeriod:z.string().max(40).optional(), requiredSkills:z.array(z.string().uuid()).optional(), eligibility:z.record(z.string(),z.unknown()).optional(), hiringBatchIds:z.array(z.string().uuid()).optional(), deadline:z.string().datetime().optional(), applicationProcess:z.string().max(5000).optional() });
 const driveCreate = z.object({
   companyId: z.string().uuid(), title: z.string().trim().min(2).max(200), openingId: z.string().uuid().optional(), campusId: z.string().uuid().optional(),
@@ -156,6 +157,15 @@ router.post("/drives/:id/apply", authorize("placements.apply"), asyncHandler(asy
   const {id}=idParams.parse(req.params);
   const item=await placement.applyToDrive(requireInstitution(req),requireAuthenticatedUser(req),id);
   res.status(201).json({success:true,data:item});
+}));
+router.post("/offers", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const item=await placement.createPlacementOffer(requireInstitution(req),requireAuthenticatedUser(req),offerCreate.parse(req.body));
+  res.status(201).json({success:true,data:item});
+}));
+router.post("/offers/:id/status", authorize("placements.apply"), asyncHandler(async (req,res) => {
+  const {id}=idParams.parse(req.params);
+  const item=await placement.transitionPlacementOffer(requireInstitution(req),requireAuthenticatedUser(req),id,statusBody.parse(req.body).status);
+  res.json({success:true,data:item});
 }));
 router.patch("/profile", authorize("placements.apply"), asyncHandler(async (req,res) => {
   const item=await placement.updatePlacementProfile(requireInstitution(req),requireAuthenticatedUser(req),profileUpdate.parse(req.body));
