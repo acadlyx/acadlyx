@@ -51,9 +51,20 @@ export default function StudentDashboardPage() {
     setLoading(true); setError("");
     try {
       if (!isAuthenticated()) { router.replace("/login"); return; }
-      setData(await getMyDashboard());
+      const dashboardPromise = getMyDashboard();
+      const workflowPromise = Promise.all([
+        getMyEnrollmentWorkflow(),
+        getMyRegistrations(),
+      ]);
+
+      const [dashboard, workflowResult] = await Promise.all([
+        dashboardPromise,
+        workflowPromise,
+      ]);
+
+      setData(dashboard);
       try {
-        const [enrollment, registrations] = await Promise.all([getMyEnrollmentWorkflow(), getMyRegistrations()]);
+        const [enrollment, registrations] = workflowResult;
         setWorkflow({ ...enrollment, registrations });
       } catch {
         setWorkflow(null);
