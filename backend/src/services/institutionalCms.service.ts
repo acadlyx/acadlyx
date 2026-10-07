@@ -12,7 +12,7 @@ export const DEFAULT_INSTITUTIONAL_CMS = {
     saveLabel: "Save changes", navigationLabel: "Workspace navigation",
   },
   workspaces: {} as Record<string, { title?: string; subtitle?: string; welcome?: string; description?: string; emptyState?: string; [key: string]: unknown }>,
-  messages: { noticesTitle: "Notices", announcementsTitle: "Announcements", upcomingTitle: "Upcoming", recentActivityTitle: "Recent activityTitle", quickActionsTitle: "Quick actions" },
+  messages: { noticesTitle: "Notices", announcementsTitle: "Announcements", upcomingTitle: "Upcoming", recentActivityTitle: "Recent activity", quickActionsTitle: "Quick actions" },
 };
 
 type JsonRecord = Record<string, unknown>;
