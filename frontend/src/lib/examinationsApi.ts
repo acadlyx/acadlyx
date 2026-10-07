@@ -476,3 +476,41 @@ export async function listMyInvigilation(): Promise<
 
   return res.data;
 }
+
+
+export async function listMyExamEligibility(): Promise<Array<{
+  session: ExamSession & { registrationRequired: boolean; registrationStart: string | null; registrationEnd: string | null; examFee: number; registrationStatus: string };
+  eligibility: { status: string; reasons: string[]; context: Record<string, unknown> };
+  registration: { status: string; feeStatus: string; feeInvoiceId: string | null } | null;
+}>> {
+  const user = await (await import("./auth")).getCurrentUser();
+  const res = await authedFetch<Envelope<Array<{
+    session: ExamSession & { registrationRequired: boolean; registrationStart: string | null; registrationEnd: string | null; examFee: number; registrationStatus: string };
+    eligibility: { status: string; reasons: string[]; context: Record<string, unknown> };
+    registration: { status: string; feeStatus: string; feeInvoiceId: string | null } | null;
+  }>>>(`/examinations/students/${user.id}/eligibility`);
+  return res.data;
+}
+
+export async function registerForExam(sessionId: string) {
+  const res = await authedFetch<Envelope<{
+    id: string; examSessionId: string; studentId: string; status: string; feeStatus: string; feeInvoiceId: string | null;
+  }>>(`/examinations/sessions/${sessionId}/registration`, { method: "POST" });
+  return res.data;
+}
+
+export async function getMyExamPerformance() {
+  const user = await (await import("./auth")).getCurrentUser();
+  const res = await authedFetch<Envelope<Array<Record<string, unknown>>>>(
+    `/examinations/students/${user.id}/performance`
+  );
+  return res.data;
+}
+
+export async function getMyPublishedExamResults() {
+  const user = await (await import("./auth")).getCurrentUser();
+  const res = await authedFetch<Envelope<Array<Record<string, unknown>>>>(
+    `/examinations/students/${user.id}/results`
+  );
+  return res.data;
+}
