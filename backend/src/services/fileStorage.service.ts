@@ -223,7 +223,8 @@ export async function storeFileFromPath(input: {
   resourceType?: "image" | "video" | "raw" | "auto";
 }): Promise<StoredFile> {
   const fileStat = await stat(input.path);
-  if (!fileStat.isFile() || fileStat.size <= 0) throw new AppError("Generated file is empty", 422);\n  await validateGeneratedArtifact(input.path, input.mimeType, fileStat.size);
+  if (!fileStat.isFile() || fileStat.size <= 0) throw new AppError("Generated file is empty", 422);
+  await validateGeneratedArtifact(input.path, input.mimeType, fileStat.size);
   if (fileStat.size > 500 * 1024 * 1024) throw new AppError("Generated artifact exceeds the 500 MB limit", 413);
   const folder = buildTenantFolder(input.institutionId, input.module, input.ownerId);
   const allowed = MODULE_MIME_ALLOWLIST[input.module];
