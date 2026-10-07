@@ -44,12 +44,12 @@ import { createMarksheetPdf } from "./marksheetPdf.service";
 const EXAM_TYPES = ["REGULAR", "MID_SEMESTER", "INTERNAL_ASSESSMENT", "END_SEMESTER", "SEMESTER", "PRACTICAL", "VIVA", "UNIVERSITY", "SUPPLEMENTARY", "BACK_PAPER", "IMPROVEMENT", "REAPPEAR", "MAKE_UP", "SPECIAL", "REVALUATION"] as const;
 const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISHED", "CANCELLED"] as const;
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "CORRECTION_OPEN", "RESULTS_PUBLISHED", "CANCELLED"] as const;
-const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
+
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
 export type ExamType = (typeof EXAM_TYPES)[number];
 export type ExamSessionStatus = (typeof SESSION_STATUSES)[number];
 export type ExamScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
-export type ExamMarkStatus = (typeof MARK_STATUSES)[number];
+export type ExamMarkStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "PUBLISHED";
 
 /** Legal forward transitions. Anything absent here is rejected. */
 const SESSION_TRANSITIONS: Record<ExamSessionStatus, ExamSessionStatus[]> = {
@@ -3253,7 +3253,7 @@ export async function registerStudentForExam(
   if (existing[0] && existing[0].status === "REGISTERED") return existing[0];
   const id = existing[0]?.id ?? randomUUID();
   let invoiceId: string | null = null;
-  let feeStatus = session.examFee > 0 ? "PENDING" : "WAIVED";
+  const feeStatus = session.examFee > 0 ? "PENDING" : "WAIVED";
   await prisma.$transaction(async tx => {
     if (session.examFee > 0) {
       const invoice = await tx.feeInvoice.upsert({
