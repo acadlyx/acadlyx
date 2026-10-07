@@ -103,7 +103,6 @@ model Institution {
   placementVisits          PlacementVisit[]
   placementInterviews      PlacementInterview[]
   placementOffers          PlacementOffer[]
-  placementJoiningAsStudent PlacementJoiningVerification[] @relation("PlacementJoiningStudent")
   placementProfiles        PlacementProfile[]
   placementCertifications  PlacementCertification[]
   placementProjects        PlacementProject[]
@@ -274,6 +273,7 @@ model User {
   placementApplicationsOwned Application[] @relation("PlacementApplicationStudent")
   placementInterviews        PlacementInterviewParticipant[]
   placementOffers             PlacementOffer[]
+  placementJoiningAsStudent PlacementJoiningVerification[] @relation("PlacementJoiningStudent")
   placementProfile            PlacementProfile?
   placementCertifications     PlacementCertification[]
   placementProjects           PlacementProject[]
