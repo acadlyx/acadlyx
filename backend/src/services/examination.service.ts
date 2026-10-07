@@ -1842,7 +1842,17 @@ export async function saveExamMarks(
     institutionId,
     schedule.courseOfferingId
   );
-  const rosterIds = new Set(roster.map((student) => student.studentId));
+  let rosterIds = new Set(roster.map((student) => student.studentId));
+  const session = await loadSession(institutionId, schedule.examSessionId);
+  if (session.registrationRequired) {
+    const candidates = await prisma.$queryRaw<Array<{studentId:string}>>(Prisma.sql`
+      SELECT r."studentId" FROM "exam_registrations" r
+      JOIN "exam_eligibilities" e ON e."examSessionId"=r."examSessionId" AND e."studentId"=r."studentId"
+      WHERE r."institutionId"=${institutionId} AND r."examSessionId"=${schedule.examSessionId}
+        AND r."status"='REGISTERED' AND r."feeStatus" IN ('PAID','WAIVED') AND e."status"='ELIGIBLE'
+    `);
+    rosterIds = new Set(candidates.map(x=>x.studentId).filter(id=>rosterIds.has(id)));
+  }
 
   for (const entry of entries) {
     if (!rosterIds.has(entry.studentId)) {
