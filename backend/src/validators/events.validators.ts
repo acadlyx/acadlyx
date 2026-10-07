@@ -49,3 +49,8 @@ export const mediaSchema = z.object({
   title: z.string().trim().max(200).nullable().optional(),
   altText: z.string().trim().max(300).nullable().optional(),
 });
+
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+export type UpdateEventInput = z.infer<typeof updateEventSchema>;
+export type CategoryInput = z.infer<typeof categorySchema>;
+export type MediaInput = z.infer<typeof mediaSchema>;
