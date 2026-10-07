@@ -16,8 +16,6 @@ import {
   listModules,
   listQuizzes,
   markLessonProgress,
-  setQuizStatus,
-  startAttempt,
   submitAttempt,
   updateModule,
 } from "@/lib/lmsApi";
@@ -65,15 +63,12 @@ function LessonForm({ busy, onSubmit }: { busy: boolean; onSubmit: (title: strin
   </form>;
 }
 
-type Tab = "content" | "quizzes";
-
 export default function LmsPage() {
   const router = useRouter();
   const [roles, setRoles] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [offerings, setOfferings] = useState<CourseOfferingSummary[]>([]);
   const [tab, setTab] = useState<"learning" | "assessments" | "progress">("learning");
-  const [offering, setOffering] = useState<CourseOfferingSummary | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [paper, setPaper] = useState<AttemptPaper | null>(null);
@@ -192,7 +187,7 @@ export default function LmsPage() {
         <div className="mx-auto max-w-3xl">
           <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <h2 className="text-xl font-black text-slate-950">LMS access is not assigned to your role</h2>
-            <p className="mt-2 text-sm text-slate-600">You don't have access to this LMS workspace.</p>
+            <p className="mt-2 text-sm text-slate-600">You don&apos;t have access to this LMS workspace.</p>
           </section>
         </div>
       </DashboardShell>
