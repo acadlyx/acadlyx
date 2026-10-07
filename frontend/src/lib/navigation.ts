@@ -1130,6 +1130,15 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 
   {
+    label: "Placement",
+    href: "/placements",
+    icon: "◎",
+    roles: ["STUDENT"],
+    permissions: ["placements.read"],
+    group: "Career",
+  },
+
+  {
     label: "Fees",
     href: "/student/fees",
     icon: "₹",
@@ -1662,7 +1671,17 @@ export function getNavigationForRoles(
     });
   }
 
-  return Array.from(merged.values());
+  const ordered = Array.from(merged.values());
+  const priority = (item: NavigationItem): number => {
+    if (item.label === "Overview") return 0;
+    if (item.label === "Profile") return 1;
+    if (item.label === "Account Security") return 99;
+    return 10;
+  };
+  return ordered
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => priority(a.item) - priority(b.item) || a.index - b.index)
+    .map(({ item }) => item);
 }
 
 export function navigationForUser(
