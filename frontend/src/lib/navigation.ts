@@ -1179,7 +1179,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Placement",
-    href: "/placements",
+    href: "/student/placements",
     icon: "◎",
     roles: ["STUDENT"],
     permissions: ["placements.read"],
