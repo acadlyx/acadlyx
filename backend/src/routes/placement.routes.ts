@@ -226,6 +226,10 @@ router.post("/offers/:id/status", authorize("placements.apply"), asyncHandler(as
   res.json({success:true,data:item});
 }));
 
+router.get("/offers", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data=await placement.listPlacementOffers(requireInstitution(req),requireAuthenticatedUser(req),typeof req.query.studentId==="string"?req.query.studentId:undefined);
+  res.json({success:true,data});
+}));
 router.get("/interviews", authorize("placements.read"), asyncHandler(async (req,res) => {
   const data=await placement.listPlacementInterviews(requireInstitution(req),requireAuthenticatedUser(req),{
     studentId:typeof req.query.studentId==="string"?req.query.studentId:undefined,
