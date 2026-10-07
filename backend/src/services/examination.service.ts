@@ -1212,6 +1212,23 @@ export async function generateHallTickets(
       ]);
 
       const reasons: string[] = [];
+      const registration = await tx.$queryRaw<Array<{status:string;feeStatus:string}>>(Prisma.sql`
+        SELECT "status","feeStatus" FROM "exam_registrations"
+        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
+          AND "studentId"=${studentId} LIMIT 1
+      `);
+      if (session.registrationRequired && registration[0]?.status !== "REGISTERED") {
+        reasons.push("Examination registration is not confirmed");
+      }
+      if (session.registrationRequired && registration[0]?.feeStatus === "PENDING") {
+        reasons.push("Examination fee is pending");
+      }
+      const holds = await tx.$queryRaw<Array<{reason:string}>>(Prisma.sql`
+        SELECT "reason" FROM "admit_card_holds"
+        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
+          AND "studentId"=${studentId} AND "status"='ACTIVE'
+      `);
+      reasons.push(...holds.map(h => h.reason));
       if (
         attendance.policy.blockHallTicket &&
         attendance.percentage !== null &&
