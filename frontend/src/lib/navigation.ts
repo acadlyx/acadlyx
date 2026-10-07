@@ -623,7 +623,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Faculty",
-    href: "/students",
+    href: "/hod/faculty",
     icon: "♙",
     roles: ["HOD"],
     permissions: ["students.read"],
