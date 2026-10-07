@@ -74,12 +74,12 @@ async function getData<T>(path: string): Promise<T> {
   return response.data;
 }
 
-export default function HODDashboardPage() {
+export default function HODDashboardPage({ defaultTab = "students" }: { defaultTab?: Tab } = {}) {
   const searchParams = useSearchParams();
   const activeTab: Tab =
     searchParams.get("tab") === "registrations"
       ? "registrations"
-      : "students";
+      : defaultTab;
 
   const contextParams = useMemo(
     () => ({
