@@ -3198,7 +3198,7 @@ export async function listStudentExamEligibility(
   `);
   const items = [];
   for (const session of sessions) {
-    if (!sessionTargetsStudent(session, context, actor.id)) continue;
+    if (!sessionTargetsStudent(session, context, studentId)) continue;
     const now = new Date();
     const registrationStatus = !session.registrationRequired
       ? "NOT_REQUIRED"
