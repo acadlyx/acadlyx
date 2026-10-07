@@ -2032,7 +2032,7 @@ export async function lockExamSchedule(
   const roster = await getCourseOfferingRoster(institutionId, schedule.courseOfferingId);
   const sessionForLock = await loadSession(institutionId, schedule.examSessionId);
   const expectedCandidates = sessionForLock.registrationRequired
-    ? await countRows(prisma, "exam_registrations", Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId"=${schedule.examSessionId} AND "status"='REGISTERED' AND "feeStatus" IN ('PAID','WAIVED')`)
+    ? await countRows(prisma, "exam_registrations", Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId"=${schedule.examSessionId} AND "status"='REGISTERED'`)
     : roster.length;
   const enteredCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}`);
   if (enteredCount !== expectedCandidates) {
