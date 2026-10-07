@@ -129,9 +129,6 @@ export function createMarksheetPdf(input: {
   const contentIds: number[] = [];
 
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
-  const pagesObjectId = 2;
-  void pagesObjectId;
-
   // Reserve the Pages object. Its Kids array is filled after page object IDs are known.
   objects.push("");
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
