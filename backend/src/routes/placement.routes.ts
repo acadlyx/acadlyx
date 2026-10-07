@@ -33,6 +33,36 @@ const driveCreate = z.object({
 const statusBody = z.object({ status: z.string().trim().min(3).max(32) });
 const contactCreate = z.object({ name: z.string().trim().min(2).max(160), designation: z.string().max(160).optional(), email: z.string().email().optional(), phone: z.string().max(40).optional(), isPrimary: z.boolean().optional(), notes: z.string().max(2000).optional() });
 const profileUpdate = z.object({ portfolioUrl: z.string().url().nullable().optional(), githubUrl: z.string().url().nullable().optional(), linkedInUrl: z.string().url().nullable().optional(), bio: z.string().max(2000).nullable().optional() });
+const interviewCreate = z.object({
+  driveId: z.string().uuid(),
+  roundNumber: z.number().int().min(1).max(50),
+  roundType: z.string().trim().min(2).max(80),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime().optional(),
+  venue: z.string().max(300).optional(),
+  onlineLink: z.string().url().optional(),
+  interviewer: z.string().max(200).optional(),
+});
+const interviewParticipant = z.object({ studentId: z.string().uuid() });
+const interviewParticipantUpdate = z.object({
+  attendanceStatus: z.string().trim().min(2).max(40).optional(),
+  resultStatus: z.string().trim().min(2).max(40).optional(),
+  feedback: z.string().max(5000).nullable().optional(),
+});
+const visitCreate = z.object({
+  companyId: z.string().uuid(),
+  driveId: z.string().uuid().optional(),
+  type: z.string().trim().min(2).max(80),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime().optional(),
+  venue: z.string().max(300).optional(),
+  purpose: z.string().max(1000).optional(),
+  representatives: z.unknown().optional(),
+  participatingStudentIds: z.array(z.string().uuid()).max(10000).optional(),
+  notes: z.string().max(5000).optional(),
+  followUp: z.string().max(5000).optional(),
+});
+
 
 
 router.get(
@@ -173,6 +203,37 @@ router.post("/offers/:id/status", authorize("placements.apply"), asyncHandler(as
   const item=await placement.transitionPlacementOffer(requireInstitution(req),requireAuthenticatedUser(req),id,statusBody.parse(req.body).status);
   res.json({success:true,data:item});
 }));
+
+router.get("/interviews", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data=await placement.listPlacementInterviews(requireInstitution(req),requireAuthenticatedUser(req),{
+    studentId:typeof req.query.studentId==="string"?req.query.studentId:undefined,
+    driveId:typeof req.query.driveId==="string"?req.query.driveId:undefined,
+  });
+  res.json({success:true,data});
+}));
+router.post("/interviews", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const item=await placement.createPlacementInterview(requireInstitution(req),requireAuthenticatedUser(req),interviewCreate.parse(req.body));
+  res.status(201).json({success:true,data:item});
+}));
+router.post("/interviews/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const {id}=idParams.parse(req.params);
+  const item=await placement.addPlacementInterviewParticipant(requireInstitution(req),requireAuthenticatedUser(req),id,interviewParticipant.parse(req.body).studentId);
+  res.status(201).json({success:true,data:item});
+}));
+router.patch("/interviews/:id/participants/:studentId", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const {id,studentId}=z.object({id:z.string().uuid(),studentId:z.string().uuid()}).parse(req.params);
+  const item=await placement.updatePlacementInterviewParticipant(requireInstitution(req),requireAuthenticatedUser(req),id,studentId,interviewParticipantUpdate.parse(req.body));
+  res.json({success:true,data:item});
+}));
+router.get("/visits", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data=await placement.listPlacementVisits(requireInstitution(req),requireAuthenticatedUser(req));
+  res.json({success:true,data});
+}));
+router.post("/visits", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const item=await placement.createPlacementVisit(requireInstitution(req),requireAuthenticatedUser(req),visitCreate.parse(req.body));
+  res.status(201).json({success:true,data:item});
+}));
+
 router.patch("/profile", authorize("placements.apply"), asyncHandler(async (req,res) => {
   const item=await placement.updatePlacementProfile(requireInstitution(req),requireAuthenticatedUser(req),profileUpdate.parse(req.body));
   res.json({success:true,data:item});
