@@ -82,7 +82,8 @@ export default function LmsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(false);
 
   const role = roles[0] ?? "";
   const isStudent = roles.includes("STUDENT");
@@ -114,34 +115,52 @@ export default function LmsPage() {
       }
       setError(err instanceof Error ? err.message : "Unable to load LMS right now.");
     } finally {
-      setInitialized(true);
       setBusy(false);
     }
   }, [router]);
 
   useEffect(() => {
-    void run(async () => {
-      const user = await getCurrentUser();
-      setPermissions(user?.permissions ?? []);
-      setRoles(user?.roles ?? []);
-    });
-  }, [run]);
+    void (async () => {
+      try {
+        const user = await getCurrentUser();
+        setPermissions(user?.permissions ?? []);
+        setRoles(user?.roles ?? []);
+      } catch (err) {
+        if (err instanceof AuthRequiredError) {
+          router.replace("/login");
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Unable to load LMS right now.");
+      } finally {
+        setBooting(false);
+      }
+    })();
+  }, [router]);
 
   useEffect(() => {
-    if (!permissions.includes("lms.read")) {
-      setInitialized(true);
-      return;
-    }
-    void run(async () => {
-      const response = await listCatalog(1, 24);
-      setOfferings(response.items);
-    });
-  }, [permissions, run]);
+    if (!permissions.includes("lms.read")) return;
+    setCatalogLoading(true);
+    void (async () => {
+      try {
+        const response = await listCatalog(1, 24);
+        setOfferings(response.items);
+      } catch (err) {
+        if (err instanceof HttpRequestError && err.status === 403) {
+          setAccessDenied(true);
+          setError("");
+        } else {
+          setError(err instanceof Error ? err.message : "Unable to load LMS right now.");
+        }
+      } finally {
+        setCatalogLoading(false);
+      }
+    })();
+  }, [permissions]);
 
   const load = useCallback((offeringId: string) => run(async () => {
     const [moduleList, quizList] = await Promise.all([
       listModules(offeringId),
-      listQuizzes(offeringId).catch(() => [] as Quiz[]),
+      listQuizzes(offeringId),
     ]);
     setModules(moduleList); setQuizzes(quizList); setPaper(null);
   }), [run]);
@@ -155,7 +174,7 @@ export default function LmsPage() {
     role === "EXAMINATION" ? "Review LMS assessments" :
     "Manage LMS";
 
-  if (!initialized) {
+  if (booting || catalogLoading) {
     return (
       <DashboardShell title="LMS" subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
         <div className="mx-auto max-w-7xl">
