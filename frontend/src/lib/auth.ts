@@ -201,6 +201,16 @@ export class AuthRequiredError
   }
 }
 
+export class HttpRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "HttpRequestError";
+    this.status = status;
+  }
+}
+
 export class RequestTimeoutError
   extends Error
 {
@@ -954,10 +964,9 @@ export async function authedFetch<T>(
         };
       } | null;
 
-    throw new Error(
-      body?.error
-        ?.message ||
-        `Request failed: ${res.status}`
+    throw new HttpRequestError(
+      res.status,
+      body?.error?.message || `Request failed: ${res.status}`,
     );
   }
 
