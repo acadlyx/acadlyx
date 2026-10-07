@@ -1633,6 +1633,20 @@ export async function generateStudentMarksheetPdf(
 ): Promise<{ buffer: Buffer; filename: string }> {
   await assertCanViewStudent(institutionId, actor, studentId);
   const session = await loadSession(institutionId, examSessionId);
+  const publication = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+    SELECT "status"
+    FROM "exam_result_publications"
+    WHERE "institutionId"=${institutionId}
+      AND "examScheduleId" IN (
+        SELECT "id" FROM "exam_schedules"
+        WHERE "examSessionId"=${examSessionId} AND "institutionId"=${institutionId}
+      )
+      AND "status"='PUBLISHED'
+    LIMIT 1
+  `);
+  if (!publication.length) {
+    throw new AppError("No published result is available for this examination", 404);
+  }
   const rows = await prisma.$queryRaw<Array<{
     courseCode:string; courseName:string; examDate:Date; maxMarks:number; passMarks:number;
     marksObtained:number|null; isAbsent:boolean;
