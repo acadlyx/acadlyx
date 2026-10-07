@@ -201,7 +201,6 @@ export function assertAuthEnv(): void {
   }
 
   if (!isProduction && (missingAccessSecret || missingRefreshSecret)) {
-    // eslint-disable-next-line no-console
     console.warn(
       "[WARN] JWT secrets are not configured; ephemeral development secrets are being used for this process only. Restarting the local process invalidates local development tokens."
     );
