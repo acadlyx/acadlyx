@@ -7,7 +7,7 @@ import {
 } from "react";
 
 type WorkspaceShellContextValue = {
-  kind: "admin";
+  kind: "admin" | "dashboard";
 };
 
 const WorkspaceShellContext = createContext<WorkspaceShellContextValue | null>(null);
@@ -16,7 +16,7 @@ export function WorkspaceShellProvider({
   kind,
   children,
 }: {
-  kind: "admin";
+  kind: "admin" | "dashboard";
   children: ReactNode;
 }) {
   return (
