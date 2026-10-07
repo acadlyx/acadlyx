@@ -268,7 +268,6 @@ model User {
   studentSkills           StudentSkill[]
   careerPaths             CareerPath[]
   placementApplicationsOwned Application[] @relation("PlacementApplicationStudent")
-  placementApplicationsReviewed Application[] @relation("PlacementApplicationReviewedBy")
   placementInterviews        PlacementInterviewParticipant[]
   placementOffers             PlacementOffer[]
   placementProfile            PlacementProfile?
