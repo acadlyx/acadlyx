@@ -120,6 +120,167 @@ interface ExamScheduleRow {
   createdById: string;
 }
 
+interface StudentExamContext {
+  campusId: string | null;
+  departmentId: string | null;
+  programId: string | null;
+  batchId: string | null;
+  semesterId: string | null;
+  sectionId: string | null;
+  academicYearId: string | null;
+}
+
+function jsonStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+async function assertStudentExists(institutionId: string, studentId: string): Promise<void> {
+  const student = await prisma.user.findFirst({
+    where: {
+      id: studentId,
+      institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+    },
+    select: { id: true },
+  });
+  if (!student) throw new AppError("Student not found in this institution", 404);
+}
+
+async function loadStudentExamContext(
+  institutionId: string,
+  studentId: string,
+): Promise<StudentExamContext> {
+  const enrollment = await prisma.studentEnrollment.findFirst({
+    where: { institutionId, userId: studentId, status: "ACTIVE" },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      programId: true,
+      academicYearId: true,
+      batchId: true,
+      semesterId: true,
+      sectionId: true,
+      program: { select: { departmentId: true, department: { select: { campusId: true } } } },
+    },
+  });
+  if (!enrollment) {
+    throw new AppError("Student has no active academic enrollment", 403);
+  }
+  return {
+    campusId: enrollment.program.department.campusId ?? null,
+    departmentId: enrollment.program.departmentId ?? null,
+    programId: enrollment.programId,
+    batchId: enrollment.batchId ?? null,
+    semesterId: enrollment.semesterId ?? null,
+    sectionId: enrollment.sectionId ?? null,
+    academicYearId: enrollment.academicYearId ?? null,
+  };
+}
+
+function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext): boolean {
+  const checks: Array<[unknown, string | null]> = [
+    [session.campusIds, context.campusId],
+    [session.departmentIds, context.departmentId],
+    [session.programIds, context.programId],
+    [session.semesterIds, context.semesterId],
+    [session.sectionIds, context.sectionId],
+  ];
+  return checks.every(([raw, current]) => {
+    const ids = jsonStringArray(raw);
+    return ids.length === 0 || (current !== null && ids.includes(current));
+  }) && (() => {
+    const students = jsonStringArray(session.studentIds);
+    return students.length === 0 || students.includes(contextStudentIdPlaceholder);
+  })();
+}
+
+const contextStudentIdPlaceholder = "__context_student_id__";
+
+async function evaluateExamEligibility(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  examSessionId: string,
+  studentId: string,
+) {
+  const session = await loadSession(institutionId, examSessionId);
+  await assertStudentExists(institutionId, studentId);
+  const context = await loadStudentExamContext(institutionId, studentId);
+  const reasons: string[] = [];
+  const targetedStudents = jsonStringArray(session.studentIds);
+  const targetsMatch =
+    (targetedStudents.length === 0 || targetedStudents.includes(studentId)) &&
+    [
+      [session.campusIds, context.campusId],
+      [session.departmentIds, context.departmentId],
+      [session.programIds, context.programId],
+      [session.semesterIds, context.semesterId],
+      [session.sectionIds, context.sectionId],
+    ].every(([raw, current]) => {
+      const ids = jsonStringArray(raw);
+      return ids.length === 0 || (typeof current === "string" && ids.includes(current));
+    });
+  if (!targetsMatch) reasons.push("Student is outside the examination target scope");
+
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId: studentId },
+    select: { status: true },
+  });
+  if (!profile || profile.status !== "ACTIVE") reasons.push("Student academic status is not ACTIVE");
+
+  if (session.attendanceRequirement !== null) {
+    const schedules = await prisma.$queryRaw<Array<{ courseOfferingId: string }>>(Prisma.sql`
+      SELECT DISTINCT "courseOfferingId"
+      FROM "exam_schedules"
+      WHERE "institutionId"=${institutionId}
+        AND "examSessionId"=${examSessionId}
+        AND "status" <> 'CANCELLED'
+    `);
+    for (const schedule of schedules) {
+      const percentage = await getStudentAttendancePercentage(
+        institutionId,
+        studentId,
+        schedule.courseOfferingId,
+      );
+      if (percentage < session.attendanceRequirement) {
+        reasons.push(`Attendance below required ${session.attendanceRequirement}%`);
+        break;
+      }
+    }
+  }
+
+  const activeHold = await prisma.$queryRaw<Array<{ reasonCode: string; reason: string }>>(Prisma.sql`
+    SELECT "reasonCode","reason"
+    FROM "admit_card_holds"
+    WHERE "institutionId"=${institutionId}
+      AND "examSessionId"=${examSessionId}
+      AND "studentId"=${studentId}
+      AND "status"='ACTIVE'
+      AND "reasonCode" IN ('DEBARMENT','ADMIN_HOLD')
+    LIMIT 1
+  `);
+  if (activeHold.length) reasons.push(activeHold[0].reason || activeHold[0].reasonCode);
+
+  const status = reasons.length ? "INELIGIBLE" : "ELIGIBLE";
+  const evaluatedAt = new Date();
+  const contextSnapshot = { ...context, studentId, evaluatedAt: evaluatedAt.toISOString() };
+  await prisma.$executeRaw`
+    INSERT INTO "exam_eligibilities"
+      ("id","institutionId","examSessionId","studentId","status","reasons","contextSnapshot","evaluatedAt","evaluatedById")
+    VALUES
+      (${randomUUID()},${institutionId},${examSessionId},${studentId},${status},
+       ${JSON.stringify(reasons)}::jsonb,${JSON.stringify(contextSnapshot)}::jsonb,${evaluatedAt},${actor.id})
+    ON CONFLICT ("examSessionId","studentId") DO UPDATE SET
+      "status"=EXCLUDED."status",
+      "reasons"=EXCLUDED."reasons",
+      "contextSnapshot"=EXCLUDED."contextSnapshot",
+      "evaluatedAt"=EXCLUDED."evaluatedAt",
+      "evaluatedById"=EXCLUDED."evaluatedById",
+      "updatedAt"=CURRENT_TIMESTAMP
+  `;
+  return { status, reasons, context: contextSnapshot };
+}
+
+
 /**
  * Official examination approval, locking and publication are controlled by
  * the Examination Cell, with Director-level oversight. A generic admin role
