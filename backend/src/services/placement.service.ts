@@ -340,9 +340,28 @@ export async function listPlacementCompanies(institutionId: string, actor: Authe
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  const where = { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
+  if (isPlacementManager(actor)) {
+    return prisma.placementCompany.findMany({
+      where,
+      include: { contacts: true, history: true },
+      orderBy: { name: "asc" },
+      take: 100,
+    });
+  }
   return prisma.placementCompany.findMany({
-    where: { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" } } : {}) },
-    include: { contacts: true },
+    where,
+    select: {
+      id: true,
+      name: true,
+      logoUrl: true,
+      industry: true,
+      companyType: true,
+      website: true,
+      description: true,
+      headquarters: true,
+      relationshipStatus: true,
+    },
     orderBy: { name: "asc" },
     take: 100,
   });
@@ -601,7 +620,17 @@ export async function listPlacementOpenings(institutionId: string, actor: Authen
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  return prisma.placementOpening.findMany({ where: { institutionId }, include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
+  return prisma.placementOpening.findMany({
+    where: {
+      institutionId,
+      ...(actor.roles.includes("STUDENT")
+        ? { drives: { some: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED"] } } } }
+        : {}),
+    },
+    include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
 }
 export async function createPlacementOpening(institutionId: string, actor: AuthenticatedUser, input: {
   companyId: string; role: string; description?: string; employmentType?: string; location?: string;
