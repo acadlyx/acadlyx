@@ -1336,7 +1336,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   { label: "Placement", href: "/placements", icon: "◎", roles: ["PLACEMENT"], permissions: ["placements.read"], group: "Workspace", activeMatch: "exact" },
   { label: "Placement", href: "/student/placements", icon: "◎", roles: ["STUDENT"], permissions: ["placements.read"], group: "Career", activeMatch: "nested" },
   { label: "Placement", href: "/parent/placements", icon: "◎", roles: ["PARENT"], permissions: ["placements.read"], group: "Student", activeMatch: "nested" },
-];
+].filter((item): item is NavigationItem => Boolean(item));
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/superadmin", ["SUPER_ADMIN"]],
