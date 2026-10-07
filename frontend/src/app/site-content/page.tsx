@@ -178,8 +178,8 @@ function TeamEditor({ data, set, setMember, add, remove, upload }: { data: CmsTe
 
 function TextGroup({ prefix, title, data, set }: { prefix: string; title: string; data: CmsSections; set: (path: string, value: string) => void }) {
   const key = prefix.split(".").pop();
-  const source = data as unknown as Record<string, unknown>;
-  return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Eyebrow", "Title", "Description"].map((label) => { const field = `${key}${label}`; const actual = label === "Eyebrow" ? `${key}Eyebrow` : label === "Title" ? `${key}Title` : `${key}Description`; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={typeof source[actual] === "string" ? source[actual] : ""} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={source[actual]} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
+  const source = data as unknown as Record<string, string | string[]>;
+  return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Eyebrow", "Title", "Description"].map((label) => { const actual = label === "Eyebrow" ? `${key}Eyebrow` : label === "Title" ? `${key}Title` : `${key}Description`; const value = typeof source[actual] === "string" ? source[actual] : ""; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-black text-slate-950">{title}</h2><div className="mt-5">{children}</div></section>; }
