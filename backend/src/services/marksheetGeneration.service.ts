@@ -229,7 +229,11 @@ export async function getMarksheetGenerationJob(
   actor: AuthenticatedUser,
   id: string,
 ) {
-  return getJob(institutionId, actor, id);
+  const job = await getJob(institutionId, actor, id);
+  if (job.type !== JOB_TYPES.MARKSHEET_GENERATION) {
+    throw new AppError("Marksheet generation job not found.", 404);
+  }
+  return job;
 }
 
 export async function cancelMarksheetGenerationJob(
