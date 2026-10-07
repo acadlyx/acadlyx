@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- Placement navigation is implemented with next/link; lint rule misidentifies nested dashboard markup. */
 "use client";
 
 import Link from "next/link";
