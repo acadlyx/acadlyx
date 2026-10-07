@@ -1,5 +1,5 @@
 import { env } from "../config/env";
-import { stat } from "fs/promises";
+import { open, stat } from "fs/promises";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { cloudinaryProvider } from "../storage/cloudinary.provider";
@@ -58,6 +58,32 @@ export interface StoredFile {
   referenceId: string | null;
   visibility: "public" | "private";
   originalName: string;
+}
+
+async function validateGeneratedArtifact(path: string, mimeType: string, size: number): Promise<void> {
+  if (mimeType !== "application/pdf" && mimeType !== "application/zip") return;
+
+  const handle = await open(path, "r");
+  try {
+    const header = Buffer.alloc(8);
+    await handle.read(header, 0, header.length, 0);
+
+    if (mimeType === "application/pdf") {
+      if (header.subarray(0, 5).toString("ascii") !== "%PDF-") {
+        throw new AppError("Generated PDF does not have a valid PDF header", 422);
+      }
+      const tailLength = Math.min(size, 1024);
+      const tail = Buffer.alloc(tailLength);
+      await handle.read(tail, 0, tailLength, Math.max(0, size - tailLength));
+      if (!tail.toString("latin1").includes("%%EOF")) {
+        throw new AppError("Generated PDF is missing its EOF marker", 422);
+      }
+    } else if (header.subarray(0, 4).toString("binary") !== "PK\\x03\\x04") {
+      throw new AppError("Generated ZIP does not have a valid ZIP header", 422);
+    }
+  } finally {
+    await handle.close();
+  }
 }
 
 function assertSafeFile(input: StorageUploadInput): void {
