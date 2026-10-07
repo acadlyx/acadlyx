@@ -131,7 +131,11 @@ export default function AccountSecurityPage() {
 
       <Card title="Password" description="Change the password for your own account.">
         <form onSubmit={submitPassword} className="max-w-2xl space-y-4">
-          {[["Current password", currentPassword, setCurrentPassword],["New password", newPassword, setNewPassword],["Confirm new password", confirmPassword, setConfirmPassword]].map(([label,value,setter], index) =>
+          {([
+            ["Current password", currentPassword, setCurrentPassword],
+            ["New password", newPassword, setNewPassword],
+            ["Confirm new password", confirmPassword, setConfirmPassword],
+          ] as const).map(([label, value, setter], index) =>
             <label key={String(label)} className="block"><span className="mb-1.5 block text-sm font-bold text-slate-700">{label}</span><div className="relative"><input required type={showPasswords ? "text" : "password"} value={String(value)} onChange={(e) => (setter as React.Dispatch<React.SetStateAction<string>>)(e.target.value)} autoComplete={index === 0 ? "current-password" : "new-password"} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 pr-16 text-sm text-slate-950 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"/><button type="button" onClick={() => setShowPasswords((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100">{showPasswords ? "Hide" : "Show"}</button></div></label>
           )}
           {newPassword && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="grid grid-cols-4 gap-1">{passwordChecks.map((item) => <span key={item.label} className={item.ok ? "h-1.5 rounded-full bg-emerald-500" : "h-1.5 rounded-full bg-slate-200"} />)}</div><ul className="mt-3 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">{passwordChecks.map((item) => <li key={item.label} className={item.ok ? "text-emerald-700" : ""}>{item.ok ? "✓" : "○"} {item.label}</li>)}</ul></div>}
