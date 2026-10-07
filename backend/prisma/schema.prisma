@@ -103,7 +103,7 @@ model Institution {
   placementVisits          PlacementVisit[]
   placementInterviews      PlacementInterview[]
   placementOffers          PlacementOffer[]
-  placementJoiningVerifications PlacementJoiningVerification[] @relation("PlacementJoiningVerifiedBy")
+  placementJoiningAsStudent PlacementJoiningVerification[] @relation("PlacementJoiningStudent")
   placementProfiles        PlacementProfile[]
   placementCertifications  PlacementCertification[]
   placementProjects        PlacementProject[]
@@ -1444,7 +1444,7 @@ model PlacementJoiningVerification {
   offerId String
   offer PlacementOffer @relation(fields:[offerId], references:[id], onDelete:Cascade)
   studentId String
-  student User @relation("PlacementJoiningVerifiedBy", fields:[studentId], references:[id], onDelete:Cascade)
+  student User @relation("PlacementJoiningStudent", fields:[studentId], references:[id], onDelete:Cascade)
   expectedJoiningDate DateTime?
   actualJoiningDate DateTime?
   status String @default("PENDING")
