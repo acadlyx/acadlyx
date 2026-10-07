@@ -208,6 +208,13 @@ export interface CreateExamSessionInput {
   programIds?: string[];
   semesterIds?: string[];
   sectionIds?: string[];
+  studentIds?: string[];
+  registrationRequired?: boolean;
+  registrationStart?: Date;
+  registrationEnd?: Date;
+  examFee?: number;
+  attendanceRequirement?: number;
+  eligibilityRules?: Record<string, unknown>;
   hallTicketReleaseAt?: Date;
   instructions?: string;
 }
@@ -224,6 +231,11 @@ export async function createExamSession(
   if (input.endDate < input.startDate) {
     throw new AppError("endDate must not be before startDate", 400);
   }
+  if (input.registrationStart && input.registrationEnd && input.registrationEnd < input.registrationStart) throw new AppError("registrationEnd must not be before registrationStart", 400);
+  if ((input.examFee ?? 0) < 0) throw new AppError("examFee cannot be negative", 400);
+  if (input.attendanceRequirement !== undefined && (input.attendanceRequirement < 0 || input.attendanceRequirement > 100)) throw new AppError("attendanceRequirement must be between 0 and 100", 400);
+  const targets = [input.campusIds ?? [], input.departmentIds ?? [], input.programIds ?? [], input.semesterIds ?? [], input.sectionIds ?? [], input.studentIds ?? []].flat();
+  if (new Set(targets).size !== targets.length) throw new AppError("Examination targeting contains duplicate IDs", 400);
 
   if (input.academicYearId) {
     await assertTenantReference(
@@ -243,6 +255,16 @@ export async function createExamSession(
       "Semester"
     );
   }
+  for (const [ids, table, label] of [
+    [input.campusIds ?? [], "campuses", "Campus"],
+    [input.departmentIds ?? [], "departments", "Department"],
+    [input.programIds ?? [], "programs", "Program"],
+    [input.semesterIds ?? [], "semesters", "Semester"],
+    [input.sectionIds ?? [], "sections", "Section"],
+  ] as Array<[string[], string, string]>) {
+    for (const id of ids) await assertTenantReference(prisma, table, institutionId, id, label);
+  }
+  for (const id of input.studentIds ?? []) await assertStudentExists(institutionId, id);
 
   const code = input.code.trim().toUpperCase().replace(/\s+/g, "_");
   const id = randomUUID();
@@ -253,7 +275,9 @@ export async function createExamSession(
         ("id", "institutionId", "academicYearId", "semesterId", "name", "code",
          "examType", "status", "startDate", "endDate", "hallTicketReleaseAt",
          "instructions", "createdById", "campusIds", "departmentIds",
-         "programIds", "semesterIds", "sectionIds")
+         "programIds", "semesterIds", "sectionIds", "studentIds",
+         "registrationRequired", "registrationStart", "registrationEnd",
+         "examFee", "attendanceRequirement", "eligibilityRules", "registrationStatus")
       VALUES
         (${id}, ${institutionId}, ${input.academicYearId ?? null},
          ${input.semesterId ?? null}, ${input.name.trim()}, ${code},
@@ -263,7 +287,16 @@ export async function createExamSession(
          ${JSON.stringify(input.departmentIds ?? [])}::jsonb,
          ${JSON.stringify(input.programIds ?? [])}::jsonb,
          ${JSON.stringify(input.semesterIds ?? [])}::jsonb,
-         ${JSON.stringify(input.sectionIds ?? [])}::jsonb)
+         ${JSON.stringify(input.sectionIds ?? [])}::jsonb,
+         ${JSON.stringify(input.studentIds ?? [])}::jsonb,
+         ${input.registrationRequired ?? true}, ${input.registrationStart ?? null},
+         ${input.registrationEnd ?? null}, ${input.examFee ?? 0},
+         ${input.attendanceRequirement ?? null}, ${JSON.stringify(input.eligibilityRules ?? {})}::jsonb,
+         CASE WHEN ${input.registrationRequired ?? true} = FALSE THEN 'NOT_REQUIRED'
+              WHEN ${input.registrationStart ?? null} IS NULL THEN 'OPEN'
+              WHEN ${input.registrationStart ?? null} > CURRENT_TIMESTAMP THEN 'NOT_OPEN'
+              WHEN ${input.registrationEnd ?? null} IS NOT NULL AND ${input.registrationEnd ?? null} < CURRENT_TIMESTAMP THEN 'CLOSED'
+              ELSE 'OPEN' END)
     `;
   } catch (error) {
     if (
