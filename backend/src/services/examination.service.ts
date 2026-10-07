@@ -2847,171 +2847,33 @@ export async function getExaminationReadiness(
   institutionId: string,
   actor: AuthenticatedUser,
 ) {
-  const sessions = await listExamSessions(institutionId, actor, { page: 1, take: 500 } as PaginationParams, {});
+  const page = { page: 1, pageSize: 100, skip: 0, take: 100 };
+  const sessions = await listExamSessions(institutionId, actor, page, {});
+  const ids = sessions.items.map((x) => x.id);
+  if (!ids.length) return {
+    examinations: 0, registration: 100, eligibility: 100, admitCards: 100, facultyMarks: 100, resultProcessing: 100,
+    exceptions: { registrationPending: 0, admitCardPending: 0, marksPending: 0, resultsPending: 0 }
+  };
+  const inSessions = Prisma.join(ids);
   const [eligible, registered, issued, pendingMarks, pendingResults] = await Promise.all([
-    countRows(prisma,"exam_eligibilities",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='ELIGIBLE'`),
-    countRows(prisma,"exam_registrations",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='REGISTERED'`),
-    countRows(prisma,"hall_tickets",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='ISSUED'`),
-    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status" IN ('DRAFT','PUBLISHED','CORRECTION_OPEN')`),
-    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "status"='LOCKED'`),
+    countRows(prisma,"exam_eligibilities",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='ELIGIBLE'`),
+    countRows(prisma,"exam_registrations",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='REGISTERED'`),
+    countRows(prisma,"hall_tickets",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='ISSUED'`),
+    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status" IN ('DRAFT','PUBLISHED','CORRECTION_OPEN')`),
+    countRows(prisma,"exam_schedules",Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId" IN (${inSessions}) AND "status"='LOCKED'`),
   ]);
-  const pct=(n:number,d:number)=>d?Math.round((n/d)*100):100;
+  const pct=(n:number,d:number)=>d?Math.min(100,Math.round((n/d)*100)):100;
   return {
     examinations: sessions.total,
     registration: pct(registered, eligible),
     eligibility: pct(eligible, eligible),
     admitCards: pct(issued, Math.max(registered,1)),
-    facultyMarks: pct(Math.max(0,sessions.total-pendingMarks), Math.max(sessions.total,1)),
-    resultProcessing: pct(Math.max(0,sessions.total-pendingResults), Math.max(sessions.total,1)),
-    exceptions: { registrationPending: Math.max(0,eligible-registered), admitCardPending: Math.max(0,registered-issued), marksPending: pendingMarks, resultsPending: pendingResults },
+    facultyMarks: pct(Math.max(0,ids.length-pendingMarks), Math.max(ids.length,1)),
+    resultProcessing: pct(Math.max(0,ids.length-pendingResults), Math.max(ids.length,1)),
+    exceptions: { registrationPending: Math.max(0,eligible-registered), admitCardPending: Math.max(0,registered-issued), marksPending: pendingMarks, resultsPending: pendingResults }
   };
 }
 
-/* ==========================================================
- * STUDENT REGISTRATION + CENTRAL ELIGIBILITY
- * ========================================================== */
-
-type StudentExamContext = {
-  studentId: string;
-  institutionId: string;
-  departmentId: string | null;
-  departmentName: string | null;
-  campusId: string | null;
-  programId: string | null;
-  programName: string | null;
-  batchId: string | null;
-  academicYearId: string | null;
-  semesterId: string | null;
-  sectionId: string | null;
-  academicStatus: string | null;
-};
-
-function jsonStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-async function loadStudentExamContext(
-  institutionId: string,
-  studentId: string,
-): Promise<StudentExamContext> {
-  const row = await prisma.studentEnrollment.findFirst({
-    where: { institutionId, userId: studentId, status: "ACTIVE" },
-    orderBy: { createdAt: "desc" },
-    select: {
-      userId: true,
-      institutionId: true,
-      programId: true,
-      batchId: true,
-      academicYearId: true,
-      semesterId: true,
-      sectionId: true,
-      program: {
-        select: {
-          id: true,
-          name: true,
-          departmentId: true,
-          department: { select: { id: true, name: true, campusId: true } },
-        },
-      },
-    },
-  });
-  if (!row) throw new AppError("No active academic enrollment was found for this student", 409);
-  const student = await prisma.user.findFirst({
-    where: { id: studentId, institutionId, isActive: true },
-    select: { profile: { select: { status: true } } },
-  });
-  if (!student) throw new AppError("Student not found in this institution", 404);
-  return {
-    studentId,
-    institutionId,
-    departmentId: row.program.departmentId,
-    departmentName: row.program.department.name,
-    campusId: row.program.department.campusId,
-    programId: row.programId,
-    programName: row.program.name,
-    batchId: row.batchId,
-    academicYearId: row.academicYearId,
-    semesterId: row.semesterId,
-    sectionId: row.sectionId,
-    academicStatus: student.profile?.status ?? "ACTIVE",
-  };
-}
-
-function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext): boolean {
-  const studentIds = jsonStringArray(session.studentIds);
-  if (studentIds.length > 0 && !studentIds.includes(context.studentId)) return false;
-  const campuses = jsonStringArray(session.campusIds);
-  const departments = jsonStringArray(session.departmentIds);
-  const programs = jsonStringArray(session.programIds);
-  const semesters = jsonStringArray(session.semesterIds);
-  const sections = jsonStringArray(session.sectionIds);
-  if (campuses.length && (!context.campusId || !campuses.includes(context.campusId))) return false;
-  if (departments.length && (!context.departmentId || !departments.includes(context.departmentId))) return false;
-  if (programs.length && (!context.programId || !programs.includes(context.programId))) return false;
-  if (semesters.length && (!context.semesterId || !semesters.includes(context.semesterId))) return false;
-  if (sections.length && (!context.sectionId || !sections.includes(context.sectionId))) return false;
-  if (session.academicYearId && session.academicYearId !== context.academicYearId) return false;
-  if (session.semesterId && session.semesterId !== context.semesterId) return false;
-  return true;
-}
-
-async function evaluateExamEligibility(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  examSessionId: string,
-  studentId: string,
-) {
-  const session = await loadSession(institutionId, examSessionId);
-  const context = await loadStudentExamContext(institutionId, studentId);
-  const reasons: string[] = [];
-  let status = "ELIGIBLE";
-  if (!sessionTargetsStudent(session, context)) {
-    status = "INELIGIBLE"; reasons.push("Student is outside the examination target scope");
-  }
-  if (!["ACTIVE"].includes(context.academicStatus ?? "ACTIVE")) {
-    status = "INELIGIBLE"; reasons.push(`Academic status is ${context.academicStatus}`);
-  }
-  const rules = session.eligibilityRules && typeof session.eligibilityRules === "object"
-    ? session.eligibilityRules as Record<string, unknown> : {};
-  const attendanceRequired = typeof session.attendanceRequirement === "number"
-    ? session.attendanceRequirement : (typeof rules.attendancePercentage === "number" ? Number(rules.attendancePercentage) : null);
-  if (attendanceRequired !== null) {
-    const attendance = await getStudentAttendancePercentage(institutionId, studentId);
-    if (attendance.percentage !== null && attendance.percentage < attendanceRequired) {
-      status = "ATTENDANCE_SHORTAGE";
-      reasons.push(`Attendance ${attendance.percentage}% is below required ${attendanceRequired}%`);
-    }
-  }
-  const debarred = await prisma.$queryRaw<Array<{ exists: boolean }>>(Prisma.sql`
-    SELECT EXISTS(
-      SELECT 1 FROM "exam_incidents" i
-      WHERE i."institutionId" = ${institutionId} AND i."studentId" = ${studentId}
-        AND i."status" IN ('DEBARRED','UPHELD')
-        AND i."examScheduleId" IN (SELECT s."id" FROM "exam_schedules" s WHERE s."examSessionId" = ${examSessionId})
-    ) AS "exists"
-  `);
-  if (debarred[0]?.exists) { status = "DEBARRED"; reasons.push("Student is debarred from this examination"); }
-  const existingHold = await prisma.$queryRaw<Array<{ reason: string }>>(Prisma.sql`
-    SELECT "reason" FROM "admit_card_holds"
-    WHERE "institutionId" = ${institutionId} AND "examSessionId" = ${examSessionId}
-      AND "studentId" = ${studentId} AND "status" = 'ACTIVE' LIMIT 10
-  `);
-  if (existingHold.length) { status = "ADMINISTRATIVE_HOLD"; reasons.push(...existingHold.map(x => x.reason)); }
-  const eligibility = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-    INSERT INTO "exam_eligibilities"
-      ("id","institutionId","examSessionId","studentId","status","reasons","contextSnapshot","evaluatedById")
-    VALUES
-      (${randomUUID()},${institutionId},${examSessionId},${studentId},${status},
-       ${JSON.stringify(reasons)}::jsonb,${JSON.stringify(context)}::jsonb,${actor.id})
-    ON CONFLICT ("examSessionId","studentId") DO UPDATE SET
-      "status"=EXCLUDED."status","reasons"=EXCLUDED."reasons",
-      "contextSnapshot"=EXCLUDED."contextSnapshot","evaluatedAt"=CURRENT_TIMESTAMP,
-      "evaluatedById"=EXCLUDED."evaluatedById"
-    RETURNING "id"
-  `);
-  return { status, reasons, context, eligibilityId: eligibility[0]?.id ?? null };
-}
 
 export async function listStudentExamEligibility(
   institutionId: string,
