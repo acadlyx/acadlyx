@@ -235,8 +235,12 @@ export async function getParentStudentOverview(institutionId:string,actor:Authen
 }
 export async function getStudentOverview(institutionId:string,actor:AuthenticatedUser,studentId:string){
   await assertCanViewStudent(institutionId,actor,studentId);const regs=await db.courseRegistration.findMany({where:{institutionId,studentId,status:"APPROVED"},select:{courseOfferingId:true}});
-  const offerings=[];for(const r of regs){try{offerings.push({courseOfferingId:r.courseOfferingId,analytics:await getAnalytics(institutionId,actor,r.courseOfferingId)});}catch{}}
-  return {studentId,offerings};
+  const offerings=[]; const failures=[];
+  for (const r of regs) {
+    try { offerings.push({courseOfferingId:r.courseOfferingId,analytics:await getAnalytics(institutionId,actor,r.courseOfferingId)}); }
+    catch (error) { failures.push({ courseOfferingId: r.courseOfferingId, reason: error instanceof Error ? error.message : String(error) }); logger.warn("LMS student analytics failed", { studentId, courseOfferingId: r.courseOfferingId, error: error instanceof Error ? error.message : String(error) }); }
+  }
+  return {studentId,offerings,failures};
 }
 
 export async function getSettings(institutionId:string,actor:AuthenticatedUser){if(!isInstitutionWide(actor))throw new AppError("Institution LMS settings require institution administration authority",403);return getSettingsRow(institutionId);}
