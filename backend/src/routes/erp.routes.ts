@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Request, Response, Router } from "express";
 
 import * as controller from "../controllers/erp.controller";
 import * as feeController from "../controllers/feeStructure.controller";
@@ -130,12 +130,21 @@ router.get(
   validateParams(idParamSchema),
   controller.examDetails
 );
+const canonicalExaminationGone = (_req: Request, res: Response) =>
+  res.status(410).json({
+    success: false,
+    error: {
+      code: "LEGACY_EXAMINATION_API",
+      message: "Legacy ERP examination writes are retired. Use the canonical /examinations lifecycle.",
+    },
+  });
+
 router.post(
   "/exams",
   requireFeature("exams"),
   authorize("exams.manage"),
   validateBody(createExamSchema),
-  controller.exam
+  canonicalExaminationGone
 );
 router.patch(
   "/exams/:id",
@@ -143,21 +152,21 @@ router.patch(
   authorize("exams.manage"),
   validateParams(idParamSchema),
   validateBody(updateExamSchema),
-  controller.examUpdate
+  canonicalExaminationGone
 );
 router.delete(
   "/exams/:id",
   requireFeature("exams"),
   authorize("exams.manage"),
   validateParams(idParamSchema),
-  controller.examDelete
+  canonicalExaminationGone
 );
 router.put(
   "/exam-results",
   requireFeature("results"),
   authorize("exams.manage"),
   validateBody(upsertExamResultSchema),
-  controller.result
+  canonicalExaminationGone
 );
 
 /* Fee invoices and payments */
