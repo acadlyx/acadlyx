@@ -436,3 +436,15 @@ export async function placementProfile(institutionId: string, actor: Authenticat
   ]);
   return { profile, enrollment, skills, certifications, projects, resumes };
 }
+
+export async function updatePlacementProfile(institutionId: string, actor: AuthenticatedUser, input: { portfolioUrl?: string|null; githubUrl?: string|null; linkedInUrl?: string|null; bio?: string|null }) {
+  assertInstitution(actor, institutionId);
+  if (!actor.roles.includes("STUDENT")) throw new AppError("Only students may edit their placement profile.", 403);
+  const profile = await prisma.placementProfile.upsert({
+    where: { studentId: actor.id },
+    create: { institutionId, studentId: actor.id, portfolioUrl: input.portfolioUrl ?? null, githubUrl: input.githubUrl ?? null, linkedInUrl: input.linkedInUrl ?? null, bio: input.bio ?? null },
+    update: { portfolioUrl: input.portfolioUrl, githubUrl: input.githubUrl, linkedInUrl: input.linkedInUrl, bio: input.bio },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.profile.updated", entityType: "PlacementProfile", entityId: profile.id, metadata: { fields: Object.keys(input) } });
+  return profile;
+}
