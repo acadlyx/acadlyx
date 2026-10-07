@@ -399,9 +399,14 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
   if (!eligibility.eligible) throw new AppError(eligibility.reasons.join(" "), 409);
   const drive = await prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, openingId: true } });
   if (!drive) throw new AppError("Placement drive not found.", 404);
-  const opportunity = await prisma.opportunity.findFirst({ where: { institutionId, title: { contains: "drive:" + drive.id } }, select: { id: true } });
+  let opportunity = await prisma.opportunity.findFirst({ where: { institutionId, title: "Drive:" + drive.id }, select: { id: true } });
   if (!opportunity) {
-    throw new AppError("This drive is not linked to an application record yet.", 409);
+    const company = await prisma.placementDrive.findFirst({ where: { id: drive.id, institutionId }, select: { company: { select: { name: true } }, title: true, applicationDeadline: true } });
+    if (!company) throw new AppError("Placement drive not found.", 404);
+    opportunity = await prisma.opportunity.create({
+      data: { institutionId, title: "Drive:" + drive.id, organization: company.company.name, description: company.title, deadline: company.applicationDeadline },
+      select: { id: true },
+    });
   }
   return applyToOpportunity(institutionId, actor, opportunity.id);
 }
