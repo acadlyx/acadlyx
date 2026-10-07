@@ -6,6 +6,7 @@ import { getJobHandler } from "./jobs/registry";
 import "./jobs/handlers/admitCard.handler";
 import "./jobs/handlers/import.handler";
 import "./jobs/handlers/result.handler";
+import "./jobs/handlers/marksheet.handler";
 
 const workerId = "worker-" + randomUUID();
 const POLL_MS = Number(process.env.JOB_POLL_MS || 1000);
