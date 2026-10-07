@@ -541,19 +541,27 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
     opportunityId = opportunity.id;
   }
 
-  const application = await prisma.application.create({
-    data: {
-      institutionId,
-      studentId: actor.id,
-      opportunityId,
-      placementDriveId: drive.id,
-      placementOpeningId: drive.openingId,
-      status: "APPLICATION_SUBMITTED",
-    },
-    include: {
-      opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
-    },
-  });
+  let application;
+  try {
+    application = await prisma.application.create({
+      data: {
+        institutionId,
+        studentId: actor.id,
+        opportunityId,
+        placementDriveId: drive.id,
+        placementOpeningId: drive.openingId,
+        status: "APPLICATION_SUBMITTED",
+      },
+      include: {
+        opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new AppError("You have already applied to this placement drive.", 409);
+    }
+    throw error;
+  }
 
   await recordAuditLog({
     institutionId,
