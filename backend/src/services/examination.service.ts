@@ -234,7 +234,7 @@ async function evaluateExamEligibility(
         studentId,
         schedule.courseOfferingId,
       );
-      if (percentage < session.attendanceRequirement) {
+      if (percentage.percentage !== null && percentage.percentage < session.attendanceRequirement) {
         reasons.push(`Attendance below required ${session.attendanceRequirement}%`);
         break;
       }
