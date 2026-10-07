@@ -742,3 +742,8 @@ export const examMarkCorrectionSchema = z.object({
   newMarks: z.number().min(0).max(10000).nullable(),
   reason: z.string().trim().min(1).max(2000),
 });
+
+export const examMarkCorrectionDecisionSchema = z.object({
+  decision: z.enum(["APPROVED","REJECTED"]),
+  decisionNote: z.string().trim().max(2000).optional(),
+});
