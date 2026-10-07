@@ -5,10 +5,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
-import {
-  assertOwnsCourseOffering,
-  loadCourseOfferingOrThrow,
-} from "../utils/courseOfferingAccess";
+import { loadCourseOfferingOrThrow } from "../utils/courseOfferingAccess";
 import { PaginationParams } from "../utils/pagination";
 import {
   andWhere,
@@ -49,8 +46,6 @@ const SESSION_STATUSES = ["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "PUBLISH
 const SCHEDULE_STATUSES = ["DRAFT", "PUBLISHED", "LOCKED", "CORRECTION_OPEN", "RESULTS_PUBLISHED", "CANCELLED"] as const;
 const MARK_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED", "PUBLISHED"] as const;
 const EXAM_ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "DEBARRED", "MALPRACTICE"] as const;
-const CONTROLLER_ROLES: readonly string[] = ["EXAMINATION"];
-
 export type ExamType = (typeof EXAM_TYPES)[number];
 export type ExamSessionStatus = (typeof SESSION_STATUSES)[number];
 export type ExamScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
@@ -3342,7 +3337,7 @@ export async function createAdmitCardHold(
   meta: { ipAddress?: string; userAgent?: string },
 ) {
   assertExamController(actor);
-  const session = await loadSession(institutionId, examSessionId);
+  await loadSession(institutionId, examSessionId);
   const eligibility = await evaluateExamEligibility(institutionId, actor, examSessionId, input.studentId);
   if (eligibility.status === "ELIGIBLE" && input.reasonCode !== "OTHER") {
     // A manual hold may still be applied; it is intentionally independent of eligibility.
