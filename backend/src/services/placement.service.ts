@@ -659,3 +659,137 @@ export async function verifyPlacementJoining(institutionId: string, actor: Authe
   await recordAuditLog({institutionId,userId:actor.id,action:"placements.joining.verified",entityType:"PlacementJoiningVerification",entityId:verification.id,metadata:{offerId,status:input.status}});
   return verification;
 }
+
+
+export async function listPlacementInterviews(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  options: { studentId?: string; driveId?: string } = {},
+) {
+  assertInstitution(actor, institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  const studentWhere = await getStudentWhereScope(institutionId, actor);
+  return prisma.placementInterview.findMany({
+    where: {
+      institutionId,
+      ...(options.driveId ? { driveId: options.driveId } : {}),
+      ...(actor.roles.includes("STUDENT") ? { participants: { some: { studentId: actor.id } } } : {}),
+      ...(options.studentId ? { participants: { some: { studentId: options.studentId } } } : {}),
+      ...(!hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","DIRECTOR","REGISTRAR","DEAN","PLACEMENT","STUDENT"])
+        ? { participants: { some: { student: studentWhere } } }
+        : {}),
+    },
+    include: {
+      drive: { select: { id: true, title: true, company: { select: { id: true, name: true } } } },
+      participants: {
+        include: { student: { select: { id: true, firstName: true, lastName: true, email: true } } },
+      },
+    },
+    orderBy: { startsAt: "asc" },
+    take: 100,
+  });
+}
+
+export async function createPlacementInterview(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const drive = await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId }, select: { id: true } });
+  if (!drive) throw new AppError("Placement drive not found.", 404);
+  const interview = await prisma.placementInterview.create({
+    data: {
+      institutionId,
+      driveId: input.driveId,
+      roundNumber: input.roundNumber,
+      roundType: input.roundType.trim(),
+      startsAt: new Date(input.startsAt),
+      endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      venue: input.venue?.trim() || null,
+      onlineLink: input.onlineLink?.trim() || null,
+      interviewer: input.interviewer?.trim() || null,
+    },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.created", entityType: "PlacementInterview", entityId: interview.id, metadata: { driveId: input.driveId, roundNumber: input.roundNumber } });
+  return interview;
+}
+
+export async function addPlacementInterviewParticipant(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  interviewId: string,
+  studentId: string,
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  await assertCanViewStudent(institutionId, actor, studentId);
+  const interview = await prisma.placementInterview.findFirst({ where: { id: interviewId, institutionId }, select: { id: true } });
+  if (!interview) throw new AppError("Placement interview not found.", 404);
+  const participant = await prisma.placementInterviewParticipant.create({ data: { interviewId, studentId } });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.participant_added", entityType: "PlacementInterviewParticipant", entityId: interviewId + ":" + studentId, metadata: { interviewId, studentId } });
+  return participant;
+}
+
+export async function updatePlacementInterviewParticipant(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  interviewId: string,
+  studentId: string,
+  input: { attendanceStatus?: string; resultStatus?: string; feedback?: string | null },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const participant = await prisma.placementInterviewParticipant.findFirst({ where: { interviewId, studentId, interview: { institutionId } } });
+  if (!participant) throw new AppError("Interview participant not found.", 404);
+  const updated = await prisma.placementInterviewParticipant.update({
+    where: { interviewId_studentId: { interviewId, studentId } },
+    data: input,
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.participant_updated", entityType: "PlacementInterviewParticipant", entityId: interviewId + ":" + studentId, metadata: input });
+  return updated;
+}
+
+export async function listPlacementVisits(institutionId: string, actor: AuthenticatedUser) {
+  assertInstitution(actor, institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  return prisma.placementVisit.findMany({
+    where: { institutionId },
+    include: { company: { select: { id: true, name: true, logoUrl: true } }, drive: { select: { id: true, title: true, status: true } } },
+    orderBy: { startsAt: "asc" },
+    take: 100,
+  });
+}
+
+export async function createPlacementVisit(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; notes?: string; followUp?: string },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const company = await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true } });
+  if (!company) throw new AppError("Company not found in this institution.", 404);
+  if (input.driveId && !(await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId, companyId: input.companyId }, select: { id: true } }))) {
+    throw new AppError("Drive does not belong to the selected company.", 422);
+  }
+  const visit = await prisma.placementVisit.create({
+    data: {
+      institutionId,
+      companyId: input.companyId,
+      driveId: input.driveId || null,
+      type: input.type.trim(),
+      startsAt: new Date(input.startsAt),
+      endsAt: input.endsAt ? new Date(input.endsAt) : null,
+      venue: input.venue?.trim() || null,
+      purpose: input.purpose?.trim() || null,
+      representatives: input.representatives as Prisma.InputJsonValue | undefined,
+      participatingStudentIds: input.participatingStudentIds ?? undefined,
+      notes: input.notes?.trim() || null,
+      followUp: input.followUp?.trim() || null,
+    },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.visit.created", entityType: "PlacementVisit", entityId: visit.id, metadata: { companyId: input.companyId, type: input.type } });
+  return visit;
+}
