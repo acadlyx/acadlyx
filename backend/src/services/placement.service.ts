@@ -6,10 +6,12 @@ import { assertCanViewStudent, getStudentWhereScope, hasAnyRole } from "./access
 import { recordAuditLog } from "./audit.service";
 
 const APPLICATION_TRANSITIONS: Record<string, string[]> = {
-  APPLIED: ["SHORTLISTED", "REJECTED", "WITHDRAWN"],
-  SHORTLISTED: ["INTERVIEW", "REJECTED", "WITHDRAWN"],
-  INTERVIEW: ["OFFERED", "REJECTED", "WITHDRAWN"],
-  OFFERED: ["ACCEPTED", "REJECTED", "WITHDRAWN"],
+  APPLICATION_SUBMITTED: ["SHORTLISTED", "REJECTED", "WITHDRAWN"],
+  SHORTLISTED: ["TEST", "INTERVIEW", "REJECTED", "WITHDRAWN"],
+  TEST: ["INTERVIEW", "SELECTED", "REJECTED", "WITHDRAWN"],
+  INTERVIEW: ["SELECTED", "REJECTED", "WITHDRAWN"],
+  SELECTED: ["OFFERED", "REJECTED"],
+  OFFERED: ["ACCEPTED", "REJECTED"],
   ACCEPTED: ["JOINED", "WITHDRAWN"],
   JOINED: [],
   REJECTED: [],
@@ -404,21 +406,81 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
 
 export async function applyToDrive(institutionId: string, actor: AuthenticatedUser, driveId: string) {
   assertInstitution(actor, institutionId);
-  if (!actor.roles.includes("STUDENT") || !actor.permissions.includes("placements.apply")) throw new AppError("Student placement application authority is required.", 403);
+  if (!actor.roles.includes("STUDENT") || !actor.permissions.includes("placements.apply")) {
+    throw new AppError("Student placement application authority is required.", 403);
+  }
+
   const eligibility = await checkDriveEligibility(institutionId, actor, driveId);
   if (!eligibility.eligible) throw new AppError(eligibility.reasons.join(" "), 409);
-  const drive = await prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, openingId: true } });
+
+  const drive = await prisma.placementDrive.findFirst({
+    where: { id: driveId, institutionId },
+    select: { id: true, openingId: true, companyId: true, applicationDeadline: true },
+  });
   if (!drive) throw new AppError("Placement drive not found.", 404);
-  let opportunity = await prisma.opportunity.findFirst({ where: { institutionId, title: "Drive:" + drive.id }, select: { id: true } });
-  if (!opportunity) {
-    const company = await prisma.placementDrive.findFirst({ where: { id: drive.id, institutionId }, select: { company: { select: { name: true } }, title: true, applicationDeadline: true } });
-    if (!company) throw new AppError("Placement drive not found.", 404);
-    opportunity = await prisma.opportunity.create({
-      data: { institutionId, title: "Drive:" + drive.id, organization: company.company.name, description: company.title, deadline: company.applicationDeadline },
+
+  const existing = await prisma.application.findFirst({
+    where: { institutionId, studentId: actor.id, placementDriveId: drive.id },
+    select: { id: true },
+  });
+  if (existing) throw new AppError("You have already applied to this placement drive.", 409);
+
+  let opportunityId: string;
+  const legacyOpportunity = await prisma.opportunity.findFirst({
+    where: { institutionId, title: "Drive:" + drive.id },
+    select: { id: true },
+  });
+
+  if (legacyOpportunity) {
+    opportunityId = legacyOpportunity.id;
+  } else {
+    const company = await prisma.placementCompany.findFirst({
+      where: { id: drive.companyId, institutionId },
+      select: { name: true },
+    });
+    const driveRecord = await prisma.placementDrive.findUnique({
+      where: { id: drive.id },
+      select: { title: true },
+    });
+    if (!company || !driveRecord) throw new AppError("Placement drive not found.", 404);
+
+    const opportunity = await prisma.opportunity.create({
+      data: {
+        institutionId,
+        title: "Drive:" + drive.id,
+        organization: company.name,
+        description: driveRecord.title,
+        deadline: drive.applicationDeadline,
+      },
       select: { id: true },
     });
+    opportunityId = opportunity.id;
   }
-  return applyToOpportunity(institutionId, actor, opportunity.id);
+
+  const application = await prisma.application.create({
+    data: {
+      institutionId,
+      studentId: actor.id,
+      opportunityId,
+      placementDriveId: drive.id,
+      placementOpeningId: drive.openingId,
+      status: "APPLICATION_SUBMITTED",
+    },
+    include: {
+      opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
+    },
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "placements.application.created",
+    entityType: "Application",
+    entityId: application.id,
+    metadata: { driveId: drive.id, openingId: drive.openingId },
+  });
+
+  return application;
 }
 
 export async function placementProfile(institutionId: string, actor: AuthenticatedUser, studentId?: string) {
