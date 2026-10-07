@@ -19,14 +19,6 @@ export default function StaffOperationsPage() {
             <p className="mt-1 text-sm text-slate-500">Open institution events and gallery.</p>
           </a>
         </section>
-        <section className="hidden">
-          {links.map(([label, href]) => (
-            <Link key={href} href={href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
-              <h2 className="font-black text-slate-950">{label}</h2>
-              <p className="mt-1 text-sm text-slate-500">Open {label.toLowerCase()}.</p>
-            </Link>
-          ))}
-        </section>
       </main>
     </DashboardShell>
   );
