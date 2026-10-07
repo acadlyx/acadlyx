@@ -160,3 +160,55 @@
 .acadlyx-app-shell header button span span:last-child {
   color: #475569 !important;
 }
+
+
+/* Narrow viewport hardening: prevent page-level overflow while preserving
+ * horizontal scrolling for intentionally wide data tables. */
+.acadlyx-dashboard-root,
+.acadlyx-dashboard-main,
+.acadlyx-dashboard-main > main {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acadlyx-dashboard-main > main {
+  overflow-x: clip;
+}
+
+.acadlyx-dashboard-main img,
+.acadlyx-dashboard-main video,
+.acadlyx-dashboard-main canvas,
+.acadlyx-dashboard-main svg {
+  max-width: 100%;
+}
+
+.acadlyx-dashboard-main input,
+.acadlyx-dashboard-main select,
+.acadlyx-dashboard-main textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .acadlyx-dashboard-main > main {
+    padding-inline: 12px;
+  }
+
+  .acadlyx-dashboard-main button,
+  .acadlyx-dashboard-main a[role="button"] {
+    min-height: 44px;
+  }
+
+  .acadlyx-dashboard-main table {
+    max-width: none;
+  }
+
+  .acadlyx-dashboard-main [role="dialog"] {
+    max-height: calc(100dvh - 16px);
+  }
+}
+
+@media (max-width: 380px) {
+  .acadlyx-dashboard-main > main {
+    padding-inline: 10px;
+  }
+}
