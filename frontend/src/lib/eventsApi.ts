@@ -46,6 +46,7 @@ export async function listEvents(params: Record<string, string | number | boolea
 }
 export async function getEvent(id: string) { return request<InstitutionalEvent>(`/events/${id}`); }
 export async function getEventCategories() { return request<Array<{id:string;name:string;slug:string}>>("/events/categories"); }
+export async function createEventCategory(name:string,description?:string) { return request<{id:string;name:string;slug:string}>("/events/categories",{method:"POST",body:JSON.stringify({name,description})}); }
 export async function createEvent(payload: Record<string, unknown>) { return request<InstitutionalEvent>("/events",{method:"POST",body:JSON.stringify(payload)}); }
 export async function updateEvent(id:string,payload:Record<string, unknown>) { return request<InstitutionalEvent>(`/events/${id}`,{method:"PATCH",body:JSON.stringify(payload)}); }
 export async function deleteEvent(id:string) { return request<{id:string;deleted:boolean}>(`/events/${id}`,{method:"DELETE"}); }
