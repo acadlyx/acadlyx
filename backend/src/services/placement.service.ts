@@ -571,8 +571,6 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
     }
     throw error;
   }
-
-  return application;
 }
 
 export async function placementProfile(institutionId: string, actor: AuthenticatedUser, studentId?: string) {
