@@ -448,3 +448,15 @@ export async function updatePlacementProfile(institutionId: string, actor: Authe
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.profile.updated", entityType: "PlacementProfile", entityId: profile.id, metadata: { fields: Object.keys(input) } });
   return profile;
 }
+
+export async function createPlacementCompanyContact(institutionId: string, actor: AuthenticatedUser, companyId: string, input: { name: string; designation?: string; email?: string; phone?: string; isPrimary?: boolean; notes?: string }) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const company = await prisma.placementCompany.findFirst({ where: { id: companyId, institutionId }, select: { id: true } });
+  if (!company) throw new AppError("Company not found in this institution.", 404);
+  if (!input.name.trim()) throw new AppError("Contact name is required.", 400);
+  if (input.isPrimary) await prisma.placementCompanyContact.updateMany({ where: { institutionId, companyId }, data: { isPrimary: false } });
+  const contact = await prisma.placementCompanyContact.create({ data: { institutionId, companyId, name: input.name.trim(), designation: input.designation?.trim() || null, email: input.email?.trim() || null, phone: input.phone?.trim() || null, isPrimary: input.isPrimary ?? false, notes: input.notes?.trim() || null } });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.company_contact.created", entityType: "PlacementCompanyContact", entityId: contact.id, metadata: { companyId } });
+  return contact;
+}
