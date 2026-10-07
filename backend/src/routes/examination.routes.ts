@@ -27,8 +27,6 @@ import {
   admitCardHoldSchema,
   admitCardHoldResolveSchema,
   examMarkCorrectionSchema,
-  examRegistrationParams,
-  studentExamListQuery,
   assignInvigilatorsSchema,
   createExamRoomSchema,
   createExamScheduleSchema,
