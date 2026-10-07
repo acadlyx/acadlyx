@@ -210,6 +210,13 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Administration",
   },
   {
+    label: "Institutional CMS",
+    href: "/admin/institutional-cms",
+    icon: "◫",
+    roles: ["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR"],
+    group: "Institution",
+  },
+  {
     label: "People",
     href: "/admin/users",
     icon: "♙",
