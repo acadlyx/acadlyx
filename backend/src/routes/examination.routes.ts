@@ -811,6 +811,23 @@ router.get(
 );
 
 router.get(
+  "/sessions/:id/marksheet.pdf",
+  authorize("results.read"),
+  validateParams(idParams),
+  asyncHandler(async (req,res)=>{
+    const actor=requireAuthenticatedUser(req);
+    const studentId=typeof req.query.studentId==="string" ? req.query.studentId : actor.id;
+    const file=await service.generateStudentMarksheetPdf(requireInstitution(req),actor,req.params.id,studentId);
+    res.status(200);
+    res.setHeader("Content-Type","application/pdf");
+    res.setHeader("Content-Disposition",'attachment; filename="'+file.filename+'"');
+    res.setHeader("Content-Length",String(file.buffer.length));
+    res.setHeader("Cache-Control","private, no-store");
+    return res.send(file.buffer);
+  })
+);
+
+router.get(
   "/students/:studentId/results",
   authorize("results.read"),
   validateParams(studentIdParams),
