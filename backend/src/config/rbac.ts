@@ -517,6 +517,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
     INSTITUTION_ADMIN: [
+    "placements.read",
     ...EVENTS_READ,
     "events.manage",
     "fees.structure.read",
@@ -629,6 +630,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -644,6 +646,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   MANAGEMENT: [
+    "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -659,6 +662,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "placements.read",
     ...EVENTS_READ,
     "events.manage",
     "fees.collection.read",
@@ -687,6 +691,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DEAN: [
+    "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -738,6 +743,7 @@ export const ROLE_PERMISSIONS: Record<
 
 
   REGISTRAR: [
+    "placements.read",
     ...EVENTS_READ,
     "events.manage",
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read",
@@ -801,6 +807,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   HOD: [
+    "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -869,6 +876,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   FACULTY: [
+    "placements.read",
     ...EVENTS_READ,
     "obe.read", "obe.mapping.manage", "obe.mapping.submit", "obe.assessment.manage", "obe.attainment.calculate", "obe.indirect.manage", "obe.reports.read",
     "students.read",
@@ -1172,6 +1180,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   PARENT: [
+    "placements.read",
     ...EVENTS_READ,
     "attendance.read",
 
