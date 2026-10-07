@@ -73,7 +73,7 @@ export default function LmsPage() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [offerings, setOfferings] = useState<CourseOfferingSummary[]>([]);
   const [tab, setTab] = useState<"learning" | "assessments" | "progress">("learning");
-  const [offering, setOffering] = useState<DirectoryOption | null>(null);
+  const [offering, setOffering] = useState<CourseOfferingSummary | null>(null);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [paper, setPaper] = useState<AttemptPaper | null>(null);
@@ -145,11 +145,6 @@ export default function LmsPage() {
     ]);
     setModules(moduleList); setQuizzes(quizList); setPaper(null);
   }), [run]);
-
-  const selectOffering = (option: DirectoryOption | null) => {
-    setOffering(option); setModules([]); setQuizzes([]); setPaper(null);
-    if (option) void load(option.id);
-  };
 
   const visibleOfferings = offerings;
   const primaryAction =
