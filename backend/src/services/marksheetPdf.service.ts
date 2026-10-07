@@ -44,7 +44,7 @@ export function createMarksheetPdf(input: {
   const maxTotal = input.rows.reduce((sum, row) => sum + row.max, 0);
   const percentage = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
   const hasFailure = input.rows.some(
-    (row) => !row.absent && row.marks !== null && row.marks < row.pass,
+    (row) => row.absent || (row.marks !== null && row.marks < row.pass),
   );
 
   const pageObjects: string[] = [];
