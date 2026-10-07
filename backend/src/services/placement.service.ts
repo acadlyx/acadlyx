@@ -378,7 +378,11 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
 
 export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
   assertInstitution(actor, institutionId);
-  const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  let target = actor.roles.includes("STUDENT") ? actor.id : studentId;
+  if (actor.roles.includes("PARENT") && !target) {
+    const link = await prisma.parentStudentLink.findFirst({ where: { institutionId, parentId: actor.id }, select: { studentId: true } });
+    target = link?.studentId;
+  }
   if (!target) throw new AppError("Student scope is required.", 400);
   await assertCanViewStudent(institutionId, actor, target);
   const [drive, enrollment] = await Promise.all([
