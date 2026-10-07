@@ -21,7 +21,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
@@ -293,12 +293,59 @@ export async function createExamSession(
 
 export async function listExamSessions(
   institutionId: string,
+  actor: AuthenticatedUser,
   pagination: PaginationParams,
   filters: { status?: string; examType?: string; search?: string }
 ) {
   const conditions: Prisma.Sql[] = [
     Prisma.sql`"institutionId" = ${institutionId}`,
   ];
+  const roles = actor.roles;
+  if (roles.includes("FACULTY")) {
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" es
+      JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+      WHERE es."examSessionId"="exam_sessions"."id"
+        AND es."institutionId"=${institutionId}
+        AND co."facultyId"=${actor.id}
+    )`);
+  } else if (roles.includes("HOD")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!ids.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`(
+      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
+      OR EXISTS (
+        SELECT 1 FROM "exam_schedules" es
+        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+        JOIN "courses" c ON c."id"=co."courseId"
+        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+      )
+    )`);
+  } else if (roles.includes("DEAN")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!ids.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`(
+      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
+      OR EXISTS (
+        SELECT 1 FROM "exam_schedules" es
+        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+        JOIN "courses" c ON c."id"=co."courseId"
+        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+      )
+    )`);
+  } else if (roles.includes("DIRECTOR")) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!ids.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`(
+      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
+      OR EXISTS (
+        SELECT 1 FROM "exam_schedules" es
+        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+        JOIN "courses" c ON c."id"=co."courseId"
+        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+      )
+    )`);
+  }
   if (filters.status) {
     conditions.push(Prisma.sql`"status" = ${filters.status}`);
   }
@@ -328,9 +375,27 @@ export async function listExamSessions(
 
 export async function getExamSession(
   institutionId: string,
+  actor: AuthenticatedUser,
   examSessionId: string
 ) {
   const session = await loadSession(institutionId, examSessionId);
+  if (actor.roles.includes("FACULTY")) {
+    const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT es."id" FROM "exam_schedules" es
+      JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+      WHERE es."examSessionId"=${examSessionId} AND es."institutionId"=${institutionId} AND co."facultyId"=${actor.id} LIMIT 1`);
+    if (!rows.length) throw new AppError("Examination is outside your assignment scope",403);
+  } else if (actor.roles.includes("HOD") || actor.roles.includes("DEAN") || actor.roles.includes("DIRECTOR")) {
+    const ids = actor.roles.includes("DIRECTOR") ? await getDirectorDepartmentIds(institutionId, actor.id) : await getManagedDepartmentIds(institutionId, actor.id);
+    if (!ids.length) throw new AppError("No examination scope is assigned to this account",403);
+    const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT es."id" FROM "exam_schedules" es
+      JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+      JOIN "courses" c ON c."id"=co."courseId"
+      WHERE es."examSessionId"=${examSessionId} AND es."institutionId"=${institutionId} AND c."departmentId" IN (${Prisma.join(ids)}) LIMIT 1`);
+    const target = jsonStringArray(session.departmentIds);
+    if (!rows.length && !(target.length === 0 || target.some(id => ids.includes(id)))) throw new AppError("Examination is outside your authorized scope",403);
+  }
 
   const schedules = await prisma.$queryRaw<
     Array<
