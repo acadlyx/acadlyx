@@ -5,7 +5,6 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
-import { ensureInstitutionSystemRoles } from "./institution.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
 import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide } from "./accessScope.service";
