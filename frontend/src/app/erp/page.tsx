@@ -10,7 +10,7 @@ useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { DirectoryPicker, ExamPicker, InvoicePicker } from "@/components/erp/DirectoryPicker";
+import { DirectoryPicker, InvoicePicker } from "@/components/erp/DirectoryPicker";
 import { useMutationState } from "@/hooks/useMutationState";
 import {
 AuthRequiredError,
@@ -24,7 +24,6 @@ ErpUser,
 FeeHead,
 FeeStructure,
 createDocument,
-createExam,
 createFeeHead,
 createFeeStructure,
 approveFeeStructure,
@@ -47,7 +46,6 @@ markAllNotificationsRead,
 markNotificationRead,
 recordPayment,
 updateFeeHead,
-upsertExamResult,
 } from "@/lib/erpApi";
 
 type Tab =
@@ -640,17 +638,7 @@ ACADLYX ERP
       />
     )}
 
-    {tab === "exams" && (
-      <ExamTab
-        offerings={offerings}
-        students={students}
-        canManage={can([
-          "exams.manage",
-        ])}
-        busy={mutation.isSubmitting}
-        run={run}
-      />
-    )}
+    {tab === "exams" && <ExamTab />}
 
     {tab === "fees" && (
       <FeesTab
@@ -1192,256 +1180,27 @@ event.preventDefault();
 );
 }
 
-function ExamTab({
-offerings,
-students,
-canManage,
-busy,
-run,
-}: {
-offerings: ErpOffering[];
-students: ErpUser[];
-canManage: boolean;
-busy: boolean;
-run: (
-action: () => Promise<unknown>,
-message: string
-) => Promise<void>;
-}) {
-const [exam, setExam] =
-useState({
-courseOfferingId: "",
-title: "",
-examDate: "",
-maxMarks: "100",
-});
-
-const [result, setResult] =
-useState({
-examId: "",
-studentId: "",
-marks: "",
-remarks: "",
-});
-
-if (!canManage) {
-return <AccessDenied />;
-}
-
+function ExamTab() {
 return (
-<div className="grid gap-6 xl:grid-cols-2">
-<Section title="Create exam">
-<form
-className="space-y-4"
-onSubmit={(event) => {
-event.preventDefault();
-
-        void run(
-          () =>
-            createExam({
-              courseOfferingId:
-                exam.courseOfferingId,
-              title: exam.title,
-              examDate:
-                new Date(
-                  exam.examDate
-                ).toISOString(),
-              maxMarks:
-                Number(
-                  exam.maxMarks
-                ),
-            }),
-          "Exam created"
-        );
-      }}
+<Section
+  title="Examinations"
+  description="Examination lifecycle operations are now handled by the canonical Examination workspace."
+>
+  <div className="space-y-4">
+    <p className="text-sm text-slate-600">
+      The legacy ERP exam editor has been retired to prevent a second examination source of truth.
+      Use the canonical Examination workspace for sessions, registration, eligibility, admit cards,
+      marks, corrections and result publication.
+    </p>
+    <button
+      type="button"
+      onClick={() => { window.location.href = "/examination"; }}
+      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
     >
-      <Field label="Course offering">
-        <select
-          required
-          value={
-            exam.courseOfferingId
-          }
-          onChange={(event) =>
-            setExam({
-              ...exam,
-              courseOfferingId:
-                event.target.value,
-            })
-          }
-          className={inputClass}
-        >
-          <option value="">
-            Select offering
-          </option>
-
-          {offerings.map(
-            (offering) => (
-              <option
-                key={offering.id}
-                value={offering.id}
-              >
-                {offering.course?.code}{" "}
-                —{" "}
-                {offering.course?.name}{" "}
-                {offering.section?.name
-                  ? `· ${offering.section.name}`
-                  : ""}
-              </option>
-            )
-          )}
-        </select>
-      </Field>
-
-      <Field label="Exam title">
-        <input
-          required
-          value={exam.title}
-          onChange={(event) =>
-            setExam({
-              ...exam,
-              title:
-                event.target.value,
-            })
-          }
-          placeholder="Mid Semester Examination"
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Exam date">
-        <input
-          required
-          type="datetime-local"
-          value={exam.examDate}
-          onChange={(event) =>
-            setExam({
-              ...exam,
-              examDate:
-                event.target.value,
-            })
-          }
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Maximum marks">
-        <input
-          required
-          type="number"
-          min="1"
-          value={exam.maxMarks}
-          onChange={(event) =>
-            setExam({
-              ...exam,
-              maxMarks:
-                event.target.value,
-            })
-          }
-          className={inputClass}
-        />
-      </Field>
-
-      <Submit busy={busy}>
-        Create exam
-      </Submit>
-    </form>
-  </Section>
-
-  <Section
-    title="Enter / correct result"
-    description="The backend validates section enrollment and maximum marks."
-  >
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-
-        void run(
-          () =>
-            upsertExamResult({
-              examId:
-                result.examId,
-              studentId:
-                result.studentId,
-              marks: Number(
-                result.marks
-              ),
-              remarks:
-                result.remarks ||
-                undefined,
-            }),
-          "Exam result saved"
-        );
-      }}
-    >
-      <Field label="Exam">
-        <ExamPicker
-          value={result.examId}
-          onChange={(id) =>
-            setResult({
-              ...result,
-              examId: id,
-            })
-          }
-        />
-      </Field>
-
-      <Field label="Student">
-        <DirectoryPicker
-          kind="student"
-          value={result.studentId}
-          onChange={(id) =>
-            setResult({
-              ...result,
-              studentId: id,
-            })
-          }
-          placeholder="Search student name, roll number or email…"
-        />
-      </Field>
-
-      <Field label="Marks">
-        <input
-          required
-          type="number"
-          min="0"
-          step="0.01"
-          value={result.marks}
-          onChange={(event) =>
-            setResult({
-              ...result,
-              marks:
-                event.target.value,
-            })
-          }
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Remarks">
-        <textarea
-          rows={4}
-          value={
-            result.remarks
-          }
-          onChange={(event) =>
-            setResult({
-              ...result,
-              remarks:
-                event.target.value,
-            })
-          }
-          className={inputClass}
-        />
-      </Field>
-
-      <Submit busy={busy}>
-        Save result
-      </Submit>
-    </form>
-  </Section>
-</div>
-
+      Open Examination workspace
+    </button>
+  </div>
+</Section>
 );
 }
 
