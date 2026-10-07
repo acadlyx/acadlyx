@@ -93,3 +93,31 @@
     scroll-behavior: auto;
   }
 }
+
+
+/* Narrow-screen safety for dialogs that use a fixed overlay without the
+ * canonical modal class. Keep the action surface reachable and prevent
+ * viewport-width children from escaping the dialog. */
+.fixed.inset-0 > div {
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+}
+
+.fixed.inset-0 > div > div {
+  min-width: 0;
+}
+
+@media (max-width: 380px) {
+  .fixed.inset-0.overflow-y-auto {
+    padding: 6px !important;
+  }
+
+  .fixed.inset-0.overflow-y-auto > div,
+  .fixed.inset-0.z-50 > div,
+  .fixed.inset-0.z-[60] > div,
+  .fixed.inset-0.z-[70] > div,
+  .fixed.inset-0.z-[80] > div {
+    max-width: calc(100vw - 12px);
+    border-radius: 16px !important;
+  }
+}
