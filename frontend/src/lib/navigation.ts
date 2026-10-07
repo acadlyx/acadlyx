@@ -1323,7 +1323,19 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["CMS"],
     permissions: ["site.manage"],
     group: "CMS",
-  },
+  },,
+  { label: "Placement", href: "/admin/placements", icon: "◎", roles: ["INSTITUTION_ADMIN"], permissions: ["placements.read"], group: "Administration", activeMatch: "nested" },
+  { label: "Placement", href: "/superadmin/placements", icon: "◎", roles: ["SUPER_ADMIN"], permissions: ["placements.read"], group: "Platform", activeMatch: "nested" },
+  { label: "Placement", href: "/chairman/placements", icon: "◎", roles: ["CHAIRMAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
+  { label: "Placement", href: "/management/placements", icon: "◎", roles: ["MANAGEMENT"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
+  { label: "Placement", href: "/director/placements", icon: "◎", roles: ["DIRECTOR"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
+  { label: "Placement", href: "/registrar/placements", icon: "◎", roles: ["REGISTRAR"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
+  { label: "Placement", href: "/dean/placements", icon: "◎", roles: ["DEAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
+  { label: "Placement", href: "/hod/placements", icon: "◎", roles: ["HOD"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
+  { label: "Placement", href: "/faculty/placements", icon: "◎", roles: ["FACULTY"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
+  { label: "Placement", href: "/placements", icon: "◎", roles: ["PLACEMENT"], permissions: ["placements.read"], group: "Workspace", activeMatch: "exact" },
+  { label: "Placement", href: "/student/placements", icon: "◎", roles: ["STUDENT"], permissions: ["placements.read"], group: "Career", activeMatch: "nested" },
+  { label: "Placement", href: "/parent/placements", icon: "◎", roles: ["PARENT"], permissions: ["placements.read"], group: "Student", activeMatch: "nested" },
 ];
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
@@ -1870,20 +1882,7 @@ export function canAccessRoute(
   ];
   const requiredPermission = namespacePermission
     .filter(([prefix]) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))
-    .sort((a, b) => b[0].length - a[0].length)[0]?.[1
-  { label: "Placement", href: "/admin/placements", icon: "◎", roles: ["INSTITUTION_ADMIN"], permissions: ["placements.read"], group: "Administration", activeMatch: "nested" },
-  { label: "Placement", href: "/superadmin/placements", icon: "◎", roles: ["SUPER_ADMIN"], permissions: ["placements.read"], group: "Platform", activeMatch: "nested" },
-  { label: "Placement", href: "/chairman/placements", icon: "◎", roles: ["CHAIRMAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
-  { label: "Placement", href: "/management/placements", icon: "◎", roles: ["MANAGEMENT"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
-  { label: "Placement", href: "/director/placements", icon: "◎", roles: ["DIRECTOR"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
-  { label: "Placement", href: "/registrar/placements", icon: "◎", roles: ["REGISTRAR"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
-  { label: "Placement", href: "/dean/placements", icon: "◎", roles: ["DEAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
-  { label: "Placement", href: "/hod/placements", icon: "◎", roles: ["HOD"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
-  { label: "Placement", href: "/faculty/placements", icon: "◎", roles: ["FACULTY"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
-  { label: "Placement", href: "/placements", icon: "◎", roles: ["PLACEMENT"], permissions: ["placements.read"], group: "Workspace", activeMatch: "exact" },
-  { label: "Placement", href: "/student/placements", icon: "◎", roles: ["STUDENT"], permissions: ["placements.read"], group: "Career", activeMatch: "nested" },
-  { label: "Placement", href: "/parent/placements", icon: "◎", roles: ["PARENT"], permissions: ["placements.read"], group: "Student", activeMatch: "nested" },
-];
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
   if (requiredPermission && !permissionSet.has(requiredPermission)) return false;
 
   const matchingItems = ROLE_NAVIGATION
