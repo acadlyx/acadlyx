@@ -107,17 +107,17 @@ export function PlacementDashboard() {
 
   return (
     <DashboardShell title="Placement Workspace" subtitle="Employer opportunities, applications and placement outcomes" allowedRoles={["PLACEMENT"]}>
-      <main className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto min-w-0 max-w-7xl space-y-6">
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-700">Career services</p>
-              <h1 className="mt-2 text-3xl font-black text-slate-950">Placement Command Center</h1>
+              <h1 className="mt-2 break-words text-2xl font-black sm:text-3xl text-slate-950">Placement Command Center</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 This workspace is connected to the institutional placement opportunity and application records. Every application transition is server-authorized and audited.
               </p>
             </div>
-            <button onClick={() => void load()} className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-800" disabled={loading}>Refresh</button>
+            <button onClick={() => void load()} className="min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-bold text-slate-800 sm:w-auto" disabled={loading}>Refresh</button>
           </div>
         </section>
 
@@ -154,11 +154,11 @@ export function PlacementDashboard() {
 
         <section className="grid gap-6 lg:grid-cols-2">
           <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-black text-slate-950">Employer opportunities</h2><span className="text-xs text-slate-500">{opportunities.length} records</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-black text-slate-950">Employer opportunities</h2><span className="text-xs text-slate-500">{opportunities.length} records</span></div>
             <div className="mt-4 space-y-3">
               {opportunities.map((item) => (
                 <div key={item.id} className="rounded-xl border p-4">
-                  <div className="flex justify-between gap-3"><div><p className="font-bold text-slate-950">{item.title}</p><p className="text-sm text-slate-600">{item.organization}</p></div><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">{item.isActive ? "ACTIVE" : "CLOSED"}</span></div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-between"><div className="min-w-0"><p className="font-bold text-slate-950">{item.title}</p><p className="text-sm text-slate-600">{item.organization}</p></div><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">{item.isActive ? "ACTIVE" : "CLOSED"}</span></div>
                   {item.deadline && <p className="mt-2 text-xs text-slate-500">Deadline: {new Date(item.deadline).toLocaleString()}</p>}
                   {item.description && <p className="mt-2 text-sm text-slate-600">{item.description}</p>}
                 </div>
@@ -175,12 +175,12 @@ export function PlacementDashboard() {
                   <div className="flex justify-between gap-3"><div><p className="font-bold text-slate-950">{item.opportunity.title}</p><p className="text-sm text-slate-600">{item.opportunity.organization}{item.student ? " · " + item.student.firstName + " " + item.student.lastName : ""}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold">{item.status}</span></div>
                   {isManager && ["APPLIED","SHORTLISTED","INTERVIEW","OFFERED","ACCEPTED"].includes(item.status) && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {item.status === "APPLIED" && <button onClick={() => void transition(item.id, "SHORTLISTED")} className="rounded-lg border px-3 py-2 text-xs font-bold">Shortlist</button>}
+                      {item.status === "APPLIED" && <button onClick={() => void transition(item.id, "SHORTLISTED")} className="min-h-11 rounded-lg border px-3 py-2 text-xs font-bold">Shortlist</button>}
                       {item.status === "SHORTLISTED" && <button onClick={() => void transition(item.id, "INTERVIEW")} className="rounded-lg border px-3 py-2 text-xs font-bold">Move to interview</button>}
                       {item.status === "INTERVIEW" && <button onClick={() => void transition(item.id, "OFFERED")} className="rounded-lg border px-3 py-2 text-xs font-bold">Offer</button>}
                       {item.status === "OFFERED" && <button onClick={() => void transition(item.id, "ACCEPTED")} className="rounded-lg border px-3 py-2 text-xs font-bold">Accept</button>}
-                      {item.status === "ACCEPTED" && <button onClick={() => void transition(item.id, "JOINED")} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Mark joined</button>}
-                      {["APPLIED","SHORTLISTED","INTERVIEW","OFFERED"].includes(item.status) && <button onClick={() => void transition(item.id, "REJECTED")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Reject</button>}
+                      {item.status === "ACCEPTED" && <button onClick={() => void transition(item.id, "JOINED")} className="min-h-11 rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Mark joined</button>}
+                      {["APPLIED","SHORTLISTED","INTERVIEW","OFFERED"].includes(item.status) && <button onClick={() => void transition(item.id, "REJECTED")} className="min-h-11 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Reject</button>}
                     </div>
                   )}
                 </div>
@@ -189,7 +189,7 @@ export function PlacementDashboard() {
             </div>
           </article>
         </section>
-      </main>
+      </div>
     </DashboardShell>
   );
 }
