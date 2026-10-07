@@ -1,7 +1,2 @@
-import { StudentSelfServiceModule } from "@/components/student/StudentSelfServiceModule";
-
-export default function StudentResultsPage() {
-  return (
-    <StudentSelfServiceModule module="results" />
-  );
-}
+import { redirect } from "next/navigation";
+export default function Page(){ redirect("/student/examinations/results"); }
