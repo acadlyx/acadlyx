@@ -728,6 +728,7 @@ export default function LibraryPage() {
               >
                 Cancel
               </button>
+              </div>
             </div>
           </section>
         )}
