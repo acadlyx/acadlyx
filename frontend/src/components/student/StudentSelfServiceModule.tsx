@@ -570,20 +570,41 @@ function LibraryView() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    try {
-      const [loanData, bookData] = await Promise.all([
-        listMyLoans(),
-        listBooks({
-          page: 1,
-          search: query || undefined,
-          availableOnly: true,
-        }),
-      ]);
+    setError("");
 
-      setLoans(loanData);
-      setBooks(bookData.items);
-    } catch {
-      setError("We could not load your library information.");
+    const [loanResult, bookResult] = await Promise.allSettled([
+      listMyLoans(),
+      listBooks({
+        page: 1,
+        search: query || undefined,
+        availableOnly: true,
+      }),
+    ]);
+
+    const errors: string[] = [];
+
+    if (loanResult.status === "fulfilled") {
+      setLoans(loanResult.value);
+    } else {
+      errors.push(
+        loanResult.reason instanceof Error
+          ? loanResult.reason.message
+          : "Your issued-book history could not be loaded.",
+      );
+    }
+
+    if (bookResult.status === "fulfilled") {
+      setBooks(bookResult.value.items);
+    } else {
+      errors.push(
+        bookResult.reason instanceof Error
+          ? bookResult.reason.message
+          : "The library catalogue could not be loaded.",
+      );
+    }
+
+    if (errors.length > 0) {
+      setError(errors.join(" "));
     }
   }, [query]);
 
@@ -607,6 +628,21 @@ function LibraryView() {
     } finally {
       setBusy("");
     }
+  }
+
+  if (!loans && error) {
+    return (
+      <div className="space-y-4">
+        <ErrorBox message={error} />
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Retry library
+        </button>
+      </div>
+    );
   }
 
   if (!loans) {
