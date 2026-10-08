@@ -322,7 +322,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Intelligence",
-    href: "/intelligence",
+    href: "/chairman/intelligence",
     icon: "✦",
     roles: ["CHAIRMAN"],
     permissions: ["intelligence.read"],
@@ -330,7 +330,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Reports",
-    href: "/reports",
+    href: "/chairman/reports",
     icon: "▤",
     roles: ["CHAIRMAN"],
     permissions: ["reports.read"],
@@ -346,7 +346,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Academic oversight",
-    href: "/examination",
+    href: "/chairman/examinations",
     icon: "◉",
     roles: ["CHAIRMAN"],
     permissions: ["exams.read"],
@@ -362,7 +362,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Operations oversight",
-    href: "/operations",
+    href: "/chairman/operations",
     icon: "⚙",
     roles: ["CHAIRMAN"],
     permissions: ["operations.read"],
@@ -386,7 +386,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Reports",
-    href: "/reports",
+    href: "/director/reports",
     icon: "▤",
     roles: ["DIRECTOR"],
     permissions: ["reports.read"],
@@ -394,7 +394,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/director/students",
     icon: "◎",
     roles: ["DIRECTOR"],
     permissions: ["students.read"],
@@ -434,7 +434,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Operations",
-    href: "/operations",
+    href: "/director/operations",
     icon: "⚙",
     roles: ["DIRECTOR"],
     permissions: ["operations.read"],
@@ -442,7 +442,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Campus Collection",
-    href: "/fees/collections",
+    href: "/director/fees/collections",
     icon: "₹",
     roles: ["DIRECTOR"],
     permissions: ["fees.collection.read"],
@@ -483,7 +483,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Department Fees",
-    href: "/fees/collections",
+    href: "/dean/fees",
     icon: "₹",
     roles: ["DEAN"],
     permissions: ["fees.collection.read"],
@@ -491,7 +491,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Reports",
-    href: "/reports",
+    href: "/dean/reports",
     icon: "▤",
     roles: ["DEAN"],
     permissions: ["reports.read"],
@@ -499,7 +499,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Intelligence",
-    href: "/intelligence",
+    href: "/dean/intelligence",
     icon: "✦",
     roles: ["DEAN"],
     permissions: ["intelligence.read"],
@@ -507,7 +507,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/dean/students",
     icon: "◎",
     roles: ["DEAN"],
     permissions: ["students.read"],
@@ -540,7 +540,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/registrar/students",
     icon: "◎",
     roles: ["REGISTRAR"],
     permissions: ["students.read"],
@@ -638,7 +638,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Attendance",
-    href: "/attendance",
+    href: "/hod/attendance",
     icon: "✓",
     roles: ["HOD"],
     permissions: ["attendance.read"],
@@ -646,7 +646,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Timetable",
-    href: "/timetable",
+    href: "/hod/timetable",
     icon: "◫",
     roles: ["HOD"],
     permissions: ["timetable.read"],
@@ -654,7 +654,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Reports",
-    href: "/reports",
+    href: "/hod/reports",
     icon: "▤",
     roles: ["HOD"],
     permissions: ["reports.read"],
@@ -662,7 +662,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Intelligence",
-    href: "/intelligence",
+    href: "/hod/intelligence",
     icon: "✦",
     roles: ["HOD"],
     permissions: ["intelligence.read"],
@@ -686,7 +686,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Department Fees",
-    href: "/fees/collections",
+    href: "/hod/fees",
     icon: "₹",
     roles: ["HOD"],
     permissions: ["fees.collection.read"],
@@ -1278,7 +1278,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Operations",
-    href: "/operations",
+    href: "/management/operations",
     icon: "⚙",
     roles: ["MANAGEMENT"],
     permissions: ["operations.read"],
@@ -1286,7 +1286,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Intelligence",
-    href: "/intelligence",
+    href: "/management/intelligence",
     icon: "✦",
     roles: ["MANAGEMENT"],
     permissions: ["intelligence.read"],
@@ -1294,7 +1294,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Reports",
-    href: "/reports",
+    href: "/management/reports",
     icon: "▤",
     roles: ["MANAGEMENT"],
     permissions: ["reports.read"],
