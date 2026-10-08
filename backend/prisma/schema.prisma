@@ -129,6 +129,7 @@ model Institution {
   files                 FileAsset[]
   backgroundJobs        BackgroundJob[]
   events                InstitutionalEvent[]
+  placementTests        PlacementTest[]
   eventCategories      EventCategory[]
 
   admissionApplications AdmissionApplication[]
@@ -274,10 +275,12 @@ model User {
   placementInterviews        PlacementInterviewParticipant[]
   placementOffers             PlacementOffer[]
   placementJoiningAsStudent PlacementJoiningVerification[] @relation("PlacementJoiningStudent")
+  placementTestParticipants PlacementTestParticipant[]
   placementProfile            PlacementProfile?
   placementCertifications     PlacementCertification[]
   placementProjects           PlacementProject[]
   placementResumes            PlacementResume[]
+  placementTestParticipants   PlacementTestParticipant[]
   placementCompaniesCreated   PlacementCompany[] @relation("PlacementCompanyCreatedBy")
   parentLinks             ParentStudentLink[]    @relation("ParentLinks")
   childLinks              ParentStudentLink[]    @relation("ChildLinks")
@@ -1314,6 +1317,7 @@ model PlacementDrive {
   notes String?
   applications Application[]
   interviews PlacementInterview[]
+  tests PlacementTest[]
   visits PlacementVisit[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1348,6 +1352,42 @@ model PlacementOpening {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([institutionId, companyId, deadline])
+}
+
+model PlacementTest {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  driveId String
+  drive PlacementDrive @relation(fields:[driveId], references:[id], onDelete:Cascade)
+  title String
+  mode String @default("ONLINE")
+  scheduledAt DateTime
+  durationMinutes Int?
+  maxScore Float?
+  testLink String?
+  status String @default("SCHEDULED")
+  instructions String?
+  participants PlacementTestParticipant[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, scheduledAt, status])
+  @@index([institutionId, driveId])
+}
+
+model PlacementTestParticipant {
+  testId String
+  test PlacementTest @relation(fields:[testId], references:[id], onDelete:Cascade)
+  studentId String
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  attendanceStatus String @default("PENDING")
+  resultStatus String @default("PENDING")
+  score Float?
+  feedback String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@id([testId, studentId])
+  @@index([studentId, resultStatus])
 }
 
 model PlacementVisit {
