@@ -586,14 +586,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["promotions.read"],
     group: "Academic",
   },
-  {
-    label: "Examinations",
-    href: "/examination",
-    icon: "◉",
-    roles: ["REGISTRAR"],
-    permissions: ["exams.read"],
-    group: "Academic",
-  },
 
   {
     label: "Overview",
@@ -1339,6 +1331,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 ].filter((item): item is NavigationItem => Boolean(item));
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
+  ["/admin/institutional-cms", ["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR"]],
   ["/superadmin", ["SUPER_ADMIN"]],
   ["/admin", ["INSTITUTION_ADMIN"]],
   ["/student", ["STUDENT"]],
