@@ -62,7 +62,12 @@ CREATE INDEX "library_book_copies_institutionId_status_idx"
 ALTER TABLE "library_books"
   ADD COLUMN "defaultAcquisitionCost" DOUBLE PRECISION,
   ADD COLUMN "defaultReplacementValue" DOUBLE PRECISION,
-  ADD COLUMN "defaultCurrentValue" DOUBLE PRECISION;
+  ADD COLUMN "defaultCurrentValue" DOUBLE PRECISION,
+  ADD COLUMN "defaultLoanDays" INTEGER,
+  ADD COLUMN "defaultMaxRenewals" INTEGER,
+  ADD COLUMN "defaultFinePerDay" DOUBLE PRECISION,
+  ADD COLUMN "defaultFineCap" DOUBLE PRECISION,
+  ADD COLUMN "defaultGracePeriodDays" INTEGER;
 
 ALTER TABLE "library_issues"
   ADD COLUMN "copyId" TEXT,
