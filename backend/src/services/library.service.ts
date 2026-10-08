@@ -1121,7 +1121,8 @@ export async function renewLoan(
     });
     if (reservation) throw new AppError("This book has a reservation waiting for another member", 409);
 
-    const nextDueDate = input.dueDate ?? addDays(loan.dueDate, loan.loanPeriodDays ?? 14);
+    const policy = await getLibraryPolicy(tx, institutionId);
+    const nextDueDate = input.dueDate ?? addDays(loan.dueDate, loan.loanPeriodDays ?? policy.defaultLoanDays);
     if (nextDueDate.getTime() <= loan.dueDate.getTime()) {
       throw new AppError("Renewal due date must be after the current due date", 422);
     }
