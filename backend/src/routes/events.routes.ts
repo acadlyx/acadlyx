@@ -2,12 +2,13 @@ import { Router } from "express";
 import * as controller from "../controllers/events.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
+import { requireFeature } from "../middleware/requireFeature";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate";
 import { idParams } from "../validators/common";
 import { eventListQuery, createEventSchema, updateEventSchema, categorySchema, mediaSchema } from "../validators/events.validators";
 
 const router=Router();
-router.use(authenticate);
+router.use(authenticate, requireFeature("cms"));
 router.get("/",authorize("events.read"),validateQuery(eventListQuery),controller.list);
 router.get("/categories",authorize("events.read"),controller.categories);
 router.get("/:id",authorize("events.read"),validateParams(idParams),controller.get);
