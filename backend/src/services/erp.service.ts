@@ -466,6 +466,7 @@ export async function getMyWorkspace(
             },
           },
         },
+        take: 100,
       }),
 
       prisma.timetableEntry.findMany({
