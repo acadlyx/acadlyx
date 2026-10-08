@@ -467,9 +467,10 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
   }
   if (!target) throw new AppError("Student scope is required.", 400);
   await assertCanViewStudent(institutionId, actor, target);
-  const [drive, enrollment] = await Promise.all([
-    prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, status: true, applicationDeadline: true, cgpaRequirement: true, maxBacklogs: true, eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true, requiredSkills: true } }),
+  const [drive, enrollment, academic] = await Promise.all([
+    prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, status: true, applicationDeadline: true, cgpaRequirement: true, maxBacklogs: true, eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true, requiredSkills: true, academicRequirements: true } }),
     prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, select: { programId: true, batchId: true, semesterId: true, program: { select: { departmentId: true } } } }),
+    prisma.placementAcademicSnapshot.findFirst({ where: { institutionId, studentId: target } }),
   ]);
   if (!drive) throw new AppError("Placement drive not found.", 404);
   if (!enrollment) return { eligible: false, reasons: ["No active academic enrollment found."] };
@@ -481,6 +482,20 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
   if (list(drive.eligibleDepartments).length && !list(drive.eligibleDepartments).includes(enrollment.program.departmentId)) reasons.push("Department is not eligible.");
   if (list(drive.eligibleBatches).length && (!enrollment.batchId || !list(drive.eligibleBatches).includes(enrollment.batchId))) reasons.push("Batch is not eligible.");
   if (list(drive.eligibleSemesters).length && (!enrollment.semesterId || !list(drive.eligibleSemesters).includes(enrollment.semesterId))) reasons.push("Semester is not eligible.");
+  if (drive.cgpaRequirement != null) {
+    if (academic?.cgpa == null) reasons.push("Authoritative CGPA is not available for this student.");
+    else if (academic.cgpa < drive.cgpaRequirement) reasons.push("CGPA does not meet the drive requirement.");
+  }
+  if (drive.maxBacklogs != null) {
+    if (academic?.backlogCount == null) reasons.push("Authoritative backlog count is not available for this student.");
+    else if (academic.backlogCount > drive.maxBacklogs) reasons.push("Backlog count exceeds the drive limit.");
+  }
+  const academicRules = drive.academicRequirements && typeof drive.academicRequirements === "object" && !Array.isArray(drive.academicRequirements)
+    ? drive.academicRequirements as Record<string, unknown>
+    : {};
+  if (typeof academicRules.academicStatus === "string" && academic?.academicStatus !== academicRules.academicStatus) reasons.push("Academic status is not eligible.");
+  if (academicRules.graduationEligible === true && academic?.graduationEligible !== true) reasons.push("Graduation eligibility is not confirmed.");
+
 
   const requiredSkillIds = list(drive.requiredSkills);
   if (requiredSkillIds.length) {
