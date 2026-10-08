@@ -142,6 +142,7 @@ model Institution {
   libraryIssues LibraryIssue[]
   libraryFines LibraryFine[]
   libraryPolicies LibraryPolicy[]
+  libraryLoanRenewals LibraryLoanRenewal[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
@@ -2296,6 +2297,7 @@ model LibraryIssue {
   updatedAt     DateTime    @updatedAt
   financialInvoices FeeInvoice[]
   fines             LibraryFine[]
+  renewals          LibraryLoanRenewal[]
 
   @@index([institutionId, status])
   @@index([institutionId, dueDate])
@@ -2330,6 +2332,22 @@ model LibraryBookCopy {
   @@index([institutionId, bookId, status])
   @@index([institutionId, status])
   @@map("library_book_copies")
+}
+
+model LibraryLoanRenewal {
+  id              String       @id @default(uuid())
+  institutionId   String
+  institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  issueId         String
+  issue           LibraryIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  previousDueDate DateTime
+  newDueDate      DateTime
+  renewedById     String
+  note            String?
+  createdAt       DateTime @default(now())
+
+  @@index([institutionId, issueId, createdAt])
+  @@map("library_loan_renewals")
 }
 
 model LibraryPolicy {
