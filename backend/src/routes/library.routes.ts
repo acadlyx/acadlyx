@@ -29,6 +29,7 @@ import {
   fineWaiverApprovalSchema,
   renewLoanSchema,
   libraryPolicySchema,
+  updateCopySchema,
 } from "../validators/library.validators";
 
 const router = Router();
@@ -132,6 +133,16 @@ router.get(
     });
     res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, pagination) });
   })
+);
+
+router.patch(
+  "/copies/:id",
+  authorizeWorkflow("library.manage"),
+  validateParams(idParams),
+  validateBody(updateCopySchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.updateCopy(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body, auditMeta(req)
+  )))
 );
 
 router.get(
