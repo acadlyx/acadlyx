@@ -130,6 +130,7 @@ model Institution {
   backgroundJobs        BackgroundJob[]
   events                InstitutionalEvent[]
   placementTests        PlacementTest[]
+  placementAcademicSnapshots PlacementAcademicSnapshot[]
   eventCategories      EventCategory[]
 
   admissionApplications AdmissionApplication[]
@@ -276,6 +277,7 @@ model User {
   placementOffers             PlacementOffer[]
   placementJoiningAsStudent PlacementJoiningVerification[] @relation("PlacementJoiningStudent")
   placementTestParticipants PlacementTestParticipant[]
+  placementAcademicSnapshot PlacementAcademicSnapshot?
   placementProfile            PlacementProfile?
   placementCertifications     PlacementCertification[]
   placementProjects           PlacementProject[]
@@ -1351,6 +1353,24 @@ model PlacementOpening {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([institutionId, companyId, deadline])
+}
+
+model PlacementAcademicSnapshot {
+  id String @id @default(uuid())
+  institutionId String
+  institution Institution @relation(fields:[institutionId], references:[id], onDelete:Cascade)
+  studentId String @unique
+  student User @relation(fields:[studentId], references:[id], onDelete:Cascade)
+  cgpa Float?
+  backlogCount Int?
+  academicStatus String?
+  graduationEligible Boolean?
+  sourceUpdatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([institutionId, cgpa])
+  @@index([institutionId, backlogCount])
+  @@index([institutionId, academicStatus])
 }
 
 model PlacementTest {
