@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, getStudentWhereScope, hasAnyRole } from "./accessScope.service";
+import { assertCanViewStudent, getStudentWhereScope, getAuthorizedDepartmentIds, hasAnyRole } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 const APPLICATION_TRANSITIONS: Record<string, string[]> = {
@@ -373,8 +373,7 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  const roles = actor.roles;
-  const scopedDepartments = hasAnyRole(actor, ["DEAN","HOD","FACULTY","DIRECTOR"]) ? await getStudentWhereScope(institutionId, actor) : null;
+  const scopedDepartmentIds = hasAnyRole(actor, ["DEAN","HOD","FACULTY","DIRECTOR"]) ? await getAuthorizedDepartmentIds(institutionId, actor) : null;
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
   const rows = await prisma.placementDrive.findMany({
@@ -389,20 +388,15 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
     skip: (page - 1) * pageSize,
     take: pageSize,
   });
-  if (!scopedDepartments) return rows;
-  const allowedIds = new Set(
-    Object.values(scopedDepartments).length ? [] : [],
-  );
-  // Department-scoped actors must only see drives whose server-resolved
-  // eligible department list intersects their managed student scope.
-  const allowedStudents = await prisma.user.findMany({ where: { institutionId, ...scopedDepartments }, select: { id: true } });
-  if (!allowedStudents.length) return [];
-  const relevant = new Set(
-    (await prisma.application.findMany({ where: { institutionId, studentId: { in: allowedStudents.map((s) => s.id) }, placementDriveId: { not: null } }, select: { placementDriveId: true }, distinct: ["placementDriveId"] }))
-      .map((row) => row.placementDriveId)
-      .filter((id): id is string => Boolean(id)),
-  );
-  return rows.filter((row) => relevant.has(row.id) || (Array.isArray(row.eligibleDepartments) && row.eligibleDepartments.some((id) => typeof id === "string")));
+  if (!scopedDepartmentIds) return rows;
+  if (!scopedDepartmentIds.length) return [];
+  const allowed = new Set(scopedDepartmentIds);
+  return rows.filter((row) => {
+    const ids = Array.isArray(row.eligibleDepartments)
+      ? row.eligibleDepartments.filter((id): id is string => typeof id === "string")
+      : [];
+    return ids.length === 0 || ids.some((id) => allowed.has(id));
+  });
 }
     include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
     orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
