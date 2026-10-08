@@ -575,6 +575,26 @@ export async function listAcademicYears(): Promise<
 
 /*
  * ---------------------------------------------------------------------------
+ * ACADEMIC DIRECTORY LOOKUPS
+ * ---------------------------------------------------------------------------
+ */
+
+export async function listCampuses(): Promise<Array<{ id: string; name: string; code?: string }>> {
+  const response = await authedFetch<ApiEnvelope<Array<{ id: string; name: string; code?: string }> | { items: Array<{ id: string; name: string; code?: string }> }>>(
+    "/campuses?page=1&pageSize=100&isActive=true",
+  );
+  return Array.isArray(response.data) ? response.data : response.data.items;
+}
+
+export async function listSections(): Promise<Array<{ id: string; name: string; code?: string }>> {
+  const response = await authedFetch<ApiEnvelope<Array<{ id: string; name: string; code?: string }> | { items: Array<{ id: string; name: string; code?: string }> }>>(
+    "/sections?page=1&pageSize=200&isActive=true",
+  );
+  return Array.isArray(response.data) ? response.data : response.data.items;
+}
+
+/*
+ * ---------------------------------------------------------------------------
  * PROGRAMS
  * ---------------------------------------------------------------------------
  */
