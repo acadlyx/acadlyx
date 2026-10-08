@@ -14,6 +14,7 @@ import { getCanonicalRoleNames } from "../config/rbac";
 export const INSTITUTION_WIDE_ROLES = [
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "REGISTRAR",
   "ACCOUNTS",
   "ADMISSIONS",
@@ -179,14 +180,16 @@ export async function getStudentWhereScope(
 
   if (roles.includes("STUDENT")) return { id: actor.id };
 
-  // Placement Cell needs institution-scoped student visibility for placement
-  // readiness, eligibility, applications and outcomes. This is read scope;
-  // authoritative academic/enrollment mutations remain separately protected.
+  // Placement Cell is not a generic institution-wide student directory.
+  // Student access is limited to records that have an explicit placement
+  // relationship: placement profile/snapshot or a placement application.
   if (roles.includes("PLACEMENT")) {
     return {
-      studentEnrollments: {
-        some: { institutionId },
-      },
+      OR: [
+        { placementProfile: { isNot: null } },
+        { placementAcademicSnapshot: { isNot: null } },
+        { placementApplicationsOwned: { some: { institutionId } } },
+      ],
     };
   }
 
@@ -282,7 +285,19 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
   }
 
   if (roles.includes("PLACEMENT")) {
-    return;
+    const eligible = await prisma.user.findFirst({
+      where: {
+        id: studentId,
+        institutionId,
+        OR: [
+          { placementProfile: { isNot: null } },
+          { placementAcademicSnapshot: { isNot: null } },
+          { placementApplicationsOwned: { some: { institutionId } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (eligible) return;
   }
 
   if (roles.includes("FACULTY")) {
