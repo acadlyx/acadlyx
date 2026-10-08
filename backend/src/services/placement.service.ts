@@ -72,6 +72,7 @@ export async function listOpportunities(
     },
     include: { targetRole: { select: { id: true, name: true } } },
     orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
+    take: 200,
   });
 }
 
@@ -237,6 +238,7 @@ export async function listApplications(
       student: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
     orderBy: { appliedAt: "desc" },
+    take: 200,
   });
 }
 
