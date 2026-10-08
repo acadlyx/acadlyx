@@ -328,98 +328,126 @@ export async function issueBook(
   input: IssueBookInput,
   meta: Meta
 ) {
-  await assertBorrowerInInstitution(institutionId, input.borrowerId);
-
-  const dueDate = input.dueDate ?? addDays(new Date(), LOAN_PERIOD_DAYS);
-  if (dueDate.getTime() <= Date.now()) {
-    throw new AppError("Due date must be in the future", 422);
-  }
-
-  const issue = await prisma.$transaction(async (tx) => {
-    const book = await tx.libraryBook.findFirst({
-      where: { id: input.bookId, institutionId, isActive: true },
-    });
-    if (!book) throw new AppError("Book not found", 404);
-
-    const [activeLoans, duplicate, reservation] = await Promise.all([
-      tx.libraryIssue.count({
-        where: {
-          institutionId,
-          borrowerId: input.borrowerId,
-          status: { in: ["ISSUED", "RESERVED"] },
-        },
-      }),
-      tx.libraryIssue.findFirst({
-        where: {
-          institutionId,
-          borrowerId: input.borrowerId,
-          bookId: input.bookId,
-          status: "ISSUED",
-        },
+  const result = await prisma.$transaction(async (tx) => {
+    const [borrower, policy, book] = await Promise.all([
+      tx.user.findFirst({
+        where: { id: input.borrowerId, institutionId, isActive: true },
         select: { id: true },
       }),
-      tx.libraryIssue.findFirst({
-        where: {
-          institutionId,
-          borrowerId: input.borrowerId,
-          bookId: input.bookId,
-          status: "RESERVED",
-        },
-        select: { id: true },
+      getLibraryPolicy(tx, institutionId),
+      tx.libraryBook.findFirst({
+        where: { id: input.bookId, institutionId, isActive: true },
+        include: { copies: { where: { status: "AVAILABLE" }, orderBy: { accessionNumber: "asc" }, take: 50 } },
       }),
     ]);
+    if (!borrower) throw new AppError("Borrower is not an active user of this institution", 404);
+    if (!book) throw new AppError("Book not found", 404);
 
-    if (duplicate) {
-      throw new AppError("This borrower already holds a copy of this book", 409);
-    }
-    if (!reservation && activeLoans >= MAX_ACTIVE_LOANS) {
-      throw new AppError(
-        `Borrowing limit reached (${MAX_ACTIVE_LOANS} active loans)`,
-        422
-      );
+    const activeLoans = await tx.libraryIssue.count({
+      where: { institutionId, borrowerId: input.borrowerId, status: { in: ["ISSUED", "RESERVED"] } },
+    });
+    const duplicate = await tx.libraryIssue.findFirst({
+      where: { institutionId, borrowerId: input.borrowerId, bookId: input.bookId, status: "ISSUED" },
+      select: { id: true },
+    });
+    const reservation = await tx.libraryIssue.findFirst({
+      where: { institutionId, borrowerId: input.borrowerId, bookId: input.bookId, status: "RESERVED" },
+      select: { id: true, copyId: true },
+    });
+    if (duplicate) throw new AppError("This borrower already holds a copy of this book", 409);
+    if (!reservation && activeLoans >= (policy.maxActiveLoans)) {
+      throw new AppError(`Borrowing limit reached (${policy.maxActiveLoans} active loans)`, 422);
     }
 
-    /* A reservation already reserved a copy, so stock only moves for
-       a fresh issue. */
-    if (!reservation) {
-      const stockUpdate = await tx.libraryBook.updateMany({
-        where: {
-          id: book.id,
-          institutionId,
-          isActive: true,
-          availableCopies: { gt: 0 },
-        },
-        data: { availableCopies: { decrement: 1 } },
-      });
-      if (stockUpdate.count !== 1) {
-        throw new AppError("No copies are currently available", 409);
-      }
+    const copy = reservation?.copyId
+      ? await tx.libraryBookCopy.findFirst({ where: { id: reservation.copyId, institutionId, bookId: book.id, status: "RESERVED" } })
+      : input.copyId
+        ? await tx.libraryBookCopy.findFirst({ where: { id: input.copyId, institutionId, bookId: book.id, status: "AVAILABLE" } })
+        : book.copies[0];
+
+    if (!copy) throw new AppError("No matching physical copy is available", 409);
+
+    const issuedAt = input.issuedAt ?? new Date();
+    const loanDays = input.loanPeriodDays ?? book.defaultLoanDays ?? policy.defaultLoanDays;
+    const dueDate = input.dueDate ?? addDays(issuedAt, loanDays);
+    if (dueDate.getTime() <= issuedAt.getTime()) throw new AppError("Due date must be after the issue date", 422);
+
+    const finePerDay = input.finePerDay ?? book.defaultFinePerDay ?? policy.dailyFine;
+    const fineCap = input.fineCap ?? book.defaultFineCap ?? policy.fineCap;
+    const gracePeriodDays = input.gracePeriodDays ?? book.defaultGracePeriodDays ?? policy.gracePeriodDays;
+    const renewalsAllowed = input.renewalsAllowed ?? book.defaultMaxRenewals ?? policy.maxRenewals;
+
+    if (input.fineCap !== undefined && input.fineCap < finePerDay) {
+      throw new AppError("Fine cap cannot be lower than the daily fine", 422);
     }
 
     if (reservation) {
+      await tx.libraryBookCopy.update({
+        where: { id: copy.id },
+        data: { status: "ISSUED" },
+      });
       return tx.libraryIssue.update({
         where: { id: reservation.id },
         data: {
           status: "ISSUED",
+          copyId: copy.id,
           issuedById: actor.id,
-          issuedAt: new Date(),
+          issuedAt,
           dueDate,
+          loanPeriodDays: loanDays,
+          renewalsAllowed,
+          finePerDay,
+          fineCap,
+          gracePeriodDays,
+          finePolicySource: input.finePerDay !== undefined || input.fineCap !== undefined || input.gracePeriodDays !== undefined
+            ? "TRANSACTION"
+            : book.defaultFinePerDay !== null || book.defaultFineCap !== null || book.defaultGracePeriodDays !== null
+              ? "BOOK"
+              : "INSTITUTION",
+          originalDueDate: dueDate,
+          note: input.note ?? null,
         },
         include: issueInclude,
       });
     }
 
-    return tx.libraryIssue.create({
+    const stockUpdate = await tx.libraryBookCopy.updateMany({
+      where: { id: copy.id, institutionId, bookId: book.id, status: "AVAILABLE" },
+      data: { status: "ISSUED" },
+    });
+    if (stockUpdate.count !== 1) throw new AppError("The selected copy is no longer available", 409);
+
+    const issue = await tx.libraryIssue.create({
       data: {
         institutionId,
-        bookId: input.bookId,
+        bookId: book.id,
         borrowerId: input.borrowerId,
         issuedById: actor.id,
+        issuedAt,
         dueDate,
+        copyId: copy.id,
+        loanPeriodDays: loanDays,
+        renewalsAllowed,
+        finePerDay,
+        fineCap,
+        gracePeriodDays,
+        finePolicySource: input.finePerDay !== undefined || input.fineCap !== undefined || input.gracePeriodDays !== undefined
+          ? "TRANSACTION"
+          : book.defaultFinePerDay !== null || book.defaultFineCap !== null || book.defaultGracePeriodDays !== null
+            ? "BOOK"
+            : "INSTITUTION",
+        originalDueDate: dueDate,
+        note: input.note ?? null,
         status: "ISSUED",
       },
       include: issueInclude,
     });
+
+    await tx.libraryBook.update({
+      where: { id: book.id },
+      data: { availableCopies: { decrement: 1 } },
+    });
+    return issue;
   });
 
   await recordAuditLog({
@@ -427,12 +455,22 @@ export async function issueBook(
     userId: actor.id,
     action: "library.issue",
     entityType: "LibraryIssue",
-    entityId: issue.id,
-    metadata: { bookId: input.bookId, borrowerId: input.borrowerId },
+    entityId: result.id,
+    metadata: {
+      bookId: result.bookId,
+      borrowerId: result.borrowerId,
+      copyId: result.copyId,
+      dueDate: result.dueDate.toISOString(),
+      finePerDay: result.finePerDay,
+      fineCap: result.fineCap,
+      gracePeriodDays: result.gracePeriodDays,
+      renewalsAllowed: result.renewalsAllowed,
+      policySource: result.finePolicySource,
+    },
     ...meta,
   });
 
-  return shape(issue);
+  return shape(result);
 }
 
 export async function reserveBook(
