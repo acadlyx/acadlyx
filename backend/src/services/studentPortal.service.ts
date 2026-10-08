@@ -81,6 +81,7 @@ export async function getSectionCourseOfferings(
       faculty: { select: { id: true, firstName: true, lastName: true } },
     },
     orderBy: { course: { code: "asc" } },
+    take: 100,
   });
 }
 
