@@ -4,7 +4,7 @@ import EntityPicker from "@/components/common/EntityPicker";
 import { DirectoryOption } from "@/lib/directoryApi";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   AuthRequiredError,
@@ -73,12 +73,19 @@ const day = (value: string | null) =>
 
 export default function LibraryPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tab, setTab] = useState<Tab>("catalogue");
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (requested === "circulation" || requested === "fines" || requested === "mine" || requested === "catalogue") {
+      setTab(requested);
+    }
+  }, [searchParams]);
 
   const [summary, setSummary] = useState<LibrarySummary | null>(null);
   const [books, setBooks] = useState<LibraryBook[]>([]);
