@@ -276,9 +276,11 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
   const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
   const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
   const studentBaseWhere: Prisma.UserWhereInput = {
-    ...studentWhere,
-    userRoles: { some: { role: { name: "STUDENT" } } },
-    studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+    AND: [
+      studentWhere,
+      { userRoles: { some: { role: { name: "STUDENT" } } } },
+      { studentEnrollments: { some: { institutionId, status: "ACTIVE" } } },
+    ],
   };
   const applicationWhere: Prisma.ApplicationWhereInput = { institutionId, student: studentWhere };
   const offerWhere: Prisma.PlacementOfferWhereInput = { institutionId, student: studentWhere };
