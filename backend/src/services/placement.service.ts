@@ -610,8 +610,9 @@ export async function listPlacementOffers(institutionId: string, actor: Authenti
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
   if (target) await assertCanViewStudent(institutionId, actor, target);
+  const studentWhere = target ? { id: target } : await getStudentWhereScope(institutionId, actor);
   return prisma.placementOffer.findMany({
-    where: { institutionId, ...(target ? { studentId: target } : {}) },
+    where: { institutionId, student: studentWhere },
     include: { company: { select: { id: true, name: true, logoUrl: true } } },
     orderBy: { offerDate: "desc" },
     take: 100,
