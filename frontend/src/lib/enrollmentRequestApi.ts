@@ -9,7 +9,15 @@ export interface EnrollmentContext {
   sections: Array<{ id: string; name: string; capacity: number | null }>;
 }
 
-export interface EnrollmentSummary {\n  id: string;\n  program: { id: string; name: string; code: string; department: { id: string; name: string; code: string } };\n  academicYear: { id: string; name: string; isCurrent: boolean };\n  semester: { id: string; name: string; number: number };\n  section: { id: string; name: string } | null;\n}\n\nexport interface EnrollmentRequest {
+export interface EnrollmentSummary {
+  id: string;
+  program: { id: string; name: string; code: string; department: { id: string; name: string; code: string } };
+  academicYear: { id: string; name: string; isCurrent: boolean };
+  semester: { id: string; name: string; number: number };
+  section: { id: string; name: string } | null;
+}
+
+export interface EnrollmentRequest {
   id: string;
   status: EnrollmentRequestStatus;
   createdAt: string;
