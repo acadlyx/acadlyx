@@ -84,7 +84,7 @@ export function PlacementDashboard() {
       event.currentTarget.reset();
       await load();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Unable to create placement opportunity.");
+      setError(err instanceof HttpRequestError ? err.message : "Unable to create placement opportunity.");
     } finally {
       setBusyId(null);
     }
@@ -100,7 +100,7 @@ export function PlacementDashboard() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Unable to update application.");
+      setError(err instanceof HttpRequestError ? err.message : "Unable to update application.");
     } finally {
       setBusyId(null);
     }
