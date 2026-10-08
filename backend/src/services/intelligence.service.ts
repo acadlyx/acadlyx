@@ -180,7 +180,19 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
   const attendanceCourseOfferingFilter: Prisma.CourseOfferingWhereInput =
     facultyOfferingFilter;
 
-  const [students, departments, faculty, attendance, pendingAssignments] = await Promise.all([
+  const placementStudentWhere: Prisma.UserWhereInput = {
+    institutionId,
+    studentEnrollments: {
+      some: {
+        institutionId,
+        ...(filters.programId ? { programId: filters.programId } : {}),
+        ...(filters.departmentId ? { program: { departmentId: filters.departmentId } } : {}),
+        ...(filters.semesterId ? { semesterId: filters.semesterId } : {}),
+        status: "ACTIVE",
+      },
+    },
+  };
+  const [students, departments, faculty, attendance, pendingAssignments, placement] = await Promise.all([
     prisma.studentEnrollment.count({ where: enrollmentWhere }),
     prisma.department.count({ where: { institutionId, ...(filters.departmentId ? { id: filters.departmentId } : {}) } }),
     prisma.user.count({ where: { institutionId, facultyCourseOfferings: { some: facultyOfferingFilter } } }),
@@ -205,11 +217,29 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
       _count: { _all: true },
     }),
     prisma.assignment.count({ where: assignmentWhere }),
+    (async () => {
+      const [eligibleStudents, placedStudents, offers, acceptedOffers, packageStats] = await Promise.all([
+        prisma.user.count({ where: placementStudentWhere }),
+        prisma.placementOffer.count({ where: { institutionId, status: "JOINED", student: placementStudentWhere } }),
+        prisma.placementOffer.count({ where: { institutionId, student: placementStudentWhere } }),
+        prisma.placementOffer.count({ where: { institutionId, status: { in: ["ACCEPTED","JOINED"] }, student: placementStudentWhere } }),
+        prisma.placementOffer.aggregate({ where: { institutionId, status: "JOINED", student: placementStudentWhere }, _avg: { totalCtc: true }, _max: { totalCtc: true } }),
+      ]);
+      return {
+        eligibleStudents,
+        placedStudents,
+        unplacedStudents: Math.max(eligibleStudents - placedStudents, 0),
+        placementRate: eligibleStudents ? round(placedStudents / eligibleStudents * 100) : 0,
+        offerAcceptanceRate: offers ? round(acceptedOffers / offers * 100) : 0,
+        averagePackage: packageStats._avg.totalCtc ? Number(packageStats._avg.totalCtc) : 0,
+        highestPackage: packageStats._max.totalCtc ? Number(packageStats._max.totalCtc) : 0,
+      };
+    })(),
   ]);
   const totalAttendance = attendance.reduce((n, x) => n + x._count._all, 0);
   const present = attendance.find(x => x.status === "PRESENT")?._count._all || 0;
   const attendanceRate = totalAttendance ? round(present / totalAttendance * 100) : 0;
-  return { kpis: { students, faculty, departments, attendance: attendanceRate, pendingAssignments }, filters, recommendedActions: [
+  return { kpis: { students, faculty, departments, attendance: attendanceRate, pendingAssignments }, placement, filters, recommendedActions: [
     ...(attendanceRate < 75 ? ["Prioritize attendance recovery plans for below-target cohorts"] : []),
     ...(pendingAssignments ? ["Review overdue assignment completion with faculty mentors"] : []),
   ] };
