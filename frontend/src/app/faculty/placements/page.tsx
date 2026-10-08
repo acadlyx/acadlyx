@@ -5,7 +5,7 @@ import { apiFetch,ApiRequestError } from "@/lib/api";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Student={id:string;firstName:string;lastName:string;placementProfile:{placementStatus:string}|null;studentEnrollments:Array<{program:{name:string};semester:{name:string}|null}>;_count:{placementApplicationsOwned:number;placementOffers:number}};
-type Metrics=Record<string,unknown>;
+type Metrics=Record<string,string|number|null|undefined>;
 
 export default function FacultyPlacementsPage(){
  const [students,setStudents]=useState<Student[]>([]);const[m,setM]=useState<Metrics|null>(null);const[error,setError]=useState("");const[loading,setLoading]=useState(true);
