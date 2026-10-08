@@ -55,7 +55,7 @@ test("lost-book charges use actual copy/book value", () => {
 test("lost-book fixed policy uses configured charge", () => {
   assert.equal(
     calculateLostCharge(
-      { currentValue: 2500, acquisitionCost: 2200 },
+      { currentValue: 2500, replacementValue: 2500, acquisitionCost: 2200 },
       { defaultReplacementValue: 300, defaultCurrentValue: 280 },
       { ...policy, lostChargeType: "FIXED", lostAdministrativeCharge: 175 }
     ),
