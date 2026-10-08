@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { apiFetch, ApiRequestError } from "@/lib/api";
+import { authedFetch, HttpRequestError } from "@/lib/auth";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { DashboardShell } from "./DashboardShell";
 
@@ -49,16 +49,16 @@ export function PlacementDashboard() {
     try {
       const [current, opportunityResponse, applicationResponse, metricResponse] = await Promise.all([
         getCurrentUser(),
-        apiFetch<{ data?: Opportunity[] }>("/placements/opportunities?activeOnly=false"),
-        apiFetch<{ data?: Application[] }>("/placements/applications"),
-        apiFetch<{ data?: Metrics }>("/placements/metrics"),
+        authedFetch<{ data?: Opportunity[] }>("/placements/opportunities?activeOnly=false"),
+        authedFetch<{ data?: Application[] }>("/placements/applications"),
+        authedFetch<{ data?: Metrics }>("/placements/metrics"),
       ]);
       setUser(current);
       setOpportunities(opportunityResponse.data || []);
       setApplications(applicationResponse.data || []);
       setMetrics(metricResponse.data || null);
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Unable to load placement workspace.");
+      setError(err instanceof HttpRequestError ? err.message : "Unable to load placement workspace.");
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export function PlacementDashboard() {
     setBusyId("create");
     setError("");
     try {
-      await apiFetch("/placements/opportunities", {
+      await authedFetch("/placements/opportunities", {
         method: "POST",
         body: JSON.stringify({
           title: form.get("title"),
@@ -94,7 +94,7 @@ export function PlacementDashboard() {
     setBusyId(applicationId);
     setError("");
     try {
-      await apiFetch("/placements/applications/" + applicationId + "/status", {
+      await authedFetch("/placements/applications/" + applicationId + "/status", {
         method: "POST",
         body: JSON.stringify({ status }),
       });
