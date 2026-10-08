@@ -499,7 +499,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Intelligence",
-    href: "/dean/intelligence",
+    href: "/intelligence",
     icon: "✦",
     roles: ["DEAN"],
     permissions: ["intelligence.read"],
