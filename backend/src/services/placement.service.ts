@@ -428,6 +428,11 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
     },
     include: { company: true, opening: true },
   });
+  await prisma.placementCompanyHistory.upsert({
+    where: { institutionId_companyId: { institutionId, companyId: drive.companyId } },
+    create: { institutionId, companyId: drive.companyId, driveCount: 1, lastInteractionAt: new Date() },
+    update: { driveCount: { increment: 1 }, lastInteractionAt: new Date() },
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.created", entityType: "PlacementDrive", entityId: drive.id, metadata: { title: drive.title, companyId: drive.companyId } });
   return drive;
 }
@@ -741,7 +746,18 @@ export async function verifyPlacementJoining(institutionId: string, actor: Authe
     create:{institutionId,offerId,studentId:offer.studentId,expectedJoiningDate:offer.joiningDate,actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):null,status:input.status,proofUrl:input.proofUrl||null,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes||null},
     update:{actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):undefined,status:input.status,proofUrl:input.proofUrl,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes},
   });
-  if(input.status==="VERIFIED") await prisma.placementOffer.update({where:{id:offerId},data:{status:"JOINED",joiningStatus:"VERIFIED",joiningVerifiedAt:new Date(),joiningVerifiedById:actor.id}});
+  if(input.status==="VERIFIED") {
+    await prisma.placementOffer.update({where:{id:offerId},data:{status:"JOINED",joiningStatus:"VERIFIED",joiningVerifiedAt:new Date(),joiningVerifiedById:actor.id}});
+    const joinedOffer = await prisma.placementOffer.findUnique({ where: { id: offerId }, select: { companyId: true, totalCtc: true } });
+    if (joinedOffer) {
+      const aggregate = await prisma.placementOffer.aggregate({ where: { institutionId, companyId: joinedOffer.companyId, status: "JOINED" }, _avg: { totalCtc: true }, _max: { totalCtc: true } });
+      await prisma.placementCompanyHistory.upsert({
+        where: { institutionId_companyId: { institutionId, companyId: joinedOffer.companyId } },
+        create: { institutionId, companyId: joinedOffer.companyId, hiredCount: 1, averagePackage: aggregate._avg.totalCtc, highestPackage: aggregate._max.totalCtc, lastInteractionAt: new Date() },
+        update: { hiredCount: { increment: 1 }, averagePackage: aggregate._avg.totalCtc, highestPackage: aggregate._max.totalCtc, lastInteractionAt: new Date() },
+      });
+    }
+  }
   await recordAuditLog({institutionId,userId:actor.id,action:"placements.joining.verified",entityType:"PlacementJoiningVerification",entityId:verification.id,metadata:{offerId,status:input.status}});
   return verification;
 }
