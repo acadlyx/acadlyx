@@ -20,6 +20,7 @@ import { SmartInsightsList } from "@/components/faculty/SmartInsightsList";
 
 import {
   AuthRequiredError,
+  authedFetch,
   isAuthenticated,
   logout,
 } from "@/lib/auth";
@@ -37,6 +38,19 @@ type ViewState =
   | "ready"
   | "error";
 
+type ScopedStudent = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profile?: { admissionNumber?: string | null } | null;
+  currentEnrollment?: {
+    rollNumber?: string | null;
+    section?: { name: string } | null;
+    program?: { name: string; code: string } | null;
+  } | null;
+};
+
 export default function FacultyDashboardPage() {
   const router = useRouter();
 
@@ -51,6 +65,8 @@ export default function FacultyDashboardPage() {
   const [errorMessage, setErrorMessage] =
     useState("");
 
+  const [students, setStudents] = useState<ScopedStudent[]>([]);
+
   const load = useCallback(async () => {
     if (!isAuthenticated()) {
       router.replace("/login");
@@ -61,10 +77,15 @@ export default function FacultyDashboardPage() {
     setErrorMessage("");
 
     try {
-      const dashboard =
-        await getMyFacultyDashboard();
+      const [dashboard, studentResponse] = await Promise.all([
+        getMyFacultyDashboard(),
+        authedFetch<{ success: boolean; data: ScopedStudent[] }>(
+          "/students?page=1&pageSize=12",
+        ),
+      ]);
 
       setData(dashboard);
+      setStudents(studentResponse.data ?? []);
       setState("ready");
     } catch (err) {
       if (err instanceof AuthRequiredError) {
@@ -256,6 +277,40 @@ export default function FacultyDashboardPage() {
               />
             </DashboardCard>
           </div>
+
+          <section className="mt-8">
+            <SectionHeader
+              title="My Students"
+              subtitle="Students connected to your active teaching assignments"
+            />
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {students.map((student) => (
+                <Link
+                  key={student.id}
+                  href={`/students/${encodeURIComponent(student.id)}`}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
+                >
+                  <p className="font-bold text-slate-900">
+                    {student.firstName} {student.lastName}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {student.profile?.admissionNumber || student.email}
+                    {student.currentEnrollment?.rollNumber
+                      ? ` · Roll ${student.currentEnrollment.rollNumber}`
+                      : ""}
+                  </p>
+                  <span className="mt-3 inline-flex text-xs font-bold text-blue-700">
+                    View Full Profile →
+                  </span>
+                </Link>
+              ))}
+              {!students.length ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                  No students are currently connected to your active teaching assignments.
+                </div>
+              ) : null}
+            </div>
+          </section>
 
           <div className="mt-8">
             <SectionHeader
