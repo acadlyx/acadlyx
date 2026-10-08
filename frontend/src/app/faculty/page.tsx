@@ -278,7 +278,7 @@ export default function FacultyDashboardPage() {
             </DashboardCard>
           </div>
 
-          <section className="mt-8">
+          <section id="students" className="mt-8">
             <SectionHeader
               title="My Students"
               subtitle="Students connected to your active teaching assignments"
