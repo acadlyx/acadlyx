@@ -27,6 +27,11 @@ function assertInstitution(actor: AuthenticatedUser, institutionId: string): voi
   if (actor.institutionId !== institutionId) throw new AppError("Institution context mismatch.", 403);
 }
 
+async function getPlacementStudentScope(institutionId: string, actor: AuthenticatedUser): Promise<Prisma.UserWhereInput> {
+  if (hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"])) return {};
+  return getStudentWhereScope(institutionId, actor);
+}
+
 async function assertPlacementEntitlement(institutionId: string): Promise<void> {
   const entitlement = await prisma.tenantFeatureEntitlement.findFirst({
     where: { institutionId, featureKey: "placements" },
@@ -219,7 +224,7 @@ export async function listApplications(
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement application access is not permitted.", 403);
   const studentId = actor.roles.includes("STUDENT") ? actor.id : options.studentId;
   if (studentId) await assertCanViewStudent(institutionId, actor, studentId);
-  const scopedStudentWhere = studentId ? { id: studentId } : (await getStudentWhereScope(institutionId, actor));
+  const scopedStudentWhere = studentId ? { id: studentId } : await getPlacementStudentScope(institutionId, actor);
 
   return prisma.application.findMany({
     where: {
@@ -274,7 +279,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
   }
 
   const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
-  const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
+  const studentWhere: Prisma.UserWhereInput = await getPlacementStudentScope(institutionId, actor);
   const studentBaseWhere: Prisma.UserWhereInput = {
     AND: [
       studentWhere,
@@ -639,7 +644,7 @@ export async function listPlacementOffers(institutionId: string, actor: Authenti
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const target = actor.roles.includes("STUDENT") ? actor.id : studentId;
   if (target) await assertCanViewStudent(institutionId, actor, target);
-  const studentWhere = target ? { id: target } : await getStudentWhereScope(institutionId, actor);
+  const studentWhere = target ? { id: target } : await getPlacementStudentScope(institutionId, actor);
   return prisma.placementOffer.findMany({
     where: { institutionId, student: studentWhere },
     include: { company: { select: { id: true, name: true, logoUrl: true } } },
