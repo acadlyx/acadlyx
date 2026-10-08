@@ -891,7 +891,11 @@ export async function imposeLateReturnFine(
     });
     if (!issue) throw new AppError("Active library loan not found", 404);
 
-    const fine = computeFine(issue.dueDate);
+    const fine = computeFine(issue.dueDate, {
+      dailyFine: issue.finePerDay ?? (await getLibraryPolicy(tx, institutionId)).dailyFine,
+      fineCap: issue.fineCap ?? (await getLibraryPolicy(tx, institutionId)).fineCap,
+      gracePeriodDays: issue.gracePeriodDays,
+    });
     if (fine <= 0) {
       throw new AppError("This loan is not overdue, so there is no late-return fine to impose", 422);
     }
