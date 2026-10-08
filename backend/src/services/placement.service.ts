@@ -785,7 +785,7 @@ export async function listPlacementInterviews(
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  const studentWhere = await getStudentWhereScope(institutionId, actor);
+  const studentWhere = await getPlacementStudentScope(institutionId, actor);
   return prisma.placementInterview.findMany({
     where: {
       institutionId,
@@ -1028,7 +1028,7 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const target = actor.roles.includes("STUDENT") ? actor.id : options.studentId;
   if (target) await assertCanViewStudent(institutionId, actor, target);
-  const studentWhere = target ? { id: target } : await getStudentWhereScope(institutionId, actor);
+  const studentWhere = target ? { id: target } : await getPlacementStudentScope(institutionId, actor);
   return prisma.placementTest.findMany({
     where: {
       institutionId,
