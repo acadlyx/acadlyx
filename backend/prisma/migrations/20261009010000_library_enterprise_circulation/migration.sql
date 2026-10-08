@@ -174,3 +174,20 @@ FROM (
   GROUP BY "bookId"
 ) stats
 WHERE b."id" = stats."bookId";
+
+
+CREATE TABLE "library_loan_renewals" (
+  "id" TEXT NOT NULL,
+  "institutionId" TEXT NOT NULL,
+  "issueId" TEXT NOT NULL,
+  "previousDueDate" TIMESTAMP(3) NOT NULL,
+  "newDueDate" TIMESTAMP(3) NOT NULL,
+  "renewedById" TEXT NOT NULL,
+  "note" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "library_loan_renewals_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "library_loan_renewals_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "library_loan_renewals_issueId_fkey" FOREIGN KEY ("issueId") REFERENCES "library_issues"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "library_loan_renewals_renewedById_fkey" FOREIGN KEY ("renewedById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+CREATE INDEX "library_loan_renewals_institutionId_issueId_createdAt_idx" ON "library_loan_renewals"("institutionId","issueId","createdAt");
