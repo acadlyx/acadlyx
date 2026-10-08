@@ -6,7 +6,7 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { listEvents, type InstitutionalEvent } from "@/lib/eventsApi";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-export function EventsGalleryContent() {
+export function EventsGalleryContent({ embedded = false }: { embedded?: boolean }) {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [events,setEvents]=useState<InstitutionalEvent[]>([]);
   const [busy,setBusy]=useState(true);
@@ -19,7 +19,7 @@ export function EventsGalleryContent() {
   useEffect(()=>{const t=setTimeout(()=>void load(),250);return()=>clearTimeout(t);},[status]);
   const canManage=!!user?.permissions.includes("events.manage");
 
-  const basePath = "/admin/events-gallery";
+  const basePath = embedded ? "/admin/events-gallery" : "/events-gallery";
   const content = (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
