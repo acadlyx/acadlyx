@@ -35,7 +35,7 @@ type LoanPolicy = {
 
 const issueInclude = {
   book: { select: { id: true, title: true, author: true, isbn: true, defaultReplacementValue: true, defaultCurrentValue: true } },
-  copy: { select: { id: true, accessionNumber: true, barcode: true, acquisitionCost: true, currentValue: true, condition: true, status: true, location: true, shelf: true } },
+  copy: { select: { id: true, accessionNumber: true, barcode: true, acquisitionCost: true, replacementValue: true, currentValue: true, condition: true, status: true, location: true, shelf: true } },
   borrower: {
     select: { id: true, firstName: true, lastName: true, email: true },
   },
@@ -100,36 +100,19 @@ async function getLibraryPolicy(tx: Prisma.TransactionClient | typeof prisma, in
 }
 
 export function calculateLostCharge(
-  copy: { currentValue: number | null; acquisitionCost: number | null } | null,
+  copy: { currentValue: number | null; replacementValue: number | null; acquisitionCost: number | null } | null,
   book: { defaultReplacementValue: number | null; defaultCurrentValue: number | null },
   policy: LoanPolicy
 ): number {
-  const value =
-    copy?.currentValue ??
-    book.defaultReplacementValue ??
-    copy?.acquisitionCost ??
-    book.defaultCurrentValue;
-  if (policy.lostChargeType === "FIXED") {
-    return round2(policy.lostAdministrativeCharge);
-  }
-  if (value === null || value === undefined) {
-    throw new AppError("Replacement/current value is required before a lost-book charge can be created", 422);
-  }
+  if (policy.lostChargeType === "FIXED") return round2(policy.lostAdministrativeCharge);
+  const value = policy.lostChargeType === "CURRENT_VALUE"
+    ? (copy?.currentValue ?? book.defaultCurrentValue)
+    : (copy?.replacementValue ?? book.defaultReplacementValue ?? copy?.currentValue ?? book.defaultCurrentValue ?? copy?.acquisitionCost);
+  if (value === null || value === undefined) throw new AppError("A configured replacement/current value is required before a lost-book charge can be created", 422);
   return round2(value + policy.lostAdministrativeCharge);
 }
 
-export async function syncBookInventory(tx: Prisma.TransactionClient, institutionId: string, bookId: string) {
-  const [totalCopies, availableCopies] = await Promise.all([
-    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: { not: "WITHDRAWN" } } }),
-    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: "AVAILABLE" } }),
-  ]);
-  await tx.libraryBook.update({
-    where: { id: bookId },
-    data: { totalCopies, availableCopies },
-  });
-}
-
-function calculateDamagedCharge(
+export function calculateDamagedCharge(
   copy: { currentValue: number | null } | null,
   book: { defaultReplacementValue: number | null },
   policy: LoanPolicy
