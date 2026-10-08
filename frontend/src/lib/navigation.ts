@@ -615,7 +615,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 
   {
     label: "Students",
-    href: "/hod/students",
+    href: "/students",
     icon: "◎",
     roles: ["HOD"],
     permissions: ["students.read"],
