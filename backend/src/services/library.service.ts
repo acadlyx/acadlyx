@@ -655,117 +655,94 @@ export async function returnBook(
   input: ReturnBookInput,
   meta: Meta
 ) {
-  const existing = await prisma.libraryIssue.findFirst({
-    where: { id, institutionId },
-    include: { book: true },
-  });
-  if (!existing) throw new AppError("Loan not found", 404);
-  if (existing.status !== "ISSUED" && existing.status !== "RESERVED") {
-    throw new AppError("This loan is already closed", 422);
-  }
-
-  const fine =
-    input.condition === "LOST"
-      ? round2(computeFine(existing.dueDate) + LOST_BOOK_FINE)
-      : input.condition === "DAMAGED"
-        ? DAMAGED_BOOK_FINE
-        : computeFine(existing.dueDate);
-
-  if (input.waiveFine && fine > 0 && !actor.permissions.includes("library.fines.waive.approve")) {
-    throw new AppError("Fine waiver requires financial approval authority", 403);
-  }
-
-  const financeEntitlement = await prisma.tenantFeatureEntitlement.findFirst({
-    where: { institutionId, featureKey: "fees", isEnabled: true },
-    select: { id: true },
-  });
-  const financialReady = Boolean(financeEntitlement);
-
   const result = await prisma.$transaction(async (tx) => {
-    if (input.condition === "LOST" || input.condition === "DAMAGED") {
-      // A lost/damaged copy does not return to circulation. Because the
-      // issued/reserved copy is already excluded from availableCopies, the
-      // aggregate inventory is reduced by one without incrementing stock.
-      const stockUpdate = await tx.libraryBook.updateMany({
-        where: {
-          id: existing.bookId,
-          institutionId,
-          totalCopies: { gt: 0 },
-        },
-        data: { totalCopies: { decrement: 1 } },
-      });
-      if (stockUpdate.count !== 1) {
-        throw new AppError(
-          "Book inventory is already exhausted; reconcile stock before closing this loan",
-          409
-        );
-      }
-    } else {
-      await tx.libraryBook.update({
-        where: { id: existing.bookId },
-        data: { availableCopies: { increment: 1 } },
-      });
+    const existing = await tx.libraryIssue.findFirst({
+      where: { id, institutionId },
+      include: { book: true, copy: true },
+    });
+    if (!existing) throw new AppError("Loan not found", 404);
+    if (existing.status !== "ISSUED" && existing.status !== "RESERVED") {
+      throw new AppError("This loan is already closed", 422);
     }
+
+    const policy = await getLibraryPolicy(tx, institutionId);
+    const loanPolicy = {
+      dailyFine: existing.finePerDay ?? policy.dailyFine,
+      fineCap: existing.fineCap ?? policy.fineCap,
+      gracePeriodDays: existing.gracePeriodDays,
+    };
+    const lateFine = computeFine(existing.dueDate, loanPolicy);
+
+    let charge = lateFine;
+    if (input.condition === "LOST") {
+      const lostCharge = calculateLostCharge(existing.copy, existing.book, policy);
+      charge = round2(lateFine + lostCharge);
+    } else if (input.condition === "DAMAGED") {
+      const damagedCharge = calculateDamagedCharge(existing.copy, existing.book, policy);
+      charge = round2(lateFine + damagedCharge);
+    }
+
+    const finalFine = input.fineOverride ?? charge;
+    if (input.fineOverride !== undefined && !input.fineOverrideReason?.trim()) {
+      throw new AppError("A reason is required when overriding a library charge", 422);
+    }
+    if (input.waiveFine && finalFine > 0 && !actor.permissions.includes("library.fines.waive.approve")) {
+      throw new AppError("Fine waiver requires financial approval authority", 403);
+    }
+
+    const financeEntitlement = await tx.tenantFeatureEntitlement.findFirst({
+      where: { institutionId, featureKey: "fees", isEnabled: true },
+      select: { id: true },
+    });
+    const financialReady = Boolean(financeEntitlement);
 
     let financialInvoiceId: string | null = null;
     let libraryFineId: string | null = null;
+    let fineType: string | null = finalFine > 0
+      ? input.condition === "LOST" ? "LOST_BOOK"
+        : input.condition === "DAMAGED" ? "DAMAGED_BOOK"
+        : "OVERDUE"
+      : null;
 
-    if (fine > 0) {
-      if (!financialReady) {
-        const blockedFine = await tx.libraryFine.upsert({
-          where: { issueId_type: { issueId: existing.id, type: input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE" } },
-          update: {},
-          create: {
-            institutionId, issueId: existing.id, studentId: existing.borrowerId,
-            type: input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE",
-            originalAmount: fine, reason: input.condition === "LOST" ? `Lost book: "${existing.book.title}"` : input.condition === "DAMAGED" ? `Damaged book: "${existing.book.title}"` : `Late return of "${existing.book.title}"`,
-            status: "FINANCE_BLOCKED",
-          },
-        });
-        libraryFineId = blockedFine.id;
-      } else {
-      const feeHeadCode =
-        input.condition === "LOST"
-          ? "LOST_BOOK_CHARGE"
-          : input.condition === "DAMAGED"
-            ? "DAMAGED_BOOK_CHARGE"
-            : "LIBRARY_FINE";
-      const feeHeadName =
-        input.condition === "LOST"
-          ? "Lost Book Charge"
-          : input.condition === "DAMAGED"
-            ? "Damaged Book Charge"
-            : "Library Fine";
-      const feeHead = await tx.feeHead.upsert({
-        where: { institutionId_code: { institutionId, code: feeHeadCode } },
-        update: { isActive: true },
-        create: {
-          institutionId,
-          name: feeHeadName,
-          code: feeHeadCode,
-          description: "Financial charges generated by library circulation",
-        },
-        select: { id: true },
-      });
-
-      const type = input.condition === "LOST" ? "LOST_BOOK" : input.condition === "DAMAGED" ? "DAMAGED_BOOK" : "OVERDUE";
-      const reason =
-        input.condition === "LOST"
+    if (finalFine > 0 && fineType) {
+      const reason = input.fineOverrideReason?.trim()
+        ? input.fineOverrideReason.trim()
+        : input.condition === "LOST"
           ? `Lost book: "${existing.book.title}"`
           : input.condition === "DAMAGED"
             ? `Damaged book: "${existing.book.title}"`
             : `Late return of "${existing.book.title}"`;
 
+      const feeHeadCode = fineType === "LOST_BOOK"
+        ? "LOST_BOOK_CHARGE"
+        : fineType === "DAMAGED_BOOK"
+          ? "DAMAGED_BOOK_CHARGE"
+          : "LIBRARY_FINE";
+      const feeHeadName = fineType === "LOST_BOOK"
+        ? "Lost Book Charge"
+        : fineType === "DAMAGED_BOOK"
+          ? "Damaged Book Charge"
+          : "Library Fine";
+
       const fineRow = await tx.libraryFine.upsert({
-        where: { issueId_type: { issueId: existing.id, type } },
-        update: {},
+        where: { issueId_type: { issueId: existing.id, type: fineType } },
+        update: {
+          originalAmount: finalFine,
+          reason,
+          status: input.waiveFine ? "WAIVED" : "OUTSTANDING",
+          waivedAmount: input.waiveFine ? finalFine : 0,
+          waiverReason: input.waiveFine ? "Waived during authorized return" : null,
+          requestedById: input.waiveFine ? actor.id : null,
+          approvedById: input.waiveFine ? actor.id : null,
+          approvedAt: input.waiveFine ? new Date() : null,
+        },
         create: {
           institutionId,
           issueId: existing.id,
           studentId: existing.borrowerId,
-          type,
-          originalAmount: fine,
-          waivedAmount: input.waiveFine ? fine : 0,
+          type: fineType,
+          originalAmount: finalFine,
+          waivedAmount: input.waiveFine ? finalFine : 0,
           reason,
           status: input.waiveFine ? "WAIVED" : "OUTSTANDING",
           requestedById: input.waiveFine ? actor.id : null,
@@ -776,46 +753,79 @@ export async function returnBook(
       });
       libraryFineId = fineRow.id;
 
-      const eventKey = `LIBRARY_FINANCIAL_CHARGE:${existing.id}:${type}`;
-      const invoice = await tx.feeInvoice.upsert({
-        where: {
-          institutionId_sourceEventKey: {
-            institutionId,
-            sourceEventKey: eventKey,
-          },
-        },
-        update: {},
-        create: {
-          institutionId,
-          studentId: existing.borrowerId,
-          title: input.condition === "LOST" ? "Library Lost Book Charge" : "Library Fine — Late Return",
-          amount: input.waiveFine ? 0 : fine,
-          dueDate: new Date(),
-          status: input.waiveFine ? "WAIVED" : "PENDING",
-          invoiceNumber: `LIB-${existing.id.slice(0, 8).toUpperCase()}`,
-          grossAmount: fine,
-          discountAmount: input.waiveFine ? fine : 0,
-          sourceModule: "LIBRARY",
-          sourceType: type === "OVERDUE" ? "LIBRARY_FINE" : type === "LOST_BOOK" ? "LIBRARY_LOST_BOOK_CHARGE" : "LIBRARY_DAMAGED_BOOK_CHARGE",
-          sourceEntityId: existing.id,
-          sourceEventKey: eventKey,
-          libraryIssueId: existing.id,
-          items: {
-            create: {
-              feeHeadId: feeHead.id,
-              description: reason,
-              amount: fine,
-            },
-          },
-        },
-      });
-      financialInvoiceId = invoice.id;
-
-      await tx.libraryFine.update({
-        where: { id: libraryFineId },
-        data: { financialInvoiceId },
-      });
+      if (financialReady) {
+        const feeHead = await tx.feeHead.upsert({
+          where: { institutionId_code: { institutionId, code: feeHeadCode } },
+          update: { isActive: true },
+          create: { institutionId, name: feeHeadName, code: feeHeadCode, description: "Financial charges generated by library circulation" },
+          select: { id: true },
+        });
+        const eventKey = `LIBRARY_FINANCIAL_CHARGE:${existing.id}:${fineType}`;
+        const existingInvoice = await tx.feeInvoice.findUnique({
+          where: { institutionId_sourceEventKey: { institutionId, sourceEventKey: eventKey } },
+          select: { id: true, paidAmount: true },
+        });
+        const settled = Number(existingInvoice?.paidAmount ?? 0);
+        const payable = input.waiveFine ? 0 : finalFine;
+        const invoiceAmount = Math.max(payable, settled);
+        const invoiceStatus = invoiceAmount <= settled + 0.005
+          ? "PAID"
+          : settled > 0 ? "PARTIALLY_PAID" : "PENDING";
+        const invoice = existingInvoice
+          ? await tx.feeInvoice.update({
+              where: { id: existingInvoice.id },
+              data: {
+                amount: invoiceAmount,
+                grossAmount: finalFine,
+                discountAmount: input.waiveFine ? finalFine : 0,
+                status: invoiceStatus,
+              },
+            })
+          : await tx.feeInvoice.create({
+              data: {
+                institutionId,
+                studentId: existing.borrowerId,
+                title: feeHeadName,
+                amount: invoiceAmount,
+                dueDate: new Date(),
+                status: invoiceStatus,
+                invoiceNumber: `LIB-${existing.id.slice(0, 8).toUpperCase()}`,
+                grossAmount: finalFine,
+                discountAmount: input.waiveFine ? finalFine : 0,
+                sourceModule: "LIBRARY",
+                sourceType: fineType === "OVERDUE" ? "LIBRARY_FINE" : `LIBRARY_${fineType}_CHARGE`,
+                sourceEntityId: existing.id,
+                sourceEventKey: eventKey,
+                libraryIssueId: existing.id,
+                items: { create: { feeHeadId: feeHead.id, description: reason, amount: invoiceAmount } },
+              },
+            });
+        if (existingInvoice) {
+          await tx.feeInvoiceItem.updateMany({
+            where: { invoiceId: invoice.id },
+            data: { feeHeadId: feeHead.id, description: reason, amount: invoiceAmount },
+          });
+        }
+        financialInvoiceId = invoice.id;
+        await tx.libraryFine.update({ where: { id: libraryFineId }, data: { financialInvoiceId: invoice.id } });
       }
+    }
+
+    if (existing.copyId) {
+      await tx.libraryBookCopy.update({
+        where: { id: existing.copyId },
+        data: {
+          status: input.condition === "RETURNED" ? "AVAILABLE" : input.condition,
+          condition: input.condition === "RETURNED" ? "GOOD" : input.damageSeverity ?? input.condition,
+        },
+      });
+    }
+
+    if (input.condition === "RETURNED") {
+      await tx.libraryBook.update({
+        where: { id: existing.bookId },
+        data: { availableCopies: { increment: 1 } },
+      });
     }
 
     const issue = await tx.libraryIssue.update({
@@ -823,13 +833,25 @@ export async function returnBook(
       data: {
         status: input.condition,
         returnedAt: new Date(),
-        fineAmount: fine,
+        fineAmount: finalFine,
         note: input.note ?? null,
+        lostChargeAmount: input.condition === "LOST" ? Math.max(0, finalFine - lateFine) : null,
+        damagedChargeAmount: input.condition === "DAMAGED" ? Math.max(0, finalFine - lateFine) : null,
       },
       include: issueInclude,
     });
 
-    return { issue, fine, financialInvoiceId, libraryFineId, financialReady };
+    return {
+      issue,
+      lateFine,
+      calculatedCharge: charge,
+      finalFine,
+      financialInvoiceId,
+      libraryFineId,
+      financialReady,
+      fineOverride: input.fineOverride !== undefined,
+      damageSeverity: input.damageSeverity ?? null,
+    };
   });
 
   await recordAuditLog({
@@ -840,22 +862,22 @@ export async function returnBook(
     entityId: id,
     metadata: {
       condition: input.condition,
-      fine: result.fine,
+      lateFine: result.lateFine,
+      calculatedCharge: result.calculatedCharge,
+      finalAmount: result.finalFine,
       financialInvoiceId: result.financialInvoiceId,
       libraryFineId: result.libraryFineId,
-    financialWarning: result.financialReady ? null : "Fees/Accounts is disabled for this institution; the library fine is recorded as FINANCE_BLOCKED and must be reconciled after the financial module is enabled.",
-      waived: Boolean(input.waiveFine),
+      fineOverride: result.fineOverride,
+      overrideReason: input.fineOverrideReason?.trim() ?? null,
+      damageSeverity: result.damageSeverity,
       financialReady: result.financialReady,
     },
     ...meta,
   });
 
-  return {
-    ...shape(result.issue),
-    financialInvoiceId: result.financialInvoiceId,
-    libraryFineId: result.libraryFineId,
-  };
+  return { ...shape(result.issue), financialInvoiceId: result.financialInvoiceId, libraryFineId: result.libraryFineId };
 }
+
 export async function imposeLateReturnFine(
   institutionId: string,
   actor: AuthenticatedUser,
