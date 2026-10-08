@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -542,6 +543,13 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
                               ? ` · Roll ${student.currentEnrollment.rollNumber}`
                               : ""}
                           </span>
+                          <Link
+                            href={`/students/${encodeURIComponent(student.id)}`}
+                            className="mt-2 inline-flex text-xs font-bold text-blue-700 underline-offset-2 hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            View Full Profile
+                          </Link>
                         </span>
                       </label>
                     ))
