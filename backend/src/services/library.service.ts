@@ -118,7 +118,18 @@ export function calculateLostCharge(
   return round2(value + policy.lostAdministrativeCharge);
 }
 
-export function calculateDamagedCharge(
+export async function syncBookInventory(tx: Prisma.TransactionClient, institutionId: string, bookId: string) {
+  const [totalCopies, availableCopies] = await Promise.all([
+    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: { not: "WITHDRAWN" } } }),
+    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: "AVAILABLE" } }),
+  ]);
+  await tx.libraryBook.update({
+    where: { id: bookId },
+    data: { totalCopies, availableCopies },
+  });
+}
+
+function calculateDamagedCharge(
   copy: { currentValue: number | null } | null,
   book: { defaultReplacementValue: number | null },
   policy: LoanPolicy
@@ -498,10 +509,7 @@ export async function issueBook(
       include: issueInclude,
     });
 
-    await tx.libraryBook.update({
-      where: { id: book.id },
-      data: { availableCopies: { decrement: 1 } },
-    });
+    await syncBookInventory(tx, institutionId, book.id);
     return issue;
   });
 
@@ -585,10 +593,7 @@ export async function reserveBook(
       data: { status: "RESERVED" },
     });
 
-    await tx.libraryBook.update({
-      where: { id: book.id },
-      data: { availableCopies: { decrement: 1 } },
-    });
+    await syncBookInventory(tx, institutionId, book.id);
 
     return tx.libraryIssue.create({
       data: {
@@ -645,10 +650,7 @@ export async function cancelReservation(
         data: { status: "AVAILABLE", condition: "GOOD" },
       });
     }
-    await tx.libraryBook.update({
-      where: { id: existing.bookId },
-      data: { availableCopies: { increment: 1 } },
-    });
+    await syncBookInventory(tx, institutionId, existing.bookId);
     return tx.libraryIssue.update({
       where: { id },
       data: { status: "RETURNED", returnedAt: new Date() },
