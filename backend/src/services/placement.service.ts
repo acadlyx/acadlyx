@@ -383,7 +383,7 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
       institutionId,
       ...(options.status ? { status: options.status } : {}),
       ...(options.search ? { OR: [{ title: { contains: options.search, mode: "insensitive" } }, { company: { name: { contains: options.search, mode: "insensitive" } } }] } : {}),
-      ...(roles.includes("STUDENT") ? { status: { in: ["PUBLISHED","APPLICATION_OPEN","APPLICATION_CLOSED","SHORTLISTING","TEST","INTERVIEW","OFFERED"] } } : {}),
+      ...(actor.roles.includes("STUDENT") ? { status: { in: ["PUBLISHED","APPLICATION_OPEN","APPLICATION_CLOSED","SHORTLISTING","TEST","INTERVIEW","OFFERED"] } } : {}),
     },
     include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
     orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
@@ -398,11 +398,6 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
       ? row.eligibleDepartments.filter((id): id is string => typeof id === "string")
       : [];
     return ids.length === 0 || ids.some((id) => allowed.has(id));
-  });
-}
-    include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
-    orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
-    take: 100,
   });
 }
 
