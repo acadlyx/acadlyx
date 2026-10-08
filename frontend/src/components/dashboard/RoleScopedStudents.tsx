@@ -22,10 +22,12 @@ export function RoleScopedStudents({
   role,
   title,
   subtitle,
+  detailBasePath = "/students",
 }: {
   role: string;
   title: string;
   subtitle: string;
+  detailBasePath?: string;
 }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ export function RoleScopedStudents({
 
   useEffect(() => {
     let alive = true;
-    void authedFetch<Envelope>("/students?page=1&pageSize=100")
+    void authedFetch<Envelope>("/students?page=1&pageSize=25")
       .then((response) => {
         if (alive) setStudents(response.data ?? []);
       })
@@ -89,7 +91,7 @@ export function RoleScopedStudents({
               {students.map((student) => (
                 <Link
                   key={student.id}
-                  href={`/students/${student.id}`}
+                  href={`${detailBasePath}/${encodeURIComponent(student.id)}`}
                   className="block px-5 py-4 transition hover:bg-slate-50 sm:px-6"
                 >
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -102,7 +104,7 @@ export function RoleScopedStudents({
                       </p>
                     </div>
                     <span className="text-xs font-semibold text-blue-600">
-                      Open profile →
+                      View Full Profile →
                     </span>
                   </div>
                 </Link>
