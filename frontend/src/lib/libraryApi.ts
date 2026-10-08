@@ -43,6 +43,25 @@ export interface LibraryLoan {
   accruedFine: number;
   isOverdue: boolean;
   financialBalance: number;
+  copy: {
+    id: string;
+    accessionNumber: string;
+    barcode: string | null;
+    acquisitionCost: number | null;
+    currentValue: number | null;
+    condition: string;
+    status: string;
+    location: string | null;
+    shelf: string | null;
+  } | null;
+  loanPeriodDays: number | null;
+  renewalsAllowed: number;
+  renewalsUsed: number;
+  finePerDay: number | null;
+  fineCap: number | null;
+  gracePeriodDays: number;
+  finePolicySource: string | null;
+  originalDueDate: string | null;
   book: { id: string; title: string; author: string; isbn: string | null };
   borrower: {
     id: string;
@@ -223,7 +242,7 @@ export async function imposeLateReturnFine(id: string) {
 
 export async function returnLoan(
   id: string,
-  input: { condition: "RETURNED" | "LOST" | "DAMAGED"; waiveFine?: boolean; note?: string }
+  input: { condition: "RETURNED" | "LOST" | "DAMAGED"; waiveFine?: boolean; note?: string; fineOverride?: number; fineOverrideReason?: string; damageSeverity?: "MINOR" | "MODERATE" | "SEVERE" | "UNUSABLE" }
 ): Promise<LibraryLoan> {
   const res = await authedFetch<Envelope<LibraryLoan>>(
     `/library/loans/${id}/return`,
