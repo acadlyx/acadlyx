@@ -23,6 +23,14 @@ export interface LibraryBook {
   totalCopies: number;
   availableCopies: number;
   isActive: boolean;
+  defaultAcquisitionCost: number | null;
+  defaultReplacementValue: number | null;
+  defaultCurrentValue: number | null;
+  defaultLoanDays: number | null;
+  defaultMaxRenewals: number | null;
+  defaultFinePerDay: number | null;
+  defaultFineCap: number | null;
+  defaultGracePeriodDays: number | null;
 }
 
 export interface LibraryLoan {
@@ -53,6 +61,11 @@ export interface LibrarySummary {
   overdue: number;
   collectedFines: number;
   outstandingFines: number;
+  lost: number;
+  damaged: number;
+  maintenance: number;
+  todayIssues: number;
+  todayReturns: number;
 }
 
 export async function getLibrarySummary(): Promise<LibrarySummary> {
@@ -93,6 +106,14 @@ export async function createBook(input: {
   publisher?: string;
   shelfLocation?: string;
   totalCopies: number;
+  defaultAcquisitionCost?: number;
+  defaultReplacementValue?: number;
+  defaultCurrentValue?: number;
+  defaultLoanDays?: number;
+  defaultMaxRenewals?: number;
+  defaultFinePerDay?: number;
+  defaultFineCap?: number;
+  defaultGracePeriodDays?: number;
 }): Promise<LibraryBook> {
   const res = await authedFetch<Envelope<LibraryBook>>("/library/books", {
     method: "POST",
@@ -111,6 +132,14 @@ export async function updateBook(
     publisher: string;
     shelfLocation: string;
     totalCopies: number;
+    defaultAcquisitionCost: number;
+    defaultReplacementValue: number;
+    defaultCurrentValue: number;
+    defaultLoanDays: number;
+    defaultMaxRenewals: number;
+    defaultFinePerDay: number;
+    defaultFineCap: number;
+    defaultGracePeriodDays: number;
     isActive: boolean;
   }>
 ): Promise<LibraryBook> {
@@ -161,7 +190,15 @@ export async function listMyLoans(): Promise<{
 export async function issueBook(input: {
   bookId: string;
   borrowerId: string;
+  copyId?: string;
+  issuedAt?: string;
   dueDate?: string;
+  loanPeriodDays?: number;
+  renewalsAllowed?: number;
+  finePerDay?: number;
+  fineCap?: number;
+  gracePeriodDays?: number;
+  note?: string;
 }): Promise<LibraryLoan> {
   const res = await authedFetch<Envelope<LibraryLoan>>("/library/loans", {
     method: "POST",
@@ -239,6 +276,65 @@ export async function requestFineWaiver(id: string, reason: string, amount?: num
 
 export async function approveFineWaiver(id: string, amount: number, reason: string) {
   const res = await authedFetch<Envelope<unknown>>("/library/fines/" + id + "/waiver-approve", { method: "POST", body: JSON.stringify({ amount, reason }) });
+  invalidateErpWorkspace();
+  return res.data;
+}
+
+export interface LibraryBookCopy {
+  id: string;
+  accessionNumber: string;
+  barcode: string | null;
+  location: string | null;
+  shelf: string | null;
+  acquisitionDate: string | null;
+  acquisitionCost: number | null;
+  currentValue: number | null;
+  condition: string;
+  status: string;
+  book: { id: string; title: string; isbn: string | null };
+}
+
+export async function listBookCopies(params: { page?: number; bookId?: string; status?: string; search?: string } = {}) {
+  const res = await authedFetch<PagedEnvelope<LibraryBookCopy>>("/library/copies" + buildQuery(params as Record<string, string | number | undefined>));
+  return { items: res.data, meta: res.meta };
+}
+
+export async function renewLoan(id: string, input: { dueDate?: string; note?: string } = {}) {
+  const res = await authedFetch<Envelope<LibraryLoan>>("/library/loans/" + id + "/renew", {
+    method: "POST", body: JSON.stringify(input),
+  });
+  invalidateErpWorkspace();
+  return res.data;
+}
+
+export interface LibraryPolicy {
+  id: string;
+  institutionId: string;
+  name: string;
+  maxActiveLoans: number;
+  defaultLoanDays: number;
+  maxRenewals: number;
+  gracePeriodDays: number;
+  dailyFine: number;
+  fineCap: number;
+  lostChargeType: string;
+  lostAdministrativeCharge: number;
+  damagedChargeType: string;
+  damagedChargePercent: number;
+  damagedFixedCharge: number;
+  reservationHoldDays: number;
+  isActive: boolean;
+}
+
+export async function getLibraryPolicy() {
+  const res = await authedFetch<Envelope<LibraryPolicy>>("/library/policy");
+  return res.data;
+}
+
+export async function updateLibraryPolicy(input: Partial<Omit<LibraryPolicy, "id" | "institutionId">>) {
+  const res = await authedFetch<Envelope<LibraryPolicy>>("/library/policy", {
+    method: "PATCH", body: JSON.stringify(input),
+  });
   invalidateErpWorkspace();
   return res.data;
 }
