@@ -89,3 +89,14 @@ test("damaged-book percentage and fixed policies are configurable", () => {
     0
   );
 });
+
+test("per-copy replacement value overrides the book default", () => {
+  assert.equal(
+    calculateLostCharge(
+      { currentValue: 900, replacementValue: 2500, acquisitionCost: 700 },
+      { defaultReplacementValue: 300, defaultCurrentValue: 280 },
+      policy
+    ),
+    2500
+  );
+});
