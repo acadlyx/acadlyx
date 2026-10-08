@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect,useState } from "react";
-import { apiFetch,ApiRequestError } from "@/lib/api";
+import { authedFetch,ApiRequestError } from "@/lib/auth";
 import { PlacementTeamShell } from "@/components/placement/PlacementTeamShell";
 
 type Metrics=Record<string,unknown>;
@@ -13,7 +13,7 @@ type Application={id:string;status:string;student:{id:string;firstName:string;la
 export default function PlacementTeamWorkspace(){
  const router=useRouter();
  const [m,setM]=useState<Metrics|null>(null);const [busy,setBusy]=useState<string|null>(null);const [companies,setCompanies]=useState<Company[]>([]);const [drives,setDrives]=useState<Drive[]>([]);const [apps,setApps]=useState<Application[]>([]);const [error,setError]=useState("");const [loading,setLoading]=useState(true);
- async function load(){setLoading(true);setError("");try{const [metrics,cs,ds,as]=await Promise.all([apiFetch<{data:Metrics}>("/placements/metrics"),apiFetch<{data:Company[]}>("/placements/companies"),apiFetch<{data:Drive[]}>("/placements/drives"),apiFetch<{data:Application[]}>("/placements/applications")]);setM(metrics.data);setCompanies(cs.data||[]);setDrives(ds.data||[]);setApps(as.data||[]);}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to load placement operations.");}finally{setLoading(false);}} async function transition(id:string,status:string){setBusy(id+status);setError("");try{await apiFetch("/placements/applications/"+id+"/status",{method:"POST",body:JSON.stringify({status})});await load()}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to update application.")}finally{setBusy(null)}}
+ async function load(){setLoading(true);setError("");try{const [metrics,cs,ds,as]=await Promise.all([authedFetch<{data:Metrics}>("/placements/metrics"),authedFetch<{data:Company[]}>("/placements/companies"),authedFetch<{data:Drive[]}>("/placements/drives"),authedFetch<{data:Application[]}>("/placements/applications")]);setM(metrics.data);setCompanies(cs.data||[]);setDrives(ds.data||[]);setApps(as.data||[]);}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to load placement operations.");}finally{setLoading(false);}} async function transition(id:string,status:string){setBusy(id+status);setError("");try{await authedFetch("/placements/applications/"+id+"/status",{method:"POST",body:JSON.stringify({status})});await load()}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to update application.")}finally{setBusy(null)}}
  useEffect(()=>{void load();},[]);
  const cards=[["Companies",m?.companies],["Active drives",m?.openDrives],["Applications",m?.applications],["Offers",m?.offers],["Joined",m?.joinedOffers],["Average package",m?("INR "+Number(m.averagePackage||0).toLocaleString("en-IN")):"—"],["Highest package",m?("INR "+Number(m.highestPackage||0).toLocaleString("en-IN")):"—"],["Joining rate",m?String(m.joiningRate)+"%":"—"]];
  return <PlacementTeamShell>
