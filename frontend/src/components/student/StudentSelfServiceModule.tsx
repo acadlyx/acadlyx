@@ -682,9 +682,9 @@ function LibraryView() {
                   </p>
                 </div>
 
-                {loan.fineAmount > 0 ? (
+                {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
                   <span className="font-semibold text-red-600">
-                    {money(loan.fineAmount)}
+                    {money(loan.financialBalance || loan.accruedFine)}
                   </span>
                 ) : null}
               </div>
