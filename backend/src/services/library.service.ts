@@ -100,6 +100,14 @@ async function getLibraryPolicy(tx: Prisma.TransactionClient | typeof prisma, in
   });
 }
 
+export async function syncBookInventory(tx: Prisma.TransactionClient, institutionId: string, bookId: string) {
+  const [totalCopies, availableCopies] = await Promise.all([
+    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: { not: "WITHDRAWN" } } }),
+    tx.libraryBookCopy.count({ where: { institutionId, bookId, status: "AVAILABLE" } }),
+  ]);
+  await tx.libraryBook.update({ where: { id: bookId }, data: { totalCopies, availableCopies } });
+}
+
 export function calculateLostCharge(
   copy: { currentValue: number | null; replacementValue: number | null; acquisitionCost: number | null } | null,
   book: { defaultReplacementValue: number | null; defaultCurrentValue: number | null },
