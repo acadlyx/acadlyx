@@ -138,8 +138,10 @@ model Institution {
   leaveTypes LeaveType[]
   leaveRequests LeaveRequest[]
   libraryBooks LibraryBook[]
+  libraryBookCopies LibraryBookCopy[]
   libraryIssues LibraryIssue[]
   libraryFines LibraryFine[]
+  libraryPolicies LibraryPolicy[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
@@ -2246,6 +2248,10 @@ model LibraryBook {
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  defaultAcquisitionCost Float?
+  defaultReplacementValue Float?
+  defaultCurrentValue Float?
+  copies          LibraryBookCopy[]
   issues          LibraryIssue[]
 
   @@unique([institutionId, isbn])
@@ -2267,7 +2273,19 @@ model LibraryIssue {
   returnedAt    DateTime?
   fineAmount    Float       @default(0)
   note          String?
-  /// ISSUED | RETURNED | LOST | DAMAGED
+  copyId        String?
+  copy          LibraryBookCopy? @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  loanPeriodDays Int?
+  renewalsAllowed Int @default(0)
+  renewalsUsed Int @default(0)
+  finePerDay Float?
+  fineCap Float?
+  gracePeriodDays Int @default(0)
+  finePolicySource String?
+  originalDueDate DateTime?
+  lostChargeAmount Float?
+  damagedChargeAmount Float?
+  /// ISSUED | RETURNED | LOST | DAMAGED | RESERVED
   status        String      @default("ISSUED")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -2278,7 +2296,59 @@ model LibraryIssue {
   @@index([institutionId, dueDate])
   @@index([borrowerId])
   @@index([bookId])
+  @@index([institutionId, copyId])
   @@map("library_issues")
+}
+
+model LibraryBookCopy {
+  id              String       @id @default(uuid())
+  institutionId   String
+  institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  bookId          String
+  book            LibraryBook  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  accessionNumber  String
+  barcode          String?
+  location        String?
+  shelf           String?
+  acquisitionDate DateTime?
+  acquisitionCost Float?
+  currentValue    Float?
+  condition       String        @default("GOOD")
+  status          String        @default("AVAILABLE")
+  issues          LibraryIssue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([institutionId, accessionNumber])
+  @@unique([institutionId, barcode])
+  @@index([institutionId, bookId, status])
+  @@index([institutionId, status])
+  @@map("library_book_copies")
+}
+
+model LibraryPolicy {
+  id                    String      @id @default(uuid())
+  institutionId         String      @unique
+  institution            Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name                  String      @default("Default Library Policy")
+  maxActiveLoans        Int         @default(5)
+  defaultLoanDays       Int         @default(14)
+  maxRenewals           Int         @default(2)
+  gracePeriodDays       Int         @default(0)
+  dailyFine             Float       @default(5)
+  fineCap               Float       @default(200)
+  lostChargeType        String      @default("REPLACEMENT_VALUE")
+  lostAdministrativeCharge Float    @default(0)
+  damagedChargeType     String      @default("PERCENTAGE")
+  damagedChargePercent  Float       @default(25)
+  damagedFixedCharge    Float       @default(0)
+  reservationHoldDays   Int         @default(3)
+  isActive              Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@map("library_policies")
 }
 
 model CalendarEvent {
