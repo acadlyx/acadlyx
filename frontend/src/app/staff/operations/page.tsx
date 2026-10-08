@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 
@@ -14,10 +15,10 @@ export default function StaffOperationsPage() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Only services permitted to this workspace are surfaced here. Restricted administrative ERP modules are not exposed as view-only pages.</p>
         </section>
         <section className="grid gap-4 sm:grid-cols-2">
-          <a href="/events-gallery" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+          <Link href="/events-gallery" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
             <h2 className="font-black text-slate-950">Events &amp; Gallery</h2>
             <p className="mt-1 text-sm text-slate-500">Open institution events and gallery.</p>
-          </a>
+          </Link>
         </section>
       </main>
     </DashboardShell>
