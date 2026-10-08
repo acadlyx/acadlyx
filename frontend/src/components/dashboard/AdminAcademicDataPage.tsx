@@ -285,7 +285,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     setError("");
     try {
       const [currentUser, response] = await Promise.all([
-        getCurrentUser({ background: true }),
+        getCurrentUser({ force: true }),
         authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
       ]);
       setUser(currentUser);
