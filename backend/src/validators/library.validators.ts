@@ -15,6 +15,9 @@ export const createBookSchema = z.object({
   publisher: optionalText(150),
   shelfLocation: optionalText(60),
   totalCopies: z.coerce.number().int().min(1).max(10_000).default(1),
+  defaultAcquisitionCost: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultReplacementValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultCurrentValue: z.coerce.number().nonnegative().max(100000000).optional(),
 });
 
 export const updateBookSchema = z.object({
@@ -25,13 +28,24 @@ export const updateBookSchema = z.object({
   publisher: optionalText(150),
   shelfLocation: optionalText(60),
   totalCopies: z.coerce.number().int().min(0).max(10_000).optional(),
+  defaultAcquisitionCost: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultReplacementValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultCurrentValue: z.coerce.number().nonnegative().max(100000000).optional(),
   isActive: z.boolean().optional(),
 });
 
 export const issueBookSchema = z.object({
   bookId: z.string().uuid(),
   borrowerId: z.string().uuid(),
+  copyId: z.string().uuid().optional(),
+  issuedAt: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
+  loanPeriodDays: z.coerce.number().int().min(1).max(3650).optional(),
+  renewalsAllowed: z.coerce.number().int().min(0).max(100).optional(),
+  finePerDay: z.coerce.number().nonnegative().max(100000).optional(),
+  fineCap: z.coerce.number().nonnegative().max(100000000).optional(),
+  gracePeriodDays: z.coerce.number().int().min(0).max(365).optional(),
+  note: optionalText(500),
 });
 
 export const reserveBookSchema = z.object({
@@ -40,10 +54,12 @@ export const reserveBookSchema = z.object({
 });
 
 export const returnBookSchema = z.object({
-  /// LOST marks the copy as never coming back and removes it from stock.
   condition: z.enum(["RETURNED", "LOST", "DAMAGED"]).default("RETURNED"),
   waiveFine: z.boolean().default(false),
   note: optionalText(300),
+  fineOverride: z.coerce.number().nonnegative().max(100000000).optional(),
+  fineOverrideReason: optionalText(500),
+  damageSeverity: z.enum(["MINOR", "MODERATE", "SEVERE", "UNUSABLE"]).optional(),
 });
 
 export const circulationListQuery = z.object({
@@ -60,3 +76,27 @@ export type ReturnBookInput = z.infer<typeof returnBookSchema>;
 
 export const fineWaiverRequestSchema = z.object({ reason: z.string().trim().min(3).max(500), amount: z.coerce.number().positive().max(1000000).optional() });
 export const fineWaiverApprovalSchema = z.object({ reason: z.string().trim().min(3).max(500), amount: z.coerce.number().positive().max(1000000) });
+
+export const renewLoanSchema = z.object({
+  dueDate: z.coerce.date().optional(),
+  note: optionalText(500),
+});
+
+export const libraryPolicySchema = z.object({
+  name: z.string().trim().min(2).max(150).optional(),
+  maxActiveLoans: z.coerce.number().int().min(1).max(100).optional(),
+  defaultLoanDays: z.coerce.number().int().min(1).max(3650).optional(),
+  maxRenewals: z.coerce.number().int().min(0).max(100).optional(),
+  gracePeriodDays: z.coerce.number().int().min(0).max(365).optional(),
+  dailyFine: z.coerce.number().nonnegative().max(100000).optional(),
+  fineCap: z.coerce.number().nonnegative().max(100000000).optional(),
+  lostChargeType: z.enum(["REPLACEMENT_VALUE", "CURRENT_VALUE", "FIXED"]).optional(),
+  lostAdministrativeCharge: z.coerce.number().nonnegative().max(100000000).optional(),
+  damagedChargeType: z.enum(["PERCENTAGE", "FIXED", "NONE"]).optional(),
+  damagedChargePercent: z.coerce.number().nonnegative().max(100).optional(),
+  damagedFixedCharge: z.coerce.number().nonnegative().max(100000000).optional(),
+  reservationHoldDays: z.coerce.number().int().min(1).max(365).optional(),
+});
+
+export type RenewLoanInput = z.infer<typeof renewLoanSchema>;
+export type LibraryPolicyInput = z.infer<typeof libraryPolicySchema>;
