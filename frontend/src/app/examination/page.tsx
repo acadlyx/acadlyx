@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DirectoryPicker, MultiEntityPicker } from "@/components/common/EntityPicker";
 import { listAcademicYears, listCampuses, listDepartments, listPrograms, listSections, listSemesters } from "@/lib/erpApi";
-import { DirectoryOption, searchStudents } from "@/lib/directoryApi";
+import { DirectoryOption } from "@/lib/directoryApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
 import {
   ExamRoom,
