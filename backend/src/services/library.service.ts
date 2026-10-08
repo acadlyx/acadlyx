@@ -788,47 +788,67 @@ export async function imposeLateReturnFine(
     const payableAmount = Math.max(0, fine - waivedAmount);
     const eventKey = `LIBRARY_FINANCIAL_CHARGE:${issue.id}:${type}`;
 
-    const invoice = await tx.feeInvoice.upsert({
+    const existingInvoice = await tx.feeInvoice.findUnique({
       where: {
         institutionId_sourceEventKey: {
           institutionId,
           sourceEventKey: eventKey,
         },
       },
-      update: {
-        // Never reduce a liability below money already settled. If the
-        // overdue amount grows, the invoice grows with it.
-        amount: { set: payableAmount },
-        grossAmount: { set: fine },
-        discountAmount: { set: waivedAmount },
-        status: payableAmount <= 0
-          ? "WAIVED"
-          : "PENDING",
-      },
-      create: {
-        institutionId,
-        studentId: issue.borrowerId,
-        title: "Library Fine — Late Return",
-        amount: payableAmount,
-        dueDate: new Date(),
-        status: payableAmount <= 0 ? "WAIVED" : "PENDING",
-        invoiceNumber: `LIB-${issue.id.slice(0, 8).toUpperCase()}`,
-        grossAmount: fine,
-        discountAmount: waivedAmount,
-        sourceModule: "LIBRARY",
-        sourceType: "LIBRARY_FINE",
-        sourceEntityId: issue.id,
-        sourceEventKey: eventKey,
-        libraryIssueId: issue.id,
-        items: {
-          create: {
-            feeHeadId: feeHead.id,
-            description: reason,
-            amount: payableAmount,
-          },
-        },
-      },
+      select: { id: true, paidAmount: true },
     });
+
+    const settled = Number(existingInvoice?.paidAmount ?? 0);
+    const invoiceAmount = Math.max(payableAmount, settled);
+    const invoiceStatus =
+      invoiceAmount <= settled + 0.005
+        ? "PAID"
+        : settled > 0
+          ? "PARTIALLY_PAID"
+          : "PENDING";
+
+    const invoice = existingInvoice
+      ? await tx.feeInvoice.update({
+          where: { id: existingInvoice.id },
+          data: {
+            amount: invoiceAmount,
+            grossAmount: fine,
+            discountAmount: waivedAmount,
+            status: invoiceStatus,
+          },
+        })
+      : await tx.feeInvoice.create({
+          data: {
+            institutionId,
+            studentId: issue.borrowerId,
+            title: "Library Fine — Late Return",
+            amount: invoiceAmount,
+            dueDate: new Date(),
+            status: invoiceStatus,
+            invoiceNumber: `LIB-${issue.id.slice(0, 8).toUpperCase()}`,
+            grossAmount: fine,
+            discountAmount: waivedAmount,
+            sourceModule: "LIBRARY",
+            sourceType: "LIBRARY_FINE",
+            sourceEntityId: issue.id,
+            sourceEventKey: eventKey,
+            libraryIssueId: issue.id,
+            items: {
+              create: {
+                feeHeadId: feeHead.id,
+                description: reason,
+                amount: invoiceAmount,
+              },
+            },
+          },
+        });
+
+    if (existingInvoice) {
+      await tx.feeInvoiceItem.updateMany({
+        where: { invoiceId: invoice.id },
+        data: { feeHeadId: feeHead.id, description: reason, amount: invoiceAmount },
+      });
+    }
 
     const fineRow = existingFine
       ? await tx.libraryFine.update({
