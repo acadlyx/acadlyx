@@ -19,6 +19,15 @@ export interface ExamSession {
   hallTicketReleaseAt: string | null;
   resultPublishedAt: string | null;
   instructions: string | null;
+  registrationRequired?: boolean;
+  registrationStart?: string | null;
+  registrationEnd?: string | null;
+  examFee?: number;
+  attendanceRequirement?: number | null;
+  admitCardStatus?: string;
+  eligibilityStatus?: string;
+  registrationStatus?: string;
+  resultStatus?: string;
 }
 
 export interface ExamSchedule {
@@ -285,11 +294,14 @@ export async function publishResults(
 
 export async function generateHallTickets(
   sessionId: string,
-): Promise<{ issued: number; blocked: number }> {
+): Promise<{ issued: number; blocked: number; eligible: number; skipped: number; blockedCandidates: Array<{ studentId: string; reasons: string[]; warnings: string[] }> }> {
   const res = await authedFetch<
     Envelope<{
       issued: number;
       blocked: number;
+      eligible: number;
+      skipped: number;
+      blockedCandidates: Array<{ studentId: string; reasons: string[]; warnings: string[] }>;
     }>
   >(`/examinations/sessions/${sessionId}/hall-tickets`, {
     method: "POST",
