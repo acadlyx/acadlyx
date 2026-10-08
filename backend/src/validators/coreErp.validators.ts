@@ -76,7 +76,7 @@ export const updateExamSessionSchema = z.object({
   registrationEnd: optionalDate,
   examFee: z.coerce.number().min(0).max(10000000).optional(),
   attendanceRequirement: z.coerce.number().min(0).max(100).optional(),
-  eligibilityRules: examEligibilityRulesSchema.optional()
+  eligibilityRules: examEligibilityRulesSchema.optional(),
   campusIds: z.array(z.string().uuid()).max(100).optional(),
   departmentIds: z.array(z.string().uuid()).max(100).optional(),
   programIds: z.array(z.string().uuid()).max(100).optional(),
