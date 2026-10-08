@@ -400,6 +400,7 @@ export async function getMyWorkspace(
           email: true,
         },
         distinct: ["id"],
+        take: 200,
       }),
 
       prisma.user.findMany({
@@ -431,6 +432,7 @@ export async function getMyWorkspace(
           email: true,
         },
         distinct: ["id"],
+        take: 100,
       }),
 
       prisma.courseOffering.findMany({
@@ -498,6 +500,7 @@ export async function getMyWorkspace(
         orderBy: {
           startTime: "asc",
         },
+        take: 100,
       }),
 
       prisma.exam.findMany({
@@ -735,6 +738,7 @@ export async function getMyWorkspace(
           email: true,
         },
         distinct: ["id"],
+        take: 200,
       }),
 
       prisma.notification.findMany({
