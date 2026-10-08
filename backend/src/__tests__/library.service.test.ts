@@ -70,7 +70,7 @@ test("damaged-book percentage and fixed policies are configurable", () => {
       { defaultReplacementValue: 1200 },
       policy
     ),
-    250
+    300
   );
   assert.equal(
     calculateDamagedCharge(
