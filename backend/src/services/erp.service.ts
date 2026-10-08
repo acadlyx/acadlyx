@@ -863,6 +863,7 @@ export async function getMyWorkspace(
             },
           },
         },
+        take: 20,
       });
 
     const studentIds =
@@ -889,6 +890,7 @@ export async function getMyWorkspace(
         orderBy: {
           createdAt: "desc",
         },
+        take: 100,
       }),
 
       prisma.examResult.findMany({
@@ -1080,6 +1082,7 @@ export async function getMyWorkspace(
             startTime: "asc",
           },
         ],
+        take: 100,
       }),
 
       prisma.assignment.findMany({
@@ -1157,6 +1160,7 @@ export async function getMyWorkspace(
         orderBy: {
           createdAt: "desc",
         },
+        take: 100,
       }),
 
       prisma.notice.findMany({
