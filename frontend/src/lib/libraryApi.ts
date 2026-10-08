@@ -307,6 +307,7 @@ export interface LibraryBookCopy {
   shelf: string | null;
   acquisitionDate: string | null;
   acquisitionCost: number | null;
+  replacementValue: number | null;
   currentValue: number | null;
   condition: string;
   status: string;
