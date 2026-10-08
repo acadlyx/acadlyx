@@ -508,6 +508,14 @@ export default function LibraryPage() {
                     ["publisher", "Publisher"],
                     ["shelfLocation", "Shelf location"],
                     ["totalCopies", "Total copies"],
+                    ["defaultAcquisitionCost", "Default acquisition cost"],
+                    ["defaultReplacementValue", "Default replacement value"],
+                    ["defaultCurrentValue", "Default current value"],
+                    ["defaultLoanDays", "Default loan days"],
+                    ["defaultMaxRenewals", "Default renewals"],
+                    ["defaultFinePerDay", "Default fine / day"],
+                    ["defaultFineCap", "Default fine cap"],
+                    ["defaultGracePeriodDays", "Default grace days"],
                   ] as Array<[keyof typeof emptyBook, string]>
                 ).map(([key, label]) => (
                   <label key={key} className="text-sm">
@@ -519,8 +527,8 @@ export default function LibraryPage() {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, [key]: e.target.value }))
                       }
-                      type={key === "totalCopies" ? "number" : "text"}
-                      min={key === "totalCopies" ? 1 : undefined}
+                      type={key !== "title" && key !== "author" && key !== "isbn" && key !== "category" && key !== "publisher" && key !== "shelfLocation" ? "number" : "text"}
+                      min={key !== "title" && key !== "author" && key !== "isbn" && key !== "category" && key !== "publisher" && key !== "shelfLocation" ? 0 : undefined}
                       className="w-full rounded-xl border border-slate-200 px-3 py-2"
                     />
                   </label>
