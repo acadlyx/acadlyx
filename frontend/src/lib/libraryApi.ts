@@ -170,6 +170,19 @@ export async function issueBook(input: {
   return res.data;
 }
 
+export async function imposeLateReturnFine(id: string) {
+  const res = await authedFetch<Envelope<{
+    fine: LibraryFine;
+    financialInvoiceId: string | null;
+    financialReady: boolean;
+  }>>(
+    `/library/loans/${id}/impose-late-fine`,
+    { method: "POST" },
+  );
+  invalidateErpWorkspace();
+  return res.data;
+}
+
 export async function returnLoan(
   id: string,
   input: { condition: "RETURNED" | "LOST" | "DAMAGED"; waiveFine?: boolean; note?: string }
