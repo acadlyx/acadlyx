@@ -289,23 +289,54 @@ export async function updateBook(
     availableCopies = input.totalCopies - onLoan;
   }
 
-  const book = await prisma.libraryBook.update({
-    where: { id },
-    data: {
-      title: input.title,
-      author: input.author,
-      isbn: input.isbn,
-      category: input.category,
-      publisher: input.publisher,
-      shelfLocation: input.shelfLocation,
-      defaultAcquisitionCost: input.defaultAcquisitionCost,
-      defaultReplacementValue: input.defaultReplacementValue,
-      defaultCurrentValue: input.defaultCurrentValue,
-      ...(input.totalCopies !== undefined
-        ? { totalCopies: input.totalCopies, availableCopies }
-        : {}),
+  const book = await prisma.$transaction(async (tx) => {
+    const updated = await tx.libraryBook.update({
+      where: { id },
+      data: {
+        title: input.title,
+        author: input.author,
+        isbn: input.isbn,
+        category: input.category,
+        publisher: input.publisher,
+        shelfLocation: input.shelfLocation,
+        defaultAcquisitionCost: input.defaultAcquisitionCost,
+        defaultReplacementValue: input.defaultReplacementValue,
+        defaultCurrentValue: input.defaultCurrentValue,
+        ...(input.totalCopies !== undefined
+          ? { totalCopies: input.totalCopies, availableCopies }
+          : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-    },
+      },
+    });
+
+    if (input.totalCopies !== undefined) {
+      const delta = input.totalCopies - existing.totalCopies;
+      if (delta > 0) {
+        await tx.libraryBookCopy.createMany({
+          data: Array.from({ length: delta }, (_, index) => ({
+            institutionId,
+            bookId: id,
+            accessionNumber: `ACC-${id.slice(0, 8).toUpperCase()}-${String(existing.totalCopies + index + 1).padStart(5, "0")}`,
+            location: input.shelfLocation ?? existing.shelfLocation,
+            shelf: input.shelfLocation ?? existing.shelfLocation,
+            acquisitionCost: input.defaultAcquisitionCost ?? existing.defaultAcquisitionCost,
+            currentValue: input.defaultCurrentValue ?? input.defaultReplacementValue ?? existing.defaultCurrentValue ?? existing.defaultReplacementValue,
+          })),
+        });
+      } else if (delta < 0) {
+        const removable = await tx.libraryBookCopy.findMany({
+          where: { institutionId, bookId: id, status: "AVAILABLE" },
+          orderBy: { accessionNumber: "desc" },
+          take: Math.abs(delta),
+          select: { id: true },
+        });
+        if (removable.length !== Math.abs(delta)) {
+          throw new AppError("Only available copies can be removed; active circulation copies must remain", 422);
+        }
+        await tx.libraryBookCopy.deleteMany({ where: { id: { in: removable.map((row) => row.id) } } });
+      }
+    }
+    return updated;
   });
 
   await recordAuditLog({
