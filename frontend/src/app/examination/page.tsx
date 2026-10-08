@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DirectoryPicker, MultiEntityPicker } from "@/components/common/EntityPicker";
+import { listAcademicYears, listCampuses, listDepartments, listPrograms, listSections, listSemesters } from "@/lib/erpApi";
+import { DirectoryOption, searchStudents } from "@/lib/directoryApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
 import {
   ExamRoom,
@@ -91,6 +94,12 @@ export default function ExaminationPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [readiness, setReadiness] = useState<any>(null);
+  const [academicYears, setAcademicYears] = useState<Array<{id:string;name:string;isCurrent?:boolean}>>([]);
+  const [campuses, setCampuses] = useState<Array<{id:string;name:string;code?:string}>>([]);
+  const [departments, setDepartments] = useState<Array<{id:string;name:string;code?:string}>>([]);
+  const [programs, setPrograms] = useState<Array<{id:string;name:string;code?:string}>>([]);
+  const [semesters, setSemesters] = useState<Array<{id:string;name:string;number?:number}>>([]);
+  const [sections, setSections] = useState<Array<{id:string;name:string;code?:string}>>([]);
 
   const can = (p: string) => permissions.includes(p);
   const canManage = can("exams.manage");
@@ -113,13 +122,21 @@ export default function ExaminationPage() {
     try {
       const user = await getCurrentUser();
       setPermissions(user?.permissions ?? []);
-      const [ss, rr, ii, rv, rd] = await Promise.all([
+      const [ss, rr, ii, rv, rd, years, campusRows, departmentRows, programRows, semesterRows, sectionRows] = await Promise.all([
         listExamSessions({ page: 1 }),
         listExamRooms().catch(() => []),
         listIncidents({ page: 1 }).then(x => x.items).catch(() => []),
         listRevaluations({ page: 1 }).then(x => x.items).catch(() => []),
         getExaminationReadiness().catch(() => null),
+        listAcademicYears(),
+        listCampuses(),
+        listDepartments(),
+        listPrograms(),
+        listSemesters(),
+        listSections(),
       ]);
+      setAcademicYears(years); setCampuses(campusRows); setDepartments(departmentRows); setPrograms(programRows); setSemesters(semesterRows); setSections(sectionRows);
+      
       setSessions(ss.items); setRooms(rr); setIncidents(ii); setRevaluations(rv); setReadiness(rd);
       if (can("exams.invigilate")) setInvigilation(await listMyInvigilation().catch(() => []));
       const details = await Promise.all(ss.items.slice(0, 12).map(s => getExamSession(s.id).catch(() => null)));
@@ -195,7 +212,7 @@ export default function ExaminationPage() {
           <>
             {view === "overview" && <Overview metrics={metrics} sessions={sessions} schedules={schedules} incidents={incidents} onOpen={openSession} onView={setView} />}
             {view === "examinations" && <Examinations sessions={sessions} selected={selected} onOpen={openSession} onView={setView} canManage={canManage} canApprove={canApprove} busy={busy} onStatus={(id,status)=>void run(async()=>{await setSessionStatus(id,status); await load();})} onAdmit={(id)=>void run(async()=>{const r=await generateHallTickets(id); setNotice(`Admit cards: ${r.issued} issued, ${r.blocked} blocked.`);})} />}
-            {view === "create" && canManage && <CreateExam busy={busy} onSubmit={(body)=>void run(async()=>{const x=await createExamSession(body); setNotice(`Examination "${x.name}" created.`); await load(); setView("examinations");})} />}
+            {view === "create" && canManage && <CreateExam academicYears={academicYears} campuses={campuses} departments={departments} programs={programs} semesters={semesters} sections={sections} busy={busy} onSubmit={(body)=>void run(async()=>{const x=await createExamSession(body); setNotice(`Examination "${x.name}" created.`); await load(); setView("examinations");})} />}
             {view === "calendar" && <Calendar schedules={schedules} />}
             {view === "schedule" && <Schedule selected={selected} schedules={schedules} rooms={rooms} canManage={canManage} busy={busy} onOpen={openSession} onMarks={openMarks} onSeat={(id,roomIds)=>void run(async()=>{const r=await allocateSeating(id,roomIds); setNotice(`Seating allocated for ${r.seated} students across ${r.rooms} rooms.`); await load();})} onSchedule={(body)=>void run(async()=>{if(!selected) throw new Error("Open an examination first."); await createExamSchedule({...body,examSessionId:selected.id}); setNotice("Examination subject scheduled."); await openSession(selected.id); await load();})} />}
             {view === "rooms" && canManage && <Rooms rooms={rooms} busy={busy} onCreate={(body)=>void run(async()=>{await createExamRoom(body); setNotice("Room created."); await load();})} />}
