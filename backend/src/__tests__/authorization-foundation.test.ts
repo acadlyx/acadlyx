@@ -176,3 +176,60 @@ test("super admin remains platform-scoped rather than inheriting specialist oper
     false,
   );
 });
+
+
+test("student profile read permissions match supported workspace roles", () => {
+  const expectedReaders = [
+    "INSTITUTION_ADMIN",
+    "CHAIRMAN",
+    "MANAGEMENT",
+    "DIRECTOR",
+    "DEAN",
+    "REGISTRAR",
+    "HOD",
+    "FACULTY",
+    "ACCOUNTS",
+    "ADMISSIONS",
+    "EXAMINATION",
+    "PLACEMENT",
+  ] as const;
+
+  for (const role of expectedReaders) {
+    assert.equal(
+      hasPermission([role], "students.read"),
+      true,
+      `${role} should be able to read students in its authorized scope`,
+    );
+  }
+
+  assert.equal(
+    hasPermission(["STUDENT"], "students.read"),
+    false,
+    "STUDENT must use self-service student APIs rather than institutional student search",
+  );
+
+  assert.equal(
+    hasPermission(["PARENT"], "students.read"),
+    false,
+    "PARENT must use linked-child self-service APIs",
+  );
+});
+
+test("examination workspace has read-only campus context access", () => {
+  assert.equal(
+    hasPermission(["EXAMINATION"], "campuses.read"),
+    true,
+  );
+  assert.equal(
+    hasPermission(["EXAMINATION"], "campuses.create"),
+    false,
+  );
+  assert.equal(
+    hasPermission(["EXAMINATION"], "campuses.update"),
+    false,
+  );
+  assert.equal(
+    hasPermission(["EXAMINATION"], "campuses.delete"),
+    false,
+  );
+});
