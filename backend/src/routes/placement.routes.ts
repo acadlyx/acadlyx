@@ -6,8 +6,6 @@ import { authorize } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import { requireAuthenticatedUser, requireInstitution } from "../utils/requireInstitution";
 import * as placement from "../services/placement.service";
-import { prisma } from "../lib/prisma";
-import { AppError } from "../middleware/errorHandler";
 
 const router = Router();
 router.use(authenticate, requireFeature("placements"));
