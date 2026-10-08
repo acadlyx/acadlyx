@@ -565,8 +565,17 @@ export default function StudentProfilePage({
         subtitle="Student record"
         allowedRoles={[
           "INSTITUTION_ADMIN",
+          "CHAIRMAN",
+          "MANAGEMENT",
+          "DIRECTOR",
+          "DEAN",
           "REGISTRAR",
           "HOD",
+          "FACULTY",
+          "ACCOUNTS",
+          "ADMISSIONS",
+          "EXAMINATION",
+          "PLACEMENT",
         ]}
       >
         <ProfileSkeleton />
@@ -581,8 +590,17 @@ export default function StudentProfilePage({
         subtitle="Student record"
         allowedRoles={[
           "INSTITUTION_ADMIN",
+          "CHAIRMAN",
+          "MANAGEMENT",
+          "DIRECTOR",
+          "DEAN",
           "REGISTRAR",
           "HOD",
+          "FACULTY",
+          "ACCOUNTS",
+          "ADMISSIONS",
+          "EXAMINATION",
+          "PLACEMENT",
         ]}
       >
         <main className="mx-auto max-w-[1000px] pb-12">
@@ -620,8 +638,17 @@ export default function StudentProfilePage({
       subtitle="Complete student master record"
       allowedRoles={[
         "INSTITUTION_ADMIN",
+        "CHAIRMAN",
+        "MANAGEMENT",
+        "DIRECTOR",
+        "DEAN",
         "REGISTRAR",
         "HOD",
+        "FACULTY",
+        "ACCOUNTS",
+        "ADMISSIONS",
+        "EXAMINATION",
+        "PLACEMENT",
       ]}
     >
       <main className="mx-auto max-w-[1320px] space-y-5 pb-12">
