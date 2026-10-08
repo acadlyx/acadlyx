@@ -1132,6 +1132,17 @@ export async function renewLoan(
       throw new AppError("Renewal due date must be after the current due date", 422);
     }
 
+    await tx.libraryLoanRenewal.create({
+      data: {
+        institutionId,
+        issueId: loan.id,
+        previousDueDate: loan.dueDate,
+        newDueDate: nextDueDate,
+        renewedById: actor.id,
+        note: input.note ?? null,
+      },
+    });
+
     const updated = await tx.libraryIssue.update({
       where: { id },
       data: {
