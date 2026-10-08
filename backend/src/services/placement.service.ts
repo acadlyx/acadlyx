@@ -421,6 +421,15 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   const drive = await prisma.placementDrive.create({
     data: {
       institutionId, companyId: input.companyId, title: input.title.trim(), openingId: input.openingId || null, campusId: input.campusId || null,
+      opportunity: {
+        create: {
+          institutionId,
+          title: input.title.trim(),
+          organization: company.name,
+          description: "Placement Drive",
+          deadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+        },
+      },
       applicationDeadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
       driveDate: input.driveDate ? new Date(input.driveDate) : null, venue: input.venue || null, onlineLink: input.onlineLink || null,
       cgpaRequirement: input.cgpaRequirement, maxBacklogs: input.maxBacklogs, vacancies: input.vacancies,
@@ -428,7 +437,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
       eligibleBatches: input.eligibleBatches ?? undefined, eligibleSemesters: input.eligibleSemesters ?? undefined,
       requiredSkills: input.requiredSkills ?? undefined,
     },
-    include: { company: true, opening: true },
+    include: { company: true, opening: true, opportunity: true },
   });
   await prisma.placementCompanyHistory.upsert({
     where: { institutionId_companyId: { institutionId, companyId: drive.companyId } },
@@ -529,7 +538,7 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
 
   const drive = await prisma.placementDrive.findFirst({
     where: { id: driveId, institutionId },
-    select: { id: true, openingId: true, companyId: true, applicationDeadline: true },
+    select: { id: true, openingId: true, companyId: true, opportunityId: true, applicationDeadline: true },
   });
   if (!drive) throw new AppError("Placement drive not found.", 404);
 
@@ -540,12 +549,15 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
   if (existing) throw new AppError("You have already applied to this placement drive.", 409);
 
   let opportunityId: string;
-  const legacyOpportunity = await prisma.opportunity.findFirst({
+  const canonicalDrive = drive.opportunityId;
+  const legacyOpportunity = canonicalDrive ? null : await prisma.opportunity.findFirst({
     where: { institutionId, title: "Drive:" + drive.id },
     select: { id: true },
   });
 
-  if (legacyOpportunity) {
+  if (canonicalDrive) {
+    opportunityId = canonicalDrive;
+  } else if (legacyOpportunity) {
     opportunityId = legacyOpportunity.id;
   } else {
     const company = await prisma.placementCompany.findFirst({
