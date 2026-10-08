@@ -12,6 +12,7 @@ import {
   UpdateBookInput,
   RenewLoanInput,
   LibraryPolicyInput,
+  UpdateCopyInput,
 } from "../validators/library.validators";
 
 type Meta = { ipAddress?: string; userAgent?: string };
@@ -1198,6 +1199,45 @@ export async function updatePolicy(
         lostChargeType: next.lostChargeType,
         damagedChargeType: next.damagedChargeType,
       },
+    },
+    ...meta,
+  });
+  return next;
+}
+
+export async function updateCopy(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: UpdateCopyInput,
+  meta: Meta
+) {
+  const existing = await prisma.libraryBookCopy.findFirst({ where: { id, institutionId } });
+  if (!existing) throw new AppError("Physical copy not found", 404);
+  if (input.status === "AVAILABLE" && existing.status !== "AVAILABLE") {
+    const activeLoan = await prisma.libraryIssue.findFirst({
+      where: { institutionId, copyId: id, status: { in: ["ISSUED", "RESERVED"] } },
+      select: { id: true },
+    });
+    if (activeLoan) throw new AppError("An active loan or reservation owns this copy", 409);
+  }
+  const next = await prisma.$transaction(async tx => {
+    const updated = await tx.libraryBookCopy.update({
+      where: { id },
+      data: input,
+    });
+    await syncBookInventory(tx, institutionId, existing.bookId);
+    return updated;
+  });
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "library.copy.update",
+    entityType: "LibraryBookCopy",
+    entityId: id,
+    metadata: {
+      old: { acquisitionCost: existing.acquisitionCost, replacementValue: existing.replacementValue, currentValue: existing.currentValue, condition: existing.condition, status: existing.status },
+      new: { acquisitionCost: next.acquisitionCost, replacementValue: next.replacementValue, currentValue: next.currentValue, condition: next.condition, status: next.status },
     },
     ...meta,
   });
