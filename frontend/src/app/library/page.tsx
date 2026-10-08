@@ -29,6 +29,10 @@ import {
   updateBook,
   LibraryFine,
   listLibraryFines,
+  LibraryBookCopy,
+  listBookCopies,
+  getLibraryPolicy,
+  LibraryPolicy,
   requestFineWaiver,
   approveFineWaiver,
   imposeLateReturnFine,
@@ -45,6 +49,14 @@ const emptyBook = {
   publisher: "",
   shelfLocation: "",
   totalCopies: "1",
+  defaultAcquisitionCost: "",
+  defaultReplacementValue: "",
+  defaultCurrentValue: "",
+  defaultLoanDays: "",
+  defaultMaxRenewals: "",
+  defaultFinePerDay: "",
+  defaultFineCap: "",
+  defaultGracePeriodDays: "",
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -84,6 +96,15 @@ export default function LibraryPage() {
   const [myLoans, setMyLoans] = useState<LibraryLoan[]>([]);
   const [myFine, setMyFine] = useState(0);
   const [fines, setFines] = useState<LibraryFine[]>([]);
+  const [policy, setPolicy] = useState<LibraryPolicy | null>(null);
+  const [issueCopies, setIssueCopies] = useState<LibraryBookCopy[]>([]);
+  const [issueCopyId, setIssueCopyId] = useState("");
+  const [issueDueDate, setIssueDueDate] = useState("");
+  const [issueLoanDays, setIssueLoanDays] = useState("");
+  const [issueRenewals, setIssueRenewals] = useState("");
+  const [issueFinePerDay, setIssueFinePerDay] = useState("");
+  const [issueFineCap, setIssueFineCap] = useState("");
+  const [issueGraceDays, setIssueGraceDays] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -148,10 +169,22 @@ export default function LibraryPage() {
       }
 
       if (manage) {
-        const [circulationResult, finesResult] = await Promise.allSettled([
+        const [policyResult, circulationResult, finesResult] = await Promise.allSettled([
+          getLibraryPolicy(),
+
           listLoans({ status: loanStatus || undefined }),
           listLibraryFines({ page: 1 }),
         ]);
+
+        if (policyResult.status === "fulfilled") {
+          setPolicy(policyResult.value);
+        } else {
+          surfaceErrors.push(
+            policyResult.reason instanceof Error
+              ? policyResult.reason.message
+              : "Library policy is temporarily unavailable."
+          );
+        }
 
         if (circulationResult.status === "fulfilled") {
           setLoans(circulationResult.value.items);
@@ -214,6 +247,22 @@ export default function LibraryPage() {
     }
     load();
   }, [load, router]);
+
+  async function openIssue(book: LibraryBook) {
+    setIssueFor(book);
+    setBorrower(null);
+    const result = await listBookCopies({ bookId: book.id, status: "AVAILABLE", page: 1 });
+    setIssueCopies(result.items);
+    setIssueCopyId(result.items[0]?.id ?? "");
+    const days = book.defaultLoanDays ?? policy?.defaultLoanDays;
+    const due = days ? new Date(Date.now() + days * 86_400_000) : null;
+    setIssueLoanDays(days ? String(days) : "");
+    setIssueDueDate(due ? due.toISOString().slice(0, 16) : "");
+    setIssueRenewals(String(book.defaultMaxRenewals ?? policy?.maxRenewals ?? ""));
+    setIssueFinePerDay(String(book.defaultFinePerDay ?? policy?.dailyFine ?? ""));
+    setIssueFineCap(String(book.defaultFineCap ?? policy?.fineCap ?? ""));
+    setIssueGraceDays(String(book.defaultGracePeriodDays ?? policy?.gracePeriodDays ?? ""));
+  }
 
   function startEditBook(book: LibraryBook) {
     setEditingBookId(book.id);
