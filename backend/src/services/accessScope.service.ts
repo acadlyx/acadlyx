@@ -179,6 +179,17 @@ export async function getStudentWhereScope(
 
   if (roles.includes("STUDENT")) return { id: actor.id };
 
+  // Placement Cell needs institution-scoped student visibility for placement
+  // readiness, eligibility, applications and outcomes. This is read scope;
+  // authoritative academic/enrollment mutations remain separately protected.
+  if (roles.includes("PLACEMENT")) {
+    return {
+      studentEnrollments: {
+        some: { institutionId },
+      },
+    };
+  }
+
   throw new AppError("Student access is not available for this role", 403);
 }
 
@@ -268,6 +279,10 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
       getStudentDepartmentIds(institutionId, studentId),
     ]);
     if (managed.length > 0 && studentDepartments.some((id) => managed.includes(id))) return;
+  }
+
+  if (roles.includes("PLACEMENT")) {
+    return;
   }
 
   if (roles.includes("FACULTY")) {
