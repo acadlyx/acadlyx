@@ -170,6 +170,23 @@ router.post(
 );
 
 router.post(
+  "/loans/:id/impose-late-fine",
+  authorizeWorkflow("library.manage"),
+  validateParams(idParams),
+  asyncHandler(async (req, res) => {
+    sendOk(
+      res,
+      await service.imposeLateReturnFine(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+        auditMeta(req)
+      )
+    );
+  })
+);
+
+router.post(
   "/loans/:id/return",
   authorizeWorkflow("library.manage"),
   validateParams(idParams),
