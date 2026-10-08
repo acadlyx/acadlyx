@@ -1323,7 +1323,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["CMS"],
     permissions: ["site.manage"],
     group: "CMS",
-  },,
+  },
   { label: "Placement", href: "/admin/placements", icon: "◎", roles: ["INSTITUTION_ADMIN"], permissions: ["placements.read"], group: "Administration", activeMatch: "nested" },
   { label: "Placement", href: "/superadmin/placements", icon: "◎", roles: ["SUPER_ADMIN"], permissions: ["plans.manage"], group: "Platform", activeMatch: "nested" },
   { label: "Placement", href: "/chairman/placements", icon: "◎", roles: ["CHAIRMAN"], permissions: ["placements.read"], group: "Institution", activeMatch: "nested" },
