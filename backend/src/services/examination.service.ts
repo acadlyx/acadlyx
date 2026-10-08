@@ -172,6 +172,45 @@ async function loadStudentExamContext(
   };
 }
 
+interface ExamEligibilityRules {
+  requireFeeClearance: boolean;
+  maxOutstandingDues: number | null;
+}
+
+function getExamEligibilityRules(session: ExamSessionRow): ExamEligibilityRules {
+  const raw = session.eligibilityRules;
+  const record =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : {};
+  const configuredLimit =
+    typeof record.maxOutstandingDues === "number" &&
+    Number.isFinite(record.maxOutstandingDues) &&
+    record.maxOutstandingDues >= 0
+      ? record.maxOutstandingDues
+      : null;
+  return {
+    requireFeeClearance: record.requireFeeClearance === true || configuredLimit !== null,
+    maxOutstandingDues: configuredLimit,
+  };
+}
+
+async function getOutstandingStudentDues(
+  institutionId: string,
+  studentId: string,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ outstanding: number | null }>>(Prisma.sql`
+    SELECT COALESCE(SUM("amount" - "paidAmount" + "lateFeeAmount"), 0)::float AS "outstanding"
+    FROM "fee_invoices"
+    WHERE "institutionId" = ${institutionId}
+      AND "studentId" = ${studentId}
+      AND "status" <> 'CANCELLED'
+      AND "dueDate" IS NOT NULL
+      AND "dueDate" < CURRENT_TIMESTAMP
+  `);
+  return rows[0]?.outstanding ?? 0;
+}
+
 function sessionTargetsStudent(session: ExamSessionRow, context: StudentExamContext, studentId: string): boolean {
   const checks: Array<[unknown, string | null]> = [
     [session.campusIds, context.campusId],
@@ -199,63 +238,86 @@ async function evaluateExamEligibility(
   await assertStudentExists(institutionId, studentId);
   const context = await loadStudentExamContext(institutionId, studentId);
   const reasons: string[] = [];
-  const targetedStudents = jsonStringArray(session.studentIds);
-  const targetsMatch =
-    (targetedStudents.length === 0 || targetedStudents.includes(studentId)) &&
-    [
-      [session.campusIds, context.campusId],
-      [session.departmentIds, context.departmentId],
-      [session.programIds, context.programId],
-      [session.semesterIds, context.semesterId],
-      [session.sectionIds, context.sectionId],
-    ].every(([raw, current]) => {
-      const ids = jsonStringArray(raw);
-      return ids.length === 0 || (typeof current === "string" && ids.includes(current));
-    });
-  if (!targetsMatch) reasons.push("Student is outside the examination target scope");
+  const warnings: string[] = [];
+  const rules = getExamEligibilityRules(session);
+
+  if (!sessionTargetsStudent(session, context, studentId)) {
+    reasons.push("Student is outside the examination target scope");
+  }
 
   const profile = await prisma.studentProfile.findUnique({
     where: { userId: studentId },
     select: { status: true },
   });
-  if (!profile || profile.status !== "ACTIVE") reasons.push("Student academic status is not ACTIVE");
-
-  if (session.attendanceRequirement !== null) {
-    const schedules = await prisma.$queryRaw<Array<{ courseOfferingId: string }>>(Prisma.sql`
-      SELECT DISTINCT "courseOfferingId"
-      FROM "exam_schedules"
-      WHERE "institutionId"=${institutionId}
-        AND "examSessionId"=${examSessionId}
-        AND "status" <> 'CANCELLED'
-    `);
-    for (const schedule of schedules) {
-      const percentage = await getStudentAttendancePercentage(
-        institutionId,
-        studentId,
-        schedule.courseOfferingId,
-      );
-      if (percentage.percentage !== null && percentage.percentage < session.attendanceRequirement) {
-        reasons.push(`Attendance below required ${session.attendanceRequirement}%`);
-        break;
-      }
-    }
+  if (!profile || profile.status !== "ACTIVE") {
+    reasons.push("Student academic status is not ACTIVE");
   }
 
-  const activeHold = await prisma.$queryRaw<Array<{ reasonCode: string; reason: string }>>(Prisma.sql`
+  const registration = await prisma.$queryRaw<Array<{ status: string; feeStatus: string }>>(Prisma.sql`
+    SELECT "status","feeStatus"
+    FROM "exam_registrations"
+    WHERE "institutionId"=${institutionId}
+      AND "examSessionId"=${examSessionId}
+      AND "studentId"=${studentId}
+    LIMIT 1
+  `);
+  if (session.registrationRequired && registration[0]?.status !== "REGISTERED") {
+    reasons.push("Examination registration is not confirmed");
+  }
+  if (
+    session.registrationRequired &&
+    registration[0]?.status === "REGISTERED" &&
+    session.examFee > 0 &&
+    registration[0]?.feeStatus === "PENDING"
+  ) {
+    reasons.push("Examination registration fee is pending");
+  }
+
+  const attendance = await getStudentAttendancePercentage(institutionId, studentId);
+  const attendanceThreshold =
+    session.attendanceRequirement ??
+    (attendance.policy.blockHallTicket ? attendance.policy.minPercentage : null);
+  if (attendanceThreshold !== null && attendance.percentage !== null && attendance.percentage < attendanceThreshold) {
+    reasons.push(`Attendance ${attendance.percentage}% is below the required ${attendanceThreshold}%`);
+  } else if (attendanceThreshold !== null && attendance.percentage === null) {
+    warnings.push("Attendance could not be calculated because no submitted attendance records exist");
+  }
+
+  const outstandingDues = await getOutstandingStudentDues(institutionId, studentId);
+  if (rules.requireFeeClearance && outstandingDues > (rules.maxOutstandingDues ?? 0)) {
+    reasons.push(
+      rules.maxOutstandingDues === null
+        ? `Outstanding fees of ${outstandingDues.toFixed(2)}`
+        : `Outstanding fees of ${outstandingDues.toFixed(2)} exceed the permitted ${rules.maxOutstandingDues.toFixed(2)}`
+    );
+  }
+
+  const activeHolds = await prisma.$queryRaw<Array<{ reasonCode: string; reason: string }>>(Prisma.sql`
     SELECT "reasonCode","reason"
     FROM "admit_card_holds"
     WHERE "institutionId"=${institutionId}
       AND "examSessionId"=${examSessionId}
       AND "studentId"=${studentId}
       AND "status"='ACTIVE'
-      AND "reasonCode" IN ('DEBARMENT','ADMIN_HOLD')
-    LIMIT 1
+    ORDER BY "createdAt" DESC
   `);
-  if (activeHold.length) reasons.push(activeHold[0].reason || activeHold[0].reasonCode);
+  reasons.push(...activeHolds.map((hold) => hold.reason || hold.reasonCode));
 
   const status = reasons.length ? "INELIGIBLE" : "ELIGIBLE";
   const evaluatedAt = new Date();
-  const contextSnapshot = { ...context, studentId, evaluatedAt: evaluatedAt.toISOString() };
+  const contextSnapshot = {
+    ...context,
+    studentId,
+    evaluatedAt: evaluatedAt.toISOString(),
+    policy: {
+      attendanceThreshold,
+      requireFeeClearance: rules.requireFeeClearance,
+      maxOutstandingDues: rules.maxOutstandingDues,
+    },
+    registration: registration[0] ?? null,
+    outstandingDues,
+  };
+
   await prisma.$executeRaw`
     INSERT INTO "exam_eligibilities"
       ("id","institutionId","examSessionId","studentId","status","reasons","contextSnapshot","evaluatedAt","evaluatedById")
@@ -270,9 +332,15 @@ async function evaluateExamEligibility(
       "evaluatedById"=EXCLUDED."evaluatedById",
       "updatedAt"=CURRENT_TIMESTAMP
   `;
-  return { status, reasons, context: contextSnapshot };
+  return {
+    status,
+    reasons,
+    warnings,
+    context: contextSnapshot,
+    registration: registration[0] ?? null,
+    outstandingDues,
+  };
 }
-
 
 /**
  * Official examination approval, locking and publication are controlled by
@@ -1404,131 +1472,85 @@ export async function generateHallTickets(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, examSessionId);
-  if (session.status === "DRAFT") {
-    throw new AppError(
-      "Schedule the session before issuing hall tickets",
-      409
-    );
-  }
+  if (session.status === "DRAFT") throw new AppError("Schedule the session before issuing hall tickets", 409);
 
-  const students = await prisma.$queryRaw<
-    Array<{ studentId: string }>
-  >(Prisma.sql`
+  const students = await prisma.$queryRaw<Array<{ studentId: string }>>(Prisma.sql`
     SELECT DISTINCT a."studentId"
     FROM "exam_seat_allocations" a
     JOIN "exam_schedules" s ON s."id" = a."examScheduleId"
-    WHERE s."examSessionId" = ${examSessionId}
-      AND a."institutionId" = ${institutionId}
+    WHERE s."examSessionId" = ${examSessionId} AND a."institutionId" = ${institutionId}
   `);
-  if (students.length === 0) {
-    throw new AppError(
-      "Allocate seating before issuing hall tickets",
-      409
-    );
-  }
+  if (!students.length) throw new AppError("Allocate seating before issuing hall tickets", 409);
 
   const year = new Date(session.startDate).getUTCFullYear();
   const prefix = `HT${year}-`;
+  const results = {
+    eligible: 0,
+    issued: 0,
+    blocked: 0,
+    skipped: 0,
+    blockedCandidates: [] as Array<{ studentId: string; reasons: string[]; warnings: string[] }>,
+  };
 
-  const results = { issued: 0, blocked: 0 };
-
-  await prisma.$transaction(async (tx) => {
-    for (const { studentId } of students) {
-      const [attendance, dues] = await Promise.all([
-        getStudentAttendancePercentage(institutionId, studentId),
-        tx.$queryRaw<{ outstanding: number | null }[]>(Prisma.sql`
-          SELECT SUM("amount" - "paidAmount" + "lateFeeAmount")::float AS "outstanding"
-          FROM "fee_invoices"
-          WHERE "institutionId" = ${institutionId}
-            AND "studentId" = ${studentId}
-            AND "status" <> 'CANCELLED'
-            AND "dueDate" IS NOT NULL
-            AND "dueDate" < CURRENT_TIMESTAMP
-        `),
-      ]);
-
-      const reasons: string[] = [];
-      const eligibility = await tx.$queryRaw<Array<{status:string}>>(Prisma.sql`
-        SELECT "status" FROM "exam_eligibilities"
-        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
-          AND "studentId"=${studentId} LIMIT 1
-      `);
-      if (eligibility[0]?.status !== "ELIGIBLE") {
-        reasons.push(eligibility[0]?.status === "INELIGIBLE"
-          ? "Student is not eligible for this examination"
-          : "Examination eligibility has not been finalized");
-      }
-      const registration = await tx.$queryRaw<Array<{status:string;feeStatus:string}>>(Prisma.sql`
-        SELECT "status","feeStatus" FROM "exam_registrations"
-        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
-          AND "studentId"=${studentId} LIMIT 1
-      `);
-      if (session.registrationRequired && registration[0]?.status !== "REGISTERED") {
-        reasons.push("Examination registration is not confirmed");
-      }
-      if (session.registrationRequired && registration[0]?.feeStatus === "PENDING") {
-        reasons.push("Examination fee is pending");
-      }
-      const holds = await tx.$queryRaw<Array<{reason:string}>>(Prisma.sql`
-        SELECT "reason" FROM "admit_card_holds"
-        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId}
-          AND "studentId"=${studentId} AND "status"='ACTIVE'
-      `);
-      reasons.push(...holds.map(h => h.reason));
-      if (
-        attendance.policy.blockHallTicket &&
-        attendance.percentage !== null &&
-        attendance.percentage < attendance.policy.minPercentage
-      ) {
-        reasons.push(
-          `Attendance ${attendance.percentage}% is below the required ${attendance.policy.minPercentage}%`
-        );
-      }
-      const outstanding = dues[0]?.outstanding ?? 0;
-      if (outstanding > 0) {
-        reasons.push(`Outstanding fees of ${outstanding.toFixed(2)}`);
-      }
-
-      const blocked = reasons.length > 0;
-      const existing = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+  for (const { studentId } of students) {
+    const eligibility = await evaluateExamEligibility(institutionId, actor, examSessionId, studentId);
+    if (eligibility.status !== "ELIGIBLE") {
+      results.blocked += 1;
+      results.blockedCandidates.push({ studentId, reasons: eligibility.reasons, warnings: eligibility.warnings });
+      const existing = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "hall_tickets"
-        WHERE "examSessionId" = ${examSessionId} AND "studentId" = ${studentId}
+        WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId} AND "studentId"=${studentId}
         LIMIT 1
       `);
-
-      if (existing.length > 0) {
-        await tx.$executeRaw`
+      if (existing[0]) {
+        await prisma.$executeRaw`
           UPDATE "hall_tickets"
-          SET "status" = ${blocked ? "BLOCKED" : "ISSUED"},
-              "blockedReason" = ${blocked ? reasons.join("; ") : null}
-          WHERE "id" = ${existing[0].id}
+          SET "status"='BLOCKED',"blockedReason"=${eligibility.reasons.join("; ")}
+          WHERE "id"=${existing[0].id} AND "institutionId"=${institutionId}
         `;
       } else {
-        const serial = await nextSequenceNumber(tx, {
-          table: "hall_tickets",
-          column: "serialNumber",
-          institutionId,
-          prefix,
-        });
-        await tx.$executeRaw`
+        const serial = await nextSequenceNumber(prisma, { table: "hall_tickets", column: "serialNumber", institutionId, prefix });
+        await prisma.$executeRaw`
           INSERT INTO "hall_tickets"
-            ("id", "institutionId", "examSessionId", "studentId", "serialNumber",
-             "status", "blockedReason", "issuedById")
+            ("id","institutionId","examSessionId","studentId","serialNumber","status","blockedReason","issuedById")
           VALUES
-            (${randomUUID()}, ${institutionId}, ${examSessionId}, ${studentId},
-             ${serial}, ${blocked ? "BLOCKED" : "ISSUED"},
-             ${blocked ? reasons.join("; ") : null}, ${actor.id})
+            (${randomUUID()},${institutionId},${examSessionId},${studentId},${serial},'BLOCKED',${eligibility.reasons.join("; ")},${actor.id})
         `;
       }
-
-      if (blocked) results.blocked += 1;
-      else results.issued += 1;
+      continue;
     }
-  });
+
+    results.eligible += 1;
+    const existing = await prisma.$queryRaw<Array<{ id: string; status: string }>>(Prisma.sql`
+      SELECT "id","status" FROM "hall_tickets"
+      WHERE "institutionId"=${institutionId} AND "examSessionId"=${examSessionId} AND "studentId"=${studentId}
+      ORDER BY "issuedAt" DESC LIMIT 1
+    `);
+    if (existing[0]?.status === "ISSUED") {
+      results.skipped += 1;
+      continue;
+    }
+    if (existing[0]) {
+      await prisma.$executeRaw`
+        UPDATE "hall_tickets"
+        SET "status"='ISSUED',"blockedReason"=NULL,"issuedById"=${actor.id}
+        WHERE "id"=${existing[0].id} AND "institutionId"=${institutionId}
+      `;
+    } else {
+      const serial = await nextSequenceNumber(prisma, { table: "hall_tickets", column: "serialNumber", institutionId, prefix });
+      await prisma.$executeRaw`
+        INSERT INTO "hall_tickets"
+          ("id","institutionId","examSessionId","studentId","serialNumber","status","blockedReason","issuedById")
+        VALUES
+          (${randomUUID()},${institutionId},${examSessionId},${studentId},${serial},'ISSUED',NULL,${actor.id})
+      `;
+    }
+    results.issued += 1;
+  }
 
   await prisma.$executeRaw`
     UPDATE "exam_sessions"
-    SET "admitCardStatus" = CASE WHEN ${results.issued} > 0 THEN 'ISSUED' ELSE 'ON_HOLD' END
+    SET "admitCardStatus" = CASE WHEN ${results.issued} > 0 OR ${results.skipped} > 0 THEN 'ISSUED' ELSE 'ON_HOLD' END
     WHERE "id"=${examSessionId} AND "institutionId"=${institutionId}
   `;
 
@@ -1538,13 +1560,11 @@ export async function generateHallTickets(
     action: "exam.hall_tickets_generated",
     entityType: "ExamSession",
     entityId: examSessionId,
-    metadata: results,
+    metadata: { eligible: results.eligible, issued: results.issued, blocked: results.blocked, skipped: results.skipped },
     ...meta,
   });
-
   return results;
 }
-
 /** Overrides a block once the underlying dues or shortage are settled. */
 export async function updateHallTicketStatus(
   institutionId: string,
