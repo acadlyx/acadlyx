@@ -741,6 +741,7 @@ export async function verifyPlacementJoining(institutionId: string, actor: Authe
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const offer=await prisma.placementOffer.findFirst({where:{id:offerId,institutionId},select:{id:true,studentId:true,joiningDate:true}});
   if(!offer) throw new AppError("Placement offer not found.",404);
+  const existingVerification = await prisma.placementJoiningVerification.findUnique({ where: { offerId }, select: { status: true } });
   const verification=await prisma.placementJoiningVerification.upsert({
     where:{offerId},
     create:{institutionId,offerId,studentId:offer.studentId,expectedJoiningDate:offer.joiningDate,actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):null,status:input.status,proofUrl:input.proofUrl||null,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes||null},
@@ -749,7 +750,7 @@ export async function verifyPlacementJoining(institutionId: string, actor: Authe
   if(input.status==="VERIFIED") {
     await prisma.placementOffer.update({where:{id:offerId},data:{status:"JOINED",joiningStatus:"VERIFIED",joiningVerifiedAt:new Date(),joiningVerifiedById:actor.id}});
     const joinedOffer = await prisma.placementOffer.findUnique({ where: { id: offerId }, select: { companyId: true, totalCtc: true } });
-    if (joinedOffer) {
+    if (joinedOffer && existingVerification?.status !== "VERIFIED") {
       const aggregate = await prisma.placementOffer.aggregate({ where: { institutionId, companyId: joinedOffer.companyId, status: "JOINED" }, _avg: { totalCtc: true }, _max: { totalCtc: true } });
       await prisma.placementCompanyHistory.upsert({
         where: { institutionId_companyId: { institutionId, companyId: joinedOffer.companyId } },
