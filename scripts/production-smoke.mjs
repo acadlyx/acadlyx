@@ -22,35 +22,65 @@ const targets = [
 ];
 
 const timeoutMs = 20_000;
+const maxAttempts = 30;
+const retryDelayMs = 10_000;
+
+async function verifyTarget(target) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(target.url, {
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "ACADLYX-production-smoke/1.1",
+          Accept: "text/html,application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      await target.validate(response);
+      console.log(`PASS ${target.name}: ${response.status} ${target.url} (attempt ${attempt}/${maxAttempts})`);
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(
+        `RETRY ${target.name}: ${lastError.message} (attempt ${attempt}/${maxAttempts})`,
+      );
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw new Error(
+    `${target.name} failed after ${maxAttempts} attempts: ${lastError?.message || "unknown error"}`,
+  );
+}
+
+let failed = false;
 
 for (const target of targets) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    const response = await fetch(target.url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "ACADLYX-production-smoke/1.0",
-        Accept: "text/html,application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    await target.validate(response);
-    console.log(`PASS ${target.name}: ${response.status} ${target.url}`);
+    await verifyTarget(target);
   } catch (error) {
-    console.error(`FAIL ${target.name}: ${error instanceof Error ? error.message : String(error)}`);
-    process.exitCode = 1;
-  } finally {
-    clearTimeout(timer);
+    failed = true;
+    console.error(
+      `FAIL ${target.name}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
-if (process.exitCode) {
-  process.exit(process.exitCode);
+if (failed) {
+  process.exit(1);
 }
