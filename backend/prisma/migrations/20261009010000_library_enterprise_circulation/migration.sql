@@ -38,6 +38,7 @@ CREATE TABLE "library_book_copies" (
   "shelf" TEXT,
   "acquisitionDate" TIMESTAMP(3),
   "acquisitionCost" DOUBLE PRECISION,
+  "replacementValue" DOUBLE PRECISION,
   "currentValue" DOUBLE PRECISION,
   "condition" TEXT NOT NULL DEFAULT 'GOOD',
   "status" TEXT NOT NULL DEFAULT 'AVAILABLE',
@@ -100,7 +101,7 @@ ON CONFLICT ("institutionId") DO NOTHING;
 -- aggregate totals are preserved; copies become the authoritative inventory
 -- representation for new circulation transactions.
 INSERT INTO "library_book_copies"
-  ("id","institutionId","bookId","accessionNumber","location","shelf","acquisitionCost","currentValue","status")
+  ("id","institutionId","bookId","accessionNumber","location","shelf","acquisitionCost","replacementValue","currentValue","status")
 SELECT
   gen_random_uuid()::text,
   b."institutionId",
@@ -109,6 +110,7 @@ SELECT
   b."shelfLocation",
   b."shelfLocation",
   b."defaultAcquisitionCost",
+  b."defaultReplacementValue",
   b."defaultCurrentValue",
   'AVAILABLE'
 FROM "library_books" b
