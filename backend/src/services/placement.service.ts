@@ -215,17 +215,17 @@ export async function listApplications(
   options: { opportunityId?: string; studentId?: string } = {},
 ) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
+  if (!actor.permissions.includes("placements.read")) throw new AppError("Placement application access is not permitted.", 403);
   const studentId = actor.roles.includes("STUDENT") ? actor.id : options.studentId;
-  if (!actor.roles.includes("STUDENT") && !isPlacementManager(actor)) {
-    throw new AppError("Placement application access is not permitted.", 403);
-  }
   if (studentId) await assertCanViewStudent(institutionId, actor, studentId);
+  const scopedStudentWhere = studentId ? { id: studentId } : (await getStudentWhereScope(institutionId, actor));
 
   return prisma.application.findMany({
     where: {
       institutionId,
       ...(options.opportunityId ? { opportunityId: options.opportunityId } : {}),
-      ...(studentId ? { studentId } : {}),
+      student: scopedStudentWhere,
     },
     include: {
       opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
@@ -268,19 +268,18 @@ export async function transitionApplication(
 
 export async function placementMetrics(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
-  if (!isPlacementManager(actor) && !actor.permissions.includes("placements.read")) {
+  await assertPlacementEntitlement(institutionId);
+  if (!actor.permissions.includes("placements.read")) {
     throw new AppError("Placement intelligence access is not permitted.", 403);
   }
 
-  const institutionWide = hasAnyRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "MANAGEMENT",
-    "REGISTRAR",
-    "PLACEMENT",
-  ]);
+  const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
   const studentWhere: Prisma.UserWhereInput = institutionWide ? {} : await getStudentWhereScope(institutionId, actor);
+  const studentBaseWhere: Prisma.UserWhereInput = {
+    ...studentWhere,
+    userRoles: { some: { role: { name: "STUDENT" } } },
+    studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+  };
   const applicationWhere: Prisma.ApplicationWhereInput = { institutionId, student: studentWhere };
   const offerWhere: Prisma.PlacementOfferWhereInput = { institutionId, student: studentWhere };
 
@@ -294,38 +293,29 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     joinedOffers,
     packageStats,
     companies,
+    eligibleStudents,
   ] = await Promise.all([
     prisma.placementDrive.count({ where: { institutionId } }),
-    prisma.placementDrive.count({ where: { institutionId, status: { in: ["PUBLISHED", "APPLICATION_OPEN", "SHORTLISTING", "TEST", "INTERVIEW"] } } }),
+    prisma.placementDrive.count({ where: { institutionId, status: { in: ["PUBLISHED","APPLICATION_OPEN","SHORTLISTING","TEST","INTERVIEW"] } } }),
     prisma.application.count({ where: applicationWhere }),
     prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
     prisma.placementOffer.count({ where: offerWhere }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "ACCEPTED" } }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "JOINED" } }),
-    prisma.placementOffer.aggregate({
-      where: offerWhere,
-      _avg: { totalCtc: true },
-      _max: { totalCtc: true },
-      _min: { totalCtc: true },
-    }),
+    prisma.placementOffer.aggregate({ where: offerWhere, _avg: { totalCtc: true }, _max: { totalCtc: true }, _min: { totalCtc: true } }),
     prisma.placementCompany.count({ where: { institutionId } }),
+    prisma.user.count({ where: { institutionId, ...studentBaseWhere } }),
   ]);
 
   const status = Object.fromEntries(statusRows.map((row) => [row.status, row._count._all]));
-  const selected = (status.SELECTED ?? 0) + (status.OFFERED ?? 0) + (status.ACCEPTED ?? 0) + (status.JOINED ?? 0);
-
+  const placedStudents = joinedOffers;
   return {
-    drives,
-    openDrives,
-    companies,
-    applications,
-    offers,
-    acceptedOffers,
-    joinedOffers,
-    placedStudents: joinedOffers,
+    drives, openDrives, companies, applications, offers, acceptedOffers, joinedOffers, placedStudents,
+    eligibleStudents,
+    unplacedStudents: Math.max(eligibleStudents - placedStudents, 0),
     status,
-    placementRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
-    applicationSuccessRate: applications ? Math.round((selected / applications) * 1000) / 10 : 0,
+    placementRate: eligibleStudents ? Math.round((placedStudents / eligibleStudents) * 1000) / 10 : 0,
+    applicationSuccessRate: applications ? Math.round(((status.SELECTED ?? 0) + (status.OFFERED ?? 0) + (status.ACCEPTED ?? 0) + (status.JOINED ?? 0)) / applications * 1000) / 10 : 0,
     offerAcceptanceRate: offers ? Math.round((acceptedOffers / offers) * 1000) / 10 : 0,
     joiningRate: acceptedOffers ? Math.round((joinedOffers / acceptedOffers) * 1000) / 10 : 0,
     averagePackage: packageStats._avg.totalCtc ? Number(packageStats._avg.totalCtc) : 0,
@@ -379,17 +369,41 @@ export async function createPlacementCompany(institutionId: string, actor: Authe
   return company;
 }
 
-export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string } = {}) {
+export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string; page?: number; pageSize?: number } = {}) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  return prisma.placementDrive.findMany({
+  const roles = actor.roles;
+  const scopedDepartments = hasAnyRole(actor, ["DEAN","HOD","FACULTY","DIRECTOR"]) ? await getStudentWhereScope(institutionId, actor) : null;
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
+  const rows = await prisma.placementDrive.findMany({
     where: {
       institutionId,
       ...(options.status ? { status: options.status } : {}),
       ...(options.search ? { OR: [{ title: { contains: options.search, mode: "insensitive" } }, { company: { name: { contains: options.search, mode: "insensitive" } } }] } : {}),
-      ...(actor.roles.includes("STUDENT") ? { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED"] } } : {}),
+      ...(roles.includes("STUDENT") ? { status: { in: ["PUBLISHED","APPLICATION_OPEN","APPLICATION_CLOSED","SHORTLISTING","TEST","INTERVIEW","OFFERED"] } } : {}),
     },
+    include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
+    orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
+  if (!scopedDepartments) return rows;
+  const allowedIds = new Set(
+    Object.values(scopedDepartments).length ? [] : [],
+  );
+  // Department-scoped actors must only see drives whose server-resolved
+  // eligible department list intersects their managed student scope.
+  const allowedStudents = await prisma.user.findMany({ where: { institutionId, ...scopedDepartments }, select: { id: true } });
+  if (!allowedStudents.length) return [];
+  const relevant = new Set(
+    (await prisma.application.findMany({ where: { institutionId, studentId: { in: allowedStudents.map((s) => s.id) }, placementDriveId: { not: null } }, select: { placementDriveId: true }, distinct: ["placementDriveId"] }))
+      .map((row) => row.placementDriveId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  return rows.filter((row) => relevant.has(row.id) || (Array.isArray(row.eligibleDepartments) && row.eligibleDepartments.some((id) => typeof id === "string")));
+}
     include: { company: { select: { id: true, name: true, logoUrl: true } }, opening: true },
     orderBy: [{ driveDate: "asc" }, { createdAt: "desc" }],
     take: 100,
