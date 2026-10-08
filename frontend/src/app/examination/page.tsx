@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { MultiEntityPicker, EntityPicker } from "@/components/common/EntityPicker";
-import { DirectoryPicker } from "@/components/erp/DirectoryPicker";
 import { listAcademicYears, listCampuses, listDepartments, listPrograms, listSections, listSemesters } from "@/lib/erpApi";
 import { DirectoryOption } from "@/lib/directoryApi";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
