@@ -917,7 +917,7 @@ export async function listPlacementStudents(institutionId: string, actor: Authen
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  const studentWhere = await getStudentWhereScope(institutionId, actor);
+  const studentWhere = await getPlacementStudentScope(institutionId, actor);
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
   const where: Prisma.UserWhereInput = {
