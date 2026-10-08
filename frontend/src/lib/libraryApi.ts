@@ -34,6 +34,7 @@ export interface LibraryLoan {
   fineAmount: number;
   accruedFine: number;
   isOverdue: boolean;
+  financialBalance: number;
   book: { id: string; title: string; author: string; isbn: string | null };
   borrower: {
     id: string;
