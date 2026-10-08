@@ -567,12 +567,15 @@ export async function reserveBook(
       throw new AppError("You already hold or have reserved this book", 409);
     }
 
-    const activeLoans = await tx.libraryIssue.count({
-      where: { institutionId, borrowerId, status: { in: ["ISSUED", "RESERVED"] } },
-    });
-    if (activeLoans >= MAX_ACTIVE_LOANS) {
+    const [activeLoans, policy] = await Promise.all([
+      tx.libraryIssue.count({
+        where: { institutionId, borrowerId, status: { in: ["ISSUED", "RESERVED"] } },
+      }),
+      getLibraryPolicy(tx, institutionId),
+    ]);
+    if (activeLoans >= policy.maxActiveLoans) {
       throw new AppError(
-        `Borrowing limit reached (${MAX_ACTIVE_LOANS} active loans or holds)`,
+        `Borrowing limit reached (${policy.maxActiveLoans} active loans or holds)`,
         422
       );
     }
@@ -594,7 +597,7 @@ export async function reserveBook(
         borrowerId,
         issuedById: actor.id,
         copyId: copy.id,
-        dueDate: addDays(new Date(), (await getLibraryPolicy(tx, institutionId)).reservationHoldDays),
+        dueDate: addDays(new Date(), policy.reservationHoldDays),
         status: "RESERVED",
         finePolicySource: "INSTITUTION",
       },
