@@ -66,7 +66,7 @@ test("lost-book fixed policy uses configured charge", () => {
 test("damaged-book percentage and fixed policies are configurable", () => {
   assert.equal(
     calculateDamagedCharge(
-      { currentValue: 1000 },
+      { currentValue: 1000, replacementValue: 1200 },
       { defaultReplacementValue: 1200 },
       policy
     ),
