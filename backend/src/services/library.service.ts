@@ -712,7 +712,7 @@ export async function returnBook(
 
     let financialInvoiceId: string | null = null;
     let libraryFineId: string | null = null;
-    let fineType: string | null = finalFine > 0
+    const fineType: string | null = finalFine > 0
       ? input.condition === "LOST" ? "LOST_BOOK"
         : input.condition === "DAMAGED" ? "DAMAGED_BOOK"
         : "OVERDUE"
