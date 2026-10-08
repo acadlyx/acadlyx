@@ -1,4 +1,4 @@
-import { EventsGalleryContent } from "@/app/events-gallery/page";
+import { EventsGalleryContent } from "@/components/events/EventsGalleryContent";
 
 export default function AdminEventsGalleryPage() {
   return <EventsGalleryContent embedded />;
