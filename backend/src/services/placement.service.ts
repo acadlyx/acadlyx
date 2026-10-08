@@ -412,31 +412,45 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
 }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
-  const company = await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true } });
+  const company = await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true, name: true } });
   if (!company) throw new AppError("Company not found in this institution.", 404);
   if (input.openingId && !(await prisma.placementOpening.findFirst({ where: { id: input.openingId, institutionId, companyId: input.companyId }, select: { id: true } }))) {
     throw new AppError("Opening does not belong to the selected company.", 422);
   }
-  const drive = await prisma.placementDrive.create({
-    data: {
-      institutionId, companyId: input.companyId, title: input.title.trim(), openingId: input.openingId || null, campusId: input.campusId || null,
-      opportunity: {
-        create: {
-          institutionId,
-          title: input.title.trim(),
-          organization: company.name,
-          description: "Placement Drive",
-          deadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
-        },
+  const drive = await prisma.$transaction(async (tx) => {
+    const opportunity = await tx.opportunity.create({
+      data: {
+        institutionId,
+        title: input.title.trim(),
+        organization: company.name,
+        description: "Placement Drive",
+        deadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
       },
-      applicationDeadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
-      driveDate: input.driveDate ? new Date(input.driveDate) : null, venue: input.venue || null, onlineLink: input.onlineLink || null,
-      cgpaRequirement: input.cgpaRequirement, maxBacklogs: input.maxBacklogs, vacancies: input.vacancies,
-      eligiblePrograms: input.eligiblePrograms ?? undefined, eligibleDepartments: input.eligibleDepartments ?? undefined,
-      eligibleBatches: input.eligibleBatches ?? undefined, eligibleSemesters: input.eligibleSemesters ?? undefined,
-      requiredSkills: input.requiredSkills ?? undefined,
-    },
-    include: { company: true, opening: true, opportunity: true },
+      select: { id: true },
+    });
+    return tx.placementDrive.create({
+      data: {
+        institutionId,
+        companyId: input.companyId,
+        title: input.title.trim(),
+        opportunityId: opportunity.id,
+        openingId: input.openingId || null,
+        campusId: input.campusId || null,
+        applicationDeadline: input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+        driveDate: input.driveDate ? new Date(input.driveDate) : null,
+        venue: input.venue || null,
+        onlineLink: input.onlineLink || null,
+        cgpaRequirement: input.cgpaRequirement,
+        maxBacklogs: input.maxBacklogs,
+        vacancies: input.vacancies,
+        eligiblePrograms: input.eligiblePrograms ?? undefined,
+        eligibleDepartments: input.eligibleDepartments ?? undefined,
+        eligibleBatches: input.eligibleBatches ?? undefined,
+        eligibleSemesters: input.eligibleSemesters ?? undefined,
+        requiredSkills: input.requiredSkills ?? undefined,
+      },
+      include: { company: true, opening: true, opportunity: true },
+    });
   });
   await prisma.placementCompanyHistory.upsert({
     where: { institutionId_companyId: { institutionId, companyId: drive.companyId } },
