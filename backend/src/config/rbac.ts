@@ -1020,6 +1020,8 @@ export const ROLE_PERMISSIONS: Record<
     "users.read",
     "students.read",
     ...ACADEMIC_READ,
+    // Campus is a read-only examination scope selector; it does not grant campus management authority.
+    "campuses.read",
     "timetable.read",
     "attendance.read",
     "registration.read",
