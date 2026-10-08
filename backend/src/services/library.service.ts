@@ -91,6 +91,47 @@ function shape(row: Prisma.LibraryIssueGetPayload<{ include: typeof issueInclude
   };
 }
 
+async function getLibraryPolicy(tx: Prisma.TransactionClient | typeof prisma, institutionId: string): Promise<LoanPolicy> {
+  return tx.libraryPolicy.upsert({
+    where: { institutionId },
+    update: {},
+    create: { institutionId },
+  });
+}
+
+function calculateLostCharge(
+  copy: { currentValue: number | null; acquisitionCost: number | null } | null,
+  book: { defaultReplacementValue: number | null; defaultCurrentValue: number | null },
+  policy: LoanPolicy
+): number {
+  const value =
+    copy?.currentValue ??
+    book.defaultReplacementValue ??
+    copy?.acquisitionCost ??
+    book.defaultCurrentValue;
+  if (policy.lostChargeType === "FIXED") {
+    return round2(policy.lostAdministrativeCharge);
+  }
+  if (value === null || value === undefined) {
+    throw new AppError("Replacement/current value is required before a lost-book charge can be created", 422);
+  }
+  return round2(value + policy.lostAdministrativeCharge);
+}
+
+function calculateDamagedCharge(
+  copy: { currentValue: number | null } | null,
+  book: { defaultReplacementValue: number | null },
+  policy: LoanPolicy
+): number {
+  if (policy.damagedChargeType === "NONE") return 0;
+  if (policy.damagedChargeType === "FIXED") return round2(policy.damagedFixedCharge);
+  const value = copy?.currentValue ?? book.defaultReplacementValue;
+  if (value === null || value === undefined) {
+    throw new AppError("Replacement value is required before a percentage damage charge can be created", 422);
+  }
+  return round2(value * policy.damagedChargePercent / 100);
+}
+
 /* ---------------------------------------------------------------- catalogue */
 
 export async function listBooks(
@@ -181,6 +222,9 @@ export async function createBook(
       shelfLocation: input.shelfLocation ?? null,
       totalCopies: input.totalCopies,
       availableCopies: input.totalCopies,
+      defaultAcquisitionCost: input.defaultAcquisitionCost ?? null,
+      defaultReplacementValue: input.defaultReplacementValue ?? null,
+      defaultCurrentValue: input.defaultCurrentValue ?? null,
     },
   });
 
@@ -240,6 +284,9 @@ export async function updateBook(
       category: input.category,
       publisher: input.publisher,
       shelfLocation: input.shelfLocation,
+      defaultAcquisitionCost: input.defaultAcquisitionCost,
+      defaultReplacementValue: input.defaultReplacementValue,
+      defaultCurrentValue: input.defaultCurrentValue,
       ...(input.totalCopies !== undefined
         ? { totalCopies: input.totalCopies, availableCopies }
         : {}),
