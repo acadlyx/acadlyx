@@ -32,8 +32,15 @@ export interface EnrollmentRequest {
   decidedBy?: { id: string; firstName: string; lastName: string } | null;
 }
 
-export async function getMyEnrollmentWorkflow() {
-  const res = await authedFetch<{ success: boolean; data: { state: string; enrollment: unknown; request: EnrollmentRequest | null; eligibleContexts?: EnrollmentContext[] } }>("/enrollment-requests/mine");
+export interface MyEnrollmentWorkflow {
+  state: string;
+  enrollment: EnrollmentSummary | null;
+  request: EnrollmentRequest | null;
+  eligibleContexts?: EnrollmentContext[];
+}
+
+export async function getMyEnrollmentWorkflow(): Promise<MyEnrollmentWorkflow> {
+  const res = await authedFetch<{ success: boolean; data: MyEnrollmentWorkflow }>("/enrollment-requests/mine");
   return res.data;
 }
 
