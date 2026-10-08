@@ -225,7 +225,12 @@ export async function createBook(
         availableCopies: input.totalCopies,
         defaultAcquisitionCost: input.defaultAcquisitionCost ?? null,
         defaultReplacementValue: input.defaultReplacementValue ?? null,
-        defaultCurrentValue: input.defaultCurrentValue ?? null,
+        defaultCurrentValue: input.defaultCurrentValue ?? input.defaultReplacementValue ?? null,
+        defaultLoanDays: input.defaultLoanDays ?? null,
+        defaultMaxRenewals: input.defaultMaxRenewals ?? null,
+        defaultFinePerDay: input.defaultFinePerDay ?? null,
+        defaultFineCap: input.defaultFineCap ?? null,
+        defaultGracePeriodDays: input.defaultGracePeriodDays ?? null,
       },
     });
     await tx.libraryBookCopy.createMany({
@@ -302,6 +307,11 @@ export async function updateBook(
         defaultAcquisitionCost: input.defaultAcquisitionCost,
         defaultReplacementValue: input.defaultReplacementValue,
         defaultCurrentValue: input.defaultCurrentValue,
+        defaultLoanDays: input.defaultLoanDays,
+        defaultMaxRenewals: input.defaultMaxRenewals,
+        defaultFinePerDay: input.defaultFinePerDay,
+        defaultFineCap: input.defaultFineCap,
+        defaultGracePeriodDays: input.defaultGracePeriodDays,
         ...(input.totalCopies !== undefined
           ? { totalCopies: input.totalCopies, availableCopies }
           : {}),
