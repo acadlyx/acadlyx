@@ -211,21 +211,35 @@ export async function createBook(
     if (clash) throw new AppError("A book with this ISBN already exists", 409);
   }
 
-  const book = await prisma.libraryBook.create({
-    data: {
-      institutionId,
-      title: input.title,
-      author: input.author,
-      isbn: input.isbn ?? null,
-      category: input.category ?? null,
-      publisher: input.publisher ?? null,
-      shelfLocation: input.shelfLocation ?? null,
-      totalCopies: input.totalCopies,
-      availableCopies: input.totalCopies,
-      defaultAcquisitionCost: input.defaultAcquisitionCost ?? null,
-      defaultReplacementValue: input.defaultReplacementValue ?? null,
-      defaultCurrentValue: input.defaultCurrentValue ?? null,
-    },
+  const book = await prisma.$transaction(async (tx) => {
+    const created = await tx.libraryBook.create({
+      data: {
+        institutionId,
+        title: input.title,
+        author: input.author,
+        isbn: input.isbn ?? null,
+        category: input.category ?? null,
+        publisher: input.publisher ?? null,
+        shelfLocation: input.shelfLocation ?? null,
+        totalCopies: input.totalCopies,
+        availableCopies: input.totalCopies,
+        defaultAcquisitionCost: input.defaultAcquisitionCost ?? null,
+        defaultReplacementValue: input.defaultReplacementValue ?? null,
+        defaultCurrentValue: input.defaultCurrentValue ?? null,
+      },
+    });
+    await tx.libraryBookCopy.createMany({
+      data: Array.from({ length: input.totalCopies }, (_, index) => ({
+        institutionId,
+        bookId: created.id,
+        accessionNumber: `ACC-${created.id.slice(0, 8).toUpperCase()}-${String(index + 1).padStart(5, "0")}`,
+        location: input.shelfLocation ?? null,
+        shelf: input.shelfLocation ?? null,
+        acquisitionCost: input.defaultAcquisitionCost ?? null,
+        currentValue: input.defaultCurrentValue ?? input.defaultReplacementValue ?? null,
+      })),
+    });
+    return created;
   });
 
   await recordAuditLog({
