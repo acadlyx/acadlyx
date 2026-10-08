@@ -1267,50 +1267,51 @@ export async function listMyLoans(institutionId: string, actor: AuthenticatedUse
 
 export async function getLibrarySummary(institutionId: string) {
   const now = new Date();
-  const [titles, copies, issued, reserved, overdue, financialTotals] = await Promise.all([
+  const start = startOfDay(now);
+  const end = addDays(start, 1);
+  const [titles, copyGroups, issuesToday, returnsToday, overdue, financialTotals] = await Promise.all([
     prisma.libraryBook.count({ where: { institutionId, isActive: true } }),
-    prisma.libraryBook.aggregate({
-      where: { institutionId, isActive: true },
-      _sum: { totalCopies: true, availableCopies: true },
+    prisma.libraryBookCopy.groupBy({
+      by: ["status"],
+      where: { institutionId, book: { isActive: true } },
+      _count: { _all: true },
     }),
-    prisma.libraryIssue.count({ where: { institutionId, status: "ISSUED" } }),
-    prisma.libraryIssue.count({ where: { institutionId, status: "RESERVED" } }),
-    prisma.libraryIssue.count({
-      where: { institutionId, status: "ISSUED", dueDate: { lt: now } },
-    }),
+    prisma.libraryIssue.count({ where: { institutionId, issuedAt: { gte: start, lt: end } } }),
+    prisma.libraryIssue.count({ where: { institutionId, returnedAt: { gte: start, lt: end } } }),
+    prisma.libraryIssue.count({ where: { institutionId, status: "ISSUED", dueDate: { lt: now } } }),
     prisma.feeInvoice.aggregate({
-      where: {
-        institutionId,
-        sourceModule: "LIBRARY",
-        sourceType: {
-          in: [
-            "OVERDUE",
-            "LIBRARY_FINE",
-            "LOST_BOOK",
-            "LIBRARY_LOST_BOOK_CHARGE",
-            "DAMAGED_BOOK",
-            "LIBRARY_DAMAGED_BOOK_CHARGE",
-          ],
-        },
-      },
+      where: { institutionId, sourceModule: "LIBRARY" },
       _sum: { amount: true, paidAmount: true },
     }),
   ]);
 
+  const counts = Object.fromEntries(copyGroups.map((row) => [row.status, row._count._all]));
+  const totalCopies = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  const availableCopies = counts.AVAILABLE ?? 0;
+  const reserved = counts.RESERVED ?? 0;
+  const issued = counts.ISSUED ?? 0;
+  const lost = counts.LOST ?? 0;
+  const damaged = counts.DAMAGED ?? 0;
+  const maintenance = counts.MAINTENANCE ?? 0;
   const billed = Number(financialTotals._sum.amount ?? 0);
   const paid = Number(financialTotals._sum.paidAmount ?? 0);
+
   return {
     titles,
-    totalCopies: copies._sum.totalCopies ?? 0,
-    availableCopies: copies._sum.availableCopies ?? 0,
+    totalCopies,
+    availableCopies,
     issued,
     reserved,
     overdue,
-    collectedFines: round2(paid),
+    lost,
+    damaged,
+    maintenance,
     outstandingFines: round2(Math.max(0, billed - paid)),
+    collectedFines: round2(paid),
+    todayIssues: issuesToday,
+    todayReturns: returnsToday,
   };
 }
-
 
 export async function requestFineWaiver(
   institutionId: string,
