@@ -36,7 +36,7 @@ test("library fine honors configurable grace period and cap", () => {
 test("lost-book charges use actual copy/book value", () => {
   assert.equal(
     calculateLostCharge(
-      { currentValue: 300, acquisitionCost: 250 },
+      { currentValue: 300, replacementValue: 300, acquisitionCost: 250 },
       { defaultReplacementValue: 300, defaultCurrentValue: 280 },
       policy
     ),
@@ -44,7 +44,7 @@ test("lost-book charges use actual copy/book value", () => {
   );
   assert.equal(
     calculateLostCharge(
-      { currentValue: 2500, acquisitionCost: 2200 },
+      { currentValue: 2500, replacementValue: 2500, acquisitionCost: 2200 },
       { defaultReplacementValue: 300, defaultCurrentValue: 280 },
       policy
     ),
