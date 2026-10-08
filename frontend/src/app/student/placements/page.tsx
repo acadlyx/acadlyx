@@ -7,6 +7,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 type Drive = { id: string; title: string; status: string; applicationDeadline: string | null; company: { id: string; name: string; logoUrl: string | null } };
 type Application = { id: string; status: string; appliedAt: string; opportunity: { title: string; organization: string; deadline: string | null } };
 type Offer = { id: string; status: string; role: string; totalCtc: number | null; currency: string; joiningDate: string | null; company: { name: string } };
+type Test = { id: string; title: string; mode: string; scheduledAt: string; drive: { title: string; company: { name: string } }; participants: Array<{ attendanceStatus: string; resultStatus: string; score: number | null }> };
 type Profile = { profile: { placementStatus: string; bio: string | null; portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null } | null; skills: unknown[]; certifications: unknown[]; projects: unknown[]; resumes: unknown[] };
 
 export default function StudentPlacementsPage() {
@@ -14,6 +15,7 @@ export default function StudentPlacementsPage() {
   const [drives, setDrives] = useState<Drive[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [tests, setTests] = useState<Test[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -22,16 +24,18 @@ export default function StudentPlacementsPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, d, a, o] = await Promise.all([
+      const [p, d, a, o, testsResponse] = await Promise.all([
         apiFetch<{ data: Profile }>("/placements/profile"),
         apiFetch<{ data: Drive[] }>("/placements/drives"),
         apiFetch<{ data: Application[] }>("/placements/applications"),
         apiFetch<{ data: Offer[] }>("/placements/offers"),
+        apiFetch<{ data: Test[] }>("/placements/tests"),
       ]);
       setProfile(p.data);
       setDrives(d.data || []);
       setApplications(a.data || []);
       setOffers(o.data || []);
+      setTests(testsResponse.data || []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : "Unable to load your placement workspace.");
     } finally {
@@ -58,7 +62,7 @@ export default function StudentPlacementsPage() {
     setBusy(id + status);
     setError("");
     try {
-      await apiFetch("/placements/offers/" + id + "/status", { method: "POST", body: JSON.stringify({ status }) });
+      await apiFetch("/placements/offers/" + id + "/respond", { method: "POST", body: JSON.stringify({ status }) });
       await load();
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : "Unable to update offer.");
@@ -91,7 +95,7 @@ export default function StudentPlacementsPage() {
             <div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Career profile</p><h2 className="mt-1 text-2xl font-black text-slate-950">Be application-ready</h2></div>
             <button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm font-bold">Refresh</button>
           </div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Maintain skills, certifications, projects, resume and approved professional links. Academic enrollment and eligibility remain authoritative institutional records.</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Maintain skills, certifications, projects, resume and approved professional links. Academic enrollment and eligibility remain authoritative institutional records.</p><a href="/student/placements/profile" className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-black text-white">Manage my placement profile</a>
           <div className="mt-5 flex flex-wrap gap-2">{[["Skills", profile?.skills.length], ["Certifications", profile?.certifications.length], ["Projects", profile?.projects.length], ["Resumes", profile?.resumes.length]].map(([a, b]) => <span key={String(a)} className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">{a}: {String(b ?? 0)}</span>)}</div>
         </section>
 
@@ -106,6 +110,19 @@ export default function StudentPlacementsPage() {
               </article>
             ))}
             {!loading && drives.length === 0 && <p className="py-8 text-center text-sm text-slate-500 lg:col-span-2">No published placement drives are currently available.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border bg-white p-6">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-slate-950">My placement tests</h2><span className="text-xs font-bold text-slate-500">{tests.length} scheduled</span></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {tests.map((test) => <article key={test.id} className="rounded-2xl border p-4">
+              <p className="font-black text-slate-950">{test.title}</p>
+              <p className="mt-1 text-sm text-slate-600">{test.drive.company.name} · {test.drive.title}</p>
+              <p className="mt-2 text-xs text-slate-500">{new Date(test.scheduledAt).toLocaleString("en-IN")} · {test.mode}</p>
+              {test.participants[0] && <span className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{test.participants[0].resultStatus}</span>}
+            </article>)}
+            {!loading && tests.length === 0 && <p className="py-6 text-center text-sm text-slate-500 md:col-span-2">No placement tests are scheduled for you.</p>}
           </div>
         </section>
 
