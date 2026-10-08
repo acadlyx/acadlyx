@@ -99,7 +99,7 @@ async function getLibraryPolicy(tx: Prisma.TransactionClient | typeof prisma, in
   });
 }
 
-function calculateLostCharge(
+export function calculateLostCharge(
   copy: { currentValue: number | null; acquisitionCost: number | null } | null,
   book: { defaultReplacementValue: number | null; defaultCurrentValue: number | null },
   policy: LoanPolicy
@@ -118,7 +118,7 @@ function calculateLostCharge(
   return round2(value + policy.lostAdministrativeCharge);
 }
 
-function calculateDamagedCharge(
+export function calculateDamagedCharge(
   copy: { currentValue: number | null } | null,
   book: { defaultReplacementValue: number | null },
   policy: LoanPolicy
