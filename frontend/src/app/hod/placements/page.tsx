@@ -4,7 +4,7 @@ import { useEffect,useState } from "react";
 import { apiFetch,ApiRequestError } from "@/lib/api";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-type Metrics=Record<string,unknown>;
+type Metrics=Record<string,string|number|null|undefined>;
 type Student={id:string;firstName:string;lastName:string;email:string;placementProfile:{placementStatus:string}|null;studentEnrollments:Array<{program:{name:string;department:{name:string}};batch:{name:string}|null;semester:{name:string}|null}>; _count:{placementApplicationsOwned:number;placementOffers:number}};
 type Drive={id:string;title:string;status:string;driveDate:string|null;company:{name:string}};
 type Offer={id:string;status:string;role:string;totalCtc:number|null;company:{name:string}};
