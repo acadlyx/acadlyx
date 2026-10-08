@@ -743,8 +743,8 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Teaching",
   },
   {
-    label: "Students",
-    href: "/students",
+    label: "My Students",
+    href: "/faculty#students",
     icon: "◎",
     roles: ["FACULTY"],
     permissions: ["students.read"],
