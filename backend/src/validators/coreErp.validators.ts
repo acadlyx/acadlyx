@@ -24,6 +24,11 @@ const HH_MM = z
 
 const shortText = (max: number) => z.string().trim().min(1).max(max);
 
+const examEligibilityRulesSchema = z.object({
+  requireFeeClearance: z.boolean().optional(),
+  maxOutstandingDues: z.number().min(0).optional(),
+}).strict();
+
 // ==========================================================
 // EXAMINATIONS
 // ==========================================================
@@ -57,7 +62,7 @@ export const createExamSessionSchema = z.object({
   registrationEnd: optionalDate,
   examFee: z.coerce.number().min(0).max(10000000).optional(),
   attendanceRequirement: z.coerce.number().min(0).max(100).optional(),
-  eligibilityRules: z.record(z.unknown()).optional(),
+  eligibilityRules: examEligibilityRulesSchema.optional(),
   hallTicketReleaseAt: optionalDate,
   instructions: optionalText(2000),
 });
@@ -71,7 +76,7 @@ export const updateExamSessionSchema = z.object({
   registrationEnd: optionalDate,
   examFee: z.coerce.number().min(0).max(10000000).optional(),
   attendanceRequirement: z.coerce.number().min(0).max(100).optional(),
-  eligibilityRules: z.record(z.unknown()).optional(),
+  eligibilityRules: examEligibilityRulesSchema.optional()
   campusIds: z.array(z.string().uuid()).max(100).optional(),
   departmentIds: z.array(z.string().uuid()).max(100).optional(),
   programIds: z.array(z.string().uuid()).max(100).optional(),
