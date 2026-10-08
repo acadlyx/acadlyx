@@ -81,7 +81,7 @@ export function ProtectedRouteBoundary({
       .then((currentUser) => {
         if (!alive) return;
 
-        if (!canAccessRoute(route, currentUser.roles, currentUser.permissions)) {
+        if (!canAccessRoute(route, currentUser.roles, currentUser.permissions, currentUser.tenantFeatures || [])) {
           setState("unauthorized");
           setUser(currentUser);
           setValidatedPath(pathname);
