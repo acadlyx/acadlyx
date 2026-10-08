@@ -31,6 +31,7 @@ import {
   listLibraryFines,
   requestFineWaiver,
   approveFineWaiver,
+  imposeLateReturnFine,
 } from "@/lib/libraryApi";
 
 type ViewState = "loading" | "ready" | "error";
@@ -695,8 +696,8 @@ export default function LibraryPage() {
                       <td className="text-slate-600">
                         {money(
                           loan.status === "ISSUED"
-                            ? loan.accruedFine
-                            : loan.fineAmount
+                            ? loan.financialBalance || loan.accruedFine
+                            : loan.financialBalance || loan.fineAmount
                         )}
                       </td>
                       <td className="py-3 text-right">
@@ -735,6 +736,15 @@ export default function LibraryPage() {
                             >
                               Mark damaged
                             </button>
+                            {loan.isOverdue && loan.status === "ISSUED" && loan.accruedFine > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => run(() => imposeLateReturnFine(loan.id))}
+                                className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700"
+                              >
+                                Impose late fine
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -842,8 +852,8 @@ export default function LibraryPage() {
                       <td className="text-slate-600">
                         {money(
                           loan.status === "ISSUED"
-                            ? loan.accruedFine
-                            : loan.fineAmount
+                            ? loan.financialBalance || loan.accruedFine
+                            : loan.financialBalance || loan.fineAmount
                         )}
                       </td>
                       <td className="py-3 text-right">
