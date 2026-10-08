@@ -203,3 +203,102 @@ export function EntityPicker({
 }
 
 export default EntityPicker;
+
+
+export function MultiEntityPicker({
+  kind,
+  values,
+  onChange,
+  label,
+  placeholder,
+  roles,
+  disabled,
+}: {
+  kind: PickerKind;
+  values: DirectoryOption[];
+  onChange: (options: DirectoryOption[]) => void;
+  label: string;
+  placeholder?: string;
+  roles?: string[];
+  disabled?: boolean;
+}) {
+  const [term, setTerm] = useState("");
+  const [options, setOptions] = useState<DirectoryOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const roleKey = useMemo(() => (roles ? roles.join(",") : ""), [roles]);
+
+  useEffect(() => {
+    if (term.trim().length < 2) {
+      setOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const query = term.trim();
+        const results =
+          kind === "student"
+            ? await searchStudents(query)
+            : kind === "courseOffering"
+              ? await searchCourseOfferings(query)
+              : await searchUsers(query, roleKey ? roleKey.split(",") : undefined);
+        if (!cancelled) setOptions(results);
+      } catch {
+        if (!cancelled) setOptions([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [term, kind, roleKey]);
+
+  const add = (option: DirectoryOption) => {
+    if (!values.some((item) => item.id === option.id)) onChange([...values, option]);
+    setTerm("");
+    setOptions([]);
+  };
+
+  return (
+    <div className="relative">
+      <label className="block text-sm font-medium text-slate-600">
+        <span className="mb-1 block">{label}</span>
+        <input
+          value={term}
+          disabled={disabled}
+          onChange={(event) => setTerm(event.target.value)}
+          placeholder={placeholder ?? "Search by name, code or identifier"}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
+          autoComplete="off"
+        />
+      </label>
+      {loading && <p className="mt-1 text-xs text-slate-500">Searching…</p>}
+      {term.trim().length >= 2 && !loading && (
+        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          {options.filter((option) => !values.some((item) => item.id === option.id)).map((option) => (
+            <button type="button" key={option.id} onClick={() => add(option)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-slate-50">
+              <span className="block font-semibold text-slate-900">{option.label}</span>
+              {option.hint && <span className="block text-xs text-slate-500">{option.hint}</span>}
+            </button>
+          ))}
+          {!options.filter((option) => !values.some((item) => item.id === option.id)).length && (
+            <p className="px-3 py-2 text-sm text-slate-500">No matching records in your authorized scope.</p>
+          )}
+        </div>
+      )}
+      {values.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {values.map((option) => (
+            <span key={option.id} className="inline-flex max-w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+              <span className="truncate">{option.label}</span>
+              <button type="button" disabled={disabled} onClick={() => onChange(values.filter((item) => item.id !== option.id))} className="rounded-full px-1 text-slate-500 hover:bg-white">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
