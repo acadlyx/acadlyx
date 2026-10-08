@@ -278,7 +278,6 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     throw new AppError("Placement intelligence access is not permitted.", 403);
   }
 
-  const institutionWide = hasAnyRole(actor, ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"]);
   const studentWhere: Prisma.UserWhereInput = await getPlacementStudentScope(institutionId, actor);
   const studentBaseWhere: Prisma.UserWhereInput = {
     AND: [
