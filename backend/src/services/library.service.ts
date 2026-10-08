@@ -122,13 +122,13 @@ export function calculateLostCharge(
 }
 
 export function calculateDamagedCharge(
-  copy: { currentValue: number | null } | null,
+  copy: { currentValue: number | null; replacementValue: number | null } | null,
   book: { defaultReplacementValue: number | null },
   policy: LoanPolicy
 ): number {
   if (policy.damagedChargeType === "NONE") return 0;
   if (policy.damagedChargeType === "FIXED") return round2(policy.damagedFixedCharge);
-  const value = copy?.currentValue ?? book.defaultReplacementValue;
+  const value = copy?.replacementValue ?? copy?.currentValue ?? book.defaultReplacementValue;
   if (value === null || value === undefined) {
     throw new AppError("Replacement value is required before a percentage damage charge can be created", 422);
   }
