@@ -8,6 +8,7 @@ function normalizeRoleName(role: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
+  [/^\/admin\/events-gallery(\/|$)|^\/events-gallery(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
