@@ -1196,6 +1196,8 @@ model Opportunity {
   @@index([institutionId])
   @@index([targetRoleId])
   @@map("opportunities")
+  placementDrive PlacementDrive?
+
 }
 
 model Application {
@@ -1248,7 +1250,6 @@ model PlacementCompany {
   openings PlacementOpening[]
   drives PlacementDrive[]
   offers PlacementOffer[]
-  placementOpportunity Opportunity?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([institutionId,name])
