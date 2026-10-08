@@ -280,7 +280,6 @@ model User {
   placementCertifications     PlacementCertification[]
   placementProjects           PlacementProject[]
   placementResumes            PlacementResume[]
-  placementTestParticipants   PlacementTestParticipant[]
   placementCompaniesCreated   PlacementCompany[] @relation("PlacementCompanyCreatedBy")
   parentLinks             ParentStudentLink[]    @relation("ParentLinks")
   childLinks              ParentStudentLink[]    @relation("ChildLinks")
