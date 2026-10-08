@@ -27,6 +27,8 @@ import {
   updateBookSchema,
   fineWaiverRequestSchema,
   fineWaiverApprovalSchema,
+  renewLoanSchema,
+  libraryPolicySchema,
 } from "../validators/library.validators";
 
 const router = Router();
@@ -113,6 +115,41 @@ router.patch(
 );
 
 router.get(
+  "/copies",
+  authorizeWorkflow("library.manage"),
+  validateQuery(z.object({
+    ...pageQuery,
+    bookId: z.string().uuid().optional(),
+    status: z.string().trim().max(40).optional(),
+    search: z.string().trim().max(120).optional(),
+  })),
+  asyncHandler(async (req, res) => {
+    const pagination = parsePagination(req);
+    const result = await service.listCopies(requireInstitution(req), pagination, {
+      bookId: typeof req.query.bookId === "string" ? req.query.bookId : undefined,
+      status: typeof req.query.status === "string" ? req.query.status : undefined,
+      search: searchTerm(req.query.search),
+    });
+    res.status(200).json({ success: true, data: result.items, meta: buildPaginationMeta(result.total, pagination) });
+  })
+);
+
+router.get(
+  "/policy",
+  authorizeWorkflow("library.manage"),
+  asyncHandler(async (req, res) => sendOk(res, await service.getPolicy(requireInstitution(req))))
+);
+
+router.patch(
+  "/policy",
+  authorizeWorkflow("library.manage"),
+  validateBody(libraryPolicySchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.updatePolicy(
+    requireInstitution(req), requireAuthenticatedUser(req), req.body, auditMeta(req)
+  )))
+);
+
+router.get(
   "/loans/mine",
   authorizeWorkflow("library.borrow"),
   asyncHandler(async (req, res) =>
@@ -167,6 +204,16 @@ router.post(
       201
     )
   )
+);
+
+router.post(
+  "/loans/:id/renew",
+  authorizeWorkflow("library.manage"),
+  validateParams(idParams),
+  validateBody(renewLoanSchema),
+  asyncHandler(async (req, res) => sendOk(res, await service.renewLoan(
+    requireInstitution(req), requireAuthenticatedUser(req), req.params.id, req.body, auditMeta(req)
+  )))
 );
 
 router.post(
