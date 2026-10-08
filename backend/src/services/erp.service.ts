@@ -1030,6 +1030,7 @@ export async function getMyWorkspace(
                 },
               },
             },
+            take: 100,
           })
         : [];
 
