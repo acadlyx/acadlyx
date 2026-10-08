@@ -1726,7 +1726,7 @@ export async function createExam(
     input.courseOfferingId
   );
 
-  const offeringWhere: any = {
+  const offeringWhere: Prisma.CourseOfferingWhereInput = {
     id: input.courseOfferingId,
     institutionId,
     isActive: true,
