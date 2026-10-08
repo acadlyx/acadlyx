@@ -2319,6 +2319,7 @@ model LibraryBookCopy {
   shelf           String?
   acquisitionDate DateTime?
   acquisitionCost Float?
+  replacementValue Float?
   currentValue    Float?
   condition       String        @default("GOOD")
   status          String        @default("AVAILABLE")
