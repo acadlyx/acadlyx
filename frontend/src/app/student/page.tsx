@@ -15,8 +15,8 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
-import { getMyEnrollmentWorkflow } from "@/lib/enrollmentRequestApi";
-import { getMyRegistrations } from "@/lib/registrationApi";
+import { getMyEnrollmentWorkflow, type MyEnrollmentWorkflow } from "@/lib/enrollmentRequestApi";
+import { getMyRegistrations, type MyRegistrationSummary } from "@/lib/registrationApi";
 import { StudentDashboardData } from "@/types/dashboard";
 
 function greeting() {
@@ -45,7 +45,7 @@ export default function StudentDashboardPage() {
   const [data, setData] = useState<StudentDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [workflow, setWorkflow] = useState<{ enrollment: any; request: any; state: string; registrations: any } | null>(null);
+  const [workflow, setWorkflow] = useState<(MyEnrollmentWorkflow & { registrations: MyRegistrationSummary }) | null>(null);
 
   async function load() {
     setLoading(true); setError("");
@@ -82,7 +82,7 @@ export default function StudentDashboardPage() {
   </DashboardShell>;
 }
 
-function StudentDashboardContent({ data, workflow }: { data: StudentDashboardData; workflow: { enrollment: any; request: any; state: string; registrations: any } | null }) {
+function StudentDashboardContent({ data, workflow }: { data: StudentDashboardData; workflow: (MyEnrollmentWorkflow & { registrations: MyRegistrationSummary }) | null }) {
   const { student, program, section, todaysClasses, assignments, announcements, upcomingEvents, academicHealth, academicRisk, recommendations, attendancePercentage } = data;
 
   return <div className="space-y-6">
@@ -104,7 +104,7 @@ function StudentDashboardContent({ data, workflow }: { data: StudentDashboardDat
       </Link>
       <Link href="/student/course-registration" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Course Registration</p>
-        <p className="mt-2 text-xl font-black text-slate-950">{workflow.registrations.items.some((x:any)=>x.status === "REQUESTED") ? "⏳ Pending HOD Approval" : workflow.registrations.items.some((x:any)=>x.status === "APPROVED") ? "✓ Approved" : "Not Started"}</p>
+        <p className="mt-2 text-xl font-black text-slate-950">{workflow.registrations.items.some((x)=>x.status === "REQUESTED") ? "⏳ Pending HOD Approval" : workflow.registrations.items.some((x:any)=>x.status === "APPROVED") ? "✓ Approved" : "Not Started"}</p>
         <p className="mt-1 text-sm text-slate-500">{workflow.registrations.registeredCredits} registered credit(s)</p>
       </Link>
     </div> : null}
