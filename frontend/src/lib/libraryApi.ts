@@ -318,6 +318,24 @@ export async function listBookCopies(params: { page?: number; bookId?: string; s
   return { items: res.data, meta: res.meta };
 }
 
+export async function updateBookCopy(id: string, input: Partial<{
+  barcode: string;
+  location: string;
+  shelf: string;
+  acquisitionDate: string;
+  acquisitionCost: number;
+  replacementValue: number;
+  currentValue: number;
+  condition: string;
+  status: string;
+}>) {
+  const res = await authedFetch<Envelope<LibraryBookCopy>>("/library/copies/" + id, {
+    method: "PATCH", body: JSON.stringify(input),
+  });
+  invalidateErpWorkspace();
+  return res.data;
+}
+
 export async function renewLoan(id: string, input: { dueDate?: string; note?: string } = {}) {
   const res = await authedFetch<Envelope<LibraryLoan>>("/library/loans/" + id + "/renew", {
     method: "POST", body: JSON.stringify(input),
