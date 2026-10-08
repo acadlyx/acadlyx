@@ -274,6 +274,14 @@ export default function LibraryPage() {
       publisher: book.publisher ?? "",
       shelfLocation: book.shelfLocation ?? "",
       totalCopies: String(book.totalCopies),
+      defaultAcquisitionCost: book.defaultAcquisitionCost?.toString() ?? "",
+      defaultReplacementValue: book.defaultReplacementValue?.toString() ?? "",
+      defaultCurrentValue: book.defaultCurrentValue?.toString() ?? "",
+      defaultLoanDays: book.defaultLoanDays?.toString() ?? "",
+      defaultMaxRenewals: book.defaultMaxRenewals?.toString() ?? "",
+      defaultFinePerDay: book.defaultFinePerDay?.toString() ?? "",
+      defaultFineCap: book.defaultFineCap?.toString() ?? "",
+      defaultGracePeriodDays: book.defaultGracePeriodDays?.toString() ?? "",
     });
     setFormError("");
     setShowForm(true);
@@ -304,6 +312,14 @@ export default function LibraryPage() {
           publisher: form.publisher || undefined,
           shelfLocation: form.shelfLocation || undefined,
           totalCopies: Number(form.totalCopies) || 1,
+          defaultAcquisitionCost: form.defaultAcquisitionCost ? Number(form.defaultAcquisitionCost) : undefined,
+          defaultReplacementValue: form.defaultReplacementValue ? Number(form.defaultReplacementValue) : undefined,
+          defaultCurrentValue: form.defaultCurrentValue ? Number(form.defaultCurrentValue) : undefined,
+          defaultLoanDays: form.defaultLoanDays ? Number(form.defaultLoanDays) : undefined,
+          defaultMaxRenewals: form.defaultMaxRenewals ? Number(form.defaultMaxRenewals) : undefined,
+          defaultFinePerDay: form.defaultFinePerDay ? Number(form.defaultFinePerDay) : undefined,
+          defaultFineCap: form.defaultFineCap ? Number(form.defaultFineCap) : undefined,
+          defaultGracePeriodDays: form.defaultGracePeriodDays ? Number(form.defaultGracePeriodDays) : undefined,
         });
       } else {
         await createBook({
@@ -314,6 +330,14 @@ export default function LibraryPage() {
           publisher: form.publisher || undefined,
           shelfLocation: form.shelfLocation || undefined,
           totalCopies: Number(form.totalCopies) || 1,
+          defaultAcquisitionCost: form.defaultAcquisitionCost ? Number(form.defaultAcquisitionCost) : undefined,
+          defaultReplacementValue: form.defaultReplacementValue ? Number(form.defaultReplacementValue) : undefined,
+          defaultCurrentValue: form.defaultCurrentValue ? Number(form.defaultCurrentValue) : undefined,
+          defaultLoanDays: form.defaultLoanDays ? Number(form.defaultLoanDays) : undefined,
+          defaultMaxRenewals: form.defaultMaxRenewals ? Number(form.defaultMaxRenewals) : undefined,
+          defaultFinePerDay: form.defaultFinePerDay ? Number(form.defaultFinePerDay) : undefined,
+          defaultFineCap: form.defaultFineCap ? Number(form.defaultFineCap) : undefined,
+          defaultGracePeriodDays: form.defaultGracePeriodDays ? Number(form.defaultGracePeriodDays) : undefined,
         });
       }
       setForm(emptyBook);
@@ -582,10 +606,7 @@ export default function LibraryPage() {
                               )}
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIssueFor(book);
-                                  setBorrower(null);
-                                }}
+                                onClick={() => void openIssue(book)}
                                 className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
                               >
                                 Issue
@@ -638,17 +659,28 @@ export default function LibraryPage() {
             <h2 className="text-lg font-bold text-slate-900">
               Issue “{issueFor.title}”
             </h2>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <div className="w-80">
-                <EntityPicker
-                  kind="user"
-                  label="Borrower"
-                  placeholder="Search by name or email"
-                  value={borrower}
-                  onChange={setBorrower}
-                  required
-                />
-              </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <EntityPicker
+                kind="user"
+                label="Borrower"
+                placeholder="Search by name or email"
+                value={borrower}
+                onChange={setBorrower}
+                required
+              />
+              <label className="text-sm text-slate-700">
+                <span className="mb-1 block font-medium">Physical copy</span>
+                <select value={issueCopyId} onChange={(e) => setIssueCopyId(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  {issueCopies.map((copy) => <option key={copy.id} value={copy.id}>{copy.accessionNumber}{copy.barcode ? ` · ${copy.barcode}` : ""}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Expected return</span><input type="datetime-local" value={issueDueDate} onChange={(e) => setIssueDueDate(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Loan days</span><input type="number" min="1" value={issueLoanDays} onChange={(e) => setIssueLoanDays(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Renewals</span><input type="number" min="0" value={issueRenewals} onChange={(e) => setIssueRenewals(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Daily fine</span><input type="number" min="0" step="0.01" value={issueFinePerDay} onChange={(e) => setIssueFinePerDay(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Fine cap</span><input type="number" min="0" step="0.01" value={issueFineCap} onChange={(e) => setIssueFineCap(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <label className="text-sm text-slate-700"><span className="mb-1 block font-medium">Grace days</span><input type="number" min="0" value={issueGraceDays} onChange={(e) => setIssueGraceDays(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
+              <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
               <button
                 type="button"
                 disabled={!borrower}
@@ -658,6 +690,13 @@ export default function LibraryPage() {
                     await issueBook({
                       bookId: issueFor.id,
                       borrowerId: borrower.id,
+                      copyId: issueCopyId || undefined,
+                      dueDate: issueDueDate ? new Date(issueDueDate).toISOString() : undefined,
+                      loanPeriodDays: issueLoanDays ? Number(issueLoanDays) : undefined,
+                      renewalsAllowed: issueRenewals ? Number(issueRenewals) : undefined,
+                      finePerDay: issueFinePerDay ? Number(issueFinePerDay) : undefined,
+                      fineCap: issueFineCap ? Number(issueFineCap) : undefined,
+                      gracePeriodDays: issueGraceDays ? Number(issueGraceDays) : undefined,
                     });
                     setIssueFor(null);
                     setBorrower(null);
