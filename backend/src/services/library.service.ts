@@ -1175,7 +1175,30 @@ export async function updatePolicy(
     action: "library.policy.update",
     entityType: "LibraryPolicy",
     entityId: next.id,
-    metadata: { old: current as unknown as Prisma.InputJsonValue, new: next as unknown as Prisma.InputJsonValue },
+    metadata: {
+      old: {
+        name: current.name,
+        maxActiveLoans: current.maxActiveLoans,
+        defaultLoanDays: current.defaultLoanDays,
+        maxRenewals: current.maxRenewals,
+        gracePeriodDays: current.gracePeriodDays,
+        dailyFine: current.dailyFine,
+        fineCap: current.fineCap,
+        lostChargeType: current.lostChargeType,
+        damagedChargeType: current.damagedChargeType,
+      },
+      new: {
+        name: next.name,
+        maxActiveLoans: next.maxActiveLoans,
+        defaultLoanDays: next.defaultLoanDays,
+        maxRenewals: next.maxRenewals,
+        gracePeriodDays: next.gracePeriodDays,
+        dailyFine: next.dailyFine,
+        fineCap: next.fineCap,
+        lostChargeType: next.lostChargeType,
+        damagedChargeType: next.damagedChargeType,
+      },
+    },
     ...meta,
   });
   return next;
