@@ -301,6 +301,7 @@ async function getFacultyOfferings(
         },
       },
     },
+    take: 100,
   });
 }
 
