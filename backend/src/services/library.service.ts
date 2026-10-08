@@ -10,21 +10,32 @@ import {
   IssueBookInput,
   ReturnBookInput,
   UpdateBookInput,
+  RenewLoanInput,
+  LibraryPolicyInput,
 } from "../validators/library.validators";
 
 type Meta = { ipAddress?: string; userAgent?: string };
 
 /** Institution-wide circulation policy. Kept here so both issue and
  *  return paths compute identical numbers. */
-export const LOAN_PERIOD_DAYS = 14;
-export const FINE_PER_DAY = 5;
-export const MAX_ACTIVE_LOANS = 5;
-export const RESERVATION_HOLD_DAYS = 3;
-export const LOST_BOOK_FINE = 500;
-export const DAMAGED_BOOK_FINE = 250;
+type LoanPolicy = {
+  maxActiveLoans: number;
+  defaultLoanDays: number;
+  maxRenewals: number;
+  gracePeriodDays: number;
+  dailyFine: number;
+  fineCap: number;
+  lostChargeType: string;
+  lostAdministrativeCharge: number;
+  damagedChargeType: string;
+  damagedChargePercent: number;
+  damagedFixedCharge: number;
+  reservationHoldDays: number;
+};
 
 const issueInclude = {
-  book: { select: { id: true, title: true, author: true, isbn: true } },
+  book: { select: { id: true, title: true, author: true, isbn: true, defaultReplacementValue: true, defaultCurrentValue: true } },
+  copy: { select: { id: true, accessionNumber: true, barcode: true, acquisitionCost: true, currentValue: true, condition: true, status: true, location: true, shelf: true } },
   borrower: {
     select: { id: true, firstName: true, lastName: true, email: true },
   },
@@ -47,19 +58,27 @@ function startOfDay(value: Date): Date {
   );
 }
 
-/** Fine accrues per whole day past the due date, capped at the
- *  replacement cost so a forgotten loan can never bankrupt a student. */
-export function computeFine(dueDate: Date, on: Date = new Date()): number {
+export function computeFine(
+  dueDate: Date,
+  policy: Pick<LoanPolicy, "dailyFine" | "fineCap" | "gracePeriodDays">,
+  on: Date = new Date()
+): number {
   const overdueDays = Math.floor(
     (startOfDay(on).getTime() - startOfDay(dueDate).getTime()) / 86_400_000
-  );
+  ) - policy.gracePeriodDays;
   if (overdueDays <= 0) return 0;
-  return round2(Math.min(overdueDays * FINE_PER_DAY, LOST_BOOK_FINE));
+  return round2(Math.min(overdueDays * policy.dailyFine, policy.fineCap));
 }
 
 function shape(row: Prisma.LibraryIssueGetPayload<{ include: typeof issueInclude }>) {
   const accrued =
-    row.status === "ISSUED" ? computeFine(row.dueDate) : row.fineAmount;
+    row.status === "ISSUED" && row.finePerDay !== null
+      ? computeFine(row.dueDate, {
+          dailyFine: row.finePerDay,
+          fineCap: row.fineCap ?? Number.MAX_SAFE_INTEGER,
+          gracePeriodDays: row.gracePeriodDays,
+        })
+      : row.fineAmount;
   return {
     ...row,
     accruedFine: accrued,
