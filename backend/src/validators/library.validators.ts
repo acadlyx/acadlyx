@@ -18,6 +18,11 @@ export const createBookSchema = z.object({
   defaultAcquisitionCost: z.coerce.number().nonnegative().max(100000000).optional(),
   defaultReplacementValue: z.coerce.number().nonnegative().max(100000000).optional(),
   defaultCurrentValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultLoanDays: z.coerce.number().int().min(1).max(3650).optional(),
+  defaultMaxRenewals: z.coerce.number().int().min(0).max(100).optional(),
+  defaultFinePerDay: z.coerce.number().nonnegative().max(100000).optional(),
+  defaultFineCap: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultGracePeriodDays: z.coerce.number().int().min(0).max(365).optional(),
 });
 
 export const updateBookSchema = z.object({
@@ -31,6 +36,11 @@ export const updateBookSchema = z.object({
   defaultAcquisitionCost: z.coerce.number().nonnegative().max(100000000).optional(),
   defaultReplacementValue: z.coerce.number().nonnegative().max(100000000).optional(),
   defaultCurrentValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultLoanDays: z.coerce.number().int().min(1).max(3650).optional(),
+  defaultMaxRenewals: z.coerce.number().int().min(0).max(100).optional(),
+  defaultFinePerDay: z.coerce.number().nonnegative().max(100000).optional(),
+  defaultFineCap: z.coerce.number().nonnegative().max(100000000).optional(),
+  defaultGracePeriodDays: z.coerce.number().int().min(0).max(365).optional(),
   isActive: z.boolean().optional(),
 });
 
