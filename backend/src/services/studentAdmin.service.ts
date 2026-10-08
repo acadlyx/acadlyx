@@ -385,7 +385,7 @@ async function assertStudentReadAccess(
   if (!allowed) throw new AppError("You are not authorized to access this student", 403);
 }
 
-function serializeStudent(student: any) {
+function serializeStudent(student: any, actor?: AuthenticatedUser) {
   const {
     passwordHash: _passwordHash,
     userRoles,
@@ -403,10 +403,28 @@ function serializeStudent(student: any) {
         ? "MISSING"
         : classifyStudentEnrollmentState(student.profile, currentEnrollment);
 
+  const restrictedProfileRoles = new Set([
+    "PLACEMENT",
+    "LIBRARIAN",
+    "ACCOUNTS",
+    "EXAMINATION",
+  ]);
+  const hasRestrictedProfileAccess =
+    actor?.roles.some((role) => restrictedProfileRoles.has(role.toUpperCase())) ?? false;
+
+  const profile = hasRestrictedProfileAccess && student.profile
+    ? {
+        id: student.profile.id,
+        institutionId: student.profile.institutionId,
+        admissionNumber: student.profile.admissionNumber,
+        status: student.profile.status,
+      }
+    : student.profile;
+
   return {
     ...safeUser,
     roles: userRoles?.map((binding: any) => binding.role) ?? [],
-    profile: student.profile,
+    profile,
     enrollments,
     currentEnrollment,
     enrollmentState,
@@ -605,7 +623,7 @@ export async function listStudents(
   ]);
 
   return {
-    items: items.map(serializeStudent),
+    items: items.map((student) => serializeStudent(student, actor)),
     total,
   };
 }
@@ -620,7 +638,8 @@ export async function getStudent(
     await getStudentOrThrow(
       institutionId,
       userId
-    )
+    ),
+    actor
   );
 }
 
