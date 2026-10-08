@@ -6,7 +6,7 @@ import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { listEvents, type InstitutionalEvent } from "@/lib/eventsApi";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-export default function EventsGalleryPage({ embedded = false }: { embedded?: boolean }) {
+export function EventsGalleryContent() {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [events,setEvents]=useState<InstitutionalEvent[]>([]);
   const [busy,setBusy]=useState(true);
@@ -19,7 +19,7 @@ export default function EventsGalleryPage({ embedded = false }: { embedded?: boo
   useEffect(()=>{const t=setTimeout(()=>void load(),250);return()=>clearTimeout(t);},[status]);
   const canManage=!!user?.permissions.includes("events.manage");
 
-  const basePath = embedded ? "/admin/events-gallery" : "/events-gallery";
+  const basePath = "/admin/events-gallery";
   const content = (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
@@ -35,5 +35,12 @@ export default function EventsGalleryPage({ embedded = false }: { embedded?: boo
         </article>)}</div>}
     </div>
   );
-  return embedded ? content : <DashboardShell title="Events & Gallery" subtitle="Create, publish and manage institutional events, posts and photos" allowedRoles={["INSTITUTION_ADMIN","DIRECTOR","REGISTRAR","CMS"]}>{content}</DashboardShell>;
+  return content;
+}
+
+
+export default function EventsGalleryPage() {
+  return <DashboardShell title="Events & Gallery" subtitle="Create, publish and manage institutional events, posts and photos" allowedRoles={["INSTITUTION_ADMIN","DIRECTOR","REGISTRAR","CMS"]}>
+    <EventsGalleryContent />
+  </DashboardShell>;
 }
