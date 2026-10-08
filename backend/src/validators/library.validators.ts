@@ -110,3 +110,17 @@ export const libraryPolicySchema = z.object({
 
 export type RenewLoanInput = z.infer<typeof renewLoanSchema>;
 export type LibraryPolicyInput = z.infer<typeof libraryPolicySchema>;
+
+export const updateCopySchema = z.object({
+  barcode: optionalText(120),
+  location: optionalText(120),
+  shelf: optionalText(120),
+  acquisitionDate: z.coerce.date().optional(),
+  acquisitionCost: z.coerce.number().nonnegative().max(100000000).optional(),
+  replacementValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  currentValue: z.coerce.number().nonnegative().max(100000000).optional(),
+  condition: z.enum(["GOOD","MINOR","MODERATE","SEVERE","UNUSABLE","DAMAGED"]).optional(),
+  status: z.enum(["AVAILABLE","ISSUED","RESERVED","LOST","DAMAGED","MAINTENANCE","WITHDRAWN"]).optional(),
+});
+
+export type UpdateCopyInput = z.infer<typeof updateCopySchema>;
