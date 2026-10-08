@@ -2251,6 +2251,11 @@ model LibraryBook {
   defaultAcquisitionCost Float?
   defaultReplacementValue Float?
   defaultCurrentValue Float?
+  defaultLoanDays Int?
+  defaultMaxRenewals Int?
+  defaultFinePerDay Float?
+  defaultFineCap Float?
+  defaultGracePeriodDays Int?
   copies          LibraryBookCopy[]
   issues          LibraryIssue[]
 
