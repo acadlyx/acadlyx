@@ -9,8 +9,6 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
 import {
-  FINE_PER_DAY,
-  LOST_BOOK_FINE,
   computeFine,
 } from "../services/library.service";
 import {
@@ -23,18 +21,19 @@ const daysFromNow = (days: number) =>
   new Date(Date.now() + days * 86_400_000);
 
 describe("library fines", () => {
+  const policy = { dailyFine: 5, fineCap: 200, gracePeriodDays: 0 };
   test("no fine before or on the due date", () => {
-    assert.equal(computeFine(daysFromNow(3)), 0);
-    assert.equal(computeFine(new Date()), 0);
+    assert.equal(computeFine(daysFromNow(3), policy), 0);
+    assert.equal(computeFine(new Date(), policy), 0);
   });
 
   test("fine accrues per whole overdue day", () => {
-    assert.equal(computeFine(daysFromNow(-1)), FINE_PER_DAY);
-    assert.equal(computeFine(daysFromNow(-4)), FINE_PER_DAY * 4);
+    assert.equal(computeFine(daysFromNow(-1), policy), 5);
+    assert.equal(computeFine(daysFromNow(-4), policy), 20);
   });
 
-  test("fine is capped at the replacement cost", () => {
-    assert.equal(computeFine(daysFromNow(-3650)), LOST_BOOK_FINE);
+  test("fine is capped by the configured policy", () => {
+    assert.equal(computeFine(daysFromNow(-3650), policy), 200);
   });
 });
 
