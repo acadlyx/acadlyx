@@ -52,6 +52,10 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   const embeddedInWorkspaceShell = Boolean(workspaceShell) && !forceShell;
   const cachedUser = getCachedCurrentUser();
   const [user, setUser] = useState<AuthUser | null>(cachedUser);
+  // A cached user is useful for instant rendering, but must never be the
+  // final authorization decision. Permissions/entitlements can change after
+  // RBAC sync, so route guards wait for one fresh /auth/me reconciliation.
+  const [routeAuthReady, setRouteAuthReady] = useState(!cachedUser);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
   const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
@@ -65,9 +69,14 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    getCurrentUser({ background: Boolean(cached) }).then(async (current) => {
+    const reconcile = cached
+      ? getCurrentUser({ force: true })
+      : getCurrentUser();
+
+    reconcile.then(async (current) => {
       if (!alive) return;
       setUser(current);
+      setRouteAuthReady(true);
       try {
         const response = await workspaceGet<{ data?: { institution?: { name?: string; logoUrl?: string | null }; breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } }>("/workspace/context");
         const institution = response?.data?.institution;
@@ -82,7 +91,9 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
         // Branding is non-critical.
       }
     }).catch((error) => {
-      if (alive && error instanceof AuthRequiredError) router.replace("/login");
+      if (!alive) return;
+      setRouteAuthReady(true);
+      if (error instanceof AuthRequiredError) router.replace("/login");
     });
     return () => { alive = false; };
   }, [router, embeddedInWorkspaceShell]);
@@ -113,7 +124,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   }, [router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !routeAuthReady) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
     if (allowedRoles?.length) {
       const canonicalRoles = getCanonicalRoles(roles);
@@ -125,7 +136,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     if (embeddedInWorkspaceShell) return;
     const primaryRole = getPrimaryRole(roles);
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
-  }, [pathname, router, user, allowedRolesKey, embeddedInWorkspaceShell]);
+  }, [pathname, router, user, routeAuthReady, allowedRolesKey, embeddedInWorkspaceShell]);
 
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
