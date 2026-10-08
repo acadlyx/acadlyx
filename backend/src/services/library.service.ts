@@ -1073,6 +1073,131 @@ export async function imposeLateReturnFine(
   return result;
 }
 
+export async function renewLoan(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: RenewLoanInput,
+  meta: Meta
+) {
+  const result = await prisma.$transaction(async (tx) => {
+    const loan = await tx.libraryIssue.findFirst({
+      where: { id, institutionId },
+      include: { book: true },
+    });
+    if (!loan) throw new AppError("Loan not found", 404);
+    if (loan.status !== "ISSUED") throw new AppError("Only active issued loans can be renewed", 422);
+    if (loan.borrowerId !== actor.id && !actor.permissions.includes("library.manage")) {
+      throw new AppError("You may only renew your own loan", 403);
+    }
+    if (loan.renewalsUsed >= loan.renewalsAllowed) {
+      throw new AppError("Renewal limit has been reached for this loan", 422);
+    }
+    const reservation = await tx.libraryIssue.findFirst({
+      where: {
+        institutionId,
+        bookId: loan.bookId,
+        status: "RESERVED",
+        borrowerId: { not: loan.borrowerId },
+      },
+      select: { id: true },
+    });
+    if (reservation) throw new AppError("This book has a reservation waiting for another member", 409);
+
+    const nextDueDate = input.dueDate ?? addDays(loan.dueDate, loan.loanPeriodDays ?? 14);
+    if (nextDueDate.getTime() <= loan.dueDate.getTime()) {
+      throw new AppError("Renewal due date must be after the current due date", 422);
+    }
+
+    const updated = await tx.libraryIssue.update({
+      where: { id },
+      data: {
+        dueDate: nextDueDate,
+        renewalsUsed: { increment: 1 },
+        note: input.note ? [loan.note, input.note].filter(Boolean).join("\n") : loan.note,
+      },
+      include: issueInclude,
+    });
+    return updated;
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "library.loan.renew",
+    entityType: "LibraryIssue",
+    entityId: id,
+    metadata: { dueDate: result.dueDate.toISOString(), renewalsUsed: result.renewalsUsed, renewalsAllowed: result.renewalsAllowed },
+    ...meta,
+  });
+  return shape(result);
+}
+
+export async function getPolicy(institutionId: string) {
+  return prisma.libraryPolicy.upsert({
+    where: { institutionId },
+    update: {},
+    create: { institutionId },
+  });
+}
+
+export async function updatePolicy(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  input: LibraryPolicyInput,
+  meta: Meta
+) {
+  const current = await getPolicy(institutionId);
+  const next = await prisma.libraryPolicy.update({
+    where: { institutionId },
+    data: input,
+  });
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "library.policy.update",
+    entityType: "LibraryPolicy",
+    entityId: next.id,
+    metadata: { old: current as unknown as Prisma.InputJsonValue, new: next as unknown as Prisma.InputJsonValue },
+    ...meta,
+  });
+  return next;
+}
+
+export async function listCopies(
+  institutionId: string,
+  pagination: PaginationParams,
+  filters: { bookId?: string; status?: string; search?: string }
+) {
+  const where: Prisma.LibraryBookCopyWhereInput = {
+    institutionId,
+    ...(filters.bookId ? { bookId: filters.bookId } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.search ? {
+      OR: [
+        { accessionNumber: { contains: filters.search, mode: "insensitive" } },
+        { barcode: { contains: filters.search, mode: "insensitive" } },
+        { book: { title: { contains: filters.search, mode: "insensitive" } } },
+      ],
+    } : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.libraryBookCopy.findMany({
+      where,
+      select: {
+        id: true, accessionNumber: true, barcode: true, location: true, shelf: true,
+        acquisitionDate: true, acquisitionCost: true, currentValue: true, condition: true, status: true,
+        book: { select: { id: true, title: true, isbn: true } },
+      },
+      orderBy: { accessionNumber: "asc" },
+      skip: pagination.skip,
+      take: pagination.take,
+    }),
+    prisma.libraryBookCopy.count({ where }),
+  ]);
+  return { items, total };
+}
+
 export async function listCirculation(
   institutionId: string,
   pagination: PaginationParams,
