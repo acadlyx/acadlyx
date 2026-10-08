@@ -1248,6 +1248,7 @@ model PlacementCompany {
   openings PlacementOpening[]
   drives PlacementDrive[]
   offers PlacementOffer[]
+  placementOpportunity Opportunity?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([institutionId,name])
@@ -1297,6 +1298,8 @@ model PlacementDrive {
   companyId String
   company PlacementCompany @relation(fields:[companyId], references:[id], onDelete:Restrict)
   title String
+  opportunityId String? @unique
+  opportunity Opportunity? @relation(fields:[opportunityId], references:[id], onDelete:SetNull)
   campusId String?
   openingId String?
   opening PlacementOpening? @relation("DriveOpening", fields:[openingId], references:[id], onDelete:SetNull)
