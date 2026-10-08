@@ -538,9 +538,11 @@ export async function reserveBook(
       where: { id: bookId, institutionId, isActive: true },
     });
     if (!book) throw new AppError("Book not found", 404);
-    if (book.availableCopies <= 0) {
-      throw new AppError("No copies are currently available to reserve", 409);
-    }
+    const copy = await tx.libraryBookCopy.findFirst({
+      where: { institutionId, bookId, status: "AVAILABLE" },
+      orderBy: { accessionNumber: "asc" },
+    });
+    if (!copy) throw new AppError("No physical copies are currently available to reserve", 409);
 
     const existing = await tx.libraryIssue.findFirst({
       where: {
@@ -565,18 +567,15 @@ export async function reserveBook(
       );
     }
 
-    const stockUpdate = await tx.libraryBook.updateMany({
-      where: {
-        id: book.id,
-        institutionId,
-        isActive: true,
-        availableCopies: { gt: 0 },
-      },
+    await tx.libraryBookCopy.update({
+      where: { id: copy.id },
+      data: { status: "RESERVED" },
+    });
+
+    await tx.libraryBook.update({
+      where: { id: book.id },
       data: { availableCopies: { decrement: 1 } },
     });
-    if (stockUpdate.count !== 1) {
-      throw new AppError("No copies are currently available to reserve", 409);
-    }
 
     return tx.libraryIssue.create({
       data: {
@@ -584,8 +583,10 @@ export async function reserveBook(
         bookId,
         borrowerId,
         issuedById: actor.id,
-        dueDate: addDays(new Date(), RESERVATION_HOLD_DAYS),
+        copyId: copy.id,
+        dueDate: addDays(new Date(), (await getLibraryPolicy(tx, institutionId)).reservationHoldDays),
         status: "RESERVED",
+        finePolicySource: "INSTITUTION",
       },
       include: issueInclude,
     });
@@ -625,6 +626,12 @@ export async function cancelReservation(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    if (existing.copyId) {
+      await tx.libraryBookCopy.update({
+        where: { id: existing.copyId },
+        data: { status: "AVAILABLE", condition: "GOOD" },
+      });
+    }
     await tx.libraryBook.update({
       where: { id: existing.bookId },
       data: { availableCopies: { increment: 1 } },
