@@ -16,6 +16,7 @@ test("Finance actions map to existing backend authorization permissions", () => 
     createInvoice: "fees.invoice.manage",
     cancelInvoice: "fees.invoice.manage",
     recordPayment: "fees.payment.record",
+    recordLegacyErpPayment: "fees.pay",
     manageConcession: "fees.concession.manage",
     approveConcession: "fees.concession.approve",
     requestRefund: "fees.refund.request",
