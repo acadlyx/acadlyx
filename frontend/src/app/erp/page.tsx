@@ -656,7 +656,7 @@ ACADLYX ERP
         canManageStructures={can(["fees.structure.manage"])}
         canApprove={can(["fees.structure.approve"])}
         canCreateInvoice={can(["fees.manage"])}
-        canRecordPayment={can(["fees.payment.record"])}
+        canRecordPayment={can(["fees.pay"])}
         busy={mutation.isSubmitting}
         run={run}
       />
