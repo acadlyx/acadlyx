@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
 import { authorize, authorizeAnyPermission } from "../middleware/authorize";
 
 function invoke(
-  middleware: (req: Request, res: Response, next: (error?: unknown) => void) => void,
+  middleware: (req: Request, res: Response, next: NextFunction) => void,
   permissions: string[],
   institutionId: string | null = "institution-a",
   roles: string[] = ["ACCOUNTS"]
