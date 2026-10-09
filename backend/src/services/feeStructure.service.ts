@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
+import { hasFeeActionPermission } from "./feeAuthorization";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -18,7 +19,7 @@ type FeeStructureStatus =
 function assertCanManageFees(
   actor: AuthenticatedUser
 ): void {
-  if (!actor.permissions.includes("fees.structure.manage")) {
+  if (!hasFeeActionPermission(actor.permissions, "manageFeeStructures")) {
     throw new AppError(
       "You are not authorized to manage fee structures",
       403
@@ -114,7 +115,7 @@ export async function listFeeHeads(
 ) {
   if (
     !actor.roles.includes("SUPER_ADMIN") &&
-    !actor.permissions.includes("fees.structure.read")
+    !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
       "Not authorized to view fee heads",
