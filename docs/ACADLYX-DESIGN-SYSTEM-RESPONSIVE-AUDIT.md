@@ -4,7 +4,8 @@ Date: 2026-10-09
 Repository: `acadlyx/acadlyx`  
 Working branch: `stabilization-platform-2026-10-09`  
 Protected baseline: `production-upgrade-2026-09-20`  
-Current milestone commit at report finalization: `b7f10dad86432b23e88cd1dd13734c6142c89240`  
+Source-fix revision before report creation: `b7f10dad86432b23e88cd1dd13734c6142c89240`  
+Audit report creation commit: `5ac9be03827fea12a4d4f6a348ab5cf6f089f70f`  
 Previous shared base / merge base: `6ddcc30697071b6e55505caaf68337f704bdc7cd`
 
 ## Executive status
