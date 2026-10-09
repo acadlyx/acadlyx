@@ -318,7 +318,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/fees/collections",
     icon: "₹",
     roles: ["CHAIRMAN"],
-    permissions: ["fees.read"],
+    permissions: ["fees.collection.read"],
     group: "Finance",
   },
   {
