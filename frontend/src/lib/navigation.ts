@@ -875,7 +875,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/collections",
     icon: "▦",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.collection.read"],
+    permissions: ["fees.read"],
     group: "Collections",
   },
   {
@@ -899,7 +899,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/transactions",
     icon: "▤",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.payment.read"],
+    permissions: ["fees.read"],
     group: "Collections",
   },
   {
