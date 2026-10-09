@@ -39,7 +39,7 @@ test("Finance route authorization allows the exact required permission", () => {
     "fees.refund.request",
     "fees.refund.approve",
     "fees.refund.process",
-  ]) {
+  ] as const) {
     assert.equal(invoke(authorize(permission), [permission]), undefined, permission);
   }
 });
@@ -56,7 +56,7 @@ test("read-only access cannot call Finance mutation routes", () => {
     "fees.refund.request",
     "fees.refund.approve",
     "fees.refund.process",
-  ]) {
+  ] as const) {
     assert.ok(invoke(authorize(permission), ["fees.read"]), permission);
   }
 });
