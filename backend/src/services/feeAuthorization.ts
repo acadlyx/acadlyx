@@ -1,18 +1,23 @@
 /**
- * Canonical permission contract for the ERP Finance actions.
- *
- * Route middleware remains the security boundary. This map is shared by
- * service-level checks and regression tests so legacy aliases cannot silently
- * grant structure read/write access.
+ * Canonical action-to-permission contract for the Finance API.
+ * Route middleware remains the security boundary; these definitions are used
+ * by fee-structure service guards and regression tests.
  */
 export const FEE_ACTION_PERMISSIONS = {
   readFeeStructures: "fees.structure.read",
   manageFeeStructures: "fees.structure.manage",
   approveFeeStructure: "fees.structure.approve",
   assignFeeStructure: "fees.assign",
-  createInvoice: "fees.manage",
-  readInvoices: "fees.read",
+  readFinancialRecords: "fees.read",
+  createInvoice: "fees.invoice.manage",
+  cancelInvoice: "fees.invoice.manage",
   recordPayment: "fees.payment.record",
+  manageConcession: "fees.concession.manage",
+  approveConcession: "fees.concession.approve",
+  requestRefund: "fees.refund.request",
+  approveRefund: "fees.refund.approve",
+  processRefund: "fees.refund.process",
+  exportReports: "fees.reports.export",
 } as const;
 
 export type FeeAction = keyof typeof FEE_ACTION_PERMISSIONS;
