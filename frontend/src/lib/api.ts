@@ -14,6 +14,8 @@ export const API_VERSION = "v1";
 
 const PUBLIC_REQUEST_TIMEOUT_MS = 30_000;
 const GET_CACHE_TTL_MS = 5_000;
+// Keep the browser cache bounded when users visit many distinct filtered URLs.
+const GET_CACHE_MAX_ENTRIES = 200;
 
 type CachedResponse = { expiresAt: number; value: unknown };
 const getCache = new Map<string, CachedResponse>();
@@ -119,7 +121,15 @@ export function invalidateApiCache(pathPrefix?: string): void {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method || "GET").toUpperCase();
   const url = apiUrl(path);
-  const cacheable = method === "GET" && !init?.body;
+  const incomingHeaders = new Headers(init?.headers);
+  // Never cache/dedupe a response whose identity may depend on credentials.
+  // Callers must explicitly opt out of credentials for public, cacheable GETs.
+  const cacheable =
+    method === "GET" &&
+    !init?.body &&
+    init?.credentials === "omit" &&
+    !incomingHeaders.has("Authorization") &&
+    !incomingHeaders.has("Cookie");
   const cacheKey = `${method}:${url}`;
 
   if (cacheable) {
@@ -133,7 +143,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   const request = (async () => {
     const requestGeneration = cacheGeneration;
-    const incomingHeaders = new Headers(init?.headers);
     if (!incomingHeaders.has("Content-Type") && init?.body) {
       incomingHeaders.set("Content-Type", "application/json");
     }
@@ -154,7 +163,22 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
 
     if (!cacheable) invalidateApiCache();
-    if (cacheable && requestGeneration === cacheGeneration) getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value: body });
+    if (cacheable && requestGeneration === cacheGeneration) {
+      const now = Date.now();
+      // Expired entries are otherwise only removed when that exact URL is
+      // requested again, allowing a long-lived tab to accumulate stale keys.
+      for (const [key, entry] of getCache) {
+        if (entry.expiresAt <= now) getCache.delete(key);
+      }
+      // Refresh insertion order and cap memory even if all entries are live.
+      getCache.delete(cacheKey);
+      while (getCache.size >= GET_CACHE_MAX_ENTRIES) {
+        const oldestKey = getCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        getCache.delete(oldestKey);
+      }
+      getCache.set(cacheKey, { expiresAt: now + GET_CACHE_TTL_MS, value: body });
+    }
     return body as T;
   })();
 
