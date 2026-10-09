@@ -55,7 +55,7 @@ Waiver, adjustment, ledger, export and reporting permissions were not mapped to 
 - `backend/src/__tests__/feeAuthorization.test.ts`: added action-to-permission map and read-only/mutation separation tests.
 - `backend/src/__tests__/financeAuthorization.middleware.test.ts`: added direct middleware allow/deny tests for Finance permissions, legacy-vs-canonical payment permissions, missing tenant context and existing any-permission route alternatives.
 
-No role mappings were broadened. No database migration was introduced. No production branch write or deployment was performed.
+The existing `ACCOUNTS` role mapping was inspected in `backend/src/config/rbac.ts`; it already contains the dedicated structure, invoice, payment, concession, refund and report permissions as well as legacy aliases. No role mapping was broadened or changed. Permission-cache/session refresh and stale-claim invalidation were not proven in a running session and remain a verification gap. No database migration was introduced. No production branch write or deployment was performed.
 
 ## Finding 2 — Entitlement and permission are separate (PARTIALLY VERIFIED)
 
@@ -102,7 +102,7 @@ Source inspection observed institution-bound academic-year/program/semester/fee-
 2. Add authenticated route integration tests proving each route allows/denies the relevant permission and returns denial when the required entitlement is absent.
 3. Add two-institution fixtures to prove no cross-tenant fee head, structure, invoice or payment access.
 4. Decide explicitly whether the payment-record route should require `payments`, `fees`, or both; this change intentionally preserves current backend behavior.
-5. Verify supported Accounts, Admin, Registrar and Management role mappings against policy without granting blanket Finance permissions.
+5. Verify supported Accounts, Admin, Registrar and Management role mappings against policy without granting blanket Finance permissions. The Accounts mapping was source-inspected and already includes dedicated Finance permissions; other role combinations need runtime validation.
 6. Audit waiver, adjustment, ledger, export, reporting, cache invalidation and role-seed behavior in a separate repository-wide pass.
 
 ## Final status
