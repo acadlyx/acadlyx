@@ -100,12 +100,19 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
 
 export function invalidateApiCache(pathPrefix?: string): void {
   cacheGeneration += 1;
-  if (!pathPrefix) {
-    getCache.clear();
-    return;
-  }
+
+  const matchesPath = (key: string) => !pathPrefix || key.includes(pathPrefix);
+
   for (const key of getCache.keys()) {
-    if (key.includes(pathPrefix)) getCache.delete(key);
+    if (matchesPath(key)) getCache.delete(key);
+  }
+
+  // An in-flight GET can be older than a successful mutation. Remove its
+  // deduplication entry as well so the next read starts a fresh request.
+  // The original caller may still receive its response, but it cannot be
+  // reused by later callers after invalidation.
+  for (const key of getInflight.keys()) {
+    if (matchesPath(key)) getInflight.delete(key);
   }
 }
 
@@ -156,7 +163,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     try {
       return await request;
     } finally {
-      getInflight.delete(cacheKey);
+      // Do not let an older invalidated request remove a newer request that
+      // was started for the same key after the invalidation.
+      if (getInflight.get(cacheKey) === request) {
+        getInflight.delete(cacheKey);
+      }
     }
   }
 
