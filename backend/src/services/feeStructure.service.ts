@@ -450,7 +450,7 @@ export async function listFeeStructures(
 ) {
   if (
     !actor.roles.includes("SUPER_ADMIN") &&
-    !actor.permissions.includes("fees.structure.read")
+    !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
       "Not authorized to view fee structures",
