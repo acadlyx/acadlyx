@@ -67,6 +67,9 @@ Source inspection observed institution-bound academic-year/program/semester/fee-
 ## Files changed in this milestone
 
 - `frontend/src/app/erp/page.tsx`
+- `frontend/src/components/accounts/FinancePage.tsx`
+- `frontend/src/lib/navigation.ts`
+- `backend/src/routes/finance.routes.ts` (audited; not modified)
 - `backend/src/services/feeAuthorization.ts`
 - `backend/src/services/feeStructure.service.ts`
 - `backend/src/__tests__/feeAuthorization.test.ts`
@@ -77,8 +80,8 @@ Source inspection observed institution-bound academic-year/program/semester/fee-
 | Check | Exact command / evidence | Result |
 |---|---|---|
 | Branch isolation | GitHub source reads and commits were explicitly targeted at `stabilization-platform-2026-10-09` | PARTIALLY VERIFIED; production branch was not targeted |
-| Frontend action guards | Inspected final `frontend/src/app/erp/page.tsx` after update | PARTIALLY VERIFIED by source; no TS/JSX compiler run |
-| Backend route permissions | Inspected `backend/src/routes/erp.routes.ts` for fee-head, structure, invoice and payment routes | PARTIALLY VERIFIED by source |
+| Frontend action guards | Inspected final `frontend/src/components/accounts/FinancePage.tsx`, `frontend/src/app/erp/page.tsx`, and Accounts section of `frontend/src/lib/navigation.ts` | PARTIALLY VERIFIED by source; no TS/JSX compiler run |
+| Backend route permissions | Inspected `backend/src/routes/finance.routes.ts` and `backend/src/routes/erp.routes.ts` for actual action permissions and entitlements | PARTIALLY VERIFIED by source |
 | Service permission guards | Inspected final `backend/src/services/feeStructure.service.ts`; canonical helper is used for structure read/manage checks | PARTIALLY VERIFIED by source |
 | Regression test source | Added `backend/src/__tests__/feeAuthorization.test.ts`; package script is `npm test` using `tsx --test src/__tests__/*.test.ts` | ADDED; NOT EXECUTED |
 | Backend typecheck | `npm run typecheck` (not executed; no checkout/runtime shell available through repository connector) | UNVERIFIED |
