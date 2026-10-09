@@ -4,7 +4,7 @@ Date: 2026-10-09
 Repository: `acadlyx/acadlyx`  
 Working branch: `stabilization-platform-2026-10-09`  
 Baseline branch: `production-upgrade-2026-09-20`  
-Source revision reviewed after Milestone 7 fixes and before this report commit: `65ed8317636d4cc951d288567ad072b772343783`  
+Source revision reviewed after Milestone 7 fixes and before this report update: `c07fbf80b6a984fe6a303a407e77fa8d7d8dd0d8`  
 Scope: branch-specific source inspection of schema, migrations, routes, services and existing tests; targeted source fix and regression guard. No deployment, merge, production database access, infrastructure mutation or secret access was performed.
 
 ## Executive status
@@ -19,7 +19,7 @@ This is not a claim that all institutional workflows are end-to-end verified. Th
 
 - The branch API reported `stabilization-platform-2026-10-09` at `377d9b49ac3daf010bfcf04b3811259e8dc35f94` at the beginning of this audit.
 - The baseline comparison reported 43 commits ahead, 0 behind, with merge base `6ddcc30697071b6e55505caaf68337f704bdc7cd`.
-- Milestone 7 source commits on the working branch: `5be8e1085e70c22d08da48b04465696d18f86126` (exam balance correction), `56cae36c6e66181f22048f3bcf24aa2007e0dc27` (initial regression test), and `65ed8317636d4cc951d288567ad072b772343783` (test assertion correction).
+- Milestone 7 source commits on the working branch: `5be8e1085e70c22d08da48b04465696d18f86126` (exam balance correction), `56cae36c6e66181f22048f3bcf24aa2007e0dc27` (initial regression test), `65ed8317636d4cc951d288567ad072b772343783` (first test assertion correction), and `c07fbf80b6a984fe6a303a407e77fa8d7d8dd0d8` (align regression assertion with the null-safe refund expression).
 - No production branch write, merge, deployment, database mutation or infrastructure change was performed.
 - A remote GitHub branch ref is not a local working tree; local uncommitted changes cannot be inspected from this environment. Therefore local working-tree cleanliness is **UNVERIFIED**, not reported as clean.
 
