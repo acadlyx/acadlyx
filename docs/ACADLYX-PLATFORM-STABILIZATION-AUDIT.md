@@ -1,74 +1,99 @@
 # ACADLYX Platform Stabilization Audit
 
-Audit date: 2026-10-09. Baseline branch: production-upgrade-2026-09-20. Working branch: stabilization-platform-2026-10-09. Status: IN PROGRESS; source inspection only, not a completion certificate.
+Audit date: 2026-10-09. Base: `production-upgrade-2026-09-20`. Working branch: `stabilization-platform-2026-10-09`. Scope of this milestone: Finance authorization contract only. Production was not modified or deployed.
 
 ## Status definitions
 
-- FIXED: code changed and reproducer/regression passed.
+- FIXED (source): code changed; runtime behavior still needs execution where noted.
 - VERIFIED: relevant behavior executed successfully with evidence.
-- PARTIALLY VERIFIED: only some layers/scenarios checked.
+- PARTIALLY VERIFIED: source inspection or only some layers checked.
 - UNVERIFIED: adequate runtime/test evidence absent.
-- BLOCKED: unavailable environment, credentials, service or test fixture prevents verification.
+- BLOCKED: unavailable environment, credentials, service or fixture prevents verification.
 
-## Finding 1 — Fee Structures UI permission mismatch (PARTIALLY VERIFIED)
+## Finding 1 — Finance UI/backend permission mismatch (FIXED IN SOURCE; runtime PARTIALLY VERIFIED)
 
-Evidence: frontend/src/app/erp/page.tsx gates Fees management using fees.manage and fees.pay. backend/src/routes/erp.routes.ts protects fee-structure reads with fees.structure.read, creation/update with fees.structure.manage, approval with fees.structure.approve and assignment with fees.assign. backend/src/services/feeStructure.service.ts also checks dedicated structure-management and read permissions.
+### Confirmed source-level cause
 
-Likely symptom: a user with the dedicated fee-structure permission can still see the frontend “Access restricted” state if they lack the unrelated legacy fees.manage/fees.pay pair. This is a frontend authorization-contract mismatch, not a reason to weaken backend authorization.
+The previous `FeesTab` had a single page-wide gate requiring either `fees.manage` or `fees.pay`. That gate hid all fee structure actions even where the user had the dedicated `fees.structure.read` or `fees.structure.manage` permission. It also treated the legacy `fees.pay` permission as a proxy for payment recording, while the payment route requires `fees.payment.record`.
 
-Correction required: use operation-specific permissions in the UI. Structure and fee-head maintenance requires fees.structure.manage; read requires fees.structure.read; approval requires fees.structure.approve; assignment requires fees.assign; invoices and payments must use their own route permissions. Do not grant all fee permissions to a role. This code correction and regression test have NOT yet been applied by this report.
+Separately, the service's fee-structure write helper accepted legacy `fees.manage` as an alternative to `fees.structure.manage`, despite the route middleware requiring the dedicated structure-management permission. Read service guards also accepted broad/legacy permissions that the route did not accept. The route middleware remained the external API gate, but these inconsistent checks made the authorization contract ambiguous.
+
+The user-visible UI denial reproduced from source is the `Access restricted` branch returned when the old page-wide `canManage` condition was false. A live HTTP 403/entitlement denial was not reproduced in a running environment, so no claim is made that this was the only cause of the reported Finance errors.
+
+### Action-to-permission contract
+
+All names below are existing permission strings observed in the repository; no new role permission was invented.
+
+| Finance action | Frontend visibility/enabled condition | Backend route requirement | Entitlement / additional guard |
+|---|---|---|---|
+| Read fee heads | `fees.structure.read` | `fees.structure.read` | `requireFeature("fees")`; institution-bound records |
+| Create/update/deactivate fee heads | `fees.structure.manage` | `fees.structure.manage` | `requireFeature("fees")`; service validates institution references |
+| Read fee structures | `fees.structure.read` | `fees.structure.read` | `requireFeature("fees")`; service scopes by institution |
+| Create/update fee structures | `fees.structure.manage` | `fees.structure.manage` | `requireFeature("fees")`; academic year/program/semester/fee-head references checked against institution |
+| Approve a draft structure | `fees.structure.approve` | `fees.structure.approve` | `requireFeature("fees")`; backend remains authoritative |
+| Assign a fee structure | Existing UI currently has no assignment control in this tab | `fees.assign` | `requireFeature("fees")`; assignment validates student/institution context |
+| Create/update invoice | `fees.manage` | `fees.manage` | Invoice route currently uses `requireFeature("fees")`; service checks remain authoritative |
+| Read invoice | No invoice-list UI action is implemented in this tab | `fees.read` | Invoice route uses the repository's existing invoice authorization |
+| Record payment | `fees.payment.record` | `fees.payment.record` | Current payment route uses `requireFeature("payments")`, not the Fees entitlement; this is preserved rather than silently changed. Product policy must decide whether payments entitlement is intentionally independent. |
+
+Waiver, adjustment, ledger, export and reporting permissions were not mapped to UI controls in this specific `/erp` Fees tab because corresponding actions are not present in the inspected component. Their full repository-wide mapping remains outside this milestone and must not be inferred from the table.
+
+### Changes applied
+
+- `frontend/src/app/erp/page.tsx`: replaced the single page-wide `fees.manage` / `fees.pay` gate with operation-specific visibility for structure read, structure management, approval, invoice creation and payment recording. Read-only users can see structures without seeing mutation forms. Backend authorization is unchanged as the security boundary.
+- `backend/src/services/feeAuthorization.ts`: introduced a typed canonical action-to-existing-permission map.
+- `backend/src/services/feeStructure.service.ts`: structure-management and structure-read checks now use the canonical permission helper; legacy `fees.manage` no longer grants fee-structure mutation/read service access by itself.
+- `backend/src/__tests__/feeAuthorization.test.ts`: added regression tests for mapping, read-only denials, operation-specific mutations and rejection of legacy `fees.pay` as a payment-recording permission.
+
+No role mappings were broadened. No database migration was introduced. No production branch write or deployment was performed.
 
 ## Finding 2 — Entitlement and permission are separate (PARTIALLY VERIFIED)
 
-The ERP router applies requireFeature("fees") and action-specific authorize middleware. Runtime entitlement behavior remains UNVERIFIED.
+The inspected fee-head and fee-structure routes require `requireFeature("fees")` independently of action permissions. The payment route currently requires `requireFeature("payments")` plus `fees.payment.record`. Entitlement behavior has not been exercised against a running API, and the product-level relationship between Fees and Payments entitlements remains unverified.
 
-## Finding 3 — Institution and academic relationship checks (PARTIALLY VERIFIED)
+## Finding 3 — Tenant and academic scope (PARTIALLY VERIFIED)
 
-The fee-structure service checks academic-year, program, semester and fee-head references against the institution, validates program/semester context and checks student membership/enrollment for assignment. Full cross-tenant regression tests have not run.
+Source inspection observed institution-bound academic-year/program/semester/fee-head checks and institution predicates in fee-structure queries. This milestone did not execute cross-institution requests or prove campus/department scope for all Finance records. Cross-tenant isolation remains unverified at runtime.
 
-## Finding 4 — Legacy exam writes retired (PARTIALLY VERIFIED)
+## Files changed in this milestone
 
-The inspected ERP router returns HTTP 410 for legacy exam writes and points to the canonical examination lifecycle. Frontend compatibility and end-to-end lifecycle tests remain UNVERIFIED.
-
-## Finding 5 — Audit logging (PARTIALLY VERIFIED)
-
-Fee-head and fee-structure mutations call the existing audit service. Audit completeness, failure behavior, correlation IDs and approval reason capture need verification.
-
-## Files changed
-
-This audit records the baseline only. Do not report application code as fixed until a code diff and regression evidence are added here.
+- `frontend/src/app/erp/page.tsx`
+- `backend/src/services/feeAuthorization.ts`
+- `backend/src/services/feeStructure.service.ts`
+- `backend/src/__tests__/feeAuthorization.test.ts`
+- `docs/ACADLYX-PLATFORM-STABILIZATION-AUDIT.md`
 
 ## Verification log
 
-| Check | Evidence | Result |
+| Check | Exact command / evidence | Result |
 |---|---|---|
-| Branch/commit discovery | Repository branch and recent commit search | PARTIALLY VERIFIED; branch exists; searched latest commit c0bbf2fb451f53bd17be75840bda88b893bc719f |
-| Fee UI permission gate | Inspect frontend/src/app/erp/page.tsx | PARTIALLY VERIFIED; permission pair differs from dedicated route permissions |
-| Fee API permission gate | Inspect backend/src/routes/erp.routes.ts | PARTIALLY VERIFIED; action permission and entitlement middleware present |
-| Fee service scope | Inspect backend/src/services/feeStructure.service.ts | PARTIALLY VERIFIED; institution checks observed in relevant paths |
-| Frontend typecheck/lint/build | Not executed | UNVERIFIED |
-| Backend typecheck/lint/tests | Not executed | UNVERIFIED |
-| Prisma validation/migration status | Not executed against runtime/database | UNVERIFIED |
-| Browser/network/responsive checks | Not executed | UNVERIFIED |
-| Production smoke tests | Not executed | BLOCKED / UNVERIFIED |
+| Branch isolation | GitHub source reads and commits were explicitly targeted at `stabilization-platform-2026-10-09` | PARTIALLY VERIFIED; production branch was not targeted |
+| Frontend action guards | Inspected final `frontend/src/app/erp/page.tsx` after update | PARTIALLY VERIFIED by source; no TS/JSX compiler run |
+| Backend route permissions | Inspected `backend/src/routes/erp.routes.ts` for fee-head, structure, invoice and payment routes | PARTIALLY VERIFIED by source |
+| Service permission guards | Inspected final `backend/src/services/feeStructure.service.ts`; canonical helper is used for structure read/manage checks | PARTIALLY VERIFIED by source |
+| Regression test source | Added `backend/src/__tests__/feeAuthorization.test.ts`; package script is `npm test` using `tsx --test src/__tests__/*.test.ts` | ADDED; NOT EXECUTED |
+| Backend typecheck | `npm run typecheck` (not executed; no checkout/runtime shell available through repository connector) | UNVERIFIED |
+| Backend tests | `npm test` (not executed) | UNVERIFIED |
+| Frontend typecheck | `npm run typecheck` (not executed) | UNVERIFIED |
+| Frontend lint | `npm run lint` (not executed; repo script is `next lint`) | UNVERIFIED |
+| Frontend production build | `npm run build` (not executed) | UNVERIFIED |
+| Prisma validation/migration status | Not run; no schema migration was added | UNVERIFIED |
+| Entitlement-denial API test | Not run against an authenticated runtime | UNVERIFIED |
+| Cross-institution API regression | Not run against seeded institutions | UNVERIFIED |
+| Browser/role smoke tests | Not run | UNVERIFIED |
+| Production smoke test/deployment | Not performed by design | NOT RUN |
 
-## Required rounds
+## Remaining risks and required follow-up
 
-1. Baseline: capture working-tree state and run existing commands from a full checkout.
-2. Governance: reconcile role seeds, permissions, entitlements and approval models.
-3. Authorization: trace session refresh, guards, middleware, services, query scopes and cache invalidation.
-4. Fetching: inventory requests, contracts, loading/error/empty states and duplicate calls.
-5. Design system: enumerate tokens, shared components and hardcoded deviations; verify with browser screenshots.
-6. Integration: trace canonical student, fees, library, exam, placement and document workflows.
-7. Performance: capture timings/query evidence before optimizing.
-8. Regression: run affected and full available suites.
-9. Re-audit: search again for original defect classes and inspect diffs.
-10. Independent final verification: execute checks against final commit.
+1. Execute the added test and TypeScript/build checks from a full checkout, fix any failures, and rerun the affected suite.
+2. Add authenticated route integration tests proving each route allows/denies the relevant permission and returns denial when the required entitlement is absent.
+3. Add two-institution fixtures to prove no cross-tenant fee head, structure, invoice or payment access.
+4. Decide explicitly whether the payment-record route should require `payments`, `fees`, or both; this change intentionally preserves current backend behavior.
+5. Verify supported Accounts, Admin, Registrar and Management role mappings against policy without granting blanket Finance permissions.
+6. Audit waiver, adjustment, ledger, export, reporting, cache invalidation and role-seed behavior in a separate repository-wide pass.
 
-## Risks and blockers
+## Final status
 
-The repository connector does not prove local build, browser, database migration or production health. Full route/model/permission extraction is pending. Reported 401/403/404/500s need safe request IDs/logs and reproducible context. Role navigation, mobile responsiveness, theme consistency and performance have not been browser-verified. Do not claim zero errors, complete module readiness or 100% production readiness without executable evidence.
+**MILESTONE 1: PARTIALLY VERIFIED — SOURCE FIX AND REGRESSION TESTS ADDED; EXECUTION PENDING.**
 
-## Final verification status
-
-NOT COMPLETE. Update classifications only when tests and runtime evidence support them.
+The acceptance criteria requiring executed regression tests and runtime authorization/entitlement proof are not yet met. This is not a platform stabilization certificate.
