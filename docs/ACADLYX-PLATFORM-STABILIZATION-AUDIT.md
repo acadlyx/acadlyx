@@ -14,11 +14,13 @@ Audit date: 2026-10-09. Base: `production-upgrade-2026-09-20`. Working branch: `
 
 ### Confirmed source-level cause
 
-The previous `FeesTab` had a single page-wide gate requiring either `fees.manage` or `fees.pay`. That gate hid all fee structure actions even where the user had the dedicated `fees.structure.read` or `fees.structure.manage` permission. It also treated the legacy `fees.pay` permission as a proxy for payment recording, while the payment route requires `fees.payment.record`.
+Two related frontend contracts were inconsistent with backend authorization:
 
-Separately, the service's fee-structure write helper accepted legacy `fees.manage` as an alternative to `fees.structure.manage`, despite the route middleware requiring the dedicated structure-management permission. Read service guards also accepted broad/legacy permissions that the route did not accept. The route middleware remained the external API gate, but these inconsistent checks made the authorization contract ambiguous.
+- The legacy `frontend/src/app/erp/page.tsx` used one page-wide gate requiring `fees.manage` or `fees.pay` for fee heads, structures, approval, invoice creation and payment recording. The backend uses operation-specific permissions for structures/approval and `fees.payment.record` for payment recording.
+- The canonical Accounts workspace in `frontend/src/components/accounts/FinancePage.tsx` treated `fees.manage` or `fees.admin` as a wildcard granting every Finance UI action. Its navigation metadata also used granular read permissions such as `fees.invoice.read`, `fees.payment.read`, and `fees.refund.read`, while the actual Finance API read routes require `fees.read` (with documented alternatives for command center/audit). This could both show actions that the API rejects and hide views from users who have the actual route permission.
+- The fee-structure service accepted `fees.manage` as a substitute for `fees.structure.manage` and broad permissions for read, although route middleware already enforced dedicated permissions.
 
-The user-visible UI denial reproduced from source is the `Access restricted` branch returned when the old page-wide `canManage` condition was false. A live HTTP 403/entitlement denial was not reproduced in a running environment, so no claim is made that this was the only cause of the reported Finance errors.
+The source-level UI denial is confirmed as a permission-contract inconsistency, but a live HTTP 403 or feature-entitlement denial was not reproduced. The displayed message may also arise from `requireFeature("fees")`; this remains a separate, unverified possible cause and must not be “fixed” by granting permissions.
 
 ### Action-to-permission contract
 
@@ -26,24 +28,31 @@ All names below are existing permission strings observed in the repository; no n
 
 | Finance action | Frontend visibility/enabled condition | Backend route requirement | Entitlement / additional guard |
 |---|---|---|---|
-| Read fee heads | `fees.structure.read` | `fees.structure.read` | `requireFeature("fees")`; institution-bound records |
-| Create/update/deactivate fee heads | `fees.structure.manage` | `fees.structure.manage` | `requireFeature("fees")`; service validates institution references |
-| Read fee structures | `fees.structure.read` | `fees.structure.read` | `requireFeature("fees")`; service scopes by institution |
-| Create/update fee structures | `fees.structure.manage` | `fees.structure.manage` | `requireFeature("fees")`; academic year/program/semester/fee-head references checked against institution |
-| Approve a draft structure | `fees.structure.approve` | `fees.structure.approve` | `requireFeature("fees")`; backend remains authoritative |
-| Assign a fee structure | Existing UI currently has no assignment control in this tab | `fees.assign` | `requireFeature("fees")`; assignment validates student/institution context |
-| Create/update invoice | `fees.manage` | `fees.manage` | Invoice route currently uses `requireFeature("fees")`; service checks remain authoritative |
-| Read invoice | No invoice-list UI action is implemented in this tab | `fees.read` | Invoice route uses the repository's existing invoice authorization |
-| Record payment | `fees.payment.record` | `fees.payment.record` | Current payment route uses `requireFeature("payments")`, not the Fees entitlement; this is preserved rather than silently changed. Product policy must decide whether payments entitlement is intentionally independent. |
+| Read fee heads | `fees.structure.read` | `fees.structure.read` on ERP route | `requireFeature("fees")`; institution-bound records |
+| Create/update/deactivate fee heads | `fees.structure.manage` | `fees.structure.manage` on ERP route | `requireFeature("fees")`; service validates institution references |
+| Read fee structures | `fees.structure.read` | `fees.structure.read` on ERP route | `requireFeature("fees")`; service scopes by institution |
+| Create/update fee structures | `fees.structure.manage` | `fees.structure.manage` on ERP route | `requireFeature("fees")`; academic year/program/semester/fee-head references checked against institution |
+| Approve a draft structure | `fees.structure.approve` | `fees.structure.approve` on ERP route | `requireFeature("fees")`; backend remains authoritative |
+| Assign a fee structure | `fees.assign` | `fees.assign` on ERP route | `requireFeature("fees")`; assignment validates student/institution context |
+| Read invoices, payments, receipts, collections, concessions, refunds, transactions | `fees.read` (now used by Finance workspace nav) | `fees.read` on Finance routes | Router-level `requireFeature("fees")`; command center also permits `fees.collection.read`; audit also permits `audit.read` |
+| Create/cancel invoice in Accounts workspace | `fees.invoice.manage` | `fees.invoice.manage` | Router-level `requireFeature("fees")` |
+| Record payment in Accounts workspace | `fees.payment.record` | `fees.payment.record` | Router-level `requireFeature("fees")` |
+| Request/approve concession | `fees.concession.manage` / `fees.concession.approve` | Matching dedicated permission | Router-level `requireFeature("fees")` |
+| Request/approve/process refund | `fees.refund.request` / `fees.refund.approve` / `fees.refund.process` | Matching dedicated permission | Router-level `requireFeature("fees")` |
+| Export reports | `fees.reports.export` or `fees.read` | Either permission via `authorizeAnyPermission` | Router-level `requireFeature("fees")` |
+| Legacy ERP invoice creation | `fees.manage` | `fees.manage` on legacy ERP route | Separate legacy route contract; do not conflate with Accounts Finance API |
+| Legacy ERP payment recording | `fees.payment.record` | `fees.payment.record` on legacy ERP route | `requireFeature("payments")`; entitlement differs from Finance API and needs product-policy review |
 
 Waiver, adjustment, ledger, export and reporting permissions were not mapped to UI controls in this specific `/erp` Fees tab because corresponding actions are not present in the inspected component. Their full repository-wide mapping remains outside this milestone and must not be inferred from the table.
 
 ### Changes applied
 
-- `frontend/src/app/erp/page.tsx`: replaced the single page-wide `fees.manage` / `fees.pay` gate with operation-specific visibility for structure read, structure management, approval, invoice creation and payment recording. Read-only users can see structures without seeing mutation forms. Backend authorization is unchanged as the security boundary.
-- `backend/src/services/feeAuthorization.ts`: introduced a typed canonical action-to-existing-permission map.
+- `frontend/src/components/accounts/FinancePage.tsx`: removed wildcard `fees.manage` / `fees.admin` UI authorization; Finance controls now require their requested permission. Aligned Finance list-view permissions with the actual `finance.routes.ts` read contract and gated XLSX export by the actual export/read permission.
+- `frontend/src/lib/navigation.ts`: aligned Accounts navigation read guards with the actual Finance API read permission while preserving the distinct fee-structure/fee-head read permission and unrelated Chairman collection permission.
+- `frontend/src/app/erp/page.tsx`: replaced the page-wide `fees.manage` / `fees.pay` gate with operation-specific visibility for structure read, structure management, approval, invoice creation and payment recording.
+- `backend/src/services/feeAuthorization.ts`: introduced a typed action-to-existing-permission map covering structures, invoices, payments, concessions, refunds and exports.
 - `backend/src/services/feeStructure.service.ts`: structure-management and structure-read checks now use the canonical permission helper; legacy `fees.manage` no longer grants fee-structure mutation/read service access by itself.
-- `backend/src/__tests__/feeAuthorization.test.ts`: added regression tests for mapping, read-only denials, operation-specific mutations and rejection of legacy `fees.pay` as a payment-recording permission.
+- `backend/src/__tests__/feeAuthorization.test.ts`: added regression tests for permission mapping, read-only denials, operation-specific mutations and rejection of legacy broad permissions.
 
 No role mappings were broadened. No database migration was introduced. No production branch write or deployment was performed.
 
