@@ -41,7 +41,7 @@ All names below are existing permission strings observed in the repository; no n
 | Request/approve/process refund | `fees.refund.request` / `fees.refund.approve` / `fees.refund.process` | Matching dedicated permission | Router-level `requireFeature("fees")` |
 | Export reports | `fees.reports.export` or `fees.read` | Either permission via `authorizeAnyPermission` | Router-level `requireFeature("fees")` |
 | Legacy ERP invoice creation | `fees.manage` | `fees.manage` on legacy ERP route | Separate legacy route contract; do not conflate with Accounts Finance API |
-| Legacy ERP payment recording | `fees.payment.record` | `fees.payment.record` on legacy ERP route | `requireFeature("payments")`; entitlement differs from Finance API and needs product-policy review |
+| Legacy ERP payment recording | `fees.pay` | `fees.pay` on legacy ERP route | `requireFeature("payments")`; entitlement differs from Finance API and needs product-policy review |
 
 Waiver, adjustment, ledger, export and reporting permissions were not mapped to UI controls in this specific `/erp` Fees tab because corresponding actions are not present in the inspected component. Their full repository-wide mapping remains outside this milestone and must not be inferred from the table.
 
@@ -58,7 +58,7 @@ No role mappings were broadened. No database migration was introduced. No produc
 
 ## Finding 2 — Entitlement and permission are separate (PARTIALLY VERIFIED)
 
-The inspected fee-head and fee-structure routes require `requireFeature("fees")` independently of action permissions. The payment route currently requires `requireFeature("payments")` plus `fees.payment.record`. Entitlement behavior has not been exercised against a running API, and the product-level relationship between Fees and Payments entitlements remains unverified.
+The Finance API router requires `requireFeature("fees")` independently of action permissions. Its payment endpoint uses `fees.payment.record`. The separate legacy ERP payment endpoint uses `requireFeature("payments")` plus `fees.pay`. Both contracts are preserved and represented separately; entitlement behavior has not been exercised against a running API, and the product-level relationship between Fees and Payments entitlements remains unverified.
 
 ## Finding 3 — Tenant and academic scope (PARTIALLY VERIFIED)
 
