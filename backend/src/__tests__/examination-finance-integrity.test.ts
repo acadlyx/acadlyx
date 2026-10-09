@@ -17,7 +17,7 @@ test("exam fee eligibility subtracts refunded amounts and floors each overdue in
 
   assert.match(query, /COALESCE\(SUM\(GREATEST\(0,/);
   assert.match(query, /-"refundedAmount"/);
-  assert.match(query, /\+"lateFeeAmount"/);
+  assert.match(query, /COALESCE\("lateFeeAmount", 0\)/);
   assert.match(query, /"status" <> 'CANCELLED'/);
   assert.match(query, /"dueDate" < CURRENT_TIMESTAMP/);
 });
