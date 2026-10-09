@@ -52,8 +52,7 @@ Waiver, adjustment, ledger, export and reporting permissions were not mapped to 
 - `frontend/src/app/erp/page.tsx`: replaced the page-wide `fees.manage` / `fees.pay` gate with operation-specific visibility for structure read, structure management, approval, invoice creation and payment recording.
 - `backend/src/services/feeAuthorization.ts`: introduced a typed action-to-existing-permission map covering structures, invoices, payments, concessions, refunds and exports.
 - `backend/src/services/feeStructure.service.ts`: structure-management and structure-read checks now use the canonical permission helper; legacy `fees.manage` no longer grants fee-structure mutation/read service access by itself.
-- `backend/src/__tests__/feeAuthorization.test.ts`
-- `backend/src/__tests__/financeAuthorization.middleware.test.ts`: added regression tests for the action-to-permission map and read-only/mutation separation.
+- `backend/src/__tests__/feeAuthorization.test.ts`: added action-to-permission map and read-only/mutation separation tests.
 - `backend/src/__tests__/financeAuthorization.middleware.test.ts`: added direct middleware allow/deny tests for Finance permissions, legacy-vs-canonical payment permissions, missing tenant context and existing any-permission route alternatives.
 
 No role mappings were broadened. No database migration was introduced. No production branch write or deployment was performed.
@@ -71,10 +70,10 @@ Source inspection observed institution-bound academic-year/program/semester/fee-
 - `frontend/src/app/erp/page.tsx`
 - `frontend/src/components/accounts/FinancePage.tsx`
 - `frontend/src/lib/navigation.ts`
-- `backend/src/routes/finance.routes.ts` (audited; not modified)
 - `backend/src/services/feeAuthorization.ts`
 - `backend/src/services/feeStructure.service.ts`
 - `backend/src/__tests__/feeAuthorization.test.ts`
+- `backend/src/__tests__/financeAuthorization.middleware.test.ts`
 - `docs/ACADLYX-PLATFORM-STABILIZATION-AUDIT.md`
 
 ## Verification log
