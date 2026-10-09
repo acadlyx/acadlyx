@@ -16,7 +16,7 @@ test("exam fee eligibility subtracts refunded amounts and floors each overdue in
   const query = service.slice(start, end);
 
   assert.match(query, /COALESCE\(SUM\(GREATEST\(0,/);
-  assert.match(query, /-"refundedAmount"/);
+  assert.match(query, /COALESCE\("refundedAmount", 0\)/);
   assert.match(query, /COALESCE\("lateFeeAmount", 0\)/);
   assert.match(query, /"status" <> 'CANCELLED'/);
   assert.match(query, /"dueDate" < CURRENT_TIMESTAMP/);
