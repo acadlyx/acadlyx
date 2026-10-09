@@ -52,7 +52,9 @@ Waiver, adjustment, ledger, export and reporting permissions were not mapped to 
 - `frontend/src/app/erp/page.tsx`: replaced the page-wide `fees.manage` / `fees.pay` gate with operation-specific visibility for structure read, structure management, approval, invoice creation and payment recording.
 - `backend/src/services/feeAuthorization.ts`: introduced a typed action-to-existing-permission map covering structures, invoices, payments, concessions, refunds and exports.
 - `backend/src/services/feeStructure.service.ts`: structure-management and structure-read checks now use the canonical permission helper; legacy `fees.manage` no longer grants fee-structure mutation/read service access by itself.
-- `backend/src/__tests__/feeAuthorization.test.ts`: added regression tests for permission mapping, read-only denials, operation-specific mutations and rejection of legacy broad permissions.
+- `backend/src/__tests__/feeAuthorization.test.ts`
+- `backend/src/__tests__/financeAuthorization.middleware.test.ts`: added regression tests for the action-to-permission map and read-only/mutation separation.
+- `backend/src/__tests__/financeAuthorization.middleware.test.ts`: added direct middleware allow/deny tests for Finance permissions, legacy-vs-canonical payment permissions, missing tenant context and existing any-permission route alternatives.
 
 No role mappings were broadened. No database migration was introduced. No production branch write or deployment was performed.
 
@@ -83,7 +85,7 @@ Source inspection observed institution-bound academic-year/program/semester/fee-
 | Frontend action guards | Inspected final `frontend/src/components/accounts/FinancePage.tsx`, `frontend/src/app/erp/page.tsx`, and Accounts section of `frontend/src/lib/navigation.ts` | PARTIALLY VERIFIED by source; no TS/JSX compiler run |
 | Backend route permissions | Inspected `backend/src/routes/finance.routes.ts` and `backend/src/routes/erp.routes.ts` for actual action permissions and entitlements | PARTIALLY VERIFIED by source |
 | Service permission guards | Inspected final `backend/src/services/feeStructure.service.ts`; canonical helper is used for structure read/manage checks | PARTIALLY VERIFIED by source |
-| Regression test source | Added `backend/src/__tests__/feeAuthorization.test.ts`; package script is `npm test` using `tsx --test src/__tests__/*.test.ts` | ADDED; NOT EXECUTED |
+| Regression test source | Added `feeAuthorization.test.ts` and `financeAuthorization.middleware.test.ts`; package script is `npm test` using `tsx --test src/__tests__/*.test.ts` | ADDED; NOT EXECUTED |
 | Backend typecheck | `npm run typecheck` (not executed; no checkout/runtime shell available through repository connector) | UNVERIFIED |
 | Backend tests | `npm test` (not executed) | UNVERIFIED |
 | Frontend typecheck | `npm run typecheck` (not executed) | UNVERIFIED |
