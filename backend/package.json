@@ -21,6 +21,8 @@
     "prisma:rbac:sync": "tsx prisma/syncRbac.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/__tests__/*.test.ts",
+    "perf:finance": "tsx scripts/performance/finance-load.ts",
+    "test:backup-restore": "tsx scripts/recovery/backup-restore.ts",
     "worker": "node dist/worker.js",
     "worker:dev": "tsx watch src/worker.ts"
   },

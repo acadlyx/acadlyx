@@ -76,3 +76,35 @@ Record `date -Is` immediately before and after each operation, command exit stat
 - **Not verified:** realistic legacy/null/duplicate/orphaned data migration, high-volume table behavior, forward-deploy recovery, a non-production backup artifact, integrity verification, isolated restore, application-level restored-data checks, or measured RTO/RPO against approved targets.
 - **Safety:** No production database, production credentials, or production data were used for this audit action. No restore rehearsal was executed through the available repository interface.
 - **Release gate:** OPEN / NO-GO. Record the prior schema/migration version, backup method, database version, integrity output, restored counts and measured recovery duration before release.
+
+
+---
+
+## Production-readiness continuation — 2026-10-10
+
+This addendum supersedes earlier baseline references in this document where they conflict with the following verified repository state:
+
+- Production branch: `production-upgrade-2026-09-20`
+- Production HEAD at start of this continuation: `b48cd1dd3ead99b7008095b532dff7e4639b2267`
+- Remediation branch: `production-readiness-completion-2026-10-10`, created directly from that production HEAD.
+- Production baseline CI: [run 38041145591](https://github.com/acadlyx/acadlyx/actions/runs/38041145591) passed backend typecheck/build/lint/tests, frontend typecheck/lint/build, clean PostgreSQL 16 migration validation, and the configured production smoke job on the production SHA. These results do not establish unrun concurrency, authorization, populated-data migration, restore, browser or capacity gates.
+- A draft PR is open at [PR #33](https://github.com/acadlyx/acadlyx/pull/33). It is not merged and is not authorization to deploy.
+- The remediation branch adds a PostgreSQL 16 service to the backend quality job and applies the candidate's Prisma migrations before backend tests. This corrects the previously missing database service for any DB-backed tests, but no new genuine concurrent payment/refund integration test has yet been demonstrated by this change alone.
+- Four missing reports were added: full repository audit, module readiness matrix, UI/CSS design-system audit, and performance/scalability audit. The UI audit enumerates all 233 discovered frontend page/layout source files; all are marked NOT VISUALLY VERIFIED pending browser evidence.
+- Candidate CI was triggered for predecessor SHA `8e953114f0708882fcbaf1c838f99fa7a9c1b4fb` when the draft PR was opened. This addendum commit changes the candidate SHA, so only CI runs attached to the final branch HEAD may be treated as final-candidate evidence.
+- No production application source, production data, provider settings, deployment configuration, migrations or repository security settings were changed in this continuation. No real PostgreSQL concurrency, authenticated HTTP isolation, populated-data migration, backup/restore, end-to-end browser workflow or 10,000+ student load test was run here.
+
+**Current release decision remains NO-GO.** Required gates must be closed with exact-SHA evidence; a clean build or a source-contract test cannot substitute for persisted-state integration evidence.
+
+
+## Implementation continuation — 2026-10-10
+
+### Migration compatibility implementation update
+
+Added migration 20261010100000_finance_legacy_column_compat to backfill refund payment references in both directions, allow the legacy mirror column to be nullable, and retain a foreign-key/index for the legacy reference. The current application writes both paymentId and feePaymentId. A separate CI job now constructs a populated legacy refund row before applying this compatibility migration, then verifies the backfill.
+
+The clean PostgreSQL migration path passed in the evidence below. The populated legacy migration job is newly added and must pass on the final candidate SHA before it can be marked verified.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+No production database was accessed or migrated. Backup creation/restoration, encryption/retention verification, and measured RTO/RPO remain open; no recovery capability is claimed without a restore rehearsal.
