@@ -17,7 +17,7 @@ export function DashboardPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-6 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+    <header className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
       {breadcrumbs.length ? (
         <nav aria-label="Breadcrumb" className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
           {breadcrumbs.map((crumb, index) => (
