@@ -39,8 +39,8 @@ assert.match(backendRoutes, /router\.use\(authenticate, requireFeature\("library
   "all Library API routes must retain authentication and tenant entitlement checks");
 assert.match(backendRoutes, /"\/books",[\s\S]*?authorize\("library\.read"\)/,
   "catalogue reads must require library.read");
-assert.match(backendRoutes, /"\/loans\/mine",[\s\S]*?authorizeWorkflow\("library\.borrow"\)/,
-  "student loans must use the personal library.borrow workflow");
+assert.match(backendRoutes, /"\/loans\/mine",[\s\S]*?authorize\("library\.borrow"\)/,
+  "student loans must require library.borrow without staff-only workflow dependencies");
 assert.match(backendRoutes, /"\/books",[\s\S]*?authorizeWorkflow\("library\.manage"\)/,
   "catalogue management must remain separately permission-gated");
 assert.match(rbac, /STUDENT:\s*\[[\s\S]*?"library\.read",[\s\S]*?"library\.borrow"[\s\S]*?\n\s*\],/,

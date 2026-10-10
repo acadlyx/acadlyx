@@ -645,7 +645,7 @@ export async function cancelReservation(
     await syncBookInventory(tx, institutionId, existing.bookId);
     return tx.libraryIssue.update({
       where: { id },
-      data: { status: "RETURNED", returnedAt: new Date() },
+      data: { status: "CANCELLED", returnedAt: null },
       include: issueInclude,
     });
   });

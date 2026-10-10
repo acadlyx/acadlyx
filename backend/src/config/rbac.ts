@@ -928,6 +928,8 @@ export const ROLE_PERMISSIONS: Record<
     ...EVENTS_READ,
     "students.read",
     "programs.read",
+    "academic-years.read",
+    "semesters.read",
     "fees.collection.read",
     "fees.structure.read",
     "fees.structure.manage",

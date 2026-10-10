@@ -74,7 +74,7 @@ export const returnBookSchema = z.object({
 
 export const circulationListQuery = z.object({
   ...pageQuery,
-  status: z.enum(["RESERVED", "ISSUED", "RETURNED", "LOST", "DAMAGED", "OVERDUE"]).optional(),
+  status: z.enum(["RESERVED", "ISSUED", "RETURNED", "LOST", "DAMAGED", "OVERDUE", "CANCELLED"]).optional(),
   borrowerId: z.string().uuid().optional(),
   bookId: z.string().uuid().optional(),
 });

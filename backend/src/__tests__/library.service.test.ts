@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   computeFine,
@@ -99,4 +101,19 @@ test("per-copy replacement value overrides the book default", () => {
     ),
     2500
   );
+});
+
+test("cancelling a reservation does not masquerade as a physical book return", () => {
+  const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
+  const start = source.indexOf("export async function cancelReservation(");
+  const end = source.indexOf("\nexport async function returnBook(", start);
+  assert.ok(start >= 0 && end > start, "Expected reservation cancellation service");
+  const cancellation = source.slice(start, end);
+  assert.match(cancellation, /status: "CANCELLED"/);
+  assert.match(cancellation, /returnedAt: null/);
+  assert.doesNotMatch(cancellation, /status: "RETURNED"/);
+  const validator = fs.readFileSync(path.resolve(process.cwd(), "src/validators/library.validators.ts"), "utf8");
+  assert.match(validator, /"OVERDUE", "CANCELLED"/);
+  const frontendApi = fs.readFileSync(path.resolve(process.cwd(), "../frontend/src/lib/libraryApi.ts"), "utf8");
+  assert.match(frontendApi, /"OVERDUE",\s*"CANCELLED"/);
 });

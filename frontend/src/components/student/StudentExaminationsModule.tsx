@@ -6,6 +6,8 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { ExpandableList } from "@/components/ui/ExpandableList";
 import { getCurrentUser } from "@/lib/auth";
+import { getMyMarks } from "@/lib/academicsApi";
+import type { InternalMarkEntry } from "@/types/academics";
 import {
   listMyExamEligibility, registerForExam, listStudentHallTickets,
   downloadHallTicketPdf, downloadMarksheetPdf, getMyExamPerformance, getMyPublishedExamResults
@@ -46,6 +48,8 @@ export function StudentExaminationsModule({ view }: { view: View }) {
   const [items,setItems]=useState<any[]>([]);
   const [tickets,setTickets]=useState<any[]>([]);
   const [rows,setRows]=useState<any[]>([]);
+  const [internalRows,setInternalRows]=useState<InternalMarkEntry[]>([]);
+  const [partialWarning,setPartialWarning]=useState("");
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [busy,setBusy]=useState("");
@@ -57,14 +61,31 @@ export function StudentExaminationsModule({ view }: { view: View }) {
     const sequence = ++requestSequence.current;
     setLoading(true);
     setError("");
+    setPartialWarning("");
     try {
       if (view==="admit-cards") {
         const user=await getCurrentUser();
         const result=await listStudentHallTickets(user.id);
         if (sequence === requestSequence.current) setTickets(result);
       } else if (view==="performance") {
-        const result=await getMyExamPerformance();
-        if (sequence === requestSequence.current) setRows(result);
+        const [examResult, internalResult] = await Promise.allSettled([
+          getMyExamPerformance(),
+          getMyMarks(),
+        ]);
+        if (sequence !== requestSequence.current) return;
+        if (examResult.status === "fulfilled") setRows(examResult.value);
+        else setRows([]);
+        if (internalResult.status === "fulfilled") setInternalRows(internalResult.value);
+        else setInternalRows([]);
+        const warnings: string[] = [];
+        if (examResult.status === "rejected") {
+          warnings.push(examResult.reason instanceof Error ? examResult.reason.message : "Examination marks could not be loaded.");
+        }
+        if (internalResult.status === "rejected") {
+          warnings.push(internalResult.reason instanceof Error ? internalResult.reason.message : "Internal assessment marks could not be loaded.");
+        }
+        if (warnings.length === 2) throw new Error(warnings.join(" "));
+        if (warnings.length === 1) setPartialWarning(warnings[0]);
       } else if (view==="results") {
         const result=await getMyPublishedExamResults();
         if (sequence === requestSequence.current) setRows(result);
@@ -108,6 +129,7 @@ export function StudentExaminationsModule({ view }: { view: View }) {
     {loading && <div className="grid gap-4 md:grid-cols-2"><div className="h-36 animate-pulse rounded-2xl bg-slate-100"/><div className="h-36 animate-pulse rounded-2xl bg-slate-100"/></div>}
     {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}<button onClick={()=>void load()} className="ml-3 font-bold underline">Retry</button></div>}
     {message && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">{message}</div>}
+    {partialWarning && <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Some performance data could not be loaded: {partialWarning}</div>}
 
     {!loading && !error && (view==="upcoming" || view==="registration") && <div className="space-y-4">
       {items.length===0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No applicable examinations are available.</div>}
@@ -184,6 +206,23 @@ export function StudentExaminationsModule({ view }: { view: View }) {
           </section>
         )}
       />
+      {view==="performance" && <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+        <div>
+          <h2 className="text-base font-black text-slate-950">Internal assessment marks</h2>
+          <p className="mt-1 text-sm text-slate-500">Marks recorded through the internal assessment workflow, shown separately from approved examination marks.</p>
+        </div>
+        {internalRows.length===0
+          ? <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">{partialWarning ? "Internal assessment marks are unavailable because their request failed." : "No internal assessment marks are available yet."}</div>
+          : <ExpandableList items={internalRows} getKey={(mark) => mark.id} label="internal assessment marks" renderItem={(mark) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-4">
+              <div>
+                <p className="font-bold text-slate-950">{mark.courseOffering?.course.code || "Course"} — {mark.courseOffering?.course.name || "Course name unavailable"}</p>
+                <p className="text-xs text-slate-500">{mark.component}</p>
+              </div>
+              <p className="text-sm font-black text-slate-950">{mark.marksObtained}/{mark.maxMarks}</p>
+            </div>
+          )} />}
+      </section>}
     </div>}
   </Shell>;
 }

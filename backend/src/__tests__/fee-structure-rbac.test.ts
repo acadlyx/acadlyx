@@ -18,6 +18,8 @@ test("fee-structure access is granted only through canonical scoped permissions"
       ROLE_PERMISSIONS[role].includes("fees.structure.manage"),
       `${role} must receive fee-structure write access only through the existing role policy`,
     );
+    assert.ok(ROLE_PERMISSIONS[role].includes("academic-years.read"), role + " needs academic-year lookup access");
+    assert.ok(ROLE_PERMISSIONS[role].includes("semesters.read"), role + " needs semester lookup access");
   }
 
   for (const role of ["STUDENT", "PARENT", "FACULTY", "HOD"] as const) {
@@ -32,6 +34,18 @@ test("fee-structure access is granted only through canonical scoped permissions"
   }
 });
 
+test("fee-structure managers receive only academic metadata reads needed by setup forms", () => {
+  for (const role of ["ACCOUNTS", "CHAIRMAN", "MANAGEMENT"] as const) {
+    const grants = ROLE_PERMISSIONS[role];
+    assert.ok(grants.includes("academic-years.read"));
+    assert.ok(grants.includes("semesters.read"));
+    assert.ok(!grants.includes("academic-years.create"));
+    assert.ok(!grants.includes("academic-years.update"));
+    assert.ok(!grants.includes("semesters.create"));
+    assert.ok(!grants.includes("semesters.update"));
+    assert.ok(!grants.includes("semesters.delete"));
+  }
+});
 test("fee-structure permissions do not imply unrelated financial authority", () => {
   for (const role of ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"] as const) {
     const grants = ROLE_PERMISSIONS[role];
