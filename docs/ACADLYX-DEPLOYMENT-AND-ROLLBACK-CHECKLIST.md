@@ -1,8 +1,8 @@
-# ACADLYX Deployment and Rollback Checklist — Release Preparation
+# ACADLYX Deployment and Rollback Checklist — Milestones 8–9
 
 Status: **NOT APPROVED FOR DEPLOYMENT**  
-Prepared: 2026-10-09  
-Candidate source snapshot reviewed: ab4dfdec3aec12e086b0b9738d28a1056e670128 on stabilization-platform-2026-10-09  
+Updated: 2026-10-10  
+Application source snapshot reviewed: ab4dfdec3aec12e086b0b9738d28a1056e670128; exact-SHA CI tested: c10ec08489756ba770467fff7b81e7f992b2d0f0 on stabilization-platform-2026-10-09  
 Baseline: production-upgrade-2026-09-20 / 6ddcc30697071b6e55505caaf68337f704bdc7cd
 
 This is a checklist, not a deployment instruction. Do not deploy or merge unless separately authorized after NO-GO blockers are cleared. No production action was performed during preparation.
@@ -22,27 +22,27 @@ This is a checklist, not a deployment instruction. Do not deploy or merge unless
 
 ### Frontend — Node 24.x, working directory frontend
 
-- [ ] npm ci succeeds from frontend/package-lock.json.
-- [ ] npm run validate:source succeeds.
-- [ ] npm run typecheck succeeds.
-- [ ] npm run lint succeeds.
-- [ ] npm run build succeeds from a clean workspace.
+- [x] `npm ci` succeeds from `frontend/package-lock.json` in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run validate:source` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run typecheck` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run lint` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run build` succeeds after clean `npm ci` in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
 - [ ] Save logs, exit codes, commit SHA, Node/npm versions and artifact identity.
 - [ ] Smoke-test authentication, route protection, finance screens, student/parent views, examination/placement/library flows and mobile layouts against candidate API.
 
 ### Backend — Node 20.x, working directory backend
 
-- [ ] npm ci succeeds from backend/package-lock.json.
-- [ ] npx prisma validate succeeds in nonproduction.
-- [ ] npx prisma generate succeeds.
-- [ ] npm run typecheck succeeds.
-- [ ] npm run build succeeds.
-- [ ] npm run lint succeeds.
-- [ ] npm test succeeds; record count, skips and failures.
-- [ ] Run examination-finance-integrity.test.ts and relevant authorization, enrollment, finance, library, placement, session, job and event tests.
+- [x] `npm ci` succeeds from `backend/package-lock.json` in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npx prisma validate` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npx prisma generate` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run typecheck` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run build` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm run lint` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- [x] `npm test` succeeds in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`: 114 passed, 0 failed, 0 skipped.
+- [x] `npm test` includes the configured backend test suite on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`; all 114 tests passed. This does not imply end-to-end finance/library/exam/provider tests were performed.
 - [ ] Verify no critical check was disabled or bypassed.
 
-No command in this checklist was executed by Milestone 8.
+Milestone 9 hosted CI execution evidence is recorded above and below. No local command execution was performed in this environment; all checkmarks explicitly identify hosted CI evidence and the tested SHA.
 
 ## C. Security and authorization
 
@@ -60,7 +60,7 @@ No command in this checklist was executed by Milestone 8.
 ## D. Data, migrations and finance
 
 - [ ] Verify current backup and restore point before any production migration.
-- [ ] Run prisma migrate deploy against disposable database first.
+- [x] `npx prisma migrate deploy` applied all migrations to an empty disposable PostgreSQL 16 database in hosted CI on SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
 - [ ] Rehearse upgrade from sanitized representative prior schema/data, including legacy/null/duplicate data edge cases.
 - [ ] Inspect migration locks, runtime, backfill volume, uniqueness conflicts, foreign keys and rollback/forward-fix plan.
 - [ ] Confirm intended DB connection/TLS without logging connection strings or secrets.
@@ -133,4 +133,16 @@ No command in this checklist was executed by Milestone 8.
 
 ## J. Current disposition
 
-**NOT APPROVED FOR DEPLOYMENT.** The exact stabilization candidate has no observed CI run. Buildability, adversarial authorization, existing-data migration safety, financial reconciliation, generated examination artifacts, provider integrations, restore and operational recovery remain unverified. Complete the NO-GO conditions in the final readiness audit and risk register before requesting a new release decision.
+**NOT APPROVED FOR DEPLOYMENT.** Exact-SHA hosted CI passed for standard builds/tests and migrations against an empty disposable PostgreSQL 16 database (tested SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`). Adversarial authorization, existing-data migration safety, financial reconciliation, generated examination artifacts, provider integrations, restore and operational recovery remain unverified. Complete the remaining NO-GO conditions before requesting a new release decision.
+
+
+## K. Milestone 9 exact-SHA evidence
+
+Tested SHA: `c10ec08489756ba770467fff7b81e7f992b2d0f0`; evidence source: hosted GitHub Actions. Application source tree matches the earlier reviewed tree at `ab4dfdec3aec12e086b0b9738d28a1056e670128`; the later commits before this test changed workflow configuration only.
+
+- [x] [ACADLYX Production Quality](https://github.com/acadlyx/acadlyx/actions/runs/38031718249) — success: backend clean install, Prisma validate/generate, typecheck, build, lint, 114 tests passed; frontend clean install, typecheck, lint and production build passed; all migrations applied on empty disposable PostgreSQL 16. Live production smoke job was skipped for the stabilization branch.
+- [x] [ACADLYX Production Gate](https://github.com/acadlyx/acadlyx/actions/runs/38031718250) — backend/frontend checks passed.
+- [x] [ACADLYX ERP verification](https://github.com/acadlyx/acadlyx/actions/runs/38031718247) — backend/frontend checks passed.
+- [x] [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38031718309) — source validation, typecheck and production build passed.
+
+The frontend package has no unit/integration test script, so frontend runtime/unit tests are not covered by these runs. No production deployment or production database operation occurred. The current branch advances with documentation updates after the tested SHA; do not describe the documentation-update SHA as a separately tested source revision.
