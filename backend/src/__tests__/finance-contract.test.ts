@@ -112,3 +112,15 @@ test("concession approval is claimed only while the concession remains pending",
   assert.match(decide, /UPDATE "fee_concessions"[\s\S]*?AND "status" = 'PENDING'/);
   assert.match(decide, /if \(claimed !== 1\)[\s\S]*?new AppError\("Concession state changed/);
 });
+
+test("duplicate provider callbacks are checked before rejecting a fully settled invoice", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("async function settlePayment(");
+  const end = service.indexOf("\n/** Counter / offline collection. */", start);
+  assert.ok(start >= 0 && end > start);
+  const settle = service.slice(start, end);
+  const idempotencyCheck = settle.indexOf('if (input.providerPaymentId)');
+  const settledGuard = settle.indexOf('if (outstanding <= 0)');
+  assert.ok(idempotencyCheck >= 0 && settledGuard > idempotencyCheck,
+    "provider replay must return the existing settlement before the fully-settled guard");
+});
