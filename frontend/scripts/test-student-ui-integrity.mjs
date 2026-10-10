@@ -27,6 +27,9 @@ for (const module of ["library", "registration", "leave"]) {
   assert.match(selfService, new RegExp(`case "${module}":[\\s\\S]*?return <`));
 }
 assert.match(examinations, /view==="performance"/);
+assert.match(examinations, /getMyMarks\(\)/, "student Performance must also fetch internal assessment marks");
+assert.match(examinations, /Internal assessment marks/, "internal marks must be displayed separately from examination marks");
+assert.match(examinations, /Promise\.allSettled/, "a failed marks source must not hide successful data from the other source");
 assert.match(examinations, /view==="results"/);
 assert.match(examinations, /requestSequence/);
 assert.match(examinations, /if \(sequence === requestSequence\.current\) setRows\(result\)/);
