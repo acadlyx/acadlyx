@@ -1,6 +1,6 @@
-# ACADLYX Final Independent Production-Readiness Audit — Milestone 8
+# ACADLYX Final Independent Production-Readiness Audit — Milestones 8–9
 
-Audit date: 2026-10-09  
+Audit updated: 2026-10-10  
 Repository: acadlyx/acadlyx  
 Application-source snapshot reviewed: ab4dfdec3aec12e086b0b9738d28a1056e670128  
 Working branch: stabilization-platform-2026-10-09  
@@ -14,20 +14,20 @@ ACADLYX is a substantial ERP codebase with frontend and backend packages, Prisma
 
 **Recommendation: NO-GO for production release at this time.** This is an evidence-based release gate, not a claim that an unauthorized access or data-corruption incident has been reproduced. The decisive blockers are:
 
-1. No GitHub Actions run exists for stabilization-platform-2026-10-09 at the time queried. All inspected workflow triggers target the baseline production branch, so this candidate has no observed passing build/test/migration evidence.
-2. No local checkout/command execution, authenticated running app, isolated database, payment sandbox, file-storage verification, or browser test environment was available. Build, tests, migration compatibility, adversarial isolation, finance reconciliation and generated admit-card integrity remain unverified.
+1. The initial workflow-trigger blocker was confirmed and corrected on the stabilization branch. Exact-SHA hosted GitHub Actions runs for candidate `c10ec08489756ba770467fff7b81e7f992b2d0f0` completed successfully for the standard frontend/backend verification and clean PostgreSQL migration workflow. The live production smoke job was skipped on the stabilization ref.
+2. Hosted CI ran clean lockfile installs, typechecks, lint, builds, the backend test suite (114 passed, 0 failed, 0 skipped) and all migrations against a disposable empty PostgreSQL 16 database. This is not local execution evidence and does not verify representative existing-data upgrades, adversarial HTTP isolation, finance/provider reconciliation, generated admit-card artifacts, live storage, browser behavior or disaster recovery.
 3. render.yaml explicitly selects production-upgrade-2026-09-20 for both web and worker services. It does not identify the stabilization candidate as its deployment source. Release operators must explicitly review the intended source and release procedure before any deployment.
-4. The candidate is 49 commits ahead of baseline and includes application changes to authentication/session validation, fee authorization/structure logic, frontend API caching, finance UI/navigation and examination fee eligibility. This is a meaningful release diff and cannot be accepted based only on documentation or a baseline-branch green run.
+4. The reviewed application source tree is the same as `ab4dfdec3aec12e086b0b9738d28a1056e670128`; that SHA is an ancestor of the tested candidate. The current branch is 56 commits ahead of baseline after three Milestone 8 documentation commits and four Milestone 9 CI workflow commits. The candidate now has exact-SHA standard CI evidence, but that evidence does not close security, financial, existing-data migration or recovery gates.
 
 No critical security exploit or financial corruption was reproduced. However, critical security and financial controls are not verified against this candidate. Under the supplied decision rules, missing release-critical evidence is insufficient for GO or CONDITIONAL GO; NO-GO is appropriate until gates are demonstrated.
 
 ## 2. Exact release candidate and repository evidence
 
-- GitHub branch endpoint reported stabilization-platform-2026-10-09 at ab4dfdec3aec12e086b0b9738d28a1056e670128 before this report-only commit.
+- At Milestone 9 verification, GitHub reported stabilization-platform-2026-10-09 at `c10ec08489756ba770467fff7b81e7f992b2d0f0`. The earlier application-review SHA `ab4dfdec3aec12e086b0b9738d28a1056e670128` is an ancestor; the app source tree did not change in the later documentation/CI commits.
 - Baseline endpoint reported production-upgrade-2026-09-20 at 6ddcc30697071b6e55505caaf68337f704bdc7cd.
-- GitHub compare: 49 commits ahead, 0 behind; merge base equals baseline SHA.
-- GitHub combined status for the audited candidate returned no status checks.
-- GitHub Actions query for branch=stabilization-platform-2026-10-09 returned total_count=0.
+- Current compare: 56 commits ahead, 0 behind; merge base equals baseline SHA `6ddcc30697071b6e55505caaf68337f704bdc7cd`.
+- Exact-SHA hosted workflow runs are recorded in the Milestone 9 evidence addendum below. Initial empty status results predate the workflow trigger fix.
+- The initial branch query returned zero runs before the trigger fix. Four workflows were then observed for tested SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`; all completed successfully.
 - Recent baseline runs observed for SHA 6ddcc30697071b6e55505caaf68337f704bdc7cd: “Frontend build” and “ACADLYX Production Gate” concluded success. These runs verify baseline only, not this 49-commit candidate.
 - GitHub does not expose the user's local working tree or uncommitted changes. Local tree cleanliness is UNVERIFIED; preserve local work and verify locally before checkout/merge.
 - All seven required prior milestone reports exist on the stabilization branch. Governance and platform inventory reports also exist.
@@ -52,14 +52,14 @@ Source: backend/package.json, backend/package-lock.json, backend/prisma/schema.p
 - Scripts include Prisma generation, TypeScript build/typecheck, ESLint, tsx --test src/__tests__/*.test.ts, migration deployment, API start and background worker start.
 - Prisma datasource is PostgreSQL using DATABASE_URL.
 - Frontend and backend declare different Node major versions; CI/deployment must use the matching version per package.
-- Schema validation, generation, build, tests and migrations were not run against this candidate.
+- Prisma validation/generation, backend typecheck/build/lint and tests passed in hosted CI; all migrations applied successfully to an empty disposable PostgreSQL 16 database. Existing-data migration safety remains unverified.
 
 ### CI workflows
 Inspected .github/workflows/erp-verification.yml, frontend-build.yml, production-gate.yml and production-quality.yml.
 
-- All inspected push/pull-request triggers target production-upgrade-2026-09-20; production-quality also supports manual dispatch.
+- Milestone 9 added the stabilization branch to push and pull-request filters in all four inspected workflows. Each now has least-privilege `contents: read` permissions. The production-quality live smoke job is explicitly restricted to the production branch.
 - The production-quality workflow defines backend validation/build/lint/tests, a PostgreSQL 16 migration job, and frontend typecheck/lint/build.
-- No workflow run was found for the stabilization branch. No passing results are attributed to this candidate.
+- Four hosted workflow runs passed on exact tested SHA `c10ec08489756ba770467fff7b81e7f992b2d0f0`. The production-quality run skipped its live production smoke job on the stabilization ref.
 - Release condition: execute existing checks against the exact candidate SHA and make failures visible as a release gate. Do not modify production triggers or merge this branch merely to obtain a run.
 
 ### Deployment blueprint
@@ -99,7 +99,7 @@ These reports are useful findings and scope maps, but their status labels do not
 - Helmet and rate-limiter dependencies are declared.
 
 ### Release gaps
-- No login/refresh/logout/expiry tests were executed on this candidate.
+- The backend test suite ran on the tested SHA and passed 114 tests, including refresh-session and permission-catalogue checks. End-to-end login/refresh/logout/expiry behavior and adversarial HTTP access remain unverified.
 - No adversarial HTTP requests tested student-to-student, parent-to-unlinked-student, Faculty-to-unassigned-class, HOD-to-other-department, Director-to-other-campus or cross-institution access.
 - File upload/download access, background-job scope propagation, entitlement enforcement, sensitive audit writes and approval self-review rules were not verified end-to-end.
 - No security scanner or complete unsafe-cast/disabled-check scan was executed.
@@ -125,7 +125,7 @@ Milestone 7 corrected exam fee eligibility to subtract refunds, include late fee
 ## 7. Database, migration and recovery
 
 - Prisma schema uses PostgreSQL. Migration history covers tenant/academic entities, finance, examination, library, placement, jobs and domain events.
-- Migration presence does not prove safe upgrade of an existing database. No migration command or existing-data rehearsal ran on this candidate.
+- `prisma migrate deploy` succeeded against an empty disposable PostgreSQL 16 database in hosted CI. Migration behavior against representative existing data, backups and recovery remains unverified.
 - The checked-in CI migration job uses PostgreSQL 16 and prisma migrate deploy. This is useful clean-database evidence only when run successfully on the candidate; it does not replace testing representative existing data or restoring a backup.
 - No schema-vs-migration drift check, production-safe backup verification, point-in-time restore test, foreign-key/unique-constraint concurrency test or query-plan inspection was executed.
 - Live connection pool behavior and hosted database capacity were not established.
@@ -177,6 +177,32 @@ See docs/ACADLYX-PRODUCTION-RELEASE-RISK-REGISTER.md for severity, impact, owner
 
 ## 12. Final verdict
 
-**NO-GO.** The codebase is not declared unbuildable; buildability is UNVERIFIED. The reason is that the exact stabilization candidate lacks an observed passing CI run and critical security, financial, workflow, migration, deployment and recovery gates have not been executed. Do not promote the candidate until those gates have evidence.
+**NO-GO.** Standard exact-SHA hosted CI and clean-database migration checks passed, but release-critical adversarial authorization, finance/provider reconciliation, representative existing-data migration, admit-card artifacts, live integration and restore/recovery remain unverified. The codebase is not declared unbuildable. Do not promote the candidate until remaining critical gates have evidence.
 
 No production branch change, merge, deployment, production database operation or infrastructure mutation occurred during this audit.
+
+
+## 13. Milestone 9 — Exact-SHA hosted verification (2026-10-10)
+
+Tested commit: `c10ec08489756ba770467fff7b81e7f992b2d0f0` on `stabilization-platform-2026-10-09`. The tested application source tree matches the reviewed application tree at `ab4dfdec3aec12e086b0b9738d28a1056e670128`; subsequent commits in this cycle changed workflow YAML only. Evidence is from hosted GitHub Actions, not local execution.
+
+| Run | Exact-SHA result | Evidence |
+|---|---|---|
+| ACADLYX Production Quality | **SUCCESS**; backend clean install, Prisma validate/generate, typecheck, production build, lint and tests passed; frontend clean install, typecheck, lint and production build passed; PostgreSQL 16 empty-database migration job passed. Backend test output: 114 tests, 114 passed, 0 failed, 0 skipped. Live production smoke job was skipped on stabilization branch. | https://github.com/acadlyx/acadlyx/actions/runs/38031718249 |
+| ACADLYX Production Gate | **SUCCESS**; backend and frontend verification jobs passed. | https://github.com/acadlyx/acadlyx/actions/runs/38031718250 |
+| ACADLYX ERP verification | **SUCCESS**; backend and frontend jobs passed. | https://github.com/acadlyx/acadlyx/actions/runs/38031718247 |
+| Frontend build | **SUCCESS**; source validation, TypeScript check and production build passed. | https://github.com/acadlyx/acadlyx/actions/runs/38031718309 |
+
+### Milestone 9 CI trigger correction
+
+The four workflows `.github/workflows/production-quality.yml`, `production-gate.yml`, `erp-verification.yml` and `frontend-build.yml` now include the stabilization branch in push and pull-request filters. Each declares `permissions: contents: read`. The production-quality workflow's live smoke job only runs when `github.ref == 'refs/heads/production-upgrade-2026-09-20'` and the event is not a pull request. Hosted evidence confirms the smoke job was skipped for the stabilization candidate. No deployment job was added.
+
+### Scope limits / remaining release gates
+
+- Clean migrations on an empty disposable PostgreSQL 16 database do not establish upgrade safety against representative existing data.
+- Backend unit/contract tests passed, but the suite does not substitute for adversarial HTTP tests across all tenant/campus/department/student/parent/faculty/file/entitlement boundaries.
+- Payment/refund provider behavior, canonical financial reconciliation, library exactly-once charges, admit-card persisted counts and nonempty PDF artifacts, marks/result publication, placement transitions, browser accessibility, load/capacity and backup restore were not exercised by these runs.
+- The frontend manifest has no unit/integration test script; the frontend's source validation, typecheck, lint and production build are verified, but frontend runtime/unit tests are not.
+- Existing-data migration and disaster-recovery gates remain BLOCKED/UNVERIFIED. Keep the overall release decision NO-GO.
+
+The GitHub branch currently advances beyond the tested SHA when these evidence documents are updated. No application code is changed by this report update; CI results above apply exactly to the stated tested SHA, not by implication to any future code change.
