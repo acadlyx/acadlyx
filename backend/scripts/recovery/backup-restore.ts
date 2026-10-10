@@ -205,6 +205,23 @@ async function main(): Promise<void> {
   assert.ok(dumpInfo.size > 0, "Backup artifact must be non-empty");
   pg("pg_restore", ["--list", dumpPath]);
 
+  // Simulate a write after the recoverable snapshot and a failure immediately
+  // afterward; the restore must not contain this post-snapshot record.
+  const postSnapshotUser = await prisma.user.create({
+    data: {
+      institutionId: institution.id,
+      email: `recovery-post-snapshot-${suffix}@integration.invalid`,
+      idNumber: `REC-POST-${suffix}`,
+      passwordHash: "recovery-fixture-not-a-login",
+      firstName: "PostSnapshot",
+      lastName: "LostWrite",
+    },
+    select: { id: true },
+  });
+  const simulatedDisasterAt = new Date().toISOString();
+  const measuredRpoMs = new Date(simulatedDisasterAt).getTime() - new Date(snapshotAt).getTime();
+  const rpoTargetMs = 15 * 60 * 1000;
+
   const restoreStarted = performance.now();
   pg("dropdb", ["--if-exists", "--host", sourceUrl.hostname, "--port", sourceUrl.port || "5432", "--username", pgEnv.PGUSER, restoreName]);
   pg("createdb", ["--host", sourceUrl.hostname, "--port", sourceUrl.port || "5432", "--username", pgEnv.PGUSER, "--owner", pgEnv.PGUSER, restoreName]);
@@ -216,7 +233,7 @@ async function main(): Promise<void> {
   const restoredInstitution = await restored.institution.findUniqueOrThrow({ where: { id: institution.id } });
   assert.equal(restoredInstitution.slug, institution.slug);
 
-  const [users, invoices, payments, receipts, refunds, transactions, books, issues, fines, invoiceTotals, restoredRefund] = await Promise.all([
+  const [users, invoices, payments, receipts, refunds, transactions, books, issues, fines, invoiceTotals, restoredRefund, postSnapshotRecord] = await Promise.all([
     restored.user.count({ where: { institutionId: institution.id } }),
     restored.feeInvoice.count({ where: { institutionId: institution.id } }),
     restored.feePayment.count({ where: { institutionId: institution.id } }),
@@ -228,8 +245,10 @@ async function main(): Promise<void> {
     restored.libraryFine.count({ where: { institutionId: institution.id } }),
     restored.feeInvoice.aggregate({ where: { institutionId: institution.id }, _sum: { amount: true, paidAmount: true } }),
     restored.feeRefund.findFirstOrThrow({ where: { reference: refundReference } }),
+    restored.user.findUnique({ where: { id: postSnapshotUser.id }, select: { id: true } }),
   ]);
   assert.equal(users, 2);
+  assert.equal(postSnapshotRecord, null, "A post-snapshot write must not appear in the restored database");
   assert.equal(invoices, 2);
   assert.equal(payments, 1);
   assert.equal(receipts, 1);
@@ -251,12 +270,16 @@ async function main(): Promise<void> {
     restoreAndVerifyDurationMs: restoreMs,
     rtoTargetMs: 300_000,
     rtoTargetMet: restoreMs <= 300_000,
+    simulatedDisasterAt,
     rpoTargetMinutes: 15,
-    measuredRpoMinutes: null,
-    rpoNote: "This isolated snapshot test does not simulate writes lost between snapshots; production RPO remains unverified.",
+    measuredRpoMs,
+    measuredRpoMinutes: Number((measuredRpoMs / 60_000).toFixed(4)),
+    rpoTargetMet: measuredRpoMs <= rpoTargetMs,
+    postSnapshotWriteAbsentAfterRestore: postSnapshotRecord === null,
+    rpoNote: "Measured only for this isolated dump and simulated post-snapshot write; production backup cadence and point-in-time recovery remain unverified.",
     restoredCounts: { users, invoices, payments, receipts, refunds, transactions, books, issues, fines },
     financialReconciliation: { invoiceTotal: Number(invoiceTotals._sum.amount), paidTotal: Number(invoiceTotals._sum.paidAmount), refundPaymentReferenceAligned: restoredRefund.paymentId === restoredRefund.feePaymentId },
-    passed: restoreMs <= 300_000 && users === 2 && invoices === 2 && payments === 1 && receipts === 1 && refunds === 1 && transactions === 1 && books === 1 && issues === 1 && fines === 1,
+    passed: restoreMs <= 300_000 && measuredRpoMs <= rpoTargetMs && postSnapshotRecord === null && users === 2 && invoices === 2 && payments === 1 && receipts === 1 && refunds === 1 && transactions === 1 && books === 1 && issues === 1 && fines === 1,
   };
   await writeFile(reportPath, JSON.stringify(report, null, 2) + "\n", "utf8");
   process.stdout.write(JSON.stringify(report, null, 2) + "\n");
