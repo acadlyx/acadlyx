@@ -56,7 +56,7 @@ test("self-service performance and result routes derive the target from the auth
 test("student dashboard performance score includes institution-scoped internal marks when exam results are absent", () => {
   const service = fs.readFileSync(path.join(root, "src/services/intelligence.service.ts"), "utf8");
   assert.match(service, /prisma\.internalMark\.aggregate\([\s\S]*?_sum: \{ marksObtained: true, maxMarks: true \}/);
-  assert.match(service, /FROM "exam_marks" m[\s\S]*?m\."institutionId"=\$\{institutionId\}[\s\S]*?m\."studentId"=\$\{studentId\}/);
-  assert.match(service, /FROM "exam_results" er[\s\S]*?er\."institutionId"=\$\{institutionId\}[\s\S]*?er\."studentId"=\$\{studentId\}/);
+  assert.match(service, /FROM "exam_marks" m[\s\S]*?m\."institutionId"\s*=\s*\$\{institutionId\}[\s\S]*?m\."studentId"\s*=\s*\$\{studentId\}/);
+  assert.match(service, /FROM "exam_results" er[\s\S]*?er\."institutionId"\s*=\s*\$\{institutionId\}[\s\S]*?er\."studentId"\s*=\s*\$\{studentId\}/);
   assert.match(service, /examTotals\?\.maximum > 0[\s\S]*?legacyTotals\?\.maximum > 0[\s\S]*?internalMaximum > 0/);
 });
