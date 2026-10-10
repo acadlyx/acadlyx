@@ -48,7 +48,7 @@ test("self-service performance and result routes derive the target from the auth
   const selfRoutes = routes.slice(performanceStart, studentRoutesStart);
   assert.match(selfRoutes, /authorize\("exams\.read"\)/);
   assert.match(selfRoutes, /authorize\("results\.read"\)/);
-  assert.match(selfRoutes, /getStudentExamPerformance\([\s\S]*?requireAuthenticatedUser\(req\)\.id/);
-  assert.match(selfRoutes, /getStudentPublishedResults\([\s\S]*?requireAuthenticatedUser\(req\)\.id/);
+  assert.match(selfRoutes, /getStudentExamPerformance\([\s\S]*?actor, actor\.id/);
+  assert.match(selfRoutes, /getStudentPublishedResults\([\s\S]*?actor, actor\.id/);
   assert.doesNotMatch(selfRoutes, /req\.params\.studentId|req\.query\.studentId/);
 });
