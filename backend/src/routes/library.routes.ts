@@ -162,7 +162,7 @@ router.patch(
 
 router.get(
   "/loans/mine",
-  authorizeWorkflow("library.borrow"),
+  authorize("library.borrow"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -265,7 +265,7 @@ router.post(
 
 router.post(
   "/reservations",
-  authorizeWorkflow("library.borrow"),
+  authorize("library.borrow"),
   validateBody(reserveBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -284,7 +284,7 @@ router.post(
 
 router.post(
   "/reservations/:id/cancel",
-  authorizeWorkflow("library.borrow"),
+  authorize("library.borrow"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
