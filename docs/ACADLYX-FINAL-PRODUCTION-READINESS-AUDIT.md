@@ -230,7 +230,7 @@ The route/permission inventory is recorded in `docs/ACADLYX-SECURITY-RBAC-AUDIT.
 
 The new 12-test file covers tenant-target mismatch, cross-user ID substitution, self-resource positive control, missing write permission, platform-only permission enforcement, absence/presence of a server-verified parent link, and ownership mismatch. These tests exercise pure decision helpers only. They do not establish HTTP response semantics, persisted-state invariants, database-backed campus/department/faculty assignments, exports, files, mixed-scope bulk operations, or side-effect absence.
 
-Hosted CI result for the new test is pending until a run on the commit containing it is observable. Do not attribute the prior successful CI SHA `c10ec08...` to this new test.
+Hosted CI completed successfully on exact source SHA `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`. The backend suite reports 126 passed, 0 failed, 0 skipped. The new pure authorization tests are included in that run; this result does not cover database-backed HTTP isolation.
 
 ### Confirmed vulnerability / fix status
 
@@ -248,3 +248,15 @@ No new exploitable vulnerability was reproduced by runtime testing in this miles
 - Local checkout and working-tree status cannot be verified remotely.
 
 **Milestone 10 decision: NO-GO.** The new pure unit tests improve coverage but do not meet the required adversarial integration coverage. Keep all production restrictions in force until critical data-isolation boundaries are exercised against disposable fixtures and the exact final source SHA has successful CI evidence.
+
+
+### Milestone 10 final exact-SHA CI evidence
+
+Tested source SHA: `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`. Hosted GitHub Actions results:
+
+- [ACADLYX Production Quality](https://github.com/acadlyx/acadlyx/actions/runs/38032585164) — SUCCESS. Backend install, Prisma validation/generation, typecheck, build, lint and tests passed; backend test summary 126 passed, 0 failed, 0 skipped. Frontend typecheck, lint and production build passed. All migrations applied to empty disposable PostgreSQL 16. Live production smoke checks were skipped on the stabilization branch.
+- [ACADLYX Production Gate](https://github.com/acadlyx/acadlyx/actions/runs/38032585202) — SUCCESS.
+- [ACADLYX ERP verification](https://github.com/acadlyx/acadlyx/actions/runs/38032585201) — SUCCESS.
+- [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
+
+No local checks were executed. No API + disposable database adversarial tests were available, so there is still no evidence for HTTP denial semantics, persisted-state invariants, absence of side effects, campus/department/faculty isolation, bulk mutation rollback, or file/export access under revoked permissions. The current branch can advance with documentation-only commits after this tested source SHA; no application code changes after the tested SHA are implied by those documentation commits.
