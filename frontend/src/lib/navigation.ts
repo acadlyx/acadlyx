@@ -201,12 +201,13 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Platform",
   },
   {
-    label: "Public website",
+    label: "Website CMS",
     href: "/site-content",
     icon: "✦",
-    roles: ["SUPER_ADMIN"],
+    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"],
     permissions: ["site.manage"],
-    group: "Platform",
+    group: "Website",
+    activeMatch: "nested",
   },
 
   {

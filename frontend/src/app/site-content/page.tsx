@@ -114,7 +114,7 @@ export default function SiteContentPage() {
   }
 
   return (
-    <DashboardShell title="Website CMS" subtitle="Control every public page before login" allowedRoles={["INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"]}>
+    <DashboardShell title="Website CMS" subtitle="Control every public page before login" allowedRoles={["SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"]}>
       <div className="mx-auto max-w-7xl space-y-5">
         <Header busy={busy} save={save} message={message} />
 
