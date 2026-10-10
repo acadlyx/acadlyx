@@ -66,3 +66,13 @@ Record `date -Is` immediately before and after each operation, command exit stat
 ## Release decision
 
 **NO-GO.** Empty-database migration CI alone does not prove safe upgrade of existing institutional data, recoverability, or rollback compatibility.
+
+## PR #29 evidence update — 2026-10-10
+
+**Evidence snapshot candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9`.
+
+- **Migration CI:** [run 38040500919](https://github.com/acadlyx/acadlyx/actions/runs/38040500919) reports the Prisma migration-validation job completed successfully on SHA `275280390500b214dce754e12740e2599c545f32`. This demonstrates that workflow's migration path for its configured database fixture; it does not establish compatibility with a representative previous-version production dataset.
+- **Latest candidate:** run [38040759171](https://github.com/acadlyx/acadlyx/actions/runs/38040759171) was still in progress at capture time.
+- **Not verified:** realistic legacy/null/duplicate/orphaned data migration, high-volume table behavior, forward-deploy recovery, a non-production backup artifact, integrity verification, isolated restore, application-level restored-data checks, or measured RTO/RPO against approved targets.
+- **Safety:** No production database, production credentials, or production data were used for this audit action. No restore rehearsal was executed through the available repository interface.
+- **Release gate:** OPEN / NO-GO. Record the prior schema/migration version, backup method, database version, integrity output, restored counts and measured recovery duration before release.

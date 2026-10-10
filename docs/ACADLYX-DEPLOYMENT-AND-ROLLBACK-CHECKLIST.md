@@ -203,3 +203,22 @@ The checked-in `render.yaml` currently points the backend web service and worker
 The current execution used the GitHub repository connector for source edits. No local checkout/working-tree status, local tests, disposable PostgreSQL concurrency suite, backup/restore drill, browser automation, or provider sandbox was available. Treat those items as open—not passed.
 
 A repository administrator must confirm/enforce required status checks and branch protection. No protection setting, deployment, or production database was changed by this remediation.
+
+
+## PR #29 deployment gate update — 2026-10-10
+
+**Assessment candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9`; a newer SHA is created by this documentation update, so rerun and inspect CI on the final resulting head before promotion.
+
+- [x] Confirm PR #29 remains open/draft and based on `stabilization-platform-2026-10-09`.
+- [x] Read the production branch ref (`6ddcc30697071b6e55505caaf68337f704bdc7cd)); no production branch update was made.
+- [x] Confirm the earlier CI run 38040500919 passed backend, frontend and configured migration validation for SHA `275280390500b214dce754e12740e2599c545f32`.
+- [ ] Verify all required checks pass on the exact final candidate SHA.
+- [ ] Complete PostgreSQL-backed concurrent payment/refund tests and persisted reconciliation.
+- [ ] Complete authenticated tenant/campus/department authorization tests.
+- [ ] Complete populated legacy-data migration rehearsal.
+- [ ] Complete isolated backup/restore rehearsal and record measured RTO/RPO against approved targets.
+- [ ] Complete required integrated institutional workflows.
+- [ ] Verify live provider service/worker branches, deployment commit alignment, environment-variable names/contracts, health checks and rollback path through authorized provider integrations. Repository config alone is not live-provider evidence.
+- [ ] Obtain required human review/approval and explicitly authorize a later production promotion.
+
+**Current decision: NO-GO.** No merge, deployment, provider setting change or production migration was performed. Do not promote until every mandatory unchecked gate is supported by evidence and the exact candidate SHA has a clean required-check set.

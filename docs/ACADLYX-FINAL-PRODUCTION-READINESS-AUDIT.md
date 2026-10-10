@@ -301,3 +301,25 @@ Current observed source candidate at the time of this note: `693264402be29cabbf7
 The added contract tests are not database-backed tests. Refund/concession conditional state claims reduce stale-transition races at the source level, but concurrent PostgreSQL execution and side-effect consistency remain unverified. Existing-data migration, isolated backup/restore, measured RPO/RTO, API/database/browser end-to-end workflows, provider sandbox verification, branch protection, and live provider configuration remain open.
 
 **Decision: NO-GO.** Do not merge or deploy until the exact final SHA has passing checks and every mandatory security, financial, migration, recovery, workflow, and administrative gate is closed.
+
+
+## PR #29 release-gate reassessment — 2026-10-10
+
+**Evidence snapshot candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9`. This is not necessarily the final candidate SHA because this update itself creates another commit and requires fresh CI.
+
+### Verified at capture time
+- PR #29 remains open and draft, base branch `stabilization-platform-2026-10-09`; no merge or deployment was performed.
+- The production branch reference was read as `6ddcc30697071b6e55505caaf68337f704bdc7cd`; no changes were made to that branch.
+- GitHub Actions run 38040500919 passed the backend typecheck/build/lint/test job, Prisma migration-validation job, and frontend typecheck/lint/build job for SHA `275280390500b214dce754e12740e2599c545f32`. The production smoke-check job was skipped.
+- Payment idempotency replay handling was subsequently changed on the isolated branch; run 38040759171 was in progress for SHA `c7dc0b31a2355364b5342636307578aac4109ab9` at capture time.
+
+### Mandatory gates still open
+- No real PostgreSQL-backed concurrent payment/refund integration test has been run or evidenced.
+- Refund request idempotency is not represented by a dedicated persisted key in the current `FeeRefund` schema.
+- Director scope has source-level evidence but not the requested full service + authenticated HTTP negative/positive matrix.
+- Library/finance exactly-once integration is not proven by persisted concurrent execution.
+- Existing-data upgrade compatibility, backup/restore, measured RTO/RPO against agreed targets, and the required institutional end-to-end workflows remain unverified.
+- Provider live configuration/commit alignment and production smoke checks remain unverified; provider settings were not accessed or changed.
+
+### Decision
+**NO-GO — EVIDENCE INCOMPLETE.** A passing standard CI workflow cannot substitute for the missing financial concurrency, authorization, migration-compatibility, restore, workflow and deployment-alignment evidence. Do not merge, deploy or migrate production under this assessment.
