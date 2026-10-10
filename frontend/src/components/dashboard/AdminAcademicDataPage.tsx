@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
 import { AuthRequiredError, authedFetch, getCurrentUser, type AuthUser } from "@/lib/auth";
 
@@ -423,18 +424,28 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
   return (
     <DashboardShell title={config.title} subtitle="Institution-scoped academic structure" allowedRoles={["INSTITUTION_ADMIN"]}>
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
-        <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{departmentId ? "Department-scoped academic structure" : "Academic structure management"}</p>
-            <h1 className="mt-1 text-2xl font-black text-slate-950">{config.title}</h1>
-            <p className="mt-1 text-sm text-slate-500">{loading ? "Loading…" : `${rows.length} records returned from the institution.`}</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><label className="sr-only" htmlFor="academic-structure-search">Search records</label><input id="academic-structure-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${config.title.toLowerCase()}…`} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-72" /><div className="flex flex-wrap gap-2">
-            {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
-            <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
-          </div>
-          </div>
-        </section>
+        <DashboardPageHeader
+          eyebrow={departmentId ? "Department workspace" : "Academic structure"}
+          title={config.title}
+          description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
+          breadcrumbs={departmentId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.departments.find((item) => item.id === departmentId)?.name || "Department", href: `/admin/departments/${encodeURIComponent(departmentId)}` },
+            { label: config.title },
+          ] : [
+            { label: "Admin", href: "/admin" },
+            { label: "Academic structure" },
+            { label: config.title },
+          ]}
+          actions={
+            <>
+              <label className="sr-only" htmlFor="academic-structure-search">Search records</label>
+              <input id="academic-structure-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${config.title.toLowerCase()}…`} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-64" />
+              {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
+              <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
+            </>
+          }
+        />
 
         {notice ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</section> : null}
         {error ? <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p className="font-bold">Action could not be completed</p><p className="mt-1">{error}</p><button type="button" onClick={() => void load()} className="mt-3 font-bold underline">Retry</button></section> : null}
