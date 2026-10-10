@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { recordPayment, requestConcession } from "../services/finance.service";
 import type { AuthenticatedUser } from "../types/auth";
@@ -14,7 +15,7 @@ type Fixture = {
 };
 
 async function fixture(): Promise<Fixture> {
-  const suffix = `${Date.now()}-${crypto.randomUUID()}`;
+  const suffix = `${Date.now()}-${randomUUID()}`;
   const institution = await prisma.institution.create({
     data: { name: "Finance concurrency integration", slug: `finance-concurrency-${suffix}` },
   });
