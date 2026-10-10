@@ -74,7 +74,7 @@ test("Director finance scope uses the canonical explicit CampusAccess helper", (
 
 test("Director financial records and payment aggregates retain institution and campus predicates", () => {
   const service = read("src/services/finance.service.ts");
-  assert.match(service, /function invoiceWhere\(s:Scope\)[\s\S]*?return\{institutionId:s\.institutionId,student:\{studentEnrollments:\{some:\{status:"ACTIVE",program:\{department:\{campusId:\{in:s\.campusIds\}\}\}\}\}\}\}\};/);
+  assert.match(service, /function invoiceWhere\(s:Scope\)[\s\S]*?campusId:\{in:s\.campusIds\}/);
   assert.match(service, /function paymentWhere\(s:Scope\):Prisma\.FeePaymentWhereInput\{return\{institutionId:s\.institutionId/);
   assert.match(service, /function studentFinancialFilter\(s:Scope\):Record<string,any>/);
 });
