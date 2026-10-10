@@ -112,4 +112,8 @@ test("cancelling a reservation does not masquerade as a physical book return", (
   assert.match(cancellation, /status: "CANCELLED"/);
   assert.match(cancellation, /returnedAt: null/);
   assert.doesNotMatch(cancellation, /status: "RETURNED"/);
+  const validator = fs.readFileSync(path.resolve(process.cwd(), "src/validators/library.validators.ts"), "utf8");
+  assert.match(validator, /"OVERDUE", "CANCELLED"/);
+  const frontendApi = fs.readFileSync(path.resolve(process.cwd(), "../frontend/src/lib/libraryApi.ts"), "utf8");
+  assert.match(frontendApi, /"OVERDUE",\s*"CANCELLED"/);
 });
