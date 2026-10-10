@@ -1323,6 +1323,12 @@ export async function decideRefund(
   if (["PROCESSED", "REJECTED"].includes(refund.status)) {
     throw new AppError("This refund has already been finalised", 409);
   }
+  const validTransition =
+    (refund.status === "REQUESTED" && (input.status === "APPROVED" || input.status === "REJECTED")) ||
+    (refund.status === "APPROVED" && (input.status === "PROCESSED" || input.status === "REJECTED"));
+  if (!validTransition) {
+    throw new AppError("Invalid refund state transition", 409);
+  }
   if (refund.requestedById === actor.id && !isInstitutionWide(actor)) {
     throw new AppError(
       "A refund cannot be approved by the person who raised it",
@@ -1331,15 +1337,20 @@ export async function decideRefund(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$executeRaw`
       UPDATE "fee_refunds"
       SET "status" = ${input.status}, "approvedById" = ${actor.id},
           "reference" = ${input.reference ?? null},
           "processedById" = CASE WHEN ${input.status} = 'PROCESSED' THEN ${actor.id} ELSE NULL END,
           "processedAt" = CASE WHEN ${input.status} = 'PROCESSED'
             THEN CURRENT_TIMESTAMP ELSE NULL END
-      WHERE "id" = ${refundId} AND "institutionId" = ${institutionId}
+      WHERE "id" = ${refundId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = ${refund.status}
     `;
+    if (claimed !== 1) {
+      throw new AppError("Refund state changed; reload before retrying", 409);
+    }
 
     if (input.status !== "PROCESSED") return;
 
