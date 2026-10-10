@@ -40,7 +40,7 @@ export default function HomePage() {
                   <div className="absolute inset-0 overflow-hidden bg-[#f8f4eb] p-4 sm:p-7">
                     <div className="flex items-center justify-between gap-3">
                       <Image src={content.brand.logoUrl || "/branding/acadlyx-logo.png"} alt={content.brand.siteName} width={38} height={38} className="h-9 w-9 object-contain" priority />
-                      <span className="rounded-md border border-slate-200 bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">Live workspace</span>
+                      <span className="rounded-md border border-slate-200 bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">Illustrative preview</span>
                     </div>
                     <div className="mt-6 grid grid-cols-2 gap-2.5 sm:mt-8 sm:grid-cols-4 sm:gap-3">
                       {(content.sections.stats || []).slice(0, 4).map((stat: any) => (
@@ -52,7 +52,7 @@ export default function HomePage() {
                     </div>
                     <div className="mt-3 grid gap-3 sm:mt-4 sm:gap-4 sm:grid-cols-[1.4fr_.8fr]">
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-center justify-between"><b className="text-xs text-slate-900">Institution pulse</b><span className="text-[9px] text-slate-500">Current</span></div>
+                        <div className="flex items-center justify-between"><b className="text-xs text-slate-900">Sample activity trend</b><span className="text-[9px] text-slate-500">Sample data</span></div>
                         <div className="mt-6 flex h-28 items-end gap-1.5 sm:h-32 sm:gap-2">{[35, 52, 42, 68, 58, 78, 65, 91, 74].map((height, i) => <div key={i} className="flex-1 rounded-t-lg bg-blue-100" style={{ height: `${height}%` }}><div className="h-1/2 rounded-t-lg bg-blue-600" /></div>)}</div>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
