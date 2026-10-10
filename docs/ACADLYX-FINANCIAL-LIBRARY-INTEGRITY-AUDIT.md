@@ -65,3 +65,9 @@ Use existing canonical records; do not introduce a second ledger.
 ## Release decision
 
 **NO-GO.** Source-level controls and green build/test workflows are not a substitute for PostgreSQL concurrency evidence. Real provider verification is BLOCKED until a provider sandbox and credentials are made available.
+
+## Additional payment replay correction — 2026-10-10
+
+**FIXED AT SOURCE; CI PENDING.** The settlement path previously rejected a fully settled invoice before checking whether the incoming provider payment ID had already been recorded. This meant a repeated callback for a payment that completed the invoice could fail instead of returning the existing settlement. The provider-payment idempotency lookup now runs before the outstanding-balance guard. A source-contract regression test checks that ordering.
+
+This does not replace PostgreSQL concurrency tests. The unique provider-payment constraint remains the final duplicate-record guard, and concurrent callbacks, mismatched invoice/amount replays, and provider out-of-order behavior still require execution against a disposable database and real provider sandbox where available.
