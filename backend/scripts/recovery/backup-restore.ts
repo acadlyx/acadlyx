@@ -53,7 +53,7 @@ async function cleanupSource(): Promise<void> {
 async function main(): Promise<void> {
   const suffix = randomUUID();
   const refundReference = `recovery-refund-${suffix}`;
-  const snapshotAt = new Date().toISOString();
+  let snapshotAt = "";
   const institution = await prisma.institution.create({
     data: { name: "ACADLYX Disposable Restore Fixture", slug: `recovery-${suffix}` },
   });
@@ -194,6 +194,7 @@ async function main(): Promise<void> {
     },
   });
 
+  snapshotAt = new Date().toISOString();
   const dumpStarted = performance.now();
   pg("pg_dump", [
     "--format=custom", "--no-owner", "--no-privileges",
@@ -204,13 +205,13 @@ async function main(): Promise<void> {
   assert.ok(dumpInfo.size > 0, "Backup artifact must be non-empty");
   pg("pg_restore", ["--list", dumpPath]);
 
+  const restoreStarted = performance.now();
   pg("dropdb", ["--if-exists", "--host", sourceUrl.hostname, "--port", sourceUrl.port || "5432", "--username", pgEnv.PGUSER, restoreName]);
   pg("createdb", ["--host", sourceUrl.hostname, "--port", sourceUrl.port || "5432", "--username", pgEnv.PGUSER, "--owner", pgEnv.PGUSER, restoreName]);
 
   const restoreUrl = new URL(databaseUrl);
   restoreUrl.pathname = `/${restoreName}`;
   restored = new PrismaClient({ datasources: { db: { url: restoreUrl.toString() } } });
-  const restoreStarted = performance.now();
   pg("pg_restore", ["--no-owner", "--no-privileges", "--dbname", restoreName, dumpPath]);
   const restoredInstitution = await restored.institution.findUniqueOrThrow({ where: { id: institution.id } });
   assert.equal(restoredInstitution.slug, institution.slug);
