@@ -228,7 +228,7 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
 export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:string){if(!has(a,"fees.refund.approve"))throw new AppError("Refund approval permission required",403);const x=await prisma.feeRefund.findFirst({where:{id,institutionId,status:"REQUESTED"}});if(!x)throw new AppError("Refund request not found",404);const y=await prisma.feeRefund.update({where:{id},data:{status:"APPROVED",approvedById:a.id,approvedAt:new Date()}});await audit(institutionId,a.id,"finance.refund.approve","FeeRefund",id);return y}
 export async function processRefund(institutionId:string,a:AuthenticatedUser,id:string){
  if(!has(a,"fees.refund.process"))throw new AppError("Refund processing permission required",403);
- return prisma.$transaction(async tx=>{
+ const processed = await prisma.$transaction(async tx=>{
   const candidate=await tx.feeRefund.findFirst({where:{id,institutionId,status:"APPROVED"},select:{id:true,invoiceId:true,paymentId:true}});
   if(!candidate)throw new AppError("Approved refund not found",404);
   // Lock in a consistent invoice -> payment -> refund order shared with refund requests.
@@ -250,7 +250,9 @@ export async function processRefund(institutionId:string,a:AuthenticatedUser,id:
   await tx.feeRefund.update({where:{id},data:{status:"PROCESSED",processedById:a.id,processedAt:new Date()}});
   await tx.feeTransaction.create({data:{institutionId,studentId:r.studentId,invoiceId:r.invoiceId,paymentId:r.paymentId,amount:r.amount.negated(),type:"REFUND",reference:id,createdById:a.id}});
   return tx.feeRefund.findUnique({where:{id}})
- })
+ });
+ if (processed) await audit(institutionId, a.id, "finance.refund.process", "FeeRefund", id, { paymentId: processed.paymentId, amount: processed.amount.toString() });
+ return processed;
 }
 export async function transactions(institutionId:string,a:AuthenticatedUser){
  const s=await scope(institutionId,a);
