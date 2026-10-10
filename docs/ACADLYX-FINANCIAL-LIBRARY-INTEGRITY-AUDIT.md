@@ -71,3 +71,15 @@ Use existing canonical records; do not introduce a second ledger.
 **FIXED AT SOURCE; CI PENDING.** The settlement path previously rejected a fully settled invoice before checking whether the incoming provider payment ID had already been recorded. This meant a repeated callback for a payment that completed the invoice could fail instead of returning the existing settlement. The provider-payment idempotency lookup now runs before the outstanding-balance guard. A source-contract regression test checks that ordering.
 
 This does not replace PostgreSQL concurrency tests. The unique provider-payment constraint remains the final duplicate-record guard, and concurrent callbacks, mismatched invoice/amount replays, and provider out-of-order behavior still require execution against a disposable database and real provider sandbox where available.
+
+
+## PR #29 evidence update — 2026-10-10
+
+**Evidence snapshot candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9`.
+
+- **Payment code change:** payment writes in `backend/src/services/finance.service.ts` lock the invoice row before re-reading outstanding balance. The latest candidate also validates a non-empty idempotency key, checks key/payload compatibility, and rechecks a concurrent replay after acquiring the invoice lock. This was a code inspection; no PostgreSQL concurrency run has yet established persisted invariants.
+- **Refund code change:** refund requests lock invoice/payment rows before calculating reserved amounts; processing conditionally claims an APPROVED refund and posts payment/invoice/transaction updates in a transaction. The schema's `FeeRefund` model does not currently expose a dedicated refund-request idempotency key, so duplicate client retries can still create separate reservation records when capacity permits.
+- **Library link:** `LibraryFine` has a unique `[issueId, type]` constraint and `FeeInvoice` has a unique `[institutionId, sourceEventKey]` constraint; `library.service.ts` uses a deterministic `LIBRARY_FINANCIAL_CHARGE:<issueId>:<fineType>` event key. This is schema/source evidence, not an executed exactly-once test.
+- **CI:** [run 38040759171](https://github.com/acadlyx/acadlyx/actions/runs/38040759171) was in progress when this section was written. Prior run 38040500919 passed its checks on earlier SHA `275280390500b214dce754e12740e2599c545f32`; production smoke checks were skipped.
+- **Not verified:** overlapping PostgreSQL payment/refund requests, persisted receipt/ledger totals, retries, deadlock/retry behavior, library waiver/reversal consistency, and full library-to-finance HTTP workflows.
+- **Release gate:** OPEN / NO-GO until real disposable-PostgreSQL concurrency and library/finance integration tests run repeatedly and assert persisted rows and balances.
