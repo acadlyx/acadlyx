@@ -5,6 +5,11 @@ ALTER TABLE "fee_refunds"
   ADD COLUMN IF NOT EXISTS "feePaymentId" TEXT;
 
 UPDATE "fee_refunds"
+SET "paymentId" = "feePaymentId"
+WHERE "paymentId" IS NULL
+  AND "feePaymentId" IS NOT NULL;
+
+UPDATE "fee_refunds"
 SET "feePaymentId" = "paymentId"
 WHERE "feePaymentId" IS NULL
   AND "paymentId" IS NOT NULL;
