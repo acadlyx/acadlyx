@@ -885,8 +885,8 @@ function LeaveView() {
       setBalances(balanceList);
       setMine(requestList.items);
 
-      if (!form.leaveTypeId && typeList[0]) {
-        setForm((old) => ({
+      if (typeList[0]) {
+        setForm((old) => old.leaveTypeId ? old : ({
           ...old,
           leaveTypeId: typeList[0].id,
         }));
@@ -894,7 +894,7 @@ function LeaveView() {
     } catch {
       setError("We could not load your leave information.");
     }
-  }, [form.leaveTypeId]);
+  }, []);
 
   useEffect(() => {
     void load();
