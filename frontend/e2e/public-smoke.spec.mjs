@@ -4,8 +4,12 @@ test("public homepage and real login error flow render at desktop and mobile siz
   const baseURL = process.env.ACADLYX_BROWSER_BASE_URL ?? "http://127.0.0.1:3000";
   const pageErrors = [];
   const consoleErrors = [];
+  const httpFailures = [];
   let attemptingInvalidLogin = false;
   page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("response", response => {
+    if (response.status() >= 400) httpFailures.push({ status: response.status(), url: response.url() });
+  });
   page.on("console", message => {
     if (message.type() !== "error") return;
     const text = message.text();
@@ -46,5 +50,5 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.screenshot({ path: testInfo.outputPath("mobile-login.png"), fullPage: true });
 
   expect(pageErrors, "Browser runtime exceptions").toEqual([]);
-  expect(consoleErrors, "Browser console errors").toEqual([]);
+  expect(consoleErrors, `Browser console errors; HTTP failures: ${JSON.stringify(httpFailures)}`).toEqual([]);
 });
