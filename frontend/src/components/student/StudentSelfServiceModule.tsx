@@ -800,45 +800,51 @@ function RegistrationView() {
       </Card>
 
       <Card title="My registrations">
-        {mine.items.length === 0 ? <Empty>You have no course registrations yet.</Empty> : (
-          <div className="space-y-3">
-            {mine.items.map((item) => (
-              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
-                <div>
-                  <p className="font-semibold">{item.courseOffering.course.name}</p>
-                  <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_"," ")}</p>
-                  {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
-                </div>
-                {item.status === "REQUESTED" || item.status === "APPROVED" ? (
-                  <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
-                    {busy ? "Working…" : "Drop"}
-                  </button>
-                ) : null}
+        <ExpandableList
+          items={mine.items}
+          getKey={(item) => item.id}
+          label="registrations"
+          empty={<Empty>You have no course registrations yet.</Empty>}
+          renderItem={(item) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div>
+                <p className="font-semibold">{item.courseOffering.course.name}</p>
+                <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
+                {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
               </div>
-            ))}
-          </div>
-        )}
+              {item.status === "REQUESTED" || item.status === "APPROVED" ? (
+                <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
+                  {busy ? "Working…" : "Drop"}
+                </button>
+              ) : null}
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Eligible courses">
         {offerings.length === 0 ? <Empty>No eligible courses are currently open for registration.</Empty> : (
           <>
-            <div className="space-y-3">
-              {offerings.map((item) => {
+            <ExpandableList
+              items={offerings}
+              getKey={(item) => item.id}
+              label="eligible courses"
+              className="space-y-3"
+              renderItem={(item) => {
                 const held = Boolean(item.myStatus);
                 const checked = selected.includes(item.id);
                 return (
-                  <label key={item.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
+                  <label className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
                     <input type="checkbox" checked={checked} disabled={held || item.seatsLeft === 0 || !item.registrationOpen || busy} onChange={() => toggle(item.id)} className="h-4 w-4" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold">{item.course.name}</span>
                       <span className="mt-1 block text-xs text-slate-500">{item.course.code} · {item.course.credits} credit(s) · {item.seatsLeft === null ? "Capacity open" : `${item.seatsLeft} seat(s) available`}</span>
                     </span>
-                    <span className="text-xs font-bold text-slate-600">{held ? item.myStatus?.replaceAll("_"," ") : item.isElective ? "Elective" : "Core"}</span>
+                    <span className="text-xs font-bold text-slate-600">{held ? item.myStatus?.replaceAll("_", " ") : item.isElective ? "Elective" : "Core"}</span>
                   </label>
                 );
-              })}
-            </div>
+              }}
+            />
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm">
                 <span className="font-bold">{selected.length}</span> course(s) selected · <span className="font-bold">{selectedCredits}</span> credits
@@ -1035,43 +1041,23 @@ function LeaveView() {
         </Card>
 
         <Card title="My requests">
-          {mine.length === 0 ? (
-            <Empty>No leave requests found.</Empty>
-          ) : (
-            <div className="space-y-3">
-              {mine.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-2xl border border-slate-100 p-4"
-                >
-                  <div className="flex justify-between gap-3">
-                    <p className="font-semibold">
-                      {request.leaveType.name}
-                    </p>
-
-                    <span className="text-xs font-semibold">
-                      {request.status}
-                    </span>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    {date(request.fromDate)} – {date(request.toDate)} ·{" "}
-                    {request.days} day(s)
-                  </p>
-
-                  <p className="mt-2 text-sm text-slate-600">
-                    {request.reason}
-                  </p>
-
-                  {request.decisionNote ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Decision note: {request.decisionNote}
-                    </p>
-                  ) : null}
+          <ExpandableList
+            items={mine}
+            getKey={(request) => request.id}
+            label="leave requests"
+            empty={<Empty>No leave requests found.</Empty>}
+            renderItem={(request) => (
+              <div className="rounded-2xl border border-slate-100 p-4">
+                <div className="flex justify-between gap-3">
+                  <p className="font-semibold">{request.leaveType.name}</p>
+                  <span className="text-xs font-semibold">{request.status}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <p className="mt-1 text-sm text-slate-500">{date(request.fromDate)} – {date(request.toDate)} · {request.days} day(s)</p>
+                <p className="mt-2 text-sm text-slate-600">{request.reason}</p>
+                {request.decisionNote ? <p className="mt-2 text-xs text-slate-500">Decision note: {request.decisionNote}</p> : null}
+              </div>
+            )}
+          />
         </Card>
       </div>
     </div>
