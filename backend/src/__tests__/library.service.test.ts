@@ -106,7 +106,7 @@ test("per-copy replacement value overrides the book default", () => {
 test("cancelling a reservation does not masquerade as a physical book return", () => {
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
   const start = source.indexOf("export async function cancelReservation(");
-  const end = source.indexOf("\\nexport async function returnBook(", start);
+  const end = source.indexOf("\nexport async function returnBook(", start);
   assert.ok(start >= 0 && end > start, "Expected reservation cancellation service");
   const cancellation = source.slice(start, end);
   assert.match(cancellation, /status: "CANCELLED"/);
