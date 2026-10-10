@@ -4,9 +4,13 @@ test("public homepage and real login error flow render at desktop and mobile siz
   const baseURL = process.env.ACADLYX_BROWSER_BASE_URL ?? "http://127.0.0.1:3000";
   const pageErrors = [];
   const consoleErrors = [];
+  let attemptingInvalidLogin = false;
   page.on("pageerror", error => pageErrors.push(error.message));
   page.on("console", message => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (attemptingInvalidLogin && /\\b(400|401|422)\\b/.test(text)) return;
+    consoleErrors.push(text);
   });
 
   await page.setViewportSize({ width: 1365, height: 900 });
@@ -27,9 +31,11 @@ test("public homepage and real login error flow render at desktop and mobile siz
   );
   await page.getByLabel("ID number / email / roll number").fill("missing-user-for-ui-smoke");
   await page.locator('input[autocomplete="current-password"]').fill("invalid-password-for-ui-smoke");
+  attemptingInvalidLogin = true;
   await page.getByRole("button", { name: "Sign in" }).click();
   const loginResponse = await loginResponsePromise;
   expect([400, 401, 422]).toContain(loginResponse.status());
+  attemptingInvalidLogin = false;
   await expect(page.getByRole("alert")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
