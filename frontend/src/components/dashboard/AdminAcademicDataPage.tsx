@@ -449,19 +449,19 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
           breadcrumbs={departmentId ? [
             { label: "Admin", href: "/admin" },
-            { label: lookupData.departments.find((item) => item.id === departmentId)?.name || "Department", href: `/admin/departments/${encodeURIComponent(departmentId)}` },
+            { label: String(lookupData.departments.find((item) => item.id === departmentId)?.name || "Department"), href: `/admin/departments/${encodeURIComponent(departmentId)}` },
             { label: config.title },
           ] : campusId ? [
             { label: "Admin", href: "/admin" },
-            { label: lookupData.campuses.find((item) => item.id === campusId)?.name || "Campus", href: `/admin/campuses/${encodeURIComponent(campusId)}` },
+            { label: String(lookupData.campuses.find((item) => item.id === campusId)?.name || "Campus"), href: `/admin/campuses/${encodeURIComponent(campusId)}` },
             { label: config.title },
           ] : programId ? [
             { label: "Admin", href: "/admin" },
-            { label: lookupData.programs.find((item) => item.id === programId)?.name || "Program", href: `/admin/programs/${encodeURIComponent(programId)}` },
+            { label: String(lookupData.programs.find((item) => item.id === programId)?.name || "Program"), href: `/admin/programs/${encodeURIComponent(programId)}` },
             { label: config.title },
           ] : semesterId ? [
             { label: "Admin", href: "/admin" },
-            { label: lookupData.semesters.find((item) => item.id === semesterId)?.name || "Semester", href: `/admin/semesters/${encodeURIComponent(semesterId)}` },
+            { label: String(lookupData.semesters.find((item) => item.id === semesterId)?.name || "Semester"), href: `/admin/semesters/${encodeURIComponent(semesterId)}` },
             { label: config.title },
           ] : [
             { label: "Admin", href: "/admin" },
