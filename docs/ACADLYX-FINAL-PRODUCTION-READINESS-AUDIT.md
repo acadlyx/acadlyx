@@ -260,3 +260,29 @@ Tested source SHA: `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`. Hosted GitHub Act
 - [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
 
 No local checks were executed. No API + disposable database adversarial tests were available, so there is still no evidence for HTTP denial semantics, persisted-state invariants, absence of side effects, campus/department/faculty isolation, bulk mutation rollback, or file/export access under revoked permissions. The current branch can advance with documentation-only commits after this tested source SHA; no application code changes after the tested SHA are implied by those documentation commits.
+
+
+## Milestones 10–14 remediation update — 2026-10-10
+
+### Source remediation
+- **FIXED IN SOURCE:** Finance Director scope now calls `getDirectorCampusIds` and evaluates Director scope before broad Finance permission fallbacks. HOD/Dean department scope is also evaluated before those fallbacks.
+- **Regression coverage added:** source contract tests check the canonical helper, active same-institution campus filter, and scope-branch ordering.
+- **Not yet certified:** no local test execution or database-backed API isolation run was possible in the current environment. Hosted workflows triggered for intermediate candidate SHAs; release reporting must inspect the final SHA's workflow conclusions rather than infer them from earlier runs.
+
+### Financial integrity
+- **PARTIALLY VERIFIED:** canonical fee-billing settlement and refund code contains PostgreSQL row-locking patterns and payment idempotency constraints in source.
+- **HIGH RISK / UNVERIFIED:** separate Finance workspace paths still require PostgreSQL concurrency verification; request-refund reservation and refund processing must be tested for races and duplicate effects. Manual payment provider configuration means real provider verification is not established.
+- **Library-to-finance:** exactly-once posting and reconciliation have not been proven by concurrent database tests.
+
+### Migration, recovery and connected workflows
+- **VERIFIED (limited):** prior hosted CI applied migrations to an empty PostgreSQL 16 database.
+- **BLOCKED:** existing-data migration rehearsal, isolated backup/restore, measured RPO/RTO, and API/database/browser end-to-end workflows were not executed.
+- New detailed evidence matrices are recorded in `docs/ACADLYX-FINANCIAL-LIBRARY-INTEGRITY-AUDIT.md`, `docs/ACADLYX-MIGRATION-BACKUP-DISASTER-RECOVERY-AUDIT.md`, and `docs/ACADLYX-END-TO-END-WORKFLOW-VERIFICATION.md`.
+
+### Release controls
+- Stabilization branch workflows are configured for push triggers; the four standard workflows were queued/running for the intermediate source SHA at last observation.
+- GitHub reported branch protection disabled for the stabilization branch and production baseline. No repository protection settings were changed.
+- Checked-in `render.yaml` targets the production branch for backend web and worker services; this is not independent proof of live provider settings.
+- No merge, deployment, production smoke test, or production database operation was performed.
+
+**Decision: NO-GO.** Required database-backed security, finance concurrency, existing-data migration, restore, connected workflow, and release-protection gates remain open.
