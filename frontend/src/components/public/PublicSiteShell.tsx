@@ -19,11 +19,12 @@ export interface PublicSiteContent {
 const fallback: PublicSiteContent = {
   brand: { siteName: "ACADLYX", tagline: "Education ERP", logoUrl: "/branding/acadlyx-logo.png" },
   navigation: [
-    { label: "Home", href: "/" },
-    { label: "Platform", href: "#platform" },
-    { label: "About", href: "/about" },
-    { label: "Team", href: "/team" },
-    { label: "Contact", href: "/contact" },
+    { label: "HOME", href: "/" },
+    { label: "ABOUT", href: "/about" },
+    { label: "OUR PARTNERS", href: "/partners" },
+    { label: "OUR TEAM", href: "/team" },
+    { label: "UPDATES", href: "/updates" },
+    { label: "CONTACT US", href: "/contact" },
   ],
   hero: { eyebrow: "", title: "", description: "", primaryCtaLabel: "Login", primaryCtaHref: "/", secondaryCtaLabel: "", secondaryCtaHref: "" },
   pages: { about: {}, team: { members: [] }, contact: {} },

@@ -138,6 +138,22 @@ export default function SiteContentPage() {
           </Card>
         </section>
 
+        <Card title="Website navigation">
+          <p className="mb-4 text-sm text-slate-500">Edit the public menu labels and destinations. Keep destinations on trusted site routes unless an external URL is intentional.</p>
+          <div className="space-y-3">
+            {data.navigation.map((item, index) => (
+              <div key={index} className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                <Field label={`Menu label ${index + 1}`} value={item.label} onChange={(value) => set(`navigation.${index}.label`, value)} />
+                <Field label={`Destination ${index + 1}`} value={item.href} onChange={(value) => set(`navigation.${index}.href`, value)} />
+                <div className="sm:col-span-2 flex justify-end">
+                  <button type="button" onClick={() => set("navigation", data.navigation.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Remove item</button>
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => set("navigation", [...data.navigation, { label: "", href: "/" }])} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Add menu item</button>
+          </div>
+        </Card>
+
         <PageEditor title="About page" data={data.pages.about} set={(key: string, value: string) => set(`pages.about.${key}`, value)} upload={(e: ChangeEvent<HTMLInputElement>) => upload(e, "pages.about.imageUrl")} imageKey="imageUrl" />
         <TeamEditor data={data.pages.team} set={(key: string, value: string) => set(`pages.team.${key}`, value)} setMember={(index: number, key: string, value: string) => set(`pages.team.members.${index}.${key}`, value)} add={() => set("pages.team.members", [...(data.pages.team.members || []), { name: "", role: "", bio: "", imageUrl: "" }])} remove={(index: number) => set("pages.team.members", data.pages.team.members.filter((_: unknown, i: number) => i !== index))} upload={(index: number, event: ChangeEvent<HTMLInputElement>) => upload(event, `pages.team.members.${index}.imageUrl`)} />
         <PageEditor title="Contact page" data={data.pages.contact} set={(key: string, value: string) => set(`pages.contact.${key}`, value)} />

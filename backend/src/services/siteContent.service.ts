@@ -33,11 +33,12 @@ const DEFAULT_SITE_CONTENT = {
   },
 
   navigation: [
-    { label: "Home", href: "/" },
-    { label: "Platform", href: "#platform" },
-    { label: "About", href: "/about" },
-    { label: "Team", href: "/team" },
-    { label: "Contact", href: "/contact" },
+    { label: "HOME", href: "/" },
+    { label: "ABOUT", href: "/about" },
+    { label: "OUR PARTNERS", href: "/partners" },
+    { label: "OUR TEAM", href: "/team" },
+    { label: "UPDATES", href: "/updates" },
+    { label: "CONTACT US", href: "/contact" },
   ],
 
   hero: {
