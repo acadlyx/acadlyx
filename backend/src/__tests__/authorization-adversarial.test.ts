@@ -53,7 +53,7 @@ test("permission does not override a cross-user target identifier", () => {
 
 test("student may use a self-scoped record with the required permission", () => {
   const student = actor("student-a", "institution-a", ["STUDENT"]);
-  const decision = authorize(student, "students.read", {
+  const decision = authorize(student, "lms.attempt", {
     institutionId: "institution-a",
     userId: "student-a",
   });
@@ -61,7 +61,7 @@ test("student may use a self-scoped record with the required permission", () => 
 });
 
 test("student cannot use a peer's user identifier", () => {
-  const student = actor("student-a", "institution-a", ["STUDENT"]);
+  const student = actor("student-a", "institution-a", ["STUDENT"], ["students.read"]);
   const decision = authorize(student, "students.read", {
     institutionId: "institution-a",
     userId: "student-b",
