@@ -502,10 +502,7 @@ function ResultsView({ user }: { user: AuthUser }) {
                   label="courses"
                   className="mt-3 space-y-2"
                   renderItem={(course) => (
-                    <div
-                      key={course.courseOfferingId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm"
-                    >
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
                       <div>
                         <p className="font-semibold">{course.courseName}</p>
                         <p className="text-xs text-slate-500">
