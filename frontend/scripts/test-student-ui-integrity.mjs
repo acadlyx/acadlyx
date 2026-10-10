@@ -69,4 +69,10 @@ assert.match(campusWorkspace, /\/admin\/departments\/\$\{encodeURIComponent\(dep
 assert.match(departmentValidator, /listDepartmentsQuerySchema[\s\S]*?campusId: optionalUuid/);
 assert.match(departmentService, /filters\.campusId \? \{ campusId: filters\.campusId \} : \{\}/);
 
+assert.match(selfService, /<ExpandableList[\s\S]*?label="invoices"/);
+assert.match(selfService, /<ExpandableList[\s\S]*?label="payments"/);
+assert.match(selfService, /<ExpandableList[\s\S]*?label="subjects"/);
+assert.match(selfService, /<ExpandableList[\s\S]*?label="mark entries"/);
+assert.match(selfService, /<ExpandableList[\s\S]*?label="notifications"/);
+assert.match(selfService, /<ExpandableList[\s\S]*?label="semesters"/);
 process.stdout.write("Student UI, performance data-flow and compact-list source checks passed.\n");
