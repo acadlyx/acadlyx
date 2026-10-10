@@ -15,6 +15,7 @@ This is a checklist, not a deployment instruction. Do not deploy or merge unless
 - [ ] Compare candidate with production-upgrade-2026-09-20; review all application, migration, configuration and dependency changes.
 - [ ] Confirm build artifact identity corresponds to approved commit.
 - [ ] Close all Critical and High risks or document owner acceptance where policy permits.
+- [ ] Configure repository branch protection / required status checks before any release PR; GitHub currently reports `protected: false` for both the stabilization branch and production baseline.
 - [ ] Confirm change window, operator, reviewer, incident contact and stop conditions.
 - [ ] Do not merge or deploy as part of this audit.
 
@@ -145,4 +146,4 @@ Tested SHA: `c10ec08489756ba770467fff7b81e7f992b2d0f0`; evidence source: hosted 
 - [x] [ACADLYX ERP verification](https://github.com/acadlyx/acadlyx/actions/runs/38031718247) — backend/frontend checks passed.
 - [x] [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38031718309) — source validation, typecheck and production build passed.
 
-The frontend package has no unit/integration test script, so frontend runtime/unit tests are not covered by these runs. No production deployment or production database operation occurred. The current branch advances with documentation updates after the tested SHA; do not describe the documentation-update SHA as a separately tested source revision.
+The frontend package has no unit/integration test script, so frontend runtime/unit tests are not covered by these runs. No production deployment or production database operation occurred. The current branch advances with documentation updates after the tested SHA; do not describe the documentation-update SHA as a separately tested source revision. GitHub reports branch protection disabled on both stabilization and production baseline; required-check enforcement remains an administrative release blocker.
