@@ -286,3 +286,18 @@ No local checks were executed. No API + disposable database adversarial tests we
 - No merge, deployment, production smoke test, or production database operation was performed.
 
 **Decision: NO-GO.** Required database-backed security, finance concurrency, existing-data migration, restore, connected workflow, and release-protection gates remain open.
+
+### Milestones 10–14 remediation — current candidate update
+
+Current observed source candidate at the time of this note: `693264402be29cabbf7db91c016de0f525aedfa5`. The current candidate includes the following focused source changes after the starting candidate:
+
+- `backend/src/services/finance.service.ts`: Director finance scope now uses canonical `getDirectorCampusIds` from explicit, active, same-institution `CampusAccess` rows.
+- `backend/src/services/feeBilling.service.ts`: refund state transitions use a conditional status claim and reject stale state; concession decisions update only rows still in PENDING state.
+- `backend/src/__tests__/finance-contract.test.ts`: source-contract regression checks for Director scope, refund claim/row locking, payment invoice locking/outstanding checks, and concession state claim.
+- New evidence matrices: financial/library integrity, migration/backup/recovery, and end-to-end workflow verification.
+
+**Status: FIXED AT SOURCE; CI VERIFICATION PENDING.** The exact-current-SHA hosted workflows are queued at the time of this note. No local test execution or PostgreSQL concurrency test was performed.
+
+The added contract tests are not database-backed tests. Refund/concession conditional state claims reduce stale-transition races at the source level, but concurrent PostgreSQL execution and side-effect consistency remain unverified. Existing-data migration, isolated backup/restore, measured RPO/RTO, API/database/browser end-to-end workflows, provider sandbox verification, branch protection, and live provider configuration remain open.
+
+**Decision: NO-GO.** Do not merge or deploy until the exact final SHA has passing checks and every mandatory security, financial, migration, recovery, workflow, and administrative gate is closed.
