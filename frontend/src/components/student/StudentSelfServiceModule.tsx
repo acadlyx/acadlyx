@@ -678,8 +678,13 @@ function LibraryView() {
                 <div>
                   <p className="font-semibold">{loan.book.title}</p>
                   <p className="text-xs text-slate-500">
-                    Due {date(loan.dueDate)} · {loan.status}
+                    Issued {date(loan.issuedAt)} · Due {date(loan.dueDate)} · {loan.status}
                   </p>
+                  {loan.returnedAt ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Returned {date(loan.returnedAt)}
+                    </p>
+                  ) : null}
                 </div>
 
                 {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
