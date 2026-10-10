@@ -187,3 +187,113 @@ No command is reported as passed unless it was actually executed. No database mi
 7. Review entitlement lazy provisioning/defaults with product policy and test disable/re-enable behavior without deleting historical data.
 8. Verify file ownership/signed URLs, PDF/admit-card downloads, scheduled jobs, outbox processing and platform-admin operations.
 9. Re-run the complete audit against the final code after all remaining fixes. Do not interpret this milestone report as a platform-wide security certification.
+
+
+
+---
+
+# Milestone 10 — Adversarial authorization verification (2026-10-10)
+
+## Candidate identity and method
+
+- Starting branch: `stabilization-platform-2026-10-09`.
+- Starting HEAD: `ff14eae53eca1e16b62b1ecff69429f8e0c20e6c`.
+- Production baseline: `6ddcc30697071b6e55505caaf68337f704bdc7cd`.
+- Last broad hosted CI source SHA before this milestone: `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- GitHub confirmed starting HEAD `ff14eae53eca1e16b62b1ecff69429f8e0c20e6c). Compare from `c10ec08...` shows six commits and only three modified documentation paths: the readiness audit, risk register, and deployment/rollback checklist. The application tree was unchanged between the CI-tested SHA and starting HEAD.
+- The GitHub API exposes remote refs/files only. A local checkout/upstream configuration/local working tree cannot be observed here; local changes are therefore **UNVERIFIED**, not assumed clean.
+- No production branch write, deployment, production database access, or destructive operation occurred.
+
+## Threat model
+
+Assume an authenticated user may intentionally alter path IDs, query parameters, JSON fields, nested foreign keys, export types, file IDs, or bulk lists; retain a stale access token after logout/role changes; have a valid module permission but disabled tenant entitlement; or hold a role valid for a different institution/campus/department. The security objective is to deny unauthorized reads and writes at backend boundaries, without relying on UI visibility or caller-supplied tenant scope.
+
+Layers found in source:
+1. `authenticate`: verifies signed access token, binds it to a live refresh-session record, reloads active user and role bindings from the database, resolves institution identity and rejects conflicting tenant bindings.
+2. `authorize`: requires the specific backend permission and institutional context; platform permissions are separately gated to SUPER_ADMIN.
+3. `requireFeature` + `assertTenantFeature`: requires a current tenant subscription and enabled feature entitlement; missing feature rows are provisioned and re-read, and inactive/expired subscriptions are denied.
+4. `accessScope.service`: database-backed department, campus, course-offering and student scope functions; Director department scope is derived from CampusAccess, not department assignments.
+5. Domain service relationships/workflow authority: Parent portal queries ParentStudentLink for each child request; workflow authority checks approval authority and separation of duties.
+6. File storage and exports: tenant-scoped file lookup; per-module permission checks; export type permission map.
+
+These are source findings, not proof that every endpoint uses every required layer.
+
+## Route-to-permission inventory (inspected routes)
+
+The API prefix is `/api/<configured apiVersion>`, mounted in `backend/src/app.ts`. The inventory below is a high-priority sample of actual route files, not a claim that all 57 route modules have been audited endpoint-by-endpoint.
+
+| Route family / file | Backend gate observed | Resource / scope control observed | Assessment |
+|---|---|---|---|
+| `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/auth/account` — `auth.routes.ts` | Login/token rate limits and request validation where applicable; authenticated middleware for account operations | Profile/photo functions use authenticated user ID; refresh/logout logic requires separate tests | PARTIALLY VERIFIED |
+| `/students/me/**` — `student.routes.ts` | `authenticate`, `requireFeature("students")`, `authorizeRoles("STUDENT")` | Self-service routes are ordered before `/:id`; admin routes use students.read/create/update | PARTIALLY VERIFIED |
+| `/parent/children/**` — `parentPortal.routes.ts` | `authenticate`, `requireFeature("parent_portal")`, `authorize("parent-portal.read")` | `assertParentOfChild` queries `parentStudentLink` for each requested student; unlinked child uses 404 to avoid ID probing | PARTIALLY VERIFIED |
+| `/campuses/**` — `campus.routes.ts` | `authenticate`; read/create/update/delete permission per operation | Controller/service scope still needs adversarial DB-backed tests; access assignment endpoints are sensitive | PARTIALLY VERIFIED |
+| `/departments/**` — `department.routes.ts` | `authenticate`, `requireFeature("academics")`, per-operation departments permission | Controller/service scope still needs adversarial DB-backed tests | PARTIALLY VERIFIED |
+| `/finance/**` — `finance.routes.ts` | `authenticate`, `requireFeature("fees")`; action-specific invoice/payment/concession/refund permissions; export has any-permission gate | Controller/service ownership, approval, id substitution, idempotency and persisted-state checks not exercised here | PARTIALLY VERIFIED |
+| `/exports/**` — `export.routes.ts` | `authenticate`, `requireFeature("import_export")`; map of export type to domain permission; dedicated attendance gate | Unknown export types pass the route middleware to service-level validation; service validation and all exported query scopes require explicit tests | PARTIALLY VERIFIED |
+| `/files/**` — `fileStorage.routes.ts` | `authenticate`; controller checks module permission for upload/delete and permission/ownership for read | Storage service filters file lookup by authenticated tenant; owner access can bypass module read permission and requires policy confirmation when role permissions are revoked | PARTIALLY VERIFIED |
+| `/examinations/**` — `examination.routes.ts` | `authenticate`, `requireFeature("exams")`, route-level exams/marks/results permissions | Examination eligibility, marks scope, result publication and artifact generation require database-backed tests | PARTIALLY VERIFIED |
+| `/attendance/**` — `attendanceGovernance.routes.ts`, `attendance-sessions/**` — `attendanceSession.routes.ts` | `authenticate`, attendance entitlement and read/correct/approve/lock permissions in governance routes | Session ownership and student scope need adversarial tests; session routes require review for consistent write gates | PARTIALLY VERIFIED |
+| `/assignments/**` — `assignment.routes.ts` | `authenticate`, assignments entitlement and read/create/update/review/submit permissions | Assignment ownership, student submissions and reviewer scope need adversarial tests | PARTIALLY VERIFIED |
+| `/lms/**` — `lmsProduction.routes.ts` | Per-action LMS, certificate and notice permissions | Service-level offering/student/file relationships need adversarial tests | PARTIALLY VERIFIED |
+| `/placements/**` — `placement.routes.ts` | Per-action placements.apply/read/manage permissions | Student ID filters, test participant IDs, application transitions and profile ownership need adversarial tests | PARTIALLY VERIFIED |
+| `/workflow/**` and approval services | Permission middleware where route declares it; `workflowAuthority.service.ts` contains domain-specific approval guards | Own-request denial and department authority exist for several workflow types; not exercised against DB fixtures | PARTIALLY VERIFIED |
+
+## Adversarial regression test added
+
+New file: `backend/src/__tests__/authorization-adversarial.test.ts`.
+
+The file adds 12 deterministic unit tests against existing authorization contracts:
+- Same-institution positive control.
+- Institution A to Institution B resource substitution denied.
+- Cross-user ID denied despite a module permission.
+- Self-resource positive control.
+- Student-to-student substitution denied.
+- Missing write permission denied.
+- Institution role cannot invoke platform-only permission, even with a stale permission string.
+- SUPER_ADMIN does not automatically receive finance operational permission.
+- Parent denied absent a server-verified linked-child boolean.
+- Parent relationship positive control with the verified-link flag.
+- Parent relationship does not grant student-directory permission.
+- Owner ID substitution denied.
+
+These tests exercise pure decision helpers. They do **not** create database fixtures, invoke HTTP routes, verify persisted state/side effects, or prove database-backed campus/department/faculty relationships. Those tests remain **BLOCKED** in this environment because no local repository checkout, disposable PostgreSQL integration fixture, or API test harness is available through the repository connector.
+
+## Test identities / scopes
+
+The new unit tests use synthetic IDs only:
+- `institution-a`, `institution-b`
+- `admin-a`, `faculty-a`, `student-a`, `student-b`, `parent-a`, `platform-admin`
+- Role/permission lists come from the actual `config/rbac.ts` permission catalogue; no credentials or real personal data are used.
+
+No actual database rows were created.
+
+## Reproducible commands
+
+Run from `backend/` on the declared backend Node 20 runtime after `npm ci`:
+
+```sh
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npx prisma validate
+npx prisma generate
+```
+
+For integration tests, provide an explicitly disposable PostgreSQL database using the repository's test configuration. Do not point tests at production.
+
+## Findings and unresolved risks
+
+| Finding | Evidence | Status |
+|---|---|---|
+| Core permission + institution-target pure decision contract | New deterministic tests in `authorization-adversarial.test.ts`; execution pending hosted CI | UNVERIFIED pending run |
+| Parent-child link enforcement in parent portal service | Source shows DB lookup by institutionId + parentId + studentId per request; no integration test run | PARTIALLY VERIFIED |
+| Campus / department / course-offering / faculty scope | DB-backed functions exist in `accessScope.service.ts`; no isolated adversarial fixture run | UNVERIFIED |
+| Module entitlement plus user permission conjunction | `requireFeature` and route-level `authorize` observed on sampled routes; negative entitlement/permission matrix not integration-tested | PARTIALLY VERIFIED |
+| File ID substitution and module read after permission revocation | File query is tenant-scoped; owner fallback bypasses module read permission. Whether this is intended ownership policy requires domain-owner decision and tests | BLOCKED pending policy/test |
+| Export query scope and unknown export type | Route maps known export types to permissions, then defers unknown types to service; all service query scopes not yet verified | UNVERIFIED |
+| Cross-scope bulk mutations, nested IDs, audit side effects | No HTTP + disposable DB test evidence | BLOCKED |
+| Cached authorization and stale sessions after entitlement/scope changes | Auth reloads DB role binding on each request; session helper tests exist; end-to-end role/entitlement invalidation not run | PARTIALLY VERIFIED |
+
+No confirmed exploitable vulnerability was established by runtime reproduction in this milestone. No source-level finding should be relabeled FIXED without a regression test and exact-SHA CI evidence.
