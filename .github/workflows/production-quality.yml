@@ -261,7 +261,6 @@ jobs:
       DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_browser_ci?schema=public
       CORS_ORIGIN: http://127.0.0.1:3000
       PORT: "5001"
-      NODE_ENV: test
       RBAC_SYNC_ON_BOOT: "false"
       NEXT_PUBLIC_API_URL: http://127.0.0.1:5001
     steps:
