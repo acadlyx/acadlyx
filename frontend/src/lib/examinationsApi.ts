@@ -511,19 +511,35 @@ export async function registerForExam(sessionId: string) {
   return res.data;
 }
 
-export async function getMyExamPerformance() {
-  const user = await (await import("./auth")).getCurrentUser();
-  const res = await authedFetch<Envelope<Array<Record<string, unknown>>>>(
-    `/examinations/students/${user.id}/performance`
+export interface StudentExamPerformanceRow {
+  examScheduleId: string;
+  examSessionId: string;
+  examName: string;
+  courseCode: string;
+  courseName: string;
+  examDate: string;
+  maxMarks: number;
+  passMarks: number;
+  marksObtained: number | null;
+  isAbsent: boolean;
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PUBLISHED" | string;
+  remarks: string | null;
+  publishedAt: string | null;
+}
+
+export async function getMyExamPerformance(): Promise<StudentExamPerformanceRow[]> {
+  const res = await authedFetch<Envelope<StudentExamPerformanceRow[]>>(
+    "/examinations/my/performance"
   );
+  if (!Array.isArray(res.data)) throw new Error("The examination performance response was invalid.");
   return res.data;
 }
 
-export async function getMyPublishedExamResults() {
-  const user = await (await import("./auth")).getCurrentUser();
-  const res = await authedFetch<Envelope<Array<Record<string, unknown>>>>(
-    `/examinations/students/${user.id}/results`
+export async function getMyPublishedExamResults(): Promise<StudentExamPerformanceRow[]> {
+  const res = await authedFetch<Envelope<StudentExamPerformanceRow[]>>(
+    "/examinations/my/results"
   );
+  if (!Array.isArray(res.data)) throw new Error("The published results response was invalid.");
   return res.data;
 }
 
