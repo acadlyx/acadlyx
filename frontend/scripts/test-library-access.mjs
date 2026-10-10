@@ -55,4 +55,4 @@ assert.match(libraryService, /institutionId,[\s\S]*?actor\.roles\.includes\("STU
 assert.match(entitlementService, /if \(!entitlement \|\| !entitlement\.isEnabled\)/,
   "disabled or missing library entitlements must remain denied");
 
-process.stdout.write("Student Library access source checks passed.\\n");
+process.stdout.write("Student Library access source checks passed.\n");
