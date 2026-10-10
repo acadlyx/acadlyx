@@ -507,6 +507,63 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                   );
                 }}
               />
+            ) : module === "programs" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="programs"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const department = row.department as { id?: string; name?: string; code?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/programs/${encodeURIComponent(row.id)}` : "/admin/programs"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? "Program")}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{department?.name ? `Department · ${department.name}` : "Department not available"}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Level</p><p className="mt-1 text-sm font-semibold text-slate-900">{display(row.level ?? "—")}</p></div>
+                          <div><p className="text-xs text-slate-500">Duration</p><p className="mt-1 text-sm font-semibold text-slate-900">{row.durationYears ? `${display(row.durationYears)} years` : "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open program workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
+            ) : module === "semesters" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="semesters"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const program = row.program as { name?: string; code?: string } | null | undefined;
+                  const year = row.academicYear as { name?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/semesters/${encodeURIComponent(row.id)}` : "/admin/semesters"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{year?.name || "Academic year not set"}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? `Semester ${display(row.number)}`)}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{program?.name || "Program not available"}{program?.code ? ` · ${program.code}` : ""}</p>
+                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+                          <span className="text-xs text-slate-500">Semester number</span>
+                          <span className="text-sm font-bold text-slate-900">{display(row.number ?? "—")}</span>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open semester workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
             ) : module === "departments" ? (
               <ExpandableList
                 items={rows}
