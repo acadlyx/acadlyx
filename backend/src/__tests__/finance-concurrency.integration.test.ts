@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
-import { processRefund, recordPayment, requestConcession, requestRefund } from "../services/finance.service";
+import { payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
 import type { AuthenticatedUser } from "../types/auth";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
@@ -76,13 +76,21 @@ async function fixture(): Promise<Fixture> {
       },
     };
   } catch (error) {
-    await prisma.institution.delete({ where: { id: institution.id } });
+    await cleanup(institution.id);
     throw error;
   }
 }
 
 async function cleanup(institutionId: string): Promise<void> {
-  await prisma.institution.deleteMany({ where: { id: institutionId } });
+  await prisma.$transaction(async tx => {
+    await tx.feeRefund.deleteMany({ where: { institutionId } });
+    await tx.feeReceipt.deleteMany({ where: { institutionId } });
+    await tx.feeConcession.deleteMany({ where: { institutionId } });
+    await tx.feeTransaction.deleteMany({ where: { institutionId } });
+    await tx.feePayment.deleteMany({ where: { institutionId } });
+    await tx.feeInvoice.deleteMany({ where: { institutionId } });
+    await tx.institution.deleteMany({ where: { id: institutionId } });
+  });
 }
 
 test("PostgreSQL: competing payments cannot over-settle one invoice", { skip: !enabled }, async () => {
