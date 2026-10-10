@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { ExpandableList } from "@/components/ui/ExpandableList";
@@ -53,7 +53,7 @@ export function StudentExaminationsModule({ view }: { view: View }) {
 
   const requestSequence = useRef(0);
 
-  async function load() {
+  const load = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setLoading(true);
     setError("");
@@ -77,11 +77,11 @@ export function StudentExaminationsModule({ view }: { view: View }) {
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
-  }
+  }, [view]);
   useEffect(()=>{
     void load();
     return () => { requestSequence.current += 1; };
-  },[view]);
+  },[load]);
 
   async function register(sessionId:string) {
     setBusy(sessionId); setError(""); setMessage("");
