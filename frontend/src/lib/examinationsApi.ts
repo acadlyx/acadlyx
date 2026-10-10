@@ -513,7 +513,7 @@ export async function registerForExam(sessionId: string) {
 
 export interface StudentExamPerformanceRow {
   examScheduleId: string;
-  examSessionId: string;
+  examSessionId: string | null;
   examName: string;
   courseCode: string;
   courseName: string;

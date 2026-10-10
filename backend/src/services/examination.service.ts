@@ -3308,20 +3308,53 @@ export async function getStudentExamPerformance(
   studentId: string,
 ) {
   await assertCanViewStudent(institutionId, actor, studentId);
-  return prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-    SELECT s."id" AS "examScheduleId", es."id" AS "examSessionId", es."name" AS "examName",
-           c."code" AS "courseCode", c."name" AS "courseName", s."examDate",
-           s."maxMarks", s."passMarks", m."marksObtained", m."isAbsent", m."status",
-           m."remarks", m."publishedAt"
-    FROM "exam_marks" m
-    JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
-    JOIN "exam_sessions" es ON es."id"=s."examSessionId"
-    JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
-    JOIN "courses" c ON c."id"=co."courseId"
-    WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
-      AND m."status" IN ('APPROVED','PUBLISHED')
-    ORDER BY s."examDate" DESC LIMIT 500
-  `);
+
+  // New exam marks remain subject to the approval workflow. Older ACADLYX
+  // installations may still have valid student marks in exam_results, which
+  // predates the exam_marks workflow. Include those legacy results unless the
+  // same legacy exam has already been represented by a new exam schedule.
+  const [workflowMarks, legacyMarks] = await Promise.all([
+    prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT s."id" AS "examScheduleId", es."id" AS "examSessionId", es."name" AS "examName",
+             c."code" AS "courseCode", c."name" AS "courseName", s."examDate",
+             s."maxMarks", s."passMarks", m."marksObtained", m."isAbsent", m."status",
+             m."remarks", m."publishedAt"
+      FROM "exam_marks" m
+      JOIN "exam_schedules" s ON s."id"=m."examScheduleId"
+      JOIN "exam_sessions" es ON es."id"=s."examSessionId"
+      JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+      JOIN "courses" c ON c."id"=co."courseId"
+      WHERE m."institutionId"=${institutionId} AND m."studentId"=${studentId}
+        AND m."status" IN ('APPROVED','PUBLISHED')
+      ORDER BY s."examDate" DESC LIMIT 500
+    `),
+    prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT ('legacy:' || e."id") AS "examScheduleId", NULL::text AS "examSessionId",
+             e."title" AS "examName", c."code" AS "courseCode", c."name" AS "courseName",
+             e."examDate", e."maxMarks", NULL::double precision AS "passMarks",
+             er."marks" AS "marksObtained", FALSE AS "isAbsent", 'LEGACY'::text AS "status",
+             er."remarks", er."updatedAt" AS "publishedAt"
+      FROM "exam_results" er
+      JOIN "exams" e ON e."id"=er."examId" AND e."institutionId"=er."institutionId"
+      JOIN "course_offerings" co ON co."id"=e."courseOfferingId"
+      JOIN "courses" c ON c."id"=co."courseId"
+      WHERE er."institutionId"=${institutionId} AND er."studentId"=${studentId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "exam_schedules" s
+          JOIN "exam_marks" m ON m."examScheduleId"=s."id"
+            AND m."institutionId"=s."institutionId"
+            AND m."studentId"=er."studentId"
+          WHERE s."institutionId"=er."institutionId"
+            AND s."legacyExamId"=e."id"
+        )
+      ORDER BY e."examDate" DESC LIMIT 500
+    `),
+  ]);
+
+  return [...workflowMarks, ...legacyMarks]
+    .sort((a, b) => new Date(String(b.examDate ?? 0)).getTime() - new Date(String(a.examDate ?? 0)).getTime())
+    .slice(0, 500);
 }
 
 export async function getStudentPublishedResults(
