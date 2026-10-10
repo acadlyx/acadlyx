@@ -220,7 +220,7 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
   const used=await tx.feeRefund.aggregate({where:{paymentId,status:{in:["REQUESTED","APPROVED"]}},_sum:{amount:true}});
   const available=new Prisma.Decimal(fresh.amount).minus(fresh.refundedAmount).minus(used._sum.amount||0);
   if(amount.gt(available))throw new AppError("Refund exceeds refundable amount",409);
-  return tx.feeRefund.create({data:{institutionId,paymentId,invoiceId:fresh.invoiceId,studentId:fresh.invoice.studentId,amount,reason:String(input.reason).trim(),status:has(a,"fees.refund.approve")?"APPROVED":"REQUESTED",requestedById:a.id,approvedById:has(a,"fees.refund.approve")?a.id:null,approvedAt:has(a,"fees.refund.approve")?new Date():null}});
+  return tx.feeRefund.create({data:{institutionId,paymentId,feePaymentId:paymentId,invoiceId:fresh.invoiceId,studentId:fresh.invoice.studentId,amount,reason:String(input.reason).trim(),status:has(a,"fees.refund.approve")?"APPROVED":"REQUESTED",requestedById:a.id,approvedById:has(a,"fees.refund.approve")?a.id:null,approvedAt:has(a,"fees.refund.approve")?new Date():null}});
  });
  await audit(institutionId,a.id,"finance.refund.request","FeeRefund",x.id,{paymentId,amount:amount.toString()});
  return x
@@ -329,9 +329,13 @@ export async function requestConcession(institutionId: string, a: AuthenticatedU
     const concession = await tx.feeConcession.create({
       data: {
         institutionId, invoiceId, studentId: i.studentId,
-        type: String(input.type || "WAIVER"), amount,
+        type: String(input.type || "WAIVER"),
+        name: String(input.name || input.type || "WAIVER"),
+        concessionType: String(input.concessionType || input.type || "WAIVER"),
+        amount,
         percentage: input.percentage ? new Prisma.Decimal(String(input.percentage)) : null,
         reason: String(input.reason).trim(),
+        requestedById: a.id,
         status: approved ? "APPROVED" : "PENDING",
         createdById: a.id, approvedById: approved ? a.id : null,
         approvedAt: approved ? new Date() : null,
