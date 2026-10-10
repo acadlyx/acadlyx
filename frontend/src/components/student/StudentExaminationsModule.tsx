@@ -111,7 +111,7 @@ export function StudentExaminationsModule({ view }: { view: View }) {
 
     {!loading && !error && (view==="upcoming" || view==="registration") && <div className="space-y-4">
       {items.length===0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No applicable examinations are available.</div>}
-      {items.map((x:any)=><section key={x.session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <ExpandableList items={items} getKey={(item: any) => String(item.session.id)} label="examinations" renderItem={(x: any) => (<section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-lg font-black text-slate-950">{x.session.name}</p><p className="mt-1 text-sm text-slate-500">{String(x.session.examType || "").replaceAll("_"," ")} · {date(x.session.startDate)}–{date(x.session.endDate)}</p><p className="mt-2 text-sm text-slate-600">{x.session.instructions || "Follow the examination instructions issued by the Examination Cell."}</p></div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{String(x.eligibility.status).replaceAll("_"," ")}</span>
@@ -124,16 +124,16 @@ export function StudentExaminationsModule({ view }: { view: View }) {
         {x.schedules?.length ? <div className="mt-4 space-y-2">{x.schedules.map((s:any)=><div key={s.id} className="rounded-xl border border-slate-100 p-3"><p className="text-sm font-bold">{s.courseCode} — {s.courseName}</p><p className="text-xs text-slate-500">{date(s.examDate)} · {s.startTime}–{s.endTime} · Max {s.maxMarks} · Pass {s.passMarks}</p></div>)}</div> : null}
         {x.eligibility.reasons?.length ? <p className="mt-3 text-xs font-semibold text-amber-700">{x.eligibility.reasons.join(" · ")}</p> : null}
         {view==="registration" && x.session.registrationRequired && x.eligibility.status==="ELIGIBLE" && x.registration?.status!=="REGISTERED" && <button onClick={()=>void register(x.session.id)} disabled={busy===x.session.id} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{busy===x.session.id ? "Registering…" : "Register"}</button>}
-      </section>)}
+      </section>)} />
     </div>}
 
     {!loading && !error && view==="admit-cards" && <div className="space-y-4">
       {tickets.length===0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No issued admit cards are available yet.</div>}
-      {tickets.map((t:any)=><section key={t.ticket.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+      <ExpandableList items={tickets} getKey={(ticket: any) => String(ticket.ticket.id)} label="admit cards" renderItem={(t: any) => (<section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-slate-950">{t.session.name}</p><p className="text-xs text-slate-500">Serial {t.ticket.serialNumber} · Issued {date(t.ticket.issuedAt)}</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{t.ticket.status}</span></div>
         <div className="mt-4 space-y-2">{t.papers.map((p:any)=><div key={p.examScheduleId} className="rounded-xl bg-slate-50 p-3"><p className="font-bold">{p.courseCode} — {p.courseName}</p><p className="text-xs text-slate-500">{date(p.examDate)} · {p.startTime}–{p.endTime} · {p.roomName} · Seat {p.seatNumber}</p></div>)}</div>
         <button onClick={()=>void download(t.session.id)} disabled={busy===t.session.id} className="mt-4 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{busy===t.session.id ? "Generating…" : "Download PDF"}</button>
-      </section>)}
+      </section>)} />
     </div>}
 
     {!loading && !error && (view==="performance" || view==="results") && <div className="space-y-3">
