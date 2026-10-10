@@ -176,3 +176,30 @@ The frontend package has no unit/integration test script, so frontend runtime/un
 - [ ] Obtain explicit release approval before any deployment.
 
 **Current decision: NO-GO.** No production merge, deployment, live smoke test, or production database operation was performed.
+
+## K. Milestones 10–14 remediation release gate — 2026-10-10
+
+**Current decision: NO-GO.** Do not merge or deploy this candidate.
+
+### Candidate source changes requiring verification
+
+- [ ] Confirm exact candidate SHA and that all four standard workflows have completed successfully on that exact SHA.
+- [ ] Verify Director finance scope via canonical `CampusAccess` helper with PostgreSQL fixtures spanning multiple campuses and institutions.
+- [ ] Run refund duplicate-processing and partial-refund races against disposable PostgreSQL; verify refund/payment/invoice state and side effects.
+- [ ] Run concurrent concession approve/reject tests and prove exactly one state transition wins.
+- [ ] Run payment overbalance/idempotency/provider callback tests and library exactly-once financial posting tests.
+- [ ] Run adversarial HTTP/API + database isolation tests across tenant, campus, department, faculty, student, parent, export, bulk and revoked-permission boundaries.
+- [ ] Run a representative prior-schema migration rehearsal with synthetic legacy data; preserve before/after counts and relationship checks.
+- [ ] Create a synthetic-data backup and successfully restore to a separate disposable PostgreSQL database; record actual duration and integrity checks.
+- [ ] Obtain business-approved RPO and RTO, then document measured results against them.
+- [ ] Run all five end-to-end institutional workflows against an isolated running API/database; inspect the actual generated admit-card PDF and artifact counts.
+- [ ] Obtain administrator confirmation of branch protection and required checks; verify live provider configuration through authorized read-only access.
+- [ ] Reassess database backward compatibility before any application rollback plan is approved.
+
+### Configuration evidence limits
+
+The checked-in `render.yaml` currently points the backend web service and worker at `production-upgrade-2026-09-20`; it does not independently establish actual live provider configuration. The stabilization branch's CI workflows are configured for push triggers. Production smoke tests remain intentionally skipped on stabilization and must not be run against production as part of this remediation.
+
+The current execution used the GitHub repository connector for source edits. No local checkout/working-tree status, local tests, disposable PostgreSQL concurrency suite, backup/restore drill, browser automation, or provider sandbox was available. Treat those items as open—not passed.
+
+A repository administrator must confirm/enforce required status checks and branch protection. No protection setting, deployment, or production database was changed by this remediation.
