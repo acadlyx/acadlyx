@@ -339,3 +339,12 @@ This is source-level regression evidence, not a PostgreSQL/API attack test. It d
 The repository connector can create commits on the stabilization branch, but no local checkout or disposable PostgreSQL/API fixture was available in this run. Therefore local tests and HTTP/database integration tests were not run. Hosted CI must be checked against the exact final SHA after all edits.
 
 **Release decision remains NO-GO.**
+
+## PR #29 evidence update — 2026-10-10
+
+**Evidence snapshot candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9` (the documentation changes that append this section will create a newer candidate SHA).
+
+- **Code inspection:** `backend/src/services/finance.service.ts` derives Director scope from `getDirectorCampusIds(institutionId, actor.id)`; `backend/src/services/accessScope.service.ts` reads active campuses through `CampusAccess`. This supports the canonical campus-scope design by inspection only; it is not proof of complete API isolation.
+- **CI evidence:** GitHub Actions run [38040759171](https://github.com/acadlyx/acadlyx/actions/runs/38040759171) was in progress when captured. Earlier run [38040500919](https://github.com/acadlyx/acadlyx/actions/runs/38040500919) passed backend validation/tests, Prisma migration validation and frontend validation/build on its earlier tested SHA `275280390500b214dce754e12740e2599c545f32`. Its deployment smoke job was skipped.
+- **Not verified:** HTTP-level tenant/campus/department authorization matrix, direct-ID substitution, exports/bulk/download endpoints, stale/disabled token behavior, real API mutation isolation, or complete endpoint coverage.
+- **Release gate:** OPEN / NO-GO until authenticated HTTP tests run against disposable PostgreSQL fixtures covering at least two institutions, multiple campuses and departments, with persisted-state assertions.
