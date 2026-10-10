@@ -885,6 +885,24 @@ router.patch(
 
 /* ---------- Student examination lifecycle ---------- */
 
+// Self-service endpoints derive the student identity from the authenticated
+// session. The browser never needs to fetch /auth/me and interpolate a user ID.
+router.get(
+  "/my/performance",
+  authorize("exams.read"),
+  asyncHandler(async (req, res) => sendOk(res, await service.getStudentExamPerformance(
+    requireInstitution(req), requireAuthenticatedUser(req), requireAuthenticatedUser(req).id
+  )))
+);
+
+router.get(
+  "/my/results",
+  authorize("results.read"),
+  asyncHandler(async (req, res) => sendOk(res, await service.getStudentPublishedResults(
+    requireInstitution(req), requireAuthenticatedUser(req), requireAuthenticatedUser(req).id
+  )))
+);
+
 router.get(
   "/students/:studentId/eligibility",
   authorize("exams.read"),
