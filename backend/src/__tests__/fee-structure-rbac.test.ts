@@ -18,6 +18,8 @@ test("fee-structure access is granted only through canonical scoped permissions"
       ROLE_PERMISSIONS[role].includes("fees.structure.manage"),
       `${role} must receive fee-structure write access only through the existing role policy`,
     );
+    assert.ok(ROLE_PERMISSIONS[role].includes("academic-years.read"), role + " needs academic-year lookup access");
+    assert.ok(ROLE_PERMISSIONS[role].includes("semesters.read"), role + " needs semester lookup access");
   }
 
   for (const role of ["STUDENT", "PARENT", "FACULTY", "HOD"] as const) {
@@ -29,6 +31,8 @@ test("fee-structure access is granted only through canonical scoped permissions"
       !ROLE_PERMISSIONS[role].includes("fees.structure.manage"),
       `${role} must not gain fee-structure write authority`,
     );
+    assert.ok(!ROLE_PERMISSIONS[role].includes("academic-years.read"));
+    assert.ok(!ROLE_PERMISSIONS[role].includes("semesters.read"));
   }
 });
 
