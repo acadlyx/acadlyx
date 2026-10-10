@@ -111,6 +111,53 @@ jobs:
       - name: Apply all migrations
         run: npx prisma migrate deploy
 
+  legacy-migration-compat:
+    name: Populated legacy refund migration compatibility
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acadlyx
+          POSTGRES_PASSWORD: acadlyx
+          POSTGRES_DB: acadlyx_legacy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U acadlyx -d acadlyx_legacy_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_legacy_ci?schema=public
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Apply pre-compatibility migrations
+        run: |
+          mv prisma/migrations/20261010100000_finance_legacy_column_compat /tmp/finance_legacy_column_compat
+          npx prisma migrate deploy
+      - name: Seed a populated legacy refund row
+        run: npx tsx scripts/migrations/legacy-refund-compat.ts seed
+      - name: Apply compatibility migration and verify backfill
+        run: |
+          mv /tmp/finance_legacy_column_compat prisma/migrations/20261010100000_finance_legacy_column_compat
+          npx prisma migrate deploy
+          npx tsx scripts/migrations/legacy-refund-compat.ts verify
+
   frontend:
     name: Frontend typecheck and production build
     runs-on: ubuntu-latest
