@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { ExpandableList } from "@/components/ui/ExpandableList";
 import { getCurrentUser } from "@/lib/auth";
 import {
   listMyExamEligibility, registerForExam, listStudentHallTickets,
@@ -137,7 +138,52 @@ export function StudentExaminationsModule({ view }: { view: View }) {
 
     {!loading && !error && (view==="performance" || view==="results") && <div className="space-y-3">
       {rows.length===0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">{view==="results" ? "No published results are available yet." : "No approved examination marks are available yet."}</div>}
-      {rows.map((r:any,i:number)=><section key={String(r.examScheduleId)+i} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold text-slate-950">{r.courseCode} — {r.courseName}</p><p className="text-xs text-slate-500">{r.examName} · {date(r.examDate)}</p></div><p className="text-sm font-black">{r.marksObtained===null || r.marksObtained===undefined ? "AB" : String(r.marksObtained)+"/"+String(r.maxMarks)}</p></div><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">{view==="results" ? "Published "+date(r.publishedAt) : "Status "+r.status}</p>{view==="results" && <button onClick={async()=>{setBusy(String(r.examSessionId));try{const f=await downloadMarksheetPdf(String(r.examSessionId));const u=URL.createObjectURL(f.blob);const a=document.createElement("a");a.href=u;a.download=f.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}catch(e){setError(e instanceof Error?e.message:"Unable to download marksheet.");}finally{setBusy("");}}} disabled={busy===String(r.examSessionId)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{busy===String(r.examSessionId)?"Generating…":"Download Marksheet"}</button>}</div></section>)}
+      <ExpandableList
+        items={rows}
+        getKey={(row: any) => String(row.examScheduleId)}
+        label={view === "results" ? "results" : "marks"}
+        renderItem={(r: any) => (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-slate-950">{r.courseCode} — {r.courseName}</p>
+                <p className="text-xs text-slate-500">{r.examName} · {date(r.examDate)}</p>
+              </div>
+              <p className="text-sm font-black">{r.isAbsent || r.marksObtained === null || r.marksObtained === undefined ? "AB" : String(r.marksObtained) + "/" + String(r.maxMarks)}</p>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">{view === "results" ? "Published " + date(r.publishedAt) : "Status " + r.status}</p>
+              {view === "results" && (
+                <button
+                  onClick={async () => {
+                    setBusy(String(r.examSessionId));
+                    setError("");
+                    try {
+                      const file = await downloadMarksheetPdf(String(r.examSessionId));
+                      const url = URL.createObjectURL(file.blob);
+                      const anchor = document.createElement("a");
+                      anchor.href = url;
+                      anchor.download = file.filename;
+                      document.body.appendChild(anchor);
+                      anchor.click();
+                      anchor.remove();
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } catch (error) {
+                      setError(error instanceof Error ? error.message : "Unable to download marksheet.");
+                    } finally {
+                      setBusy("");
+                    }
+                  }}
+                  disabled={busy === String(r.examSessionId)}
+                  className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {busy === String(r.examSessionId) ? "Generating…" : "Download Marksheet"}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+      />
     </div>}
   </Shell>;
 }
