@@ -59,3 +59,20 @@ test("billing concession creation persists both legacy and canonical type/reques
   assert.match(source, /"createdById", "requestedById"/);
   assert.match(source, /input\.amount \?\? 0/);
 });
+
+test("Director finance scope uses the canonical explicit CampusAccess helper", () => {
+  const service = read("src/services/finance.service.ts");
+  const sharedScope = read("src/services/accessScope.service.ts");
+  assert.match(service, /import \{ getDirectorCampusIds \} from "\.\/accessScope\.service";/);
+  assert.match(service, /if\(r\.includes\("DIRECTOR"\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
+  assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
+  assert.match(sharedScope, /export async function getDirectorCampusIds\(institutionId: string, userId: string\): Promise<string\[]>/);
+  assert.match(sharedScope, /campus: \{ institutionId, isActive: true \}/);
+});
+
+test("Director financial records and payment aggregates retain institution and campus predicates", () => {
+  const service = read("src/services/finance.service.ts");
+  assert.match(service, /function invoiceWhere\(s:Scope\)[\s\S]*?return\{institutionId:s\.institutionId,student:\{studentEnrollments:\{some:\{status:"ACTIVE",program:\{department:\{campusId:\{in:s\.campusIds\}\}\}\}\}\}\}\};/);
+  assert.match(service, /function paymentWhere\(s:Scope\):Prisma\.FeePaymentWhereInput\{return\{institutionId:s\.institutionId/);
+  assert.match(service, /function studentFinancialFilter\(s:Scope\):Record<string,any>/);
+});
