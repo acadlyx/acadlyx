@@ -37,6 +37,7 @@ jobs:
         working-directory: backend
     env:
       DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_ci?schema=public
+      RUN_POSTGRES_INTEGRATION: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
