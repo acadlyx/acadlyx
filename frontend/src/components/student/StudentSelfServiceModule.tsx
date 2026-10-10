@@ -476,12 +476,13 @@ function ResultsView({ user }: { user: AuthUser }) {
         {data.semesters.length === 0 ? (
           <Empty>No published transcript records are available.</Empty>
         ) : (
-          <div className="space-y-4">
-            {data.semesters.map((semester) => (
-              <div
-                key={semester.semesterId}
-                className="rounded-2xl border border-slate-100 p-4"
-              >
+          <ExpandableList
+            items={data.semesters}
+            getKey={(semester) => semester.semesterId}
+            label="semesters"
+            className="space-y-4"
+            empty={<Empty>No published transcript records are available.</Empty>}
+            renderItem={(semester) => (<div className="rounded-2xl border border-slate-100 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">{semester.semesterName}</p>
@@ -495,8 +496,12 @@ function ResultsView({ user }: { user: AuthUser }) {
                   </span>
                 </div>
 
-                <div className="mt-3 space-y-2">
-                  {semester.courses.map((course) => (
+                <ExpandableList
+                  items={semester.courses}
+                  getKey={(course) => course.courseOfferingId}
+                  label="courses"
+                  className="mt-3 space-y-2"
+                  renderItem={(course) => (
                     <div
                       key={course.courseOfferingId}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm"
@@ -519,11 +524,11 @@ function ResultsView({ user }: { user: AuthUser }) {
                         </p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
