@@ -66,6 +66,8 @@ test("Director finance scope uses the canonical explicit CampusAccess helper", (
   assert.match(service, /import \{ getDirectorCampusIds \} from "\.\/accessScope\.service";/);
   assert.match(service, /if\(r\.includes\("DIRECTOR"\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
   assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
+  assert.ok(service.indexOf('if(r.includes("DIRECTOR"))') < service.indexOf('if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")'), "Director scope must precede broad permission fallbacks");
+  assert.ok(service.indexOf('if(r.includes("HOD")||r.includes("DEAN"))') < service.indexOf('if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")'), "department scope must precede broad permission fallbacks");
   assert.match(sharedScope, /export async function getDirectorCampusIds\(institutionId: string, userId: string\): Promise<string\[]>/);
   assert.match(sharedScope, /campus: \{ institutionId, isActive: true \}/);
 });
