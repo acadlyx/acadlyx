@@ -298,11 +298,12 @@ test("PostgreSQL: processed refunds are not subtracted twice from the remaining 
     await processRefund(f.institutionId, f.actor, first.id);
     const second = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 400, reason: "remaining balance refund" });
     assert.equal(second.amount.toString(), "400");
-    const [refunds, persistedPayment, invoice, ledger] = await Promise.all([
+    const [refunds, persistedPayment, invoice, ledger, processAudit] = await Promise.all([
       prisma.feeRefund.findMany({ where: { institutionId: f.institutionId, paymentId: payment.id } }),
       prisma.feePayment.findUniqueOrThrow({ where: { id: payment.id } }),
       prisma.feeInvoice.findUniqueOrThrow({ where: { id: f.invoiceId } }),
       prisma.feeTransaction.findMany({ where: { institutionId: f.institutionId, invoiceId: f.invoiceId, type: "REFUND" } }),
+      prisma.auditLog.findMany({ where: { institutionId: f.institutionId, action: "finance.refund.process", entityId: first.id } }),
     ]);
     assert.equal(refunds.length, 2);
     assert.equal(refunds.filter(x => x.status === "PROCESSED").length, 1);
@@ -311,6 +312,7 @@ test("PostgreSQL: processed refunds are not subtracted twice from the remaining 
     assert.equal(invoice.paidAmount, 400);
     assert.equal(ledger.length, 1);
     assert.equal(ledger[0].amount.toString(), "-600");
+    assert.equal(processAudit.length, 1);
   } finally {
     await cleanup(f.institutionId);
   }
