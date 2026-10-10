@@ -31,6 +31,7 @@ assert.match(examinations, /view==="results"/);
 assert.match(examinations, /requestSequence/);
 assert.match(examinations, /if \(sequence === requestSequence\.current\) setRows\(result\)/);
 assert.match(examinations, /Retry/);
+assert.match(examinations, /r\.isAbsent \? "AB" : r\.marksObtained === null \|\| r\.marksObtained === undefined \? "Not recorded"/);
 assert.match(examinations, /ExpandableList items=\{items\}/);
 assert.match(examinations, /ExpandableList items=\{tickets\}/);
 assert.match(examinations, /items=\{rows\}/);
