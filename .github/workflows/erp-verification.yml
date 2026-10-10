@@ -2,9 +2,12 @@ name: ACADLYX ERP verification
 
 on:
   push:
-    branches: ["production-upgrade-2026-09-20"]
+    branches: ["production-upgrade-2026-09-20", "stabilization-platform-2026-10-09"]
   pull_request:
     branches: ["production-upgrade-2026-09-20"]
+
+permissions:
+  contents: read
 
 jobs:
   backend:
