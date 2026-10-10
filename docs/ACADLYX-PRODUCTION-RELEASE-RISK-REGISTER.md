@@ -86,6 +86,18 @@ Starting candidate SHA: `ff14eae53eca1e16b62b1ecff69429f8e0c20e6c`. Prior tested
 | R-23 | Export/report isolation | Critical | Known export types map to permissions, but unknown type proceeds to service validation and every query's resource scoping is not proven | `export.routes.ts` inspected; no HTTP/export integration tests | Export may expose records if a service query omits scope | Test unknown export types, all supported export types, role/scope filters and output rows against synthetic tenants | UNVERIFIED |
 | R-24 | Module entitlement + permission conjunction | Critical | Sampled routes apply both `requireFeature` and permission middleware; full endpoint-wide conjunction is not established | Inspected `requireFeature.ts`, `entitlement.service.ts`, and selected route modules | Enabled UI or role permission may not prove backend feature entitlement is enforced on every alternate route | Build negative integration matrix: permission-only, entitlement-only, both, neither; cover alternate/secondary routes | PARTIALLY VERIFIED |
 | R-25 | Workflow/bulk side effects | Critical | Approval and bulk endpoints were not tested for mixed-scope IDs, self-approval, partial writes or audit side effects | `workflowAuthority.service.ts` source inspection; no isolated transaction tests | Partial unauthorized writes or privilege escalation remain unexcluded | Exercise bulk operations and approvals with mixed in-scope/out-of-scope IDs; assert rollback and no unauthorized audit/outbox side effects | BLOCKED |
-| R-26 | Candidate security CI | Critical release gate | New adversarial unit tests have not yet been observed passing on the commit containing them | New test file committed on stabilization branch; exact-SHA hosted run must complete | A test compile/runtime failure could block candidate; no result may be inferred from prior SHA | Observe hosted backend test/typecheck/build run on the final source SHA and record result | UNVERIFIED |
+| R-26 | Candidate security CI | Critical release gate | New adversarial pure-unit tests passed; database-backed adversarial HTTP coverage remains absent | Hosted [Production Quality run](https://github.com/acadlyx/acadlyx/actions/runs/38032585164) on exact source SHA `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`: backend suite 126 passed, 0 failed, 0 skipped; all four standard workflows passed | Pure authorization decision regressions are verified, but live route + database isolation is not | Add/run the isolated API + disposable PostgreSQL matrix and verify persisted state/side effects for all critical boundaries | PARTIALLY VERIFIED |
 
 No finding above asserts a reproduced exploit. These are release gates based on absent runtime evidence or a policy question. Overall release decision remains **NO-GO**.
+
+
+### Milestone 10 CI evidence update
+
+Exact tested source SHA: `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a` on `stabilization-platform-2026-10-09`.
+
+- [ACADLYX Production Quality](https://github.com/acadlyx/acadlyx/actions/runs/38032585164) — SUCCESS; backend suite 126 passed, 0 failed, 0 skipped; frontend checks/build and empty disposable PostgreSQL 16 migration validation passed; live production smoke skipped.
+- [ACADLYX Production Gate](https://github.com/acadlyx/acadlyx/actions/runs/38032585202) — SUCCESS.
+- [ACADLYX ERP verification](https://github.com/acadlyx/acadlyx/actions/runs/38032585201) — SUCCESS.
+- [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
+
+No local execution or database-backed adversarial API testing occurred. R-19 through R-25 remain open as described; the pure tests do not establish denial behavior, persisted-state invariants or absence of side effects. Overall decision remains NO-GO.
