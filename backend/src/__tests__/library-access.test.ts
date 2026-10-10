@@ -67,4 +67,12 @@ test("student self-service borrowing does not require staff student-directory ac
   assert.doesNotMatch(selfServiceRoute, /authorizeWorkflow/);
   const missing = missingPermissionDependencies(studentPermissions, ["library.borrow"]);
   assert.ok(missing.some((item) => item.permission === "students.read"));
+  for (const routePath of ['"/reservations"', '"/reservations/:id/cancel"']) {
+    const start = routes.indexOf(routePath);
+    assert.ok(start >= 0, "student reservation route must exist: " + routePath);
+    const nextRoute = routes.indexOf("router.", start + routePath.length);
+    const routeBlock = routes.slice(start, nextRoute < 0 ? routes.length : nextRoute);
+    assert.match(routeBlock, /authorize\("library\.borrow"\)/);
+    assert.doesNotMatch(routeBlock, /authorizeWorkflow/);
+  }
 });
