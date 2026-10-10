@@ -89,7 +89,7 @@ export default function ProgramWorkspacePage() {
         {!loading && !error ? (
           <>
             <section className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="text-lg font-bold text-slate-900">Academic years and semesters</h2><p className="mt-1 text-sm text-slate-500">{total.toLocaleString("en-IN")} semesters across the program's academic years</p></div>
+              <div><h2 className="text-lg font-bold text-slate-900">Academic years and semesters</h2><p className="mt-1 text-sm text-slate-500">{total.toLocaleString("en-IN")} semesters across the program&apos;s academic years</p></div>
               <Link href={`/admin/semesters?programId=${encodeURIComponent(programId)}`} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Manage semesters</Link>
             </section>
             <ExpandableList
