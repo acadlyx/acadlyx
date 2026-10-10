@@ -147,3 +147,32 @@ Tested SHA: `c10ec08489756ba770467fff7b81e7f992b2d0f0`; evidence source: hosted 
 - [x] [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38031718309) — source validation, typecheck and production build passed.
 
 The frontend package has no unit/integration test script, so frontend runtime/unit tests are not covered by these runs. No production deployment or production database operation occurred. The current branch advances with documentation updates after the tested SHA; do not describe the documentation-update SHA as a separately tested source revision. GitHub reports branch protection disabled on both stabilization and production baseline; required-check enforcement remains an administrative release blocker.
+
+
+## Stabilization release gate update — 2026-10-10
+
+### Confirmed from checked-in configuration
+- `render.yaml` specifies `production-upgrade-2026-09-20` as the branch for the backend web service and worker.
+- The web service uses `npx prisma migrate deploy` in its pre-deploy command and `/api/v1/health` as its health check.
+- The checked-in payment mode is `manual`; this does not constitute real provider sandbox verification.
+- Standard CI workflows are configured to run on stabilization branch pushes. Confirm success for the exact final SHA before release.
+
+### Not confirmed
+- Actual live Render/Vercel provider settings, running source SHAs, secrets, backup retention, and deployment history.
+- Whether application rollback is compatible with every forward migration and existing data.
+- A successful isolated backup/restore drill or measured RPO/RTO.
+- Browser/API/database end-to-end workflow results.
+- Branch protection: GitHub API reported protection disabled on the stabilization branch and production baseline at last check.
+
+### Mandatory pre-release checklist
+- [ ] Confirm final candidate SHA and all required hosted CI conclusions for that exact SHA.
+- [ ] Verify branch protection and required status checks; repository administrator action is required if permissions do not allow the operator to configure rules.
+- [ ] Complete PostgreSQL-backed authorization and finance concurrency tests.
+- [ ] Complete synthetic existing-data migration rehearsal.
+- [ ] Complete isolated backup/restore drill; record actual commands, durations, validation queries and approved RPO/RTO.
+- [ ] Complete connected API/database workflows and inspect the actual generated admit-card PDF.
+- [ ] Verify live provider configuration and service source SHAs without changing production during this audit.
+- [ ] Review forward-migration/backward-application compatibility and rehearse rollback against a disposable environment.
+- [ ] Obtain explicit release approval before any deployment.
+
+**Current decision: NO-GO.** No production merge, deployment, live smoke test, or production database operation was performed.
