@@ -17,9 +17,12 @@ assert.match(studentRoute, /StudentSelfServiceModule module="library"/,
   "the student Library route must render the dedicated self-service module");
 assert.match(navigation, /label: "Library",[\s\S]*?href: "\/student\/library",[\s\S]*?roles: \["STUDENT"\],[\s\S]*?permissions: \["library\.read"\]/,
   "student navigation must require the canonical library.read permission");
-assert.ok(navigation.includes(String.raw`((student)\/)?library`),
+assert.match(navigation, /TENANT_FEATURE_BY_ROUTE/);
+assert.ok(navigation.includes('"/student/library"') && navigation.includes('"library"'),
   "student Library routes must map to the library tenant feature");
-assert.match(studentModule, /Issued \{date\(loan\.issuedAt\)\}[\s\S]*?Returned \{date\(loan\.returnedAt\)\}/,\n  "students must be able to review issue and return dates");\nassert.match(studentModule, /listMyLoans\(\)/,
+assert.match(studentModule, /Issued \{date\(loan\.issuedAt\)\}[\s\S]*?Returned \{date\(loan\.returnedAt\)\}/,
+  "students must be able to review issue and return dates");
+assert.match(studentModule, /listMyLoans\(\)/,
   "students must load their own loans through the self-service endpoint");
 assert.match(studentModule, /listBooks\(/,
   "students must be able to browse the catalogue");
@@ -40,12 +43,10 @@ assert.match(backendRoutes, /"\/loans\/mine",[\s\S]*?authorizeWorkflow\("library
   "student loans must use the personal library.borrow workflow");
 assert.match(backendRoutes, /"\/books",[\s\S]*?authorizeWorkflow\("library\.manage"\)/,
   "catalogue management must remain separately permission-gated");
-assert.match(rbac, /STUDENT:\s*\[[\s\S]*?"library\.read",[\s\S]*?"library\.borrow",[\s\S]*?\n\s*\],/,
-  "the canonical STUDENT role must have read and personal borrowing permissions");
 assert.match(rbac, /STUDENT:\s*\[[\s\S]*?"library\.read",[\s\S]*?"library\.borrow"[\s\S]*?\n\s*\],/,
-  "student permissions must be sourced from canonical RBAC");
+  "the canonical STUDENT role must have read and personal borrowing permissions");
 assert.doesNotMatch(rbac.match(/STUDENT:\s*\[([\s\S]*?)\n\s*\],/)?.[1] ?? "",
-  /"library\.manage"|"library\.fines\.waive\.(?:request|approve)"/,
+  /"library\.manage"|"library\.fines\.waive\.(?:request|approve)/,
   "students must not receive librarian management or fine-waiver authority");
 assert.match(libraryService, /buildLibraryFineListWhere[\s\S]*?issue:\s*\{\s*borrowerId:\s*actor\.id\s*\}/,
   "student fine queries must be scoped to their own borrower ID");
