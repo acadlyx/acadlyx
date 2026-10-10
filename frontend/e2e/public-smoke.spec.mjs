@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("public homepage and real login error flow render at desktop and mobile sizes", async ({ page }, testInfo) => {
+  const baseURL = process.env.ACADLYX_BROWSER_BASE_URL ?? "http://127.0.0.1:3000";
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
@@ -9,7 +10,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   });
 
   await page.setViewportSize({ width: 1365, height: 900 });
-  await page.goto("/", { waitUntil: "networkidle" });
+  await page.goto(baseURL, { waitUntil: "networkidle" });
   const loginButton = page.getByRole("button", { name: /login/i }).first();
   await expect(loginButton).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("desktop-home.png"), fullPage: true });
@@ -32,7 +33,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await expect(page.getByRole("alert")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/", { waitUntil: "networkidle" });
+  await page.goto(baseURL, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /login/i }).first().click();
   await expect(page.getByRole("heading", { name: "Sign in to ACADLYX" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
