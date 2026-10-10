@@ -2293,7 +2293,7 @@ model LibraryIssue {
   originalDueDate DateTime?
   lostChargeAmount Float?
   damagedChargeAmount Float?
-  /// ISSUED | RETURNED | LOST | DAMAGED | RESERVED
+  /// ISSUED | RETURNED | LOST | DAMAGED | RESERVED | CANCELLED
   status        String      @default("ISSUED")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
