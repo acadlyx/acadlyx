@@ -10,7 +10,7 @@ export interface PublicSiteContent {
   brand: { siteName: string; tagline: string; logoUrl: string; faviconUrl?: string };
   navigation: { label: string; href: string }[];
   hero: any;
-  pages: { about: any; team: any; contact: any };
+  pages: { about: any; team: any; partners: any; updates: any; contact: any };
   sections: any;
   contact: { email: string; phone: string; address: string; website: string };
   footer: { text: string };
@@ -27,7 +27,7 @@ const fallback: PublicSiteContent = {
     { label: "CONTACT US", href: "/contact" },
   ],
   hero: { eyebrow: "", title: "", description: "", primaryCtaLabel: "Login", primaryCtaHref: "/", secondaryCtaLabel: "", secondaryCtaHref: "" },
-  pages: { about: {}, team: { members: [] }, contact: {} },
+  pages: { about: {}, team: { members: [] }, partners: { items: [] }, updates: { items: [] }, contact: {} },
   sections: { stats: [], features: [], roles: [] },
   contact: { email: "", phone: "", address: "", website: "" },
   footer: { text: "" },

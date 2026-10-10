@@ -25,6 +25,18 @@ const DEFAULT_SITE_CONTENT = {
         { name: "ACADLYX Team", role: "Product & Engineering", bio: "Building secure education technology for institutions.", imageUrl: "" },
       ],
     },
+    partners: {
+      eyebrow: "OUR PARTNERS",
+      title: "Institutional partnerships",
+      description: "Partner information published by the institution.",
+      items: [],
+    },
+    updates: {
+      eyebrow: "UPDATES",
+      title: "Latest updates",
+      description: "News and announcements published by the institution.",
+      items: [],
+    },
     contact: {
       eyebrow: "CONTACT",
       title: "Start a conversation with ACADLYX.",
