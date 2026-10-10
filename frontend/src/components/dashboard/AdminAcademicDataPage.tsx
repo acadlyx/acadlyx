@@ -428,12 +428,16 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     <DashboardShell title={config.title} subtitle="Institution-scoped academic structure" allowedRoles={["INSTITUTION_ADMIN"]}>
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
         <DashboardPageHeader
-          eyebrow={departmentId ? "Department workspace" : "Academic structure"}
+          eyebrow={departmentId ? "Department workspace" : campusId ? "Campus workspace" : "Academic structure"}
           title={config.title}
           description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
           breadcrumbs={departmentId ? [
             { label: "Admin", href: "/admin" },
             { label: lookupData.departments.find((item) => item.id === departmentId)?.name || "Department", href: `/admin/departments/${encodeURIComponent(departmentId)}` },
+            { label: config.title },
+          ] : campusId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.campuses.find((item) => item.id === campusId)?.name || "Campus", href: `/admin/campuses/${encodeURIComponent(campusId)}` },
             { label: config.title },
           ] : [
             { label: "Admin", href: "/admin" },
