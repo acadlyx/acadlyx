@@ -1105,18 +1105,18 @@ function AttendanceView({ user }: { user: AuthUser }) {
         {data.subjects.length === 0 ? (
           <Empty>No attendance records yet.</Empty>
         ) : (
-          <div className="space-y-4">
-            {data.subjects.map((subject) => (
-              <div key={subject.courseOfferingId}>
-                <p className="text-sm font-medium text-slate-700">
-                  {subject.courseCode} — {subject.courseName}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {subject.present}/{subject.total} sessions · {subject.percentage}%
-                </p>
+          <ExpandableList
+            items={data.subjects}
+            getKey={(subject) => subject.courseOfferingId}
+            label="subjects"
+            className="space-y-4"
+            renderItem={(subject) => (
+              <div>
+                <p className="text-sm font-medium text-slate-700">{subject.courseCode} — {subject.courseName}</p>
+                <p className="text-xs text-slate-500">{subject.present}/{subject.total} sessions · {subject.percentage}%</p>
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
@@ -1142,21 +1142,18 @@ function MarksView({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="space-y-3">
-      {marks.map((mark) => (
-        <div key={mark.id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
-          <div>
-            <p className="font-semibold text-slate-900">{mark.component}</p>
-            <p className="text-xs text-slate-500">
-              {mark.courseOffering?.course.code} — {mark.courseOffering?.course.name}
-            </p>
-          </div>
-          <span className="font-bold text-slate-900">
-            {mark.marksObtained}/{mark.maxMarks}
-          </span>
+    <ExpandableList
+      items={marks}
+      getKey={(mark) => mark.id}
+      label="mark entries"
+      className="space-y-3"
+      renderItem={(mark) => (
+        <div className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
+          <div><p className="font-semibold text-slate-900">{mark.component}</p><p className="text-xs text-slate-500">{mark.courseOffering?.course.code} — {mark.courseOffering?.course.name}</p></div>
+          <span className="font-bold text-slate-900">{mark.marksObtained}/{mark.maxMarks}</span>
         </div>
-      ))}
-    </div>
+      )}
+    />
   );
 }
 
@@ -1188,17 +1185,19 @@ function NotificationsView({ user }: { user: AuthUser }) {
         {data.items.length === 0 ? (
           <Empty>You have no notifications.</Empty>
         ) : (
-          <div className="space-y-3">
-            {data.items.slice(0, 10).map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-100 p-4">
+          <ExpandableList
+            items={data.items}
+            getKey={(item) => item.id}
+            label="notifications"
+            empty={<Empty>You have no notifications.</Empty>}
+            renderItem={(item) => (
+              <div className="rounded-2xl border border-slate-100 p-4">
                 <p className="font-semibold text-slate-900">{item.title}</p>
                 <p className="mt-1 text-sm text-slate-600">{item.body}</p>
-                <p className="mt-2 text-xs text-slate-400">
-                  {new Date(item.createdAt).toLocaleDateString("en-IN")}
-                </p>
+                <p className="mt-2 text-xs text-slate-400">{new Date(item.createdAt).toLocaleDateString("en-IN")}</p>
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
