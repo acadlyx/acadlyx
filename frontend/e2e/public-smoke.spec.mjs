@@ -9,7 +9,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   page.on("console", message => {
     if (message.type() !== "error") return;
     const text = message.text();
-    if (attemptingInvalidLogin && /\\b(400|401|422)\\b/.test(text)) return;
+    if (attemptingInvalidLogin && ["400", "401", "422"].some(status => text.includes(status))) return;
     consoleErrors.push(text);
   });
 
