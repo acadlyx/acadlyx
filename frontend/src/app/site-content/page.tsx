@@ -65,13 +65,16 @@ export default function SiteContentPage() {
     setData((current) => {
       const next = structuredClone(current) as CmsData;
       const parts = path.split(".");
-      let cursor: Record<string, unknown> = next as unknown as Record<string, unknown>;
+      let cursor: Record<string, unknown> | unknown[] = next as unknown as Record<string, unknown>;
       for (let i = 0; i < parts.length - 1; i += 1) {
-        const child = cursor[parts[i]];
-        if (!child || typeof child !== "object" || Array.isArray(child)) return current;
-        cursor = child as Record<string, unknown>;
+        const part = parts[i];
+        const child = Array.isArray(cursor) ? cursor[Number(part)] : cursor[part];
+        if (!child || typeof child !== "object") return current;
+        cursor = child as Record<string, unknown> | unknown[];
       }
-      cursor[parts[parts.length - 1]] = value;
+      const finalPart = parts[parts.length - 1];
+      if (Array.isArray(cursor)) cursor[Number(finalPart)] = value;
+      else cursor[finalPart] = value;
       return next;
     });
   }
