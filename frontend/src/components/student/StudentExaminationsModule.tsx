@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { getCurrentUser } from "@/lib/auth";
 import {
   listMyExamEligibility, registerForExam, listStudentHallTickets,
@@ -26,11 +27,12 @@ const date = (v?: string | null) => {
 function Shell({ view, children }: { view: View; children: React.ReactNode }) {
   return <DashboardShell title="Examinations" subtitle="Your examination registration, admit cards, performance and results" allowedRoles={["STUDENT"]}>
     <div className="mx-auto max-w-6xl space-y-5 pb-10">
-      <header className="rounded-3xl bg-slate-950 p-6 text-white">
-        <p className="text-xs font-black uppercase tracking-[.2em] text-slate-400">STUDENT EXAMINATIONS</p>
-        <h1 className="mt-2 text-3xl font-black">Examinations</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Only examinations resolved against your authenticated academic context are shown.</p>
-      </header>
+      <DashboardPageHeader
+        eyebrow="Student workspace"
+        title="Examinations"
+        description="Your examination registration, admit cards, performance and published results."
+        breadcrumbs={[{ label: "Student dashboard", href: "/student" }, { label: "Examinations" }]}
+      />
       <nav className="flex flex-wrap gap-2" aria-label="Examination sections">
         {links.map(([key,label,href]) => <Link key={key} href={href} className={view===key ? "rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white" : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"}>{label}</Link>)}
       </nav>
@@ -48,19 +50,37 @@ export function StudentExaminationsModule({ view }: { view: View }) {
   const [busy,setBusy]=useState("");
   const [message,setMessage]=useState("");
 
+  const requestSequence = useRef(0);
+
   async function load() {
-    setLoading(true); setError("");
+    const sequence = ++requestSequence.current;
+    setLoading(true);
+    setError("");
     try {
       if (view==="admit-cards") {
         const user=await getCurrentUser();
-        setTickets(await listStudentHallTickets(user.id));
-      } else if (view==="performance") setRows(await getMyExamPerformance());
-      else if (view==="results") setRows(await getMyPublishedExamResults());
-      else setItems(await listMyExamEligibility());
-    } catch(e) { setError(e instanceof Error ? e.message : "Unable to load examinations."); }
-    finally { setLoading(false); }
+        const result=await listStudentHallTickets(user.id);
+        if (sequence === requestSequence.current) setTickets(result);
+      } else if (view==="performance") {
+        const result=await getMyExamPerformance();
+        if (sequence === requestSequence.current) setRows(result);
+      } else if (view==="results") {
+        const result=await getMyPublishedExamResults();
+        if (sequence === requestSequence.current) setRows(result);
+      } else {
+        const result=await listMyExamEligibility();
+        if (sequence === requestSequence.current) setItems(result);
+      }
+    } catch(e) {
+      if (sequence === requestSequence.current) setError(e instanceof Error ? e.message : "Unable to load examinations.");
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
   }
-  useEffect(()=>{ void load(); },[view]);
+  useEffect(()=>{
+    void load();
+    return () => { requestSequence.current += 1; };
+  },[view]);
 
   async function register(sessionId:string) {
     setBusy(sessionId); setError(""); setMessage("");
