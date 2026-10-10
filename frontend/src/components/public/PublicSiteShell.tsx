@@ -40,7 +40,17 @@ export function usePublicSiteContent() {
     const slug = process.env.NEXT_PUBLIC_PUBLIC_SITE_SLUG || "aimt";
     apiFetch<{ data: { content: PublicSiteContent } }>(`/site-content/public?slug=${encodeURIComponent(slug)}`)
       .then((response) => {
-        if (active && response?.data?.content) setContent(merge(fallback, response.data.content));
+        if (!active || !response?.data?.content) return;
+        const incoming = response.data.content;
+        const merged = merge(fallback, incoming);
+        // Older saved CMS records may still contain the legacy four-link menu.
+        // Keep the redesigned public navigation stable until all six pages exist.
+        const requiredRoutes = ["/", "/about", "/partners", "/team", "/updates", "/contact"];
+        const savedNavigation = Array.isArray(incoming.navigation) ? incoming.navigation : [];
+        const hasCompleteNavigation = requiredRoutes.every((href) => savedNavigation.some((item) => item?.href === href));
+        if (!hasCompleteNavigation) merged.navigation = fallback.navigation;
+        else merged.navigation = requiredRoutes.map((href) => savedNavigation.find((item) => item?.href === href));
+        setContent(merged);
       })
       .catch(() => undefined);
     return () => { active = false; };

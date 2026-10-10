@@ -22,8 +22,10 @@ const PUBLIC_EXACT_ROUTES = new Set([
   "/forgot-password",
   "/reset-password",
   "/about",
+  "/partners",
   "/contact",
   "/team",
+  "/updates",
 ]);
 
 function isPublicRoute(pathname: string): boolean {

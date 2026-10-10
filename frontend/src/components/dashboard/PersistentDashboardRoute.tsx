@@ -7,7 +7,9 @@ import { DashboardShell } from "./DashboardShell";
 const OUTSIDE_DASHBOARD = [
   /^\/$/,
   /^\/about(?:\/|$)/,
+  /^\/partners(?:\/|$)/,
   /^\/team(?:\/|$)/,
+  /^\/updates(?:\/|$)/,
   /^\/contact(?:\/|$)/,
   /^\/login(?:\/|$)/,
   /^\/forgot-password(?:\/|$)/,
