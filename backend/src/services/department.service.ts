@@ -24,6 +24,7 @@ export interface ListFilters
   search?: string;
   isActive?: boolean;
   departmentIds?: string[];
+  campusId?: string;
 }
 
 const departmentInclude = {
@@ -89,6 +90,8 @@ export async function listDepartments(
       institutionId,
 
       ...(filters.departmentIds ? { id: { in: filters.departmentIds } } : {}),
+
+      ...(filters.campusId ? { campusId: filters.campusId } : {}),
 
       ...(filters.isActive !==
       undefined
