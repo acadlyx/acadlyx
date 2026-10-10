@@ -21,6 +21,8 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.goto(baseURL, { waitUntil: "networkidle" });
   const loginButton = page.getByRole("button", { name: /login|access acadlyx/i }).first();
   await expect(loginButton).toBeVisible();
+  await expect(page.getByText("Illustrative preview")).toBeVisible();
+  await expect(page.getByText("Live workspace")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("desktop-home.png"), fullPage: true });
 
   await loginButton.click();
