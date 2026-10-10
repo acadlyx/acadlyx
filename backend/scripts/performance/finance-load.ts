@@ -67,6 +67,13 @@ async function main(): Promise<void> {
       }));
       await prisma.feeInvoice.createMany({ data: rows });
     }
+    const [actualStudents, actualInvoices] = await Promise.all([
+      prisma.user.count({ where: { institutionId: institution.id } }),
+      prisma.feeInvoice.count({ where: { institutionId: institution.id } }),
+    ]);
+    if (actualStudents !== STUDENT_COUNT || actualInvoices !== STUDENT_COUNT) {
+      throw new Error(`Seed verification failed: students=${actualStudents}, invoices=${actualInvoices}`);
+    }
     const seedMs = Number((performance.now() - seedStarted).toFixed(2));
 
     const latencies: number[] = [];
@@ -113,7 +120,7 @@ async function main(): Promise<void> {
     const errorRate = failures / requestCount;
     const report = {
       environment: "isolated-local-postgresql",
-      dataset: { students: STUDENT_COUNT, invoices: STUDENT_COUNT },
+      dataset: { students: actualStudents, invoices: actualInvoices },
       workload: { concurrency: CONCURRENCY, iterationsPerWorker: ITERATIONS_PER_WORKER, requests: requestCount },
       seedDurationMs: seedMs,
       durationMs: Number(elapsedMs.toFixed(2)),
