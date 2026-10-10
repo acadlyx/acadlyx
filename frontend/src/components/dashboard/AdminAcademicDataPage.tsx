@@ -244,6 +244,8 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
   const [campusId, setCampusId] = useState("");
+  const [programId, setProgramId] = useState("");
+  const [semesterId, setSemesterId] = useState("");
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const config = CONFIG[module];
@@ -274,15 +276,26 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const sources = Array.from(new Set(config.fields.map((field) => field.source).filter(Boolean))) as LookupSource[];
     const entries = await Promise.all(sources.map(async (source) => {
       try {
-        const response = await authedFetch<{ data: unknown }>(`${source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}` : LOOKUPS[source]}${source !== "departments" && LOOKUPS[source].includes("?") ? "&" : source !== "departments" ? "?" : ""}${source !== "departments" && departmentId && ["programs","semesters","sections","courses","course-offerings"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
-        return [source, source === "departments" && departmentId ? (response.data ? [response.data as Row] : []) : normalizeRows(response.data)] as const;
+        const selectedPath =
+          source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}`
+          : source === "programs" && programId ? `/programs/${encodeURIComponent(programId)}`
+          : source === "semesters" && semesterId ? `/semesters/${encodeURIComponent(semesterId)}`
+          : null;
+        const base = selectedPath || LOOKUPS[source];
+        const contextQuery = selectedPath || source === "departments"
+          ? ""
+          : departmentId && ["programs", "semesters", "sections", "courses", "course-offerings"].includes(source)
+            ? `&departmentId=${encodeURIComponent(departmentId)}`
+            : "";
+        const response = await authedFetch<{ data: unknown }>(`${base}${contextQuery}`);
+        return [source, selectedPath ? (response.data ? [response.data as Row] : []) : normalizeRows(response.data)] as const;
       } catch {
         return [source, []] as const;
       }
     }));
     setLookupData((current) => ({ ...current, ...Object.fromEntries(entries) }));
     setLookupsLoading(false);
-  }, [config.fields, departmentId]);
+  }, [config.fields, departmentId, programId, semesterId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -290,7 +303,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ force: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}${module === "semesters" && programId ? `&programId=${encodeURIComponent(programId)}` : ""}${module === "sections" && semesterId ? `&semesterId=${encodeURIComponent(semesterId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -306,9 +319,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, campusId, loadLookups, page, router, searchQuery, module]);
+  }, [config.endpoint, departmentId, campusId, programId, semesterId, loadLookups, page, router, searchQuery, module]);
 
-  useEffect(() => { const params = new URLSearchParams(window.location.search); setDepartmentId(params.get("departmentId") || ""); setCampusId(params.get("campusId") || ""); setPage(1); }, []);
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setDepartmentId(params.get("departmentId") || ""); setCampusId(params.get("campusId") || ""); setProgramId(params.get("programId") || ""); setSemesterId(params.get("semesterId") || ""); setPage(1); }, []);
   useEffect(() => { const timer = window.setTimeout(() => { setSearchQuery(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
@@ -317,6 +330,8 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const next = initialForm(module, lookupData);
     if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;
     if (campusId && module === "departments") next.campusId = campusId;
+    if (programId && module === "semesters") next.programId = programId;
+    if (semesterId && module === "sections") next.semesterId = semesterId;
     setForm(next);
     setNotice("");
     setError("");
@@ -567,7 +582,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                     onChange={(value) => setField(field, value)}
                     placeholder={dependencyMissing ? `Select ${field.label.toLowerCase()} after its parent` : (field.placeholder ?? `Select ${field.label.toLowerCase()}`)}
                     searchPlaceholder={`Search ${field.label.toLowerCase()}…`}
-                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId") || Boolean(campusId && module === "departments" && field.key === "campusId")}
+                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId") || Boolean(campusId && module === "departments" && field.key === "campusId") || Boolean(programId && module === "semesters" && field.key === "programId") || Boolean(semesterId && module === "sections" && field.key === "semesterId")}
                     loading={lookupsLoading}
                     getLabel={(item) => labelFor(field.source as LookupSource, item)}
                   /> : <input
