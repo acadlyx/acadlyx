@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
-import { recordPayment, requestConcession } from "../services/finance.service";
+import { processRefund, recordPayment, requestConcession, requestRefund } from "../services/finance.service";
 import type { AuthenticatedUser } from "../types/auth";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
@@ -69,6 +69,9 @@ async function fixture(): Promise<Fixture> {
           "fees.payment.record",
           "fees.concession.manage",
           "fees.concession.approve",
+          "fees.refund.request",
+          "fees.refund.approve",
+          "fees.refund.process",
         ],
       },
     };
@@ -133,6 +136,67 @@ test("PostgreSQL: concurrent retries with one idempotency key create one payment
     assert.equal(receipts.length, 1);
     assert.equal(invoice.paidAmount, 400);
     assert.equal(payments[0].idempotencyKey, "same-key");
+  } finally {
+    await cleanup(f.institutionId);
+  }
+});
+
+
+test("PostgreSQL: concurrent refund reservations cannot exceed one payment's refundable balance", { skip: !enabled }, async () => {
+  const f = await fixture();
+  try {
+    await recordPayment(f.institutionId, f.actor, f.invoiceId, {
+      amount: 1000, method: "OFFLINE", reference: "refund-race-payment", idempotencyKey: "refund-race-payment",
+    });
+    const payment = await prisma.feePayment.findFirstOrThrow({
+      where: { institutionId: f.institutionId, invoiceId: f.invoiceId },
+    });
+    const results = await Promise.allSettled([
+      requestRefund(f.institutionId, f.actor, payment.id, { amount: 700, reason: "concurrent refund A" }),
+      requestRefund(f.institutionId, f.actor, payment.id, { amount: 700, reason: "concurrent refund B" }),
+    ]);
+    assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+    assert.equal(results.filter(x => x.status === "rejected").length, 1);
+    const [refunds, persistedPayment, invoice] = await Promise.all([
+      prisma.feeRefund.findMany({ where: { institutionId: f.institutionId, paymentId: payment.id } }),
+      prisma.feePayment.findUniqueOrThrow({ where: { id: payment.id } }),
+      prisma.feeInvoice.findUniqueOrThrow({ where: { id: f.invoiceId } }),
+    ]);
+    assert.equal(refunds.length, 1);
+    assert.equal(refunds[0].amount.toString(), "700");
+    assert.equal(persistedPayment.refundedAmount, 0);
+    assert.equal(invoice.paidAmount, 1000);
+  } finally {
+    await cleanup(f.institutionId);
+  }
+});
+
+test("PostgreSQL: processed refunds are not subtracted twice from the remaining refundable balance", { skip: !enabled }, async () => {
+  const f = await fixture();
+  try {
+    await recordPayment(f.institutionId, f.actor, f.invoiceId, {
+      amount: 1000, method: "OFFLINE", reference: "partial-refund-payment", idempotencyKey: "partial-refund-payment",
+    });
+    const payment = await prisma.feePayment.findFirstOrThrow({
+      where: { institutionId: f.institutionId, invoiceId: f.invoiceId },
+    });
+    const first = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 600, reason: "first partial refund" });
+    await processRefund(f.institutionId, f.actor, first.id);
+    const second = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 400, reason: "remaining balance refund" });
+    assert.equal(second.amount.toString(), "400");
+    const [refunds, persistedPayment, invoice, ledger] = await Promise.all([
+      prisma.feeRefund.findMany({ where: { institutionId: f.institutionId, paymentId: payment.id } }),
+      prisma.feePayment.findUniqueOrThrow({ where: { id: payment.id } }),
+      prisma.feeInvoice.findUniqueOrThrow({ where: { id: f.invoiceId } }),
+      prisma.feeTransaction.findMany({ where: { institutionId: f.institutionId, invoiceId: f.invoiceId, type: "REFUND" } }),
+    ]);
+    assert.equal(refunds.length, 2);
+    assert.equal(refunds.filter(x => x.status === "PROCESSED").length, 1);
+    assert.equal(persistedPayment.refundedAmount, 600);
+    assert.equal(invoice.refundedAmount, 600);
+    assert.equal(invoice.paidAmount, 400);
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].amount.toString(), "-600");
   } finally {
     await cleanup(f.institutionId);
   }
