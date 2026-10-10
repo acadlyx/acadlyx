@@ -444,7 +444,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     <DashboardShell title={config.title} subtitle="Institution-scoped academic structure" allowedRoles={["INSTITUTION_ADMIN"]}>
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
         <DashboardPageHeader
-          eyebrow={departmentId ? "Department workspace" : campusId ? "Campus workspace" : "Academic structure"}
+          eyebrow={departmentId ? "Department workspace" : campusId ? "Campus workspace" : programId ? "Program workspace" : semesterId ? "Semester workspace" : "Academic structure"}
           title={config.title}
           description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
           breadcrumbs={departmentId ? [
@@ -454,6 +454,14 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           ] : campusId ? [
             { label: "Admin", href: "/admin" },
             { label: lookupData.campuses.find((item) => item.id === campusId)?.name || "Campus", href: `/admin/campuses/${encodeURIComponent(campusId)}` },
+            { label: config.title },
+          ] : programId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.programs.find((item) => item.id === programId)?.name || "Program", href: `/admin/programs/${encodeURIComponent(programId)}` },
+            { label: config.title },
+          ] : semesterId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.semesters.find((item) => item.id === semesterId)?.name || "Semester", href: `/admin/semesters/${encodeURIComponent(semesterId)}` },
             { label: config.title },
           ] : [
             { label: "Admin", href: "/admin" },
