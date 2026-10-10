@@ -78,3 +78,27 @@ test("Director financial records and payment aggregates retain institution and c
   assert.match(service, /function paymentWhere\(s:Scope\):Prisma\.FeePaymentWhereInput\{return\{institutionId:s\.institutionId/);
   assert.match(service, /function studentFinancialFilter\(s:Scope\):Record<string,any>/);
 });
+
+test("refund decisions use an atomic state transition claim before financial posting", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("export async function decideRefund(");
+  const end = service.indexOf("\nexport async function listRefunds(", start);
+  assert.ok(start >= 0 && end > start);
+  const decide = service.slice(start, end);
+  assert.match(decide, /const validTransition\s*=/);
+  assert.match(decide, /refund\.status === "REQUESTED"[^;]*input\.status === "APPROVED"[^;]*input\.status === "REJECTED"/s);
+  assert.match(decide, /const claimed = await tx\.\$executeRaw[\s\S]*?AND "status" = \$\{refund\.status\}[\s\S]*?if \(claimed !== 1\)/);
+  assert.match(decide, /FROM "fee_payments"[\s\S]*?FOR UPDATE/);
+  assert.match(decide, /FROM "fee_invoices"[\s\S]*?FOR UPDATE/);
+});
+
+test("settled payment processing locks the invoice and rejects amounts over the outstanding balance", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("async function settlePayment(");
+  const end = service.indexOf("\n/** Counter / offline collection. */", start);
+  assert.ok(start >= 0 && end > start);
+  const settle = service.slice(start, end);
+  assert.match(settle, /FROM "fee_invoices"[\s\S]*?FOR UPDATE/);
+  assert.match(settle, /input\.amount > outstanding \+ 0\.009/);
+  assert.match(settle, /"providerPaymentId" = \$\{input\.providerPaymentId\}/);
+});
