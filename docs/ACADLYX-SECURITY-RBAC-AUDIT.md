@@ -309,3 +309,33 @@ The exact source SHA containing the new tests, `d6e78f156ae20b837dff16d3cbc0e2ff
 - [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
 
 No local command was run in this connector environment. Hosted CI does not include the missing HTTP + disposable DB adversarial matrix; all database-backed tenant/campus/department/parent/file/export/bulk side-effect checks remain blocked or unverified.
+
+
+## Remediation update — 2026-10-10
+
+**Candidate branch:** `stabilization-platform-2026-10-09`. Starting SHA for this remediation: `eed8d92b2236bea94404d588d9c9d932f79a5fa8`. Current branch HEAD must be read from GitHub before release reporting.
+
+### Director Finance scope
+
+**FIXED IN SOURCE; integration VERIFIED status pending.** `backend/src/services/finance.service.ts` now imports and calls the canonical `getDirectorCampusIds(institutionId, actor.id)` helper. The helper reads active campuses in the same institution from explicit `CampusAccess` rows. Director scope now takes precedence over department scope, and both Director and HOD/Dean resource-scope branches are evaluated before the broad `fees.manage` / export permission fallback. A contract regression test asserts the helper, tenant/active-campus predicate, and ordering.
+
+This is source-level regression evidence, not a PostgreSQL/API attack test. It does not close the full route matrix.
+
+### Remaining scope verification
+
+| Boundary | Status | Evidence needed |
+|---|---|---|
+| Director campus reads, aggregates, writes, reports and exports | PARTIALLY VERIFIED | Synthetic PostgreSQL records across authorized and unauthorized campuses; exercise every Finance endpoint |
+| Cross-institution records | UNVERIFIED | API requests substituting IDs from a second tenant; assert no data and no side effects |
+| Dean/HOD department boundaries | PARTIALLY VERIFIED | Verify mixed-role actors and permission combinations against real records |
+| Faculty assignment boundary | UNVERIFIED | API/database fixtures for assigned and unassigned course/class/student records |
+| Student self-access / parent linked-child access | PARTIALLY VERIFIED | Parent/student HTTP requests and denied cross-child / unlinked-child identifiers |
+| Bulk, export, download and background-job isolation | UNVERIFIED | Mixed-scope bulk IDs and generated output/job payload assertions |
+| Revoked permission / deactivated account | UNVERIFIED | Revoke/deactivate between token issuance and request; assert denial and no writes |
+| Rejected requests leave no partial writes | UNVERIFIED | Database snapshots around denied mutations and injected mid-transaction failures |
+
+### Environment limitation
+
+The repository connector can create commits on the stabilization branch, but no local checkout or disposable PostgreSQL/API fixture was available in this run. Therefore local tests and HTTP/database integration tests were not run. Hosted CI must be checked against the exact final SHA after all edits.
+
+**Release decision remains NO-GO.**
