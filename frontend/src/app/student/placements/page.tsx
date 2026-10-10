@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch, ApiRequestError } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Drive = { id: string; title: string; status: string; applicationDeadline: string | null; company: { id: string; name: string; logoUrl: string | null } };
@@ -11,6 +12,7 @@ type Test = { id: string; title: string; mode: string; scheduledAt: string; driv
 type Profile = { profile: { placementStatus: string; bio: string | null; portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null } | null; skills: unknown[]; certifications: unknown[]; projects: unknown[]; resumes: unknown[] };
 
 export default function StudentPlacementsPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [drives, setDrives] = useState<Drive[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -25,11 +27,11 @@ export default function StudentPlacementsPage() {
     setError("");
     try {
       const [p, d, a, o, testsResponse] = await Promise.all([
-        apiFetch<{ data: Profile }>("/placements/profile"),
-        apiFetch<{ data: Drive[] }>("/placements/drives"),
-        apiFetch<{ data: Application[] }>("/placements/applications"),
-        apiFetch<{ data: Offer[] }>("/placements/offers"),
-        apiFetch<{ data: Test[] }>("/placements/tests"),
+        authedFetch<{ data: Profile }>("/placements/profile"),
+        authedFetch<{ data: Drive[] }>("/placements/drives"),
+        authedFetch<{ data: Application[] }>("/placements/applications"),
+        authedFetch<{ data: Offer[] }>("/placements/offers"),
+        authedFetch<{ data: Test[] }>("/placements/tests"),
       ]);
       setProfile(p.data);
       setDrives(d.data || []);
@@ -37,7 +39,11 @@ export default function StudentPlacementsPage() {
       setOffers(o.data || []);
       setTests(testsResponse.data || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "Unable to load your placement workspace.");
+      if (e instanceof AuthRequiredError) {
+        router.replace("/login");
+      } else {
+        setError(e instanceof HttpRequestError ? e.message : "Unable to load your placement workspace.");
+      }
     } finally {
       setLoading(false);
     }
@@ -49,10 +55,11 @@ export default function StudentPlacementsPage() {
     setBusy(id);
     setError("");
     try {
-      await apiFetch("/placements/drives/" + id + "/apply", { method: "POST" });
+      await authedFetch("/placements/drives/" + id + "/apply", { method: "POST" });
       await load();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "Unable to apply to this drive.");
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to apply to this drive.");
     } finally {
       setBusy(null);
     }
@@ -62,10 +69,11 @@ export default function StudentPlacementsPage() {
     setBusy(id + status);
     setError("");
     try {
-      await apiFetch("/placements/offers/" + id + "/respond", { method: "POST", body: JSON.stringify({ status }) });
+      await authedFetch("/placements/offers/" + id + "/respond", { method: "POST", body: JSON.stringify({ status }) });
       await load();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "Unable to update offer.");
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to update offer.");
     } finally {
       setBusy(null);
     }
