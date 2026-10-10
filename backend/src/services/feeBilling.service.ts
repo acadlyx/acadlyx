@@ -250,12 +250,17 @@ export async function decideConcession(
     );
   }
 
-  await prisma.$executeRaw`
+  const claimed = await prisma.$executeRaw`
     UPDATE "fee_concessions"
     SET "status" = ${status}, "approvedById" = ${actor.id},
         "approvedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${concessionId} AND "institutionId" = ${institutionId}
+    WHERE "id" = ${concessionId}
+      AND "institutionId" = ${institutionId}
+      AND "status" = 'PENDING'
   `;
+  if (claimed !== 1) {
+    throw new AppError("Concession state changed; reload before retrying", 409);
+  }
 
   await recordAuditLog({
     institutionId,
