@@ -135,3 +135,21 @@ No production setting, branch protection, deployment, or database was changed by
 | R-33 | Release protection and live provider settings | Critical | Checked-in Render Blueprint targets production branch; branch-protection API read is forbidden to this connector, and live provider settings remain unconfirmed. Earlier branch query reported protection disabled. | Repository administrator confirms/enables required checks and protection; authorized operator verifies live settings without deploying. | BLOCKED |
 
 No production deployment, production database operation, or production smoke test was performed. Overall decision remains **NO-GO**.
+
+
+## PR #29 risk update — 2026-10-10
+
+**Candidate at assessment:** `c7dc0b31a2355364b5342636307578aac4109ab9`; latest CI run [38040759171](https://github.com/acadlyx/acadlyx/actions/runs/38040759171) was in progress at capture.
+
+| Risk | Severity | Evidence/status | Release treatment |
+|---|---|---|---|
+| Concurrent payment correctness | Critical | Invoice lock and in-transaction idempotency recheck implemented; no overlapping PostgreSQL test or persisted-state artifact | Block release |
+| Duplicate refund-request retries | High | `FeeRefund` lacks a dedicated idempotency key; capacity reservations are locked but identical retries can create separate requests | Block release until policy/idempotency is implemented and tested |
+| Refund processing/reconciliation | Critical | Transactional row locks and conditional status claim in source; no concurrent database execution or persisted ledger assertions | Block release |
+| Director campus finance isolation | High | Finance service calls canonical `getDirectorCampusIds`; HTTP authorization matrix unexecuted | Block release |
+| Library charge exactly-once | High | Deterministic source event key and schema uniqueness visible in source; no repeated/concurrent persisted workflow test | Block release |
+| Legacy migration safety | Critical | Empty/configured CI migration job passed on earlier SHA; legacy populated-database upgrade not evidenced | Block release |
+| Backup/restore and RPO/RTO | Critical | No restore rehearsal artifact or measured recovery values | Block release |
+| Integrated workflows and live deployment alignment | High | Required end-to-end and provider checks not evidenced; smoke job skipped on prior CI | Block release |
+
+No risk in this table is marked accepted merely to permit release. Reassess each entry against test artifacts from the final candidate SHA.
