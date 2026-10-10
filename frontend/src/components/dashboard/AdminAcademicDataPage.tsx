@@ -456,6 +456,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           {loading ? <div className="p-10 text-center text-sm text-slate-500">Loading live records…</div> : rows.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500"><p>No records are currently configured.</p>{canCreate ? <button type="button" onClick={openCreate} className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white">Create first record</button> : null}</div>
           ) : (
+            <>
             {module === "campuses" ? (
               <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
                 {rows.map((row, index) => {
@@ -506,6 +507,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                 <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page >= totalPages || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Next</button>
               </div>
             </div>
+            </>
           )}
         </section>
       </main>
