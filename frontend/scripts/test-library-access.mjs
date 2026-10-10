@@ -17,7 +17,8 @@ assert.match(studentRoute, /StudentSelfServiceModule module="library"/,
   "the student Library route must render the dedicated self-service module");
 assert.match(navigation, /label: "Library",[\s\S]*?href: "\/student\/library",[\s\S]*?roles: \["STUDENT"\],[\s\S]*?permissions: \["library\.read"\]/,
   "student navigation must require the canonical library.read permission");
-assert.ok(navigation.includes(String.raw`((student)\\/)?library`),
+assert.match(navigation, /TENANT_FEATURE_BY_ROUTE/);
+assert.ok(navigation.includes('"/student/library"') && navigation.includes('"library"'),
   "student Library routes must map to the library tenant feature");
 assert.match(studentModule, /Issued \{date\(loan\.issuedAt\)\}[\s\S]*?Returned \{date\(loan\.returnedAt\)\}/,
   "students must be able to review issue and return dates");
