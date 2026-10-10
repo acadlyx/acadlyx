@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { ExpandableList } from "@/components/ui/ExpandableList";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
 import { AuthRequiredError, authedFetch, getCurrentUser, type AuthUser } from "@/lib/auth";
 
@@ -463,12 +464,16 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           ) : (
             <>
             {module === "campuses" ? (
-              <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rows.map((row, index) => {
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="campuses"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
                   const counts = row._count as { departments?: number; campusAccesses?: number } | undefined;
                   const campusName = display(row.name ?? row.code ?? "Campus");
                   return (
-                    <article key={String(row.id ?? index)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
                       <Link href={row.id ? `/admin/campuses/${encodeURIComponent(row.id)}` : "/admin/campuses"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
                         <h3 className="mt-1 text-lg font-bold text-slate-900">{campusName}</h3>
@@ -485,8 +490,8 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                       </div> : null}
                     </article>
                   );
-                })}
-              </div>
+                }}
+              />
             ) : (
               <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="px-4 py-3 font-black text-slate-600">Record</th>
