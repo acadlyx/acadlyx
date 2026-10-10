@@ -75,3 +75,12 @@ For each workflow, preserve:
 ## Release decision
 
 **NO-GO.** No connected API/database/browser workflow was executed in this environment. Do not describe any workflow as integrated or verified until its persisted state, failure paths and user-visible output are captured.
+
+## PR #29 evidence update — 2026-10-10
+
+**Evidence snapshot candidate:** `c7dc0b31a2355364b5342636307578aac4109ab9`.
+
+- **CI:** [run 38040500919](https://github.com/acadlyx/acadlyx/actions/runs/38040500919) passed its reported backend/frontend checks and configured Prisma migration job on earlier SHA `275280390500b214dce754e12740e2599c545f32`. Production smoke checks were skipped. Latest run [38040759171](https://github.com/acadlyx/acadlyx/actions/runs/38040759171) was in progress at capture time.
+- **Source inspection:** library fine-to-invoice code uses a deterministic `sourceEventKey`; Finance payment writes include invoice locking and idempotency replay checks on this candidate.
+- **Not executed:** enrollment-to-fee workflow; payment/receipt/refund persisted reconciliation; issue/overdue/loss/waiver library flow; attendance-to-exam eligibility/admit-card PDF validation; placement application transitions; cross-role and cross-department workflow isolation; browser-level tests.
+- **Release gate:** OPEN / NO-GO until each required workflow is exercised through real API/application paths against a disposable database and persisted results are checked.
