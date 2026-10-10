@@ -3,6 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { invoices, payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
+import { returnBook as returnLibraryBook } from "../services/library.service";
 import type { AuthenticatedUser } from "../types/auth";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
@@ -89,10 +90,66 @@ async function cleanup(institutionId: string): Promise<void> {
     await tx.feeTransaction.deleteMany({ where: { institutionId } });
     await tx.feePayment.deleteMany({ where: { institutionId } });
     await tx.feeInvoice.deleteMany({ where: { institutionId } });
+    await tx.libraryFine.deleteMany({ where: { institutionId } });
+    await tx.libraryIssue.deleteMany({ where: { institutionId } });
+    await tx.libraryBookCopy.deleteMany({ where: { institutionId } });
+    await tx.libraryBook.deleteMany({ where: { institutionId } });
+    await tx.tenantFeatureEntitlement.deleteMany({ where: { institutionId } });
+    await tx.tenantSubscription.deleteMany({ where: { institutionId } });
     await tx.institution.deleteMany({ where: { id: institutionId } });
   });
 }
 
+
+
+test("PostgreSQL: simultaneous library returns create one fine and one linked financial invoice", { skip: !enabled }, async () => {
+  const f = await fixture();
+  try {
+    const subscription = await prisma.tenantSubscription.create({
+      data: { institutionId: f.institutionId, userLimit: 20, plan: "STANDARD", status: "ACTIVE" },
+    });
+    await prisma.tenantFeatureEntitlement.create({
+      data: { institutionId: f.institutionId, subscriptionId: subscription.id, featureKey: "fees", isEnabled: true },
+    });
+    const book = await prisma.libraryBook.create({
+      data: {
+        institutionId: f.institutionId, title: "Concurrency Test Book", author: "Integration Author",
+        totalCopies: 1, availableCopies: 0, defaultReplacementValue: 100,
+      },
+    });
+    const copy = await prisma.libraryBookCopy.create({
+      data: { institutionId: f.institutionId, bookId: book.id, accessionNumber: `ACC-${randomUUID()}`, status: "ISSUED" },
+    });
+    const issue = await prisma.libraryIssue.create({
+      data: {
+        institutionId: f.institutionId, bookId: book.id, borrowerId: f.studentId, issuedById: f.actor.id,
+        copyId: copy.id, dueDate: new Date(Date.now() - 3 * 86_400_000), status: "ISSUED",
+        finePerDay: 5, fineCap: 100, gracePeriodDays: 0,
+      },
+    });
+    const input = { condition: "RETURNED" as const, waiveFine: false };
+    const results = await Promise.allSettled([
+      returnLibraryBook(f.institutionId, f.actor, issue.id, input, {}),
+      returnLibraryBook(f.institutionId, f.actor, issue.id, input, {}),
+    ]);
+    assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+    assert.equal(results.filter(x => x.status === "rejected").length, 1);
+    const [persistedIssue, fines, invoices] = await Promise.all([
+      prisma.libraryIssue.findUniqueOrThrow({ where: { id: issue.id } }),
+      prisma.libraryFine.findMany({ where: { institutionId: f.institutionId, issueId: issue.id } }),
+      prisma.feeInvoice.findMany({ where: { institutionId: f.institutionId, sourceEventKey: { startsWith: `LIBRARY_FINANCIAL_CHARGE:${issue.id}:` } } }),
+    ]);
+    assert.equal(persistedIssue.status, "RETURNED");
+    assert.equal(fines.length, 1);
+    assert.ok(Number(fines[0].originalAmount) > 0);
+    assert.equal(invoices.length, 1);
+    assert.equal(fines[0].financialInvoiceId, invoices[0].id);
+    assert.equal(invoices[0].libraryIssueId, issue.id);
+    assert.equal(invoices[0].amount, Number(fines[0].originalAmount));
+  } finally {
+    await cleanup(f.institutionId);
+  }
+});
 
 test("PostgreSQL: a faculty permission cannot turn into institution-wide financial scope", { skip: !enabled }, async () => {
   const f = await fixture();
