@@ -244,6 +244,7 @@ test("PostgreSQL: concurrent refund reservations cannot exceed one payment's ref
     ]);
     assert.equal(refunds.length, 1);
     assert.equal(refunds[0].amount.toString(), "700");
+    assert.equal(refunds[0].feePaymentId, payment.id, "legacy rollback-compatible payment reference must be populated");
     assert.equal(persistedPayment.refundedAmount, 0);
     assert.equal(invoice.paidAmount, 1000);
   } finally {
