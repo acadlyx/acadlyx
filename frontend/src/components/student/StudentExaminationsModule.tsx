@@ -149,7 +149,7 @@ export function StudentExaminationsModule({ view }: { view: View }) {
                 <p className="font-bold text-slate-950">{r.courseCode} — {r.courseName}</p>
                 <p className="text-xs text-slate-500">{r.examName} · {date(r.examDate)}</p>
               </div>
-              <p className="text-sm font-black">{r.isAbsent || r.marksObtained === null || r.marksObtained === undefined ? "AB" : String(r.marksObtained) + "/" + String(r.maxMarks)}</p>
+              <p className="text-sm font-black">{r.isAbsent ? "AB" : r.marksObtained === null || r.marksObtained === undefined ? "Not recorded" : String(r.marksObtained) + "/" + String(r.maxMarks)}</p>
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-slate-500">{view === "results" ? "Published " + date(r.publishedAt) : "Status " + r.status}</p>
