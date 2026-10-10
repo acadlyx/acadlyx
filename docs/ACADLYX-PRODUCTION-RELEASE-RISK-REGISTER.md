@@ -66,7 +66,7 @@ Tested SHA: `c10ec08489756ba770467fff7b81e7f992b2d0f0`, branch `stabilization-pl
 
 Backend test log: 114 tests, 114 passed, 0 failed, 0 skipped. The production-quality migration job applied all migrations to an empty disposable PostgreSQL 16 database. This is not an existing-data migration rehearsal. Frontend package has no unit/integration test script, so frontend runtime tests remain UNVERIFIED.
 
-The four workflows now trigger on the stabilization branch for pushes and pull requests and declare `permissions: contents: read`. The live smoke job in production-quality is gated to the production branch only. No deployment or production database operation occurred.
+The four workflows now trigger on the stabilization branch for pushes and pull requests and declare `permissions: contents: read`. The live smoke job in production-quality is gated to the production branch only. GitHub branch metadata reports `protected: false` for both stabilization and production baseline, with no required-check enforcement observed; repository-admin action is still needed to make checks mandatory. No deployment or production database operation occurred.
 
 ### Remaining release blockers
 
