@@ -280,6 +280,7 @@ jobs:
         run: |
           npx prisma generate
           npx prisma migrate deploy
+          npx tsx scripts/e2e/seed-public-site.ts
           npm run build
       - name: Start isolated API
         working-directory: backend
