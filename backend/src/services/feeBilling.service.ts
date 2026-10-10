@@ -919,17 +919,6 @@ async function settlePayment(
       throw new AppError("This invoice has been cancelled", 409);
     }
 
-    const outstanding = outstandingOf(invoice);
-    if (outstanding <= 0) {
-      throw new AppError("This invoice is already settled", 409);
-    }
-    if (input.amount > outstanding + 0.009) {
-      throw new AppError(
-        `Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}`,
-        400
-      );
-    }
-
     if (input.providerPaymentId) {
       const existing = await tx.$queryRaw<
         Array<{ id: string; invoiceId: string; amount: number; receiptNumber: string | null; status: string }>
@@ -953,6 +942,17 @@ async function settlePayment(
           invoice,
         };
       }
+    }
+
+    const outstanding = outstandingOf(invoice);
+    if (outstanding <= 0) {
+      throw new AppError("This invoice is already settled", 409);
+    }
+    if (input.amount > outstanding + 0.009) {
+      throw new AppError(
+        `Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}`,
+        400
+      );
     }
 
     const year = new Date().getUTCFullYear();
