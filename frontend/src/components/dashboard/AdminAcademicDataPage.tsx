@@ -241,6 +241,7 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
+  const [campusId, setCampusId] = useState("");
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const config = CONFIG[module];
@@ -287,7 +288,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ force: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -303,9 +304,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, loadLookups, page, router, searchQuery]);
+  }, [config.endpoint, departmentId, campusId, loadLookups, page, router, searchQuery, module]);
 
-  useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); setPage(1); }, []);
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setDepartmentId(params.get("departmentId") || ""); setCampusId(params.get("campusId") || ""); setPage(1); }, []);
   useEffect(() => { const timer = window.setTimeout(() => { setSearchQuery(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
@@ -313,6 +314,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     setEditingRow(null);
     const next = initialForm(module, lookupData);
     if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;
+    if (campusId && module === "departments") next.campusId = campusId;
     setForm(next);
     setNotice("");
     setError("");
@@ -496,7 +498,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                     onChange={(value) => setField(field, value)}
                     placeholder={dependencyMissing ? `Select ${field.label.toLowerCase()} after its parent` : (field.placeholder ?? `Select ${field.label.toLowerCase()}`)}
                     searchPlaceholder={`Search ${field.label.toLowerCase()}…`}
-                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId")}
+                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId") || Boolean(campusId && module === "departments" && field.key === "campusId")}
                     loading={lookupsLoading}
                     getLabel={(item) => labelFor(field.source as LookupSource, item)}
                   /> : <input
