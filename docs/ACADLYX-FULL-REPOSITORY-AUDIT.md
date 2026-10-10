@@ -70,3 +70,8 @@ All new edits in this continuation are made to `production-readiness-completion-
 ## 7. Release decision
 
 **NO-GO.** Green build and configured smoke checks are necessary but insufficient while critical data-integrity, authorization, migration, restore, visual and capacity gates are unverified. This report deliberately does not claim a 100% readiness score.
+
+
+## Final-candidate evidence rule
+
+The GitHub PR head is authoritative for final verification. Because each commit changes the candidate SHA, do not reuse checks from a predecessor commit as final evidence. Before any release decision, record the current branch HEAD and inspect all required check runs attached to that exact SHA. The current report is intentionally not a GO approval.
