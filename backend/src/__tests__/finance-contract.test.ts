@@ -74,9 +74,14 @@ test("Director finance scope uses the canonical explicit CampusAccess helper", (
 
 test("Director financial records and payment aggregates retain institution and campus predicates", () => {
   const service = read("src/services/finance.service.ts");
-  assert.match(service, /function invoiceWhere\(s:Scope\)[\s\S]*?campusId:\{in:s\.campusIds\}/);
-  assert.match(service, /function paymentWhere\(s:Scope\):Prisma\.FeePaymentWhereInput\{return\{institutionId:s\.institutionId/);
-  assert.match(service, /function studentFinancialFilter\(s:Scope\):Record<string,any>/);
+  const invoiceWhere = service.slice(service.indexOf("function invoiceWhere"), service.indexOf("function paymentWhere"));
+  const paymentWhere = service.slice(service.indexOf("function paymentWhere"), service.indexOf("function studentFinancialFilter"));
+  const studentFinancialFilter = service.slice(service.indexOf("function studentFinancialFilter"), service.indexOf("function dec("));
+  assert.ok(invoiceWhere.includes('if(s.campusIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}};'));
+  assert.ok(paymentWhere.includes("institutionId:s.institutionId"));
+  assert.ok(paymentWhere.includes("s.campusIds"));
+  assert.ok(studentFinancialFilter.includes("s.campusIds"));
+  assert.ok(studentFinancialFilter.includes("campusId:{in:s.campusIds}"));
 });
 
 test("refund decisions use an atomic state transition claim before financial posting", () => {
