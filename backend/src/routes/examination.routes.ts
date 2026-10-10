@@ -890,17 +890,23 @@ router.patch(
 router.get(
   "/my/performance",
   authorize("exams.read"),
-  asyncHandler(async (req, res) => sendOk(res, await service.getStudentExamPerformance(
-    requireInstitution(req), requireAuthenticatedUser(req), requireAuthenticatedUser(req).id
-  )))
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    return sendOk(res, await service.getStudentExamPerformance(
+      requireInstitution(req), actor, actor.id
+    ));
+  })
 );
 
 router.get(
   "/my/results",
   authorize("results.read"),
-  asyncHandler(async (req, res) => sendOk(res, await service.getStudentPublishedResults(
-    requireInstitution(req), requireAuthenticatedUser(req), requireAuthenticatedUser(req).id
-  )))
+  asyncHandler(async (req, res) => {
+    const actor = requireAuthenticatedUser(req);
+    return sendOk(res, await service.getStudentPublishedResults(
+      requireInstitution(req), actor, actor.id
+    ));
+  })
 );
 
 router.get(
