@@ -41,7 +41,9 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.getByRole("button", { name: "Sign in" }).click();
   const loginResponse = await loginResponsePromise;
   expect([400, 401, 422]).toContain(loginResponse.status());
-  await expect(page.getByRole("alert")).toBeVisible();
+  const loginErrorAlert = page.locator('[role="alert"]:not([id="__next-route-announcer__"])');
+  await expect(loginErrorAlert).toBeVisible();
+  await expect(loginErrorAlert).not.toBeEmpty();
   attemptingInvalidLogin = false;
 
   await page.setViewportSize({ width: 390, height: 844 });
