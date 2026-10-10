@@ -60,7 +60,7 @@ assert.match(campusWorkspace, /departments\.map\(\(department\)/);
 assert.match(adminAcademic, /module === "programs" \?[\s\S]*?Open program workspace/);
 assert.match(adminAcademic, /module === "semesters" \?[\s\S]*?Open semester workspace/);
 assert.match(programWorkspace, /\/semesters\?page=1&pageSize=100&programId=/);
-assert.match(programWorkspace, /semesters\.map/);
+assert.match(programWorkspace, /items=\{semesters\}/);
 assert.match(semesterWorkspace, /\/sections\?page=1&pageSize=100&semesterId=/);
 assert.match(semesterWorkspace, /sections/);
 assert.match(semesterValidator, /programId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
