@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
-import { payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
+import { invoices, payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
 import type { AuthenticatedUser } from "../types/auth";
 
 const enabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
@@ -92,6 +92,21 @@ async function cleanup(institutionId: string): Promise<void> {
     await tx.institution.deleteMany({ where: { id: institutionId } });
   });
 }
+
+
+test("PostgreSQL: a faculty permission cannot turn into institution-wide financial scope", { skip: !enabled }, async () => {
+  const f = await fixture();
+  try {
+    const faculty = {
+      ...f.actor,
+      roles: ["FACULTY"],
+      permissions: ["fees.read", "fees.reports.export"],
+    };
+    await assert.rejects(() => invoices(f.institutionId, faculty, { page: 1, pageSize: 10 }));
+  } finally {
+    await cleanup(f.institutionId);
+  }
+});
 
 test("PostgreSQL: competing payments cannot over-settle one invoice", { skip: !enabled }, async () => {
   const f = await fixture();
