@@ -102,3 +102,13 @@ test("settled payment processing locks the invoice and rejects amounts over the 
   assert.match(settle, /input\.amount > outstanding \+ 0\.009/);
   assert.match(settle, /"providerPaymentId" = \$\{input\.providerPaymentId\}/);
 });
+
+test("concession approval is claimed only while the concession remains pending", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("export async function decideConcession(");
+  const end = service.indexOf("\n/** Total approved concession", start);
+  assert.ok(start >= 0 && end > start);
+  const decide = service.slice(start, end);
+  assert.match(decide, /UPDATE "fee_concessions"[\s\S]*?AND "status" = 'PENDING'/);
+  assert.match(decide, /if \(claimed !== 1\)[\s\S]*?new AppError\("Concession state changed/);
+});
