@@ -342,3 +342,17 @@ This addendum supersedes earlier baseline references in this document where they
 - No production application source, production data, provider settings, deployment configuration, migrations or repository security settings were changed in this continuation. No real PostgreSQL concurrency, authenticated HTTP isolation, populated-data migration, backup/restore, end-to-end browser workflow or 10,000+ student load test was run here.
 
 **Current release decision remains NO-GO.** Required gates must be closed with exact-SHA evidence; a clean build or a source-contract test cannot substitute for persisted-state integration evidence.
+
+
+## Implementation continuation — 2026-10-10
+
+### Release status after implementation continuation
+
+Application changes and reproducible verification have progressed beyond documentation:
+- Eight PostgreSQL integration scenarios passed on the exact commit/run below.
+- A backward-compatible legacy refund-reference migration was added.
+- CI now includes a 10k-student database performance profile, populated legacy migration test, and isolated desktop/mobile browser smoke suite.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+Release decision remains NO-GO. The new performance, populated migration, and browser jobs must pass on the exact final candidate SHA. Full HTTP RBAC/tenant isolation, authenticated end-to-end workflow coverage, backup/restore with measured RTO/RPO, broad visual coverage, money-column precision migration review, and staging/production-only checks remain open. Green build/test jobs alone do not satisfy 100% readiness.

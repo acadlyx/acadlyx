@@ -241,3 +241,20 @@ This addendum supersedes earlier baseline references in this document where they
 - No production application source, production data, provider settings, deployment configuration, migrations or repository security settings were changed in this continuation. No real PostgreSQL concurrency, authenticated HTTP isolation, populated-data migration, backup/restore, end-to-end browser workflow or 10,000+ student load test was run here.
 
 **Current release decision remains NO-GO.** Required gates must be closed with exact-SHA evidence; a clean build or a source-contract test cannot substitute for persisted-state integration evidence.
+
+
+## Implementation continuation — 2026-10-10
+
+### Candidate deployment checklist update
+
+Before any release, confirm:
+- [ ] Exact final candidate SHA has green backend, frontend, clean migration, populated legacy migration, PostgreSQL concurrency, performance, and browser workflows.
+- [ ] Review migration 20261010100000_finance_legacy_column_compat against the actual deployed schema and sanitized data; do not run it against production as part of this task.
+- [ ] Confirm old/new application compatibility for both paymentId and feePaymentId during rolling deployment and rollback.
+- [ ] Review remaining floating-point financial columns and approve a separate compatibility-safe precision migration plan.
+- [ ] Perform a staging restore rehearsal and record measured recovery time before approving RTO/RPO.
+- [ ] Run authenticated role/tenant HTTP and critical browser workflow suites with isolated test users.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+No deployment, live provider setting change, production migration, branch-protection change, or production data access occurred in this continuation. PR #33 remains draft/unmerged. The checklist is not a release authorization.

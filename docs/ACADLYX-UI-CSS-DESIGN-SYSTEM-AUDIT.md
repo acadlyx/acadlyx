@@ -284,3 +284,14 @@ These are investigation targets, not assertions that each has already caused a v
 ## 6. Completion criteria
 
 The UI gate can close only when every listed route has either (a) a successful rendered verification with role/fixture and desktop/mobile evidence, or (b) a precise blocker and documented alternative verification. All unintended inconsistencies must be fixed and the affected routes rerendered. At present, visual gate is **UNVERIFIED** and the release decision remains **NO-GO**.
+
+
+## Implementation continuation — 2026-10-10
+
+### Browser verification implementation update
+
+Added frontend/e2e/public-smoke.spec.mjs and a CI job that starts the application against an isolated API/database. The suite inspects the public homepage and inline login form at desktop/mobile widths, checks horizontal overflow, submits invalid credentials against the real isolated API, checks the error state, detects browser runtime/console errors, and preserves screenshots/test logs as an artifact.
+
+This is automation added, not yet counted as visually verified until the browser job completes successfully on the exact final candidate SHA. The earlier inventory of 233 page/layout source files remains an inventory only; no blanket visual pass is claimed. Authenticated role dashboards and critical authenticated actions remain unverified by this public/login smoke suite.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.

@@ -47,3 +47,16 @@ Before making a capacity claim, define:
 ## 5. Release conclusion
 
 Do not assign a numeric performance-readiness percentage or claim support for 10,000+ students without recorded measurements. The performance gate remains **NO-GO / UNVERIFIED** until repeatable synthetic workloads and measured bottlenecks are documented and resolved.
+
+
+## Implementation continuation — 2026-10-10
+
+### Performance harness implementation update
+
+Added backend/scripts/performance/finance-load.ts and npm run perf:finance. It refuses to seed unless ACADLYX_PERF_CONFIRM_DISPOSABLE=YES and the database hostname is local/CI, creates and verifies a 10,000-student/10,000-invoice dataset in batches, runs a concurrent read workload, measures p50/p95/p99, throughput and error rate, writes JSON output, and cleans up the fixture. CI now uploads the measurement artifact and uses explicit p95/p99/error-rate acceptance targets.
+
+No 10,000-student performance result is claimed yet. The performance job must complete on the exact final candidate SHA; its artifact values, not fixture size alone, determine whether targets pass.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+The harness is database-only and does not establish HTTP latency, browser performance, network saturation, production capacity, or sustained 10k-student support.

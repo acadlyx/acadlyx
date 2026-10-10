@@ -75,3 +75,19 @@ All new edits in this continuation are made to `production-readiness-completion-
 ## Final-candidate evidence rule
 
 The GitHub PR head is authoritative for final verification. Because each commit changes the candidate SHA, do not reuse checks from a predecessor commit as final evidence. Before any release decision, record the current branch HEAD and inspect all required check runs attached to that exact SHA. The current report is intentionally not a GO approval.
+
+
+## Implementation continuation — 2026-10-10
+
+### Implementation evidence update
+
+The remediation now changes application behavior, not only audit documentation:
+- backend/src/services/finance.service.ts: invoice-locked concession application and approval, outstanding-refund reservation correction, refund-processing audit event, and role-based finance scope.
+- backend/src/services/library.service.ts: locks the canonical library issue row before calculating and posting a return fine.
+- backend/prisma/schema.prisma and backend/prisma/migrations/20261010100000_finance_legacy_column_compat/migration.sql: maintain canonical and legacy refund-payment references during schema rollout.
+- backend/src/__tests__/finance-concurrency.integration.test.ts: eight PostgreSQL-backed concurrency, retry, rollback, scope, refund, concession, and library-return tests.
+- Added a disposable 10,000-student database load profile, a populated legacy-refund migration fixture, and a desktop/mobile browser smoke suite.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+Remaining repository-wide gates include the newly added performance, populated migration, and browser jobs on the final candidate SHA; broad HTTP tenant-isolation coverage; backup/restore rehearsal; and staging-only verification. Repository inventory remains distinct from verified behavior.

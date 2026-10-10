@@ -102,3 +102,22 @@ This addendum supersedes earlier baseline references in this document where they
 - No production application source, production data, provider settings, deployment configuration, migrations or repository security settings were changed in this continuation. No real PostgreSQL concurrency, authenticated HTTP isolation, populated-data migration, backup/restore, end-to-end browser workflow or 10,000+ student load test was run here.
 
 **Current release decision remains NO-GO.** Required gates must be closed with exact-SHA evidence; a clean build or a source-contract test cannot substitute for persisted-state integration evidence.
+
+
+## Implementation continuation — 2026-10-10
+
+### Implemented fixes and PostgreSQL verification
+
+Implemented:
+- Lock invoice rows before checking outstanding balance or applying a concession; perform approval state claim and posting in the same transaction.
+- Correct refund availability so processed refunds are counted through feePayment.refundedAmount and are not subtracted a second time as outstanding reservations.
+- Record a finance.refund.process audit event after the refund transaction commits.
+- Lock a library issue row before calculating a return fine and updating the linked financial invoice.
+- Preserve the legacy feePaymentId refund reference alongside canonical paymentId; backfill the two columns during the compatibility migration.
+- Populate legacy-required concession fields (name, concessionType, and requestedById) while creating a concession.
+
+Eight PostgreSQL-backed integration tests passed on the exact commit and run below. The tests assert persisted invoices, payments, refunds, concessions, ledger entries, receipts, audit events, and library-fine/invoice linkage.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+The suite does not yet prove every payment-provider callback path, every fee-billing legacy endpoint, full HTTP authorization middleware, or production-data reconciliation. Money columns still include floating-point fields in the broader schema and require a separately planned, compatibility-safe precision migration; this remains a release risk.

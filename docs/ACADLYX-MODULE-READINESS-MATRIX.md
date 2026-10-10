@@ -122,3 +122,14 @@ No aggregate percentage is published. The evidence does not provide a defensible
 ## Exit criteria
 
 A module can be marked production-verified only after its positive and negative authorization cases, persisted-state invariants, retries/partial failures, relevant browser behavior and exact-SHA CI evidence are recorded. Until then the final decision remains **NO-GO**.
+
+
+## Implementation continuation — 2026-10-10
+
+### Finance and library implementation update
+
+Finance/library readiness is no longer based only on source inventory. The isolated PostgreSQL integration suite verifies competing payments cannot over-settle an invoice; same-key retries create one payment, receipt, and ledger entry; refund reservations cannot exceed refundable balance; processed refunds are not subtracted twice; concessions serialize and apply once; transaction failure rolls back invoice/payment state; concurrent library returns create one fine and linked invoice; and faculty broad finance permissions cannot grant institution-wide scope.
+
+Verified on exact implementation commit fecdb003f3742957e4c7e0c0f2d7a27b5b04ad12: [ACADLYX Production Quality run 38075258304](https://github.com/acadlyx/acadlyx/actions/runs/38075258304) completed successfully. Backend suite: 144 tests passed, 0 failed, 0 skipped. PostgreSQL migrations, backend typecheck/build/lint, and frontend typecheck/lint/production build passed. This is isolated CI evidence, not staging or production evidence. New performance, populated migration, and browser gates were added after this evidence and must pass on the exact final SHA.
+
+The overall module matrix remains provisional until the final candidate's added load, legacy migration, and browser jobs pass. Other role/resource isolation and end-to-end workflows are not implicitly verified by these tests.
