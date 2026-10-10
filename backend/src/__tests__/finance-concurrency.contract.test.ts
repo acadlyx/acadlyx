@@ -26,3 +26,15 @@ test("refund processing claims an approved refund exactly once inside its transa
   assert.match(process, /if\(claimed.count!==1\)/);
   assert.match(process, /type:"REFUND",reference:id/);
 });
+
+test("payment idempotency is rechecked under the invoice lock and rejects key reuse across invoices or payloads", () => {
+  const payment = source.slice(source.indexOf("export async function payment("), source.indexOf("export async function listPayments("));
+  const lock = payment.indexOf("FOR UPDATE");
+  const replay = payment.indexOf("const duplicate=await tx.feePayment.findFirst");
+  const write = payment.indexOf("tx.feePayment.create");
+  assert.ok(lock >= 0 && replay > lock && write > replay, "replay must be checked after locking and before creating a payment");
+  assert.match(payment, /Idempotency key is required/);
+  assert.match(payment, /Idempotency key was already used for a different invoice/);
+  assert.match(payment, /Idempotency key was reused with a different payment payload/);
+  assert.match(payment, /if\(result\.created\)await audit/);
+});
