@@ -1877,6 +1877,8 @@ model FeeRefund {
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   paymentId     String
   payment       FeePayment  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  /// Legacy billing column retained for rolling-deploy and rollback compatibility.
+  feePaymentId  String?
   invoiceId     String
   invoice       FeeInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   studentId     String
