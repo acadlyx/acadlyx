@@ -341,6 +341,61 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  backup-restore:
+    name: Isolated PostgreSQL backup and restore rehearsal
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acadlyx
+          POSTGRES_PASSWORD: acadlyx
+          POSTGRES_DB: acadlyx_recovery_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U acadlyx -d acadlyx_recovery_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_recovery_ci?schema=public
+      ACADLYX_RECOVERY_CONFIRM_DISPOSABLE: "YES"
+      ACADLYX_RESTORE_DATABASE: acadlyx_restore_ci
+      ACADLYX_RECOVERY_OUTPUT: recovery-results.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+      - name: Install
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+      - name: Run backup, restore, and integrity reconciliation
+        run: npm run test:backup-restore
+      - name: Preserve recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-restore-recovery-results
+          path: backend/recovery-results.json
+          if-no-files-found: warn
+          retention-days: 30
+
   production-smoke:
     name: Production deployment smoke checks
     needs:
