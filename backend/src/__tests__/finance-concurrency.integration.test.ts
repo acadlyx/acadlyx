@@ -251,6 +251,40 @@ test("PostgreSQL: concurrent refund reservations cannot exceed one payment's ref
   }
 });
 
+
+test("PostgreSQL: a failure after invoice and payment writes rolls back every financial record", { skip: !enabled }, async () => {
+  const f = await fixture();
+  try {
+    await assert.rejects(() => prisma.$transaction(async tx => {
+      await tx.feeInvoice.update({ where: { id: f.invoiceId }, data: { paidAmount: 500, status: "PARTIALLY_PAID" } });
+      await tx.feePayment.create({
+        data: {
+          institutionId: f.institutionId,
+          invoiceId: f.invoiceId,
+          amount: 500,
+          method: "OFFLINE",
+          status: "SUCCESS",
+          idempotencyKey: "forced-rollback",
+        },
+      });
+      throw new Error("injected failure after related financial writes");
+    }));
+    const [invoice, payments, ledger, receipts] = await Promise.all([
+      prisma.feeInvoice.findUniqueOrThrow({ where: { id: f.invoiceId } }),
+      prisma.feePayment.findMany({ where: { institutionId: f.institutionId, invoiceId: f.invoiceId } }),
+      prisma.feeTransaction.findMany({ where: { institutionId: f.institutionId, invoiceId: f.invoiceId } }),
+      prisma.feeReceipt.findMany({ where: { institutionId: f.institutionId, invoiceId: f.invoiceId } }),
+    ]);
+    assert.equal(invoice.paidAmount, 0);
+    assert.equal(invoice.status, "PENDING");
+    assert.equal(payments.length, 0);
+    assert.equal(ledger.length, 0);
+    assert.equal(receipts.length, 0);
+  } finally {
+    await cleanup(f.institutionId);
+  }
+});
+
 test("PostgreSQL: processed refunds are not subtracted twice from the remaining refundable balance", { skip: !enabled }, async () => {
   const f = await fixture();
   try {
