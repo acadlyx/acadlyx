@@ -11,6 +11,10 @@ const examApi = read("src/lib/examinationsApi.ts");
 const examRoutes = read("../backend/src/routes/examination.routes.ts");
 const examService = read("../backend/src/services/examination.service.ts");
 const rbac = read("../backend/src/config/rbac.ts");
+const adminAcademic = read("src/components/dashboard/AdminAcademicDataPage.tsx");
+const campusWorkspace = read("src/app/admin/campuses/[campusId]/page.tsx");
+const departmentService = read("../backend/src/services/department.service.ts");
+const departmentValidator = read("../backend/src/validators/department.validators.ts");
 
 assert.match(sharedHeader, /text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl/);
 assert.match(selfService, /DashboardPageHeader/);
@@ -44,5 +48,12 @@ assert.match(selfService, /<ExpandableList[\s\S]*?label="books"/);
 assert.match(selfService, /<ExpandableList[\s\S]*?label="registrations"/);
 assert.match(selfService, /<ExpandableList[\s\S]*?label="eligible courses"/);
 assert.match(selfService, /<ExpandableList[\s\S]*?label="leave requests"/);
+assert.match(adminAcademic, /module === "campuses"[\\s\\S]*?Open campus workspace/);
+assert.match(adminAcademic, /module === "departments" && campusId[\\s\\S]*?campusId=\\$\\{encodeURIComponent\\(campusId\\)\\}/);
+assert.match(campusWorkspace, /\\/departments\\?page=1&pageSize=100&campusId=/);
+assert.match(campusWorkspace, /departments\\.map\\(\\(department\\)/);
+assert.match(campusWorkspace, /\\/admin\\/departments\\/\\$\\{encodeURIComponent\\(department\\.id\\)\\}/);
+assert.match(departmentValidator, /listDepartmentsQuerySchema[\\s\\S]*?campusId: optionalUuid/);
+assert.match(departmentService, /filters\\.campusId \\? \\{ campusId: filters\\.campusId \\} : \\{\\}/);
 
 process.stdout.write("Student UI, performance data-flow and compact-list source checks passed.\n");
