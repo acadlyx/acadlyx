@@ -327,15 +327,18 @@ jobs:
       - name: Run desktop and mobile browser tests
         working-directory: frontend
         run: npx playwright test e2e/public-smoke.spec.mjs --reporter=line
+      - name: Collect browser server logs
+        if: always()
+        run: |
+          mkdir -p frontend/test-results
+          cp /tmp/acadlyx-api-browser-smoke.log frontend/test-results/ 2>/dev/null || true
+          cp /tmp/acadlyx-web-browser-smoke.log frontend/test-results/ 2>/dev/null || true
       - name: Preserve browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: public-login-browser-evidence
-          path: |
-            frontend/test-results/
-            /tmp/acadlyx-api-browser-smoke.log
-            /tmp/acadlyx-web-browser-smoke.log
+          path: frontend/test-results/
           if-no-files-found: warn
           retention-days: 30
 
