@@ -631,6 +631,8 @@ export const ROLE_PERMISSIONS: Record<
 
   CHAIRMAN: [
     "placements.read",
+    "academic-years.read",
+    "semesters.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -647,6 +649,8 @@ export const ROLE_PERMISSIONS: Record<
 
   MANAGEMENT: [
     "placements.read",
+    "academic-years.read",
+    "semesters.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
@@ -928,6 +932,8 @@ export const ROLE_PERMISSIONS: Record<
     ...EVENTS_READ,
     "students.read",
     "programs.read",
+    "academic-years.read",
+    "semesters.read",
     "fees.collection.read",
     "fees.structure.read",
     "fees.structure.manage",
