@@ -39,8 +39,8 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.getByRole("button", { name: "Sign in" }).click();
   const loginResponse = await loginResponsePromise;
   expect([400, 401, 422]).toContain(loginResponse.status());
-  attemptingInvalidLogin = false;
   await expect(page.getByRole("alert")).toBeVisible();
+  attemptingInvalidLogin = false;
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(baseURL, { waitUntil: "networkidle" });
@@ -50,5 +50,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.screenshot({ path: testInfo.outputPath("mobile-login.png"), fullPage: true });
 
   expect(pageErrors, "Browser runtime exceptions").toEqual([]);
+  const unexpectedHttpFailures = httpFailures.filter(({ status, url }) => !(url.includes("/api/v1/auth/login") && [400, 401, 422].includes(status)));
+  expect(unexpectedHttpFailures, "Unexpected failed HTTP responses").toEqual([]);
   expect(consoleErrors, `Browser console errors; HTTP failures: ${JSON.stringify(httpFailures)}`).toEqual([]);
 });
