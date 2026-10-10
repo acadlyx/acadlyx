@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { AuthRequiredError, authedFetch } from "@/lib/auth";
 
 type Workspace = {
@@ -58,29 +59,22 @@ export default function DepartmentWorkspacePage() {
   return (
     <DashboardShell title={data?.department.name || "Department"} subtitle="Department-scoped institutional administration" allowedRoles={["INSTITUTION_ADMIN"]}>
       <main className="mx-auto w-full max-w-[1500px] space-y-6 p-4 pb-12 sm:p-6 lg:p-8">
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-          <Link href="/admin" className="hover:text-slate-950">Admin</Link>
-          <span>→</span>
-          <Link href="/admin/departments" className="hover:text-slate-950">Departments</Link>
-          <span>→</span>
-          <span className="text-slate-950">{data?.department.name || "Department"}</span>
-        </nav>
+        <DashboardPageHeader
+          eyebrow="Institution administration"
+          title={data?.department.name || "Department"}
+          description={`Department-scoped workspace · ${data?.department.code || "Loading department"}${data?.department.campus ? ` · ${data.department.campus.name}` : ""}`}
+          breadcrumbs={[
+            { label: "Admin", href: "/admin" },
+            { label: "Departments", href: "/admin/departments" },
+            { label: data?.department.name || "Department" },
+          ]}
+          actions={data ? <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${data.department.isActive ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{data.department.isActive ? "Active" : "Inactive"}</span> : null}
+        />
 
         {loading ? <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">{Array.from({length: 6}, (_, i) => <div key={i} className="h-28 animate-pulse rounded-3xl bg-white border border-slate-200" />)}</section> : null}
         {error ? <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">{error}</section> : null}
 
         {data ? <>
-          <section className="rounded-[32px] bg-[#07111f] p-7 text-white shadow-[0_25px_80px_rgba(15,23,42,.16)]">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-200">Department workspace</p>
-            <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h1 className="text-3xl font-black tracking-[-0.045em] sm:text-5xl">{data.department.name}</h1>
-                <p className="mt-2 text-sm text-slate-300">{data.department.code}{data.department.campus ? ` · ${data.department.campus.name}` : ""}</p>
-              </div>
-              <span className={`rounded-full px-3 py-1.5 text-xs font-black ${data.department.isActive ? "bg-emerald-400/15 text-emerald-200" : "bg-amber-400/15 text-amber-200"}`}>{data.department.isActive ? "Active" : "Inactive"}</span>
-            </div>
-          </section>
-
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             {Object.entries(data.metrics).map(([key, value]) => <div key={key} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{key}</p>

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "validate:source": "node scripts/validate-source.mjs"
+    "validate:source": "node scripts/validate-source.mjs && node scripts/test-placement-auth.mjs && node scripts/test-library-access.mjs && node scripts/test-student-ui-integrity.mjs"
   },
   "dependencies": {
     "next": "15.5.25",

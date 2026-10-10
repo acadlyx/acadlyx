@@ -2,7 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { ExpandableList } from "@/components/ui/ExpandableList";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
 import { AuthRequiredError, authedFetch, getCurrentUser, type AuthUser } from "@/lib/auth";
 
@@ -240,6 +243,9 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
   const [departmentId, setDepartmentId] = useState("");
+  const [campusId, setCampusId] = useState("");
+  const [programId, setProgramId] = useState("");
+  const [semesterId, setSemesterId] = useState("");
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const config = CONFIG[module];
@@ -270,15 +276,26 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     const sources = Array.from(new Set(config.fields.map((field) => field.source).filter(Boolean))) as LookupSource[];
     const entries = await Promise.all(sources.map(async (source) => {
       try {
-        const response = await authedFetch<{ data: unknown }>(`${source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}` : LOOKUPS[source]}${source !== "departments" && LOOKUPS[source].includes("?") ? "&" : source !== "departments" ? "?" : ""}${source !== "departments" && departmentId && ["programs","semesters","sections","courses","course-offerings"].includes(source) ? `departmentId=${encodeURIComponent(departmentId)}` : ""}`);
-        return [source, source === "departments" && departmentId ? (response.data ? [response.data as Row] : []) : normalizeRows(response.data)] as const;
+        const selectedPath =
+          source === "departments" && departmentId ? `/departments/${encodeURIComponent(departmentId)}`
+          : source === "programs" && programId ? `/programs/${encodeURIComponent(programId)}`
+          : source === "semesters" && semesterId ? `/semesters/${encodeURIComponent(semesterId)}`
+          : null;
+        const base = selectedPath || LOOKUPS[source];
+        const contextQuery = selectedPath || source === "departments"
+          ? ""
+          : departmentId && ["programs", "semesters", "sections", "courses", "course-offerings"].includes(source)
+            ? `&departmentId=${encodeURIComponent(departmentId)}`
+            : "";
+        const response = await authedFetch<{ data: unknown }>(`${base}${contextQuery}`);
+        return [source, selectedPath ? (response.data ? [response.data as Row] : []) : normalizeRows(response.data)] as const;
       } catch {
         return [source, []] as const;
       }
     }));
     setLookupData((current) => ({ ...current, ...Object.fromEntries(entries) }));
     setLookupsLoading(false);
-  }, [config.fields, departmentId]);
+  }, [config.fields, departmentId, programId, semesterId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -286,7 +303,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ force: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}${module === "semesters" && programId ? `&programId=${encodeURIComponent(programId)}` : ""}${module === "sections" && semesterId ? `&semesterId=${encodeURIComponent(semesterId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -302,9 +319,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, loadLookups, page, router, searchQuery]);
+  }, [config.endpoint, departmentId, campusId, programId, semesterId, loadLookups, page, router, searchQuery, module]);
 
-  useEffect(() => { setDepartmentId(new URLSearchParams(window.location.search).get("departmentId") || ""); setPage(1); }, []);
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setDepartmentId(params.get("departmentId") || ""); setCampusId(params.get("campusId") || ""); setProgramId(params.get("programId") || ""); setSemesterId(params.get("semesterId") || ""); setPage(1); }, []);
   useEffect(() => { const timer = window.setTimeout(() => { setSearchQuery(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
@@ -312,6 +329,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     setEditingRow(null);
     const next = initialForm(module, lookupData);
     if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;
+    if (campusId && module === "departments") next.campusId = campusId;
+    if (programId && module === "semesters") next.programId = programId;
+    if (semesterId && module === "sections") next.semesterId = semesterId;
     setForm(next);
     setNotice("");
     setError("");
@@ -423,18 +443,40 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
   return (
     <DashboardShell title={config.title} subtitle="Institution-scoped academic structure" allowedRoles={["INSTITUTION_ADMIN"]}>
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
-        <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{departmentId ? "Department-scoped academic structure" : "Academic structure management"}</p>
-            <h1 className="mt-1 text-2xl font-black text-slate-950">{config.title}</h1>
-            <p className="mt-1 text-sm text-slate-500">{loading ? "Loading…" : `${rows.length} records returned from the institution.`}</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><label className="sr-only" htmlFor="academic-structure-search">Search records</label><input id="academic-structure-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${config.title.toLowerCase()}…`} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-72" /><div className="flex flex-wrap gap-2">
-            {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
-            <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
-          </div>
-          </div>
-        </section>
+        <DashboardPageHeader
+          eyebrow={departmentId ? "Department workspace" : campusId ? "Campus workspace" : programId ? "Program workspace" : semesterId ? "Semester workspace" : "Academic structure"}
+          title={config.title}
+          description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
+          breadcrumbs={departmentId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.departments.find((item) => item.id === departmentId)?.name || "Department", href: `/admin/departments/${encodeURIComponent(departmentId)}` },
+            { label: config.title },
+          ] : campusId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.campuses.find((item) => item.id === campusId)?.name || "Campus", href: `/admin/campuses/${encodeURIComponent(campusId)}` },
+            { label: config.title },
+          ] : programId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.programs.find((item) => item.id === programId)?.name || "Program", href: `/admin/programs/${encodeURIComponent(programId)}` },
+            { label: config.title },
+          ] : semesterId ? [
+            { label: "Admin", href: "/admin" },
+            { label: lookupData.semesters.find((item) => item.id === semesterId)?.name || "Semester", href: `/admin/semesters/${encodeURIComponent(semesterId)}` },
+            { label: config.title },
+          ] : [
+            { label: "Admin", href: "/admin" },
+            { label: "Academic structure" },
+            { label: config.title },
+          ]}
+          actions={
+            <>
+              <label className="sr-only" htmlFor="academic-structure-search">Search records</label>
+              <input id="academic-structure-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${config.title.toLowerCase()}…`} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-64" />
+              {canCreate ? <button type="button" onClick={openCreate} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Add {config.title.replace(/s$/, "")}</button> : null}
+              <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? "Refreshing…" : "Refresh data"}</button>
+            </>
+          }
+        />
 
         {notice ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</section> : null}
         {error ? <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p className="font-bold">Action could not be completed</p><p className="mt-1">{error}</p><button type="button" onClick={() => void load()} className="mt-3 font-bold underline">Retry</button></section> : null}
@@ -443,7 +485,124 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           {loading ? <div className="p-10 text-center text-sm text-slate-500">Loading live records…</div> : rows.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500"><p>No records are currently configured.</p>{canCreate ? <button type="button" onClick={openCreate} className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white">Create first record</button> : null}</div>
           ) : (
-            <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
+            <>
+            {module === "campuses" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="campuses"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const counts = row._count as { departments?: number; campusAccesses?: number } | undefined;
+                  const campusName = display(row.name ?? row.code ?? "Campus");
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/campuses/${encodeURIComponent(row.id)}` : "/admin/campuses"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{campusName}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{display(row.address ?? "No address provided")}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Departments</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.departments ?? "—"}</p></div>
+                          <div><p className="text-xs text-slate-500">Campus access</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.campusAccesses ?? "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open campus workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
+            ) : module === "programs" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="programs"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const department = row.department as { id?: string; name?: string; code?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/programs/${encodeURIComponent(row.id)}` : "/admin/programs"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? "Program")}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{department?.name ? `Department · ${department.name}` : "Department not available"}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Level</p><p className="mt-1 text-sm font-semibold text-slate-900">{display(row.level ?? "—")}</p></div>
+                          <div><p className="text-xs text-slate-500">Duration</p><p className="mt-1 text-sm font-semibold text-slate-900">{row.durationYears ? `${display(row.durationYears)} years` : "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open program workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
+            ) : module === "semesters" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="semesters"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const program = row.program as { name?: string; code?: string } | null | undefined;
+                  const year = row.academicYear as { name?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/semesters/${encodeURIComponent(row.id)}` : "/admin/semesters"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{year?.name || "Academic year not set"}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? `Semester ${display(row.number)}`)}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{program?.name || "Program not available"}{program?.code ? ` · ${program.code}` : ""}</p>
+                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+                          <span className="text-xs text-slate-500">Semester number</span>
+                          <span className="text-sm font-bold text-slate-900">{display(row.number ?? "—")}</span>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open semester workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
+            ) : module === "departments" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="departments"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const counts = row._count as { programs?: number; courses?: number } | undefined;
+                  const campus = row.campus as { id?: string; name?: string; code?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/departments/${encodeURIComponent(row.id)}` : "/admin/departments"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? "Department")}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{campus?.name ? `Campus · ${campus.name}` : "No campus assigned"}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Programs</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.programs ?? "—"}</p></div>
+                          <div><p className="text-xs text-slate-500">Courses</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.courses ?? "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open department workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
+            ) : (
+              <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="px-4 py-3 font-black text-slate-600">Record</th>
               {config.columns.map((field) => <th key={field} className="px-4 py-3 font-black capitalize text-slate-600">{field.replace(/([A-Z])/g, " $1")}</th>)}
               {(canUpdate || canDelete) ? <th className="px-4 py-3 text-right font-black text-slate-600">Manage</th> : null}
@@ -457,6 +616,9 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                 </div></td> : null}
               </tr>)}
             </tbody></table>
+
+              </div>
+            )}
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <span>{total.toLocaleString("en-IN")} records · Page {page} of {totalPages}</span>
               <div className="flex gap-2">
@@ -464,7 +626,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                 <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page >= totalPages || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Next</button>
               </div>
             </div>
-            </div>
+            </>
           )}
         </section>
       </main>
@@ -485,7 +647,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                     onChange={(value) => setField(field, value)}
                     placeholder={dependencyMissing ? `Select ${field.label.toLowerCase()} after its parent` : (field.placeholder ?? `Select ${field.label.toLowerCase()}`)}
                     searchPlaceholder={`Search ${field.label.toLowerCase()}…`}
-                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId")}
+                    disabled={Boolean(dependencyMissing) || Boolean(departmentId && (module === "programs" || module === "courses") && field.key === "departmentId") || Boolean(campusId && module === "departments" && field.key === "campusId") || Boolean(programId && module === "semesters" && field.key === "programId") || Boolean(semesterId && module === "sections" && field.key === "semesterId")}
                     loading={lookupsLoading}
                     getLabel={(item) => labelFor(field.source as LookupSource, item)}
                   /> : <input

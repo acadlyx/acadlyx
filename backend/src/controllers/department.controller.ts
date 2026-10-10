@@ -94,6 +94,7 @@ export const list =
             search,
             isActive,
             departmentIds: allowedDepartmentIds,
+            campusId: req.query.campusId as string | undefined,
           }
         );
 

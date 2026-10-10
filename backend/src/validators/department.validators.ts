@@ -142,6 +142,8 @@ export const listDepartmentsQuerySchema =
           "false",
         ])
         .optional(),
+
+      campusId: optionalUuid,
     })
     .strict();
 

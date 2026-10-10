@@ -225,6 +225,17 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
+    label: "Fee Structures",
+    href: "/accounts/fee-structures",
+    icon: "settings",
+    group: "Finance",
+    description: "View and configure institutional fee structures within assigned permissions.",
+    read: ["fees.structure.read"],
+    create: ["fees.structure.manage"],
+    update: ["fees.structure.manage"],
+  },
+
+  {
     label: "Events & Gallery",
     href: "/admin/events-gallery",
     icon: "calendar",

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { ExpandableList } from "@/components/ui/ExpandableList";
 import {
   AuthRequiredError,
   AuthUser,
@@ -200,62 +202,33 @@ function FeesView({ user }: { user: AuthUser }) {
       </Card>
 
       <Card title="My invoices">
-        {data.invoices.length === 0 ? (
-          <Empty>No invoices are currently assigned to you.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.invoices.map((invoice) => (
-              <div
-                key={invoice.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4"
-              >
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {invoice.title}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Due {date(invoice.dueDate)}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-bold">
-                    {money(invoice.amount + invoice.lateFeeAmount)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Outstanding {money(invoice.outstanding)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <ExpandableList
+          items={data.invoices}
+          getKey={(invoice) => invoice.id}
+          label="invoices"
+          empty={<Empty>No invoices are currently assigned to you.</Empty>}
+          renderItem={(invoice) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div><p className="font-semibold text-slate-900">{invoice.title}</p><p className="text-xs text-slate-500">Due {date(invoice.dueDate)}</p></div>
+              <div className="text-right"><p className="font-bold">{money(invoice.amount + invoice.lateFeeAmount)}</p><p className="text-xs text-slate-500">Outstanding {money(invoice.outstanding)}</p></div>
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Recent payments">
-        {data.payments.length === 0 ? (
-          <Empty>No payments found.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.payments.map((payment) => (
-              <div
-                key={payment.id}
-                className="flex items-center justify-between rounded-2xl bg-slate-50 p-4"
-              >
-                <div>
-                  <p className="font-semibold">{payment.invoiceTitle}</p>
-                  <p className="text-xs text-slate-500">
-                    {date(payment.paidAt)} · {payment.method}
-                  </p>
-                </div>
-
-                <span className="font-bold text-emerald-700">
-                  {money(payment.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <ExpandableList
+          items={data.payments}
+          getKey={(payment) => payment.id}
+          label="payments"
+          empty={<Empty>No payments found.</Empty>}
+          renderItem={(payment) => (
+            <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
+              <div><p className="font-semibold">{payment.invoiceTitle}</p><p className="text-xs text-slate-500">{date(payment.paidAt)} · {payment.method}</p></div>
+              <span className="font-bold text-emerald-700">{money(payment.amount)}</span>
+            </div>
+          )}
+        />
       </Card>
     </div>
   );
@@ -503,12 +476,13 @@ function ResultsView({ user }: { user: AuthUser }) {
         {data.semesters.length === 0 ? (
           <Empty>No published transcript records are available.</Empty>
         ) : (
-          <div className="space-y-4">
-            {data.semesters.map((semester) => (
-              <div
-                key={semester.semesterId}
-                className="rounded-2xl border border-slate-100 p-4"
-              >
+          <ExpandableList
+            items={data.semesters}
+            getKey={(semester) => semester.semesterId}
+            label="semesters"
+            className="space-y-4"
+            empty={<Empty>No published transcript records are available.</Empty>}
+            renderItem={(semester) => (<div className="rounded-2xl border border-slate-100 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-bold">{semester.semesterName}</p>
@@ -522,12 +496,13 @@ function ResultsView({ user }: { user: AuthUser }) {
                   </span>
                 </div>
 
-                <div className="mt-3 space-y-2">
-                  {semester.courses.map((course) => (
-                    <div
-                      key={course.courseOfferingId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm"
-                    >
+                <ExpandableList
+                  items={semester.courses}
+                  getKey={(course) => course.courseOfferingId}
+                  label="courses"
+                  className="mt-3 space-y-2"
+                  renderItem={(course) => (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
                       <div>
                         <p className="font-semibold">{course.courseName}</p>
                         <p className="text-xs text-slate-500">
@@ -546,11 +521,11 @@ function ResultsView({ user }: { user: AuthUser }) {
                         </p>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
@@ -666,31 +641,28 @@ function LibraryView() {
       </div>
 
       <Card title="My loans">
-        {loans.items.length === 0 ? (
-          <Empty>You have no library loans.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {loans.items.map((loan) => (
-              <div
-                key={loan.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4"
-              >
-                <div>
-                  <p className="font-semibold">{loan.book.title}</p>
-                  <p className="text-xs text-slate-500">
-                    Due {date(loan.dueDate)} · {loan.status}
-                  </p>
-                </div>
-
-                {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
-                  <span className="font-semibold text-red-600">
-                    {money(loan.financialBalance || loan.accruedFine)}
-                  </span>
+        <ExpandableList
+          items={loans.items}
+          getKey={(loan) => loan.id}
+          label="loans"
+          empty={<Empty>You have no library loans.</Empty>}
+          renderItem={(loan) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div>
+                <p className="font-semibold">{loan.book.title}</p>
+                <p className="text-xs text-slate-500">
+                  Issued {date(loan.issuedAt)} · Due {date(loan.dueDate)} · {loan.status}
+                </p>
+                {loan.returnedAt ? (
+                  <p className="mt-1 text-xs text-slate-500">Returned {date(loan.returnedAt)}</p>
                 ) : null}
               </div>
-            ))}
-          </div>
-        )}
+              {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
+                <span className="font-semibold text-red-600">{money(loan.financialBalance || loan.accruedFine)}</span>
+              ) : null}
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Catalogue">
@@ -701,19 +673,17 @@ function LibraryView() {
           className="mb-4 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:border-slate-500"
         />
 
-        <div className="space-y-3">
-          {books.map((book) => (
-            <div
-              key={book.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4"
-            >
+        <ExpandableList
+          items={books}
+          getKey={(book) => book.id}
+          label="books"
+          empty={<Empty>No matching available books were found.</Empty>}
+          renderItem={(book) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
               <div>
                 <p className="font-semibold">{book.title}</p>
-                <p className="text-xs text-slate-500">
-                  {book.author} · {book.availableCopies} available
-                </p>
+                <p className="text-xs text-slate-500">{book.author} · {book.availableCopies} available</p>
               </div>
-
               <button
                 type="button"
                 disabled={busy === book.id || book.availableCopies < 1}
@@ -723,12 +693,8 @@ function LibraryView() {
                 {busy === book.id ? "Working…" : "Reserve"}
               </button>
             </div>
-          ))}
-
-          {books.length === 0 ? (
-            <Empty>No matching available books were found.</Empty>
-          ) : null}
-        </div>
+          )}
+        />
       </Card>
     </div>
   );
@@ -807,45 +773,51 @@ function RegistrationView() {
       </Card>
 
       <Card title="My registrations">
-        {mine.items.length === 0 ? <Empty>You have no course registrations yet.</Empty> : (
-          <div className="space-y-3">
-            {mine.items.map((item) => (
-              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
-                <div>
-                  <p className="font-semibold">{item.courseOffering.course.name}</p>
-                  <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_"," ")}</p>
-                  {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
-                </div>
-                {item.status === "REQUESTED" || item.status === "APPROVED" ? (
-                  <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
-                    {busy ? "Working…" : "Drop"}
-                  </button>
-                ) : null}
+        <ExpandableList
+          items={mine.items}
+          getKey={(item) => item.id}
+          label="registrations"
+          empty={<Empty>You have no course registrations yet.</Empty>}
+          renderItem={(item) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div>
+                <p className="font-semibold">{item.courseOffering.course.name}</p>
+                <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
+                {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
               </div>
-            ))}
-          </div>
-        )}
+              {item.status === "REQUESTED" || item.status === "APPROVED" ? (
+                <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
+                  {busy ? "Working…" : "Drop"}
+                </button>
+              ) : null}
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Eligible courses">
         {offerings.length === 0 ? <Empty>No eligible courses are currently open for registration.</Empty> : (
           <>
-            <div className="space-y-3">
-              {offerings.map((item) => {
+            <ExpandableList
+              items={offerings}
+              getKey={(item) => item.id}
+              label="eligible courses"
+              className="space-y-3"
+              renderItem={(item) => {
                 const held = Boolean(item.myStatus);
                 const checked = selected.includes(item.id);
                 return (
-                  <label key={item.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
+                  <label className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
                     <input type="checkbox" checked={checked} disabled={held || item.seatsLeft === 0 || !item.registrationOpen || busy} onChange={() => toggle(item.id)} className="h-4 w-4" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold">{item.course.name}</span>
                       <span className="mt-1 block text-xs text-slate-500">{item.course.code} · {item.course.credits} credit(s) · {item.seatsLeft === null ? "Capacity open" : `${item.seatsLeft} seat(s) available`}</span>
                     </span>
-                    <span className="text-xs font-bold text-slate-600">{held ? item.myStatus?.replaceAll("_"," ") : item.isElective ? "Elective" : "Core"}</span>
+                    <span className="text-xs font-bold text-slate-600">{held ? item.myStatus?.replaceAll("_", " ") : item.isElective ? "Elective" : "Core"}</span>
                   </label>
                 );
-              })}
-            </div>
+              }}
+            />
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-sm">
                 <span className="font-bold">{selected.length}</span> course(s) selected · <span className="font-bold">{selectedCredits}</span> credits
@@ -873,8 +845,11 @@ function LeaveView() {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const [typeList, balanceList, requestList] = await Promise.all([
         listLeaveTypes(),
@@ -886,16 +861,18 @@ function LeaveView() {
       setBalances(balanceList);
       setMine(requestList.items);
 
-      if (!form.leaveTypeId && typeList[0]) {
-        setForm((old) => ({
+      if (typeList[0]) {
+        setForm((old) => old.leaveTypeId ? old : ({
           ...old,
           leaveTypeId: typeList[0].id,
         }));
       }
     } catch {
       setError("We could not load your leave information.");
+    } finally {
+      setLoading(false);
     }
-  }, [form.leaveTypeId]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -944,9 +921,11 @@ function LeaveView() {
     }
   }
 
+  if (loading) return <Empty>Loading your leave information…</Empty>;
+
   return (
     <div className="space-y-5">
-      {error ? <ErrorBox message={error} /> : null}
+      {error ? <div><ErrorBox message={error} /><button type="button" onClick={() => void load()} className="mt-2 text-sm font-semibold underline">Retry leave information</button></div> : null}
 
       <Card title="Leave balance">
         {balances.length === 0 ? (
@@ -1042,43 +1021,23 @@ function LeaveView() {
         </Card>
 
         <Card title="My requests">
-          {mine.length === 0 ? (
-            <Empty>No leave requests found.</Empty>
-          ) : (
-            <div className="space-y-3">
-              {mine.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-2xl border border-slate-100 p-4"
-                >
-                  <div className="flex justify-between gap-3">
-                    <p className="font-semibold">
-                      {request.leaveType.name}
-                    </p>
-
-                    <span className="text-xs font-semibold">
-                      {request.status}
-                    </span>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    {date(request.fromDate)} – {date(request.toDate)} ·{" "}
-                    {request.days} day(s)
-                  </p>
-
-                  <p className="mt-2 text-sm text-slate-600">
-                    {request.reason}
-                  </p>
-
-                  {request.decisionNote ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Decision note: {request.decisionNote}
-                    </p>
-                  ) : null}
+          <ExpandableList
+            items={mine}
+            getKey={(request) => request.id}
+            label="leave requests"
+            empty={<Empty>No leave requests found.</Empty>}
+            renderItem={(request) => (
+              <div className="rounded-2xl border border-slate-100 p-4">
+                <div className="flex justify-between gap-3">
+                  <p className="font-semibold">{request.leaveType.name}</p>
+                  <span className="text-xs font-semibold">{request.status}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                <p className="mt-1 text-sm text-slate-500">{date(request.fromDate)} – {date(request.toDate)} · {request.days} day(s)</p>
+                <p className="mt-2 text-sm text-slate-600">{request.reason}</p>
+                {request.decisionNote ? <p className="mt-2 text-xs text-slate-500">Decision note: {request.decisionNote}</p> : null}
+              </div>
+            )}
+          />
         </Card>
       </div>
     </div>
@@ -1146,18 +1105,18 @@ function AttendanceView({ user }: { user: AuthUser }) {
         {data.subjects.length === 0 ? (
           <Empty>No attendance records yet.</Empty>
         ) : (
-          <div className="space-y-4">
-            {data.subjects.map((subject) => (
-              <div key={subject.courseOfferingId}>
-                <p className="text-sm font-medium text-slate-700">
-                  {subject.courseCode} — {subject.courseName}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {subject.present}/{subject.total} sessions · {subject.percentage}%
-                </p>
+          <ExpandableList
+            items={data.subjects}
+            getKey={(subject) => subject.courseOfferingId}
+            label="subjects"
+            className="space-y-4"
+            renderItem={(subject) => (
+              <div>
+                <p className="text-sm font-medium text-slate-700">{subject.courseCode} — {subject.courseName}</p>
+                <p className="text-xs text-slate-500">{subject.present}/{subject.total} sessions · {subject.percentage}%</p>
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
@@ -1183,21 +1142,18 @@ function MarksView({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="space-y-3">
-      {marks.map((mark) => (
-        <div key={mark.id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
-          <div>
-            <p className="font-semibold text-slate-900">{mark.component}</p>
-            <p className="text-xs text-slate-500">
-              {mark.courseOffering?.course.code} — {mark.courseOffering?.course.name}
-            </p>
-          </div>
-          <span className="font-bold text-slate-900">
-            {mark.marksObtained}/{mark.maxMarks}
-          </span>
+    <ExpandableList
+      items={marks}
+      getKey={(mark) => mark.id}
+      label="mark entries"
+      className="space-y-3"
+      renderItem={(mark) => (
+        <div className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
+          <div><p className="font-semibold text-slate-900">{mark.component}</p><p className="text-xs text-slate-500">{mark.courseOffering?.course.code} — {mark.courseOffering?.course.name}</p></div>
+          <span className="font-bold text-slate-900">{mark.marksObtained}/{mark.maxMarks}</span>
         </div>
-      ))}
-    </div>
+      )}
+    />
   );
 }
 
@@ -1229,17 +1185,19 @@ function NotificationsView({ user }: { user: AuthUser }) {
         {data.items.length === 0 ? (
           <Empty>You have no notifications.</Empty>
         ) : (
-          <div className="space-y-3">
-            {data.items.slice(0, 10).map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-100 p-4">
+          <ExpandableList
+            items={data.items}
+            getKey={(item) => item.id}
+            label="notifications"
+            empty={<Empty>You have no notifications.</Empty>}
+            renderItem={(item) => (
+              <div className="rounded-2xl border border-slate-100 p-4">
                 <p className="font-semibold text-slate-900">{item.title}</p>
                 <p className="mt-1 text-sm text-slate-600">{item.body}</p>
-                <p className="mt-2 text-xs text-slate-400">
-                  {new Date(item.createdAt).toLocaleDateString("en-IN")}
-                </p>
+                <p className="mt-2 text-xs text-slate-400">{new Date(item.createdAt).toLocaleDateString("en-IN")}</p>
               </div>
-            ))}
-          </div>
+            )}
+          />
         )}
       </Card>
     </div>
@@ -1438,17 +1396,12 @@ export function StudentSelfServiceModule({
       allowedRoles={["STUDENT"]}
     >
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
-        <div className="rounded-3xl bg-slate-950 p-5 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            My workspace
-          </p>
-
-          <h1 className="mt-1 text-2xl font-black">{meta.title}</h1>
-
-          <p className="mt-1 text-sm text-slate-300">
-            {meta.subtitle}
-          </p>
-        </div>
+        <DashboardPageHeader
+          eyebrow="Student workspace"
+          title={meta.title}
+          description={meta.subtitle}
+          breadcrumbs={[{ label: "Student dashboard", href: "/student" }, { label: meta.title }]}
+        />
 
         {content}
       </main>
