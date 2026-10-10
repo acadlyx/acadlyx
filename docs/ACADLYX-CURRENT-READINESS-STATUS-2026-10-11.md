@@ -53,3 +53,39 @@ Release decision: **NO-GO**
 No merge, deployment, production database access/migration, provider setting change, or production branch mutation was performed during this audit. PR #33 remains draft and unmerged.
 
 **Final decision: NO-GO.** Some CI implementation gates now have meaningful isolated evidence, including two real PostgreSQL concurrency tests, targeted populated-data migration, a synthetic restore, and a database-only performance profile. The browser test fix and several security, cross-module, performance, operational recovery, staging, and final exact-SHA gates remain open. No production-readiness percentage is assigned.
+
+
+---
+
+## Live repository re-verification addendum — 2026-10-11
+
+This addendum supersedes earlier statements in this document that describe PR #33 as open/unmerged or the branch `production-readiness-completion-2026-10-10` as the active candidate. GitHub state was re-read before this update.
+
+### Current refs and governance
+
+- Protected-production-intent branch `production-upgrade-2026-09-20` currently points to `fe872b31aae6313194654f5600b3400f05ebc1dc` (merge of PR #41, “Fix student dashboard marks performance aggregation”).
+- PR #33 is **closed and merged**, merge commit `27b250757f5be8fbf70d6425ef2c92e38b35db5f`. The earlier claim that it was an open draft is stale. Its former head branch `production-readiness-completion-2026-10-10` is no longer present as a branch.
+- GitHub branch metadata currently reports `protected: false` and `protection.enabled: false` for `production-upgrade-2026-09-20`. This is an administrative control gap: required checks are not enforced by GitHub branch protection. No branch-protection settings were changed in this remediation.
+- A new isolated follow-up branch `production-readiness-followup-2026-10-11` was created from the observed production HEAD `fe872b31aae6313194654f5600b3400f05ebc1dc`. No changes in this follow-up have been merged or deployed.
+
+### Current CI evidence and browser smoke failure
+
+- The four successful runs previously recorded for `f994ac1db1db79ab9bf32d2b52e689a10c2836b0` only apply to that historical candidate; they do not establish readiness of the current branch head.
+- The latest Production Quality run associated with PR #41 candidate `b60fd3ebb4e6ef45eeaaddc2754f94163ed5bec7` is [run 38091538266](https://github.com/acadlyx/acadlyx/actions/runs/38091538266). Backend typecheck/build/lint/tests, frontend typecheck/lint/build, PostgreSQL migration validation, populated legacy refund migration compatibility, database-only performance profile, and isolated backup/restore rehearsal passed in that run. The **desktop/mobile public-login browser smoke failed**.
+- Failure is test-locator ambiguity, not evidence of a production login defect: `getByRole("heading", { name: "Sign in to ACADLYX" })` matched both an `h1` and an `h2` at `frontend/e2e/public-smoke.spec.mjs:29`. The same ambiguous assertion exists in the mobile check. A narrow test correction now scopes both assertions to the level-1 heading on the isolated follow-up branch.
+- This correction has not yet been counted as passing. It requires exact-final-commit CI on the new PR branch; any new failure must be investigated rather than waived.
+
+### Release gates still open
+
+1. Exact-SHA CI after the browser-smoke correction, including the full Production Quality workflow.
+2. Authenticated HTTP/PostgreSQL RBAC and scope matrix for institution, campus, department, class/subject, student and parent ownership, exports, downloads, bulk actions, and positive-access controls.
+3. Complete finance concurrency, retries, rollback, and persisted-ledger reconciliation beyond the currently evidenced same-key payment retry and competing refund reservation tests.
+4. Library-to-finance exactly-once workflows, including issue/return, fine, waiver, payment/reversal, retry and concurrent processing.
+5. Authenticated browser E2E for critical operational workflows on desktop and mobile; the current public/login smoke is not sufficient.
+6. Full HTTP/API mixed-workload performance and sustained-load capacity evidence. The database-only benchmark does not establish 10,000-user application capacity.
+7. Staging backup/restore, retention/encryption/PITR verification, agreed and measured RPO/RTO, and staging deployment/rollback drills.
+8. Repository administration: re-enable and verify branch protection/required checks through an authorized repository administrator. This report records the observed gap but makes no settings changes.
+
+### Status
+
+**Release decision remains NO-GO.** The browser smoke test failure is being corrected on an isolated branch; passing tests for unrelated CI jobs do not close the remaining application-security, authenticated workflow, financial-integrity, capacity, or operational recovery gates. No local checkout/test execution was performed by this GitHub-connector run. No merge, deployment, production database operation, or change to the production branch was performed by this follow-up work.

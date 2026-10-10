@@ -26,7 +26,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.screenshot({ path: testInfo.outputPath("desktop-home.png"), fullPage: true });
 
   await loginButton.click();
-  await expect(page.getByRole("heading", { name: "Sign in to ACADLYX" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in to ACADLYX" })).toBeVisible();
   await expect(page.getByLabel("ID number / email / roll number")).toBeVisible();
   await expect(page.locator('input[autocomplete="current-password"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -49,7 +49,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(baseURL, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /login|access acadlyx/i }).first().click();
-  await expect(page.getByRole("heading", { name: "Sign in to ACADLYX" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in to ACADLYX" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("mobile-login.png"), fullPage: true });
 
