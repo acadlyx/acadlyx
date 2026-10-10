@@ -492,6 +492,35 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                   );
                 }}
               />
+            ) : module === "departments" ? (
+              <ExpandableList
+                items={rows}
+                getKey={(row, index) => String(row.id ?? index)}
+                label="departments"
+                className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3"
+                renderItem={(row) => {
+                  const counts = row._count as { programs?: number; courses?: number } | undefined;
+                  const campus = row.campus as { id?: string; name?: string; code?: string } | null | undefined;
+                  return (
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/departments/${encodeURIComponent(row.id)}` : "/admin/departments"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{display(row.name ?? "Department")}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{campus?.name ? `Campus · ${campus.name}` : "No campus assigned"}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Programs</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.programs ?? "—"}</p></div>
+                          <div><p className="text-xs text-slate-500">Courses</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.courses ?? "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open department workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                }}
+              />
             ) : (
               <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="px-4 py-3 font-black text-slate-600">Record</th>
