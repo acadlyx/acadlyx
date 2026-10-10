@@ -25,6 +25,18 @@ const DEFAULT_SITE_CONTENT = {
         { name: "ACADLYX Team", role: "Product & Engineering", bio: "Building secure education technology for institutions.", imageUrl: "" },
       ],
     },
+    partners: {
+      eyebrow: "OUR PARTNERS",
+      title: "Institutional partnerships",
+      description: "Partner information published by the institution.",
+      items: [],
+    },
+    updates: {
+      eyebrow: "UPDATES",
+      title: "Latest updates",
+      description: "News and announcements published by the institution.",
+      items: [],
+    },
     contact: {
       eyebrow: "CONTACT",
       title: "Start a conversation with ACADLYX.",
@@ -33,11 +45,12 @@ const DEFAULT_SITE_CONTENT = {
   },
 
   navigation: [
-    { label: "Home", href: "/" },
-    { label: "Platform", href: "#platform" },
-    { label: "About", href: "/about" },
-    { label: "Team", href: "/team" },
-    { label: "Contact", href: "/contact" },
+    { label: "HOME", href: "/" },
+    { label: "ABOUT", href: "/about" },
+    { label: "OUR PARTNERS", href: "/partners" },
+    { label: "OUR TEAM", href: "/team" },
+    { label: "UPDATES", href: "/updates" },
+    { label: "CONTACT US", href: "/contact" },
   ],
 
   hero: {

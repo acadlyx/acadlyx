@@ -7,6 +7,8 @@ import { authedFetch } from "@/lib/auth";
 type CmsTeamMember = { name: string; role: string; bio: string; imageUrl: string };
 type CmsPage = { eyebrow: string; title: string; description: string; imageUrl?: string };
 type CmsTeamPage = CmsPage & { members: CmsTeamMember[] };
+type CmsCollectionItem = { title: string; description: string; meta: string; imageUrl: string; linkUrl: string };
+type CmsCollectionPage = CmsPage & { items: CmsCollectionItem[] };
 type CmsSections = {
   statsEyebrow: string; statsTitle: string; statsDescription: string; stats: string[];
   capabilitiesEyebrow: string; capabilitiesTitle: string; capabilitiesDescription: string; features: string[];
@@ -16,7 +18,7 @@ type CmsSections = {
 type CmsData = {
   brand: { siteName: string; tagline: string; logoUrl: string; faviconUrl: string };
   navigation: Array<{ label: string; href: string }>;
-  pages: { about: CmsPage; team: CmsTeamPage; contact: CmsPage };
+  pages: { about: CmsPage; team: CmsTeamPage; partners: CmsCollectionPage; updates: CmsCollectionPage; contact: CmsPage };
   hero: {
     eyebrow: string; title: string; description: string;
     primaryCtaLabel: string; primaryCtaHref: string;
@@ -34,6 +36,8 @@ const fallback: CmsData = {
   pages: {
     about: { eyebrow: "", title: "", description: "", imageUrl: "" },
     team: { eyebrow: "", title: "", description: "", members: [] },
+    partners: { eyebrow: "", title: "", description: "", items: [] },
+    updates: { eyebrow: "", title: "", description: "", items: [] },
     contact: { eyebrow: "", title: "", description: "", imageUrl: "" },
   },
   hero: { eyebrow: "", title: "", description: "", primaryCtaLabel: "Login", primaryCtaHref: "/", secondaryCtaLabel: "", secondaryCtaHref: "", dashboardImageUrl: "", dashboardCaption: "" },
@@ -61,13 +65,16 @@ export default function SiteContentPage() {
     setData((current) => {
       const next = structuredClone(current) as CmsData;
       const parts = path.split(".");
-      let cursor: Record<string, unknown> = next as unknown as Record<string, unknown>;
+      let cursor: Record<string, unknown> | unknown[] = next as unknown as Record<string, unknown>;
       for (let i = 0; i < parts.length - 1; i += 1) {
-        const child = cursor[parts[i]];
-        if (!child || typeof child !== "object" || Array.isArray(child)) return current;
-        cursor = child as Record<string, unknown>;
+        const part = parts[i];
+        const child = Array.isArray(cursor) ? cursor[Number(part)] : cursor[part];
+        if (!child || typeof child !== "object") return current;
+        cursor = child as Record<string, unknown> | unknown[];
       }
-      cursor[parts[parts.length - 1]] = value;
+      const finalPart = parts[parts.length - 1];
+      if (Array.isArray(cursor)) cursor[Number(finalPart)] = value;
+      else cursor[finalPart] = value;
       return next;
     });
   }
@@ -138,7 +145,25 @@ export default function SiteContentPage() {
           </Card>
         </section>
 
+        <Card title="Website navigation">
+          <p className="mb-4 text-sm text-slate-500">Edit the public menu labels and destinations. Keep destinations on trusted site routes unless an external URL is intentional.</p>
+          <div className="space-y-3">
+            {data.navigation.map((item, index) => (
+              <div key={index} className="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
+                <Field label={`Menu label ${index + 1}`} value={item.label} onChange={(value) => set(`navigation.${index}.label`, value)} />
+                <Field label={`Destination ${index + 1}`} value={item.href} onChange={(value) => set(`navigation.${index}.href`, value)} />
+                <div className="sm:col-span-2 flex justify-end">
+                  <button type="button" onClick={() => set("navigation", data.navigation.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Remove item</button>
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => set("navigation", [...data.navigation, { label: "", href: "/" }])} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Add menu item</button>
+          </div>
+        </Card>
+
         <PageEditor title="About page" data={data.pages.about} set={(key: string, value: string) => set(`pages.about.${key}`, value)} upload={(e: ChangeEvent<HTMLInputElement>) => upload(e, "pages.about.imageUrl")} imageKey="imageUrl" />
+        <CollectionPageEditor title="Our Partners page" data={data.pages.partners} set={(key, value) => set(`pages.partners.${key}`, value)} setItem={(index, key, value) => set(`pages.partners.items.${index}.${key}`, value)} add={() => set("pages.partners.items", [...data.pages.partners.items, { title: "", description: "", meta: "", imageUrl: "", linkUrl: "" }])} remove={(index) => set("pages.partners.items", data.pages.partners.items.filter((_, itemIndex) => itemIndex !== index))} upload={(index, event) => upload(event, `pages.partners.items.${index}.imageUrl`)} />
+        <CollectionPageEditor title="Updates page" data={data.pages.updates} set={(key, value) => set(`pages.updates.${key}`, value)} setItem={(index, key, value) => set(`pages.updates.items.${index}.${key}`, value)} add={() => set("pages.updates.items", [...data.pages.updates.items, { title: "", description: "", meta: "", imageUrl: "", linkUrl: "" }])} remove={(index) => set("pages.updates.items", data.pages.updates.items.filter((_, itemIndex) => itemIndex !== index))} upload={(index, event) => upload(event, `pages.updates.items.${index}.imageUrl`)} />
         <TeamEditor data={data.pages.team} set={(key: string, value: string) => set(`pages.team.${key}`, value)} setMember={(index: number, key: string, value: string) => set(`pages.team.members.${index}.${key}`, value)} add={() => set("pages.team.members", [...(data.pages.team.members || []), { name: "", role: "", bio: "", imageUrl: "" }])} remove={(index: number) => set("pages.team.members", data.pages.team.members.filter((_: unknown, i: number) => i !== index))} upload={(index: number, event: ChangeEvent<HTMLInputElement>) => upload(event, `pages.team.members.${index}.imageUrl`)} />
         <PageEditor title="Contact page" data={data.pages.contact} set={(key: string, value: string) => set(`pages.contact.${key}`, value)} />
 
@@ -170,6 +195,17 @@ function Header({ busy, save, message }: { busy: boolean; save: () => void; mess
 
 function PageEditor({ title, data, set, upload, imageKey }: { title: string; data: CmsPage; set: (key: string, value: string) => void; upload?: (event: ChangeEvent<HTMLInputElement>) => void; imageKey?: string }) {
   return <Card title={title}><div className="grid gap-4 lg:grid-cols-2"><Field label="Eyebrow" value={data.eyebrow} onChange={(v) => set("eyebrow", v)} /><Field label="Title" value={data.title} onChange={(v) => set("title", v)} /><div className="lg:col-span-2"><TextArea label="Description" value={data.description} onChange={(v) => set("description", v)} /></div>{imageKey ? <ImageField label="Page image" value={imageKey === "imageUrl" ? (data.imageUrl ?? "") : ""} onChange={(v) => set(imageKey, v)} upload={upload} /> : null}</div></Card>;
+}
+
+function CollectionPageEditor({ title, data, set, setItem, add, remove, upload }: { title: string; data: CmsCollectionPage; set: (key: string, value: string) => void; setItem: (index: number, key: string, value: string) => void; add: () => void; remove: (index: number) => void; upload: (index: number, event: ChangeEvent<HTMLInputElement>) => void }) {
+  return <Card title={title}>
+    <div className="grid gap-4 lg:grid-cols-2"><Field label="Eyebrow" value={data.eyebrow} onChange={(value) => set("eyebrow", value)} /><Field label="Title" value={data.title} onChange={(value) => set("title", value)} /><div className="lg:col-span-2"><TextArea label="Description" value={data.description} onChange={(value) => set("description", value)} /></div></div>
+    <div className="mt-5 space-y-4">{(data.items || []).map((item, index) => <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex items-center justify-between"><b className="text-sm">Item {index + 1}</b><button type="button" onClick={() => remove(index)} className="text-xs font-bold text-red-600">Remove</button></div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2"><Field label="Name / title" value={item.title} onChange={(value) => setItem(index, "title", value)} /><Field label="Category / date" value={item.meta} onChange={(value) => setItem(index, "meta", value)} /><div className="lg:col-span-2"><TextArea label="Description" value={item.description} onChange={(value) => setItem(index, "description", value)} /></div><ImageField label="Image or logo" value={item.imageUrl} onChange={(value) => setItem(index, "imageUrl", value)} upload={(event) => upload(index, event)} /><Field label="Website / article link" value={item.linkUrl} onChange={(value) => setItem(index, "linkUrl", value)} /></div>
+    </div>)}</div>
+    <button type="button" onClick={add} className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold">+ Add item</button>
+  </Card>;
 }
 
 function TeamEditor({ data, set, setMember, add, remove, upload }: { data: CmsTeamPage; set: (key: string, value: string) => void; setMember: (index: number, key: string, value: string) => void; add: () => void; remove: (index: number) => void; upload: (index: number, event: ChangeEvent<HTMLInputElement>) => void }) {
