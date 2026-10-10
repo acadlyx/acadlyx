@@ -18,7 +18,7 @@ async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  if(r.includes("DIRECTOR")) return {institutionId,campusIds:await getDirectorCampusIds(institutionId,a.id)};
  // Department-scoped roles must not gain institution-wide data scope from a broad action permission.
  if(r.includes("HOD")||r.includes("DEAN")) return {institutionId,departmentIds:(await prisma.departmentAccess.findMany({where:{userId:a.id,department:{institutionId}},select:{departmentId:true}})).map(x=>x.departmentId)};
- if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")||has(a,"fees.reports.export")) return {institutionId};
+ if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role))) return {institutionId};
  throw new AppError("Financial scope is not authorized",403);
 }
 function invoiceWhere(s:Scope):Prisma.FeeInvoiceWhereInput{
