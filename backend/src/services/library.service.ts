@@ -670,6 +670,8 @@ export async function returnBook(
   meta: Meta
 ) {
   const result = await prisma.$transaction(async (tx) => {
+    // Serialize duplicate return/retry requests on the canonical loan row before computing fines or posting finance records.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "library_issues" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);
     const existing = await tx.libraryIssue.findFirst({
       where: { id, institutionId },
       include: { book: true, copy: true },
