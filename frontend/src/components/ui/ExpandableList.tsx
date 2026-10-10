@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 export function ExpandableList<T>({
@@ -23,6 +23,7 @@ export function ExpandableList<T>({
   label?: string;
 }) {
   const [visibleCount, setVisibleCount] = useState(initialCount);
+  useEffect(() => setVisibleCount(initialCount), [items, initialCount]);
   const visible = items.slice(0, visibleCount);
   if (items.length === 0) return empty ?? null;
 
