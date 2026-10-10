@@ -8,7 +8,7 @@ Scope: source-level authentication, authorization, RBAC, entitlement and scope a
 
 ## Executive status
 
-**Overall: PARTIALLY VERIFIED; executable verification BLOCKED.** One confirmed session-invalidation defect was fixed in source and pure regression tests were added. The patch has not been compiled or executed in this environment. This is not a declaration that ACADLYX is fully secure.
+**Overall: PARTIALLY VERIFIED; adversarial integration verification BLOCKED.** Hosted CI has compiled the backend and run its pure unit/contract suite successfully, including the Milestone 10 authorization regression tests. The exact source SHA `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a` passed all four standard hosted workflows, with 126 backend tests passing. No disposable-DB HTTP adversarial matrix was run; this is not a declaration that ACADLYX is fully secure.
 
 The repository connector permits branch source reads and commits but this execution environment has no ACADLYX checkout. Consequently the test suite, TypeScript, lint, production builds, API integration, browser tests and authenticated runtime checks could not be run. A source-level review cannot prove every route, export, background job or query enforces isolation.
 
