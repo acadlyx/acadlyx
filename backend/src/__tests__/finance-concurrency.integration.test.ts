@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
+import { createApp } from "../app";
 import { prisma } from "../lib/prisma";
 import { invoices, payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
 import { returnBook as returnLibraryBook } from "../services/library.service";
@@ -148,6 +149,30 @@ test("PostgreSQL: simultaneous library returns create one fine and one linked fi
     assert.equal(invoices[0].amount, Number(fines[0].originalAmount));
   } finally {
     await cleanup(f.institutionId);
+  }
+});
+
+
+test("HTTP middleware: caller-supplied role and institution headers do not authenticate finance access", { skip: !enabled }, async () => {
+  const app = createApp();
+  const server = app.listen(0, "127.0.0.1");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("listening", resolve);
+      server.once("error", reject);
+    });
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/finance/invoices?institutionId=attacker-selected`, {
+      headers: {
+        "x-institution-id": "attacker-selected",
+        "x-role": "ACCOUNTS",
+        "x-user-id": "forged-user",
+      },
+    });
+    assert.equal(response.status, 401);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
 
