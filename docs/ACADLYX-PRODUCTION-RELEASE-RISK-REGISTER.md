@@ -101,3 +101,23 @@ Exact tested source SHA: `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a` on `stabiliz
 - [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
 
 No local execution or database-backed adversarial API testing occurred. R-19 through R-25 remain open as described; the pure tests do not establish denial behavior, persisted-state invariants or absence of side effects. Overall decision remains NO-GO.
+
+
+## Remediation status update — 2026-10-10
+
+| Risk | Status | Required next action |
+|---|---|---|
+| Director Finance scope derived from DepartmentAccess rather than CampusAccess | FIXED IN SOURCE; integration verification pending | Confirm exact final SHA CI; run PostgreSQL/API tests across multiple campuses and institutions |
+| Broad Finance permission may bypass resource scope for scoped roles | FIXED IN SOURCE for Director and HOD/Dean branch ordering; broader role matrix unverified | Exercise mixed-role actors and all permission combinations in API/database tests |
+| Concurrent payment / idempotency behavior across Finance endpoints | PARTIALLY VERIFIED in canonical fee-billing source; separate Finance workspace path UNVERIFIED | Add concurrent PostgreSQL tests for both API paths, including duplicate key collision and interrupted retries |
+| Concurrent refund request/processing | HIGH RISK / UNVERIFIED in separate Finance workspace path | Atomically reserve refund capacity and claim processing state; test competing requests and duplicate processing in PostgreSQL |
+| Library charge exactly-once integration | UNVERIFIED | Concurrent return/lost/damaged/waiver tests and ledger reconciliation |
+| Existing-data migration compatibility | BLOCKED | Upgrade synthetic prior-schema data and compare relationships/constraints |
+| Backup/restore and RPO/RTO | BLOCKED | Restore synthetic backup to separate disposable database, measure duration/data-loss window; obtain approved targets |
+| Connected institutional workflows | BLOCKED | Execute API/DB/browser scenarios and verify persisted artifacts |
+| Branch protection | HIGH RISK / ADMIN ACTION REQUIRED | Repository administrator must enable required checks and protect production/stabilization branches |
+| Live deployment configuration | UNVERIFIED | Release operator must independently verify provider settings, source SHA, health, secrets and rollback behavior |
+
+Supporting evidence matrices: `docs/ACADLYX-FINANCIAL-LIBRARY-INTEGRITY-AUDIT.md`, `docs/ACADLYX-MIGRATION-BACKUP-DISASTER-RECOVERY-AUDIT.md`, `docs/ACADLYX-END-TO-END-WORKFLOW-VERIFICATION.md`.
+
+No production setting, branch protection, deployment, or database was changed by this remediation. Release remains **NO-GO**.
