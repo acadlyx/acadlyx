@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { ExpandableList } from "@/components/ui/ExpandableList";
 import {
   AuthRequiredError,
   AuthUser,
@@ -666,36 +668,28 @@ function LibraryView() {
       </div>
 
       <Card title="My loans">
-        {loans.items.length === 0 ? (
-          <Empty>You have no library loans.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {loans.items.map((loan) => (
-              <div
-                key={loan.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4"
-              >
-                <div>
-                  <p className="font-semibold">{loan.book.title}</p>
-                  <p className="text-xs text-slate-500">
-                    Issued {date(loan.issuedAt)} · Due {date(loan.dueDate)} · {loan.status}
-                  </p>
-                  {loan.returnedAt ? (
-                    <p className="mt-1 text-xs text-slate-500">
-                      Returned {date(loan.returnedAt)}
-                    </p>
-                  ) : null}
-                </div>
-
-                {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
-                  <span className="font-semibold text-red-600">
-                    {money(loan.financialBalance || loan.accruedFine)}
-                  </span>
+        <ExpandableList
+          items={loans.items}
+          getKey={(loan) => loan.id}
+          label="loans"
+          empty={<Empty>You have no library loans.</Empty>}
+          renderItem={(loan) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div>
+                <p className="font-semibold">{loan.book.title}</p>
+                <p className="text-xs text-slate-500">
+                  Issued {date(loan.issuedAt)} · Due {date(loan.dueDate)} · {loan.status}
+                </p>
+                {loan.returnedAt ? (
+                  <p className="mt-1 text-xs text-slate-500">Returned {date(loan.returnedAt)}</p>
                 ) : null}
               </div>
-            ))}
-          </div>
-        )}
+              {(loan.financialBalance > 0 || loan.accruedFine > 0) ? (
+                <span className="font-semibold text-red-600">{money(loan.financialBalance || loan.accruedFine)}</span>
+              ) : null}
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Catalogue">
@@ -706,19 +700,17 @@ function LibraryView() {
           className="mb-4 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:border-slate-500"
         />
 
-        <div className="space-y-3">
-          {books.map((book) => (
-            <div
-              key={book.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4"
-            >
+        <ExpandableList
+          items={books}
+          getKey={(book) => book.id}
+          label="books"
+          empty={<Empty>No matching available books were found.</Empty>}
+          renderItem={(book) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
               <div>
                 <p className="font-semibold">{book.title}</p>
-                <p className="text-xs text-slate-500">
-                  {book.author} · {book.availableCopies} available
-                </p>
+                <p className="text-xs text-slate-500">{book.author} · {book.availableCopies} available</p>
               </div>
-
               <button
                 type="button"
                 disabled={busy === book.id || book.availableCopies < 1}
@@ -728,12 +720,8 @@ function LibraryView() {
                 {busy === book.id ? "Working…" : "Reserve"}
               </button>
             </div>
-          ))}
-
-          {books.length === 0 ? (
-            <Empty>No matching available books were found.</Empty>
-          ) : null}
-        </div>
+          )}
+        />
       </Card>
     </div>
   );
@@ -1443,17 +1431,12 @@ export function StudentSelfServiceModule({
       allowedRoles={["STUDENT"]}
     >
       <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
-        <div className="rounded-3xl bg-slate-950 p-5 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            My workspace
-          </p>
-
-          <h1 className="mt-1 text-2xl font-black">{meta.title}</h1>
-
-          <p className="mt-1 text-sm text-slate-300">
-            {meta.subtitle}
-          </p>
-        </div>
+        <DashboardPageHeader
+          eyebrow="Student workspace"
+          title={meta.title}
+          description={meta.subtitle}
+          breadcrumbs={[{ label: "Student dashboard", href: "/student" }, { label: meta.title }]}
+        />
 
         {content}
       </main>
