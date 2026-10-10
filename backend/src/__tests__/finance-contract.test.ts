@@ -59,3 +59,73 @@ test("billing concession creation persists both legacy and canonical type/reques
   assert.match(source, /"createdById", "requestedById"/);
   assert.match(source, /input\.amount \?\? 0/);
 });
+
+test("Director finance scope uses the canonical explicit CampusAccess helper", () => {
+  const service = read("src/services/finance.service.ts");
+  const sharedScope = read("src/services/accessScope.service.ts");
+  assert.match(service, /import \{ getDirectorCampusIds \} from "\.\/accessScope\.service";/);
+  assert.match(service, /if\(r\.includes\("DIRECTOR"\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
+  assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
+  assert.ok(service.indexOf('if(r.includes("DIRECTOR"))') < service.indexOf('if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")'), "Director scope must precede broad permission fallbacks");
+  assert.ok(service.indexOf('if(r.includes("HOD")||r.includes("DEAN"))') < service.indexOf('if(r.includes("ACCOUNTS")||r.includes("CHAIRMAN")||has(a,"fees.manage")'), "department scope must precede broad permission fallbacks");
+  assert.match(sharedScope, /export async function getDirectorCampusIds\(institutionId: string, userId: string\): Promise<string\[]>/);
+  assert.match(sharedScope, /campus: \{ institutionId, isActive: true \}/);
+});
+
+test("Director financial records and payment aggregates retain institution and campus predicates", () => {
+  const service = read("src/services/finance.service.ts");
+  const invoiceWhere = service.slice(service.indexOf("function invoiceWhere"), service.indexOf("function paymentWhere"));
+  const paymentWhere = service.slice(service.indexOf("function paymentWhere"), service.indexOf("function studentFinancialFilter"));
+  const studentFinancialFilter = service.slice(service.indexOf("function studentFinancialFilter"), service.indexOf("function dec("));
+  assert.ok(invoiceWhere.includes('if(s.campusIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}};'));
+  assert.ok(paymentWhere.includes("institutionId:s.institutionId"));
+  assert.ok(paymentWhere.includes("s.campusIds"));
+  assert.ok(studentFinancialFilter.includes("s.campusIds"));
+  assert.ok(studentFinancialFilter.includes("campusId:{in:s.campusIds}"));
+});
+
+test("refund decisions use an atomic state transition claim before financial posting", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("export async function decideRefund(");
+  const end = service.indexOf("\nexport async function listRefunds(", start);
+  assert.ok(start >= 0 && end > start);
+  const decide = service.slice(start, end);
+  assert.match(decide, /const validTransition\s*=/);
+  assert.match(decide, /refund\.status === "REQUESTED"[^;]*input\.status === "APPROVED"[^;]*input\.status === "REJECTED"/s);
+  assert.match(decide, /const claimed = await tx\.\$executeRaw[\s\S]*?AND "status" = \$\{refund\.status\}[\s\S]*?if \(claimed !== 1\)/);
+  assert.match(decide, /FROM "fee_payments"[\s\S]*?FOR UPDATE/);
+  assert.match(decide, /FROM "fee_invoices"[\s\S]*?FOR UPDATE/);
+});
+
+test("settled payment processing locks the invoice and rejects amounts over the outstanding balance", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("async function settlePayment(");
+  const end = service.indexOf("\n/** Counter / offline collection. */", start);
+  assert.ok(start >= 0 && end > start);
+  const settle = service.slice(start, end);
+  assert.match(settle, /FROM "fee_invoices"[\s\S]*?FOR UPDATE/);
+  assert.match(settle, /input\.amount > outstanding \+ 0\.009/);
+  assert.match(settle, /"providerPaymentId" = \$\{input\.providerPaymentId\}/);
+});
+
+test("concession approval is claimed only while the concession remains pending", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("export async function decideConcession(");
+  const end = service.indexOf("\n/** Total approved concession", start);
+  assert.ok(start >= 0 && end > start);
+  const decide = service.slice(start, end);
+  assert.match(decide, /UPDATE "fee_concessions"[\s\S]*?AND "status" = 'PENDING'/);
+  assert.match(decide, /if \(claimed !== 1\)[\s\S]*?new AppError\("Concession state changed/);
+});
+
+test("duplicate provider callbacks are checked before rejecting a fully settled invoice", () => {
+  const service = read("src/services/feeBilling.service.ts");
+  const start = service.indexOf("async function settlePayment(");
+  const end = service.indexOf("\n/** Counter / offline collection. */", start);
+  assert.ok(start >= 0 && end > start);
+  const settle = service.slice(start, end);
+  const idempotencyCheck = settle.indexOf('if (input.providerPaymentId)');
+  const settledGuard = settle.indexOf('if (outstanding <= 0)');
+  assert.ok(idempotencyCheck >= 0 && settledGuard > idempotencyCheck,
+    "provider replay must return the existing settlement before the fully-settled guard");
+});

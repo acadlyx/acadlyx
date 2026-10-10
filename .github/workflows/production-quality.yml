@@ -4,10 +4,15 @@ on:
   push:
     branches:
       - production-upgrade-2026-09-20
+      - stabilization-platform-2026-10-09
   pull_request:
     branches:
       - production-upgrade-2026-09-20
+      - stabilization-platform-2026-10-09
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -123,7 +128,7 @@ jobs:
       - backend
       - frontend
       - prisma-migrations
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/production-upgrade-2026-09-20'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

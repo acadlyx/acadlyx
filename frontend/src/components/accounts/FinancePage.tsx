@@ -15,15 +15,15 @@ const nav:{key:View;label:string;group:string;permission?:string}[]=[
  {key:"overview",label:"Overview",group:"Workspace"},
  {key:"fee-structures",label:"Fee Structures",group:"Fee Management",permission:"fees.structure.read"},
  {key:"fee-heads",label:"Fee Heads",group:"Fee Management",permission:"fees.structure.read"},
- {key:"invoices",label:"Invoices",group:"Billing",permission:"fees.invoice.read"},
- {key:"receipts",label:"Receipts",group:"Billing",permission:"fees.receipt.read"},
- {key:"payments",label:"Payments",group:"Collections",permission:"fees.payment.read"},
- {key:"collections",label:"Collections",group:"Collections",permission:"fees.collection.read"},
- {key:"transactions",label:"Transactions",group:"Collections",permission:"fees.payment.read"},
+ {key:"invoices",label:"Invoices",group:"Billing",permission:"fees.read"},
+ {key:"receipts",label:"Receipts",group:"Billing",permission:"fees.read"},
+ {key:"payments",label:"Payments",group:"Collections",permission:"fees.read"},
+ {key:"collections",label:"Collections",group:"Collections",permission:"fees.read"},
+ {key:"transactions",label:"Transactions",group:"Collections",permission:"fees.read"},
  {key:"dues",label:"Outstanding & Overdue",group:"Dues",permission:"fees.read"},
- {key:"concessions",label:"Concessions",group:"Adjustments",permission:"fees.concession.read"},
- {key:"refunds",label:"Refunds",group:"Adjustments",permission:"fees.refund.read"},
- {key:"reports",label:"Reports",group:"Reporting",permission:"fees.reports.read"},
+ {key:"concessions",label:"Concessions",group:"Adjustments",permission:"fees.read"},
+ {key:"refunds",label:"Refunds",group:"Adjustments",permission:"fees.read"},
+ {key:"reports",label:"Reports",group:"Reporting",permission:"fees.read"},
  {key:"audit",label:"Audit",group:"Reporting",permission:"fees.read"},
 ];
 
@@ -37,7 +37,7 @@ export default function FinancePage({view, allowedRoles = ["ACCOUNTS"]}:{view:Vi
  const [period,setPeriod]=useState<Period>("academic");
  const [search,setSearch]=useState("");
  const deferredSearch=useDeferredValue(search);
- const can=(p:string)=>permissions.has(p)||permissions.has("fees.manage")||permissions.has("fees.admin");
+ const can=(p:string)=>permissions.has(p);
  useEffect(()=>{let live=true;setLoading(true);setError("");const load=async()=>{try{
    let x:any;
    if(view==="overview"||view==="dues") x=await financeCommandCenter(period);
@@ -86,7 +86,7 @@ function CommandCenter({d,period,setPeriod,can}:{d:any;period:Period;setPeriod:(
   </div>
 
   <div className="grid gap-5 xl:grid-cols-[1.45fr_.85fr]">
-   <Card className="p-5"><SectionTitle title="Today's collection" subtitle={`${money(d.todayCollection)} collected · ${d.paymentCount||0} payments in authorized scope`}/><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-3xl font-black">{money(d.todayCollection)}</p><p className="mt-1 text-xs text-slate-500">Collected today</p></div><div className="space-y-2">{(d.todayPaymentMethods||[]).slice(0,5).map((m:any)=><div key={m.method} className="flex items-center justify-between text-sm"><span className="font-semibold text-slate-600">{m.method||"Other"}</span><span className="font-black">{money(m.amount)}</span></div>)}</div></div><div className="mt-5 border-t border-slate-100 pt-4"><div className="flex flex-wrap gap-2">{can("fees.payment.record")&&<Link href="/accounts/payments" className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Record payment</Link>}{can("fees.receipt.read")&&<Link href="/accounts/receipts" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Receipts</Link>}</div></div></Card>
+   <Card className="p-5"><SectionTitle title="Today's collection" subtitle={`${money(d.todayCollection)} collected · ${d.paymentCount||0} payments in authorized scope`}/><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-3xl font-black">{money(d.todayCollection)}</p><p className="mt-1 text-xs text-slate-500">Collected today</p></div><div className="space-y-2">{(d.todayPaymentMethods||[]).slice(0,5).map((m:any)=><div key={m.method} className="flex items-center justify-between text-sm"><span className="font-semibold text-slate-600">{m.method||"Other"}</span><span className="font-black">{money(m.amount)}</span></div>)}</div></div><div className="mt-5 border-t border-slate-100 pt-4"><div className="flex flex-wrap gap-2">{can("fees.payment.record")&&<Link href="/accounts/payments" className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Record payment</Link>}{can("fees.read")&&<Link href="/accounts/receipts" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Receipts</Link>}</div></div></Card>
    <Card className="p-5"><SectionTitle title="Action required" subtitle="Only items visible in your authorized financial scope."/><div className="mt-4 space-y-2">{actions.length?actions.map((a:any)=><Link key={a.kind} href={a.href} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 hover:border-slate-400"><span className="text-sm font-bold text-slate-800">{a.label}</span><span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-800">{a.count}</span></Link>):<div className="rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">No pending financial actions in this scope.</div>}</div></Card>
   </div>
 
@@ -105,7 +105,7 @@ function CommandCenter({d,period,setPeriod,can}:{d:any;period:Period;setPeriod:(
   <div className="grid gap-5 lg:grid-cols-2">
    <Card className="p-5"><SectionTitle title="Payment attention" href="/accounts/dues"/><div className="mt-4 grid gap-3 sm:grid-cols-2"><Link href="/accounts/dues" className="rounded-xl border border-red-100 bg-red-50 p-4"><p className="text-xs font-black uppercase text-red-700">Overdue</p><p className="mt-1 text-xl font-black text-red-900">{money(d.overdue)}</p><p className="mt-1 text-xs text-red-700">{d.overdueCount||0} accounts</p></Link><Link href="/accounts/invoices" className="rounded-xl border border-amber-100 bg-amber-50 p-4"><p className="text-xs font-black uppercase text-amber-700">Unpaid invoices</p><p className="mt-1 text-xl font-black text-amber-900">{d.pendingInvoices||0}</p><p className="mt-1 text-xs text-amber-700">Awaiting payment</p></Link></div></Card>
    <Card className="p-5"><SectionTitle title="Quick actions"/><div className="mt-4 flex flex-wrap gap-2">{[
-    ["Create Invoice","/accounts/invoices","fees.invoice.manage"],["Record Payment","/accounts/payments","fees.payment.record"],["Assign Fees","/accounts/fee-structures","fees.manage"],["Review Concessions","/accounts/concessions","fees.concession.approve"],["Process Refund","/accounts/refunds","fees.refund.process"],["Generate Report","/accounts/reports","fees.reports.read"]
+    ["Create Invoice","/accounts/invoices","fees.invoice.manage"],["Record Payment","/accounts/payments","fees.payment.record"],["Assign Fees","/accounts/fee-structures","fees.assign"],["Review Concessions","/accounts/concessions","fees.concession.approve"],["Process Refund","/accounts/refunds","fees.refund.process"],["Generate Report","/accounts/reports","fees.read"]
    ].filter(([, ,p])=>can(String(p))).map(([label,href])=><Link key={label} href={String(href)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100">{label}</Link>)}</div></Card>
   </div>
 
@@ -123,7 +123,7 @@ function OperationalView({view,title,data,loading,error,search,setSearch,can}:{v
  const actions=view==="invoices"&&can("fees.invoice.manage")?<Link href="/accounts/invoices" className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Create Invoice</Link>:null;
  const headers=view==="fee-structures"?["Name","Status","Currency","Total","Actions"]:view==="fee-heads"?["Code","Name","Status"]:view==="audit"?["Action","Entity","Time"]:view==="invoices"?["Invoice","Student","Amount","Paid","Status","Due",""]:view==="payments"?["Reference","Student","Amount","Method","Date"]:view==="receipts"?["Receipt","Invoice","Student","Amount","Date"]:view==="concessions"?["Type","Amount","Reason","Status"]:view==="refunds"?["Amount","Reason","Status","Created"]:["Type","Amount","Reference","Created"];
  return <div className="space-y-5">
-  <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Finance workspace</p><h1 className="mt-1 text-2xl font-black">{title}</h1><p className="mt-1 text-sm text-slate-500">Scoped financial records with permission-aware operations.</p></div><div className="flex gap-2">{["invoices","payments","receipts","transactions"].includes(view)&&<button onClick={()=>void downloadFinanceExport(view as "invoices"|"payments"|"receipts"|"transactions")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Export XLSX</button>}{actions}</div></header>
+  <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Finance workspace</p><h1 className="mt-1 text-2xl font-black">{title}</h1><p className="mt-1 text-sm text-slate-500">Scoped financial records with permission-aware operations.</p></div><div className="flex gap-2">{["invoices","payments","receipts","transactions"].includes(view)&&(can("fees.reports.export")||can("fees.read"))&&<button onClick={()=>void downloadFinanceExport(view as "invoices"|"payments"|"receipts"|"transactions")} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Export XLSX</button>}{actions}</div></header>
   {["invoices","payments","receipts","transactions","collections","dues"].includes(view)&&<div className="flex flex-col gap-2 sm:flex-row"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search financial records…" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 sm:max-w-sm"/><div className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Server-enforced scope</div></div>}
   {view==="fee-structures"&&<FeeStructureCreatePanel canCreate={can("fees.structure.manage")} /> }
   {view==="fee-heads"&&<FeeHeadCreatePanel canCreate={can("fees.structure.manage")} /> }

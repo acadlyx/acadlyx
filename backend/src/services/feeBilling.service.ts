@@ -250,12 +250,17 @@ export async function decideConcession(
     );
   }
 
-  await prisma.$executeRaw`
+  const claimed = await prisma.$executeRaw`
     UPDATE "fee_concessions"
     SET "status" = ${status}, "approvedById" = ${actor.id},
         "approvedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${concessionId} AND "institutionId" = ${institutionId}
+    WHERE "id" = ${concessionId}
+      AND "institutionId" = ${institutionId}
+      AND "status" = 'PENDING'
   `;
+  if (claimed !== 1) {
+    throw new AppError("Concession state changed; reload before retrying", 409);
+  }
 
   await recordAuditLog({
     institutionId,
@@ -914,17 +919,6 @@ async function settlePayment(
       throw new AppError("This invoice has been cancelled", 409);
     }
 
-    const outstanding = outstandingOf(invoice);
-    if (outstanding <= 0) {
-      throw new AppError("This invoice is already settled", 409);
-    }
-    if (input.amount > outstanding + 0.009) {
-      throw new AppError(
-        `Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}`,
-        400
-      );
-    }
-
     if (input.providerPaymentId) {
       const existing = await tx.$queryRaw<
         Array<{ id: string; invoiceId: string; amount: number; receiptNumber: string | null; status: string }>
@@ -948,6 +942,17 @@ async function settlePayment(
           invoice,
         };
       }
+    }
+
+    const outstanding = outstandingOf(invoice);
+    if (outstanding <= 0) {
+      throw new AppError("This invoice is already settled", 409);
+    }
+    if (input.amount > outstanding + 0.009) {
+      throw new AppError(
+        `Payment exceeds the outstanding balance of ${outstanding.toFixed(2)}`,
+        400
+      );
     }
 
     const year = new Date().getUTCFullYear();
@@ -1323,6 +1328,12 @@ export async function decideRefund(
   if (["PROCESSED", "REJECTED"].includes(refund.status)) {
     throw new AppError("This refund has already been finalised", 409);
   }
+  const validTransition =
+    (refund.status === "REQUESTED" && (input.status === "APPROVED" || input.status === "REJECTED")) ||
+    (refund.status === "APPROVED" && (input.status === "PROCESSED" || input.status === "REJECTED"));
+  if (!validTransition) {
+    throw new AppError("Invalid refund state transition", 409);
+  }
   if (refund.requestedById === actor.id && !isInstitutionWide(actor)) {
     throw new AppError(
       "A refund cannot be approved by the person who raised it",
@@ -1331,15 +1342,20 @@ export async function decideRefund(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$executeRaw`
       UPDATE "fee_refunds"
       SET "status" = ${input.status}, "approvedById" = ${actor.id},
           "reference" = ${input.reference ?? null},
           "processedById" = CASE WHEN ${input.status} = 'PROCESSED' THEN ${actor.id} ELSE NULL END,
           "processedAt" = CASE WHEN ${input.status} = 'PROCESSED'
             THEN CURRENT_TIMESTAMP ELSE NULL END
-      WHERE "id" = ${refundId} AND "institutionId" = ${institutionId}
+      WHERE "id" = ${refundId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = ${refund.status}
     `;
+    if (claimed !== 1) {
+      throw new AppError("Refund state changed; reload before retrying", 409);
+    }
 
     if (input.status !== "PROCESSED") return;
 

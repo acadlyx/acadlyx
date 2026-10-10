@@ -3,10 +3,22 @@
 @tailwind utilities;
 
 :root {
+  /* Semantic brand and feedback tokens. Keep institution branding overridable. */
   --acadlyx-primary: #315c4a;
   --acadlyx-primary-dark: #244638;
   --acadlyx-primary-soft: #edf3ee;
+  --acadlyx-secondary: #5b534a;
   --acadlyx-accent: #9a6b3f;
+  --acadlyx-success: #166534;
+  --acadlyx-success-surface: #f0fdf4;
+  --acadlyx-warning: #92400e;
+  --acadlyx-warning-surface: #fffbeb;
+  --acadlyx-danger: #b91c1c;
+  --acadlyx-danger-surface: #fef2f2;
+  --acadlyx-info: #1d4ed8;
+  --acadlyx-info-surface: #eff6ff;
+  --acadlyx-focus-ring: #1d4ed8;
+  --acadlyx-focus-ring-on-dark: #93c5fd;
 
   --acadlyx-background: #eee7dc;
   --acadlyx-surface: #fbf8f2;
@@ -76,7 +88,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--acadlyx-focus-ring);
   outline-offset: 2px;
 }
 
@@ -1062,5 +1074,22 @@ a[class*="bg-white"][class*="text-white"] {
 @media (min-width: 1920px) {
   .acadlyx-page-container {
     padding-inline: 40px;
+  }
+}
+
+/* Respect OS accessibility preferences across the app, including shared
+   controls and the infinite skeleton shimmer. Keep interaction state intact. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

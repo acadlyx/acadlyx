@@ -652,11 +652,11 @@ ACADLYX ERP
         feeStructures={
           feeStructures
         }
-        canManage={can([
-          "fees.manage",
-          "fees.pay",
-        ])}
+        canReadStructures={can(["fees.structure.read"])}
+        canManageStructures={can(["fees.structure.manage"])}
         canApprove={can(["fees.structure.approve"])}
+        canCreateInvoice={can(["fees.manage"])}
+        canRecordPayment={can(["fees.pay"])}
         busy={mutation.isSubmitting}
         run={run}
       />
@@ -1211,8 +1211,11 @@ programs,
 semesters,
 feeHeads,
 feeStructures,
-canManage,
+canReadStructures,
+canManageStructures,
 canApprove,
+canCreateInvoice,
+canRecordPayment,
 busy,
 run,
 }: {
@@ -1232,8 +1235,11 @@ name: string;
 }>;
 feeHeads: FeeHead[];
 feeStructures: FeeStructure[];
-canManage: boolean;
+canReadStructures: boolean;
+canManageStructures: boolean;
 canApprove: boolean;
+canCreateInvoice: boolean;
+canRecordPayment: boolean;
 busy: boolean;
 run: (
 action: () => Promise<unknown>,
@@ -1307,14 +1313,10 @@ academicYears,
 structure.academicYearId,
 ]);
 
-if (!canManage) {
-return <AccessDenied />;
-}
-
 return (
 <div className="space-y-6">
 <div className="grid gap-6 xl:grid-cols-2">
-<Section title="Fee heads">
+{canManageStructures && <Section title="Fee heads">
 <form
 className="space-y-4"
 onSubmit={(event) => {
@@ -1433,9 +1435,9 @@ event.preventDefault();
           )
         )}
       </div>
-    </Section>
+    </Section>}
 
-    <Section
+    {canManageStructures && <Section
       title="Create fee structure"
       description="Create the first fee-head item for a structure. Additional installments can be added through later editing."
     >
@@ -1768,11 +1770,11 @@ event.preventDefault();
           Create structure
         </Submit>
       </form>
-    </Section>
+    </Section>}
   </div>
 
   <div className="grid gap-6 xl:grid-cols-2">
-    <Section title="Fee structures">
+    {canReadStructures && <Section title="Fee structures">
       {feeStructures.length ===
       0 ? (
         <Empty text="No fee structures found." />
@@ -1855,10 +1857,10 @@ event.preventDefault();
           )}
         </div>
       )}
-    </Section>
+    </Section>}
 
-    <Section title="Invoice & payment">
-      <form
+    {(canCreateInvoice || canRecordPayment) && <Section title="Invoice & payment">
+      {canCreateInvoice && <form
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -1987,11 +1989,11 @@ event.preventDefault();
         <Submit busy={busy}>
           Create invoice
         </Submit>
-      </form>
+      </form>}
 
-      <div className="my-6 border-t border-slate-200" />
+      {canRecordPayment && <div className="my-6 border-t border-slate-200" />}
 
-      <form
+      {canRecordPayment && <form
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -2066,9 +2068,10 @@ event.preventDefault();
         <Submit busy={busy}>
           Record payment
         </Submit>
-      </form>
-    </Section>
+      </form>}
+    </Section>}
   </div>
+  {!canReadStructures && !canManageStructures && !canApprove && !canCreateInvoice && !canRecordPayment && <AccessDenied />}
 </div>
 
 );

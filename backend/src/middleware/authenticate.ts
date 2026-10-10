@@ -5,6 +5,7 @@ import { AccessTokenPayload } from "../types/auth";
 import { getCanonicalRoleNames, getEffectivePermissions } from "../config/rbac";
 import { verifyAccessToken } from "../utils/jwt";
 import { AppError } from "./errorHandler";
+import { isActiveRefreshSession } from "../utils/refreshSession";
 
 /**
  * Resolve the effective tenant context from the database.
@@ -146,6 +147,25 @@ export async function authenticate(
   }
 
   try {
+    // Every current access token must be bound to a live refresh-token
+    // record. Otherwise logout, password change, refresh rotation, and
+    // administrative revocation would leave the old access JWT usable
+    // until its exp claim elapsed.
+    if (!payload.sid) {
+      next(new AppError("Session is no longer valid; sign in again", 401));
+      return;
+    }
+
+    const session = await prisma.refreshToken.findUnique({
+      where: { id: payload.sid },
+      select: { userId: true, revokedAt: true, expiresAt: true },
+    });
+
+    if (!isActiveRefreshSession(session, payload.sub)) {
+      next(new AppError("Session has expired or been revoked", 401));
+      return;
+    }
+
     const user =
       await prisma.user.findUnique({
         where: {

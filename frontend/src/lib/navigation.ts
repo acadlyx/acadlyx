@@ -843,7 +843,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/invoices",
     icon: "▤",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.invoice.read"],
+    permissions: ["fees.read"],
     group: "Billing",
   },
   {
@@ -851,7 +851,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/payments",
     icon: "₹",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.payment.read"],
+    permissions: ["fees.read"],
     group: "Collections",
   },
   {
@@ -859,7 +859,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/receipts",
     icon: "▤",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.receipt.read"],
+    permissions: ["fees.read"],
     group: "Billing",
   },
   {
@@ -875,7 +875,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/collections",
     icon: "▦",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.collection.read"],
+    permissions: ["fees.read"],
     group: "Collections",
   },
   {
@@ -883,7 +883,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/concessions",
     icon: "◇",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.concession.read"],
+    permissions: ["fees.read"],
     group: "Adjustments",
   },
   {
@@ -891,7 +891,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/refunds",
     icon: "↩",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.refund.read"],
+    permissions: ["fees.read"],
     group: "Adjustments",
   },
   {
@@ -899,7 +899,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/transactions",
     icon: "▤",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.payment.read"],
+    permissions: ["fees.read"],
     group: "Collections",
   },
   {
@@ -915,7 +915,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/accounts/reports",
     icon: "▤",
     roles: ["ACCOUNTS"],
-    permissions: ["fees.reports.read"],
+    permissions: ["fees.read"],
     group: "Reporting",
   },
 

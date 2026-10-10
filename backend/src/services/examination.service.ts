@@ -200,7 +200,7 @@ async function getOutstandingStudentDues(
   studentId: string,
 ): Promise<number> {
   const rows = await prisma.$queryRaw<Array<{ outstanding: number | null }>>(Prisma.sql`
-    SELECT COALESCE(SUM("amount" - "paidAmount" + "lateFeeAmount"), 0)::float AS "outstanding"
+    SELECT COALESCE(SUM(GREATEST(0, COALESCE("amount", 0) - COALESCE("paidAmount", 0) - COALESCE("refundedAmount", 0) + COALESCE("lateFeeAmount", 0))), 0)::float AS "outstanding"
     FROM "fee_invoices"
     WHERE "institutionId" = ${institutionId}
       AND "studentId" = ${studentId}
