@@ -13,6 +13,10 @@ const examService = read("../backend/src/services/examination.service.ts");
 const rbac = read("../backend/src/config/rbac.ts");
 const adminAcademic = read("src/components/dashboard/AdminAcademicDataPage.tsx");
 const campusWorkspace = read("src/app/admin/campuses/[campusId]/page.tsx");
+const programWorkspace = read("src/app/admin/programs/[programId]/page.tsx");
+const semesterWorkspace = read("src/app/admin/semesters/[semesterId]/page.tsx");
+const sectionValidator = read("../backend/src/validators/section.validators.ts");
+const semesterValidator = read("../backend/src/validators/semester.validators.ts");
 const departmentService = read("../backend/src/services/department.service.ts");
 const departmentValidator = read("../backend/src/validators/department.validators.ts");
 
@@ -52,6 +56,14 @@ assert.match(adminAcademic, /module === "campuses"[\s\S]*?Open campus workspace/
 assert.match(adminAcademic, /module === "departments" && campusId[\s\S]*?campusId=\$\{encodeURIComponent\(campusId\)\}/);
 assert.match(campusWorkspace, /\/departments\?page=1&pageSize=100&campusId=/);
 assert.match(campusWorkspace, /departments\.map\(\(department\)/);
+assert.match(adminAcademic, /module === "programs" \?[\s\S]*?Open program workspace/);
+assert.match(adminAcademic, /module === "semesters" \?[\s\S]*?Open semester workspace/);
+assert.match(programWorkspace, /\/semesters\?page=1&pageSize=100&programId=/);
+assert.match(programWorkspace, /semesters\.map/);
+assert.match(semesterWorkspace, /\/sections\?page=1&pageSize=100&semesterId=/);
+assert.match(semesterWorkspace, /sections/);
+assert.match(semesterValidator, /programId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
+assert.match(sectionValidator, /semesterId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
 assert.match(campusWorkspace, /\/admin\/departments\/\$\{encodeURIComponent\(department\.id\)\}/);
 assert.match(departmentValidator, /listDepartmentsQuerySchema[\s\S]*?campusId: optionalUuid/);
 assert.match(departmentService, /filters\.campusId \? \{ campusId: filters\.campusId \} : \{\}/);
