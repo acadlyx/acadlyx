@@ -19,7 +19,7 @@ assert.match(navigation, /label: "Library",[\s\S]*?href: "\/student\/library",[\
   "student navigation must require the canonical library.read permission");
 assert.ok(navigation.includes(String.raw`((student)\/)?library`),
   "student Library routes must map to the library tenant feature");
-assert.match(studentModule, /listMyLoans\(\)/,
+assert.match(studentModule, /Issued \{date\(loan\.issuedAt\)\}[\s\S]*?Returned \{date\(loan\.returnedAt\)\}/,\n  "students must be able to review issue and return dates");\nassert.match(studentModule, /listMyLoans\(\)/,
   "students must load their own loans through the self-service endpoint");
 assert.match(studentModule, /listBooks\(/,
   "students must be able to browse the catalogue");
