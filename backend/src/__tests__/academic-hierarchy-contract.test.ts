@@ -21,3 +21,15 @@ test("campus and department workspaces preserve the real campus-to-department hi
   assert.match(campusService, /where:\s*\{[\s\S]*?id,[\s\S]*?institutionId/);
   assert.match(departmentService, /where:[\s\S]*?institutionId,[\s\S]*?filters\.campusId \? \{ campusId: filters\.campusId \} : \{\}/);
 });
+
+test("program and semester hierarchy filters use existing institutional relationships", () => {
+  const semesterValidator = fs.readFileSync(path.join(root, "src/validators/semester.validators.ts"), "utf8");
+  const semesterService = fs.readFileSync(path.join(root, "src/services/semester.service.ts"), "utf8");
+  const sectionValidator = fs.readFileSync(path.join(root, "src/validators/section.validators.ts"), "utf8");
+  const sectionService = fs.readFileSync(path.join(root, "src/services/section.service.ts"), "utf8");
+
+  assert.match(semesterValidator, /programId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
+  assert.match(semesterService, /institutionId,[\s\S]*?filters\.programId \? \{ programId: filters\.programId \} : \{\}/);
+  assert.match(sectionValidator, /semesterId: z\.string\(\)\.uuid\(\)\.optional\(\)/);
+  assert.match(sectionService, /institutionId,[\s\S]*?filters\.semesterId \? \{ semesterId: filters\.semesterId \} : \{\}/);
+});
