@@ -9,7 +9,7 @@ const riskFromScore = (score: number): RiskLevel =>
 
 /** Rule-based seam: callers receive this contract regardless of a future ML implementation. */
 export async function getStudentIntelligence(institutionId: string, studentId: string) {
-  const [student, attendanceGroups, assignments, marks, skills] = await Promise.all([
+  const [student, attendanceGroups, assignments, marks, examMarks, legacyExamMarks, skills] = await Promise.all([
     prisma.user.findFirst({
       where: { id: studentId, institutionId },
       select: { id: true, firstName: true, lastName: true },
@@ -48,8 +48,42 @@ export async function getStudentIntelligence(institutionId: string, studentId: s
     }),
     prisma.internalMark.aggregate({
       where: { institutionId, studentId },
-      _avg: { marksObtained: true, maxMarks: true },
+      _sum: { marksObtained: true, maxMarks: true },
     }),
+    prisma.$queryRaw<Array<{ obtained: number; maximum: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(m."marksObtained"), 0)::float AS obtained,
+        COALESCE(SUM(s."maxMarks"), 0)::float AS maximum
+      FROM "exam_marks" m
+      JOIN "exam_schedules" s
+        ON s."id" = m."examScheduleId"
+       AND s."institutionId" = m."institutionId"
+      WHERE m."institutionId" = ${institutionId}
+        AND m."studentId" = ${studentId}
+        AND m."status" IN ('APPROVED', 'PUBLISHED')
+    `),
+    prisma.$queryRaw<Array<{ obtained: number; maximum: number }>>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(er."marks"), 0)::float AS obtained,
+        COALESCE(SUM(e."maxMarks"), 0)::float AS maximum
+      FROM "exam_results" er
+      JOIN "exams" e
+        ON e."id" = er."examId"
+       AND e."institutionId" = er."institutionId"
+      WHERE er."institutionId" = ${institutionId}
+        AND er."studentId" = ${studentId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "exam_schedules" s
+          JOIN "exam_marks" m
+            ON m."examScheduleId" = s."id"
+           AND m."institutionId" = s."institutionId"
+           AND m."studentId" = er."studentId"
+           AND m."status" IN ('APPROVED', 'PUBLISHED')
+          WHERE s."institutionId" = er."institutionId"
+            AND s."legacyExamId" = e."id"
+        )
+    `),
     prisma.studentSkill.count({
       where: { institutionId, studentId, proficiency: { gte: 60 } },
     }),
@@ -95,10 +129,21 @@ export async function getStudentIntelligence(institutionId: string, studentId: s
   const assignmentScore = assignments.length
     ? round(((assignments.length - overdue.length) / assignments.length) * 100)
     : 100;
-  const marksScore =
-    marks._avg.maxMarks && marks._avg.marksObtained
-      ? round((marks._avg.marksObtained / marks._avg.maxMarks) * 100)
-      : 0;
+  // Prefer approved/published examination marks, including legacy results.
+  // Internal assessment marks remain the fallback for institutions still using
+  // the internal-marks workflow. This avoids showing 0 when marks were entered
+  // through the canonical Examination module rather than Internal Marks.
+  const examTotals = examMarks[0];
+  const legacyTotals = legacyExamMarks[0];
+  const internalObtained = Number(marks._sum.marksObtained ?? 0);
+  const internalMaximum = Number(marks._sum.maxMarks ?? 0);
+  const marksScore = examTotals?.maximum > 0
+    ? round((examTotals.obtained / examTotals.maximum) * 100)
+    : legacyTotals?.maximum > 0
+      ? round((legacyTotals.obtained / legacyTotals.maximum) * 100)
+      : internalMaximum > 0
+        ? round((internalObtained / internalMaximum) * 100)
+        : 0;
   const engagementScore = Math.min(100, 50 + skills * 10);
   const healthScore = round(
     attendanceScore * 0.35 +
