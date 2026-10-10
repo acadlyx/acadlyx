@@ -314,6 +314,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Start frontend
         working-directory: frontend
+        env:
+          PORT: "3000"
         run: |
           nohup npm run start -- --hostname 127.0.0.1 > /tmp/acadlyx-web-browser-smoke.log 2>&1 &
           echo $! > /tmp/acadlyx-web-browser-smoke.pid
