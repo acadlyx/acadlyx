@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { financeAudit, financeAssignStructure, financeCollections, financeConcessions, financeCommandCenter, financeHeads, financeInvoices, financePayments, financeReceipts, financeRefunds, financeStructures, financeTransactions, downloadFinanceExport } from "@/lib/financeApi";
-import { getCachedCurrentUser } from "@/lib/auth";
+import { getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
 import { createFeeHead, createFeeStructure, listAcademicYears, listPrograms, listSemesters, listFeeHeads } from "@/lib/erpApi";
 
 type View = "overview"|"fee-structures"|"fee-heads"|"invoices"|"payments"|"receipts"|"dues"|"collections"|"concessions"|"refunds"|"transactions"|"reports"|"audit";
@@ -31,13 +31,13 @@ function Card({children,className=""}:{children:React.ReactNode;className?:strin
 function SectionTitle({title,subtitle,href}:{title:string;subtitle?:string;href?:string}){return <div className="flex items-start justify-between gap-4"><div><h2 className="text-sm font-black uppercase tracking-[.12em] text-slate-900">{title}</h2>{subtitle&&<p className="mt-1 text-xs text-slate-500">{subtitle}</p>}</div>{href&&<Link href={href} className="shrink-0 text-xs font-black text-emerald-700 hover:underline">View all</Link>}</div>}
 
 export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]}:{view:View; allowedRoles?: string[]}){
- const user=getCachedCurrentUser();
- const permissions=new Set(user?.permissions||[]);
+ const [permissions,setPermissions]=useState<string[]>(()=>getCachedCurrentUser()?.permissions||[]);
+ useEffect(()=>{let active=true;void getCurrentUser({force:true}).then(current=>{if(active)setPermissions(current.permissions||[])}).catch(()=>{});return()=>{active=false}},[]);
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
  const [period,setPeriod]=useState<Period>("academic");
  const [search,setSearch]=useState("");
  const deferredSearch=useDeferredValue(search);
- const can=(p:string)=>permissions.has(p);
+ const can=(p:string)=>permissions.includes(p);
  useEffect(()=>{let live=true;setLoading(true);setError("");const load=async()=>{try{
    let x:any;
    if(view==="overview"||view==="dues") x=await financeCommandCenter(period);
