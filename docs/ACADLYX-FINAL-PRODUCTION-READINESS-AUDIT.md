@@ -206,3 +206,45 @@ The four workflows `.github/workflows/production-quality.yml`, `production-gate.
 - Existing-data migration and disaster-recovery gates remain BLOCKED/UNVERIFIED. Keep the overall release decision NO-GO.
 
 The GitHub branch currently advances beyond the tested SHA when these evidence documents are updated. No application code is changed by this report update; CI results above apply exactly to the stated tested SHA, not by implication to any future code change.
+
+
+---
+
+## Milestone 10 — Adversarial authorization review (2026-10-10)
+
+### Candidate and diff
+
+- Starting SHA: `ff14eae53eca1e16b62b1ecff69429f8e0c20e6c`.
+- Previous exact broad CI-tested SHA: `c10ec08489756ba770467fff7b81e7f992b2d0f0`.
+- At start, compare confirmed the six commits after the tested SHA changed only the three Milestone 9 readiness documents. No app-source delta was found in that comparison.
+- The Milestone 10 source change is `backend/src/__tests__/authorization-adversarial.test.ts`, adding 12 pure authorization decision regression tests. Documentation changes update the existing security audit, this readiness audit, and the existing risk register.
+- Local working tree/upstream state is not observable through the GitHub connector; local changes are UNVERIFIED.
+
+### What the review covers
+
+Inspected source for authentication/session binding, authorization middleware, RBAC permission catalogue, entitlement middleware/service, central scope helpers, parent portal service/routes, student routes, campus/department routes, finance, export, file storage, examination, attendance, assignments, LMS, placements and workflow authority.
+
+The route/permission inventory is recorded in `docs/ACADLYX-SECURITY-RBAC-AUDIT.md`. It is explicitly marked partial: a full per-endpoint route-to-permission inventory across all 57 route modules and all controllers/services is not complete.
+
+### Adversarial tests
+
+The new 12-test file covers tenant-target mismatch, cross-user ID substitution, self-resource positive control, missing write permission, platform-only permission enforcement, absence/presence of a server-verified parent link, and ownership mismatch. These tests exercise pure decision helpers only. They do not establish HTTP response semantics, persisted-state invariants, database-backed campus/department/faculty assignments, exports, files, mixed-scope bulk operations, or side-effect absence.
+
+Hosted CI result for the new test is pending until a run on the commit containing it is observable. Do not attribute the prior successful CI SHA `c10ec08...` to this new test.
+
+### Confirmed vulnerability / fix status
+
+No new exploitable vulnerability was reproduced by runtime testing in this milestone. No runtime database or HTTP fixture was available, so there is no justified `FIXED` finding to report. A policy-sensitive concern was recorded: file download currently permits the file owner as an alternate to module read permission after tenant-scoped lookup. Whether that should survive a permission revocation requires explicit policy confirmation and a regression test; it has not been changed.
+
+### Remaining blockers
+
+- Database-backed tests for institution/campus/department/faculty assignment and parent-link boundaries.
+- HTTP-level authorization tests verifying expected denial status, no sensitive payload, no persisted writes, no unauthorized audit/side effects.
+- File read behavior after permission revocation and module entitlement/permission negative combinations.
+- Export/report query scope and unknown export-type rejection.
+- Nested ID and mixed authorized/unauthorized bulk operation tests.
+- Actual session/permission/entitlement revocation behavior in an isolated running API.
+- Full endpoint-level inventory across all route modules.
+- Local checkout and working-tree status cannot be verified remotely.
+
+**Milestone 10 decision: NO-GO.** The new pure unit tests improve coverage but do not meet the required adversarial integration coverage. Keep all production restrictions in force until critical data-isolation boundaries are exercised against disposable fixtures and the exact final source SHA has successful CI evidence.
