@@ -872,8 +872,11 @@ function LeaveView() {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const [typeList, balanceList, requestList] = await Promise.all([
         listLeaveTypes(),
@@ -893,6 +896,8 @@ function LeaveView() {
       }
     } catch {
       setError("We could not load your leave information.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -943,9 +948,11 @@ function LeaveView() {
     }
   }
 
+  if (loading) return <Empty>Loading your leave information…</Empty>;
+
   return (
     <div className="space-y-5">
-      {error ? <ErrorBox message={error} /> : null}
+      {error ? <div><ErrorBox message={error} /><button type="button" onClick={() => void load()} className="mt-2 text-sm font-semibold underline">Retry leave information</button></div> : null}
 
       <Card title="Leave balance">
         {balances.length === 0 ? (
