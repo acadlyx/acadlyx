@@ -17,8 +17,8 @@ assert.match(studentRoute, /StudentSelfServiceModule module="library"/,
   "the student Library route must render the dedicated self-service module");
 assert.match(navigation, /label: "Library",[\s\S]*?href: "\/student\/library",[\s\S]*?roles: \["STUDENT"\],[\s\S]*?permissions: \["library\.read"\]/,
   "student navigation must require the canonical library.read permission");
-assert.match(navigation, /\^\\\/\(\(director\|dean\|hod\|faculty\|student\)\\\/\)\?library/,
 assert.ok(navigation.includes(String.raw`((student)\/)?library`),
+  "student Library routes must map to the library tenant feature");
 assert.match(studentModule, /listMyLoans\(\)/,
   "students must load their own loans through the self-service endpoint");
 assert.match(studentModule, /listBooks\(/,
@@ -29,8 +29,8 @@ assert.match(studentModule, /No matching available books were found\./,
   "empty catalogues/search results must show an explicit empty state");
 assert.match(api, /authedFetch/,
   "Library API calls must use the authenticated API client");
-assert.match(auth, /getCurrentUser[\s\S]*?tenantFeatures/,
 assert.ok(auth.includes("tenantFeatures?: string[]") && auth.includes("export async function getCurrentUser"),
+  "the current-user authentication flow must expose tenant entitlements");
 
 assert.match(backendRoutes, /router\.use\(authenticate, requireFeature\("library"\)\)/,
   "all Library API routes must retain authentication and tenant entitlement checks");
