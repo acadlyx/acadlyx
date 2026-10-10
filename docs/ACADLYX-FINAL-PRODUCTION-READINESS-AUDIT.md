@@ -195,7 +195,7 @@ Tested commit: `c10ec08489756ba770467fff7b81e7f992b2d0f0` on `stabilization-plat
 
 ### Milestone 9 CI trigger correction
 
-The four workflows `.github/workflows/production-quality.yml`, `production-gate.yml`, `erp-verification.yml` and `frontend-build.yml` now include the stabilization branch in push and pull-request filters. Each declares `permissions: contents: read`. The production-quality workflow's live smoke job only runs when `github.ref == 'refs/heads/production-upgrade-2026-09-20'` and the event is not a pull request. Hosted evidence confirms the smoke job was skipped for the stabilization candidate. No deployment job was added.
+The four workflows `.github/workflows/production-quality.yml`, `production-gate.yml`, `erp-verification.yml` and `frontend-build.yml` now include the stabilization branch in push and pull-request filters. Each declares `permissions: contents: read`. The production-quality workflow's live smoke job only runs when `github.ref == 'refs/heads/production-upgrade-2026-09-20'` and the event is not a pull request. Hosted evidence confirms the smoke job was skipped for the stabilization candidate. No deployment job was added. GitHub branch metadata reports `protected: false` for both stabilization and production baseline, and no required checks are enforced by branch protection; this remains a repository-administration release control gap.
 
 ### Scope limits / remaining release gates
 
