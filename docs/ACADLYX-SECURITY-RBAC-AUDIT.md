@@ -287,7 +287,7 @@ For integration tests, provide an explicitly disposable PostgreSQL database usin
 
 | Finding | Evidence | Status |
 |---|---|---|
-| Core permission + institution-target pure decision contract | New deterministic tests in `authorization-adversarial.test.ts`; execution pending hosted CI | UNVERIFIED pending run |
+| Core permission + institution-target pure decision contract | `authorization-adversarial.test.ts` passed in hosted CI on exact SHA `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`; backend suite 126 passed, 0 failed, 0 skipped | VERIFIED (pure helper contract only) |
 | Parent-child link enforcement in parent portal service | Source shows DB lookup by institutionId + parentId + studentId per request; no integration test run | PARTIALLY VERIFIED |
 | Campus / department / course-offering / faculty scope | DB-backed functions exist in `accessScope.service.ts`; no isolated adversarial fixture run | UNVERIFIED |
 | Module entitlement plus user permission conjunction | `requireFeature` and route-level `authorize` observed on sampled routes; negative entitlement/permission matrix not integration-tested | PARTIALLY VERIFIED |
@@ -297,3 +297,15 @@ For integration tests, provide an explicitly disposable PostgreSQL database usin
 | Cached authorization and stale sessions after entitlement/scope changes | Auth reloads DB role binding on each request; session helper tests exist; end-to-end role/entitlement invalidation not run | PARTIALLY VERIFIED |
 
 No confirmed exploitable vulnerability was established by runtime reproduction in this milestone. No source-level finding should be relabeled FIXED without a regression test and exact-SHA CI evidence.
+
+
+### Milestone 10 exact-SHA hosted CI result
+
+The exact source SHA containing the new tests, `d6e78f156ae20b837dff16d3cbc0e2ff13fc022a`, passed all four hosted workflows:
+
+- [ACADLYX Production Quality](https://github.com/acadlyx/acadlyx/actions/runs/38032585164) — SUCCESS; backend tests 126/126, Prisma migration job on empty disposable PostgreSQL 16 SUCCESS, frontend checks/build SUCCESS; live production smoke job SKIPPED for stabilization branch.
+- [ACADLYX Production Gate](https://github.com/acadlyx/acadlyx/actions/runs/38032585202) — SUCCESS.
+- [ACADLYX ERP verification](https://github.com/acadlyx/acadlyx/actions/runs/38032585201) — SUCCESS.
+- [Frontend build](https://github.com/acadlyx/acadlyx/actions/runs/38032585149) — SUCCESS.
+
+No local command was run in this connector environment. Hosted CI does not include the missing HTTP + disposable DB adversarial matrix; all database-backed tenant/campus/department/parent/file/export/bulk side-effect checks remain blocked or unverified.
