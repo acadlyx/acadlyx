@@ -240,6 +240,105 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  browser-smoke:
+    name: Desktop and mobile public/login browser smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acadlyx
+          POSTGRES_PASSWORD: acadlyx
+          POSTGRES_DB: acadlyx_browser_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U acadlyx -d acadlyx_browser_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://acadlyx:acadlyx@localhost:5432/acadlyx_browser_ci?schema=public
+      CORS_ORIGIN: http://127.0.0.1:3000
+      PORT: "5001"
+      NODE_ENV: test
+      RBAC_SYNC_ON_BOOT: "false"
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:5001
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Backend Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend
+        working-directory: backend
+        run: npm ci
+      - name: Prepare backend database and build
+        working-directory: backend
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run build
+      - name: Start isolated API
+        working-directory: backend
+        run: |
+          nohup npm start > /tmp/acadlyx-api-browser-smoke.log 2>&1 &
+          echo $! > /tmp/acadlyx-api-browser-smoke.pid
+          for attempt in $(seq 1 45); do
+            if curl --silent --fail http://127.0.0.1:5001/api/v1/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/acadlyx-api-browser-smoke.log
+          exit 1
+      - name: Frontend Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend for isolated API
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:5001
+        run: npm run build
+      - name: Install Playwright test runner
+        working-directory: frontend
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Start frontend
+        working-directory: frontend
+        run: |
+          nohup npm run start -- --hostname 127.0.0.1 > /tmp/acadlyx-web-browser-smoke.log 2>&1 &
+          echo $! > /tmp/acadlyx-web-browser-smoke.pid
+          for attempt in $(seq 1 45); do
+            if curl --silent --fail http://127.0.0.1:3000 >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/acadlyx-web-browser-smoke.log
+          exit 1
+      - name: Run desktop and mobile browser tests
+        working-directory: frontend
+        run: npx playwright test e2e/public-smoke.spec.mjs --reporter=line
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-login-browser-evidence
+          path: |
+            frontend/test-results/
+            /tmp/acadlyx-api-browser-smoke.log
+            /tmp/acadlyx-web-browser-smoke.log
+          if-no-files-found: warn
+          retention-days: 30
+
   production-smoke:
     name: Production deployment smoke checks
     needs:
