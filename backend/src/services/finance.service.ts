@@ -143,15 +143,35 @@ export async function createInvoice(institutionId:string,a:AuthenticatedUser,inp
 }
 export async function payment(institutionId:string,a:AuthenticatedUser,id:string,input:any){
  if(!has(a,"fees.payment.record"))throw new AppError("Payment recording permission required",403);
+ const idempotencyKey=String(input.idempotencyKey??"").trim();
+ if(!idempotencyKey)throw new AppError("Idempotency key is required",400);
+ const amount=dec(input.amount),method=String(input.method||"OFFLINE"),reference=input.reference||null;
  const s=await scope(institutionId,a),inv=await prisma.feeInvoice.findFirst({where:{id,...invoiceWhere(s)},select:{id:true,studentId:true,amount:true,paidAmount:true,refundedAmount:true}});
- if(!inv)throw new AppError("Invoice not found in authorized scope",404);const amount=dec(input.amount);
- const existing=await prisma.feePayment.findFirst({where:{institutionId,idempotencyKey:String(input.idempotencyKey)}});if(existing)return invoice(institutionId,a,id);
- const result=await prisma.$transaction(async tx=>{await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);const fresh=await tx.feeInvoice.findFirst({where:{id,institutionId},select:{studentId:true,amount:true,paidAmount:true,refundedAmount:true}});if(!fresh)throw new AppError("Invoice not found",404);const balance=new Prisma.Decimal(fresh.amount).minus(fresh.paidAmount).minus(fresh.refundedAmount);if(amount.gt(balance))throw new AppError("Payment exceeds outstanding balance",409);
-  const p=await tx.feePayment.create({data:{institutionId,invoiceId:id,amount:Number(amount),reference:input.reference||null,paidAt:input.paidAt?new Date(input.paidAt):new Date(),method:String(input.method||"OFFLINE"),status:"SUCCESS",recordedById:a.id,userId:a.id,notes:input.notes||null,idempotencyKey:String(input.idempotencyKey)}});
+ if(!inv)throw new AppError("Invoice not found in authorized scope",404);
+ const replay=(existing:{invoiceId:string;amount:number;method:string;reference:string|null})=>{
+  if(existing.invoiceId!==id)throw new AppError("Idempotency key was already used for a different invoice",409);
+  if(new Prisma.Decimal(existing.amount).comparedTo(amount)!==0||existing.method!==method||existing.reference!==(reference===null?null:String(reference)))throw new AppError("Idempotency key was reused with a different payment payload",409);
+ };
+ const existing=await prisma.feePayment.findFirst({where:{institutionId,idempotencyKey},select:{invoiceId:true,amount:true,method:true,reference:true}});
+ if(existing){replay(existing);return invoice(institutionId,a,id);}
+ const result=await prisma.$transaction(async tx=>{
+  await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);
+  const duplicate=await tx.feePayment.findFirst({where:{institutionId,idempotencyKey},select:{id:true,invoiceId:true,amount:true,method:true,reference:true}});
+  if(duplicate){replay(duplicate);return {paymentId:duplicate.id,created:false};}
+  const fresh=await tx.feeInvoice.findFirst({where:{id,institutionId},select:{studentId:true,amount:true,paidAmount:true,refundedAmount:true}});
+  if(!fresh)throw new AppError("Invoice not found",404);
+  const balance=new Prisma.Decimal(fresh.amount).minus(fresh.paidAmount).minus(fresh.refundedAmount);
+  if(amount.gt(balance))throw new AppError("Payment exceeds outstanding balance",409);
+  const p=await tx.feePayment.create({data:{institutionId,invoiceId:id,amount:Number(amount),reference,paidAt:input.paidAt?new Date(input.paidAt):new Date(),method,status:"SUCCESS",recordedById:a.id,userId:a.id,notes:input.notes||null,idempotencyKey}});
   const paid=new Prisma.Decimal(fresh.paidAmount).plus(amount),status=paid.gte(new Prisma.Decimal(fresh.amount).minus(fresh.refundedAmount))?"PAID":"PARTIALLY_PAID";
-  await tx.feeInvoice.update({where:{id},data:{paidAmount:Number(paid),status}});await tx.feeTransaction.create({data:{institutionId,studentId:fresh.studentId,invoiceId:id,paymentId:p.id,amount,type:"PAYMENT",reference:input.reference||null,createdById:a.id}});
-  const r=await tx.feeReceipt.create({data:{institutionId,paymentId:p.id,invoiceId:id,studentId:fresh.studentId,receiptNumber:await receiptNo(),issuedById:a.id}});await tx.feePayment.update({where:{id:p.id},data:{receiptNumber:r.receiptNumber}});return p;});
- await audit(institutionId,a.id,"finance.payment.record","FeePayment",result.id,{invoiceId:id,amount:amount.toString(),method:input.method});return invoice(institutionId,a,id);
+  await tx.feeInvoice.update({where:{id},data:{paidAmount:Number(paid),status}});
+  await tx.feeTransaction.create({data:{institutionId,studentId:fresh.studentId,invoiceId:id,paymentId:p.id,amount,type:"PAYMENT",reference,createdById:a.id}});
+  const receipt=await tx.feeReceipt.create({data:{institutionId,paymentId:p.id,invoiceId:id,studentId:fresh.studentId,receiptNumber:await receiptNo(),issuedById:a.id}});
+  await tx.feePayment.update({where:{id:p.id},data:{receiptNumber:receipt.receiptNumber}});
+  return {paymentId:p.id,created:true};
+ });
+ if(result.created)await audit(institutionId,a.id,"finance.payment.record","FeePayment",result.paymentId,{invoiceId:id,amount:amount.toString(),method});
+ return invoice(institutionId,a,id);
 }
 export async function listPayments(institutionId:string,a:AuthenticatedUser){const s=await scope(institutionId,a);if(!has(a,"fees.read")&&!has(a,"fees.payment.read"))throw new AppError("Payment visibility permission required",403);return prisma.feePayment.findMany({where:paymentWhere(s),include:{invoice:{select:{id:true,invoiceNumber:true,title:true,amount:true,paidAmount:true,status:true,student:{select:{firstName:true,lastName:true,profile:{select:{admissionNumber:true}}}}}}},orderBy:{paidAt:"desc"},take:500})}
 export async function listReceipts(institutionId:string,a:AuthenticatedUser){
