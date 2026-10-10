@@ -456,7 +456,33 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
           {loading ? <div className="p-10 text-center text-sm text-slate-500">Loading live records…</div> : rows.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-500"><p>No records are currently configured.</p>{canCreate ? <button type="button" onClick={openCreate} className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white">Create first record</button> : null}</div>
           ) : (
-            <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
+            {module === "campuses" ? (
+              <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                {rows.map((row, index) => {
+                  const counts = row._count as { departments?: number; campusAccesses?: number } | undefined;
+                  const campusName = display(row.name ?? row.code ?? "Campus");
+                  return (
+                    <article key={String(row.id ?? index)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+                      <Link href={row.id ? `/admin/campuses/${encodeURIComponent(row.id)}` : "/admin/campuses"} className="block rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{display(row.code)}</p>
+                        <h3 className="mt-1 text-lg font-bold text-slate-900">{campusName}</h3>
+                        <p className="mt-2 text-sm text-slate-500">{display(row.address ?? "No address provided")}</p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                          <div><p className="text-xs text-slate-500">Departments</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.departments ?? "—"}</p></div>
+                          <div><p className="text-xs text-slate-500">Campus access</p><p className="mt-1 text-xl font-bold text-slate-900">{counts?.campusAccesses ?? "—"}</p></div>
+                        </div>
+                        <p className="mt-4 text-sm font-semibold text-blue-700">Open campus workspace →</p>
+                      </Link>
+                      {(canUpdate || canDelete) ? <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                        {canUpdate ? <button type="button" onClick={() => openEdit(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">Edit</button> : null}
+                        {canDelete ? <button type="button" onClick={() => void remove(row)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Deactivate</button> : null}
+                      </div> : null}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="px-4 py-3 font-black text-slate-600">Record</th>
               {config.columns.map((field) => <th key={field} className="px-4 py-3 font-black capitalize text-slate-600">{field.replace(/([A-Z])/g, " $1")}</th>)}
               {(canUpdate || canDelete) ? <th className="px-4 py-3 text-right font-black text-slate-600">Manage</th> : null}
@@ -470,13 +496,15 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                 </div></td> : null}
               </tr>)}
             </tbody></table>
+
+              </div>
+            )}
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <span>{total.toLocaleString("en-IN")} records · Page {page} of {totalPages}</span>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Previous</button>
                 <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page >= totalPages || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:opacity-40">Next</button>
               </div>
-            </div>
             </div>
           )}
         </section>
