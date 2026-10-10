@@ -121,3 +121,17 @@ No local execution or database-backed adversarial API testing occurred. R-19 thr
 Supporting evidence matrices: `docs/ACADLYX-FINANCIAL-LIBRARY-INTEGRITY-AUDIT.md`, `docs/ACADLYX-MIGRATION-BACKUP-DISASTER-RECOVERY-AUDIT.md`, `docs/ACADLYX-END-TO-END-WORKFLOW-VERIFICATION.md`.
 
 No production setting, branch protection, deployment, or database was changed by this remediation. Release remains **NO-GO**.
+
+## Milestones 10–14 remediation risks — 2026-10-10
+
+| ID | Risk | Severity | Current evidence | Required action | Status |
+|---|---|---|---|---|---|
+| R-27 | Director Finance campus scope mismatch | Critical | Finance service now calls canonical `getDirectorCampusIds`; contract regression added. Exact final-SHA CI is pending. | Pass exact-SHA CI, then prove campus/institution read, aggregate, export and mutation boundaries with disposable PostgreSQL/API tests. | FIXED AT SOURCE; PARTIALLY VERIFIED |
+| R-28 | Concurrent refund decision could post twice from stale state | Critical | Refund status transition now conditionally claims the observed status and rejects a lost claim; payment and invoice use row locks. Contract regression added. | Run concurrent PostgreSQL tests for duplicate processing, partial refunds, rejection, retry and ledger consistency. | FIXED AT SOURCE; UNVERIFIED UNDER CONCURRENCY |
+| R-29 | Concurrent concession decisions | High | Decision update now requires persisted status PENDING and rejects a zero-row claim; contract regression added. | Race approve/reject against disposable PostgreSQL and assert exactly one transition/audit effect. | FIXED AT SOURCE; UNVERIFIED UNDER CONCURRENCY |
+| R-30 | Payment/refund/provider/library integrity lacks DB concurrency evidence | Critical | Existing payment settlement source locks invoice; no isolated concurrent database test or real provider sandbox run was executed. | Test overpayment prevention, duplicate/replayed/out-of-order callbacks, interrupted retries, refunds, library charges and reconciliation against canonical records. | UNVERIFIED |
+| R-31 | Existing-data migration and disaster recovery | Critical | Hosted migration evidence covers an empty disposable PostgreSQL 16 database only. | Rehearse prior-schema migration with synthetic legacy records; dump and restore to separate disposable database; record actual durations, counts, and approved RPO/RTO. | BLOCKED |
+| R-32 | Connected institutional workflows | Critical | Workflow matrix records required assertions; no isolated running API/database/browser workflow was exercised. | Execute five required workflows and inspect persisted state, authorization, retries and actual admit-card PDF artifacts. | BLOCKED |
+| R-33 | Release protection and live provider settings | Critical | Checked-in Render Blueprint targets production branch; branch-protection API read is forbidden to this connector, and live provider settings remain unconfirmed. Earlier branch query reported protection disabled. | Repository administrator confirms/enables required checks and protection; authorized operator verifies live settings without deploying. | BLOCKED |
+
+No production deployment, production database operation, or production smoke test was performed. Overall decision remains **NO-GO**.
