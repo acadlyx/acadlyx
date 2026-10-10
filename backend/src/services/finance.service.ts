@@ -216,7 +216,8 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_payments" WHERE "id" = ${paymentId} AND "institutionId" = ${institutionId} FOR UPDATE`);
   const fresh=await tx.feePayment.findFirst({where:{id:paymentId,institutionId},select:{id:true,invoiceId:true,amount:true,refundedAmount:true,invoice:{select:{studentId:true}}}});
   if(!fresh)throw new AppError("Payment not found",404);
-  const used=await tx.feeRefund.aggregate({where:{paymentId,status:{in:["REQUESTED","APPROVED","PROCESSED"]}},_sum:{amount:true}});
+  // Processed refunds are already included in feePayment.refundedAmount; count only outstanding reservations here to avoid subtracting them twice.
+  const used=await tx.feeRefund.aggregate({where:{paymentId,status:{in:["REQUESTED","APPROVED"]}},_sum:{amount:true}});
   const available=new Prisma.Decimal(fresh.amount).minus(fresh.refundedAmount).minus(used._sum.amount||0);
   if(amount.gt(available))throw new AppError("Refund exceeds refundable amount",409);
   return tx.feeRefund.create({data:{institutionId,paymentId,invoiceId:fresh.invoiceId,studentId:fresh.invoice.studentId,amount,reason:String(input.reason).trim(),status:has(a,"fees.refund.approve")?"APPROVED":"REQUESTED",requestedById:a.id,approvedById:has(a,"fees.refund.approve")?a.id:null,approvedAt:has(a,"fees.refund.approve")?new Date():null}});
