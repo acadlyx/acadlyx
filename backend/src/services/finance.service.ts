@@ -270,8 +270,59 @@ export async function exportFinancial(institutionId:string,a:AuthenticatedUser,t
 
 export async function auditTrail(institutionId:string,a:AuthenticatedUser){if(!has(a,"fees.read")&&!has(a,"audit.read"))throw new AppError("Financial audit visibility permission required",403);const s=await scope(institutionId,a);const inv=await prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{id:true}});const ids=inv.map(x=>x.id);const payments=ids.length?await prisma.feePayment.findMany({where:{institutionId,invoiceId:{in:ids}},select:{id:true}}):[];const entityIds=[...ids,...payments.map(x=>x.id)];return prisma.auditLog.findMany({where:{institutionId,action:{startsWith:"finance."},...(entityIds.length?{entityId:{in:entityIds}}:{entityId:"__none__"})},orderBy:{createdAt:"desc"},take:500})}
 
-export async function requestConcession(institutionId:string,a:AuthenticatedUser,invoiceId:string,input:any){if(!has(a,"fees.concession.manage"))throw new AppError("Concession management permission required",403);const s=await scope(institutionId,a),i=await prisma.feeInvoice.findFirst({where:{id:invoiceId,...invoiceWhere(s)},select:{id:true,studentId:true,amount:true,paidAmount:true,refundedAmount:true}});if(!i)throw new AppError("Invoice not found in authorized scope",404);const amount=dec(input.amount);const balance=new Prisma.Decimal(i.amount).minus(i.paidAmount).minus(i.refundedAmount);if(amount.gt(balance))throw new AppError("Concession exceeds outstanding balance",409);const approved=has(a,"fees.concession.approve");const x=await prisma.feeConcession.create({data:{institutionId,invoiceId,studentId:i.studentId,type:String(input.type||"WAIVER"),amount,percentage:input.percentage?new Prisma.Decimal(String(input.percentage)):null,reason:String(input.reason).trim(),status:approved?"APPROVED":"PENDING",createdById:a.id,approvedById:approved?a.id:null,approvedAt:approved?new Date():null}});if(approved)await applyConcession(institutionId,a,x.id);await audit(institutionId,a.id,"finance.concession.create","FeeConcession",x.id,{invoiceId,amount:amount.toString()});return x}
-async function applyConcession(institutionId:string,a:AuthenticatedUser,id:string){const x=await prisma.feeConcession.findFirst({where:{id,institutionId,status:"APPROVED"}});if(!x)return;if(!x.invoiceId)throw new AppError("Concession is not linked to an invoice",409);const invoiceId=x.invoiceId;await prisma.$transaction(async tx=>{const i=await tx.feeInvoice.findUnique({where:{id:invoiceId},select:{amount:true,paidAmount:true,refundedAmount:true}});if(!i)throw new AppError("Invoice not found",404);const already=await tx.feeTransaction.findFirst({where:{invoiceId,type:"CONCESSION",reference:x.id}});if(already)return;const amount=new Prisma.Decimal(x.amount),next=new Prisma.Decimal(i.amount).minus(amount);if(next.lt(new Prisma.Decimal(i.paidAmount).plus(i.refundedAmount)))throw new AppError("Concession would invalidate settled amount",409);await tx.feeInvoice.update({where:{id:invoiceId},data:{amount:Number(next),discountAmount:{increment:Number(amount)}}});await tx.feeTransaction.create({data:{institutionId,studentId:x.studentId,invoiceId,amount:amount.negated(),type:"CONCESSION",reference:x.id,createdById:a.id}})})}
-export async function approveConcession(institutionId:string,a:AuthenticatedUser,id:string){if(!has(a,"fees.concession.approve"))throw new AppError("Concession approval permission required",403);const x=await prisma.feeConcession.findFirst({where:{id,institutionId,status:"PENDING"}});if(!x)throw new AppError("Pending concession not found",404);const y=await prisma.feeConcession.update({where:{id},data:{status:"APPROVED",approvedById:a.id,approvedAt:new Date()}});await applyConcession(institutionId,a,id);await audit(institutionId,a.id,"finance.concession.approve","FeeConcession",id);return y}
+export async function requestConcession(institutionId: string, a: AuthenticatedUser, invoiceId: string, input: any) {
+  if (!has(a, "fees.concession.manage")) throw new AppError("Concession management permission required", 403);
+  const s = await scope(institutionId, a);
+  const visible = await prisma.feeInvoice.findFirst({ where: { id: invoiceId, ...invoiceWhere(s) }, select: { id: true, studentId: true } });
+  if (!visible) throw new AppError("Invoice not found in authorized scope", 404);
+  const amount = dec(input.amount);
+  const approved = has(a, "fees.concession.approve");
+
+  const x = await prisma.$transaction(async tx => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${invoiceId} AND "institutionId" = ${institutionId} FOR UPDATE`);
+    const i = await tx.feeInvoice.findFirst({
+      where: { id: invoiceId, ...invoiceWhere(s) },
+      select: { id: true, studentId: true, amount: true, paidAmount: true, refundedAmount: true },
+    });
+    if (!i) throw new AppError("Invoice not found in authorized scope", 404);
+    const balance = new Prisma.Decimal(i.amount).minus(i.paidAmount).minus(i.refundedAmount);
+    if (amount.gt(balance)) throw new AppError("Concession exceeds outstanding balance", 409);
+    const concession = await tx.feeConcession.create({
+      data: {
+        institutionId, invoiceId, studentId: i.studentId,
+        type: String(input.type || "WAIVER"), amount,
+        percentage: input.percentage ? new Prisma.Decimal(String(input.percentage)) : null,
+        reason: String(input.reason).trim(),
+        status: approved ? "APPROVED" : "PENDING",
+        createdById: a.id, approvedById: approved ? a.id : null,
+        approvedAt: approved ? new Date() : null,
+      },
+    });
+    if (approved) await applyConcessionInTransaction(tx, institutionId, a, concession.id);
+    return concession;
+  });
+  await audit(institutionId, a.id, "finance.concession.create", "FeeConcession", x.id, { invoiceId, amount: amount.toString() });
+  return x;
+}
+export async function approveConcession(institutionId: string, a: AuthenticatedUser, id: string) {
+  if (!has(a, "fees.concession.approve")) throw new AppError("Concession approval permission required", 403);
+  const y = await prisma.$transaction(async tx => {
+    const candidate = await tx.feeConcession.findFirst({ where: { id, institutionId, status: "PENDING" }, select: { id: true, invoiceId: true } });
+    if (!candidate) throw new AppError("Pending concession not found", 404);
+    if (!candidate.invoiceId) throw new AppError("Concession is not linked to an invoice", 409);
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${candidate.invoiceId} AND "institutionId" = ${institutionId} FOR UPDATE`);
+    const claimed = await tx.feeConcession.updateMany({
+      where: { id, institutionId, status: "PENDING" },
+      data: { status: "APPROVED", approvedById: a.id, approvedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw new AppError("Concession is already approved or is no longer pending", 409);
+    await applyConcessionInTransaction(tx, institutionId, a, id);
+    const updated = await tx.feeConcession.findFirst({ where: { id, institutionId } });
+    if (!updated) throw new AppError("Concession not found after approval", 404);
+    return updated;
+  });
+  await audit(institutionId, a.id, "finance.concession.approve", "FeeConcession", id);
+  return y;
+}
 
 export async function cancelInvoice(institutionId:string,a:AuthenticatedUser,id:string){if(!has(a,"fees.invoice.manage"))throw new AppError("Invoice management permission required",403);const s=await scope(institutionId,a),i=await prisma.feeInvoice.findFirst({where:{id,...invoiceWhere(s)},select:{id:true,status:true,paidAmount:true,studentId:true}});if(!i)throw new AppError("Invoice not found in authorized scope",404);if(Number(i.paidAmount)>0)throw new AppError("A settled invoice cannot be cancelled",409);if(i.status==="CANCELLED")return i;const x=await prisma.feeInvoice.update({where:{id},data:{status:"CANCELLED",cancelledAt:new Date()}});await audit(institutionId,a.id,"finance.invoice.cancel","FeeInvoice",id,{previousStatus:i.status});return x}
