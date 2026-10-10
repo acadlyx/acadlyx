@@ -1561,9 +1561,22 @@ export async function approveFineWaiver(
 }
 export async function listFines(institutionId: string, actor: AuthenticatedUser, pagination: PaginationParams) {
   if (!actor.permissions.includes("library.read")) throw new AppError("Library access is not authorized", 403);
+
+  // A catalogue-read permission must never expose another borrower's
+  // financial records. Staff with the dedicated library workspace may see
+  // institution-scoped fines; students can only see fines linked to their
+  // own library issues. The institution predicate is retained in both
+  // queries to preserve tenant isolation.
+  const where: Prisma.LibraryFineWhereInput = {
+    institutionId,
+    ...(actor.roles.includes("STUDENT")
+      ? { issue: { borrowerId: actor.id } }
+      : {}),
+  };
+
   const [items, total] = await Promise.all([
     prisma.libraryFine.findMany({
-      where: { institutionId },
+      where,
       orderBy: { createdAt: "desc" },
       skip: pagination.skip,
       take: pagination.take,
@@ -1572,7 +1585,7 @@ export async function listFines(institutionId: string, actor: AuthenticatedUser,
         financialInvoice: { select: { id: true, amount: true, paidAmount: true, status: true } },
       },
     }),
-    prisma.libraryFine.count({ where: { institutionId } }),
+    prisma.libraryFine.count({ where }),
   ]);
   return { items, total };
 }
