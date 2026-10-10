@@ -18,7 +18,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
   await loginButton.click();
   await expect(page.getByRole("heading", { name: "Sign in to ACADLYX" })).toBeVisible();
   await expect(page.getByLabel("ID number / email / roll number")).toBeVisible();
-  await expect(page.getByLabel("Password")).toBeVisible();
+  await expect(page.locator('input[autocomplete="current-password"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("desktop-login.png"), fullPage: true });
 
@@ -26,7 +26,7 @@ test("public homepage and real login error flow render at desktop and mobile siz
     response.url().includes("/api/v1/auth/login") && response.request().method() === "POST"
   );
   await page.getByLabel("ID number / email / roll number").fill("missing-user-for-ui-smoke");
-  await page.getByLabel("Password").fill("invalid-password-for-ui-smoke");
+  await page.locator('input[autocomplete="current-password"]').fill("invalid-password-for-ui-smoke");
   await page.getByRole("button", { name: "Sign in" }).click();
   const loginResponse = await loginResponsePromise;
   expect([400, 401, 422]).toContain(loginResponse.status());
