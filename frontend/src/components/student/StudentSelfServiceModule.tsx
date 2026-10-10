@@ -202,62 +202,33 @@ function FeesView({ user }: { user: AuthUser }) {
       </Card>
 
       <Card title="My invoices">
-        {data.invoices.length === 0 ? (
-          <Empty>No invoices are currently assigned to you.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.invoices.map((invoice) => (
-              <div
-                key={invoice.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4"
-              >
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {invoice.title}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Due {date(invoice.dueDate)}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-bold">
-                    {money(invoice.amount + invoice.lateFeeAmount)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Outstanding {money(invoice.outstanding)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <ExpandableList
+          items={data.invoices}
+          getKey={(invoice) => invoice.id}
+          label="invoices"
+          empty={<Empty>No invoices are currently assigned to you.</Empty>}
+          renderItem={(invoice) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+              <div><p className="font-semibold text-slate-900">{invoice.title}</p><p className="text-xs text-slate-500">Due {date(invoice.dueDate)}</p></div>
+              <div className="text-right"><p className="font-bold">{money(invoice.amount + invoice.lateFeeAmount)}</p><p className="text-xs text-slate-500">Outstanding {money(invoice.outstanding)}</p></div>
+            </div>
+          )}
+        />
       </Card>
 
       <Card title="Recent payments">
-        {data.payments.length === 0 ? (
-          <Empty>No payments found.</Empty>
-        ) : (
-          <div className="space-y-3">
-            {data.payments.map((payment) => (
-              <div
-                key={payment.id}
-                className="flex items-center justify-between rounded-2xl bg-slate-50 p-4"
-              >
-                <div>
-                  <p className="font-semibold">{payment.invoiceTitle}</p>
-                  <p className="text-xs text-slate-500">
-                    {date(payment.paidAt)} · {payment.method}
-                  </p>
-                </div>
-
-                <span className="font-bold text-emerald-700">
-                  {money(payment.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <ExpandableList
+          items={data.payments}
+          getKey={(payment) => payment.id}
+          label="payments"
+          empty={<Empty>No payments found.</Empty>}
+          renderItem={(payment) => (
+            <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
+              <div><p className="font-semibold">{payment.invoiceTitle}</p><p className="text-xs text-slate-500">{date(payment.paidAt)} · {payment.method}</p></div>
+              <span className="font-bold text-emerald-700">{money(payment.amount)}</span>
+            </div>
+          )}
+        />
       </Card>
     </div>
   );
