@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch, ApiRequestError } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Skill = { skillId: string; proficiency: number; evidence: string | null; skill: { name: string; category: string | null } };
@@ -11,17 +12,43 @@ type Resume = { id: string; url: string; fileName: string | null; isCurrent: boo
 type Data = { profile: { portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null; bio: string | null } | null; skills: Skill[]; certifications: Certification[]; projects: Project[]; resumes: Resume[] };
 
 export default function StudentPlacementProfilePage() {
-  const [data,setData]=useState<Data|null>(null); const [error,setError]=useState(""); const [busy,setBusy]=useState("");
-  async function load(){try{const r=await apiFetch<{data:Data}>("/placements/profile");setData(r.data);}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to load placement profile.");}}
-  useEffect(()=>{void load();},[]);
-  async function saveProfile(form:HTMLFormElement){setBusy("profile");try{const fd=new FormData(form);await apiFetch("/placements/profile",{method:"PATCH",body:JSON.stringify({portfolioUrl:fd.get("portfolioUrl")||null,githubUrl:fd.get("githubUrl")||null,linkedInUrl:fd.get("linkedInUrl")||null,bio:fd.get("bio")||null})});await load();}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to save profile.");}finally{setBusy("");}}
-  async function saveSkill(skill:Skill){setBusy(skill.skillId);try{await apiFetch("/placements/profile/skills/"+skill.skillId,{method:"PUT",body:JSON.stringify({proficiency:skill.proficiency,evidence:skill.evidence||null})});await load();}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to save skill.");}finally{setBusy("");}}
-  async function addCertification(form:HTMLFormElement){setBusy("cert");try{const fd=new FormData(form);await apiFetch("/placements/profile/certifications",{method:"POST",body:JSON.stringify({name:fd.get("name"),issuer:fd.get("issuer")||undefined,credentialUrl:fd.get("credentialUrl")||undefined})});form.reset();await load();}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to add certification.");}finally{setBusy("");}}
-  async function addProject(form:HTMLFormElement){setBusy("project");try{const fd=new FormData(form);await apiFetch("/placements/profile/projects",{method:"POST",body:JSON.stringify({title:fd.get("title"),description:fd.get("description")||undefined,projectUrl:fd.get("projectUrl")||undefined,technologies:String(fd.get("technologies")||"").split(",").map(x=>x.trim()).filter(Boolean)})});form.reset();await load();}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to add project.");}finally{setBusy("");}}
-  async function addResume(form:HTMLFormElement){setBusy("resume");try{const fd=new FormData(form);await apiFetch("/placements/profile/resumes",{method:"POST",body:JSON.stringify({url:fd.get("url"),fileName:fd.get("fileName")||undefined})});form.reset();await load();}catch(e){setError(e instanceof ApiRequestError?e.message:"Unable to add resume.");}finally{setBusy("");}}
+  const router = useRouter();
+  const [data,setData]=useState<Data|null>(null);
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState("");
+  const [loading,setLoading]=useState(true);
+
+  function reportError(error: unknown, fallback: string) {
+    if (error instanceof AuthRequiredError) {
+      router.replace("/login");
+      return;
+    }
+    setError(error instanceof HttpRequestError ? error.message : fallback);
+  }
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await authedFetch<{data:Data}>("/placements/profile");
+      setData(response.data);
+    } catch (error) {
+      reportError(error, "Unable to load placement profile.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(()=>{void load();}, []);
+  async function saveProfile(form:HTMLFormElement){setBusy("profile");try{const fd=new FormData(form);await authedFetch("/placements/profile",{method:"PATCH",body:JSON.stringify({portfolioUrl:fd.get("portfolioUrl")||null,githubUrl:fd.get("githubUrl")||null,linkedInUrl:fd.get("linkedInUrl")||null,bio:fd.get("bio")||null})});await load();}catch(e){reportError(e, "Unable to save profile.");}finally{setBusy("");}}
+  async function saveSkill(skill:Skill){setBusy(skill.skillId);try{await authedFetch("/placements/profile/skills/"+skill.skillId,{method:"PUT",body:JSON.stringify({proficiency:skill.proficiency,evidence:skill.evidence||null})});await load();}catch(e){reportError(e, "Unable to save skill.");}finally{setBusy("");}}
+  async function addCertification(form:HTMLFormElement){setBusy("cert");try{const fd=new FormData(form);await authedFetch("/placements/profile/certifications",{method:"POST",body:JSON.stringify({name:fd.get("name"),issuer:fd.get("issuer")||undefined,credentialUrl:fd.get("credentialUrl")||undefined})});form.reset();await load();}catch(e){reportError(e, "Unable to add certification.");}finally{setBusy("");}}
+  async function addProject(form:HTMLFormElement){setBusy("project");try{const fd=new FormData(form);await authedFetch("/placements/profile/projects",{method:"POST",body:JSON.stringify({title:fd.get("title"),description:fd.get("description")||undefined,projectUrl:fd.get("projectUrl")||undefined,technologies:String(fd.get("technologies")||"").split(",").map(x=>x.trim()).filter(Boolean)})});form.reset();await load();}catch(e){reportError(e, "Unable to add project.");}finally{setBusy("");}}
+  async function addResume(form:HTMLFormElement){setBusy("resume");try{const fd=new FormData(form);await authedFetch("/placements/profile/resumes",{method:"POST",body:JSON.stringify({url:fd.get("url"),fileName:fd.get("fileName")||undefined})});form.reset();await load();}catch(e){reportError(e, "Unable to add resume.");}finally{setBusy("");}}
   return <DashboardShell title="My Placement Profile" subtitle="Student-owned professional placement information; academic eligibility remains institution-controlled." allowedRoles={["STUDENT"]}>
     <div className="mx-auto max-w-6xl space-y-6">
-      {error&&<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {error&&<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}<button type="button" onClick={()=>void load()} disabled={loading} className="ml-3 underline disabled:opacity-50">Retry</button></div>}
+      {loading&&!data&&<div role="status" className="rounded-2xl border bg-white p-6 text-sm text-slate-500">Loading your placement profile…</div>}
+      {!loading&&data&&data.skills.length===0&&data.certifications.length===0&&data.projects.length===0&&data.resumes.length===0&&!data.profile&&<p className="rounded-2xl border bg-white p-6 text-sm text-slate-500">Your placement profile is empty. Add your professional details below.</p>}
       <form onSubmit={e=>{e.preventDefault();void saveProfile(e.currentTarget)}} className="rounded-3xl border bg-white p-6">
         <h2 className="text-xl font-black">Professional profile</h2><p className="mt-1 text-sm text-slate-500">Portfolio, GitHub, LinkedIn and bio are editable by you.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
