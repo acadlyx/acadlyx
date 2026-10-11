@@ -116,3 +116,12 @@ Record command output and environment details; do not convert unavailable checks
 - Extended source-contract tests to assert the dedicated route, role grants, server-derived department scope, and mutation scope check.
 - Remaining risks: no database-backed tests verify schema relation assumptions, assigned-campus edge cases, concurrent decisions, or all list/approve/reject flows; source-contract checks are not executed. Semester-only fee structures are conservatively excluded from Director list results until their scope handling is explicitly verified. This batch does not implement approval evidence history or a full audit detail page.
 - Exit gate: NOT PASSED. No build, typecheck, or tests executed through the repository API.
+
+
+### Batch 7 — Intelligence route isolation and multi-campus aggregate scoping (partial; 2026-10-11)
+- Replaced the Chairman intelligence route alias with a dedicated Chairman-only page. Added a distinct Director-only intelligence page using the authenticated command-center API.
+- Added Director intelligence navigation to operations and dashboard shortcuts.
+- Found and corrected an endpoint behavior that required one department when a leadership actor had multiple authorized departments. The command-center controller now carries the full server-derived department set when no single department is selected; the service filters student counts, faculty/course offerings, assignments, attendance, placement eligibility, and at-risk students to that set. Explicit department selection is checked against the allowed set.
+- Empty allowed-department sets are passed as empty filters, not converted into an unscoped query.
+- Added source-level contract assertions for role-separated intelligence routes and multi-department scoping.
+- Exit gate: NOT PASSED. The API-backed pages rely on backend scope enforcement that has not been verified with database fixtures. Typecheck, lint, build, automated tests, browser navigation, and live API checks remain unexecuted.
