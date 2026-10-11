@@ -62,7 +62,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
-      - name: Start Next.js for leadership route smoke test
-        run: npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/acadlyx-next.log 2>&1 & echo $! > /tmp/acadlyx-next.pid
       - name: Smoke-test Chairman and Director routes
-        run: node scripts/smoke-chairman-director-routes.mjs
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/acadlyx-next.log 2>&1 &
+          echo $! > /tmp/acadlyx-next.pid
+          node scripts/smoke-chairman-director-routes.mjs
