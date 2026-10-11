@@ -433,7 +433,7 @@ export async function exportData(
   }
 
   if (type === "fee-structures") {
-    const data = await prisma.$queryRaw<Array<any>>`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ORDER BY fs."name", fsi."installmentNumber", fh."code"`;
+    const data = await prisma.$queryRaw<Array<any>>`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ORDER BY fs."name", fsi."installmentNumber", fh."code"`;
     for (const r of data) rows.push({ id: r.id, name: r.name, status: r.status, currency: r.currency, notes: r.notes, academicYearId: r.academicYearId, programId: r.programId, semesterId: r.semesterId, feeHeadCode: r.feeHeadCode, feeHeadName: r.feeHeadName, amount: r.amount, dueDays: r.dueDays, installmentNumber: r.installmentNumber });
   }
 
@@ -486,6 +486,27 @@ export async function exportData(
     for (const l of data) rows.push({ id: l.id, parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
   }
 
+  if (!scope.institutionWide) {
+    // Academic reporting scope does not automatically grant guardian or private-profile data access.
+    const hiddenFields: Partial<Record<ExportType, readonly string[]>> = {
+      students: ["phone", "dateOfBirth", "gender", "guardianName", "guardianPhone"],
+      faculty: ["phone"],
+    };
+    for (const row of rows) {
+      for (const field of hiddenFields[type] ?? []) delete row[field];
+    }
+  }
+
   const finalRows = applyExportOptions(rows, type, options);
+  const inlineLimit = format === "pdf" || format === "docx" ? 10000 : 50000;
+  if (finalRows.length > inlineLimit) {
+    throw new AppError(
+      "This export matches " + finalRows.length.toLocaleString() +
+      " rows, above the synchronous " + inlineLimit.toLocaleString() +
+      "-row limit for " + format.toUpperCase() +
+      ". Narrow the filters before downloading. Background export jobs are not yet enabled for this dataset.",
+      413,
+    );
+  }
   return makeFile(finalRows, type, format);
 }
