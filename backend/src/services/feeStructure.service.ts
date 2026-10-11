@@ -9,7 +9,9 @@ import { hasFeeActionPermission } from "./feeAuthorization";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
+  "PENDING_APPROVAL",
   "ACTIVE",
+  "REJECTED",
   "ARCHIVED",
 ] as const;
 
@@ -630,12 +632,8 @@ export async function createFeeStructure(
     );
   }
 
-  const status =
-    input.status ?? "DRAFT";
-
-  if (status === "ACTIVE" && !actor.permissions.includes("fees.structure.approve")) {
-    throw new AppError("Only an authorized fee approver may activate a fee structure", 403);
-  }
+  // Creation is never an approval operation; every new structure starts as DRAFT.
+  const status: FeeStructureStatus = "DRAFT";
 
   if (
     !STRUCTURE_STATUSES.includes(status)
