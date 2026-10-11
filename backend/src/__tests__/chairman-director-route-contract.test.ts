@@ -321,3 +321,16 @@ test("Director examination read and decision queues derive campus scope from the
   const corrections = exams.slice(exams.indexOf("export async function listExamMarkCorrectionRequests("));
   assert.ok(corrections.includes('JOIN "programs" p ON p."id" = sem."programId"'));
 });
+
+
+test("institutional intelligence combines program and semester filters with department scope", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/intelligence.service.ts"), "utf8");
+  const start = service.indexOf("export async function getInstitutionInsights");
+  const end = service.indexOf("export async function getAtRiskStudents", start);
+  const body = service.slice(start, end);
+  assert.ok(body.includes("const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {"));
+  assert.ok(body.includes("AND: ["));
+  assert.ok(body.includes("semester: { program: { departmentId: { in: scopedDepartmentIds } } }"));
+  assert.ok(body.includes("const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = courseOfferingFilter"));
+  assert.ok(!body.includes("course: { departmentId: { in: scopedDepartmentIds } }"), "report scope must follow the offering's program, not an independently assigned course department");
+});
