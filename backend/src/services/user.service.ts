@@ -316,6 +316,14 @@ export async function listUsers(params: {
             },
           },
         },
+        campusAccesses: {
+          where: { scope: "DIRECTOR" },
+          select: {
+            campusId: true,
+            scope: true,
+            campus: { select: { id: true, name: true, code: true, isActive: true } },
+          },
+        },
       },
     }),
 
