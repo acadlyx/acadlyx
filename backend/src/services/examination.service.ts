@@ -2758,6 +2758,18 @@ export async function listRevaluationRequests(
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`r."examScheduleId" = ${filters.examScheduleId}`);
   }
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
+      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      WHERE scoped_schedule."id" = r."examScheduleId"
+        AND scoped_schedule."institutionId" = r."institutionId"
+        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+    )`);
+  }
   // Students and parents never see the whole queue.
   if (filters.mine || actor.roles.includes("STUDENT")) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
