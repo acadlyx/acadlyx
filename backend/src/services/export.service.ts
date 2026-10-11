@@ -169,7 +169,7 @@ interface ExportActorScope {
 const SCOPED_EXPORT_TYPES = new Set<ExportType>([
   "students", "faculty", "departments", "programs", "academic-years",
   "semesters", "sections", "courses", "course-offerings", "exams",
-  "marks", "notices", "timetable", "parent-links", "assignments",
+  "marks", "attendance", "notices", "timetable", "parent-links", "assignments",
   "assignment-submissions",  
     
      
