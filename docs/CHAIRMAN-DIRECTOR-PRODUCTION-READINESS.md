@@ -135,3 +135,13 @@ Record command output and environment details; do not convert unavailable checks
 - Exit gate: NOT PASSED. No frontend build, backend typecheck, lint, test suite, database-backed scope test, or browser interaction test has been executed.
 
 - Follow-up hardening: explicit program and semester filters on the intelligence endpoint are now checked against the server-derived assigned department set, including semester-only queries. Out-of-scope selections are returned as not-found rather than exposing whether another campus has that record.
+
+
+### Batch 9 — Examination lifecycle and scope/audit hardening (partial; 2026-10-11)
+- Added separate role-guarded full-lifecycle examination operations pages for Chairman and Director, using the existing typed examination API. Backend scope checks remain authoritative.
+- Added Director scope enforcement across session targeting and access, schedule changes, seating/invigilation, hall-ticket generation/status, mark history, approval/locking/publication, revaluation, incident and correction decisions/queues.
+- Removed empty-target broadening from Director examination session listing.
+- Serialized concurrent marks approval and schedule locking/publication with row locks/conditional state transitions. Critical audit writes for fee approvals/rejections and examination decisions now share transactions with their state changes; malpractice mark changes record immutable mark-history rows.
+- Enabled Director finance exports only for datasets that can be restricted to assigned campus departments or enrolled students. Kept institution-wide fee-head and finance audit exports unavailable. Scoped attendance report options and data to Director-assigned departments.
+- Added a PostgreSQL-backed integration test for CampusAccess, fee structure lists and downloads, institutional insights, and attendance report options. CI now provisions PostgreSQL and runs migrations before tests on this branch.
+- Release gate: still NOT PASSED until the latest CI run is green and remaining end-to-end browser/API tests verify schedule, marks, publication, revaluation, exports, downloads, and cross-campus negative cases. No production merge/deployment was performed.
