@@ -52,3 +52,10 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - Fixed the command-center scope handling for leadership users assigned multiple departments: the API now applies the full server-derived department set to aggregate queries and at-risk student selection when no single department is selected. A requested department is still checked against the allowed set; an empty assignment never falls back to institution-wide results.
 - Added source-contract assertions for independent role boundaries and multi-department filtering. These assertions are committed but have not been executed in a writable checkout.
 - Remaining validation: confirm Prisma generated types, endpoint permission behavior, aggregate correctness, and live multi-campus fixtures through build and database-backed tests.
+
+
+## Batch 8 — Role-specific finance and examination landing routes (partial; 2026-10-11)
+- Replaced `/chairman/fees` and `/director/fees` aliases of the generic Fees page with separate role-guarded pages. Both read canonical fee-structure records; Director visibility depends on the server-side CampusAccess scope filter. Approval actions remain on the dedicated approval page.
+- Replaced `/chairman/examinations` and `/director/examinations` aliases of the generic Examination Cell page with independent role-guarded oversight pages backed by `/erp/me/workspace`. These pages are read-only summaries and link only to their respective role-specific workspaces; they do not pretend to replace the full Examination Cell operational lifecycle.
+- Extended route-contract assertions for role boundaries, removal of generic-page aliases, and canonical/scoped data sources.
+- Remaining gap: full operational exam scheduling/marks/result workflows are not reimplemented in these oversight routes. Before exposing any such mutations here, verify endpoint-level Director campus scope and workflow permissions. All runtime checks remain pending.
