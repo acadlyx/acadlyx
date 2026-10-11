@@ -120,6 +120,8 @@ test("intelligence aggregate queries preserve all assigned departments without w
   assert.ok(service.includes("departmentId: { in: scopedDepartmentIds }"), "student and offering aggregates use the authorized department set");
   assert.ok(controller.includes("const departmentIds = allowed && !departmentId ? allowed : undefined"));
   assert.ok(controller.includes("departmentId ? [departmentId] : allowed"), "risk records retain the same assigned scope");
+  assert.ok(controller.includes("allowed.includes(program.departmentId)"), "program filters outside the assigned set are rejected");
+  assert.ok(controller.includes("allowed.includes(semesterProgram.departmentId)"), "semester-only filters outside the assigned set are rejected");
 });
 
 test("Chairman and Director fee and examination landing routes do not alias generic operational pages", () => {
