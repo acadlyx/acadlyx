@@ -568,7 +568,7 @@ export async function exportData(
 
   if (type === "parent-links") {
     const data = await collectInBatches((skip, take) => prisma.parentStudentLink.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scope.studentWhere] } }) }, include: { parent: true, student: { include: { profile: true } } }, orderBy: { createdAt: "desc" }  }));
-    for (const l of data) rows.push({ id: l.id, parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
+    for (const l of data) rows.push({ id: l.parentId + ":" + l.studentId, parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
   }
 
   if (!scope.institutionWide) {
