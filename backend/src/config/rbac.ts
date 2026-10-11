@@ -211,6 +211,7 @@ export const PERMISSIONS = [
   { key: "fees.structure.read", module: "fees", description: "View fee structures and heads" },
   { key: "fees.structure.manage", module: "fees", description: "Create and update fee structures and heads" },
   { key: "fees.structure.approve", module: "fees", description: "Approve fee structures for institutional billing" },
+  { key: "fees.structure.publish", module: "fees", description: "Publish institution fee structures directly as Chairman" },
   { key: "fees.assign", module: "fees", description: "Assign fees and generate invoices" },
   { key: "fees.invoice.read", module: "fees", description: "View authorized invoices" },
   { key: "fees.invoice.manage", module: "fees", description: "Create, update and cancel invoices" },
@@ -639,7 +640,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.structure.read",
     "fees.structure.manage",
     "fees.structure.approve",
-    "obe.read", "obe.reports.read",
+    "fees.structure.publish",
+    "obe.read", "obe.reports.read"
     ...LEADERSHIP_READ,
 
     // Leadership may approve examination decisions institution-wide without
