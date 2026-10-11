@@ -2316,39 +2316,46 @@ export async function approveExamMarks(
   examScheduleId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
   await assertExamApprovalScope(institutionId, actor, schedule);
 
-  const pending = await prisma.$queryRaw<
-    Array<{ id: string; enteredById: string; marksObtained: number | null; status: string }>
-  >(Prisma.sql`
-    SELECT "id", "enteredById", "marksObtained", "status"
-    FROM "exam_marks"
-    WHERE "examScheduleId" = ${examScheduleId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'SUBMITTED'
-  `);
+  const approvedCount = await prisma.$transaction(async (tx) => {
+    // Serialize decisions for a schedule. A concurrent second approver sees
+    // no SUBMITTED rows after the first transaction commits.
+    const pending = await tx.$queryRaw<
+      Array<{ id: string; enteredById: string; marksObtained: number | null; status: string }>
+    >(Prisma.sql`
+      SELECT "id", "enteredById", "marksObtained", "status"
+      FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'SUBMITTED'
+      FOR UPDATE
+    `);
 
-  if (pending.length === 0) {
-    throw new AppError("There are no submitted marks awaiting approval", 409);
-  }
-  if (pending.some((mark) => mark.enteredById === actor.id)) {
-    throw new AppError(
-      "Marks must be approved by someone other than the person who entered them",
-      403
-    );
-  }
+    if (pending.length === 0) {
+      throw new AppError("There are no submitted marks awaiting approval", 409);
+    }
+    if (pending.some((mark) => mark.enteredById === actor.id)) {
+      throw new AppError(
+        "Marks must be approved by someone other than the person who entered them",
+        403
+      );
+    }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const changed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE "exam_marks"
       SET "status" = 'APPROVED', "approvedById" = ${actor.id},
           "approvedAt" = CURRENT_TIMESTAMP
       WHERE "examScheduleId" = ${examScheduleId}
         AND "institutionId" = ${institutionId}
         AND "status" = 'SUBMITTED'
-    `;
+      RETURNING "id"
+    `);
+    if (changed.length !== pending.length) {
+      throw new AppError("Marks changed while approval was in progress; reload and retry", 409);
+    }
+
     for (const mark of pending) {
       await tx.$executeRaw`
         INSERT INTO "exam_mark_histories"
@@ -2360,6 +2367,7 @@ export async function approveExamMarks(
            'Approved by examination controller', ${actor.id})
       `;
     }
+    return changed.length;
   });
 
   await recordAuditLog({
@@ -2368,11 +2376,11 @@ export async function approveExamMarks(
     action: "exam.marks_approved",
     entityType: "ExamSchedule",
     entityId: examScheduleId,
-    metadata: { count: pending.length, scheduleStatus: schedule.status },
+    metadata: { count: approvedCount, scheduleStatus: schedule.status },
     ...meta,
   });
 
-  return { approved: pending.length };
+  return { approved: approvedCount };
 }
 
 export async function lockExamSchedule(
