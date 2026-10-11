@@ -59,3 +59,9 @@ test("document writers handle empty datasets without throwing", () => {
   assert.ok(createPdf([], "students").toString("ascii").startsWith("%PDF-1.4"));
   assert.equal(createCsv([]).toString("utf8"), "\uFEFF");
 });
+
+test("negative numeric ledger values are not prefixed as formulas in CSV", () => {
+  const csv = createCsv([{ refund: -25 }]).toString("utf8");
+  assert.ok(csv.includes("-25"));
+  assert.ok(!csv.includes("'-25"));
+});
