@@ -382,6 +382,22 @@ test("Examination mark correction decisions enforce maker-checker and atomic aud
 });
 
 
+test("Admin create and edit forms expose role-appropriate persistent scope assignments", () => {
+  const manager = readFileSync(join(frontend, "../components/admin/AdminPeopleManager.tsx"), "utf8");
+  const editPage = readFileSync(join(frontend, "admin/users/[userId]/edit/page.tsx"), "utf8");
+  const userService = readFileSync(join(process.cwd(), "src/services/user.service.ts"), "utf8");
+  for (const role of ["DIRECTOR", "CHAIRMAN", "HOD"]) {
+    assert.ok(manager.includes(`createRole === "${role}"`) || manager.includes(`(editRole || selected.roles[0]?.name) === "${role}"`), `modal form must show ${role} scope guidance`);
+    assert.ok(editPage.includes(`selectedRole === "${role}"`), `direct edit form must expose ${role} scope behavior`);
+  }
+  assert.ok(editPage.includes('name="campusIds"'), "Director edit must persist selected campus assignments");
+  assert.ok(editPage.includes('name="departmentId"'), "HOD edit must persist its department assignment");
+  assert.ok(editPage.includes("role,") && editPage.includes("departmentIds,") && editPage.includes("campusIds,"), "edit payload must persist role and scope together");
+  assert.ok(editPage.includes("Saving removes Director campus and HOD department assignments"), "changing roles must explain scope cleanup");
+  assert.ok(userService.includes("await syncCampusAccess(tx, id, existing.institutionId, resolvedTargetRoleName, input.campusIds)"));
+  assert.ok(userService.includes("await syncDepartmentAccess("), "scope changes must pass through backend validation and transactional persistence");
+});
+
 test("Chairman can publish fee drafts directly with explicit permission and audit", () => {
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
