@@ -43,3 +43,12 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - Backend fee-structure listing is restricted for Directors to program departments derived from assigned `CampusAccess` rows; approval and rejection mutations run an explicit scope assertion before changing status.
 - Director RBAC now includes fee-structure read and approval permissions. Backend permission and scope checks remain authoritative; hiding the page is not relied upon as a security boundary.
 - Caveat: structures lacking a `programId` are currently omitted from Director listing. Semester-only linkage and cross-campus mismatch scenarios need database-backed validation. Source-contract test assertions have not been executed.
+
+
+## Batch 7 — Separate intelligence workspaces and multi-campus scope (2026-10-11)
+- Replaced the Chairman intelligence route's generic-page alias with a dedicated Chairman-only workspace and created a separate Director-only intelligence workspace.
+- Both pages call the authenticated intelligence API, show missing/unavailable values as unavailable rather than inventing zeros, and route to role-specific destination pages.
+- Added the Director intelligence link to Director operations and the Director dashboard.
+- Fixed the command-center scope handling for leadership users assigned multiple departments: the API now applies the full server-derived department set to aggregate queries and at-risk student selection when no single department is selected. A requested department is still checked against the allowed set; an empty assignment never falls back to institution-wide results.
+- Added source-contract assertions for independent role boundaries and multi-department filtering. These assertions are committed but have not been executed in a writable checkout.
+- Remaining validation: confirm Prisma generated types, endpoint permission behavior, aggregate correctness, and live multi-campus fixtures through build and database-backed tests.
