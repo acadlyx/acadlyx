@@ -2917,7 +2917,15 @@ export async function decideRevaluation(
 
   const schedule = await loadSchedule(institutionId, request.examScheduleId);
   await assertExamApprovalScope(institutionId, actor, schedule);
-  if (status === request.status) throw new AppError("This revaluation is already in that state", 409);
+  const allowedRevaluationTransitions: Record<string, string[]> = {
+    REQUESTED: ["IN_REVIEW"],
+    IN_REVIEW: ["COMPLETED", "REJECTED"],
+    COMPLETED: [],
+    REJECTED: [],
+  };
+  if (!allowedRevaluationTransitions[request.status]?.includes(status)) {
+    throw new AppError(`A revaluation cannot move from ${request.status} to ${status}`, 409);
+  }
 
   if (status === "COMPLETED") {
     if (input.revisedMarks === undefined) {
