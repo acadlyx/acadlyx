@@ -887,20 +887,45 @@ export async function approveFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
-  const rows = await prisma.$queryRaw<Array<{ id: string; status: string }>>(Prisma.sql`
-    SELECT "id","status" FROM "fee_structures"
-    WHERE "id"=${structureId} AND "institutionId"=${institutionId} LIMIT 1
+
+  // Approval is a one-way state transition from DRAFT. The conditional update
+  // is the concurrency guard: two approvers cannot both approve the same draft,
+  // and an already ACTIVE/ARCHIVED structure cannot be silently re-approved.
+  const changed = await prisma.$executeRaw(Prisma.sql`
+    UPDATE "fee_structures"
+    SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${structureId}
+      AND "institutionId" = ${institutionId}
+      AND "status" = 'DRAFT'
   `);
-  if (!rows[0]) throw new AppError("Fee structure not found", 404);
-  if (rows[0].status === "ARCHIVED") throw new AppError("Archived fee structures cannot be approved", 409);
-  await prisma.$executeRaw(Prisma.sql`
-    UPDATE "fee_structures" SET "status"='ACTIVE',"updatedAt"=CURRENT_TIMESTAMP
-    WHERE "id"=${structureId} AND "institutionId"=${institutionId}
-  `);
-  await recordAuditLog({ institutionId, userId: actor.id, action: "fee-structure.approve", entityType: "FeeStructure", entityId: structureId });
+
+  if (changed !== 1) {
+    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "fee_structures"
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId}
+      LIMIT 1
+    `);
+    if (!rows[0]) throw new AppError("Fee structure not found", 404);
+    throw new AppError(
+      rows[0].status === "ARCHIVED"
+        ? "Archived fee structures cannot be approved"
+        : rows[0].status === "ACTIVE"
+          ? "Fee structure is already approved"
+          : "Fee structure is not in an approvable draft state",
+      409
+    );
+  }
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "fee-structure.approve",
+    entityType: "FeeStructure",
+    entityId: structureId,
+    metadata: { fromStatus: "DRAFT", toStatus: "ACTIVE" },
+  });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
-
 
 
 export async function assignFeeStructure(
