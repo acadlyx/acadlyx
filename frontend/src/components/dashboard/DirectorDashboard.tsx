@@ -85,10 +85,9 @@ export function DirectorDashboard() {
             </article>;
           })}
         </section>
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {shortcuts.map(([label, href]) => <button key={href} type="button" onClick={() => router.push(href)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left font-bold text-slate-950 hover:shadow-md">
-            {label}<span className="mt-2 block text-xs font-normal text-slate-500">Open dedicated campus view →</span>
-          </button>)}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="font-black text-slate-950">Workspace navigation</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Use the left sidebar to move between dedicated Director pages. All records and actions are constrained to your assigned-campus authority; this overview intentionally avoids duplicating the navigation menu.</p>
         </section>
       </main>
     </DashboardShell>
