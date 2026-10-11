@@ -45,6 +45,23 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, PermissionKey> = {
   "fee-refunds": "fees.read",
   "fee-concessions": "fees.read",
   "fee-audit": "audit.read",
+  assignments: "assignments.read",
+  "assignment-submissions": "assignments.read",
+  "library-books": "library.read",
+  "library-copies": "library.read",
+  "library-issues": "library.read",
+  "library-fines": "library.read",
+  "admission-applications": "admissions.read",
+  employees: "hr.read",
+  "leave-requests": "hr.read",
+  "calendar-events": "calendar.read",
+  "institutional-events": "events.read",
+  "event-media": "events.read",
+  "placement-companies": "placements.read",
+  "placement-drives": "placements.read",
+  "placement-openings": "placements.read",
+  "placement-applications": "placements.read",
+  "placement-offers": "placements.read",
 };
 
 function authorizeExportType(
