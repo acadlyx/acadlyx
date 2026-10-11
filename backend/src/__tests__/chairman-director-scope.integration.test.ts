@@ -5,6 +5,8 @@ import test from "node:test";
 import { prisma } from "../lib/prisma";
 import { getDirectorDepartmentIds } from "../services/accessScope.service";
 import { listFeeStructures } from "../services/feeStructure.service";
+import { exportData } from "../services/export.service";
+import { getInstitutionInsights } from "../services/intelligence.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
   skip: !process.env.DATABASE_URL,
@@ -71,6 +73,16 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     assert.deepEqual(visibleFees.map((row) => row.id), [feeA.id]);
     assert.ok(!visibleFees.some((row) => row.id === feeB.id), "fee structures at another campus must not be returned to the Director");
+
+    const financeExport = await exportData(institution.id, {
+      id: director.id, institutionId: institution.id, email: director.email,
+      roles: ["DIRECTOR"], permissions: ["fees.reports.export"],
+    }, "fee-structures", "json");
+    const exportedFees = JSON.parse(financeExport.buffer.toString("utf8")) as Array<{ id: string }>;
+    assert.deepEqual(exportedFees.map((row) => row.id), [feeA.id], "downloaded fee structure exports must enforce the same campus boundary");
+
+    const report = await getInstitutionInsights(institution.id, { departmentIds: assigned });
+    assert.equal(report.kpis.departments, 1, "campus reports must count only the assigned department");
   } finally {
     await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
