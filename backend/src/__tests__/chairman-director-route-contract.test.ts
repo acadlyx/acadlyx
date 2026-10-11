@@ -414,6 +414,8 @@ test("Chairman can publish fee drafts directly with explicit permission and audi
   assert.ok(routes.includes('"/fee-structures/:id/publish"'), "direct publication endpoint must be explicitly routed");
   assert.ok(api.includes('export async function publishFeeStructure'));
   assert.ok(finance.includes('can("fees.structure.publish")&&x.status==="DRAFT"'));
+  assert.ok(finance.includes("chairmanDirectPublishOnly"), "Chairman finance actions must use the direct-publish workflow");
+  assert.ok(finance.includes('!chairmanDirectPublishOnly&&can("fees.structure.manage")'), "Chairman must never fall back to a separate approval submission");
 });
 
 test("Chairman and Director have dedicated notice, notification and events routes", () => {
