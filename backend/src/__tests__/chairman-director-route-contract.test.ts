@@ -352,7 +352,7 @@ test("Literal Chairman/Director page links and router destinations resolve to ro
     const source = readFileSync(file, "utf8");
     const routePattern = /(?:href\s*=\s*|href\s*:\s*|router\.(?:push|replace)\(\s*)["'`]((?:\/chairman|\/director)\/[^"'\`$?#]*)/g;
     for (const match of source.matchAll(routePattern)) {
-      const route = match[1].replace(/\\/$/, "");
+      const route = match[1].replace(/\/$/, "");
       if (!route || route.includes("${")) continue;
       const pagePath = join(frontend, route.slice(1), "page.tsx");
       if (!existsSync(pagePath)) failures.push(file.replace(frontend, "frontend/src/app") + " -> " + route);
