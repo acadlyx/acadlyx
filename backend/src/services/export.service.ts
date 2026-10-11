@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { createCsv, createDocx, createPdf } from "./exportDocuments.service";
 import { prisma } from "../lib/prisma";
