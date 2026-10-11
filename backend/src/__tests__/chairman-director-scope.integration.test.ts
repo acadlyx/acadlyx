@@ -177,7 +177,7 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
 
     const chairmanActor = {
       id: chairman.id, institutionId: institution.id, email: chairman.email,
-      roles: ["CHAIRMAN"], permissions: ["fees.structure.read", "fees.reports.export", "students.read", "attendance.read"],
+      roles: ["CHAIRMAN"], permissions: ["fees.structure.read", "fees.reports.export", "fees.read", "students.read", "attendance.read"],
     };
     const chairmanFees = await listFeeStructures(institution.id, chairmanActor);
     assert.deepEqual(
