@@ -10,6 +10,7 @@ import {
 import { useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { ModalPortal } from "@/components/ui/ModalPortal";
 
 import {
@@ -1951,6 +1952,9 @@ export function AdminPeopleManager() {
       subtitle="Institution-scoped administration"
       allowedRoles={["INSTITUTION_ADMIN"]}
     >
+      <div className="mb-4">
+        <DataExportActions type="users" compact />
+      </div>
       <AdminPeopleManagerContent />
     </DashboardShell>
   );
