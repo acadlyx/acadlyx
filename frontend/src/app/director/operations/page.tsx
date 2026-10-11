@@ -13,7 +13,6 @@ const sections = [
   { title: "Campus fee structures", description: "Review fee structures in your assigned campus scope; student-level assignment remains with Accounts.", href: "/director/fees", label: "Review campus fee structures" },
   { title: "Placement outcomes", description: "Review authorized campus placement and career outcome information.", href: "/director/placements", label: "Review placements" },
   { title: "Campus reports", description: "Open reports for the Director's currently authorized campus scope.", href: "/director/reports", label: "Open campus reports" },
-  { title: "Import review", description: "Review import operations available to the Director role.", href: "/director/imports", label: "Open import review" },
 ] as const;
 
 export default function DirectorOperationsPage() {
