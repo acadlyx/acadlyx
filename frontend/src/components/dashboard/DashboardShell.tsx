@@ -32,18 +32,11 @@ function roleOwnedHref(role: string | null, href: string): string {
   return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
 }
 
-function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
-  const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
-  const isRoleOwnedDestination = Object.values(overrides).some(
-    (destination) => pathname === destination || pathname.startsWith(destination + "/"),
-  );
-
-  // Check the destination's own role and permission contract. Checking the
-  // source route caused role-owned pages to redirect when the generic route
-  // belonged to a different workspace (for example Director fee collections).
-  return canAccessRoute(pathname, roles, permissions, tenantFeatures) && (
-    isRoleOwnedDestination || canAccessRoute(pathname, roles, permissions, tenantFeatures)
-  );
+function routeIsAllowedForRole(pathname: string, _role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
+  // Check the destination's own role and permission contract. Mapping a
+  // role-owned page back to a generic source route caused redirects whenever
+  // that generic route belonged to another workspace.
+  return canAccessRoute(pathname, roles, permissions, tenantFeatures);
 }
 
 export function DashboardShell({ title, subtitle, children, allowedRoles, forceShell = false }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[]; forceShell?: boolean }) {
