@@ -976,6 +976,7 @@ function AdminPeopleManagerContent() {
             role === "HOD"
               ? [String(form.get("departmentId") || "").trim()].filter(Boolean)
               : [],
+          campusIds,
         });
 
       setUsers(
