@@ -372,6 +372,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
+    label: "Fee Structures",
+    href: "/chairman/fees/structures",
+    icon: "₹",
+    roles: ["CHAIRMAN"],
+    permissions: ["fees.structure.manage"],
+    group: "Finance",
+  },
+  {
     label: "Academic oversight",
     href: "/chairman/examinations",
     icon: "◉",
