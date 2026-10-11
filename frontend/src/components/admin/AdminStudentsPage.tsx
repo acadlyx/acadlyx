@@ -6,7 +6,6 @@ import {
 } from "react";
 
 import { StudentManagement } from "@/components/dashboard/StudentManagement";
-import DataExportActions from "@/components/dashboard/DataExportActions";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 import {
@@ -162,9 +161,6 @@ export function AdminStudentsPage({ departmentId }: { departmentId?: string }) {
       subtitle="Institution-scoped administration"
       allowedRoles={["INSTITUTION_ADMIN", "REGISTRAR"]}
     >
-      <div className="mb-4">
-        <DataExportActions type="students" compact />
-      </div>
       <AdminStudentsPageContent departmentId={departmentId} />
     </DashboardShell>
   );
