@@ -123,7 +123,7 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
             <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="px-4 py-3">Student</th><th className="px-4 py-3">Admission</th><th className="px-4 py-3">Department</th><th className="px-4 py-3">Program</th><th className="px-4 py-3">Academic Year</th><th className="px-4 py-3">Semester / Section</th><th className="px-4 py-3">Roll No.</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3"><input type="checkbox" aria-label="Select all students on this page" checked={students.length > 0 && students.every((student) => selectedStudentIds.includes(student.id))} onChange={(event) => togglePageSelection(event.target.checked)} /></th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Admission</th><th className="px-4 py-3">Department</th><th className="px-4 py-3">Program</th><th className="px-4 py-3">Academic Year</th><th className="px-4 py-3">Semester / Section</th><th className="px-4 py-3">Roll No.</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
