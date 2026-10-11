@@ -105,7 +105,13 @@ export async function syncBookInventory(tx: Prisma.TransactionClient, institutio
     tx.libraryBookCopy.count({ where: { institutionId, bookId, status: { not: "WITHDRAWN" } } }),
     tx.libraryBookCopy.count({ where: { institutionId, bookId, status: "AVAILABLE" } }),
   ]);
-  await tx.libraryBook.update({ where: { id: bookId }, data: { totalCopies, availableCopies } });
+  const updated = await tx.libraryBook.updateMany({
+    where: { id: bookId, institutionId },
+    data: { totalCopies, availableCopies },
+  });
+  if (updated.count !== 1) {
+    throw new AppError("Library inventory could not be synchronized because the book is missing from this institution", 409);
+  }
 }
 
 export function calculateLostCharge(
