@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
 import { deleteFile } from "./fileStorage.service";
+import { getDirectorDepartmentIds } from "./accessScope.service";
 import { logger } from "../utils/logger";
 import type { CreateEventInput, UpdateEventInput, CategoryInput, MediaInput } from "../validators/events.validators";
 
@@ -21,6 +22,24 @@ function canManage(actor: AuthenticatedUser) {
 function assertSameInstitution(actor: AuthenticatedUser, institutionId: string) {
   if (actor.roles.includes("SUPER_ADMIN")) return;
   if (actor.institutionId !== institutionId) throw new AppError("Institution context mismatch", 403);
+}
+
+function isDirectorScope(actor: AuthenticatedUser): boolean {
+  return actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+}
+
+async function assertDirectorDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
+  if (!isDirectorScope(actor)) return;
+  const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!departmentId || !allowed.includes(departmentId)) {
+    throw new AppError("Events managed by a Director must belong to an assigned campus department", 403);
+  }
+}
+
+async function assertDirectorEvent(institutionId: string, actor: AuthenticatedUser, departmentId: string | null, publicationStatus: string, canManageRecord: boolean): Promise<void> {
+  if (!isDirectorScope(actor)) return;
+  if (!canManageRecord && !departmentId && publicationStatus === "PUBLISHED") return;
+  await assertDirectorDepartment(institutionId, actor, departmentId);
 }
 
 async function uniqueSlug(institutionId: string, title: string, excludeId?: string) {
@@ -64,6 +83,16 @@ export async function listEvents(institutionId: string, actor: AuthenticatedUser
     ...(filters.year ? { eventDate: { gte: new Date(`${filters.year}-01-01T00:00:00.000Z`), lt: new Date(`${filters.year + 1}-01-01T00:00:00.000Z`) } } : {}),
     ...(filters.featured !== undefined ? { isFeatured: filters.featured } : {}),
   };
+  if (isDirectorScope(actor)) {
+    const allowedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
+    where.AND = [
+      ...(where.AND || []),
+      { OR: [
+        ...(allowedDepartments.length ? [{ departmentId: { in: allowedDepartments } }] : []),
+        { departmentId: null, publicationStatus: "PUBLISHED" },
+      ] },
+    ];
+  }
   const [items,total]=await Promise.all([
     prisma.institutionalEvent.findMany({ where, include, orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }], skip: pagination.skip, take: pagination.take }),
     prisma.institutionalEvent.count({ where }),
@@ -76,6 +105,7 @@ export async function getEvent(institutionId:string, actor:AuthenticatedUser,id:
   const event=await prisma.institutionalEvent.findFirst({where:{id,institutionId},include});
   if(!event) throw new AppError("Event not found",404);
   if(!canManage(actor) && event.publicationStatus!=="PUBLISHED") throw new AppError("Event not found",404);
+  await assertDirectorEvent(institutionId, actor, event.departmentId, event.publicationStatus, canManage(actor));
   return event;
 }
 
@@ -83,6 +113,7 @@ export async function createEvent(institutionId:string,actor:AuthenticatedUser,i
   if(!canManage(actor)) throw new AppError("You are not allowed to manage events",403);
   assertSameInstitution(actor,institutionId);
   await assertRefs(institutionId,input.categoryId,input.departmentId);
+  await assertDirectorDepartment(institutionId, actor, input.departmentId);
   const slug=await uniqueSlug(institutionId,input.title);
   const published=input.publicationStatus==="PUBLISHED";
   const event=await prisma.institutionalEvent.create({data:{
@@ -103,7 +134,9 @@ export async function updateEvent(institutionId:string,actor:AuthenticatedUser,i
   if(!canManage(actor)) throw new AppError("You are not allowed to manage events",403);
   const existing=await prisma.institutionalEvent.findFirst({where:{id,institutionId}});
   if(!existing) throw new AppError("Event not found",404);
+  await assertDirectorEvent(institutionId, actor, existing.departmentId, existing.publicationStatus, true);
   await assertRefs(institutionId,input.categoryId===undefined?existing.categoryId:input.categoryId,input.departmentId===undefined?existing.departmentId:input.departmentId);
+  await assertDirectorDepartment(institutionId, actor, input.departmentId===undefined?existing.departmentId:input.departmentId);
   const publicationStatus=input.publicationStatus??existing.publicationStatus;
   const event=await prisma.institutionalEvent.update({where:{id},data:{
     categoryId:input.categoryId,departmentId:input.departmentId,title:input.title,shortDescription:input.shortDescription,
@@ -120,6 +153,7 @@ export async function deleteEvent(institutionId:string,actor:AuthenticatedUser,i
   if(!canManage(actor)) throw new AppError("You are not allowed to manage events",403);
   const existing=await prisma.institutionalEvent.findFirst({where:{id,institutionId},include:{media:{select:{fileAssetId:true}}}});
   if(!existing) throw new AppError("Event not found",404);
+  await assertDirectorEvent(institutionId, actor, existing.departmentId, existing.publicationStatus, true);
   await prisma.institutionalEvent.delete({where:{id}});
   const cleanupFailures: string[] = [];
   for (const media of existing.media) {
@@ -148,8 +182,9 @@ export async function createCategory(institutionId:string,actor:AuthenticatedUse
 }
 export async function addMedia(institutionId:string,actor:AuthenticatedUser,eventId:string,input:MediaInput,meta:Meta) {
   if(!canManage(actor)) throw new AppError("You are not allowed to manage galleries",403);
-  const event=await prisma.institutionalEvent.findFirst({where:{id:eventId,institutionId},select:{id:true}});
+  const event=await prisma.institutionalEvent.findFirst({where:{id:eventId,institutionId},select:{id:true,departmentId:true,publicationStatus:true}});
   if(!event) throw new AppError("Event not found",404);
+  await assertDirectorEvent(institutionId, actor, event.departmentId, event.publicationStatus, true);
   const file=await prisma.fileAsset.findFirst({where:{id:input.fileAssetId,institutionId,module:"events-gallery"},select:{id:true,url:true,publicId:true}});
   if(!file) throw new AppError("Uploaded media is not registered for Events & Gallery",404);
   const max=await prisma.eventMedia.aggregate({where:{eventId},_max:{displayOrder:true}});
@@ -159,8 +194,9 @@ export async function addMedia(institutionId:string,actor:AuthenticatedUser,even
 }
 export async function removeMedia(institutionId:string,actor:AuthenticatedUser,mediaId:string,meta:Meta) {
   if(!canManage(actor)) throw new AppError("You are not allowed to manage galleries",403);
-  const media=await prisma.eventMedia.findFirst({where:{id:mediaId,institutionId}});
+  const media=await prisma.eventMedia.findFirst({where:{id:mediaId,institutionId},include:{event:{select:{departmentId:true,publicationStatus:true}}}});
   if(!media) throw new AppError("Gallery image not found",404);
+  await assertDirectorEvent(institutionId, actor, media.event.departmentId, media.event.publicationStatus, true);
   await prisma.eventMedia.delete({where:{id:mediaId}});
   try { await deleteFile(media.fileAssetId,institutionId); } catch (error) { logger.warn("Event media cleanup failed", { mediaId: media.fileAssetId, error: error instanceof Error ? error.message : String(error) }); }
   await recordAuditLog({institutionId,userId:actor.id,action:"events.media.remove",entityType:"EventMedia",entityId:mediaId,metadata:{eventId:media.eventId},...meta});
@@ -168,6 +204,9 @@ export async function removeMedia(institutionId:string,actor:AuthenticatedUser,m
 }
 export async function reorderMedia(institutionId:string,actor:AuthenticatedUser,eventId:string,ids:string[],meta:Meta) {
   if(!canManage(actor)) throw new AppError("You are not allowed to manage galleries",403);
+  const event=await prisma.institutionalEvent.findFirst({where:{id:eventId,institutionId},select:{departmentId:true,publicationStatus:true}});
+  if(!event) throw new AppError("Event not found",404);
+  await assertDirectorEvent(institutionId, actor, event.departmentId, event.publicationStatus, true);
   const media=await prisma.eventMedia.findMany({where:{eventId,institutionId},select:{id:true}});
   if(media.length!==ids.length || media.some(x=>!ids.includes(x.id))) throw new AppError("Gallery order does not match this event",422);
   await prisma.$transaction(ids.map((id,index)=>prisma.eventMedia.update({where:{id},data:{displayOrder:index}})));
