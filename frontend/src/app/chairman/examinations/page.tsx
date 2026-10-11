@@ -8,7 +8,7 @@ import { AuthRequiredError, authedFetch } from "@/lib/auth";
 
 type Workspace = { stats: Record<string, number> };
 const metrics = [["Examinations", "exams"], ["Published/results records", "examResults"], ["Internal mark records", "internalMarks"], ["Attendance sessions", "attendanceSessions"]] as const;
-const links = [["Student oversight", "/chairman/students"], ["Intelligence", "/chairman/intelligence"], ["Reports", "/chairman/reports"], ["Operations", "/chairman/operations"]] as const;
+const links = [["Examination operations", "/chairman/examinations/operations"], ["Student oversight", "/chairman/students"], ["Intelligence", "/chairman/intelligence"], ["Reports", "/chairman/reports"], ["Operations", "/chairman/operations"]] as const;
 
 export default function CHAIRMANExaminationsPage() {
   const router = useRouter();
