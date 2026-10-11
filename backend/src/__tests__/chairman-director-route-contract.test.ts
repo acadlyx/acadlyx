@@ -76,3 +76,22 @@ test("Chairman fee approval UI prevents duplicate mutations and avoids raw API e
   assert.ok(!page.includes("setError(e instanceof Error ? e.message"), "raw API exception messages must not be displayed");
   assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "fee approval page must retain Chairman role boundary");
 });
+
+
+test("Director fee approvals have a dedicated page and backend campus-scope enforcement", () => {
+  const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
+  const operations = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
+  const dashboard = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
+  const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
+  const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
+
+  assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
+  assert.ok(page.includes("/assigned campus scope"), "page must explain the campus boundary");
+  assert.ok(operations.includes('href: "/director/fee-approvals"'), "operations page must link to the dedicated approval page");
+  assert.ok(dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "dashboard must link to the dedicated approval page");
+  assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.read"'));
+  assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
+  assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
+  assert.ok(feeService.includes('fs."programId" IN ('), "Director fee listing must be filtered to programs in assigned campus departments");
+  assert.ok(feeService.includes("assertFeeStructureInActorScope(institutionId, actor, structureId)"), "approval and rejection mutations must validate record scope");
+});
