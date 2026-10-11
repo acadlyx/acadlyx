@@ -32,7 +32,7 @@ async function getActorProgramIds(institutionId: string, actor: AuthenticatedUse
   const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   if (!departmentIds.length) throw new AppError("No campus scope is assigned to this Director", 403);
   const programs = await prisma.program.findMany({
-    where: { institutionId, departmentId: { in: departmentIds }, isActive: true },
+    where: { institutionId, departmentId: { in: departmentIds } },
     select: { id: true },
   });
   return programs.map((program) => program.id);
