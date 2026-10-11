@@ -64,13 +64,15 @@ export const commandCenter = asyncHandler(async (req, res) => {
       programId ? prisma.program.findFirst({ where: { id: programId, institutionId }, select: { id: true, departmentId: true } }) : Promise.resolve(null),
       semesterId ? prisma.semester.findFirst({ where: { id: semesterId, institutionId }, select: { id: true, programId: true } }) : Promise.resolve(null),
     ]);
-    if (programId && !program) throw new AppError("Program not authorized", 403);
-    if (semesterId && !semester) throw new AppError("Semester not authorized", 403);
+    if (programId && !program) throw new AppError("Program not found in this institution", 404);
+    if (semesterId && !semester) throw new AppError("Semester not found in this institution", 404);
+    if (allowed && program && !allowed.includes(program.departmentId)) throw new AppError("Program not found in the assigned scope", 404);
     if (departmentId && program && program.departmentId !== departmentId) throw new AppError("Program does not belong to the selected department", 400);
     if (program && semester && program.id !== semester.programId) throw new AppError("Semester does not belong to the selected program", 400);
     if (departmentId && semester && !program) {
       const semesterProgram = await prisma.program.findFirst({ where: { id: semester.programId, institutionId }, select: { departmentId: true } });
       if (!semesterProgram || semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
+      if (allowed && !allowed.includes(semesterProgram.departmentId)) throw new AppError("Semester not found in the assigned scope", 404);
     }
   }
 
