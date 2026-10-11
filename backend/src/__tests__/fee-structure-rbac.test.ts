@@ -55,3 +55,29 @@ test("fee-structure permissions do not imply unrelated financial authority", () 
     assert.ok(!grants.includes("fees.concession.approve"));
   }
 });
+
+
+test("fee structure activation is only possible through pending approval and cannot be self-approved", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
+  const createStart = source.indexOf("export async function createFeeStructure(");
+  const submitStart = source.indexOf("export async function submitFeeStructureForApproval(");
+  const approveStart = source.indexOf("export async function approveFeeStructure(");
+  const rejectStart = source.indexOf("export async function rejectFeeStructure(");
+  const assignStart = source.indexOf("export async function assignFeeStructure(");
+  assert.ok(createStart >= 0 && submitStart > createStart && approveStart > submitStart && rejectStart > approveStart && assignStart > rejectStart);
+  const create = source.slice(createStart, submitStart);
+  const submit = source.slice(submitStart, approveStart);
+  const approve = source.slice(approveStart, rejectStart);
+  const reject = source.slice(rejectStart, assignStart);
+  assert.match(create, /const status: FeeStructureStatus = "DRAFT"/);
+  assert.match(submit, /"status" = 'PENDING_APPROVAL'/);
+  assert.match(submit, /"status" = 'DRAFT'/);
+  assert.match(approve, /"status" = 'ACTIVE'/);
+  assert.match(approve, /"status" = 'PENDING_APPROVAL'/);
+  assert.match(approve, /"createdById" <> \$\{actor\.id\}/);
+  assert.match(reject, /"status" = 'REJECTED'/);
+  assert.match(reject, /normalizedReason\.length < 3/);
+  assert.match(reject, /"createdById" <> \$\{actor\.id\}/);
+});
