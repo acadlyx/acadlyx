@@ -7,6 +7,7 @@ import { getDirectorDepartmentIds } from "../services/accessScope.service";
 import { listFeeStructures } from "../services/feeStructure.service";
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
+import { getAttendanceReportOptions } from "../services/attendanceReport.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
   skip: !process.env.DATABASE_URL,
@@ -83,6 +84,12 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
 
     const report = await getInstitutionInsights(institution.id, { departmentIds: assigned });
     assert.equal(report.kpis.departments, 1, "campus reports must count only the assigned department");
+    const reportOptions = await getAttendanceReportOptions(institution.id, {
+      id: director.id, institutionId: institution.id, email: director.email,
+      roles: ["DIRECTOR"], permissions: ["attendance.read"],
+    });
+    assert.deepEqual(reportOptions.departments.map((row) => row.id), [departmentA.id]);
+    assert.deepEqual(reportOptions.programs.map((row) => row.id), [programA.id]);
   } finally {
     await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
