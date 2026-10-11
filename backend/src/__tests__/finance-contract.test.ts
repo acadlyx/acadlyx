@@ -63,9 +63,9 @@ test("billing concession creation persists both legacy and canonical type/reques
 test("Director finance scope uses the canonical explicit CampusAccess helper", () => {
   const service = read("src/services/finance.service.ts");
   const sharedScope = read("src/services/accessScope.service.ts");
-  assert.match(service, /import \\{ getDirectorCampusIds, isDirectorScoped \\} from "\\.\\/accessScope\\.service";/);
-  assert.match(service, /if\\(isDirectorScoped\\(a\\)\\) return \\{institutionId,campusIds:await getDirectorCampusIds\\(institutionId,a\\.id\\)\\};/);
-  assert.doesNotMatch(service, /if\\(r\\.includes\\("DIRECTOR"\\)\\)[^\\n]*departmentAccess\\.findMany/);
+  assert.match(service, /import \{ getDirectorCampusIds, isDirectorScoped \} from "\.\/accessScope\.service";/);
+  assert.match(service, /if\(isDirectorScoped\(a\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
+  assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
   const institutionRoleScope = service.indexOf('if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role)))');
   assert.ok(institutionRoleScope >= 0, "Institution-wide finance scope must be role-based");
   assert.ok(institutionRoleScope < service.indexOf("if(isDirectorScoped(a))"), "Institution-wide Chairman scope must win over secondary Director role");
