@@ -170,6 +170,7 @@ export interface CreateAdminUserInput {
   password: string;
   role: string;
   departmentIds?: string[];
+  campusIds?: string[];
 }
 
 export interface AdminUserPhotoResponse {
@@ -327,6 +328,7 @@ export async function updateAdminUser(
     isActive: boolean;
     role: string;
     departmentIds: string[];
+    campusIds?: string[];
     password?: string;
   }>,
 ): Promise<AdminUser> {
