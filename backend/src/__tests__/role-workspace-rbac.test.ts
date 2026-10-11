@@ -27,6 +27,8 @@ test("management authority is independently represented", () => {
 test("Director workspace KPI queries are scoped through CampusAccess-derived departments", () => {
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/managementWorkspace.service.ts"), "utf8");
   assert.match(source, /getDirectorDepartmentIds\(institutionId, actor\.id\)/);
+  assert.match(source, /getDirectorCampusIds\(institutionId, actor\.id\)/);
+  assert.match(source, /valid campus assignment remains valid even before departments are/);
   assert.match(source, /No campus scope is assigned to this director/);
   assert.match(source, /studentEnrollments/);
   assert.match(source, /courseOffering: scopedOffering/);
