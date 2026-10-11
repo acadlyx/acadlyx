@@ -11,6 +11,8 @@ This branch is not declared production-ready. The first targeted correction addr
 - Existing `CampusAccess` lookup in `backend/src/services/accessScope.service.ts` is the intended source of Director campus IDs.
 - `backend/src/services/erp.service.ts` previously returned from `assertStudentScope` for every role in `MANAGEMENT_ROLES`; that list included DIRECTOR. This allowed a Director to skip the assigned-campus student enrollment check.
 - The implementation branch changes that helper to resolve Director department IDs from CampusAccess and require an active enrollment in one of those departments before allowing access. It also tenant-binds management access other than explicit SUPER_ADMIN.
+- Added `backend/src/__tests__/director-student-scope.contract.test.ts` as a source-level regression guard. This test has not been executed in this environment and does not replace database-backed tests.
+- Updated Chairman finance navigation entries to route to `/chairman/fees` and `/chairman/fees/collections` instead of generic shared routes.
 
 ### Not yet verified
 - Local working-tree status and uncommitted changes (the available method is GitHub repository API, not the user's local checkout).
@@ -31,11 +33,17 @@ This branch is not declared production-ready. The first targeted correction addr
 - Identified a Director student-record scope bypass and documented the existing route inventory.
 - Exit gate: partially met. Branch isolation and initial gap evidence are established; local worktree and reproducible local test baseline are unavailable through the repository API.
 
-### Batch 2 — Scope and authorization foundation
+### Batch 2 — Scope and authorization foundation (partial)
 - Corrected the Director path in `assertStudentScope` so the Director role no longer inherits the management bypass.
 - Director student access now requires an active enrollment whose program department is derived from assigned campus IDs.
 - Management shortcut is tenant-bound except for explicit SUPER_ADMIN.
-- Exit gate: code change present on branch; runtime authorization tests are not yet run. Do not mark complete until tested.
+- Added a source-level regression contract test; it remains unexecuted. Cross-campus behavior, Chairman multi-institution assignment, and endpoint-wide scope are not verified.
+- Exit gate: NOT PASSED pending runtime and integration tests.
+
+### Batch 3 — Workspace routing (partial)
+- Chairman finance sidebar links now remain under the Chairman route namespace for finance overview and collections.
+- Existing Chairman/Director routes remain separate; additional generic links and the Director operations destinations still require a full route/action audit.
+- Exit gate: NOT PASSED.
 
 ### Remaining batches
 - Batch 3: separate route trees, effective navigation, shell continuity, and scoped context.
