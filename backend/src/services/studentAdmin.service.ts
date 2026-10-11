@@ -7,7 +7,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
-import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -529,7 +529,7 @@ export async function listStudents(
   const search = params.search?.trim();
   await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentWhereScope(institutionId, actor);
-  const directorDepartmentIds = actor.roles.includes("DIRECTOR")
+  const directorDepartmentIds = isDirectorScoped(actor)
     ? await getDirectorDepartmentIds(institutionId, actor.id)
     : undefined;
   const scopedStudentListInclude = directorDepartmentIds
@@ -652,7 +652,7 @@ export async function getStudent(
   actor?: AuthenticatedUser
 ) {
   if (actor) await assertStudentReadAccess(institutionId, userId, actor);
-  if (actor?.roles.includes("DIRECTOR")) {
+  if (actor && isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     const student = await prisma.user.findFirst({
       where: { id: userId, institutionId },
@@ -1129,7 +1129,7 @@ export async function enrollStudent(
     if (!managed.includes(placement.program.departmentId)) {
       throw new AppError("The selected program is outside your department scope", 403);
     }
-  } else if (roles.includes("DIRECTOR")) {
+  } else if (isDirectorScoped(actor)) {
     const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!allowed.includes(placement.program.departmentId)) {
       throw new AppError("The selected program is outside your campus scope", 403);

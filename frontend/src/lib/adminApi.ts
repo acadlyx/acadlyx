@@ -30,6 +30,11 @@ export interface AdminUser {
     departmentCode?: string | null;
     scope?: string;
   }>;
+  campusAccesses?: Array<{
+    campusId: string;
+    scope?: string;
+    campus?: { id: string; name: string; code?: string | null; isActive?: boolean };
+  }>;
 }
 
 export interface UserDeletionRequest {
@@ -165,6 +170,7 @@ export interface CreateAdminUserInput {
   password: string;
   role: string;
   departmentIds?: string[];
+  campusIds?: string[];
 }
 
 export interface AdminUserPhotoResponse {
@@ -322,6 +328,7 @@ export async function updateAdminUser(
     isActive: boolean;
     role: string;
     departmentIds: string[];
+    campusIds?: string[];
     password?: string;
   }>,
 ): Promise<AdminUser> {
@@ -363,6 +370,20 @@ export async function listAdminDepartments(): Promise<AdminDepartment[]> {
   return Array.isArray(response.data)
     ? response.data
     : response.data.items || [];
+}
+
+export interface AdminCampus {
+  id: string;
+  name: string;
+  code?: string | null;
+  isActive?: boolean;
+}
+
+export async function listAdminCampuses(): Promise<AdminCampus[]> {
+  const response = await authedFetch<ApiEnvelope<AdminCampus[] | { items: AdminCampus[] }>>(
+    "/campuses?page=1&pageSize=100&isActive=true",
+  );
+  return Array.isArray(response.data) ? response.data : response.data.items || [];
 }
 
 /**

@@ -1,0 +1,577 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
+import { WorkflowStatus } from "@/components/workflow/WorkflowState";
+import { getWorkflowStates, type WorkflowStateResult } from "@/lib/workflowApi";
+import { AuthRequiredError, getCurrentUser, isAuthenticated } from "@/lib/auth";
+import {
+  ADMISSION_STATUSES,
+  AdmissionApplication,
+  AdmissionStatus,
+  AcademicYearOption,
+  ProgramOption,
+  changeAdmissionStatus,
+  createAdmissionApplication,
+  updateAdmissionApplication,
+  listAcademicYearOptions,
+  listAdmissionApplications,
+  listProgramOptions,
+} from "@/lib/admissionsApi";
+
+const STATUS_STYLES: Record<AdmissionStatus, string> = {
+  SUBMITTED: "bg-slate-100 text-slate-700",
+  UNDER_REVIEW: "bg-amber-100 text-amber-700",
+  DOCUMENTS_PENDING: "bg-orange-100 text-orange-700",
+  SELECTED: "bg-emerald-100 text-emerald-700",
+  REJECTED: "bg-red-100 text-red-700",
+  ENROLLED: "bg-indigo-100 text-indigo-700",
+  WITHDRAWN: "bg-slate-100 text-slate-500",
+};
+
+type ViewState = "loading" | "ready" | "error";
+
+const emptyForm = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  guardianName: "",
+  guardianPhone: "",
+  previousInstitution: "",
+  previousPercentage: "",
+  remarks: "",
+  programId: "",
+  academicYearId: "",
+};
+
+export default function DirectorAdmissionsPage() {
+  const router = useRouter();
+  const [state, setState] = useState<ViewState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [items, setItems] = useState<AdmissionApplication[]>([]);
+  const [summary, setSummary] = useState<Record<string, number>>({});
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<AdmissionStatus | "">("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
+
+  const [programs, setPrograms] = useState<ProgramOption[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowStateResult>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const [currentUser, list, programOptions, yearOptions] = await Promise.all([
+        getCurrentUser(),
+        listAdmissionApplications({
+          page,
+          search: search || undefined,
+          status: status || undefined,
+          programId: programFilter || undefined,
+          academicYearId: yearFilter || undefined,
+        }),
+        programs.length ? Promise.resolve(programs) : listProgramOptions(),
+        academicYears.length ? Promise.resolve(academicYears) : listAcademicYearOptions(),
+      ]);
+      setUserPermissions(currentUser?.permissions ?? []);
+      setItems(list.items);
+      const workflowItems = list.items.map((item) => ({ workflow: "admission_application", entityId: item.id }));
+      const states = workflowItems.length ? await getWorkflowStates(workflowItems) : [];
+      setWorkflowStates(Object.fromEntries(states.map((item) => [item.entityId, item])));
+      setSummary(list.summary);
+      setTotalPages(list.totalPages);
+      setPrograms(programOptions);
+      setAcademicYears(yearOptions);
+      setState("ready");
+    } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        router.replace("/login");
+        return;
+      }
+      setErrorMessage(err instanceof Error ? err.message : "Failed to load admissions");
+      setState("error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, status, programFilter, yearFilter, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.replace("/login");
+      return;
+    }
+    load();
+  }, [load, router]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError("");
+    if (!form.firstName || !form.lastName || !form.email || !form.programId || !form.academicYearId) {
+      setFormError("First name, last name, email, program and academic year are required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        await updateAdmissionApplication(editingId, {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone || undefined,
+          guardianName: form.guardianName || undefined,
+          guardianPhone: form.guardianPhone || undefined,
+          previousInstitution: form.previousInstitution || undefined,
+          previousPercentage: form.previousPercentage ? Number(form.previousPercentage) : undefined,
+          remarks: form.remarks || undefined,
+          programId: form.programId,
+          academicYearId: form.academicYearId,
+        });
+      } else {
+        await createAdmissionApplication({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone || undefined,
+        guardianName: form.guardianName || undefined,
+        guardianPhone: form.guardianPhone || undefined,
+        previousInstitution: form.previousInstitution || undefined,
+        previousPercentage: form.previousPercentage
+          ? Number(form.previousPercentage)
+          : undefined,
+        remarks: form.remarks || undefined,
+        programId: form.programId,
+        academicYearId: form.academicYearId,
+        });
+      }
+      setForm(emptyForm);
+      setEditingId(null);
+      setShowForm(false);
+      setPage(1);
+      await load();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to create application");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function startEdit(app: AdmissionApplication) {
+    setEditingId(app.id);
+    setForm({
+      firstName: app.firstName,
+      lastName: app.lastName,
+      email: app.email,
+      phone: app.phone ?? "",
+      guardianName: app.guardianName ?? "",
+      guardianPhone: app.guardianPhone ?? "",
+      previousInstitution: app.previousInstitution ?? "",
+      previousPercentage: app.previousPercentage == null ? "" : String(app.previousPercentage),
+      remarks: app.remarks ?? app.notes ?? "",
+      programId: app.programId ?? "",
+      academicYearId: app.academicYearId ?? "",
+    });
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function handleNew() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setFormError("");
+    setShowForm((v) => !v);
+  }
+
+  async function handleStatusChange(id: string, next: AdmissionStatus) {
+    setActionError("");
+    try {
+      await changeAdmissionStatus(id, next);
+      await load();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update status");
+    }
+  }
+
+  return (
+    <DashboardShell title="Director Admissions" subtitle="Admissions applications within the Director workspace" allowedRoles={["DIRECTOR"]}>
+      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <DataExportActions type="admission-applications" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(status ? { status } : {}), ...(programFilter ? { programId: programFilter } : {}), ...(yearFilter ? { academicYearId: yearFilter } : {}) }} compact />
+        <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
+              Admissions
+            </p>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+              Admission Management
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
+              Live application data for this institution — review, move through the
+              selection pipeline, and enroll applicants.
+            </p>
+          </div>
+          {userPermissions.includes("admissions.manage") ? (
+            <button
+              type="button"
+              onClick={handleNew}
+              className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              {showForm ? "Close" : "New admission"}
+            </button>
+          ) : null}
+        </section>
+
+        {state === "loading" && (
+          <p className="text-sm text-slate-400">Loading admissions…</p>
+        )}
+
+        {state === "error" && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
+        {state === "ready" && (
+          <>
+            <section className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {ADMISSION_STATUSES.map((s) => (
+                <article
+                  key={s}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {s.replace("_", " ")}
+                  </p>
+                  <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+                    {summary[s] ?? 0}
+                  </p>
+                </article>
+              ))}
+            </section>
+
+            {showForm && (
+              <section className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6 sm:p-8">
+                <h2 className="text-2xl font-black text-slate-950">{editingId ? "Edit admission application" : "New admission application"}</h2>
+                {formError && (
+                  <p className="mt-3 rounded-xl bg-red-100 px-3 py-2 text-sm font-semibold text-red-700">
+                    {formError}
+                  </p>
+                )}
+                <form onSubmit={handleSubmit} className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <Field label="First name *">
+                    <input
+                      className="input"
+                      value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Last name *">
+                    <input
+                      className="input"
+                      value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Email *">
+                    <input
+                      type="email"
+                      className="input"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Phone">
+                    <input
+                      className="input"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Program *">
+                    <select
+                      className="input"
+                      value={form.programId}
+                      onChange={(e) => setForm({ ...form, programId: e.target.value })}
+                    >
+                      <option value="">Select program</option>
+                      {programs.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.code} — {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Academic year *">
+                    <select
+                      className="input"
+                      value={form.academicYearId}
+                      onChange={(e) => setForm({ ...form, academicYearId: e.target.value })}
+                    >
+                      <option value="">Select academic year</option>
+                      {academicYears.map((y) => (
+                        <option key={y.id} value={y.id}>
+                          {y.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Guardian name">
+                    <input
+                      className="input"
+                      value={form.guardianName}
+                      onChange={(e) => setForm({ ...form, guardianName: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Guardian phone">
+                    <input
+                      className="input"
+                      value={form.guardianPhone}
+                      onChange={(e) => setForm({ ...form, guardianPhone: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Previous institution">
+                    <input
+                      className="input"
+                      value={form.previousInstitution}
+                      onChange={(e) =>
+                        setForm({ ...form, previousInstitution: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Previous percentage">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="input"
+                      value={form.previousPercentage}
+                      onChange={(e) =>
+                        setForm({ ...form, previousPercentage: e.target.value })
+                      }
+                    />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Remarks">
+                      <textarea
+                        rows={3}
+                        className="input"
+                        value={form.remarks}
+                        onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {submitting ? "Saving…" : editingId ? "Save changes" : "Submit application"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
+
+            <section className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <input
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+                placeholder="Search by name, email, application number…"
+                className="input sm:w-80"
+              />
+              <select
+                value={programFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setProgramFilter(e.target.value);
+                }}
+                className="input sm:w-56"
+              >
+                <option value="">All programs</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code} — {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setYearFilter(e.target.value);
+                }}
+                className="input sm:w-56"
+              >
+                <option value="">All academic years</option>
+                {academicYears.map((y) => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
+              <select
+                value={status}
+                onChange={(e) => {
+                  setPage(1);
+                  setStatus(e.target.value as AdmissionStatus | "");
+                }}
+                className="input sm:w-56"
+              >
+                <option value="">All statuses</option>
+                {ADMISSION_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </section>
+
+            {actionError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                {actionError}
+              </div>
+            )}
+
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-5 py-4 font-bold">Applicant</th>
+                      <th className="px-5 py-4 font-bold">Program</th>
+                      <th className="px-5 py-4 font-bold">Application #</th>
+                      <th className="px-5 py-4 font-bold">Status</th>
+                      <th className="px-5 py-4 font-bold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((app) => (
+                      <tr key={app.id} className="hover:bg-slate-50">
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <p className="font-semibold text-slate-800">
+                            {app.firstName} {app.lastName}
+                          </p>
+                          <p className="text-xs text-slate-400">{app.email}</p>
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                          {app.program?.code} · {app.academicYear?.name}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                          {app.applicationNumber}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-4">
+                          {workflowStates[app.id] ? (
+                            <WorkflowStatus state={workflowStates[app.id]} />
+                          ) : (
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[app.status]}`}>
+                              {app.status.replace("_", " ")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-4">
+                          {userPermissions.includes("admissions.manage") && !["ENROLLED", "REJECTED", "WITHDRAWN"].includes(app.status) ? (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(app)}
+                              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                          {workflowStates[app.id] ? (
+                            <div className="flex flex-wrap gap-2">
+                              {workflowStates[app.id].actions.filter((item) => item.key.startsWith("status:")).map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  disabled={!item.enabled}
+                                  title={item.reason}
+                                  onClick={() => void handleStatusChange(app.id, item.key.replace("status:", "") as AdmissionStatus)}
+                                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                              {!workflowStates[app.id].actions.some((item) => item.key.startsWith("status:")) ? (
+                                <span className="text-xs text-slate-400">No actions</span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">Checking…</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-14 text-center text-sm text-slate-500">
+                          No matching applications.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-slate-400">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+      <style jsx global>{`
+        .input {
+          width: 100%;
+          border-radius: 0.75rem;
+          border: 1px solid rgb(226 232 240);
+          background: white;
+          padding: 0.65rem 0.9rem;
+          font-size: 0.875rem;
+          outline: none;
+        }
+        .input:focus {
+          border-color: rgb(129 140 248);
+          box-shadow: 0 0 0 3px rgb(224 231 255);
+        }
+      `}</style>
+    </DashboardShell>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}

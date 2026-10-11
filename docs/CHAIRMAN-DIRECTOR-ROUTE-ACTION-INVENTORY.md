@@ -88,4 +88,26 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - **Examination:** Director authorization and queues now resolve the department through the offering's semester program. This avoids trusting a course.departmentId that can disagree with the program/campus hierarchy.
 - **Approval integrity:** added PostgreSQL checks for concurrent fee decisions (exactly one winner and one audit record) and maker-checker denial (no state transition/no audit row). Mark-correction decisions now reject the original requester and preserve conditional update plus transactional audit.
 - **Route verification:** route smoke coverage expanded to all role-specific pages; a static contract scans literal Chairman/Director links and router destinations. This is not a substitute for authenticated browser-level button/action testing.
-- Latest-head CI must be checked before release. The known production branch remains untouched.
+- Historical note for this batch: the implementation branch itself did not issue a production-branch write. Subsequent GitHub ref inspection shows production received PRs #47–#49 through commit `49620702216a2d5921b0af2d33f3502aa7283738`; follow-on changes after `4962070` are not included in that production merge chain.
+
+## Batch 12 — CI enabled for PostgreSQL concurrency tests (2026-10-11)
+- Set `RUN_POSTGRES_INTEGRATION=1` in the isolated verification workflow. This activates the previously skipped financial integration suite instead of counting skipped tests as coverage.
+- Verified code commit `8ea39b7a308902eaf9494702dc9107f690b20e88` passed Prisma validation/migration, backend typecheck/build, **199/199 backend tests with zero skips**, frontend typecheck/lint/build, and the expanded role-route smoke test.
+- The smoke suite checks route responses, not authenticated user interaction; browser-level verification of each visible action and its resulting page/API/state remains a release gate.
+- PRs #47–#49 appear in production history through `4962070`. No further merge or deployment was initiated by this batch.
+
+## Added dedicated leadership routes
+
+| Workspace | Route | Expected actions |
+|---|---|---|
+| Chairman | `/chairman/fees/structures` | Create DRAFT fee structures; publish DRAFT directly with Chairman-only permission and audit record; Accounts assigns published structures |
+| Chairman | `/chairman/notices` | Read and create institution-wide notices, with authorized department targeting |
+| Chairman | `/chairman/notifications` | Read and mark notifications; no route exit to generic notification page |
+| Chairman | `/chairman/events-gallery` and `/new`, `/:id`, `/:id/edit` | Create, view, edit and delete events in the Chairman route tree |
+| Director | `/director/notices` | Read notices and create/update/delete only for assigned campus departments |
+| Director | `/director/notifications` | Read and mark notifications in the Director workspace |
+| Director | `/director/events-gallery` and `/new`, `/:id`, `/:id/edit` | Event and gallery mutations limited to assigned campus departments; published institution-wide events may be read-only visible |
+| Director | `/director/admissions` | Admissions data and mutations filtered to programs in assigned campus departments |
+| Director | `/director/calendar` | Dedicated route with Director role guard |
+
+Institutional CMS is intentionally not in either leadership sidebar. Dedicated routes are authorized against their own role/permission contract to avoid redirects through unrelated generic paths. Director scope continues to require valid `CampusAccess` records; if absent, the application must explain the configuration issue rather than widening data scope.

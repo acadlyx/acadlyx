@@ -8,6 +8,7 @@ import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
   isInstitutionWide,
+  isDirectorScoped,
 } from "./accessScope.service";
 
 /**
@@ -92,9 +93,9 @@ export async function searchStudents(
     )`,
   ];
 
-  if (!isInstitutionWide(actor)) {
-    if (actor.roles.includes("DIRECTOR") || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
-      const scopedDepartments = actor.roles.includes("DIRECTOR")
+  if (!isInstitutionWide(actor) || isDirectorScoped(actor)) {
+    if (isDirectorScoped(actor) || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
+      const scopedDepartments = isDirectorScoped(actor)
         ? await getDirectorDepartmentIds(institutionId, actor.id)
         : await getManagedDepartmentIds(institutionId, actor.id);
 

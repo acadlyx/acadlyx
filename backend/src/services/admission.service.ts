@@ -11,6 +11,7 @@ import {
 import { recordAuditLog } from "./audit.service";
 import { createStudent } from "./studentAdmin.service";
 import { assertAdmissionWorkflowAuthority } from "./workflowAuthority.service";
+import { getDirectorDepartmentIds } from "./accessScope.service";
 
 const TRANSITIONS: Record<string, string[]> = {
   SUBMITTED: ["UNDER_REVIEW", "DOCUMENTS_PENDING", "REJECTED", "WITHDRAWN"],
@@ -21,6 +22,28 @@ const TRANSITIONS: Record<string, string[]> = {
   ENROLLED: [],
   WITHDRAWN: [],
 };
+
+function isDirectorScope(actor: AuthenticatedUser): boolean {
+  return actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+}
+
+async function getActorProgramIds(institutionId: string, actor: AuthenticatedUser): Promise<string[] | null> {
+  if (!isDirectorScope(actor)) return null;
+  const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!departmentIds.length) throw new AppError("No campus scope is assigned to this Director", 403);
+  const programs = await prisma.program.findMany({
+    where: { institutionId, departmentId: { in: departmentIds } },
+    select: { id: true },
+  });
+  return programs.map((program) => program.id);
+}
+
+async function assertProgramScope(institutionId: string, actor: AuthenticatedUser, programId: string): Promise<void> {
+  const allowedProgramIds = await getActorProgramIds(institutionId, actor);
+  if (allowedProgramIds && !allowedProgramIds.includes(programId)) {
+    throw new AppError("Admission application is outside the assigned campus scope", 404);
+  }
+}
 
 const include = {
   program: { select: { id: true, name: true, code: true } },
@@ -66,6 +89,7 @@ async function load(institutionId: string, id: string) {
 
 export async function listApplications(
   institutionId: string,
+  actor: AuthenticatedUser,
   pagination: PaginationParams,
   filters: {
     search?: string;
@@ -74,8 +98,13 @@ export async function listApplications(
     academicYearId?: string;
   }
 ) {
+  const allowedProgramIds = await getActorProgramIds(institutionId, actor);
+  if (allowedProgramIds && filters.programId && !allowedProgramIds.includes(filters.programId)) {
+    throw new AppError("Program filter is outside the assigned campus scope", 403);
+  }
   const where: Prisma.AdmissionApplicationWhereInput = {
     institutionId,
+    ...(allowedProgramIds ? { programId: { in: allowedProgramIds } } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.programId ? { programId: filters.programId } : {}),
     ...(filters.academicYearId ? { academicYearId: filters.academicYearId } : {}),
@@ -102,7 +131,7 @@ export async function listApplications(
     prisma.admissionApplication.count({ where }),
     prisma.admissionApplication.groupBy({
       by: ["status"],
-      where: { institutionId },
+      where,
       _count: { _all: true },
     }),
   ]);
@@ -113,8 +142,10 @@ export async function listApplications(
   return { items, total, summary };
 }
 
-export async function getApplication(institutionId: string, id: string) {
-  return load(institutionId, id);
+export async function getApplication(institutionId: string, actor: AuthenticatedUser, id: string) {
+  const application = await load(institutionId, id);
+  await assertProgramScope(institutionId, actor, application.programId);
+  return application;
 }
 
 export async function createApplication(
@@ -124,6 +155,7 @@ export async function createApplication(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertAdmissionWorkflowAuthority(actor);
+  await assertProgramScope(institutionId, actor, input.programId);
   await assertPlacement(institutionId, input.programId, input.academicYearId);
 
   const duplicate = await prisma.admissionApplication.findFirst({
@@ -200,6 +232,8 @@ export async function updateApplication(
 ) {
   assertAdmissionWorkflowAuthority(actor);
   const existing = await load(institutionId, id);
+  await assertProgramScope(institutionId, actor, existing.programId);
+  await assertProgramScope(institutionId, actor, input.programId ?? existing.programId);
   if (["ENROLLED", "REJECTED", "WITHDRAWN"].includes(existing.status)) {
     throw new AppError(`A ${existing.status.toLowerCase()} application can no longer be edited`, 409);
   }
@@ -251,6 +285,7 @@ export async function changeStatus(
 ) {
   assertAdmissionWorkflowAuthority(actor);
   const existing = await load(institutionId, id);
+  await assertProgramScope(institutionId, actor, existing.programId);
   if (!(TRANSITIONS[existing.status] ?? []).includes(status)) {
     throw new AppError(
       `An application cannot move from ${existing.status} to ${status}`,
@@ -291,6 +326,7 @@ export async function enrollApplicant(
 ) {
   assertAdmissionWorkflowAuthority(actor);
   const application = await load(institutionId, id);
+  await assertProgramScope(institutionId, actor, application.programId);
   if (application.status !== "SELECTED") {
     throw new AppError("Only SELECTED applicants can be enrolled", 409);
   }

@@ -10,10 +10,9 @@ const sections = [
   { title: "Examination readiness", description: "Review campus examination operations and authorized exceptions.", href: "/director/examinations", label: "Review examinations" },
   { title: "Academic outcomes", description: "Review campus outcome-based education indicators.", href: "/director/obe", label: "Review academic outcomes" },
   { title: "Campus finance", description: "Review campus finance information exposed by the scoped finance APIs.", href: "/director/fees", label: "Open campus finance" },
-  { title: "Campus fee approvals", description: "Review and decide on pending fee structures linked to your assigned campuses.", href: "/director/fee-approvals", label: "Review fee approvals" },
+  { title: "Campus fee approvals", description: "Approve or reject pending fee structures only within your assigned campus scope.", href: "/director/fee-approvals", label: "Review fee approvals" },
   { title: "Placement outcomes", description: "Review authorized campus placement and career outcome information.", href: "/director/placements", label: "Review placements" },
   { title: "Campus reports", description: "Open reports for the Director's currently authorized campus scope.", href: "/director/reports", label: "Open campus reports" },
-  { title: "Import review", description: "Review import operations available to the Director role.", href: "/director/imports", label: "Open import review" },
 ] as const;
 
 export default function DirectorOperationsPage() {

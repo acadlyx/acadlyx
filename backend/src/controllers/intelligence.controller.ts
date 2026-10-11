@@ -9,8 +9,11 @@ import { assertCanViewStudent, getDirectorDepartmentIds } from "../services/acce
 
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
 async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
-  if (roles.some(r => ["CHAIRMAN", "MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
+  // Chairman is institution-wide; Director is campus-scoped even if a legacy
+  // secondary institution-admin role remains on the same account.
+  if (roles.includes("CHAIRMAN")) return undefined;
   if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, userId);
+  if (roles.some(r => ["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
   return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
 }
 

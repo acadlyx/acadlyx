@@ -452,7 +452,7 @@ async function assertFeeStructureInActorScope(
   actor: AuthenticatedUser,
   structureId: string,
 ): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR")) return;
+  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
 
   const rows = await prisma.$queryRaw<Array<{
     programId: string | null;
@@ -513,7 +513,7 @@ export async function listFeeStructures(
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
 
-  if (actor.roles.includes("DIRECTOR")) {
+  if (actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN")) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (departmentIds.length === 0) return [];
     conditions.push(Prisma.sql`(
@@ -979,6 +979,44 @@ export async function submitFeeStructureForApproval(
     entityType: "FeeStructure", entityId: structureId,
     metadata: { fromStatus: "DRAFT", toStatus: "PENDING_APPROVAL" },
   });
+  return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
+}
+
+export async function publishFeeStructure(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string
+) {
+  if (!actor.roles.includes("CHAIRMAN") || !actor.permissions.includes("fees.structure.publish")) {
+    throw new AppError("Direct fee-structure publication is reserved for the Chairman workspace", 403);
+  }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql`
+      UPDATE "fee_structures"
+      SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'DRAFT'
+    `);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.publish-direct",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "DRAFT", toStatus: "ACTIVE", workflow: "CHAIRMAN_DIRECT_PUBLISH" },
+      },
+    });
+    return count;
+  });
+  if (changed !== 1) {
+    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "fee_structures"
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId} LIMIT 1
+    `);
+    if (!rows[0]) throw new AppError("Fee structure not found", 404);
+    throw new AppError("Only a DRAFT fee structure can be published directly", 409);
+  }
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 

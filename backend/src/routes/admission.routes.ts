@@ -33,6 +33,7 @@ router.get(
     const pagination = parsePagination(req);
     const { items, total, summary } = await service.listApplications(
       requireInstitution(req),
+      requireAuthenticatedUser(req),
       pagination,
       {
         search: searchTerm(req.query.search),
@@ -61,7 +62,7 @@ router.get(
   authorize("admissions.read"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
-    sendOk(res, await service.getApplication(requireInstitution(req), req.params.id))
+    sendOk(res, await service.getApplication(requireInstitution(req), requireAuthenticatedUser(req), req.params.id))
   )
 );
 

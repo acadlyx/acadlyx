@@ -18,7 +18,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide, isDirectorScoped, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
@@ -419,7 +419,7 @@ async function assertCanReadSchedule(
     if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized academic scope",403);
     return;
   }
-  if (actor.roles.includes("DIRECTOR")) {
+  if (isDirectorScoped(actor)) {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!ids.length) throw new AppError("Examination is outside your authorized campus scope", 403);
     const semester = await prisma.semester.findFirst({
@@ -485,7 +485,7 @@ async function assertDirectorSessionTargetsInScope(
     studentIds?: string[];
   },
 ): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR")) return;
+  if (!isDirectorScoped(actor)) return;
 
   const [campusIds, departmentIds] = await Promise.all([
     getDirectorCampusIds(institutionId, actor.id),
@@ -541,7 +541,7 @@ async function assertDirectorCanAccessSession(
   actor: AuthenticatedUser,
   session: ExamSessionRow,
 ): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR")) return;
+  if (!isDirectorScoped(actor)) return;
   const [campusIds, departmentIds] = await Promise.all([
     getDirectorCampusIds(institutionId, actor.id),
     getDirectorDepartmentIds(institutionId, actor.id),
@@ -771,7 +771,7 @@ export async function listExamSessions(
         WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
       )
     )`);
-  } else if (roles.includes("DIRECTOR")) {
+  } else if (isDirectorScoped(actor)) {
     const [ids, campusIds] = await Promise.all([
       getDirectorDepartmentIds(institutionId, actor.id),
       getDirectorCampusIds(institutionId, actor.id),
@@ -845,8 +845,8 @@ export async function getExamSession(
       JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
       WHERE es."examSessionId"=${examSessionId} AND es."institutionId"=${institutionId} AND co."facultyId"=${actor.id} LIMIT 1`);
     if (!rows.length) throw new AppError("Examination is outside your assignment scope",403);
-  } else if (actor.roles.includes("HOD") || actor.roles.includes("DEAN") || actor.roles.includes("DIRECTOR")) {
-    const ids = actor.roles.includes("DIRECTOR") ? await getDirectorDepartmentIds(institutionId, actor.id) : await getManagedDepartmentIds(institutionId, actor.id);
+  } else if (actor.roles.includes("HOD") || actor.roles.includes("DEAN") || isDirectorScoped(actor)) {
+    const ids = isDirectorScoped(actor) ? await getDirectorDepartmentIds(institutionId, actor.id) : await getManagedDepartmentIds(institutionId, actor.id);
     if (!ids.length) throw new AppError("No examination scope is assigned to this account",403);
     const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT es."id" FROM "exam_schedules" es
@@ -1196,7 +1196,7 @@ export async function createExamSchedule(
     );
   }
   await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
-  if (actor.roles.includes("DIRECTOR")) {
+  if (isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     const offering = await prisma.courseOffering.findFirst({
       where: { id: input.courseOfferingId, institutionId, semester: { program: { departmentId: { in: departmentIds } } } },
@@ -2848,7 +2848,7 @@ export async function listRevaluationRequests(
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`r."examScheduleId" = ${filters.examScheduleId}`);
   }
-  if (actor.roles.includes("DIRECTOR")) {
+  if (isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`EXISTS (
@@ -2869,7 +2869,7 @@ export async function listRevaluationRequests(
   } else if (
     !isInstitutionWide(actor) &&
     !actor.permissions.includes("exams.manage") &&
-    !actor.roles.includes("DIRECTOR")
+    !isDirectorScoped(actor)
   ) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
   }
@@ -3153,7 +3153,7 @@ export async function listExamIncidents(
   const conditions: Prisma.Sql[] = [
     Prisma.sql`i."institutionId" = ${institutionId}`,
   ];
-  if (actor.roles.includes("DIRECTOR")) {
+  if (isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`EXISTS (
@@ -3845,7 +3845,7 @@ export async function listExamMarkCorrectionRequests(
   pagination: PaginationParams,
 ) {
   assertExamApprover(actor);
-  const departmentIds = actor.roles.includes("DIRECTOR")
+  const departmentIds = isDirectorScoped(actor)
     ? await getDirectorDepartmentIds(institutionId, actor.id)
     : undefined;
   if (departmentIds && !departmentIds.length) return { items: [], total: 0 };

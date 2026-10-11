@@ -1633,6 +1633,14 @@ export async function createTimetableEntry(
   return row;
 }
 
+async function assertDirectorNoticeDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
+  const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!departmentId || !assignedDepartments.includes(departmentId)) {
+    throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+  }
+}
+
 export async function createNotice(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -1665,6 +1673,8 @@ export async function createNotice(
       400
     );
   }
+
+  await assertDirectorNoticeDepartment(institutionId, actor, input.departmentId);
 
   await assertDepartmentScope(
     institutionId,
@@ -2540,6 +2550,7 @@ export async function listNotices(
   const isParent = roles.includes("PARENT");
   const isFaculty = roles.includes("FACULTY");
   const isHod = roles.includes("HOD");
+  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
 
   if (
     !isStudent &&
@@ -2616,6 +2627,8 @@ export async function listNotices(
     );
   } else if (isHod) {
     departmentIds = await getHodDepartmentIds(institutionId, actor);
+  } else if (isDirectorWorkspace) {
+    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   }
 
   const audience =
@@ -2629,34 +2642,25 @@ export async function listNotices(
             ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
             : undefined;
 
-  const where: Prisma.NoticeWhereInput = {
-    institutionId,
-    AND: [
-      ...(includeExpired
-        ? []
-        : [
-            {
-              OR: [
-                { expiresAt: null },
-                { expiresAt: { gt: now } },
-              ],
-            },
-          ]),
-      ...(audience ? [{ audience: { in: audience } }] : []),
-      ...(isHod || isStudent || isParent
-        ? [
-            {
-              OR: [
-                { departmentId: null },
-                ...(departmentIds.length
-                  ? [{ departmentId: { in: departmentIds } }]
-                  : []),
-              ],
-            },
-          ]
-        : []),
-    ],
-  };
+  const andFilters: Prisma.NoticeWhereInput[] = [];
+  if (!includeExpired) {
+    andFilters.push({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
+  }
+  if (audience) {
+    andFilters.push({ audience: { in: audience } });
+  }
+  if (isHod || isStudent || isParent) {
+    const audienceDepartments: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
+    if (departmentIds.length) audienceDepartments.push({ departmentId: { in: departmentIds } });
+    andFilters.push({ OR: audienceDepartments });
+  }
+  if (isDirectorWorkspace) {
+    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
+    if (departmentIds.length) directorNoticeScope.push({ departmentId: { in: departmentIds } });
+    andFilters.push({ OR: directorNoticeScope });
+  }
+
+  const where: Prisma.NoticeWhereInput = { institutionId, AND: andFilters };
 
   return prisma.notice.findMany({
     where,
@@ -2699,6 +2703,9 @@ export async function updateNotice(
     input.departmentId === undefined
       ? existing.departmentId
       : input.departmentId;
+
+  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
+  await assertDirectorNoticeDepartment(institutionId, actor, departmentId);
 
   await assertDepartmentScope(
     institutionId,
@@ -2783,6 +2790,7 @@ export async function deleteNotice(
     throw new AppError("Notice not found", 404);
   }
 
+  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
   await assertDepartmentScope(
     institutionId,
     actor,

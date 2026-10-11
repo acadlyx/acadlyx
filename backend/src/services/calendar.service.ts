@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
+import { isDirectorScoped } from "./accessScope.service";
 import {
   CreateEventInput,
   UpdateEventInput,
@@ -12,6 +13,20 @@ import {
 type Meta = { ipAddress?: string; userAgent?: string };
 
 const AUDIENCE_ALL = ["ALL", "STUDENTS", "FACULTY", "STAFF"] as const;
+
+/**
+ * CalendarEvent has no campus ownership field. Until it does, the Director
+ * workspace must not read or mutate institution-wide calendar records.
+ * Campus-specific event management remains available through Events & Gallery.
+ */
+function assertCalendarCampusScopeSupported(actor: AuthenticatedUser): void {
+  if (isDirectorScoped(actor)) {
+    throw new AppError(
+      "Campus calendar records are not yet campus-scoped. Use Events & Gallery for assigned-campus events.",
+      409,
+    );
+  }
+}
 
 /**
  * Which audiences a viewer is entitled to see. Audience is a
@@ -56,6 +71,7 @@ export async function listEvents(
     search?: string;
   }
 ) {
+  assertCalendarCampusScopeSupported(actor);
   const allowed = visibleAudiences(actor);
   const audienceFilter =
     filters.audience && allowed.includes(filters.audience)
@@ -97,6 +113,7 @@ export async function getUpcoming(
   actor: AuthenticatedUser,
   limit = 10
 ) {
+  assertCalendarCampusScopeSupported(actor);
   return prisma.calendarEvent.findMany({
     where: {
       institutionId,
@@ -127,6 +144,7 @@ export async function createEvent(
   input: CreateEventInput,
   meta: Meta
 ) {
+  assertCalendarCampusScopeSupported(actor);
   await assertAcademicYear(institutionId, input.academicYearId);
 
   const event = await prisma.calendarEvent.create({
@@ -164,6 +182,7 @@ export async function updateEvent(
   input: UpdateEventInput,
   meta: Meta
 ) {
+  assertCalendarCampusScopeSupported(actor);
   const existing = await prisma.calendarEvent.findFirst({
     where: { id, institutionId },
   });
@@ -209,6 +228,7 @@ export async function deleteEvent(
   id: string,
   meta: Meta
 ) {
+  assertCalendarCampusScopeSupported(actor);
   const existing = await prisma.calendarEvent.findFirst({
     where: { id, institutionId },
     select: { id: true, title: true },

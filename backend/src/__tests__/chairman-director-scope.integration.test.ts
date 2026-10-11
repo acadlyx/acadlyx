@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { prisma } from "../lib/prisma";
 import { getDirectorDepartmentIds } from "../services/accessScope.service";
-import { approveFeeStructure, listFeeStructures } from "../services/feeStructure.service";
+import { approveFeeStructure, rejectFeeStructure, listFeeStructures } from "../services/feeStructure.service";
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
 import { getAttendanceReportOptions } from "../services/attendanceReport.service";
@@ -180,11 +180,13 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     const decisions = await Promise.allSettled([
       approveFeeStructure(institution.id, directorActor, raceFee.id),
-      approveFeeStructure(institution.id, directorActor, raceFee.id),
+      rejectFeeStructure(institution.id, directorActor, raceFee.id, "Concurrent rejection decision"),
     ]);
-    assert.equal(decisions.filter((decision) => decision.status === "fulfilled").length, 1, "only one concurrent approval may win");
-    assert.equal(decisions.filter((decision) => decision.status === "rejected").length, 1, "the losing approval must receive a conflict");
-    assert.equal(await prisma.auditLog.count({ where: { institutionId: institution.id, userId: director.id, action: "fee-structure.approve", entityId: raceFee.id } }), 1, "one state transition must produce exactly one audit row");
+    assert.equal(decisions.filter((decision) => decision.status === "fulfilled").length, 1, "only one competing approve/reject decision may win");
+    assert.equal(decisions.filter((decision) => decision.status === "rejected").length, 1, "the losing decision must receive a conflict");
+    const raceFinalStatus = (await prisma.feeStructure.findUnique({ where: { id: raceFee.id } }))?.status;
+    assert.ok(raceFinalStatus === "ACTIVE" || raceFinalStatus === "REJECTED", "the concurrent fee decision must reach exactly one terminal state");
+    assert.equal(await prisma.auditLog.count({ where: { institutionId: institution.id, userId: director.id, action: { in: ["fee-structure.approve", "fee-structure.reject"] }, entityId: raceFee.id } }), 1, "one state transition must produce exactly one audit row");
 
     const selfApprovalFee = await prisma.feeStructure.create({
       data: { institutionId: institution.id, name: "Maker checker fees", programId: programA.id, createdById: director.id, status: "PENDING_APPROVAL" },

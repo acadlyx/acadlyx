@@ -298,7 +298,9 @@ export async function getManagementWorkspace(
   }
 
   const now = new Date();
-  const isDirector = actor.roles.includes("DIRECTOR");
+  // Resolve scope from the active leadership workspace, not merely a secondary role.
+  // Users with both CHAIRMAN and DIRECTOR roles must retain institution-wide Chairman scope.
+  const isDirector = getWorkspaceType(actor) === "DIRECTOR";
   const directorCampusIds = isDirector
     ? await getDirectorCampusIds(institutionId, actor.id)
     : [];

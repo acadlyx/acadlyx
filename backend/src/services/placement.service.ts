@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, getStudentWhereScope, getAuthorizedDepartmentIds, hasAnyRole } from "./accessScope.service";
+import { assertCanViewStudent, getStudentWhereScope, getAuthorizedDepartmentIds, getDirectorCampusIds, hasAnyRole } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 const APPLICATION_TRANSITIONS: Record<string, string[]> = {
@@ -280,6 +280,11 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     throw new AppError("Placement intelligence access is not permitted.", 403);
   }
 
+  const directorScope = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  const directorCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && directorCampusIds.length === 0) throw new AppError("No campus scope is assigned to this director", 403);
+  const scopedDriveWhere: Prisma.PlacementDriveWhereInput = { institutionId, ...(directorScope ? { campusId: { in: directorCampusIds } } : {}) };
+  const scopedCompanyWhere: Prisma.PlacementCompanyWhereInput = { institutionId, ...(directorScope ? { drives: { some: { campusId: { in: directorCampusIds } } } } : {}) };
   const studentWhere: Prisma.UserWhereInput = await getPlacementStudentScope(institutionId, actor);
   const studentBaseWhere: Prisma.UserWhereInput = {
     AND: [
@@ -303,15 +308,15 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     companies,
     eligibleStudents,
   ] = await Promise.all([
-    prisma.placementDrive.count({ where: { institutionId } }),
-    prisma.placementDrive.count({ where: { institutionId, status: { in: ["PUBLISHED","APPLICATION_OPEN","SHORTLISTING","TEST","INTERVIEW"] } } }),
+    prisma.placementDrive.count({ where: scopedDriveWhere }),
+    prisma.placementDrive.count({ where: { ...scopedDriveWhere, status: { in: ["PUBLISHED","APPLICATION_OPEN","SHORTLISTING","TEST","INTERVIEW"] } } }),
     prisma.application.count({ where: applicationWhere }),
     prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
     prisma.placementOffer.count({ where: offerWhere }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "ACCEPTED" } }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "JOINED" } }),
     prisma.placementOffer.aggregate({ where: offerWhere, _avg: { totalCtc: true }, _max: { totalCtc: true }, _min: { totalCtc: true } }),
-    prisma.placementCompany.count({ where: { institutionId } }),
+    prisma.placementCompany.count({ where: scopedCompanyWhere }),
     prisma.user.count({ where: { institutionId, ...studentBaseWhere } }),
   ]);
 
@@ -336,7 +341,10 @@ export async function listPlacementCompanies(institutionId: string, actor: Authe
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  const where = { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
+  const directorScope = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  const directorCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && directorCampusIds.length === 0) throw new AppError("No campus scope is assigned to this director", 403);
+  const where = { institutionId, ...(directorScope ? { drives: { some: { campusId: { in: directorCampusIds } } } } : {}), ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
   if (isPlacementManager(actor)) {
     return prisma.placementCompany.findMany({
       where,
@@ -381,12 +389,16 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
+  const directorScope = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  const directorCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && directorCampusIds.length === 0) throw new AppError("No campus scope is assigned to this director", 403);
   const scopedDepartmentIds = hasAnyRole(actor, ["DEAN","HOD","FACULTY","DIRECTOR"]) ? await getAuthorizedDepartmentIds(institutionId, actor) : null;
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
   const rows = await prisma.placementDrive.findMany({
     where: {
       institutionId,
+      ...(directorScope ? { campusId: { in: directorCampusIds } } : {}),
       ...(options.status ? { status: options.status } : {}),
       ...(options.search ? { OR: [{ title: { contains: options.search, mode: "insensitive" } }, { company: { name: { contains: options.search, mode: "insensitive" } } }] } : {}),
       ...(actor.roles.includes("STUDENT") ? { status: { in: ["PUBLISHED","APPLICATION_OPEN","APPLICATION_CLOSED","SHORTLISTING","TEST","INTERVIEW","OFFERED"] } } : {}),
@@ -399,10 +411,16 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
   if (!scopedDepartmentIds) return rows;
   if (!scopedDepartmentIds.length) return [];
   const allowed = new Set(scopedDepartmentIds);
+  const campuses = new Set(directorCampusIds);
   return rows.filter((row) => {
     const ids = Array.isArray(row.eligibleDepartments)
       ? row.eligibleDepartments.filter((id): id is string => typeof id === "string")
       : [];
+    if (directorScope) {
+      const campusMatch = Boolean(row.campusId && campuses.has(row.campusId));
+      const departmentMatch = ids.length > 0 && ids.some((id) => allowed.has(id));
+      return campusMatch || departmentMatch;
+    }
     return ids.length === 0 || ids.some((id) => allowed.has(id));
   });
 }

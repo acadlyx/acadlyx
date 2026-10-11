@@ -88,6 +88,9 @@ export const createUserSchema =
         .array(z.string().uuid())
         .max(50)
         .optional(),
+
+    campusIds:
+      z.array(z.string().uuid()).max(50).optional(),
   });
 
 export const updateUserSchema =
@@ -158,6 +161,9 @@ export const updateUserSchema =
         .array(z.string().uuid())
         .max(50)
         .optional(),
+
+    campusIds:
+      z.array(z.string().uuid()).max(50).optional(),
   });
 
 export const listUsersQuerySchema =
