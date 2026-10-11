@@ -1245,6 +1245,7 @@ export async function updateExamSchedule(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
 
   if (["LOCKED", "RESULTS_PUBLISHED"].includes(schedule.status)) {
     throw new AppError(
@@ -1366,6 +1367,7 @@ export async function allocateSeating(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
   if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
     throw new AppError(
       "Seating cannot be changed after the schedule is locked",
@@ -1477,6 +1479,7 @@ export async function assignInvigilators(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
   if (["RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
     throw new AppError(
       "Invigilation cannot be changed after results are published",
