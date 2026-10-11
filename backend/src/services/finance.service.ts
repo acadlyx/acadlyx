@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
-import { makeFile } from "./export.service";
+import { ExportFormat, ExportType, makeFile } from "./export.service";
 import { getDirectorCampusIds } from "./accessScope.service";
 
 type Scope={institutionId:string;studentIds?:string[];departmentIds?:string[];campusIds?:string[]};
@@ -260,7 +260,7 @@ export async function transactions(institutionId:string,a:AuthenticatedUser){
  return prisma.feeTransaction.findMany({where:{institutionId,...studentFinancialFilter(s)},orderBy:{createdAt:"desc"},take:500});
 }
 
-export async function exportFinancial(institutionId:string,a:AuthenticatedUser,type:string,format:"xlsx"|"csv"){
+export async function exportFinancial(institutionId:string,a:AuthenticatedUser,type:"invoices"|"payments"|"receipts"|"transactions",format:ExportFormat){
  if(!has(a,"fees.reports.export")&&!has(a,"fees.read"))throw new AppError("Financial export permission required",403);
  const s=await scope(institutionId,a); let rows:any[]=[];
  if(type==="invoices"){const xs=await prisma.feeInvoice.findMany({where:invoiceWhere(s),include:{student:{include:{profile:true}},payments:true},orderBy:{createdAt:"desc"}});rows=xs.map(x=>({invoiceNumber:x.invoiceNumber,title:x.title,student:x.student.email,admissionNumber:x.student.profile?.admissionNumber||null,amount:Number(x.amount),paid:Number(x.paidAmount),refunded:Number(x.refundedAmount),outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount)-Number(x.refundedAmount)),status:x.status,dueDate:x.dueDate?.toISOString()||null}));}
@@ -268,7 +268,8 @@ export async function exportFinancial(institutionId:string,a:AuthenticatedUser,t
  else if(type==="receipts"){const xs=await prisma.feeReceipt.findMany({where:{institutionId,...studentFinancialFilter(s)},include:{payment:true,invoice:true,student:true},orderBy:{issuedAt:"desc"}});rows=xs.map(x=>({receiptNumber:x.receiptNumber,invoiceNumber:x.invoice.invoiceNumber,student:x.student.email,amount:Number(x.payment.amount),method:x.payment.method,issuedAt:x.issuedAt.toISOString()}));}
  else if(type==="transactions"){const xs=await prisma.feeTransaction.findMany({where:{institutionId,...studentFinancialFilter(s)},orderBy:{createdAt:"desc"}});rows=xs.map(x=>({type:x.type,amount:Number(x.amount),reference:x.reference||null,invoiceId:x.invoiceId||null,studentId:x.studentId||null,createdAt:x.createdAt.toISOString()}));}
  else throw new AppError("Unsupported financial export type",400);
- return makeFile(rows,type as any,format);
+ const fileType: Record<typeof type, ExportType> = { invoices: "fees", payments: "fee-payments", receipts: "fee-receipts", transactions: "fee-transactions" };
+ return makeFile(rows,fileType[type],format);
 }
 
 export async function auditTrail(institutionId:string,a:AuthenticatedUser){if(!has(a,"fees.read")&&!has(a,"audit.read"))throw new AppError("Financial audit visibility permission required",403);const s=await scope(institutionId,a);const inv=await prisma.feeInvoice.findMany({where:invoiceWhere(s),select:{id:true}});const ids=inv.map(x=>x.id);const payments=ids.length?await prisma.feePayment.findMany({where:{institutionId,invoiceId:{in:ids}},select:{id:true}}):[];const entityIds=[...ids,...payments.map(x=>x.id)];return prisma.auditLog.findMany({where:{institutionId,action:{startsWith:"finance."},...(entityIds.length?{entityId:{in:entityIds}}:{entityId:"__none__"})},orderBy:{createdAt:"desc"},take:500})}
