@@ -26,6 +26,10 @@ const shortcuts = [
   ["Notices", "/director/notices"],
   ["Notifications", "/director/notifications"],
   ["Events & Gallery", "/director/events-gallery"],
+  ["Campus calendar", "/director/calendar"],
+  ["Notices", "/director/notices"],
+  ["Notifications", "/director/notifications"],
+  ["Events & Gallery", "/director/events-gallery"],
 ] as const;
 
 export function DirectorDashboard() {
