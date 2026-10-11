@@ -325,11 +325,11 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
-    label: "Fee structures",
+    label: "Fee Structures",
     href: "/chairman/fees/structures",
     icon: "₹",
     roles: ["CHAIRMAN"],
-    permissions: ["fees.structure.read"],
+    permissions: ["fees.structure.manage"],
     group: "Finance",
     activeMatch: "nested",
   },
@@ -396,14 +396,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["CHAIRMAN"],
     permissions: ["fees.read"],
     group: "Oversight",
-  },
-  {
-    label: "Fee Structures",
-    href: "/chairman/fees/structures",
-    icon: "₹",
-    roles: ["CHAIRMAN"],
-    permissions: ["fees.structure.manage"],
-    group: "Finance",
   },
   {
     label: "Academic oversight",
