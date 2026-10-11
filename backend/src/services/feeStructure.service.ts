@@ -1162,8 +1162,8 @@ export async function updateFeeStructure(
     input.status ??
     (current.status as FeeStructureStatus);
 
-  if (status === "ACTIVE" && current.status !== "ACTIVE" && !actor.permissions.includes("fees.structure.approve")) {
-    throw new AppError("Only an authorized fee approver may activate a fee structure", 403);
+  if (input.status === "ACTIVE") {
+    throw new AppError("Fee structures must be activated through the explicit approval workflow", 409);
   }
 
   if (
