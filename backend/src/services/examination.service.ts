@@ -546,9 +546,11 @@ async function assertDirectorCanAccessSession(
 
   const sessionCampuses = jsonStringArray(session.campusIds);
   const sessionDepartments = jsonStringArray(session.departmentIds);
-  if (sessionCampuses.length || sessionDepartments.length) {
-    if (sessionCampuses.some((id) => campusIds.includes(id)) || sessionDepartments.some((id) => departmentIds.includes(id))) return;
+  if (sessionCampuses.some((id) => !campusIds.includes(id)) ||
+      sessionDepartments.some((id) => !departmentIds.includes(id))) {
+    throw new AppError("Examination session not found in the assigned scope", 404);
   }
+  if (sessionCampuses.length || sessionDepartments.length) return;
 
   const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT es."id"
@@ -885,13 +887,15 @@ export async function updateExamSessionStatus(
     }
   }
 
-  await prisma.$executeRaw`
+  const changed = await prisma.$executeRaw`
     UPDATE "exam_sessions"
     SET "status" = ${status},
         "resultPublishedAt" = CASE WHEN ${status} = 'PUBLISHED'
           THEN CURRENT_TIMESTAMP ELSE "resultPublishedAt" END
     WHERE "id" = ${examSessionId} AND "institutionId" = ${institutionId}
+      AND "status" = ${session.status}
   `;
+  if (changed !== 1) throw new AppError("This examination session changed concurrently; reload and retry", 409);
 
   await recordAuditLog({
     institutionId,
