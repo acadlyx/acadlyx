@@ -205,7 +205,7 @@ export default function DirectorAdmissionsPage() {
   }
 
   return (
-    <DashboardShell title="Admission Management" subtitle="Applications, review and selection">
+    <DashboardShell title="Director Admissions" subtitle="Admissions applications within the Director workspace" allowedRoles={["DIRECTOR"]}>
       <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
         <DataExportActions type="admission-applications" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(status ? { status } : {}), ...(programFilter ? { programId: programFilter } : {}), ...(yearFilter ? { academicYearId: yearFilter } : {}) }} compact />
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
