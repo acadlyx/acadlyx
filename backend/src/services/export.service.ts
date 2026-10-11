@@ -537,12 +537,26 @@ export async function exportData(
   const scopedDepartmentFilter = { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] };
   const scopedStudentFilter = {
     student: {
-      studentEnrollments: {
-        some: {
-          institutionId,
-          program: { departmentId: scopedDepartmentFilter },
+      AND: [
+        {
+          studentEnrollments: {
+            some: {
+              institutionId,
+              program: { departmentId: scopedDepartmentFilter },
+            },
+          },
         },
-      },
+        {
+          NOT: {
+            studentEnrollments: {
+              some: {
+                institutionId,
+                program: { departmentId: { notIn: scope.departmentIds } },
+              },
+            },
+          },
+        },
+      ],
     },
   };
   const rows: Row[] = [];
