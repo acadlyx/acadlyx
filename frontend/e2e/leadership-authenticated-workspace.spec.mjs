@@ -83,7 +83,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
 test("authenticated Chairman workspace keeps institution-wide navigation role-owned", async ({ page }) => {
   await installAuthenticatedSession(page, "CHAIRMAN");
   await page.goto(baseURL + "/chairman", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: /Chairman Command Center/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Institutional Command Center/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/chairman/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/chairman/students");
   await expect(page.getByRole("link", { name: /Fees/i }).first()).toHaveAttribute("href", "/chairman/fees");
