@@ -388,7 +388,7 @@ export default function StudentProfilePage({
       } else {
         setError(
           reason instanceof Error
-            ? reason.message
+            ? "The requested student action could not be completed. Refresh the profile and try again."
             : "Unable to load the student profile.",
         );
       }
@@ -464,7 +464,7 @@ export default function StudentProfilePage({
     } catch (reason) {
       setError(
         reason instanceof Error
-          ? reason.message
+          ? "The requested student action could not be completed. Refresh the profile and try again."
           : "Unable to save the student master profile.",
       );
     } finally {
@@ -515,7 +515,7 @@ export default function StudentProfilePage({
     } catch (reason) {
       setError(
         reason instanceof Error
-          ? reason.message
+          ? "The requested student action could not be completed. Refresh the profile and try again."
           : "Unable to create the parent link.",
       );
     } finally {
@@ -550,7 +550,7 @@ export default function StudentProfilePage({
     } catch (reason) {
       setError(
         reason instanceof Error
-          ? reason.message
+          ? "The requested student action could not be completed. Refresh the profile and try again."
           : "Unable to remove the parent link.",
       );
     } finally {
