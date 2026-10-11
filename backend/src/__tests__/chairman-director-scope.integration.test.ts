@@ -166,6 +166,26 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     assert.deepEqual(visibleFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id].sort());
     assert.ok(!visibleFees.some((row) => row.id === feeB.id || row.id === semesterFeeB.id), "program- and semester-linked structures at another campus must not be returned to the Director");
+
+    const chairmanActor = {
+      id: chairman.id, institutionId: institution.id, email: chairman.email,
+      roles: ["CHAIRMAN"], permissions: ["fees.structure.read", "fees.reports.export", "students.read", "attendance.read"],
+    };
+    const chairmanFees = await listFeeStructures(institution.id, chairmanActor);
+    assert.deepEqual(
+      chairmanFees.map((row) => row.id).sort(),
+      [feeA.id, feeB.id, semesterFeeA.id, semesterFeeB.id].sort(),
+      "Chairman fee reads must span assigned and unassigned campuses within the same institution",
+    );
+    const chairmanFeeExport = await exportData(institution.id, chairmanActor, "fee-structures", "json");
+    const chairmanExportedFees = JSON.parse(chairmanFeeExport.buffer.toString("utf8")) as Array<{ id: string }>;
+    assert.deepEqual(
+      chairmanExportedFees.map((row) => row.id).sort(),
+      [feeA.id, feeB.id, semesterFeeA.id, semesterFeeB.id].sort(),
+      "Chairman exports must remain institution-wide rather than inheriting Director campus scope",
+    );
+    const chairmanReport = await getInstitutionInsights(institution.id, {});
+    assert.equal(chairmanReport.kpis.departments, 2, "Chairman reports must include both campuses' departments");
     await approveFeeStructure(institution.id, directorActor, feeA.id);
     await approveFeeStructure(institution.id, directorActor, semesterFeeA.id);
     await assert.rejects(() => approveFeeStructure(institution.id, directorActor, feeB.id), /not found|assigned scope/i);
