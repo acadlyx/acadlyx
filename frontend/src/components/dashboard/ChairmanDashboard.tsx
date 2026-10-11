@@ -16,12 +16,7 @@ const metrics = [
   ["Exam results", "examResults", "count"],
 ] as const;
 
-const shortcuts = [
-  ["Examination operations", "/chairman/examinations/operations"],
-  ["Institution intelligence", "/chairman/intelligence"],
-  ["Fee structures", "/chairman/fees/structures"],
-  ["Notices", "/chairman/notices"],
-] as const;
+
 
 export function ChairmanDashboard() {
   const router = useRouter();
