@@ -403,6 +403,14 @@ export async function getUserById(
           },
         },
       },
+      campusAccesses: {
+        where: { scope: "DIRECTOR" },
+        select: {
+          campusId: true,
+          scope: true,
+          campus: { select: { id: true, name: true, code: true, isActive: true } },
+        },
+      },
     },
   });
 
@@ -473,6 +481,42 @@ async function validateDepartmentIds(
   }
 
   return ids;
+}
+
+async function validateCampusIds(campusIds: string[] | undefined, institutionId: string | null, roleName: string) {
+  const ids = Array.from(new Set(campusIds || []));
+  if (roleName === "DIRECTOR" && campusIds !== undefined && ids.length === 0) {
+    throw new AppError("A Director must be assigned to at least one campus", 400);
+  }
+  if (roleName === "DIRECTOR" && campusIds === undefined) {
+    throw new AppError("Assign at least one campus to this Director", 400);
+  }
+  if (roleName !== "DIRECTOR" && ids.length > 0) {
+    throw new AppError("Campus access can only be assigned to Director accounts", 400);
+  }
+  if (!ids.length) return ids;
+  if (!institutionId) throw new AppError("Campus access requires an institution-scoped user", 400);
+  const campuses = await prisma.campus.findMany({
+    where: { id: { in: ids }, institutionId, isActive: true },
+    select: { id: true },
+  });
+  if (campuses.length !== ids.length) throw new AppError("One or more selected campuses do not belong to this institution or are inactive", 400);
+  return ids;
+}
+
+async function syncCampusAccess(tx: Prisma.TransactionClient, userId: string, institutionId: string | null, roleName: string, campusIds: string[] | undefined) {
+  if (roleName !== "DIRECTOR") {
+    await tx.campusAccess.deleteMany({ where: { userId } });
+    return;
+  }
+  if (campusIds === undefined) {
+    const count = await tx.campusAccess.count({ where: { userId, scope: "DIRECTOR", campus: { institutionId: institutionId || undefined } } });
+    if (!count) throw new AppError("A Director must have at least one campus assigned", 400);
+    return;
+  }
+  const ids = await validateCampusIds(campusIds, institutionId, roleName);
+  await tx.campusAccess.deleteMany({ where: { userId } });
+  await tx.campusAccess.createMany({ data: ids.map((campusId) => ({ userId, campusId, scope: "DIRECTOR" })) });
 }
 
 async function syncDepartmentAccess(
@@ -788,6 +832,7 @@ export async function createUser(
     targetInstitutionId,
     input.role,
   );
+  await validateCampusIds(input.campusIds, targetInstitutionId, input.role);
 
   const passwordHash =
     await hashPassword(input.password);
@@ -827,6 +872,7 @@ export async function createUser(
           input.role,
           input.departmentIds,
         );
+        await syncCampusAccess(tx, created.id, targetInstitutionId, input.role, input.campusIds);
 
         return created;
       }
@@ -1114,6 +1160,7 @@ export async function updateUser(
       existing.institutionId,
       input.role,
     );
+    await validateCampusIds(input.campusIds, existing.institutionId, input.role);
 
     await prisma.$transaction(
       async (tx) => {
@@ -1211,6 +1258,7 @@ export async function updateUser(
           resolvedTargetRoleName,
           input.departmentIds,
         );
+        await syncCampusAccess(tx, id, existing.institutionId, resolvedTargetRoleName, input.campusIds);
 
         if (input.isActive === false || requestedPasswordHash !== undefined) {
           await tx.refreshToken.updateMany({
@@ -1289,6 +1337,9 @@ export async function updateUser(
         resolvedTargetRoleName,
         input.departmentIds,
       );
+      if (input.campusIds !== undefined || input.role !== undefined) {
+        await syncCampusAccess(tx, id, existing.institutionId, resolvedTargetRoleName, input.campusIds);
+      }
 
       if (input.isActive === false || requestedPasswordHash !== undefined) {
         await tx.refreshToken.updateMany({
