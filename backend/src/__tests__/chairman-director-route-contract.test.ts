@@ -305,7 +305,7 @@ test("Director student list and profile responses filter nested enrollments to a
   const service = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
   assert.ok(service.includes("const scopedStudentListInclude = directorDepartmentIds"));
   assert.ok(service.includes("include: scopedStudentListInclude"));
-  assert.ok(service.includes("if (actor?.roles.includes(\"DIRECTOR\"))"));
+  assert.ok(service.includes("if (actor && isDirectorScoped(actor))"));
   assert.ok(service.includes('in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"]'));
 });
 
