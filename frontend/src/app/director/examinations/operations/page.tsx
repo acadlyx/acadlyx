@@ -114,7 +114,7 @@ export default function DirectorExaminationOperationsPage() {
     try { await fn(); }
     catch (e) {
       if (e instanceof AuthRequiredError) { window.location.href = "/login"; return; }
-      setError(e instanceof Error ? e.message : "Examination operation failed.");
+      setError("The examination action could not be completed. Refresh the current scope and try again.");
     } finally { setBusy(false); }
   }
 
@@ -144,7 +144,7 @@ export default function DirectorExaminationOperationsPage() {
       setSchedules(details.flatMap((d: any) => (d?.schedules ?? []).map((x: any) => ({ ...x, examName: d.name, examType: d.examType }))));
     } catch (e) {
       if (e instanceof AuthRequiredError) { window.location.href = "/login"; return; }
-      setError(e instanceof Error ? e.message : "Unable to load examination workspace.");
+      setError("Examination data is temporarily unavailable. Retry to refresh the assigned campus scope.");
     } finally { setLoading(false); }
   }
 
