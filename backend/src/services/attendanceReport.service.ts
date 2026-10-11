@@ -8,6 +8,7 @@ import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
   INSTITUTION_WIDE_ROLES,
+  isDirectorScoped,
 } from "./accessScope.service";
 import { AttendanceReportQuery } from "../validators/attendanceReport.validators";
 import { ExportFormat, makeFile } from "./export.service";
@@ -130,7 +131,7 @@ function isHod(
 }
 
 function isDirector(actor: AuthenticatedUser): boolean {
-  return canonicalRoles(actor).has("DIRECTOR");
+  return isDirectorScoped(actor);
 }
 
 function isInstitutionWide(
