@@ -832,13 +832,16 @@ export async function returnBook(
     }
 
     if (existing.copyId) {
-      await tx.libraryBookCopy.updateMany({
+      const copyUpdate = await tx.libraryBookCopy.updateMany({
         where: { id: existing.copyId, institutionId, bookId: existing.bookId },
         data: {
           status: input.condition === "RETURNED" ? "AVAILABLE" : input.condition,
           condition: input.condition === "RETURNED" ? "GOOD" : input.damageSeverity ?? input.condition,
         },
       });
+      if (copyUpdate.count !== 1) {
+        throw new AppError("The loan's book copy no longer exists in this institution; no return changes were saved", 409);
+      }
       // Derive counters from canonical copy rows so returned/damaged/lost
       // copies cannot leave book-level inventory out of sync.
       await syncBookInventory(tx, institutionId, existing.bookId);
