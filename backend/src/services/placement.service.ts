@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, getStudentWhereScope, getAuthorizedDepartmentIds, hasAnyRole } from "./accessScope.service";
+import { assertCanViewStudent, getStudentWhereScope, getAuthorizedDepartmentIds, getDirectorCampusIds, hasAnyRole } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 
 const APPLICATION_TRANSITIONS: Record<string, string[]> = {
