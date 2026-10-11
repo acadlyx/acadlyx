@@ -6,7 +6,7 @@ const optionalDate = z.coerce.date().optional();
 
 export const attendanceReportQuery = z
   .object({
-    format: z.enum(["xlsx", "csv"]).default("xlsx"),
+    format: z.enum(["xlsx", "csv", "docx", "pdf", "json"]).default("xlsx"),
     dateFrom: optionalDate,
     dateTo: optionalDate,
     departmentId: optionalUuid,
