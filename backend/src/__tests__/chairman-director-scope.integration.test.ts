@@ -108,6 +108,13 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
       prisma.user.create({ data: { institutionId: institution.id, email: "student-a-" + suffix + "@scope-test.invalid", idNumber: "SA-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Assigned", lastName: "Student" } }),
       prisma.user.create({ data: { institutionId: institution.id, email: "student-b-" + suffix + "@scope-test.invalid", idNumber: "SB-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Other", lastName: "Student" } }),
     ]);
+    const studentRole = await prisma.role.create({
+      data: { institutionId: institution.id, name: "STUDENT", isSystem: true },
+    });
+    await Promise.all([
+      prisma.userRole.create({ data: { userId: studentA.id, roleId: studentRole.id } }),
+      prisma.userRole.create({ data: { userId: studentB.id, roleId: studentRole.id } }),
+    ]);
     await Promise.all([
       prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentA.id, programId: programA.id, academicYearId: academicYear.id, semesterId: semesterA.id, sectionId: sectionA.id } }),
       prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentB.id, programId: programB.id, academicYearId: academicYear.id, semesterId: semesterB.id, sectionId: sectionB.id } }),
