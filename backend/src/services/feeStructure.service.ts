@@ -1277,7 +1277,7 @@ export async function updateFeeStructure(
             "notes" = ${
               input.notes === undefined
                 ? current.status === "REJECTED"
-                  ? current.notes?.split("\\n[Approval rejection] ")[0] ?? null
+                  ? current.notes?.split("\n[Approval rejection] ")[0] ?? null
                   : current.notes
                 : input.notes?.trim() || null
             }
