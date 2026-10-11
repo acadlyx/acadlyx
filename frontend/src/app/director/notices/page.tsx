@@ -86,7 +86,7 @@ function noticeAccent(audience?: string) {
   return "bg-slate-100 text-slate-700";
 }
 
-export default function DirectorNoticesPage {
+export default function DirectorNoticesPage() {
   const router = useRouter();
 
   const [notices, setNotices] = useState<ErpNotice[]>([]);
