@@ -181,6 +181,10 @@ const FINANCE_EXPORT_TYPES = new Set<ExportType>([
   "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
   "fee-heads", "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions", "fee-audit",
 ]);
+const DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES = new Set<ExportType>([
+  "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
+  "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions",
+]);
 
 const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "library-books": ["LIBRARIAN"],
@@ -225,13 +229,14 @@ async function assertExportAccess(
   if (!scopedAcademicRole) {
     throw new AppError("Export is not available for this role", 403);
   }
-  if (FINANCE_EXPORT_TYPES.has(type) || type === "users") {
+  const directorScopedFinance = roles.has("DIRECTOR") && DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type);
+  if ((FINANCE_EXPORT_TYPES.has(type) && !directorScopedFinance) || type === "users") {
     throw new AppError("This export requires institution-wide finance or user-directory authority", 403);
   }
   if (type === "campuses" && !roles.has("DIRECTOR")) {
     throw new AppError("Campus export requires an assigned Director campus scope", 403);
   }
-  if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses") {
+  if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses" && !directorScopedFinance) {
     throw new AppError("This dataset does not support scoped export for this role", 403);
   }
   const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
@@ -526,6 +531,16 @@ export async function exportData(
   const scope = await assertExportAccess(institutionId, actor, type);
   const noScopeSentinel = "__NO_AUTHORIZED_SCOPE__";
   const scopedDepartmentFilter = { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] };
+  const scopedStudentFilter = {
+    student: {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          program: { departmentId: scopedDepartmentFilter },
+        },
+      },
+    },
+  };
   const rows: Row[] = [];
 
   if (type === "users") {
@@ -652,13 +667,13 @@ export async function exportData(
   }
 
   if (type === "fee-structures") {
-    const data = await prisma.$queryRaw<Array<any>>`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ORDER BY fs."name", fsi."installmentNumber", fh."code"`;
+    const data = await prisma.$queryRaw<Array<any>>(Prisma.sql`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ${scope.institutionWide ? Prisma.empty : Prisma.sql`AND fs."programId" IN (SELECT p."id" FROM "programs" p WHERE p."institutionId" = ${institutionId} AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])}))`} ORDER BY fs."name", fsi."installmentNumber", fh."code"`);
     for (const r of data) rows.push({ id: r.id, name: r.name, status: r.status, currency: r.currency, notes: r.notes, academicYearId: r.academicYearId, programId: r.programId, semesterId: r.semesterId, feeHeadCode: r.feeHeadCode, feeHeadName: r.feeHeadName, amount: r.amount, dueDays: r.dueDays, installmentNumber: r.installmentNumber });
   }
 
   if (type === "fees" || type === "fee-payments" || type === "paid-fees" || type === "outstanding-dues") {
     const data = await collectInBatches((skip, take) => prisma.feeInvoice.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : scopedStudentFilter) },
       include: { student: { include: { profile: true } }, payments: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -699,7 +714,7 @@ export async function exportData(
 
   if (type === "fee-receipts") {
     const data = await collectInBatches((skip, take) => prisma.feeReceipt.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : scopedStudentFilter) },
       include: { payment: true, invoice: true, student: { include: { profile: true } } },
       orderBy: { issuedAt: "desc" },
     }));
@@ -708,7 +723,7 @@ export async function exportData(
 
   if (type === "fee-transactions") {
     const data = await collectInBatches((skip, take) => prisma.feeTransaction.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -717,7 +732,7 @@ export async function exportData(
 
   if (type === "fee-refunds") {
     const data = await collectInBatches((skip, take) => prisma.feeRefund.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true, payment: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -726,7 +741,7 @@ export async function exportData(
 
   if (type === "fee-concessions") {
     const data = await collectInBatches((skip, take) => prisma.feeConcession.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true, feeStructure: true },
       orderBy: { createdAt: "desc" },
     }));
