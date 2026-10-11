@@ -172,3 +172,17 @@ Record command output and environment details; do not convert unavailable checks
 - The current change after that verified code commit is documentation-only. A new CI run is still required for the documentation tip before treating that exact tip as verified.
 - Release remains **NO-GO for full production readiness** until authenticated browser workflows exercise real role sessions and every operational button/action, and the complete end-to-end matrix for scheduling, marks approval, publication, revaluation, exports/downloads, and cross-campus mutation denial is recorded. Do not infer full E2E coverage from route smoke tests.
 - Production branch observation: PRs #47–#49 are already in its history through `4962070`; this batch did not initiate those merges. Follow-on commits after that merge base remain isolated on this implementation branch.
+
+## Workspace simplification and scope hardening — 2026-10-11 follow-up
+
+- Simplified Chairman and Director dashboards to four primary actions each; the sidebar is the primary module navigator.
+- Removed the Institutional CMS sidebar entry from leadership workspaces and removed the shared Events & Gallery sidebar destination for Chairman/Director.
+- Added dedicated Chairman/Director Notices, Notifications and Events & Gallery routes, including create/detail/edit event routes that remain within the correct workspace.
+- Added explicit campus scope enforcement for Director event listing, event creation/update/deletion and gallery media mutations; published institution-wide events remain read-only visible where appropriate.
+- Added Director campus/program scope to admissions list, detail, create, update, status transition and enrollment flows. A missing CampusAccess assignment is a configuration blocker, not permission to widen to institution-wide data.
+- Added Director notice scope to list/create/update/delete. Director-created notices must target a department in an assigned campus; Chairman can create institution-wide notices.
+- Added a Chairman-only, audited direct publication endpoint for DRAFT fee structures. The Chairman approval route now redirects to the create/publish page; Director approval remains separate.
+- Fixed nested route permission matching so role-owned pages are checked against their own route contracts instead of a generic route belonging to another workspace.
+- Chairman scope now wins over secondary Director role membership for the management workspace, intelligence scope and fee-structure queries.
+
+Verification still requires the current GitHub Actions run to pass. The Director metrics banner now distinguishes a 403 campus-scope/configuration issue from a transient metrics outage; no institution-wide fallback or fabricated zero values are used.
