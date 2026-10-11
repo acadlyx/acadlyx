@@ -206,3 +206,23 @@ test("Director export and attendance reporting enforce campus-derived department
   assert.ok(attendance.includes('label: "Assigned campus scope"'));
   assert.ok(attendance.includes('"__NO_AUTHORIZED_SCOPE__"'), "an empty Director assignment must not broaden attendance reporting");
 });
+
+
+test("Fee and examination decisions persist state transitions with audit history atomically", () => {
+  const fees = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  for (const action of ["approveFeeStructure", "rejectFeeStructure"]) {
+    const start = fees.indexOf(`export async function ${action}(`);
+    const end = fees.indexOf("\nexport async function ", start + 1);
+    const body = fees.slice(start, end < 0 ? undefined : end);
+    assert.ok(body.includes("prisma.$transaction"), `${action} must transact the decision`);
+    assert.ok(body.includes("tx.auditLog.create"), `${action} must atomically write an audit row`);
+  }
+  for (const action of ["approveExamMarks", "lockExamSchedule", "publishExamResults", "decideRevaluation", "decideExamIncident", "decideExamMarkCorrection"]) {
+    const start = exams.indexOf(`export async function ${action}(`);
+    const end = exams.indexOf("\nexport async function ", start + 1);
+    const body = exams.slice(start, end < 0 ? undefined : end);
+    assert.ok(body.includes("tx.auditLog.create"), `${action} must persist an audit row in the transaction`);
+  }
+  assert.ok(exams.includes('FOR UPDATE'), "mark and schedule decisions must serialize competing writes");
+});
