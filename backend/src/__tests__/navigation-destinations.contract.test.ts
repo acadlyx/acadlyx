@@ -6,6 +6,8 @@ import test from "node:test";
 const frontend = join(process.cwd(), "../frontend/src");
 const appRoot = join(frontend, "app");
 const navigationSource = readFileSync(join(frontend, "lib/navigation.ts"), "utf8");
+const adminNavigationSource = readFileSync(join(frontend, "lib/adminNavigation.ts"), "utf8");
+const dashboardShellSource = readFileSync(join(frontend, "components/dashboard/DashboardShell.tsx"), "utf8");
 
 function navigationObjects() {
   const declaration = navigationSource.indexOf("export const ROLE_NAVIGATION");
@@ -71,8 +73,19 @@ function routeExists(href: string) {
 test("every literal ROLE_NAVIGATION destination resolves to an App Router page", () => {
   const items = navigationObjects();
   assert.ok(items.length > 100, "navigation parser should inspect the real role navigation inventory");
-  const missing = [...new Set(items.map((item) => item.href).filter((href) => !routeExists(href)))];
-  assert.deepEqual(missing, [], "sidebar hrefs must not point to missing pages");
+  const adminHrefs = [...adminNavigationSource.matchAll(/href:\s*"([^"]+)"/g)].map((match) => match[1]);
+  const overridesStart = dashboardShellSource.indexOf("const ROLE_ROUTE_OVERRIDES");
+  const overridesEnd = dashboardShellSource.indexOf("\\n};", overridesStart);
+  const overridesSource = dashboardShellSource.slice(overridesStart, overridesEnd);
+  const roleOwnedHrefs = [...overridesSource.matchAll(/:\s*"([^"]+)"/g)].map((match) => match[1]);
+  const allDestinations = [...new Set([
+    ...items.map((item) => item.href),
+    ...adminHrefs,
+    ...roleOwnedHrefs,
+    "/account-security",
+  ])];
+  const missing = allDestinations.filter((href) => !routeExists(href));
+  assert.deepEqual(missing, [], "sidebar and role-owned hrefs must not point to missing pages");
 });
 
 test("a role never receives two sidebar entries for the same destination", () => {
