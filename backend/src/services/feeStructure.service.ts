@@ -992,13 +992,13 @@ export async function publishFeeStructure(
   }
   await assertFeeStructureInActorScope(institutionId, actor, structureId);
   const changed = await prisma.$transaction(async (tx) => {
-    const count = await tx.$executeRaw(Prisma.sql\x60
+    const count = await tx.$executeRaw(Prisma.sql`
       UPDATE "fee_structures"
       SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = \x24{structureId}
-        AND "institutionId" = \x24{institutionId}
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
         AND "status" = 'DRAFT'
-    \x60);
+    `);
     if (count !== 1) return count;
     await tx.auditLog.create({
       data: {
@@ -1010,10 +1010,10 @@ export async function publishFeeStructure(
     return count;
   });
   if (changed !== 1) {
-    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql\x60
+    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
       SELECT "status" FROM "fee_structures"
-      WHERE "id" = \x24{structureId} AND "institutionId" = \x24{institutionId} LIMIT 1
-    \x60);
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId} LIMIT 1
+    `);
     if (!rows[0]) throw new AppError("Fee structure not found", 404);
     throw new AppError("Only a DRAFT fee structure can be published directly", 409);
   }
