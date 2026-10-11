@@ -86,4 +86,5 @@ test("fee structure activation is only possible through pending approval and can
   assert.match(update, /current\.status === "REJECTED"\s*\?\s*"DRAFT"/);
   assert.match(update, /AND "status" = \$\{current\.status\}/);
   assert.match(update, /if \(changed !== 1\)/);
+  assert.match(update, /current\.notes\?\.split\("\\n\[Approval rejection\] "\)\[0\]/);
 });
