@@ -186,3 +186,17 @@ Record command output and environment details; do not convert unavailable checks
 - Chairman scope now wins over secondary Director role membership for the management workspace, intelligence scope and fee-structure queries.
 
 Verification still requires the current GitHub Actions run to pass. The Director metrics banner now distinguishes a 403 campus-scope/configuration issue from a transient metrics outage; no institution-wide fallback or fabricated zero values are used.
+
+
+## Batch 13 — Leadership workspace navigation, campus assignment and publication flow (2026-10-11)
+
+- Simplified Chairman and Director landing pages to use the persistent sidebar as the primary navigation instead of duplicating a large shortcut grid. Sidebar entries now lead to role-owned destinations; Website CMS was removed from the Director-visible navigation.
+- Corrected role-owned route matching to prefer the most specific destination so nested routes inherit the intended permission contract. Replaced the Director import alias and Chairman/Director OBE aliases with separate route files.
+- Added Chairman- and Director-owned Events & Gallery create, detail and edit routes. The shared event editor/detail logic accepts a workspace base path so save, edit, delete and return actions remain in the current workspace.
+- Removed the Chairman fee-approval call to action. The Chairman fee-structure workspace exposes the existing direct-publish action for DRAFT structures; ACTIVE structures remain assignable by Accounts through the finance workflow.
+- Extended Admin user create/edit forms with role-specific scope controls. HODs receive department assignment, Directors require one or more active campuses, and Chairman accounts are explicitly institution-wide. Backend user validation and transactional CampusAccess synchronization enforce the assignments; user-list/detail responses now include assigned campus records.
+- Improved the Director dashboard's missing-scope recovery message. It points Admin to the exact user-edit flow instead of presenting an unexplained metric failure.
+- Tightened Director notice listing to include only published institution-wide notices and department notices in the assigned campus scope. Tightened placement metrics, company listing and drive listing to use CampusAccess campus IDs and assigned departments; drives with no eligible departments no longer fall through as institution-wide records.
+- The general calendar model has no campus foreign key. To avoid presenting an unscoped institution calendar as a Director campus workspace, its Director sidebar link and redirect mapping were removed pending a properly scoped calendar model.
+- Verification must be read from the latest workflow run after this batch; earlier runs caught invalid function declarations in role-specific notices/notifications pages, malformed SQL template literals in direct fee publication, and new scope type errors. These were corrected, but no release claim is made until the latest CI checks complete.
+- Authenticated browser E2E for all visible actions and live production data checks remain a release gate; HTTP route smoke and TypeScript/build checks are not equivalent to full end-to-end authorization verification.
