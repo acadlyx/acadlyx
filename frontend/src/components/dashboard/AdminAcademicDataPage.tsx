@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { ExpandableList } from "@/components/ui/ExpandableList";
 import { EntityCombobox } from "@/components/ui/EntityCombobox";
@@ -477,6 +478,31 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
             </>
           }
         />
+
+
+        {user?.permissions?.includes(({
+          departments: "departments.read",
+          programs: "programs.read",
+          "academic-years": "academic-years.read",
+          semesters: "semesters.read",
+          sections: "sections.read",
+          courses: "courses.read",
+          "course-offerings": "course-offerings.read",
+          campuses: "campuses.read",
+        } as Record<ModuleKey, string>)[module]) ? (
+          <DataExportActions
+            type={module}
+            filters={{
+              ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+              ...(departmentId ? { departmentId } : {}),
+              ...(module === "departments" && campusId ? { campusId } : {}),
+              ...(module === "semesters" && programId ? { programId } : {}),
+              ...(module === "sections" && semesterId ? { semesterId } : {}),
+            }}
+            currentPage={{ page, pageSize: 50 }}
+            compact
+          />
+        ) : null}
 
         {notice ? <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{notice}</section> : null}
         {error ? <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p className="font-bold">Action could not be completed</p><p className="mt-1">{error}</p><button type="button" onClick={() => void load()} className="mt-3 font-bold underline">Retry</button></section> : null}
