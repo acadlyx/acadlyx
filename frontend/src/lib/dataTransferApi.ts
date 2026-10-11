@@ -8,7 +8,7 @@ export const DATA_TYPES = [
 ] as const;
 
 export type DataType = typeof DATA_TYPES[number];
-export type ExportType = DataType | "paid-fees" | "outstanding-dues";
+export type ExportType = DataType | "paid-fees" | "outstanding-dues" | "fee-heads" | "fee-receipts" | "fee-transactions" | "fee-refunds" | "fee-concessions" | "fee-audit";
 export type ExportFormat = "xlsx" | "csv" | "docx" | "pdf" | "json";
 export interface ExportOptions {
   selection?: "all-filtered" | "current-page" | "selected";
