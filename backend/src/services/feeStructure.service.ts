@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { hasFeeActionPermission } from "./feeAuthorization";
+import { getDirectorDepartmentIds } from "./accessScope.service";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -440,6 +441,39 @@ export async function updateFeeHead(
   return feeHead;
 }
 
+/**
+ * Director fee visibility and decisions are campus-scoped. A fee structure
+ * must identify a program whose department belongs to a campus explicitly
+ * assigned through CampusAccess. Unscoped structures remain institution-wide
+ * and are intentionally not exposed to campus directors.
+ */
+async function assertFeeStructureInActorScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string,
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+
+  const rows = await prisma.$queryRaw<Array<{ programId: string | null; departmentId: string | null }>>(Prisma.sql`
+    SELECT fs."programId", p."departmentId"
+    FROM "fee_structures" fs
+    LEFT JOIN "programs" p
+      ON p."id" = fs."programId"
+      AND p."institutionId" = fs."institutionId"
+    WHERE fs."id" = ${structureId}
+      AND fs."institutionId" = ${institutionId}
+    LIMIT 1
+  `);
+  const row = rows[0];
+  if (!row || !row.programId || !row.departmentId) {
+    throw new AppError("Fee structure not found in your campus scope", 404);
+  }
+  const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!allowedDepartmentIds.includes(row.departmentId)) {
+    throw new AppError("Fee structure not found in your campus scope", 404);
+  }
+}
+
 export async function listFeeStructures(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -463,6 +497,17 @@ export async function listFeeStructures(
   const conditions: Prisma.Sql[] = [
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
+
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (departmentIds.length === 0) return [];
+    conditions.push(Prisma.sql`fs."programId" IN (
+      SELECT p."id"
+      FROM "programs" p
+      WHERE p."institutionId" = ${institutionId}
+        AND p."departmentId" IN (${Prisma.join(departmentIds)})
+    )`);
+  }
 
   if (input?.status) {
     conditions.push(
@@ -918,6 +963,7 @@ export async function approveFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   // A creator cannot approve their own submission, even if they hold both permissions.
   const changed = await prisma.$executeRaw(Prisma.sql`
     UPDATE "fee_structures"
@@ -953,6 +999,7 @@ export async function rejectFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure rejection is not authorized", 403);
   }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   const normalizedReason = reason.trim();
   if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
     throw new AppError("A rejection reason between 3 and 1000 characters is required", 422);
