@@ -2667,17 +2667,21 @@ export async function publishExamResults(
         body: `${title} results are now available in your results page.`,
       })),
     });
+    await tx.auditLog.create({
+      data: {
+        institutionId,
+        userId: actor.id,
+        action: "exam.results_published",
+        entityType: "ExamSchedule",
+        entityId: examScheduleId,
+        metadata: { published: marks.length, course: offering.course.code },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      },
+    });
   });
 
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.results_published",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { published: marks.length, course: offering.course.code },
-    ...meta,
-  });
+
 
   return { published: marks.length };
 }
