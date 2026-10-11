@@ -282,6 +282,7 @@ router.patch(
 );
 
 router.post("/fee-structures/:id/submit", requireFeature("fees"), authorize("fees.structure.manage"), validateParams(idParamSchema), feeController.submitFeeStructureForApproval);
+router.post("/fee-structures/:id/publish", requireFeature("fees"), authorize("fees.structure.publish"), validateParams(idParamSchema), feeController.publishFeeStructure);
 router.post("/fee-structures/:id/approve", requireFeature("fees"), authorize("fees.structure.approve"), validateParams(idParamSchema), feeController.approveFeeStructure);
 router.post("/fee-structures/:id/reject", requireFeature("fees"), authorize("fees.structure.approve"), validateParams(idParamSchema), validateBody(feeStructureRejectionSchema), feeController.rejectFeeStructure);
 router.post("/fee-structures/:id/assign", requireFeature("fees"), authorize("fees.assign"), validateParams(idParamSchema), validateBody(feeStructureAssignmentSchema), feeController.assignFeeStructure);
