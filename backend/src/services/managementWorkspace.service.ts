@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { getDirectorDepartmentIds } from "./accessScope.service";
+import { getDirectorCampusIds, getDirectorDepartmentIds } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
@@ -299,12 +299,18 @@ export async function getManagementWorkspace(
 
   const now = new Date();
   const isDirector = actor.roles.includes("DIRECTOR");
+  const directorCampusIds = isDirector
+    ? await getDirectorCampusIds(institutionId, actor.id)
+    : [];
+  if (isDirector && directorCampusIds.length === 0) {
+    throw new AppError("No campus scope is assigned to this director", 403);
+  }
+  // A valid campus assignment remains valid even before departments are
+  // created. In that case department-scoped KPIs should safely return zero,
+  // not misreport missing authorization.
   const directorDepartmentIds = isDirector
     ? await getDirectorDepartmentIds(institutionId, actor.id)
     : [];
-  if (isDirector && directorDepartmentIds.length === 0) {
-    throw new AppError("No campus scope is assigned to this director", 403);
-  }
   const inDirectorScope = { in: directorDepartmentIds };
   const scopedStudent = {
     studentEnrollments: {
