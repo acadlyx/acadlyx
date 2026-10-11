@@ -66,7 +66,7 @@ test("Director finance scope uses the canonical explicit CampusAccess helper", (
   assert.match(service, /import \{ getDirectorCampusIds, isDirectorScoped \} from "\.\/accessScope\.service";/);
   assert.match(service, /if\(isDirectorScoped\(a\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
   assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
-  const institutionRoleScope = service.indexOf('if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role)))');
+  const institutionRoleScope = service.indexOf('if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role)))');
   assert.ok(institutionRoleScope >= 0, "Institution-wide finance scope must be role-based");
   const chairmanScope = service.indexOf('if(r.includes("CHAIRMAN"))');
   assert.ok(chairmanScope >= 0 && chairmanScope < service.indexOf("if(isDirectorScoped(a))"), "Chairman institution-wide scope must win over secondary Director role");
