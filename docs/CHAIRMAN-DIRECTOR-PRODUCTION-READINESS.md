@@ -106,3 +106,13 @@ Record command output and environment details; do not convert unavailable checks
 - Existing backend `feeStructure.service.ts` contains conditional status transitions and maker-checker checks for fee structure approval/rejection. Source inspection does not substitute for concurrency or integration tests.
 - This is UX hardening only. It does not implement the full approval center, evidence pages, institutional escalation workflow, or Director campus-level proposal flow.
 - Exit gate: NOT PASSED. Tests/build were not executable via the repository API; source-contract tests have not been run.
+
+
+### Batch 6 — Director campus-scoped fee approval (partial; 2026-10-11)
+- Added `fees.structure.read` and `fees.structure.approve` to the Director role policy. These grants are intentionally separate from fee collection/payment permissions.
+- Added `assertFeeStructureInActorScope` in `backend/src/services/feeStructure.service.ts`; Director approval/rejection must resolve the structure to a program department included in server-derived `CampusAccess` scope. Records outside scope return a not-found response, avoiding cross-campus record disclosure.
+- `listFeeStructures` now filters Director results to programs whose departments belong to assigned campuses. Structures with no program link are not exposed to Directors by this filter.
+- Added a dedicated `/director/fee-approvals` page, linked from Director operations and the Director dashboard. It uses the Director role boundary and provides approve/reject actions with busy-state protection and required rejection reason.
+- Extended source-contract tests to assert the dedicated route, role grants, server-derived department scope, and mutation scope check.
+- Remaining risks: no database-backed tests verify schema relation assumptions, assigned-campus edge cases, concurrent decisions, or all list/approve/reject flows; source-contract checks are not executed. Semester-only fee structures are conservatively excluded from Director list results until their scope handling is explicitly verified. This batch does not implement approval evidence history or a full audit detail page.
+- Exit gate: NOT PASSED. No build, typecheck, or tests executed through the repository API.
