@@ -230,6 +230,10 @@ test("Fee and examination decisions persist state transitions with audit history
     assert.ok(body.includes("tx.auditLog.create"), `${action} must persist an audit row in the transaction`);
   }
   assert.ok(exams.includes('FOR UPDATE'), "mark and schedule decisions must serialize competing writes");
+  const revaluationDecision = exams.slice(exams.indexOf("export async function decideRevaluation("), exams.indexOf("export async function listRevaluationRequests("));
+  const incidentDecision = exams.slice(exams.indexOf("export async function decideExamIncident("), exams.indexOf("export async function listExamIncidents("));
+  assert.ok(revaluationDecision.includes("assertExamApprover(actor)"), "Director and Chairman approvals must be admitted to the scoped revaluation decision path");
+  assert.ok(incidentDecision.includes("assertExamApprover(actor)"), "Director and Chairman approvals must be admitted to the scoped incident decision path");
 });
 
 
