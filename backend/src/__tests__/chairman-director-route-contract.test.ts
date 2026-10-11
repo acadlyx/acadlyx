@@ -405,3 +405,17 @@ test("Leadership workspace scope follows the resolved workspace role, not a seco
   const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   assert.ok(feeService.includes('if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;'));
 });
+
+
+test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/events.service.ts"), "utf8");
+  assert.ok(service.includes("getDirectorDepartmentIds"), "event service must resolve Director scope from CampusAccess");
+  assert.ok(service.includes("function isDirectorScope"), "event scope must not depend on a secondary Director role when Chairman is active");
+  assert.ok(service.includes("assertDirectorDepartment(institutionId, actor, input.departmentId)"), "Director-created events must be department-scoped");
+  assert.ok(service.includes("assertDirectorEvent(institutionId, actor, existing.departmentId, existing.publicationStatus, true)"), "event updates must enforce the existing event's scope");
+  assert.ok(service.includes("await assertDirectorEvent(institutionId, actor, media.event.departmentId, media.event.publicationStatus, true)"), "gallery media removal must enforce event scope");
+  for (const role of ["chairman", "director"]) {
+    const page = readFileSync(join(frontend, role, "events-gallery/page.tsx"), "utf8");
+    assert.ok(page.includes(`workspaceBasePath="/${role}/events-gallery"`), `${role} event buttons must stay in the role-specific route tree`);
+  }
+});
