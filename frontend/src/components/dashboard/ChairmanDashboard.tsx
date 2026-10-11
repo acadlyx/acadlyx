@@ -20,8 +20,10 @@ const shortcuts = [
   ["Examination operations", "/chairman/examinations/operations"],
   ["Institution intelligence", "/chairman/intelligence"],
   ["Strategic reports", "/chairman/reports"],
-  ["Financial overview", "/chairman/fees"],
-  ["Academic performance", "/chairman/examinations"],
+  ["Fee structures", "/chairman/fees/structures"],
+  ["Students", "/chairman/students"],
+  ["Notices", "/chairman/notices"],
+  ["Events & Gallery", "/chairman/events-gallery"],
 ] as const;
 
 export function ChairmanDashboard() {
@@ -56,7 +58,7 @@ export function ChairmanDashboard() {
         <section className="rounded-3xl bg-slate-950 p-7 text-white">
           <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-300">Executive oversight</p>
           <h1 className="mt-2 text-3xl font-black">Institutional Command Center</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-300">Strategic visibility within your assigned institution scope.</p>
+          <p className="mt-2 max-w-3xl text-sm text-slate-300">Institution-wide executive visibility. Use the left sidebar to open each dedicated workspace; all financial and academic records remain subject to backend authorization.</p>
         </section>
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
@@ -84,11 +86,7 @@ export function ChairmanDashboard() {
             {label}<span className="mt-2 block text-xs font-normal text-slate-500">Open dedicated executive view →</span>
           </button>)}
         </section>
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <h2 className="font-bold text-slate-900">Financial approvals</h2>
-          <p className="mt-1 text-sm text-slate-600">Review fee structures assigned to the Chairman approval workflow and record decisions where explicitly permitted.</p>
-          <button type="button" onClick={() => router.push("/chairman/fee-approvals")} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Open fee approval queue</button>
-        </section>
+
       </main>
     </DashboardShell>
   );
