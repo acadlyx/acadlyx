@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma";
+import { getDirectorCampusIds, getDirectorDepartmentIds } from "./accessScope.service";
+import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
 } from "../types/auth";
@@ -295,8 +297,41 @@ export async function getManagementWorkspace(
     );
   }
 
-  const now =
-    new Date();
+  const now = new Date();
+  const isDirector = actor.roles.includes("DIRECTOR");
+  const directorCampusIds = isDirector
+    ? await getDirectorCampusIds(institutionId, actor.id)
+    : [];
+  if (isDirector && directorCampusIds.length === 0) {
+    throw new AppError("No campus scope is assigned to this director", 403);
+  }
+  // A valid campus assignment remains valid even before departments are
+  // created. In that case department-scoped KPIs should safely return zero,
+  // not misreport missing authorization.
+  const directorDepartmentIds = isDirector
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : [];
+  const inDirectorScope = { in: directorDepartmentIds };
+  const scopedStudent = {
+    studentEnrollments: {
+      some: {
+        institutionId,
+        status: "ACTIVE",
+        program: { departmentId: inDirectorScope },
+      },
+    },
+  };
+  const scopedOffering = {
+    course: { departmentId: inDirectorScope },
+    semester: { program: { departmentId: inDirectorScope } },
+  };
+  const scopedUser = {
+    OR: [
+      scopedStudent,
+      { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inDirectorScope } } } },
+      { employeeProfile: { departmentId: inDirectorScope } },
+    ],
+  };
 
   const [
     users,
@@ -322,117 +357,71 @@ export async function getManagementWorkspace(
       prisma.user.count({
         where: {
           institutionId,
-          isActive:
-            true,
+          isActive: true,
+          ...(isDirector ? scopedUser : {}),
         },
       }),
 
       prisma.user.count({
         where: {
           institutionId,
-          isActive:
-            true,
-          userRoles: {
-            some: {
-              role: {
-                name:
-                  "STUDENT",
-              },
-            },
-          },
+          isActive: true,
+          userRoles: { some: { role: { name: "STUDENT" } } },
+          ...(isDirector ? scopedStudent : {}),
         },
       }),
 
       prisma.user.count({
         where: {
           institutionId,
-          isActive:
-            true,
-          userRoles: {
-            some: {
-              role: {
-                name:
-                  "FACULTY",
-              },
-            },
-          },
+          isActive: true,
+          userRoles: { some: { role: { name: "FACULTY" } } },
+          ...(isDirector ? { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inDirectorScope } } } } : {}),
         },
       }),
 
       prisma.department.count({
-        where: {
-          institutionId,
-          isActive:
-            true,
-        },
+        where: { institutionId, isActive: true, ...(isDirector ? { id: inDirectorScope } : {}) },
       }),
 
       prisma.program.count({
-        where: {
-          institutionId,
-          isActive:
-            true,
-        },
+        where: { institutionId, isActive: true, ...(isDirector ? { departmentId: inDirectorScope } : {}) },
       }),
 
       prisma.section.count({
-        where: {
-          institutionId,
-          isActive:
-            true,
-        },
+        where: { institutionId, isActive: true, ...(isDirector ? { semester: { program: { departmentId: inDirectorScope } } } : {}) },
       }),
 
       prisma.course.count({
-        where: {
-          institutionId,
-          isActive:
-            true,
-        },
+        where: { institutionId, isActive: true, ...(isDirector ? { departmentId: inDirectorScope } : {}) },
       }),
 
       prisma.courseOffering.count({
-        where: {
-          institutionId,
-          isActive:
-            true,
-        },
+        where: { institutionId, isActive: true, ...(isDirector ? scopedOffering : {}) },
       }),
 
       prisma.attendanceSession.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.assignment.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.internalMark.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.exam.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.examResult.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { exam: { courseOffering: scopedOffering } } : {}) },
       }),
 
       prisma.feeInvoice.aggregate({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { student: scopedStudent } : {}) },
         _count: {
           _all: true,
         },
@@ -443,23 +432,15 @@ export async function getManagementWorkspace(
       }),
 
       prisma.feeInvoice.count({
-        where: {
-          institutionId,
-          status:
-            "PAID",
-        },
+        where: { institutionId, status: "PAID", ...(isDirector ? { student: scopedStudent } : {}) },
       }),
 
       prisma.document.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { owner: scopedUser } : {}) },
       }),
 
       prisma.notification.count({
-        where: {
-          institutionId,
-        },
+        where: { institutionId, ...(isDirector ? { user: scopedUser } : {}) },
       }),
 
       prisma.notice.findMany({

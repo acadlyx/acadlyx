@@ -214,12 +214,16 @@ export function errorHandler(
       requestId: res.locals.requestId,
       errorName: err.name,
       ...(prismaCode ? { prismaCode } : {}),
-      ...(!isProduction
+      // Production responses remain sanitized, but restricted server logs must
+      // retain the actual 5xx cause and stack so incidents can be diagnosed.
+      ...(statusCode >= 500
         ? {
-            message: err.message,
+            serverError: err.message.slice(0, 1000),
             stack: err.stack,
           }
-        : {}),
+        : !isProduction
+          ? { message: err.message, stack: err.stack }
+          : {}),
     },
   );
 

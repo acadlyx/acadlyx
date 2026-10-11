@@ -117,3 +117,30 @@ test("cancelling a reservation does not masquerade as a physical book return", (
   const frontendApi = fs.readFileSync(path.resolve(process.cwd(), "../frontend/src/lib/libraryApi.ts"), "utf8");
   assert.match(frontendApi, /"OVERDUE",\s*"CANCELLED"/);
 });
+
+
+test("inventory synchronization remains institution-scoped", () => {
+  const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
+  const start = source.indexOf("export async function syncBookInventory(");
+  const end = source.indexOf("\nexport function calculateLostCharge(", start);
+  assert.ok(start >= 0 && end > start, "Expected inventory synchronization helper");
+  const sync = source.slice(start, end);
+  assert.match(sync, /where: \{ id: bookId, institutionId \}/);
+  assert.match(sync, /if \(updated\.count !== 1\)/);
+});
+
+test("return workflow derives inventory counts from copy state and rejects stale copy references", () => {
+  const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
+  const start = source.indexOf("export async function returnBook(");
+  const end = source.indexOf("\nexport async function imposeLateReturnFine(", start);
+  assert.ok(start >= 0 && end > start, "Expected return workflow service");
+  const returning = source.slice(start, end);
+  assert.match(returning, /tx\.libraryBookCopy\.updateMany\(/);
+  assert.match(returning, /copyUpdate\.count !== 1/);
+  assert.match(returning, /await syncBookInventory\(tx, institutionId, existing\.bookId\)/);
+  const copyBackedReturn = returning.slice(returning.indexOf("if (existing.copyId)"), returning.indexOf('else if (input.condition === "RETURNED")'));
+  assert.doesNotMatch(copyBackedReturn, /availableCopies: \{ increment: 1 \}/);
+  assert.match(returning, /else if \(input\.condition === "RETURNED"\)/);
+  assert.match(returning, /Legacy issues without a copy row still need their aggregate count updated/);
+  assert.match(returning, /availableCopies: \{ increment: 1 \}/);
+});

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate";
-import { authorize, authorizeWorkflow } from "../middleware/authorize";
+import { authorize, authorizeAnyPermission, authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import {
   validateBody,
@@ -46,7 +46,7 @@ router.get(
 
 router.get(
   "/books",
-  authorize("library.read"),
+  authorizeAnyPermission("library.read", "library.borrow"),
   validateQuery(bookListQuery),
   asyncHandler(async (req, res) => {
     const pagination = parsePagination(req);
@@ -71,10 +71,10 @@ router.get(
 
 router.get(
   "/books/:id",
-  authorize("library.read"),
+  authorizeAnyPermission("library.read", "library.borrow"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
-    sendOk(res, await service.getBook(requireInstitution(req), req.params.id))
+    sendOk(res, await service.getBook(requireInstitution(req), req.params.id, requireAuthenticatedUser(req)))
   )
 );
 

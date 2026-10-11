@@ -37,6 +37,7 @@ import {
   feeStructureListSchema,
   feeStructureUpdateSchema,
   feeStructureAssignmentSchema,
+  feeStructureRejectionSchema,
 } from "../validators/feeStructure.validators";
 
 const router = Router();
@@ -280,7 +281,9 @@ router.patch(
   feeController.updateFeeStructure
 );
 
+router.post("/fee-structures/:id/submit", requireFeature("fees"), authorize("fees.structure.manage"), validateParams(idParamSchema), feeController.submitFeeStructureForApproval);
 router.post("/fee-structures/:id/approve", requireFeature("fees"), authorize("fees.structure.approve"), validateParams(idParamSchema), feeController.approveFeeStructure);
+router.post("/fee-structures/:id/reject", requireFeature("fees"), authorize("fees.structure.approve"), validateParams(idParamSchema), validateBody(feeStructureRejectionSchema), feeController.rejectFeeStructure);
 router.post("/fee-structures/:id/assign", requireFeature("fees"), authorize("fees.assign"), validateParams(idParamSchema), validateBody(feeStructureAssignmentSchema), feeController.assignFeeStructure);
 
 export default router;

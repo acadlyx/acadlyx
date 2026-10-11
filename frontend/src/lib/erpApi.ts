@@ -248,16 +248,12 @@ function invalidateOfferings(): void {
 }
 
 function invalidateFeeData(): void {
+  // cachedRequest prefixes keys with the auth-session scope; match the
+  // canonical ERP cache segment rather than the unscoped prefix.
   invalidate((key) =>
-    key.startsWith(
-      "erp:fee-heads"
-    ) ||
-    key.startsWith(
-      "erp:fee-structures"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    key.includes(":erp:fee-heads") ||
+    key.includes(":erp:fee-structures") ||
+    key.includes(":erp:workspace")
   );
 }
 
@@ -1192,9 +1188,25 @@ export async function updateFeeStructure(
   return response.data;
 }
 
+export async function submitFeeStructureForApproval(id: string) {
+  const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
+    `/erp/fee-structures/${id}/submit`, { method: "POST" }
+  );
+  invalidateFeeData();
+  return response.data;
+}
+
 export async function approveFeeStructure(id: string) {
   const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
     `/erp/fee-structures/${id}/approve`, { method: "POST" }
+  );
+  invalidateFeeData();
+  return response.data;
+}
+
+export async function rejectFeeStructure(id: string, reason: string) {
+  const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
+    `/erp/fee-structures/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) }
   );
   invalidateFeeData();
   return response.data;

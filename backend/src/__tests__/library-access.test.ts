@@ -83,3 +83,17 @@ test("student self-service borrowing does not require staff student-directory ac
     assert.doesNotMatch(routeBlock, /authorizeWorkflow/);
   }
 });
+
+
+test("catalogue routes permit borrower-only access without exposing other borrowers' circulation records", () => {
+  const routes = fs.readFileSync(path.resolve(__dirname, "../routes/library.routes.ts"), "utf8");
+  const service = fs.readFileSync(path.resolve(__dirname, "../services/library.service.ts"), "utf8");
+  const listStart = routes.indexOf('"/books"');
+  const detailStart = routes.indexOf('"/books/:id"');
+  const loansStart = routes.indexOf('"/loans"');
+  assert.ok(listStart >= 0 && detailStart > listStart && loansStart > detailStart);
+  assert.match(routes.slice(listStart, detailStart), /authorizeAnyPermission\("library\.read", "library\.borrow"\)/);
+  assert.match(routes.slice(detailStart, loansStart), /authorizeAnyPermission\("library\.read", "library\.borrow"\)/);
+  assert.match(service, /const canReadCirculation = Boolean\(actor\?\.permissions\.includes\("library\.read"\)\)/);
+  assert.match(service, /if \(!canReadCirculation\) return \{ \.\.\.book, activeIssues: \[\] \}/);
+});

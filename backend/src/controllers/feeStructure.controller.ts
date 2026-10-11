@@ -77,7 +77,9 @@ export const listFeeStructures =
             "string"
               ? req.query.status as
                   | "DRAFT"
+                  | "PENDING_APPROVAL"
                   | "ACTIVE"
+                  | "REJECTED"
                   | "ARCHIVED"
               : undefined,
 
@@ -152,5 +154,16 @@ export const assignFeeStructure = asyncHandler(async (req, res) => {
   const data = await feeStructure.assignFeeStructure(
     requireInstitution(req), actor(req), req.params.id, req.body.studentIds
   );
+  res.json({ success: true, data });
+});
+
+
+export const submitFeeStructureForApproval = asyncHandler(async (req, res) => {
+  const data = await feeStructure.submitFeeStructureForApproval(requireInstitution(req), actor(req), req.params.id);
+  res.json({ success: true, data });
+});
+
+export const rejectFeeStructure = asyncHandler(async (req, res) => {
+  const data = await feeStructure.rejectFeeStructure(requireInstitution(req), actor(req), req.params.id, req.body.reason);
   res.json({ success: true, data });
 });

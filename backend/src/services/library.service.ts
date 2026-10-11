@@ -105,7 +105,13 @@ export async function syncBookInventory(tx: Prisma.TransactionClient, institutio
     tx.libraryBookCopy.count({ where: { institutionId, bookId, status: { not: "WITHDRAWN" } } }),
     tx.libraryBookCopy.count({ where: { institutionId, bookId, status: "AVAILABLE" } }),
   ]);
-  await tx.libraryBook.update({ where: { id: bookId }, data: { totalCopies, availableCopies } });
+  const updated = await tx.libraryBook.updateMany({
+    where: { id: bookId, institutionId },
+    data: { totalCopies, availableCopies },
+  });
+  if (updated.count !== 1) {
+    throw new AppError("Library inventory could not be synchronized because the book is missing from this institution", 409);
+  }
 }
 
 export function calculateLostCharge(
@@ -184,11 +190,15 @@ export async function listBooks(
   };
 }
 
-export async function getBook(institutionId: string, id: string) {
+export async function getBook(institutionId: string, id: string, actor?: AuthenticatedUser) {
   const book = await prisma.libraryBook.findFirst({
     where: { id, institutionId },
   });
   if (!book) throw new AppError("Book not found", 404);
+
+  // Borrowers may inspect catalogue metadata, but not other borrowers' loans.
+  const canReadCirculation = Boolean(actor?.permissions.includes("library.read"));
+  if (!canReadCirculation) return { ...book, activeIssues: [] };
 
   const activeIssues = await prisma.libraryIssue.findMany({
     where: { institutionId, bookId: id, status: { in: ["ISSUED", "RESERVED"] } },
@@ -828,18 +838,23 @@ export async function returnBook(
     }
 
     if (existing.copyId) {
-      await tx.libraryBookCopy.update({
-        where: { id: existing.copyId },
+      const copyUpdate = await tx.libraryBookCopy.updateMany({
+        where: { id: existing.copyId, institutionId, bookId: existing.bookId },
         data: {
           status: input.condition === "RETURNED" ? "AVAILABLE" : input.condition,
           condition: input.condition === "RETURNED" ? "GOOD" : input.damageSeverity ?? input.condition,
         },
       });
-    }
-
-    if (input.condition === "RETURNED") {
-      await tx.libraryBook.update({
-        where: { id: existing.bookId },
+      if (copyUpdate.count !== 1) {
+        throw new AppError("The loan's book copy no longer exists in this institution; no return changes were saved", 409);
+      }
+      // Derive counters from canonical copy rows so returned/damaged/lost
+      // copies cannot leave book-level inventory out of sync.
+      await syncBookInventory(tx, institutionId, existing.bookId);
+    } else if (input.condition === "RETURNED") {
+      // Legacy issues without a copy row still need their aggregate count updated.
+      await tx.libraryBook.updateMany({
+        where: { id: existing.bookId, institutionId },
         data: { availableCopies: { increment: 1 } },
       });
     }
