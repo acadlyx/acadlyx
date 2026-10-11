@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { prisma } from "../lib/prisma";
 import { getDirectorDepartmentIds } from "../services/accessScope.service";
+import { listFeeStructures } from "../services/feeStructure.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
   skip: !process.env.DATABASE_URL,
@@ -43,12 +44,35 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     await prisma.campusAccess.create({
       data: { userId: director.id, campusId: campusA.id, scope: "DIRECTOR" },
     });
+    const [programA, programB] = await Promise.all([
+      prisma.program.create({
+        data: { institutionId: institution.id, departmentId: departmentA.id, name: "Assigned program", code: `PA-${suffix.slice(0, 8)}`, level: "UG", durationYears: 4 },
+      }),
+      prisma.program.create({
+        data: { institutionId: institution.id, departmentId: departmentB.id, name: "Unassigned program", code: `PB-${suffix.slice(0, 8)}`, level: "UG", durationYears: 4 },
+      }),
+    ]);
+    const [feeA, feeB] = await Promise.all([
+      prisma.feeStructure.create({
+        data: { institutionId: institution.id, name: "Assigned campus fees", programId: programA.id, createdById: director.id, status: "ACTIVE" },
+      }),
+      prisma.feeStructure.create({
+        data: { institutionId: institution.id, name: "Unassigned campus fees", programId: programB.id, createdById: director.id, status: "ACTIVE" },
+      }),
+    ]);
 
     const assigned = await getDirectorDepartmentIds(institution.id, director.id);
     assert.deepEqual(assigned, [departmentA.id]);
     assert.ok(!assigned.includes(departmentB.id), "departments at an unassigned campus must never be inferred as authorized");
     assert.deepEqual(await getDirectorDepartmentIds(institution.id, `no-access-${suffix}`), []);
+    const visibleFees = await listFeeStructures(institution.id, {
+      id: director.id, institutionId: institution.id, email: director.email,
+      roles: ["DIRECTOR"], permissions: ["fees.structure.read"],
+    });
+    assert.deepEqual(visibleFees.map((row) => row.id), [feeA.id]);
+    assert.ok(!visibleFees.some((row) => row.id === feeB.id), "fee structures at another campus must not be returned to the Director");
   } finally {
+    await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
