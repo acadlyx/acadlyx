@@ -137,6 +137,8 @@ test("Chairman draft publication unlocks idempotent Accounts assignment and pers
       "assignment must persist exactly one matching finance transaction",
     );
   } finally {
+    await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.feeHead.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
