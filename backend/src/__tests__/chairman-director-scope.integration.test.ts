@@ -131,6 +131,8 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     }, "fee-structures", "json");
     const exportedFees = JSON.parse(financeExport.buffer.toString("utf8")) as Array<{ id: string }>;
     assert.deepEqual(exportedFees.map((row) => row.id), [feeA.id], "downloaded fee structure exports must enforce the same campus boundary");
+    await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["fees.reports.export"] }, "fee-structures", "json", { filters: { departmentId: departmentB.id } }), /outside the authorized export scope/i);
+    await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["students.read"] }, "students", "json", { filters: { programId: programB.id } }), /outside the authorized export scope/i);
 
     const report = await getInstitutionInsights(institution.id, { departmentIds: assigned });
     assert.equal(report.kpis.departments, 1, "campus reports must count only the assigned department");
