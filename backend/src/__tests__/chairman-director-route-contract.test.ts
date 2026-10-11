@@ -454,6 +454,8 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
   const intelligence = readFileSync(join(process.cwd(), "src/controllers/intelligence.controller.ts"), "utf8");
   const exports = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
+  const calendar = readFileSync(join(process.cwd(), "src/services/calendar.service.ts"), "utf8");
+  const directorCalendar = readFileSync(join(frontend, "director/calendar/page.tsx"), "utf8");
   assert.ok(accessScope.includes('hasAnyRole(actor, ["DIRECTOR"]) && !hasAnyRole(actor, ["CHAIRMAN"])'), "Chairman must be the only role that overrides Director campus scope");
   assert.ok(finance.includes("isDirectorScoped(a)"), "finance must use resolved Director scope");
   assert.ok(students.includes("const directorDepartmentIds = isDirectorScoped(actor)"), "student lists must not be narrowed by secondary Director roles");
@@ -463,6 +465,8 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   assert.ok(intelligence.indexOf('if (roles.includes("CHAIRMAN"))') < intelligence.indexOf('if (roles.includes("DIRECTOR"))'), "Chairman gets institution-wide intelligence");
   assert.ok(intelligence.indexOf('if (roles.includes("DIRECTOR"))') < intelligence.indexOf('["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"]'), "Director campus scope wins over secondary institution-admin roles");
   assert.ok(exports.includes("const institutionWide = !isDirectorScoped(actor)"), "exports must not widen a Director because of a secondary admin role");
+  assert.ok(calendar.includes("assertCalendarCampusScopeSupported(actor)"), "unscoped institution calendar APIs must reject Director access");
+  assert.ok(directorCalendar.includes('href="/director/events-gallery"') && !directorCalendar.includes("DataExportActions"), "Director calendar must route to campus-scoped event management without an unscoped export button");
 });
 
 test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {
