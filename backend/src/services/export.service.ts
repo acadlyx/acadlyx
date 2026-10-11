@@ -27,7 +27,7 @@ export const EXPORT_TYPES = [
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
-export type ExportFormat = "xlsx" | "csv";
+export type ExportFormat = "xlsx" | "csv" | "json";
 
 type Row = Record<string, string | number | boolean | null>;
 
@@ -53,6 +53,11 @@ function clean(value: unknown): string | number | boolean | null {
 }
 
 export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
+  if (format === "json") {
+    const buffer = Buffer.from(JSON.stringify(rows, null, 2), "utf8");
+    return { buffer, rowCount: rows.length, contentType: "application/json; charset=utf-8", filename: `acadlyx-${type}-${new Date().toISOString().slice(0, 10)}.json` };
+  }
+
   const workbook = XLSX.utils.book_new();
 
   if (rows.length > 0) {
@@ -126,7 +131,7 @@ export async function exportData(
 ) {
   assertExportAccess(actor);
   if (!EXPORT_TYPES.includes(type)) throw new AppError(`Unsupported export type: ${type}`, 400);
-  if (!['xlsx', 'csv'].includes(format)) throw new AppError("Format must be xlsx or csv", 400);
+  if (!['xlsx', 'csv', 'json'].includes(format)) throw new AppError("Format must be xlsx, csv, or json", 400);
 
   const rows: Row[] = [];
 
