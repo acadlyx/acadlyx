@@ -448,6 +448,15 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     activeMatch: "nested",
   },
   {
+    label: "Fee approvals",
+    href: "/director/fee-approvals",
+    icon: "✓",
+    roles: ["DIRECTOR"],
+    permissions: ["fees.structure.approve"],
+    group: "Finance",
+    activeMatch: "nested",
+  },
+  {
     label: "Intelligence",
     href: "/director/intelligence",
     icon: "✦",
