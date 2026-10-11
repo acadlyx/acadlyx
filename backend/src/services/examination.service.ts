@@ -3166,7 +3166,25 @@ export async function decideExamIncident(
     if (claimed !== 1) throw new AppError("This incident was decided concurrently; reload and retry", 409);
 
     if (status === "UPHELD") {
-      // An upheld malpractice finding voids the paper.
+      // Preserve an immutable mark-history record before voiding the paper.
+      const marks = await tx.$queryRaw<Array<{ id: string; marksObtained: number | null; status: string }>>(Prisma.sql`
+        SELECT "id", "marksObtained", "status" FROM "exam_marks"
+        WHERE "examScheduleId" = ${incident.examScheduleId}
+          AND "studentId" = ${incident.studentId}
+          AND "institutionId" = ${institutionId}
+        FOR UPDATE
+      `);
+      for (const mark of marks) {
+        await tx.$executeRaw`
+          INSERT INTO "exam_mark_histories"
+            ("id", "institutionId", "examMarkId", "previousMarks", "newMarks",
+             "previousStatus", "newStatus", "reason", "changedById")
+          VALUES
+            (${randomUUID()}, ${institutionId}, ${mark.id}, ${mark.marksObtained},
+             0, ${mark.status}, ${mark.status},
+             ${"Malpractice incident " + incidentId + " upheld"}, ${actor.id})
+        `;
+      }
       await tx.$executeRaw`
         UPDATE "exam_marks"
         SET "marksObtained" = 0, "isAbsent" = FALSE,
@@ -3187,16 +3205,14 @@ export async function decideExamIncident(
           AND "status" = 'MALPRACTICE'
       `;
     }
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.incident_decided",
-    entityType: "ExamIncident",
-    entityId: incidentId,
-    metadata: { status, actionTaken: input.actionTaken },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.incident_decided",
+        entityType: "ExamIncident", entityId: incidentId,
+        metadata: { status, actionTaken: input.actionTaken },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return requireTenantRow(
