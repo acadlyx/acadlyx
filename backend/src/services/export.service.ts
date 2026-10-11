@@ -244,7 +244,7 @@ export async function exportData(
 
   if (type === "students") {
     const students = await collectInBatches((skip, take) => prisma.user.findMany({ skip, take,
-      where: { institutionId, userRoles: { some: { role: { name: "STUDENT" } } } },
+      where: { institutionId, userRoles: { some: { role: { name: "STUDENT" } } }, ...(scope.institutionWide ? {} : { AND: [scope.studentWhere] }) },
       include: { profile: true, studentEnrollments: { include: { program: true, academicYear: true, section: { include: { semester: true } } }, orderBy: { academicYear: { startDate: "desc" } }, take: 1 } },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
      }));
@@ -255,13 +255,22 @@ export async function exportData(
   }
 
   if (type === "faculty") {
-    const faculty = await collectInBatches((skip, take) => prisma.user.findMany({ skip, take, where: { institutionId, userRoles: { some: { role: { name: "FACULTY" } } } }, include: { facultyCourseOfferings: { include: { course: true, section: true } } }, orderBy: [{ firstName: "asc" }, { lastName: "asc" }]  }));
+    const faculty = await collectInBatches((skip, take) => prisma.user.findMany({ skip, take, where: {
+      institutionId,
+      userRoles: { some: { role: { name: "FACULTY" } } },
+      ...(scope.institutionWide ? {} : scope.roles.has("FACULTY")
+        ? { id: actor.id }
+        : { OR: [
+            { facultyCourseOfferings: { some: { course: { departmentId: scopedDepartmentFilter } } } },
+            { employeeProfile: { departmentId: scopedDepartmentFilter } },
+          ] }),
+    }, include: { facultyCourseOfferings: { include: { course: true, section: true } } }, orderBy: [{ firstName: "asc" }, { lastName: "asc" }]  }));
     for (const f of faculty) rows.push({ id: f.id, email: f.email, firstName: f.firstName, lastName: f.lastName, phone: f.phone, active: f.isActive, assignedOfferings: f.facultyCourseOfferings.length });
   }
 
   if (type === "campuses") {
     const campuses = await collectInBatches((skip, take) => prisma.campus.findMany({
-      skip, take, where: { institutionId }, orderBy: { name: "asc" },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { id: { in: scope.campusIds.length ? scope.campusIds : [noScopeSentinel] } }) }, orderBy: { name: "asc" },
     }));
     for (const c of campuses) rows.push({
       id: c.id, code: c.code, name: c.name, address: c.address,
@@ -270,12 +279,12 @@ export async function exportData(
   }
 
   if (type === "departments") {
-    const data = await collectInBatches((skip, take) => prisma.department.findMany({ skip, take, where: { institutionId }, orderBy: { name: "asc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.department.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { id: { in: scope.departmentIds } }) }, orderBy: { name: "asc" }  }));
     for (const d of data) rows.push({ id: d.id, code: d.code, name: d.name, active: d.isActive, createdAt: clean(d.createdAt) });
   }
 
   if (type === "programs") {
-    const data = await collectInBatches((skip, take) => prisma.program.findMany({ skip, take, where: { institutionId }, include: { department: true }, orderBy: { name: "asc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.program.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { departmentId: scopedDepartmentFilter }) }, include: { department: true }, orderBy: { name: "asc" }  }));
     for (const p of data) rows.push({ id: p.id, code: p.code, name: p.name, departmentCode: p.department.code, department: p.department.name, level: p.level, durationYears: p.durationYears, active: p.isActive });
   }
 
@@ -285,27 +294,27 @@ export async function exportData(
   }
 
   if (type === "semesters") {
-    const data = await collectInBatches((skip, take) => prisma.semester.findMany({ skip, take, where: { institutionId }, include: { program: true, academicYear: true }, orderBy: [{ academicYear: { startDate: "desc" } }, { number: "asc" }]  }));
+    const data = await collectInBatches((skip, take) => prisma.semester.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { program: { departmentId: scopedDepartmentFilter } }) }, include: { program: true, academicYear: true }, orderBy: [{ academicYear: { startDate: "desc" } }, { number: "asc" }]  }));
     for (const s of data) rows.push({ id: s.id, name: s.name, number: s.number, programCode: s.program.code, academicYear: s.academicYear.name, startDate: clean(s.startDate), endDate: clean(s.endDate), active: s.isActive });
   }
 
   if (type === "sections") {
-    const data = await collectInBatches((skip, take) => prisma.section.findMany({ skip, take, where: { institutionId }, include: { semester: { include: { program: true, academicYear: true } } }, orderBy: { name: "asc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.section.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { semester: { program: { departmentId: scopedDepartmentFilter } } }) }, include: { semester: { include: { program: true, academicYear: true } } }, orderBy: { name: "asc" }  }));
     for (const s of data) rows.push({ id: s.id, name: s.name, capacity: s.capacity, active: s.isActive, programCode: s.semester.program.code, academicYear: s.semester.academicYear.name, semesterNumber: s.semester.number });
   }
 
   if (type === "courses") {
-    const data = await collectInBatches((skip, take) => prisma.course.findMany({ skip, take, where: { institutionId }, include: { department: true }, orderBy: { code: "asc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.course.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { departmentId: scopedDepartmentFilter }) }, include: { department: true }, orderBy: { code: "asc" }  }));
     for (const c of data) rows.push({ id: c.id, code: c.code, name: c.name, departmentCode: c.department.code, credits: c.credits, description: c.description, active: c.isActive });
   }
 
   if (type === "course-offerings") {
-    const data = await collectInBatches((skip, take) => prisma.courseOffering.findMany({ skip, take, where: { institutionId }, include: { course: true, semester: { include: { program: true, academicYear: true } }, section: true, faculty: true }, orderBy: { createdAt: "desc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.courseOffering.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) }) }, include: { course: true, semester: { include: { program: true, academicYear: true } }, section: true, faculty: true }, orderBy: { createdAt: "desc" }  }));
     for (const o of data) rows.push({ id: o.id, courseCode: o.course.code, course: o.course.name, programCode: o.semester.program.code, academicYear: o.semester.academicYear.name, semester: o.semester.name, section: o.section.name, facultyEmail: o.faculty?.email ?? null, active: o.isActive });
   }
 
   if (type === "exams") {
-    const data = await collectInBatches((skip, take) => prisma.exam.findMany({ skip, take, where: { institutionId }, include: { courseOffering: { include: { course: true, section: true } }, results: { include: { student: { include: { profile: true } } } } }, orderBy: { examDate: "desc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.exam.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) }, include: { courseOffering: { include: { course: true, section: true } }, results: { include: { student: { include: { profile: true } } } } }, orderBy: { examDate: "desc" }  }));
     for (const e of data) {
       if (!e.results.length) rows.push({ id: e.id, courseCode: e.courseOffering.course.code, section: e.courseOffering.section.name, title: e.title, examDate: clean(e.examDate), maxMarks: e.maxMarks, studentEmail: null, admissionNumber: null, marks: null, remarks: null });
       for (const r of e.results) rows.push({ id: e.id, courseCode: e.courseOffering.course.code, section: e.courseOffering.section.name, title: e.title, examDate: clean(e.examDate), maxMarks: e.maxMarks, studentEmail: r.student.email, admissionNumber: r.student.profile?.admissionNumber ?? null, marks: r.marks, remarks: r.remarks });
@@ -313,7 +322,7 @@ export async function exportData(
   }
 
   if (type === "marks") {
-    const data = await collectInBatches((skip, take) => prisma.internalMark.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, courseOffering: { include: { course: true, section: true } } }, orderBy: { updatedAt: "desc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.internalMark.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) }, include: { student: { include: { profile: true } }, courseOffering: { include: { course: true, section: true } } }, orderBy: { updatedAt: "desc" }  }));
     for (const m of data) rows.push({ id: m.id, studentEmail: m.student.email, admissionNumber: m.student.profile?.admissionNumber ?? null, courseCode: m.courseOffering.course.code, section: m.courseOffering.section.name, component: m.component, marksObtained: m.marksObtained, maxMarks: m.maxMarks, updatedAt: clean(m.updatedAt) });
   }
 
@@ -359,17 +368,17 @@ export async function exportData(
   }
 
   if (type === "notices") {
-    const data = await collectInBatches((skip, take) => prisma.notice.findMany({ skip, take, where: { institutionId }, orderBy: { publishedAt: "desc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.notice.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { OR: [{ departmentId: null }, { departmentId: scopedDepartmentFilter }] }) }, orderBy: { publishedAt: "desc" }  }));
     for (const n of data) rows.push({ id: n.id, title: n.title, body: n.body, audience: n.audience, departmentId: n.departmentId, publishedAt: clean(n.publishedAt), expiresAt: clean(n.expiresAt) });
   }
 
   if (type === "timetable") {
-    const data = await collectInBatches((skip, take) => prisma.timetableEntry.findMany({ skip, take, where: { institutionId }, include: { courseOffering: { include: { course: true, section: true, faculty: true } } }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }]  }));
+    const data = await collectInBatches((skip, take) => prisma.timetableEntry.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) }, include: { courseOffering: { include: { course: true, section: true, faculty: true } } }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }]  }));
     for (const t of data) rows.push({ id: t.id, courseCode: t.courseOffering.course.code, course: t.courseOffering.course.name, section: t.courseOffering.section.name, facultyEmail: t.courseOffering.faculty?.email ?? null, dayOfWeek: t.dayOfWeek, startTime: t.startTime, endTime: t.endTime, room: t.room });
   }
 
   if (type === "parent-links") {
-    const data = await collectInBatches((skip, take) => prisma.parentStudentLink.findMany({ skip, take, where: { institutionId }, include: { parent: true, student: { include: { profile: true } } }, orderBy: { createdAt: "desc" }  }));
+    const data = await collectInBatches((skip, take) => prisma.parentStudentLink.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scope.studentWhere] } }) }, include: { parent: true, student: { include: { profile: true } } }, orderBy: { createdAt: "desc" }  }));
     for (const l of data) rows.push({ parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
   }
 
