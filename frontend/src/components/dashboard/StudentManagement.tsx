@@ -2,6 +2,7 @@
 
 import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AuthRequiredError, authedFetch, getCachedCurrentUser } from "@/lib/auth";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { deleteAdminUser, requestAdminUserPermanentDeletion } from "@/lib/adminApi";
 import { ModalPortal } from "@/components/ui/ModalPortal";
 import { DetailDrawer, DetailField } from "@/components/ui/DetailDrawer";
@@ -80,6 +81,19 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
     {success&&<div className="flex items-start justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"><span>{success}</span><button onClick={()=>setSuccess("")} className="font-semibold">Dismiss</button></div>}
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Student Master</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Students</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Manage student identities, admission records, guardians and academic enrollment from one tenant-safe workspace.</p></div>{permissions.includes("students.create")?<button onClick={startCreate} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">+ Add Student</button>:null}</div>
     <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or admission no." className={inputClass()}/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className={inputClass()}><option value="">All statuses</option>{statuses.map(x=><option key={x} value={x}>{x.replace("_"," ")}</option>)}</select><select value={departmentFilter} onChange={e=>{setDepartmentFilter(e.target.value);setProgramFilter("");setSemesterFilter("");setSectionFilter("");void loadPrograms(e.target.value)}} className={inputClass()} disabled={Boolean(departmentId)}><option value="">All departments</option>{departments.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={programFilter} onChange={e=>setProgramFilter(e.target.value)} className={inputClass()}><option value="">All programs</option>{programs.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={semesterFilter} onChange={e=>setSemesterFilter(e.target.value)} className={inputClass()}><option value="">All semesters</option>{semesters.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={sectionFilter} onChange={e=>setSectionFilter(e.target.value)} className={inputClass()}><option value="">All sections</option>{sections.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select></div>
+    <DataExportActions
+      type="students"
+      filters={{
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...((departmentId || departmentFilter) ? { departmentId: departmentId || departmentFilter } : {}),
+        ...(programFilter ? { programId: programFilter } : {}),
+        ...(semesterFilter ? { semesterId: semesterFilter } : {}),
+        ...(sectionFilter ? { sectionId: sectionFilter } : {}),
+      }}
+      currentPage={{ page, pageSize: 50 }}
+      compact
+    />
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {loading && <div className="p-10 text-center text-sm text-slate-500">Loading students…</div>}
       {!loading && students.length === 0 && (
