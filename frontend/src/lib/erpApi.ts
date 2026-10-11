@@ -248,16 +248,12 @@ function invalidateOfferings(): void {
 }
 
 function invalidateFeeData(): void {
+  // cachedRequest prefixes keys with the auth-session scope; match the
+  // canonical ERP cache segment rather than the unscoped prefix.
   invalidate((key) =>
-    key.startsWith(
-      "erp:fee-heads"
-    ) ||
-    key.startsWith(
-      "erp:fee-structures"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    key.includes(":erp:fee-heads") ||
+    key.includes(":erp:fee-structures") ||
+    key.includes(":erp:workspace")
   );
 }
 
