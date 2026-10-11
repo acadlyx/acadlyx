@@ -12,6 +12,7 @@ test("Director scope is not applied when the actor also has institution-wide Cha
   assert.equal(isDirectorScoped({ roles: ["DIRECTOR"] }), true);
   assert.equal(isDirectorScoped({ roles: ["CHAIRMAN", "DIRECTOR"] }), false);
   assert.equal(isDirectorScoped({ roles: ["CHAIRMAN"] }), false);
+  assert.equal(isDirectorScoped({ roles: ["DIRECTOR", "INSTITUTION_ADMIN"] }), true);
 });
 
 test("Chairman operations is an independent workspace page", () => {
@@ -451,12 +452,17 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   const students = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
   const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
-  assert.ok(accessScope.includes('hasAnyRole(actor, ["DIRECTOR"]) && !isInstitutionWide(actor)'), "Director scope must exclude actors with institution-wide authority");
+  const intelligence = readFileSync(join(process.cwd(), "src/controllers/intelligence.controller.ts"), "utf8");
+  const exports = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
+  assert.ok(accessScope.includes('hasAnyRole(actor, ["DIRECTOR"]) && !hasAnyRole(actor, ["CHAIRMAN"])'), "Chairman must be the only role that overrides Director campus scope");
   assert.ok(finance.includes("isDirectorScoped(a)"), "finance must use resolved Director scope");
   assert.ok(students.includes("const directorDepartmentIds = isDirectorScoped(actor)"), "student lists must not be narrowed by secondary Director roles");
-  assert.ok(students.includes("if (actor && isDirectorScoped(actor))"), "student profiles must preserve institution-wide Chairman scope");
+  assert.ok(students.includes("if (actor && isDirectorScoped(actor))"), "student profiles must preserve campus scope when Director has a secondary admin role");
   assert.ok(exams.includes("isDirectorScoped(actor)"), "examination queues and mutations must resolve Director scope consistently");
-  assert.ok(attendance.includes("return isDirectorScoped(actor)"), "attendance reports must preserve institution-wide Chairman scope");
+  assert.ok(attendance.includes("return isDirectorScoped(actor)"), "attendance reports must preserve role precedence");
+  assert.ok(intelligence.indexOf('if (roles.includes("CHAIRMAN"))') < intelligence.indexOf('if (roles.includes("DIRECTOR"))'), "Chairman gets institution-wide intelligence");
+  assert.ok(intelligence.indexOf('if (roles.includes("DIRECTOR"))') < intelligence.indexOf('["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"]'), "Director campus scope wins over secondary institution-admin roles");
+  assert.ok(exports.includes("const institutionWide = !isDirectorScoped(actor)"), "exports must not widen a Director because of a secondary admin role");
 });
 
 test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {
