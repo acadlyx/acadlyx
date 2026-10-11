@@ -2933,7 +2933,7 @@ export async function decideRevaluation(
         AND "studentId" = ${request.studentId}
       LIMIT 1
     `);
-    if (existing.length === 0) return;
+    if (existing.length === 0) throw new AppError("The published mark no longer exists; the revaluation was not applied", 409);
 
     await tx.$executeRaw`
       UPDATE "exam_marks"
