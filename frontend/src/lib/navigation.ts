@@ -448,14 +448,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     activeMatch: "nested",
   },
   {
-    label: "Imports",
-    href: "/director/imports",
-    icon: "⇅",
-    roles: ["DIRECTOR"],
-    permissions: ["imports.read"],
-    group: "Operations",
-  },
-  {
     label: "Intelligence",
     href: "/director/intelligence",
     icon: "✦",
