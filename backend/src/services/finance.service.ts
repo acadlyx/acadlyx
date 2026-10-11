@@ -13,12 +13,12 @@ const rs=(a:AuthenticatedUser)=>getCanonicalRoleNames(a.roles);
 
 async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  const r=rs(a);
- // Resolve institution-wide finance authority before secondary roles so a legacy
- // Director role cannot accidentally narrow the Chairman's institution-wide view.
- if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role))) return {institutionId};
+ // Chairman is the only leadership role that overrides a secondary Director assignment.
+ if(r.includes("CHAIRMAN")) return {institutionId};
+ if(isDirectorScoped(a)) return {institutionId,campusIds:await getDirectorCampusIds(institutionId,a.id)};
+ if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role))) return {institutionId};
  if(r.includes("STUDENT")) return {institutionId,studentIds:[a.id]};
  if(r.includes("PARENT")) return {institutionId,studentIds:(await prisma.parentStudentLink.findMany({where:{institutionId,parentId:a.id},select:{studentId:true}})).map(x=>x.studentId)};
- if(isDirectorScoped(a)) return {institutionId,campusIds:await getDirectorCampusIds(institutionId,a.id)};
  // Department-scoped roles must not gain institution-wide data scope from a broad action permission.
  if(r.includes("HOD")||r.includes("DEAN")) return {institutionId,departmentIds:(await prisma.departmentAccess.findMany({where:{userId:a.id,department:{institutionId}},select:{departmentId:true}})).map(x=>x.departmentId)};
  throw new AppError("Financial scope is not authorized",403);
