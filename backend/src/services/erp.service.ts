@@ -2631,11 +2631,6 @@ export async function listNotices(
     departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   }
 
-  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
-  if (isDirectorWorkspace) {
-    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-  }
-
   const audience =
     isStudent
       ? ["ALL", "STUDENT", "STUDENTS"]
@@ -2661,7 +2656,7 @@ export async function listNotices(
             },
           ]),
       ...(audience ? [{ audience: { in: audience } }] : []),
-      ...(isHod || isStudent || isParent || isDirectorWorkspace
+      ...(isHod || isStudent || isParent
         ? [
             {
               OR: [
