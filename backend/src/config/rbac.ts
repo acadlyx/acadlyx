@@ -685,6 +685,8 @@ export const ROLE_PERMISSIONS: Record<
     "attendance.lock",
 
     "fees.approve",
+    "fees.structure.read",
+    "fees.structure.approve",
     "library.fines.waive.approve",
 
     "audit.read",
