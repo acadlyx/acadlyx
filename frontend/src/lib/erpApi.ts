@@ -1196,6 +1196,14 @@ export async function submitFeeStructureForApproval(id: string) {
   return response.data;
 }
 
+export async function publishFeeStructure(id: string) {
+  const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
+    `/erp/fee-structures/${id}/publish`, { method: "POST" }
+  );
+  invalidateFeeData();
+  return response.data;
+}
+
 export async function approveFeeStructure(id: string) {
   const response = await authedFetch<ApiEnvelope<FeeStructure | null>>(
     `/erp/fee-structures/${id}/approve`, { method: "POST" }
