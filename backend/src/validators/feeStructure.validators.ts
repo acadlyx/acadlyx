@@ -127,14 +127,7 @@ export const feeStructureCreateSchema =
     semesterId:
       uuid.optional(),
 
-    status:
-      z
-        .enum([
-          "DRAFT",
-          "ACTIVE",
-          "ARCHIVED",
-        ])
-        .default("DRAFT"),
+    status: z.literal("DRAFT").default("DRAFT"),
 
     currency:
       currency.default("INR"),
@@ -174,14 +167,7 @@ export const feeStructureUpdateSchema =
           .max(200)
           .optional(),
 
-      status:
-        z
-          .enum([
-            "DRAFT",
-            "ACTIVE",
-            "ARCHIVED",
-          ])
-          .optional(),
+      status: z.enum(["DRAFT", "ARCHIVED"]).optional(),
 
       currency:
         currency.optional(),
@@ -217,14 +203,7 @@ export const feeStructureAssignmentSchema = z.object({
 
 export const feeStructureListSchema =
   z.object({
-    status:
-      z
-        .enum([
-          "DRAFT",
-          "ACTIVE",
-          "ARCHIVED",
-        ])
-        .optional(),
+    status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED"]).optional(),
 
     academicYearId:
       uuid.optional(),
