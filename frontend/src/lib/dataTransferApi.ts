@@ -66,7 +66,7 @@ export async function getImportJob(jobId: string) {
   return body.data;
 }
 
-export async function exportData(type: DataType, format: "xlsx" | "csv") {
+export async function exportData(type: DataType, format: "xlsx" | "csv" | "json") {
   const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
@@ -80,7 +80,7 @@ export async function exportData(type: DataType, format: "xlsx" | "csv") {
 
   const expectedType = format === "xlsx"
     ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    : "text/csv";
+    : format === "csv" ? "text/csv" : "application/json";
   const actualType = blob.type.split(";")[0].toLowerCase();
   if (actualType && actualType !== expectedType) {
     throw new Error("The server returned an unexpected file type. The export was not downloaded.");
@@ -97,4 +97,24 @@ export async function exportData(type: DataType, format: "xlsx" | "csv") {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Open the authorized server export in a print-friendly browser document. */
+export async function printExport(type: DataType): Promise<void> {
+  const response = await authedBlobFetch(`/exports/${type}?format=json`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message || `Print export failed (${response.status})`);
+  }
+  const rows = await response.json() as Array<Record<string, unknown>>;
+  if (!Array.isArray(rows)) throw new Error("The server returned an invalid print dataset.");
+  const escapeHtml = (value: unknown) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+  const columns = rows.length ? Object.keys(rows[0]) : [];
+  const table = columns.length
+    ? "<table><thead><tr>" + columns.map((key) => "<th>" + escapeHtml(key) + "</th>").join("") + "</tr></thead><tbody>" + rows.map((row) => "<tr>" + columns.map((key) => "<td>" + escapeHtml(row[key]) + "</td>").join("") + "</tr>").join("") + "</tbody></table>"
+    : "<p>No records matched the export.</p>";
+  const popup = window.open("", "_blank");
+  if (!popup) throw new Error("Allow pop-ups to open the print view.");
+  popup.document.write("<!doctype html><html><head><meta charset=\"utf-8\"><title>ACADLYX export</title><style>body{font:12px Arial,sans-serif;margin:24px;color:#172033}h1{font-size:18px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #bbb;padding:5px;text-align:left;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid}@media print{body{margin:10mm}}</style></head><body><h1>ACADLYX — " + escapeHtml(type) + " export</h1><p>" + rows.length + " record(s) · Generated " + escapeHtml(new Date().toLocaleString()) + "</p>" + table + "<script>window.onload=function(){window.print()}</script></body></html>");
+  popup.document.close();
 }
