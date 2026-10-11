@@ -3706,25 +3706,45 @@ export async function decideExamMarkCorrection(
         WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
       `;
       if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
-      await tx.$executeRaw`
+      const changedMark = await tx.$executeRaw`
         UPDATE "exam_marks" SET "status"='DRAFT',"correctionRequestId"=${requestId}
         WHERE "id"=${req.examMarkId} AND "institutionId"=${institutionId}
       `;
-      await tx.$executeRaw`
+      if (changedMark !== 1) throw new AppError("The mark no longer exists; correction was rolled back", 409);
+      const changedSchedule = await tx.$executeRaw`
         UPDATE "exam_schedules" SET "status"='CORRECTION_OPEN'
         WHERE "id"=${req.examScheduleId} AND "institutionId"=${institutionId}
+          AND "status" IN ('LOCKED','CORRECTION_OPEN')
       `;
+      if (changedSchedule !== 1) throw new AppError("The examination schedule changed; correction was rolled back", 409);
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.mark_correction_decided",
+          entityType: "ExamMarkCorrectionRequest", entityId: requestId,
+          metadata: { decision, decisionNote: decisionNote ?? null },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
     });
   } else {
-    const claimed = await prisma.$executeRaw`
-      UPDATE "exam_mark_correction_requests"
-      SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
-          "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
-    `;
-    if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.$executeRaw`
+        UPDATE "exam_mark_correction_requests"
+        SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
+            "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
+      `;
+      if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.mark_correction_decided",
+          entityType: "ExamMarkCorrectionRequest", entityId: requestId,
+          metadata: { decision, decisionNote: decisionNote ?? null },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
+    });
   }
-  await recordAuditLog({ institutionId,userId:actor.id,action:"exam.mark_correction_decided",entityType:"ExamMarkCorrectionRequest",entityId:requestId,metadata:{decision,decisionNote:decisionNote??null},...meta });
   return requireTenantRow(prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request");
 }
 
