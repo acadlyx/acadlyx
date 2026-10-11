@@ -2421,12 +2421,14 @@ export async function lockExamSchedule(
     );
   }
 
-  await prisma.$executeRaw`
+  const locked = await prisma.$executeRaw`
     UPDATE "exam_schedules"
     SET "status" = 'LOCKED', "marksLockedAt" = CURRENT_TIMESTAMP,
         "marksLockedById" = ${actor.id}
     WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+      AND "status" NOT IN ('LOCKED', 'RESULTS_PUBLISHED', 'CANCELLED')
   `;
+  if (locked !== 1) throw new AppError("This schedule was locked or changed concurrently; reload and retry", 409);
   const approvedCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId} AND "status"='APPROVED'`);
   await prisma.$executeRaw`
     INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
@@ -2642,6 +2644,10 @@ export async function getExamMarkHistory(
     "Examination mark"
   );
   await assertCanViewStudent(institutionId, actor, mark.studentId);
+  if (!actor.roles.includes("STUDENT")) {
+    const markSchedule = await loadSchedule(institutionId, (await prisma.$queryRaw<Array<{ examScheduleId: string }>>(Prisma.sql`SELECT "examScheduleId" FROM "exam_marks" WHERE "id" = ${examMarkId} AND "institutionId" = ${institutionId}`))[0]?.examScheduleId ?? "");
+    await assertCanReadSchedule(institutionId, actor, markSchedule);
+  }
 
   return prisma.$queryRaw<
     Array<{
@@ -2689,6 +2695,7 @@ export async function requestRevaluation(
   }
 
   const schedule = await loadSchedule(institutionId, input.examScheduleId);
+  if (studentId !== actor.id) await assertCanReadSchedule(institutionId, actor, schedule);
   if (schedule.status !== "RESULTS_PUBLISHED") {
     throw new AppError(
       "Revaluation can only be requested after results are published",
