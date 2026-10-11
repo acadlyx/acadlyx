@@ -497,8 +497,33 @@ export async function exportData(
 
   if (type === "students") {
     const students = await collectInBatches((skip, take) => prisma.user.findMany({ skip, take,
-      where: { institutionId, userRoles: { some: { role: { name: "STUDENT" } } }, ...(scope.institutionWide ? {} : { AND: [scope.studentWhere] }) },
-      include: { profile: true, studentEnrollments: { include: { program: true, academicYear: true, section: { include: { semester: true } } }, orderBy: { academicYear: { startDate: "desc" } }, take: 1 } },
+      where: {
+        institutionId,
+        userRoles: { some: { role: { name: "STUDENT" } } },
+        ...(scope.institutionWide ? {} : { AND: [scope.studentWhere] }),
+        ...(options.filters?.programId || options.filters?.sectionId || options.filters?.semesterId || options.filters?.departmentId ? {
+          studentEnrollments: { some: {
+            ...(options.filters?.programId ? { programId: options.filters.programId } : {}),
+            ...(options.filters?.sectionId ? { sectionId: options.filters.sectionId } : {}),
+            ...(options.filters?.semesterId ? { section: { semesterId: options.filters.semesterId } } : {}),
+            ...(options.filters?.departmentId ? { program: { departmentId: options.filters.departmentId } } : {}),
+          } },
+        } : {}),
+      },
+      include: {
+        profile: true,
+        studentEnrollments: {
+          where: {
+            ...(options.filters?.programId ? { programId: options.filters.programId } : {}),
+            ...(options.filters?.sectionId ? { sectionId: options.filters.sectionId } : {}),
+            ...(options.filters?.semesterId ? { section: { semesterId: options.filters.semesterId } } : {}),
+            ...(options.filters?.departmentId ? { program: { departmentId: options.filters.departmentId } } : {}),
+          },
+          include: { program: true, academicYear: true, section: { include: { semester: true } } },
+          orderBy: { academicYear: { startDate: "desc" } },
+          take: 1,
+        },
+      },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
      }));
     for (const s of students) {
