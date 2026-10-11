@@ -68,7 +68,9 @@ test("Director finance scope uses the canonical explicit CampusAccess helper", (
   assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
   const institutionRoleScope = service.indexOf('if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role)))');
   assert.ok(institutionRoleScope >= 0, "Institution-wide finance scope must be role-based");
-  assert.ok(institutionRoleScope < service.indexOf("if(isDirectorScoped(a))"), "Institution-wide Chairman scope must win over secondary Director role");
+  const chairmanScope = service.indexOf('if(r.includes("CHAIRMAN"))');
+  assert.ok(chairmanScope >= 0 && chairmanScope < service.indexOf("if(isDirectorScoped(a))"), "Chairman institution-wide scope must win over secondary Director role");
+  assert.ok(service.indexOf("if(isDirectorScoped(a))") < institutionRoleScope, "Director campus scope must precede other institution-wide roles");
   assert.ok(service.indexOf("if(isDirectorScoped(a))") < service.indexOf('if(r.includes("HOD")||r.includes("DEAN"))'), "Director campus scope must precede department-scoped roles");
   assert.doesNotMatch(service, /has\(a,"fees\.manage"\)\|\|has\(a,"fees\.reports\.export"\)/, "A broad permission alone must not expand data scope");
   assert.match(sharedScope, /export async function getDirectorCampusIds\(institutionId: string, userId: string\): Promise<string\[]>/);
