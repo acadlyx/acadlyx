@@ -80,4 +80,10 @@ test("fee structure activation is only possible through pending approval and can
   assert.match(reject, /"status" = 'REJECTED'/);
   assert.match(reject, /normalizedReason\.length < 3/);
   assert.match(reject, /"createdById" <> \$\{actor\.id\}/);
+  const updateStart = source.indexOf("export async function updateFeeStructure(");
+  const update = source.slice(updateStart);
+  assert.match(update, /current\.status !== "DRAFT" && current\.status !== "REJECTED"/);
+  assert.match(update, /current\.status === "REJECTED"\s*\?\s*"DRAFT"/);
+  assert.match(update, /AND "status" = \$\{current\.status\}/);
+  assert.match(update, /if \(changed !== 1\)/);
 });
