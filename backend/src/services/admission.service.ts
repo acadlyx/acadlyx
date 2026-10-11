@@ -285,6 +285,7 @@ export async function changeStatus(
 ) {
   assertAdmissionWorkflowAuthority(actor);
   const existing = await load(institutionId, id);
+  await assertProgramScope(institutionId, actor, existing.programId);
   if (!(TRANSITIONS[existing.status] ?? []).includes(status)) {
     throw new AppError(
       `An application cannot move from ${existing.status} to ${status}`,
