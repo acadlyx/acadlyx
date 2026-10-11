@@ -19,14 +19,8 @@ const metrics = [
 const shortcuts = [
   ["Examination operations", "/chairman/examinations/operations"],
   ["Institution intelligence", "/chairman/intelligence"],
-  ["Strategic reports", "/chairman/reports"],
-  ["Fee structures", "/chairman/fees"],
-  ["Students", "/chairman/students"],
+  ["Fee structures", "/chairman/fees/structures"],
   ["Notices", "/chairman/notices"],
-  ["Events & Gallery", "/chairman/events-gallery"],
-  ["Notifications", "/chairman/notifications"],
-  ["Placements", "/chairman/placements"],
-  ["Academic outcomes", "/chairman/obe"],
 ] as const;
 
 export function ChairmanDashboard() {
