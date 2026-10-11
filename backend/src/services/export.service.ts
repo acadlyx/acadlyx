@@ -1,9 +1,16 @@
 import * as XLSX from "xlsx";
+import type { Prisma } from "@prisma/client";
+import { getCanonicalRoleNames } from "../config/rbac";
 import { createCsv, createDocx, createPdf } from "./exportDocuments.service";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { INSTITUTION_WIDE_ROLES } from "./accessScope.service";
+import {
+  getAuthorizedDepartmentIds,
+  getDirectorCampusIds,
+  getStudentWhereScope,
+  INSTITUTION_WIDE_ROLES,
+} from "./accessScope.service";
 
 export const EXPORT_TYPES = [
   "students",
@@ -35,18 +42,91 @@ export type ExportFormat = "xlsx" | "csv" | "docx" | "pdf" | "json";
 
 type Row = Record<string, string | number | boolean | null>;
 
-function assertExportAccess(actor: AuthenticatedUser) {
-  const roles = new Set(actor.roles.map((role) => role.toUpperCase()));
-  const isInstitutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
+const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, string> = {
+  users: "users.read",
+  students: "students.read",
+  faculty: "users.read",
+  departments: "departments.read",
+  programs: "programs.read",
+  "academic-years": "academic-years.read",
+  semesters: "semesters.read",
+  sections: "sections.read",
+  courses: "courses.read",
+  "course-offerings": "course-offerings.read",
+  exams: "exams.read",
+  marks: "marks.read",
+  attendance: "attendance.read",
+  fees: "fees.read",
+  "fee-payments": "fees.read",
+  "fee-structures": "fees.read",
+  notices: "notices.read",
+  timetable: "timetable.read",
+  "parent-links": "parent-links.read",
+  campuses: "campuses.read",
+  "paid-fees": "fees.read",
+  "outstanding-dues": "fees.read",
+};
 
-  if (isInstitutionWide && actor.permissions.includes("reports.read")) {
-    return;
+export interface ExportRequestOptions {
+  selection?: "all-filtered" | "current-page" | "selected";
+  ids?: string[];
+  page?: number;
+  pageSize?: number;
+  filters?: Record<string, string>;
+}
+
+interface ExportActorScope {
+  institutionWide: boolean;
+  roles: Set<string>;
+  departmentIds: string[];
+  campusIds: string[];
+  studentWhere: Prisma.UserWhereInput;
+}
+
+const SCOPED_EXPORT_TYPES = new Set<ExportType>([
+  "students", "faculty", "departments", "programs", "academic-years",
+  "semesters", "sections", "courses", "course-offerings", "exams",
+  "marks", "notices", "timetable", "parent-links",
+]);
+const FINANCE_EXPORT_TYPES = new Set<ExportType>([
+  "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
+]);
+
+async function assertExportAccess(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  type: ExportType,
+): Promise<ExportActorScope> {
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const permission = EXPORT_PERMISSION_BY_TYPE[type];
+  if (!permission || !actor.permissions.includes(permission)) {
+    throw new AppError("You do not have permission to export this dataset", 403);
   }
-
-  throw new AppError(
-    "This export requires institution-wide reporting authority. Use the scoped attendance export for faculty or HOD reporting.",
-    403,
-  );
+  const institutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
+  if (institutionWide) {
+    return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
+  }
+  const scopedAcademicRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY"].some((role) => roles.has(role));
+  if (!scopedAcademicRole) {
+    throw new AppError("Export is not available for this role", 403);
+  }
+  if (FINANCE_EXPORT_TYPES.has(type) || type === "users") {
+    throw new AppError("This export requires institution-wide finance or user-directory authority", 403);
+  }
+  if (type === "campuses" && !roles.has("DIRECTOR")) {
+    throw new AppError("Campus export requires an assigned Director campus scope", 403);
+  }
+  if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses") {
+    throw new AppError("This dataset does not support scoped export for this role", 403);
+  }
+  const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+  const campusIds = roles.has("DIRECTOR")
+    ? await getDirectorCampusIds(institutionId, actor.id)
+    : [];
+  const studentWhere = type === "students" || type === "parent-links"
+    ? await getStudentWhereScope(institutionId, actor)
+    : {};
+  return { institutionWide: false, roles, departmentIds, campusIds, studentWhere };
 }
 
 function clean(value: unknown): string | number | boolean | null {
@@ -143,11 +223,14 @@ export async function exportData(
   actor: AuthenticatedUser,
   type: ExportType,
   format: ExportFormat,
+  options: ExportRequestOptions = {},
 ) {
-  assertExportAccess(actor);
-  if (!EXPORT_TYPES.includes(type)) throw new AppError(`Unsupported export type: ${type}`, 400);
-  if (!['xlsx', 'csv', 'docx', 'pdf', 'json'].includes(format)) throw new AppError("Format must be xlsx, csv, docx, pdf, or json", 400);
-
+  if (!EXPORT_TYPES.includes(type)) throw new AppError("Unsupported export type: " + type, 400);
+  if (!["xlsx", "csv", "docx", "pdf", "json"].includes(format)) throw new AppError("Format must be xlsx, csv, docx, pdf, or json", 400);
+  const scope = await assertExportAccess(institutionId, actor, type);
+  const departmentFilter = { in: scope.departmentIds };
+  const noScopeSentinel = "__NO_AUTHORIZED_SCOPE__";
+  const scopedDepartmentFilter = { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] };
   const rows: Row[] = [];
 
   if (type === "users") {
