@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { getCurrentUser, AuthRequiredError } from "@/lib/auth";
 import { listLoans, LibraryLoan, returnLoan, imposeLateReturnFine, renewLoan } from "@/lib/libraryApi";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,8 @@ export default function LibraryCirculationPage() {
   async function action(id:string,fn:()=>Promise<unknown>){setBusy(id);setError("");try{await fn();await load()}catch(e){setError(e instanceof Error?e.message:"Action failed")}finally{setBusy("")}}
   return <DashboardShell title="Library Circulation" subtitle="Issue, return, renew and overdue operations">
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <DataExportActions type="library-issues" filters={status ? { status } : {}} compact />
+      <DataExportActions type="library-fines" compact />
       <section className="flex flex-wrap gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">All active circulation</option>{["ISSUED","RESERVED","OVERDUE","RETURNED","LOST","DAMAGED"].map(s=><option key={s}>{s}</option>)}</select></section>
       {error&&<div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="p-4">Book / copy</th><th>Borrower</th><th>Issued</th><th>Due</th><th>Policy</th><th>Fine</th><th>Actions</th></tr></thead><tbody className="divide-y divide-slate-100">

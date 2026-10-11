@@ -9,8 +9,9 @@ import {
   INSTITUTION_WIDE_ROLES,
 } from "./accessScope.service";
 import { AttendanceReportQuery } from "../validators/attendanceReport.validators";
+import { ExportFormat, makeFile } from "./export.service";
 
-export type AttendanceReportFormat = "xlsx" | "csv";
+export type AttendanceReportFormat = ExportFormat;
 
 export interface AttendanceReportFilters {
   dateFrom?: Date;
@@ -923,90 +924,23 @@ function buildSummaryRows(
   }));
 }
 
-function makeWorkbook(
-  rows: AttendanceRow[],
-  format: AttendanceReportFormat,
-) {
-  if (format === "csv") {
-    const sheet =
-      XLSX.utils.json_to_sheet(
-        rows.length
-          ? rows
-          : [{}],
-      );
-
-    const csv =
-      XLSX.utils.sheet_to_csv(
-        sheet,
-      );
-
-    return {
-      buffer:
-        Buffer.from(
-          csv,
-          "utf8",
-        ),
-
-      contentType:
-        "text/csv; charset=utf-8",
-
-      extension:
-        "csv",
-    };
+function makeWorkbook(rows: AttendanceRow[], format: AttendanceReportFormat) {
+  if (format !== "xlsx") {
+    const file = makeFile(rows, "attendance", format);
+    return { buffer: file.buffer, contentType: file.contentType, extension: format };
   }
 
-  const workbook =
-    XLSX.utils.book_new();
-
-  const attendanceSheet =
-    XLSX.utils.json_to_sheet(
-      rows.length
-        ? rows
-        : [{}],
-    );
-
-  const summaryRows =
-    buildSummaryRows(
-      rows,
-    );
-
-  const summarySheet =
-    XLSX.utils.json_to_sheet(
-      summaryRows.length
-        ? summaryRows
-        : [{}],
-    );
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    attendanceSheet,
-    "Attendance Records",
-  );
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    summarySheet,
-    "Student Summary",
-  );
-
-  const buffer =
-    XLSX.write(
-      workbook,
-      {
-        type: "buffer",
-        bookType: "xlsx",
-      },
-    );
-
+  const workbook = XLSX.utils.book_new();
+  const attendanceSheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
+  const summaryRows = buildSummaryRows(rows);
+  const summarySheet = XLSX.utils.json_to_sheet(summaryRows.length ? summaryRows : [{}]);
+  XLSX.utils.book_append_sheet(workbook, attendanceSheet, "Attendance Records");
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Student Summary");
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
   return {
-    buffer:
-      Buffer.from(buffer),
-
-    contentType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
-    extension:
-      "xlsx",
+    buffer: Buffer.from(buffer),
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    extension: "xlsx",
   };
 }
 

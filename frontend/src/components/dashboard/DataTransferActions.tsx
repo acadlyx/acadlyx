@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { commitImport, commitPartialStudentImport, DataType, exportData, getImportJob, previewImport } from "@/lib/dataTransferApi";
+import { commitImport, commitPartialStudentImport, DataType, exportData, getImportJob, previewImport, printExport } from "@/lib/dataTransferApi";
 
 const labels: Record<DataType, string> = {
   users: "Users", students: "Students", faculty: "Faculty", campuses: "Campuses", departments: "Departments",
@@ -55,6 +55,10 @@ export default function DataTransferActions({ type, compact = false }: { type: D
       </button>
       <button type="button" disabled={busy} onClick={() => void exportData(type, "xlsx").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export XLSX</button>
       <button type="button" disabled={busy} onClick={() => void exportData(type, "csv").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export CSV</button>
+      <button type="button" disabled={busy} onClick={() => void exportData(type, "docx").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export DOCX</button>
+      <button type="button" disabled={busy} onClick={() => void exportData(type, "pdf").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export PDF</button>
+      <button type="button" disabled={busy} onClick={() => void exportData(type, "json").catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Export JSON</button>
+      <button type="button" disabled={busy} onClick={() => void printExport(type).catch((e) => setMessage(e.message))} className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-black text-slate-800 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50">Print</button>
       {message && <span role="status" className="basis-full text-xs text-slate-600">{message}</span>}
       {errors.length > 0 && <div className="basis-full rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><p className="font-black">Row-level errors</p><ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">{errors.slice(0, 100).map((item, index) => <li key={`${item.row ?? "row"}-${index}`}>Row {item.row ?? "?"}: {item.message}</li>)}</ul>{errors.length > 100 && <p className="mt-2 font-semibold">Showing the first 100 errors.</p>}</div>}
     </div>

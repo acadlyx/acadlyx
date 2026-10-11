@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { MultiEntityPicker, EntityPicker } from "@/components/common/EntityPicker";
 import { listAcademicYears, listCampuses, listDepartments, listPrograms, listSections, listSemesters } from "@/lib/erpApi";
 import { DirectoryOption } from "@/lib/directoryApi";
@@ -187,6 +188,9 @@ export default function ExaminationPage() {
   return (
     <DashboardShell title="Examination Cell" subtitle="Examination operating system — schedule, conduct, marks, results and publication" allowedRoles={["EXAMINATION","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","CHAIRMAN","STUDENT"]}>
       <div className="mx-auto max-w-7xl space-y-6 pb-12">
+        {(view === "marks" ? can("marks.read") : can("exams.read")) && (
+          <DataExportActions type={view === "marks" ? "marks" : "exams"} compact />
+        )}
         <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>

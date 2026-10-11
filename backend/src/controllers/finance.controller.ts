@@ -1,5 +1,6 @@
 import { Request } from "express";
 import * as finance from "../services/finance.service";
+import type { ExportFormat } from "../services/export.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution, requireAuthenticatedUser } from "../utils/requireInstitution";
 const a=(req:Request)=>requireAuthenticatedUser(req);
@@ -19,7 +20,7 @@ export const approveRefund=asyncHandler(async(req,res)=>res.json({success:true,d
 export const processRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.processRefund(requireInstitution(req),a(req),req.params.id)}));
 export const transactions=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.transactions(requireInstitution(req),a(req))}));
 
-export const exportFinancial=asyncHandler(async(req,res)=>{const file=await finance.exportFinancial(requireInstitution(req),a(req),String(req.query.type),String(req.query.format||"xlsx") as "xlsx"|"csv");res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});
+export const exportFinancial=asyncHandler(async(req,res)=>{const file=await finance.exportFinancial(requireInstitution(req),a(req),String(req.query.type) as "invoices"|"payments"|"receipts"|"transactions",String(req.query.format||"xlsx") as ExportFormat);res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});
 
 export const auditTrail=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.auditTrail(requireInstitution(req),a(req))}));
 

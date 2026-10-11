@@ -10,6 +10,7 @@ import {
 import { useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { ModalPortal } from "@/components/ui/ModalPortal";
 
 import {
@@ -1389,6 +1390,16 @@ function AdminPeopleManagerContent() {
             </div>
           </section>
 
+          <div className="mb-4">
+            <DataExportActions
+              type="users"
+              filters={{
+                ...(query.trim() ? { search: query.trim() } : {}),
+                ...(category ? { roles: ROLES[category].join("|") } : {}),
+              }}
+              compact
+            />
+          </div>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({

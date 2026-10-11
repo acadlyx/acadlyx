@@ -2,6 +2,7 @@
 
 import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AuthRequiredError, authedFetch, getCachedCurrentUser } from "@/lib/auth";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { deleteAdminUser, requestAdminUserPermanentDeletion } from "@/lib/adminApi";
 import { ModalPortal } from "@/components/ui/ModalPortal";
 import { DetailDrawer, DetailField } from "@/components/ui/DetailDrawer";
@@ -30,10 +31,21 @@ function Field({ label, children, required }: { label: string; children: ReactNo
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) { return <section className="rounded-2xl border border-slate-200 bg-white p-5"><div className="mb-4"><h3 className="font-semibold text-slate-950">{title}</h3>{description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}</div>{children}</section>; }
 
 export function StudentManagement({ onChanged, departmentId }: Props) {
-  const [students, setStudents] = useState<Student[]>([]); const [page, setPage] = useState(1); const [totalPages, setTotalPages] = useState(1); const [totalStudents, setTotalStudents] = useState(0); const [permissions, setPermissions] = useState<string[]>([]); const [departments, setDepartments] = useState<Lookup[]>([]); const [programs, setPrograms] = useState<Lookup[]>([]); const [academicYears, setAcademicYears] = useState<Lookup[]>([]); const [semesters, setSemesters] = useState<Lookup[]>([]); const [sections, setSections] = useState<Lookup[]>([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [search, setSearch] = useState(""); const [statusFilter, setStatusFilter] = useState(""); const [departmentFilter, setDepartmentFilter] = useState(""); const [programFilter, setProgramFilter] = useState(""); const [semesterFilter, setSemesterFilter] = useState(""); const [sectionFilter, setSectionFilter] = useState(""); const [showForm, setShowForm] = useState(false); const [editing, setEditing] = useState<Student | null>(null); const [selected, setSelected] = useState<Student | null>(null); const [showEnrollment, setShowEnrollment] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]); const [page, setPage] = useState(1); const [totalPages, setTotalPages] = useState(1); const [totalStudents, setTotalStudents] = useState(0); const [permissions, setPermissions] = useState<string[]>([]); const [departments, setDepartments] = useState<Lookup[]>([]); const [programs, setPrograms] = useState<Lookup[]>([]); const [academicYears, setAcademicYears] = useState<Lookup[]>([]); const [semesters, setSemesters] = useState<Lookup[]>([]); const [sections, setSections] = useState<Lookup[]>([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]); const [search, setSearch] = useState(""); const [statusFilter, setStatusFilter] = useState(""); const [departmentFilter, setDepartmentFilter] = useState(""); const [programFilter, setProgramFilter] = useState(""); const [semesterFilter, setSemesterFilter] = useState(""); const [sectionFilter, setSectionFilter] = useState(""); const [showForm, setShowForm] = useState(false); const [editing, setEditing] = useState<Student | null>(null); const [selected, setSelected] = useState<Student | null>(null); const [showEnrollment, setShowEnrollment] = useState(false);
   const emptyForm = { idNumber:"", email:"", firstName:"", lastName:"", phone:"", password:"", admissionNumber:"", dateOfBirth:"", gender:"", bloodGroup:"", nationality:"Indian", address:"", city:"", state:"", postalCode:"", guardianName:"", guardianPhone:"", guardianEmail:"", emergencyContactName:"", emergencyContactPhone:"", admissionDate:"", status:"ACTIVE", programId:"", academicYearId:"", semesterId:"", sectionId:"", rollNumber:"" };
   const [form, setForm] = useState(emptyForm); const [enrollment, setEnrollment] = useState({ academicYearId:"", programId:"", semesterId:"", sectionId:"", rollNumber:"", status:"ACTIVE" });
   const studentFilterReady = useRef(false);
+  function toggleStudentSelected(id: string, checked: boolean) {
+    setSelectedStudentIds((current) => checked
+      ? Array.from(new Set([...current, id]))
+      : current.filter((value) => value !== id));
+  }
+  function togglePageSelection(checked: boolean) {
+    const pageIds = students.map((student) => student.id);
+    setSelectedStudentIds((current) => checked
+      ? Array.from(new Set([...current, ...pageIds]))
+      : current.filter((id) => !pageIds.includes(id)));
+  }
   const loadLookups = useCallback(async () => {
     const [d,y] = await Promise.all([
       departmentId
@@ -80,6 +92,20 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
     {success&&<div className="flex items-start justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700"><span>{success}</span><button onClick={()=>setSuccess("")} className="font-semibold">Dismiss</button></div>}
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Student Master</p><h2 className="mt-1 text-2xl font-bold text-slate-950">Students</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Manage student identities, admission records, guardians and academic enrollment from one tenant-safe workspace.</p></div>{permissions.includes("students.create")?<button onClick={startCreate} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">+ Add Student</button>:null}</div>
     <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or admission no." className={inputClass()}/><select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className={inputClass()}><option value="">All statuses</option>{statuses.map(x=><option key={x} value={x}>{x.replace("_"," ")}</option>)}</select><select value={departmentFilter} onChange={e=>{setDepartmentFilter(e.target.value);setProgramFilter("");setSemesterFilter("");setSectionFilter("");void loadPrograms(e.target.value)}} className={inputClass()} disabled={Boolean(departmentId)}><option value="">All departments</option>{departments.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={programFilter} onChange={e=>setProgramFilter(e.target.value)} className={inputClass()}><option value="">All programs</option>{programs.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={semesterFilter} onChange={e=>setSemesterFilter(e.target.value)} className={inputClass()}><option value="">All semesters</option>{semesters.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select><select value={sectionFilter} onChange={e=>setSectionFilter(e.target.value)} className={inputClass()}><option value="">All sections</option>{sections.map(x=><option key={x.id} value={x.id}>{optionLabel(x)}</option>)}</select></div>
+    <DataExportActions
+      type="students"
+      filters={{
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...((departmentId || departmentFilter) ? { departmentId: departmentId || departmentFilter } : {}),
+        ...(programFilter ? { programId: programFilter } : {}),
+        ...(semesterFilter ? { semesterId: semesterFilter } : {}),
+        ...(sectionFilter ? { sectionId: sectionFilter } : {}),
+      }}
+      currentPage={{ page, pageSize: 50 }}
+      selectedIds={selectedStudentIds}
+      compact
+    />
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {loading && <div className="p-10 text-center text-sm text-slate-500">Loading students…</div>}
       {!loading && students.length === 0 && (
@@ -97,7 +123,7 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
             <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="px-4 py-3">Student</th><th className="px-4 py-3">Admission</th><th className="px-4 py-3">Department</th><th className="px-4 py-3">Program</th><th className="px-4 py-3">Academic Year</th><th className="px-4 py-3">Semester / Section</th><th className="px-4 py-3">Roll No.</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3"><input type="checkbox" aria-label="Select all students on this page" checked={students.length > 0 && students.every((student) => selectedStudentIds.includes(student.id))} onChange={(event) => togglePageSelection(event.target.checked)} /></th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Admission</th><th className="px-4 py-3">Department</th><th className="px-4 py-3">Program</th><th className="px-4 py-3">Academic Year</th><th className="px-4 py-3">Semester / Section</th><th className="px-4 py-3">Roll No.</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -105,7 +131,7 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
                   const e = student.currentEnrollment;
                   return (
                     <tr key={student.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4"><button onClick={() => void openStudent(student)} className="text-left"><p className="font-semibold text-slate-900">{student.firstName} {student.lastName}</p><p className="text-xs text-slate-400">{student.email}</p></button></td>
+                      <td className="px-4 py-4"><input type="checkbox" aria-label={"Select " + student.firstName + " " + student.lastName} checked={selectedStudentIds.includes(student.id)} onChange={(event) => toggleStudentSelected(student.id, event.target.checked)} /></td><td className="px-4 py-4"><button onClick={() => void openStudent(student)} className="text-left"><p className="font-semibold text-slate-900">{student.firstName} {student.lastName}</p><p className="text-xs text-slate-400">{student.email}</p></button></td>
                       <td className="px-4 py-4 font-medium text-slate-700">{student.profile?.admissionNumber || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{e?.program?.department?.name || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{e?.program?.name || "Not enrolled"}</td>

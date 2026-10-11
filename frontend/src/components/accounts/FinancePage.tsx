@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { financeAudit, financeAssignStructure, financeCollections, financeConcessions, financeCommandCenter, financeHeads, financeInvoices, financePayments, financeReceipts, financeRefunds, financeStructures, financeTransactions, downloadFinanceExport } from "@/lib/financeApi";
 import { getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
 import { createFeeHead, createFeeStructure, listAcademicYears, listPrograms, listSemesters, listFeeHeads } from "@/lib/erpApi";
@@ -55,7 +56,19 @@ export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTI
  }catch(e){if(live)setError(e instanceof Error?e.message:"Unable to load financial data")}finally{if(live)setLoading(false)}};void load();return()=>{live=false}},[view,deferredSearch,period]);
  const title=nav.find(x=>x.key===view)?.label||"Accounts";
  return <DashboardShell title="ACADLYX Finance" subtitle="Accounts & Financial Management" allowedRoles={allowedRoles}>
-   <div className="mx-auto max-w-[1500px]">
+   <div className="mx-auto max-w-[1500px] space-y-4">
+    {view === "fee-structures" && <DataExportActions type="fee-structures" compact />}
+    {view === "invoices" && <><DataExportActions type="fees" filters={deferredSearch ? { search: deferredSearch } : {}} currentPage={{ page: 1, pageSize: 25 }} compact /><DataExportActions type="paid-fees" filters={deferredSearch ? { search: deferredSearch } : {}} compact /></>}
+    {view === "fee-heads" && <DataExportActions type="fee-heads" compact />}
+    {view === "payments" && <DataExportActions type="fee-payments" compact />}
+    {view === "receipts" && <DataExportActions type="fee-receipts" compact />}
+    {view === "transactions" && <DataExportActions type="fee-transactions" compact />}
+    {view === "collections" && <DataExportActions type="fee-payments" compact />}
+    {view === "refunds" && <DataExportActions type="fee-refunds" compact />}
+    {view === "concessions" && <DataExportActions type="fee-concessions" compact />}
+    {view === "audit" && can("audit.read") && <DataExportActions type="fee-audit" compact />}
+    {view === "reports" && <><DataExportActions type="fees" compact /><DataExportActions type="fee-payments" compact /><DataExportActions type="fee-transactions" compact /></>}
+    {view === "dues" && <DataExportActions type="outstanding-dues" compact />}
     {view==="overview" ? <CommandCenter d={data} period={period} setPeriod={setPeriod} can={can}/> :
      view==="dues" ? <Dues d={data} can={can}/> :
      <OperationalView view={view} title={title} data={data} loading={loading} error={error} search={search} setSearch={setSearch} can={can}/>}

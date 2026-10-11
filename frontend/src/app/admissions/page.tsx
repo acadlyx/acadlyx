@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { WorkflowStatus } from "@/components/workflow/WorkflowState";
 import { getWorkflowStates, type WorkflowStateResult } from "@/lib/workflowApi";
 import { AuthRequiredError, getCurrentUser, isAuthenticated } from "@/lib/auth";
@@ -206,6 +207,7 @@ export default function AdmissionsPage() {
   return (
     <DashboardShell title="Admission Management" subtitle="Applications, review and selection">
       <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <DataExportActions type="admission-applications" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(status ? { status } : {}), ...(programFilter ? { programId: programFilter } : {}), ...(yearFilter ? { academicYearId: yearFilter } : {}) }} compact />
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">

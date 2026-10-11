@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect,useState } from "react";
 import { authedFetch,HttpRequestError } from "@/lib/auth";
 import { PlacementTeamShell } from "@/components/placement/PlacementTeamShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Metrics=Record<string,unknown>;
 type Company={id:string;name:string;industry:string|null;relationshipStatus:string};
@@ -18,6 +19,13 @@ export default function PlacementTeamWorkspace(){
  const cards=[["Companies",m?.companies],["Active drives",m?.openDrives],["Applications",m?.applications],["Offers",m?.offers],["Joined",m?.joinedOffers],["Average package",m?("INR "+Number(m.averagePackage||0).toLocaleString("en-IN")):"—"],["Highest package",m?("INR "+Number(m.highestPackage||0).toLocaleString("en-IN")):"—"],["Joining rate",m?String(m.joiningRate)+"%":"—"]];
  return <PlacementTeamShell>
   <div className="mx-auto max-w-7xl space-y-6">
+   <div className="flex flex-wrap gap-3">
+    <DataExportActions type="placement-companies" compact />
+    <DataExportActions type="placement-drives" compact />
+    <DataExportActions type="placement-openings" compact />
+    <DataExportActions type="placement-applications" compact />
+    <DataExportActions type="placement-offers" compact />
+   </div>
    {error&&<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{cards.map(([a,b])=><div key={String(a)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{String(a)}</p><p className="mt-2 text-2xl font-black text-slate-950">{loading?"—":String(b??0)}</p></div>)}</section>
    <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[

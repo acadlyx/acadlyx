@@ -6,6 +6,7 @@ import { DirectoryOption } from "@/lib/directoryApi";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
   AuthUser,
@@ -420,6 +421,13 @@ export default function LibraryPage() {
               </div>
             ))}
           </section>
+        )}
+
+        {canManage && (tab === "catalogue" || tab === "circulation" || tab === "fines") && (
+          <div className="flex flex-wrap gap-3">
+            <DataExportActions type={tab === "catalogue" ? "library-books" : tab === "circulation" ? "library-issues" : "library-fines"} compact />
+            {tab === "catalogue" && <DataExportActions type="library-copies" compact />}
+          </div>
         )}
 
         <nav className="flex flex-wrap gap-2">

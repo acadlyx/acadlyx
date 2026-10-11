@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 import {
   AuthRequiredError,
@@ -865,6 +866,7 @@ export default function TimetablePage() {
         "FACULTY",
       ]}
     >
+      <div className="mx-auto max-w-7xl px-4 pt-4"><DataExportActions type="timetable" filters={{ ...(selectedProgram ? { programId: selectedProgram } : {}), ...(selectedSemester ? { semesterId: selectedSemester } : {}), ...(selectedSection ? { sectionId: selectedSection } : {}), ...(selectedDepartment ? { departmentId: selectedDepartment } : {}) }} compact /></div>
       <div className="space-y-5 pb-10">
         {/* HEADER */}
         <section className="rounded-[24px] border border-[#dfe7ee] bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-6">

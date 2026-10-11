@@ -15,6 +15,7 @@ import {
   AttendanceReportOptions,
   downloadAttendanceReport,
   getAttendanceReportOptions,
+  printAttendanceReport,
 } from "@/lib/attendanceReportApi";
 
 const EMPTY_FILTERS: AttendanceReportFilters = {};
@@ -106,7 +107,7 @@ export function AttendanceExportPanel({
     setDownloading,
   ] =
     useState<
-      "xlsx" | "csv" | null
+      "xlsx" | "csv" | "docx" | "pdf" | "json" | "print" | null
     >(null);
 
   const [
@@ -396,18 +397,16 @@ export function AttendanceExportPanel({
   }
 
   async function download(
-    format: "xlsx" | "csv",
+    format: "xlsx" | "csv" | "docx" | "pdf" | "json" | "print",
   ) {
     setDownloading(format);
     setMessage("");
     setError("");
 
     try {
-      const result =
-        await downloadAttendanceReport(
-          filters,
-          format,
-        );
+      const result = format === "print"
+        ? await printAttendanceReport(filters)
+        : await downloadAttendanceReport(filters, format);
 
       setMessage(
         result.rowCount > 0
@@ -952,42 +951,24 @@ export function AttendanceExportPanel({
                 Reset filters
               </button>
 
+              {(["csv", "xlsx", "docx", "pdf", "json"] as const).map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  onClick={() => void download(format)}
+                  disabled={downloading !== null}
+                  className={format === "xlsx" ? "rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" : "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"}
+                >
+                  {downloading === format ? "Preparing " + format.toUpperCase() + "…" : "Download " + format.toUpperCase()}
+                </button>
+              ))}
               <button
                 type="button"
-                onClick={() =>
-                  void download(
-                    "csv",
-                  )
-                }
-                disabled={
-                  downloading !==
-                  null
-                }
+                onClick={() => void download("print")}
+                disabled={downloading !== null}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                {downloading ===
-                "csv"
-                  ? "Preparing CSV…"
-                  : "Download CSV"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  void download(
-                    "xlsx",
-                  )
-                }
-                disabled={
-                  downloading !==
-                  null
-                }
-                className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-              >
-                {downloading ===
-                "xlsx"
-                  ? "Preparing XLSX…"
-                  : "Download XLSX"}
+                {downloading === "print" ? "Preparing print view…" : "Print"}
               </button>
             </div>
           </div>

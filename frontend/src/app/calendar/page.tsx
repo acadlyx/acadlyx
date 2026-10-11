@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
   AuthUser,
@@ -203,6 +204,7 @@ export default function CalendarPage() {
       subtitle="Holidays, examinations, deadlines and events"
     >
       <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
         <section className="flex flex-wrap items-end gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <input
             value={search}

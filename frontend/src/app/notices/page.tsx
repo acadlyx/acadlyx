@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
   getCurrentUser,
@@ -224,6 +225,7 @@ export default function NoticesPage() {
       allowedRoles={READ_ROLES}
     >
       <main className="mx-auto max-w-[1180px] space-y-5 pb-10">
+        <DataExportActions type="notices" compact />
         <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
