@@ -8,6 +8,7 @@ import { approveFeeStructure, rejectFeeStructure, listFeeStructures } from "../s
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
 import { getAttendanceReportOptions } from "../services/attendanceReport.service";
+import { getManagementWorkspace } from "../services/managementWorkspace.service";
 import { getExamSession, listExamSessions } from "../services/examination.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
@@ -244,6 +245,15 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     assert.deepEqual(reportOptions.departments.map((row) => row.id), [departmentA.id]);
     assert.deepEqual(reportOptions.programs.map((row) => row.id), [programA.id]);
+
+    const directorMetrics = await getManagementWorkspace(institution.id, directorActor);
+    assert.equal(directorMetrics.workspaceType, "DIRECTOR");
+    assert.equal(directorMetrics.stats.departments, 1, "Director metrics must count only assigned-campus departments");
+    assert.equal(directorMetrics.stats.students, 1, "Director metrics must count only actively enrolled students in assigned-campus departments");
+    const chairmanMetrics = await getManagementWorkspace(institution.id, chairmanActor);
+    assert.equal(chairmanMetrics.workspaceType, "CHAIRMAN");
+    assert.equal(chairmanMetrics.stats.departments, 2, "Chairman metrics must remain institution-wide");
+    assert.equal(chairmanMetrics.stats.students, 2, "Chairman metrics must include students across both campuses");
   } finally {
     await prisma.$executeRaw`DELETE FROM "exam_sessions" WHERE "institutionId" = ${institution.id}`;
     await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
