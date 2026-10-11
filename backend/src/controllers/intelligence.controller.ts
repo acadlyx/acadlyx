@@ -69,9 +69,10 @@ export const commandCenter = asyncHandler(async (req, res) => {
     if (allowed && program && !allowed.includes(program.departmentId)) throw new AppError("Program not found in the assigned scope", 404);
     if (departmentId && program && program.departmentId !== departmentId) throw new AppError("Program does not belong to the selected department", 400);
     if (program && semester && program.id !== semester.programId) throw new AppError("Semester does not belong to the selected program", 400);
-    if (departmentId && semester && !program) {
+    if (semester && !program) {
       const semesterProgram = await prisma.program.findFirst({ where: { id: semester.programId, institutionId }, select: { departmentId: true } });
-      if (!semesterProgram || semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
+      if (!semesterProgram) throw new AppError("Semester not found in this institution", 404);
+      if (departmentId && semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
       if (allowed && !allowed.includes(semesterProgram.departmentId)) throw new AppError("Semester not found in the assigned scope", 404);
     }
   }
