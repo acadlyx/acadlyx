@@ -1390,6 +1390,16 @@ function AdminPeopleManagerContent() {
             </div>
           </section>
 
+          <div className="mb-4">
+            <DataExportActions
+              type="users"
+              filters={{
+                ...(query.trim() ? { search: query.trim() } : {}),
+                ...(category ? { roles: ROLES[category].join("|") } : {}),
+              }}
+              compact
+            />
+          </div>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {loading ? (
               Array.from({
@@ -1952,9 +1962,6 @@ export function AdminPeopleManager() {
       subtitle="Institution-scoped administration"
       allowedRoles={["INSTITUTION_ADMIN"]}
     >
-      <div className="mb-4">
-        <DataExportActions type="users" compact />
-      </div>
       <AdminPeopleManagerContent />
     </DashboardShell>
   );
