@@ -85,7 +85,7 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
         data: { institutionId: institution.id, name: "Assigned campus fees", programId: programA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
       }),
       prisma.feeStructure.create({
-        data: { institutionId: institution.id, name: "Unassigned campus fees", programId: programB.id, createdById: director.id, status: "ACTIVE" },
+        data: { institutionId: institution.id, name: "Unassigned campus fees", programId: programB.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
       }),
     ]);
 
