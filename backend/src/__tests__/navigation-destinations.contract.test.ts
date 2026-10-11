@@ -75,7 +75,7 @@ test("every literal ROLE_NAVIGATION destination resolves to an App Router page",
   assert.ok(items.length > 100, "navigation parser should inspect the real role navigation inventory");
   const adminHrefs = [...adminNavigationSource.matchAll(/href:\s*"([^"]+)"/g)].map((match) => match[1]);
   const overridesStart = dashboardShellSource.indexOf("const ROLE_ROUTE_OVERRIDES");
-  const overridesEnd = dashboardShellSource.indexOf("\\n};", overridesStart);
+  const overridesEnd = dashboardShellSource.indexOf("\n};", overridesStart);
   const overridesSource = dashboardShellSource.slice(overridesStart, overridesEnd);
   const roleOwnedHrefs = [...overridesSource.matchAll(/:\s*"([^"]+)"/g)].map((match) => match[1]);
   const allDestinations = [...new Set([
