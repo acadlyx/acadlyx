@@ -3685,10 +3685,25 @@ export async function listExamMarkCorrectionRequests(
   pagination: PaginationParams,
 ) {
   assertExamController(actor);
-  const where = Prisma.sql`WHERE "institutionId"=${institutionId} ORDER BY "createdAt" DESC LIMIT ${pagination.take} OFFSET ${pagination.skip}`;
-  const items = await prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT * FROM "exam_mark_correction_requests" ${where}`);
-  const total = await countRows(prisma, "exam_mark_correction_requests", Prisma.sql`WHERE "institutionId"=${institutionId}`);
-  return { items, total };
+  const departmentIds = actor.roles.includes("DIRECTOR")
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : undefined;
+  if (departmentIds && !departmentIds.length) return { items: [], total: 0 };
+  const scopeClause = departmentIds
+    ? Prisma.sql`AND "examScheduleId" IN (
+        SELECT es."id" FROM "exam_schedules" es
+        JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+        JOIN "courses" c ON c."id" = co."courseId"
+        WHERE es."institutionId" = ${institutionId}
+          AND c."departmentId" IN (${Prisma.join(departmentIds)})
+      )`
+    : Prisma.empty;
+  const where = Prisma.sql`WHERE "institutionId" = ${institutionId} ${scopeClause}`;
+  const [items, totalRows] = await Promise.all([
+    prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`SELECT * FROM "exam_mark_correction_requests" ${where} ORDER BY "createdAt" DESC LIMIT ${pagination.take} OFFSET ${pagination.skip}`),
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`SELECT COUNT(*)::bigint AS count FROM "exam_mark_correction_requests" ${where}`),
+  ]);
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
 
 
