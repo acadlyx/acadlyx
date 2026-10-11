@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "./DashboardShell";
-import { authedFetch, AuthRequiredError } from "@/lib/auth";
+import { authedFetch, AuthRequiredError, HttpRequestError } from "@/lib/auth";
 
 type WorkspaceData = { stats: Record<string, number> };
 
@@ -37,6 +37,7 @@ export function DirectorDashboard() {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
+  const [scopeIssue, setScopeIssue] = useState(false);
   const [scopeMissing, setScopeMissing] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
@@ -69,6 +70,12 @@ export function DirectorDashboard() {
           <h1 className="mt-2 text-3xl font-black">Director Command Center</h1>
           <p className="mt-2 text-sm text-slate-300">Campus visibility for campuses explicitly assigned to your account. Use the left sidebar to navigate between dedicated campus pages.</p>
         </section>
+        {scopeIssue && (
+          <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
+            <span>Campus workspace access could not be verified. No institution-wide data is shown. Ask the institution administrator to verify this account&apos;s Campus Access assignment.</span>
+            <button type="button" onClick={() => void loadWorkspace()} disabled={loading} className="rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">Retry</button>
+          </section>
+        )}
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
             <span>{scopeMissing ? "No campus is assigned to this Director account. Ask Institution Admin to open Admin → People → Edit user, assign one or more active campuses, and save. Metrics remain unavailable until that scope exists." : "Campus metrics are temporarily unavailable. No values are being reported as zero."}</span>
