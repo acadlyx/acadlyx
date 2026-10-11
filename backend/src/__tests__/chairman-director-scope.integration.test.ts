@@ -101,7 +101,7 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
       endDate: new Date("2030-02-03T00:00:00.000Z"),
       departmentIds: [departmentB.id],
     }, {});
-    const directorSessions = await listExamSessions(institution.id, directorActor, { skip: 0, take: 100 }, {});
+    const directorSessions = await listExamSessions(institution.id, directorActor, { page: 1, pageSize: 100, skip: 0, take: 100 }, {});
     assert.ok(directorSessions.items.some((row) => row.id === assignedSession.id));
     assert.ok(!directorSessions.items.some((row) => row.id === otherCampusSession.id), "Director session lists must exclude another campus");
     const changedSession = await updateExamSessionStatus(institution.id, directorActor, assignedSession.id, "SCHEDULED", {});
