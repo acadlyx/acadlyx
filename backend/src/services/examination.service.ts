@@ -2262,6 +2262,17 @@ export async function saveExamMarks(
   }
 
   await prisma.$transaction(async (tx) => {
+    const lockedSchedule = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "exam_schedules"
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    if (!lockedSchedule.length || lockedSchedule[0].status !== schedule.status) {
+      throw new AppError("The examination schedule changed while marks were being saved; reload and retry", 409);
+    }
+    if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(lockedSchedule[0].status)) {
+      throw new AppError("Marks are locked or this examination is closed", 409);
+    }
     for (const entry of entries) {
       const existing = await tx.$queryRaw<
         Array<{ id: string; marksObtained: number | null; status: ExamMarkStatus }>
@@ -2316,16 +2327,15 @@ export async function saveExamMarks(
            ${actor.id})
       `;
     }
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: submit ? "exam.marks_submitted" : "exam.marks_saved",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { count: entries.length },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id,
+        action: submit ? "exam.marks_submitted" : "exam.marks_saved",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { count: entries.length, status: nextStatus },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return { saved: entries.length, status: nextStatus };
