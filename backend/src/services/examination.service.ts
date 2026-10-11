@@ -2412,69 +2412,89 @@ export async function lockExamSchedule(
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
   await assertExamApprovalScope(institutionId, actor, schedule);
-  if (schedule.status === "LOCKED" || schedule.status === "RESULTS_PUBLISHED") {
-    throw new AppError("This schedule is already locked", 409);
+  if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
+    throw new AppError("This schedule is already locked or closed", 409);
   }
 
   const roster = await getCourseOfferingRoster(institutionId, schedule.courseOfferingId);
-  const sessionForLock = await loadSession(institutionId, schedule.examSessionId);
-  const expectedCandidates = sessionForLock.registrationRequired
-    ? await countRows(prisma, "exam_registrations", Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId"=${schedule.examSessionId} AND "status"='REGISTERED'`)
-    : roster.length;
-  const enteredCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}`);
-  if (enteredCount !== expectedCandidates) {
-    throw new AppError(`Cannot lock results: ${Math.max(0, expectedCandidates - enteredCount)} student mark(s) are missing`,409);
-  }
-  const outstanding = await countRows(
-    prisma,
-    "exam_marks",
-    Prisma.sql`WHERE "examScheduleId" = ${examScheduleId}
-      AND "institutionId" = ${institutionId}
-      AND "status" <> 'APPROVED'`
-  );
-  if (outstanding > 0) {
-    throw new AppError(
-      `${outstanding} mark(s) are not approved yet`,
-      409
-    );
-  }
+  const session = await loadSession(institutionId, schedule.examSessionId);
 
-  const locked = await prisma.$executeRaw`
-    UPDATE "exam_schedules"
-    SET "status" = 'LOCKED', "marksLockedAt" = CURRENT_TIMESTAMP,
-        "marksLockedById" = ${actor.id}
-    WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
-      AND "status" NOT IN ('LOCKED', 'RESULTS_PUBLISHED', 'CANCELLED')
-  `;
-  if (locked !== 1) throw new AppError("This schedule was locked or changed concurrently; reload and retry", 409);
-  const approvedCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId} AND "status"='APPROVED'`);
-  await prisma.$executeRaw`
-    INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
-    VALUES (${randomUUID()},${institutionId},${examScheduleId},'APPROVED',${approvedCount},0,${actor.id},CURRENT_TIMESTAMP)
-    ON CONFLICT ("examScheduleId") DO UPDATE SET
-      "status"='APPROVED',"totalCandidates"=${approvedCount},"approvedById"=${actor.id},"approvedAt"=CURRENT_TIMESTAMP
-  `;
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "exam_schedules"
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    if (!current.length || current[0].status !== schedule.status) {
+      throw new AppError("The examination schedule changed concurrently; reload and retry", 409);
+    }
+    if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(current[0].status)) {
+      throw new AppError("This schedule is already locked or closed", 409);
+    }
 
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.schedule_locked",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    ...meta,
+    let expectedCandidates = roster.length;
+    if (session.registrationRequired) {
+      const registered = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS count FROM "exam_registrations"
+        WHERE "institutionId" = ${institutionId}
+          AND "examSessionId" = ${schedule.examSessionId}
+          AND "status" = 'REGISTERED'
+      `);
+      expectedCandidates = registered[0]?.count ?? 0;
+    }
+    const enteredRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId} AND "institutionId" = ${institutionId}
+    `);
+    const enteredCount = enteredRows[0]?.count ?? 0;
+    if (enteredCount !== expectedCandidates) {
+      throw new AppError(`Cannot lock results: ${Math.max(0, expectedCandidates - enteredCount)} student mark(s) are missing`, 409);
+    }
+    const outstandingRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" <> 'APPROVED'
+    `);
+    const outstanding = outstandingRows[0]?.count ?? 0;
+    if (outstanding > 0) throw new AppError(`${outstanding} mark(s) are not approved yet`, 409);
+
+    const changed = await tx.$executeRaw`
+      UPDATE "exam_schedules"
+      SET "status" = 'LOCKED', "marksLockedAt" = CURRENT_TIMESTAMP,
+          "marksLockedById" = ${actor.id}
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+        AND "status" = ${schedule.status}
+        AND "status" NOT IN ('LOCKED', 'RESULTS_PUBLISHED', 'CANCELLED')
+    `;
+    if (changed !== 1) throw new AppError("This schedule was locked or changed concurrently; reload and retry", 409);
+
+    const approvedRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'APPROVED'
+    `);
+    const approvedCount = approvedRows[0]?.count ?? 0;
+    await tx.$executeRaw`
+      INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
+      VALUES (${randomUUID()},${institutionId},${examScheduleId},'APPROVED',${approvedCount},0,${actor.id},CURRENT_TIMESTAMP)
+      ON CONFLICT ("examScheduleId") DO UPDATE SET
+        "status"='APPROVED',"totalCandidates"=${approvedCount},"approvedById"=${actor.id},"approvedAt"=CURRENT_TIMESTAMP
+    `;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.schedule_locked",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { approvedCount, expectedCandidates },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return loadSchedule(institutionId, examScheduleId);
 }
 
-/**
- * Publishes a locked schedule's results.
- *
- * Publication mirrors approved marks into the Exam/ExamResult models
- * inside the same transaction, which is what makes the new examination
- * module show up in existing transcripts, grade sheets and CGPA without
- * duplicating the grading rules.
- */
 export async function enqueuePublishExamResults(
   institutionId: string,
   actor: AuthenticatedUser,
