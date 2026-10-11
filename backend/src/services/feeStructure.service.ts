@@ -454,22 +454,37 @@ async function assertFeeStructureInActorScope(
 ): Promise<void> {
   if (!actor.roles.includes("DIRECTOR")) return;
 
-  const rows = await prisma.$queryRaw<Array<{ programId: string | null; departmentId: string | null }>>(Prisma.sql`
-    SELECT fs."programId", p."departmentId"
+  const rows = await prisma.$queryRaw<Array<{
+    programId: string | null;
+    semesterId: string | null;
+    programDepartmentId: string | null;
+    semesterDepartmentId: string | null;
+  }>>(Prisma.sql`
+    SELECT fs."programId", fs."semesterId",
+      direct_program."departmentId" AS "programDepartmentId",
+      semester_program."departmentId" AS "semesterDepartmentId"
     FROM "fee_structures" fs
-    LEFT JOIN "programs" p
-      ON p."id" = fs."programId"
-      AND p."institutionId" = fs."institutionId"
+    LEFT JOIN "programs" direct_program
+      ON direct_program."id" = fs."programId"
+      AND direct_program."institutionId" = fs."institutionId"
+    LEFT JOIN "semesters" semester_scope
+      ON semester_scope."id" = fs."semesterId"
+      AND semester_scope."institutionId" = fs."institutionId"
+    LEFT JOIN "programs" semester_program
+      ON semester_program."id" = semester_scope."programId"
+      AND semester_program."institutionId" = fs."institutionId"
     WHERE fs."id" = ${structureId}
       AND fs."institutionId" = ${institutionId}
     LIMIT 1
   `);
   const row = rows[0];
-  if (!row || !row.programId || !row.departmentId) {
-    throw new AppError("Fee structure not found in your campus scope", 404);
-  }
   const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-  if (!allowedDepartmentIds.includes(row.departmentId)) {
+  if (
+    !row ||
+    (!row.programId && !row.semesterId) ||
+    (row.programId && (!row.programDepartmentId || !allowedDepartmentIds.includes(row.programDepartmentId))) ||
+    (row.semesterId && (!row.semesterDepartmentId || !allowedDepartmentIds.includes(row.semesterDepartmentId)))
+  ) {
     throw new AppError("Fee structure not found in your campus scope", 404);
   }
 }
@@ -501,12 +516,24 @@ export async function listFeeStructures(
   if (actor.roles.includes("DIRECTOR")) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (departmentIds.length === 0) return [];
-    conditions.push(Prisma.sql`fs."programId" IN (
-      SELECT p."id"
-      FROM "programs" p
-      WHERE p."institutionId" = ${institutionId}
+    conditions.push(Prisma.sql`(
+      (fs."programId" IS NOT NULL AND fs."programId" IN (
+        SELECT p."id" FROM "programs" p
+        WHERE p."institutionId" = ${institutionId}
+          AND p."departmentId" IN (${Prisma.join(departmentIds)})
+      ))
+      OR (fs."programId" IS NULL AND fs."semesterId" IN (
+        SELECT sem."id" FROM "semesters" sem
+        JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+        WHERE sem."institutionId" = ${institutionId}
+          AND p."departmentId" IN (${Prisma.join(departmentIds)})
+      ))
+    ) AND (fs."semesterId" IS NULL OR fs."semesterId" IN (
+      SELECT sem."id" FROM "semesters" sem
+      JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+      WHERE sem."institutionId" = ${institutionId}
         AND p."departmentId" IN (${Prisma.join(departmentIds)})
-    )`);
+    ))`);
   }
 
   if (input?.status) {
