@@ -496,14 +496,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
-    label: "Calendar",
-    href: "/director/calendar",
-    icon: "◫",
-    roles: ["DIRECTOR"],
-    permissions: ["calendar.read"],
-    group: "Institution",
-  },
-  {
     label: "Notices",
     href: "/director/notices",
     icon: "◌",
