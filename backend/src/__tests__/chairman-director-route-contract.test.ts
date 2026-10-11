@@ -452,6 +452,7 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   const students = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
   const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
+  const attendanceSessions = readFileSync(join(process.cwd(), "src/services/attendanceSession.service.ts"), "utf8");
   const intelligence = readFileSync(join(process.cwd(), "src/controllers/intelligence.controller.ts"), "utf8");
   const exports = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
   const calendar = readFileSync(join(process.cwd(), "src/services/calendar.service.ts"), "utf8");
@@ -462,6 +463,8 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   assert.ok(students.includes("if (actor && isDirectorScoped(actor))"), "student profiles must preserve campus scope when Director has a secondary admin role");
   assert.ok(exams.includes("isDirectorScoped(actor)"), "examination queues and mutations must resolve Director scope consistently");
   assert.ok(attendance.includes("return isDirectorScoped(actor)"), "attendance reports must preserve role precedence");
+  assert.ok(attendanceSessions.includes("if (isInstitutionWide(user) && !isDirectorScoped(user))"), "attendance session listing must not make Director institution-wide");
+  assert.ok(attendanceSessions.includes('semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } }'), "attendance history must be filtered to assigned-campus departments");
   assert.ok(intelligence.indexOf('if (roles.includes("CHAIRMAN"))') < intelligence.indexOf('if (roles.includes("DIRECTOR"))'), "Chairman gets institution-wide intelligence");
   assert.ok(intelligence.indexOf('if (roles.includes("DIRECTOR"))') < intelligence.indexOf('["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"]'), "Director campus scope wins over secondary institution-admin roles");
   assert.ok(exports.includes("const institutionWide = !isDirectorScoped(actor)"), "exports must not widen a Director because of a secondary admin role");
