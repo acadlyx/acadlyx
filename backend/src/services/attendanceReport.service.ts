@@ -150,6 +150,7 @@ function assertExportRole(
   if (
     isFaculty(actor) ||
     isHod(actor) ||
+    isDirector(actor) ||
     isInstitutionWide(actor)
   ) {
     return;
