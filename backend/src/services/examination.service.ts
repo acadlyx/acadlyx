@@ -2912,7 +2912,7 @@ export async function decideRevaluation(
   input: { status: string; revisedMarks?: number; decisionNote?: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const request = await requireTenantRow<{
     id: string;
     examScheduleId: string;
@@ -3199,7 +3199,7 @@ export async function decideExamIncident(
   input: { status: string; actionTaken?: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const incident = await requireTenantRow<{
     id: string;
     studentId: string;
