@@ -8,7 +8,7 @@ import { listFeeStructures } from "../services/feeStructure.service";
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
 import { getAttendanceReportOptions } from "../services/attendanceReport.service";
-import { createExamSession, getExamSession, listExamSessions } from "../services/examination.service";
+import { createExamSession, getExamSession, listExamSessions, updateExamSessionStatus } from "../services/examination.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
   skip: !process.env.DATABASE_URL,
@@ -104,6 +104,12 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     const directorSessions = await listExamSessions(institution.id, directorActor, { skip: 0, take: 100 }, {});
     assert.ok(directorSessions.items.some((row) => row.id === assignedSession.id));
     assert.ok(!directorSessions.items.some((row) => row.id === otherCampusSession.id), "Director session lists must exclude another campus");
+    const changedSession = await updateExamSessionStatus(institution.id, directorActor, assignedSession.id, "SCHEDULED", {});
+    assert.equal(changedSession.status, "SCHEDULED", "Director may transition an in-scope session");
+    await assert.rejects(
+      () => updateExamSessionStatus(institution.id, directorActor, otherCampusSession.id, "CANCELLED", {}),
+      /assigned scope|not found/i,
+    );
     await assert.rejects(
       () => createExamSession(institution.id, directorActor, {
         name: "Forbidden campus examination",
