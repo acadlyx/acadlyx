@@ -186,11 +186,12 @@ export async function getStudentIntelligence(institutionId: string, studentId: s
   };
 }
 
-export async function getInstitutionInsights(institutionId: string, filters: { departmentId?: string; programId?: string; semesterId?: string; from?: Date; to?: Date } = {}) {
-  const enrollmentWhere = { institutionId, ...(filters.programId ? { programId: filters.programId } : {}), ...(filters.departmentId ? { program: { departmentId: filters.departmentId } } : {}), ...(filters.semesterId ? { section: { semesterId: filters.semesterId } } : {}) };
+export async function getInstitutionInsights(institutionId: string, filters: { departmentId?: string; departmentIds?: string[]; programId?: string; semesterId?: string; from?: Date; to?: Date } = {}) {
+  const scopedDepartmentIds = filters.departmentId ? [filters.departmentId] : filters.departmentIds;
+  const enrollmentWhere = { institutionId, ...(filters.programId ? { programId: filters.programId } : {}), ...(scopedDepartmentIds ? { program: { departmentId: { in: scopedDepartmentIds } } } : {}), ...(filters.semesterId ? { section: { semesterId: filters.semesterId } } : {}) };
   const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
-    ...(filters.departmentId
-      ? { course: { departmentId: filters.departmentId } }
+    ...(scopedDepartmentIds
+      ? { course: { departmentId: { in: scopedDepartmentIds } } }
       : {}),
     ...(filters.programId
       ? { semester: { programId: filters.programId } }
@@ -231,7 +232,7 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
       some: {
         institutionId,
         ...(filters.programId ? { programId: filters.programId } : {}),
-        ...(filters.departmentId ? { program: { departmentId: filters.departmentId } } : {}),
+        ...(scopedDepartmentIds ? { program: { departmentId: { in: scopedDepartmentIds } } } : {}),
         ...(filters.semesterId ? { semesterId: filters.semesterId } : {}),
         status: "ACTIVE",
       },
@@ -239,7 +240,7 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
   };
   const [students, departments, faculty, attendance, pendingAssignments, placement] = await Promise.all([
     prisma.studentEnrollment.count({ where: enrollmentWhere }),
-    prisma.department.count({ where: { institutionId, ...(filters.departmentId ? { id: filters.departmentId } : {}) } }),
+    prisma.department.count({ where: { institutionId, ...(scopedDepartmentIds ? { id: { in: scopedDepartmentIds } } : {}) } }),
     prisma.user.count({ where: { institutionId, facultyCourseOfferings: { some: facultyOfferingFilter } } }),
     prisma.attendanceRecord.groupBy({
       by: ["status"],
