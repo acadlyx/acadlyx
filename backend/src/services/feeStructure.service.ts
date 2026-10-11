@@ -982,6 +982,44 @@ export async function submitFeeStructureForApproval(
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 
+export async function publishFeeStructure(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string
+) {
+  if (!actor.roles.includes("CHAIRMAN") || !actor.permissions.includes("fees.structure.publish")) {
+    throw new AppError("Direct fee-structure publication is reserved for the Chairman workspace", 403);
+  }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql\x60
+      UPDATE "fee_structures"
+      SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = \x24{structureId}
+        AND "institutionId" = \x24{institutionId}
+        AND "status" = 'DRAFT'
+    \x60);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.publish-direct",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "DRAFT", toStatus: "ACTIVE", workflow: "CHAIRMAN_DIRECT_PUBLISH" },
+      },
+    });
+    return count;
+  });
+  if (changed !== 1) {
+    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql\x60
+      SELECT "status" FROM "fee_structures"
+      WHERE "id" = \x24{structureId} AND "institutionId" = \x24{institutionId} LIMIT 1
+    \x60);
+    if (!rows[0]) throw new AppError("Fee structure not found", 404);
+    throw new AppError("Only a DRAFT fee structure can be published directly", 409);
+  }
+  return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
+}
+
 export async function approveFeeStructure(
   institutionId: string,
   actor: AuthenticatedUser,
