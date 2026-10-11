@@ -17,6 +17,7 @@ const metrics = [
 ] as const;
 
 const shortcuts = [
+  ["Campus examination operations", "/director/examinations/operations"],
   ["Campus intelligence", "/director/intelligence"],
   ["Campus operations", "/director/operations"],
   ["Campus students", "/director/students"],
