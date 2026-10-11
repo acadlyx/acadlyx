@@ -5,7 +5,6 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
 import {
   CreateSessionInput,
