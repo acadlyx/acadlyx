@@ -304,3 +304,20 @@ test("Chairman receives approval-only examination permissions without Examinatio
   assert.ok(chairman.includes('"exams.revaluate"'));
   assert.ok(!chairman.includes('"exams.manage"'), "Chairman approvals must not grant operational scheduling/marks-entry authority");
 });
+
+
+test("Director examination read and decision queues derive campus scope from the offering program", () => {
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const directorReadScope = exams.slice(exams.indexOf('if (actor.roles.includes("DIRECTOR"))', exams.indexOf("async function assertCanReadSchedule")), exams.indexOf("async function assertCanActOnSchedule"));
+  assert.ok(directorReadScope.includes("prisma.semester.findFirst"));
+  assert.ok(directorReadScope.includes("program: { institutionId, departmentId: { in: ids } }"));
+  const sessions = exams.slice(exams.indexOf("export async function listExamSessions("), exams.indexOf("export async function getExamSession("));
+  assert.ok(sessions.includes('JOIN "programs" p ON p."id"=sem."programId"'));
+  assert.ok(sessions.includes('outside_program."departmentId" NOT IN'));
+  const revaluations = exams.slice(exams.indexOf("export async function listRevaluationRequests("), exams.indexOf("export async function decideRevaluation("));
+  assert.ok(revaluations.includes('JOIN "programs" scoped_program'));
+  const incidents = exams.slice(exams.indexOf("export async function listExamIncidents("), exams.indexOf("export async function decideExamIncident("));
+  assert.ok(incidents.includes('JOIN "programs" scoped_program'));
+  const corrections = exams.slice(exams.indexOf("export async function listExamMarkCorrectionRequests("));
+  assert.ok(corrections.includes('JOIN "programs" p ON p."id" = sem."programId"'));
+});
