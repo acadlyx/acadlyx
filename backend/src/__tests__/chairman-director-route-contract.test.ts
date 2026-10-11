@@ -170,6 +170,8 @@ test("Director examination review queues cannot list institution-wide records", 
   assert.ok(listRevaluations.includes('actor.roles.includes("DIRECTOR")') && listRevaluations.includes("getDirectorDepartmentIds"));
   assert.ok(listIncidents.includes('actor.roles.includes("DIRECTOR")') && listIncidents.includes("getDirectorDepartmentIds"));
   assert.ok(listCorrections.includes('actor.roles.includes("DIRECTOR")') && listCorrections.includes("getDirectorDepartmentIds"));
+  assert.ok(listCorrections.includes("assertExamApprover(actor)"), "scoped Directors must be allowed to review correction decisions");
+  assert.ok(listRevaluations.includes('!actor.roles.includes("DIRECTOR")'), "Director queues must not fall into the student self-only filter");
 });
 
 test("verification workflow runs for the isolated branch and migrates PostgreSQL before backend tests", () => {
