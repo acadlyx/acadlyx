@@ -267,6 +267,12 @@ export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
   };
 }
 
+export function computeExportInvoiceBalance(amount: number, netPaidAmount: number): number {
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  const safePaid = Number.isFinite(netPaidAmount) ? netPaidAmount : 0;
+  return Math.max(0, safeAmount - safePaid);
+}
+
 const EXPORT_BATCH_SIZE = 2000;
 
 /**
@@ -386,7 +392,7 @@ const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   "library-copies": "createdAt",
   "library-issues": "issuedAt",
   "library-fines": "createdAt",
-  "admission-applications": "submittedAt",
+  "admission-applications": "createdAt",
   employees: "joiningDate",
   "leave-requests": "fromDate",
   "calendar-events": "startDate",
@@ -595,7 +601,9 @@ export async function exportData(
       const paid = Number(i.paidAmount);
       const refunded = Number(i.refundedAmount);
       const amount = Number(i.amount);
-      const balance = Math.max(0, amount - paid - refunded);
+      // Refund processing reduces FeeInvoice.paidAmount and increments refundedAmount.
+      // The outstanding balance must not subtract the same refund twice.
+      const balance = computeExportInvoiceBalance(amount, paid);
       if (type === "fees" || (type === "paid-fees" && i.status === "PAID" && balance === 0) || (type === "outstanding-dues" && i.status !== "CANCELLED" && i.status !== "PAID" && balance > 0)) {
         rows.push({
           id: i.id, invoiceNumber: i.invoiceNumber, studentEmail: i.student.email,
