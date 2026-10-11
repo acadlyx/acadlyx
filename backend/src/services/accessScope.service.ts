@@ -110,6 +110,7 @@ export async function getDirectorCampusIds(institutionId: string, userId: string
   const rows = await prisma.campusAccess.findMany({
     where: {
       userId,
+      scope: "DIRECTOR",
       campus: { institutionId, isActive: true },
     },
     select: { campusId: true },
