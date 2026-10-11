@@ -4,6 +4,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 const frontend = join(process.cwd(), "../frontend/src/app");
+const intelligenceServicePath = join(process.cwd(), "src/services/intelligence.service.ts");
+const intelligenceControllerPath = join(process.cwd(), "src/controllers/intelligence.controller.ts");
 
 test("Chairman operations is an independent workspace page", () => {
   const page = readFileSync(join(frontend, "chairman/operations/page.tsx"), "utf8");
@@ -95,4 +97,27 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
   assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
   assert.ok(feeService.includes('fs."programId" IN ('), "Director fee listing must be filtered to programs in assigned campus departments");
   assert.ok(feeService.includes("assertFeeStructureInActorScope(institutionId, actor, structureId)"), "approval and rejection mutations must validate record scope");
+});
+
+test("Chairman and Director intelligence routes are separate and role-scoped", () => {
+  const chairman = readFileSync(join(frontend, "chairman/intelligence/page.tsx"), "utf8");
+  const director = readFileSync(join(frontend, "director/intelligence/page.tsx"), "utf8");
+  const directorOps = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
+  const directorDashboard = readFileSync(join(process.cwd(), "../frontend/src/components/dashboard/DirectorDashboard.tsx"), "utf8");
+  assert.ok(chairman.includes('allowedRoles={["CHAIRMAN"]}'));
+  assert.ok(director.includes('allowedRoles={["DIRECTOR"]}'));
+  assert.ok(!chairman.includes('from "@/app/intelligence/page"'), "Chairman must not alias the generic intelligence page");
+  assert.ok(!director.includes('from "@/app/intelligence/page"'), "Director must not alias the generic intelligence page");
+  assert.ok(directorOps.includes('href: "/director/intelligence"'));
+  assert.ok(directorDashboard.includes('["Campus intelligence", "/director/intelligence"]'));
+});
+
+test("intelligence aggregate queries preserve all assigned departments without widening scope", () => {
+  const service = readFileSync(intelligenceServicePath, "utf8");
+  const controller = readFileSync(intelligenceControllerPath, "utf8");
+  assert.ok(service.includes("departmentIds?: string[]"), "intelligence aggregate accepts a multi-department scope");
+  assert.ok(service.includes("const scopedDepartmentIds = filters.departmentId ? [filters.departmentId] : filters.departmentIds"));
+  assert.ok(service.includes("departmentId: { in: scopedDepartmentIds }"), "student and offering aggregates use the authorized department set");
+  assert.ok(controller.includes("const departmentIds = allowed && !departmentId ? allowed : undefined"));
+  assert.ok(controller.includes("departmentId ? [departmentId] : allowed"), "risk records retain the same assigned scope");
 });
