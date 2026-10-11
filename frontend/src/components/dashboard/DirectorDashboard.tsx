@@ -37,10 +37,12 @@ export function DirectorDashboard() {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
+  const [scopeMissing, setScopeMissing] = useState(false);
 
   const loadWorkspace = useCallback(async () => {
     setLoading(true);
     setUnavailable(false);
+    setScopeMissing(false);
     try {
       const response = await authedFetch<{ success: true; data: WorkspaceData }>("/erp/me/workspace");
       setData(response.data);
@@ -50,6 +52,7 @@ export function DirectorDashboard() {
         return;
       }
       setUnavailable(true);
+      setScopeMissing(error instanceof Error && /no campus scope is assigned|campus scope.*assigned/i.test(error.message));
     } finally {
       setLoading(false);
     }
@@ -68,7 +71,7 @@ export function DirectorDashboard() {
         </section>
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
-            <span>Campus metrics are temporarily unavailable. No values are being reported as zero.</span>
+            <span>{scopeMissing ? "No campus is assigned to this Director account. Ask Institution Admin to open Admin → People → Edit user, assign one or more active campuses, and save. Metrics remain unavailable until that scope exists." : "Campus metrics are temporarily unavailable. No values are being reported as zero."}</span>
             <button type="button" onClick={() => void loadWorkspace()} disabled={loading} className="rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">Retry</button>
           </section>
         )}
