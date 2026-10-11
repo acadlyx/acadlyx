@@ -103,6 +103,7 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
         ...(sectionFilter ? { sectionId: sectionFilter } : {}),
       }}
       currentPage={{ page, pageSize: 50 }}
+      selectedIds={selectedStudentIds}
       compact
     />
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
