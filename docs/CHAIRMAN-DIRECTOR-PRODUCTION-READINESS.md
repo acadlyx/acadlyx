@@ -97,3 +97,12 @@ Record command output and environment details; do not convert unavailable checks
 - Added source-contract assertions for missing-data handling, retry controls, and dashboard shortcut destinations.
 - Important limitation: both dashboards still consume the shared `/erp/me/workspace` endpoint. Source inspection indicates Director KPIs are filtered using assigned-campus-derived department IDs, but no database-backed integration test has verified every aggregation or role. Chairman scope is currently the authenticated institution context returned by `requireInstitution`; multi-institution Chairman assignment behavior is not established by this work.
 - Exit gate: NOT PASSED. No local frontend build, backend typecheck, or test suite has been executed through the repository API.
+
+
+### Batch 5 — Chairman fee approval interaction hardening (partial; 2026-10-11)
+- Updated `frontend/src/app/chairman/fee-approvals/page.tsx` to prevent a second approval/rejection action while a mutation is in progress, disable both decision controls during processing, validate a meaningful rejection reason before sending, and replace raw mutation/load exception text with controlled user-facing messages.
+- Removed the explicit page error that disclosed missing approval permission; when the permission is absent, the queue is cleared and decision controls remain absent.
+- Added source-contract assertions in `backend/src/__tests__/chairman-director-route-contract.test.ts` for duplicate-action guards, disabled controls, reason validation, safe error messages, and Chairman role boundary.
+- Existing backend `feeStructure.service.ts` contains conditional status transitions and maker-checker checks for fee structure approval/rejection. Source inspection does not substitute for concurrency or integration tests.
+- This is UX hardening only. It does not implement the full approval center, evidence pages, institutional escalation workflow, or Director campus-level proposal flow.
+- Exit gate: NOT PASSED. Tests/build were not executable via the repository API; source-contract tests have not been run.
