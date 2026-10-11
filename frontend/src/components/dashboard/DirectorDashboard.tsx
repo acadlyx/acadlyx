@@ -22,8 +22,10 @@ const shortcuts = [
   ["Campus operations", "/director/operations"],
   ["Campus students", "/director/students"],
   ["Campus finance", "/director/fees"],
-  ["Campus fee approvals", "/director/fee-approvals"],
   ["Placement outcomes", "/director/placements"],
+  ["Notices", "/director/notices"],
+  ["Notifications", "/director/notifications"],
+  ["Events & Gallery", "/director/events-gallery"],
 ] as const;
 
 export function DirectorDashboard() {
@@ -58,7 +60,7 @@ export function DirectorDashboard() {
         <section className="rounded-3xl bg-slate-900 p-7 text-white">
           <p className="text-xs font-bold uppercase tracking-[.2em] text-sky-300">Campus leadership</p>
           <h1 className="mt-2 text-3xl font-black">Director Command Center</h1>
-          <p className="mt-2 text-sm text-slate-300">Operational visibility for campuses assigned to your account.</p>
+          <p className="mt-2 text-sm text-slate-300">Campus visibility for campuses explicitly assigned to your account. Use the left sidebar to navigate between dedicated campus pages.</p>
         </section>
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
