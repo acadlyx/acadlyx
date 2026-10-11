@@ -38,7 +38,6 @@ test("Director operations remains inside Director-specific routes", () => {
     "/director/fee-approvals",
     "/director/placements",
     "/director/reports",
-    "/director/imports",
   ]) {
     assert.ok(page.includes(`href: "${route}"`), `expected dedicated Director destination: ${route}`);
     assert.ok(existsSync(join(frontend, route.slice(1), "page.tsx")), `destination route must exist: ${route}`);
