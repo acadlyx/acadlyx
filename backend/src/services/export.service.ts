@@ -211,7 +211,11 @@ async function assertExportAccess(
 ): Promise<ExportActorScope> {
   const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const permission = EXPORT_PERMISSION_BY_TYPE[type];
-  if (!permission || !actor.permissions.includes(permission)) {
+  const hasScopedFinanceExportPermission =
+    roles.has("DIRECTOR") &&
+    DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type) &&
+    actor.permissions.includes("fees.reports.export");
+  if (!permission || (!actor.permissions.includes(permission) && !hasScopedFinanceExportPermission)) {
     throw new AppError("You do not have permission to export this dataset", 403);
   }
   const institutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
