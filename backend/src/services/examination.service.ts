@@ -3714,7 +3714,7 @@ export async function decideExamMarkCorrection(
       const changedSchedule = await tx.$executeRaw`
         UPDATE "exam_schedules" SET "status"='CORRECTION_OPEN'
         WHERE "id"=${req.examScheduleId} AND "institutionId"=${institutionId}
-          AND "status" IN ('LOCKED','CORRECTION_OPEN')
+          AND "status" IN ('PUBLISHED','LOCKED','CORRECTION_OPEN')
       `;
       if (changedSchedule !== 1) throw new AppError("The examination schedule changed; correction was rolled back", 409);
       await tx.auditLog.create({
