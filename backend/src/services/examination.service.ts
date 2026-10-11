@@ -2857,7 +2857,11 @@ export async function listRevaluationRequests(
   // Students and parents never see the whole queue.
   if (filters.mine || actor.roles.includes("STUDENT")) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
-  } else if (!isInstitutionWide(actor) && !actor.permissions.includes("exams.manage")) {
+  } else if (
+    !isInstitutionWide(actor) &&
+    !actor.permissions.includes("exams.manage") &&
+    !actor.roles.includes("DIRECTOR")
+  ) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
   }
 
@@ -3825,7 +3829,7 @@ export async function listExamMarkCorrectionRequests(
   actor: AuthenticatedUser,
   pagination: PaginationParams,
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const departmentIds = actor.roles.includes("DIRECTOR")
     ? await getDirectorDepartmentIds(institutionId, actor.id)
     : undefined;
