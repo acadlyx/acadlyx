@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { deleteEvent, getEvent, type InstitutionalEvent } from "@/lib/eventsApi";
 
-export default function EventDetailsPage({ workspaceBasePath = "/events-gallery" }: { workspaceBasePath?: string }){
+export function EventDetailsContent({ workspaceBasePath = "/events-gallery" }: { workspaceBasePath?: string }){
   const params=useParams<{id:string}>(); const router=useRouter();
   const [event,setEvent]=useState<InstitutionalEvent|null>(null);
   const [user,setUser]=useState<AuthUser|null>(null);
@@ -26,4 +26,6 @@ export default function EventDetailsPage({ workspaceBasePath = "/events-gallery"
     {lightbox&&<button aria-label="Close image viewer" onClick={()=>setLightbox(null)} className="fixed inset-0 z-[1000] grid place-items-center bg-black/90 p-5"><img src={lightbox} alt="Event gallery" className="max-h-[92vh] max-w-[92vw] object-contain"/></button>}
   </div>;
 }
+export default function EventDetailsPage() { return <EventDetailsContent />; }
+
 function Info({label,value}:{label:string;value?:string|null}){return <div><dt className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</dt><dd className="mt-1 font-bold text-slate-800">{value||"—"}</dd></div>}
