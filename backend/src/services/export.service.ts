@@ -444,14 +444,17 @@ export async function exportData(
       orderBy: { createdAt: "desc" },
     }));
     for (const i of data) {
-      const paid = i.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      // FeeInvoice aggregate columns are the finance domain's canonical ledger values.
+      // Re-summing raw payments here would ignore refund and concession postings.
+      const paid = Number(i.paidAmount);
+      const refunded = Number(i.refundedAmount);
       const amount = Number(i.amount);
-      const balance = Math.max(0, amount - paid);
-      if (type === "fees" || (type === "paid-fees" && paid > 0 && balance === 0) || (type === "outstanding-dues" && balance > 0)) {
+      const balance = Math.max(0, amount - paid - refunded);
+      if (type === "fees" || (type === "paid-fees" && i.status === "PAID" && balance === 0) || (type === "outstanding-dues" && i.status !== "CANCELLED" && i.status !== "PAID" && balance > 0)) {
         rows.push({
-          id: i.id, studentEmail: i.student.email,
+          id: i.id, invoiceNumber: i.invoiceNumber, studentEmail: i.student.email,
           admissionNumber: i.student.profile?.admissionNumber ?? null,
-          title: i.title, amount, paid, balance, status: i.status,
+          title: i.title, amount, paid, refunded, balance, status: i.status,
           sourceModule: i.sourceModule ?? "FEES", sourceType: i.sourceType ?? "FEE",
           sourceEntityId: i.sourceEntityId ?? null, feeStructureId: i.feeStructureId ?? null,
           dueDate: clean(i.dueDate), createdAt: clean(i.createdAt),
