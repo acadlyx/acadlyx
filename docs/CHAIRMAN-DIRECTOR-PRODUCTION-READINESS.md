@@ -125,3 +125,11 @@ Record command output and environment details; do not convert unavailable checks
 - Empty allowed-department sets are passed as empty filters, not converted into an unscoped query.
 - Added source-level contract assertions for role-separated intelligence routes and multi-department scoping.
 - Exit gate: NOT PASSED. The API-backed pages rely on backend scope enforcement that has not been verified with database fixtures. Typecheck, lint, build, automated tests, browser navigation, and live API checks remain unexecuted.
+
+
+### Batch 8 — Role-specific finance and examination route isolation (partial; 2026-10-11)
+- Replaced Chairman and Director fee-page aliases with independent role-guarded finance overview pages reading the canonical fee-structure API. Director structures are filtered by server-derived campus scope.
+- Replaced Chairman and Director examination-page aliases with separate role-guarded read-only oversight pages that use the server's `/erp/me/workspace` aggregation. The Director workspace aggregation is filtered to assigned campus-derived department IDs.
+- Added regression source contracts for these route boundaries and data-source choices.
+- This improves route isolation, but it is not completion of the underlying full finance or Examination Cell workflows. The operational examination page is read-only here; the full lifecycle must continue to use independently authorized workflows.
+- Exit gate: NOT PASSED. No frontend build, backend typecheck, lint, test suite, database-backed scope test, or browser interaction test has been executed.
