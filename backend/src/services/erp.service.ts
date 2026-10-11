@@ -2655,7 +2655,7 @@ export async function listNotices(
     andFilters.push({ OR: audienceDepartments });
   }
   if (isDirectorWorkspace) {
-    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null, publishedAt: { not: null } }];
+    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
     if (departmentIds.length) directorNoticeScope.push({ departmentId: { in: departmentIds } });
     andFilters.push({ OR: directorNoticeScope });
   }
