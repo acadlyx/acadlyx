@@ -212,8 +212,8 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
   };
 
   const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = {
-    ...(filters.departmentId
-      ? { course: { departmentId: filters.departmentId } }
+    ...(scopedDepartmentIds
+      ? { course: { departmentId: { in: scopedDepartmentIds } } }
       : {}),
     ...(filters.programId
       ? { semester: { programId: filters.programId } }
