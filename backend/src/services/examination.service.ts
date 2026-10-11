@@ -784,18 +784,20 @@ export async function listExamSessions(
           OR EXISTS (
             SELECT 1 FROM "exam_schedules" es
             JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-            JOIN "courses" c ON c."id"=co."courseId"
+            JOIN "semesters" sem ON sem."id"=co."semesterId" AND sem."institutionId"=es."institutionId"
+            JOIN "programs" p ON p."id"=sem."programId" AND p."institutionId"=sem."institutionId"
             WHERE es."examSessionId"="exam_sessions"."id"
               AND es."institutionId"=${institutionId}
-              AND c."departmentId" IN (${Prisma.join(ids)})
+              AND p."departmentId" IN (${Prisma.join(ids)})
           ))
         AND NOT EXISTS (
           SELECT 1 FROM "exam_schedules" outside_schedule
           JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
-          JOIN "courses" outside_course ON outside_course."id"=outside_offering."courseId"
+          JOIN "semesters" outside_semester ON outside_semester."id"=outside_offering."semesterId" AND outside_semester."institutionId"=outside_schedule."institutionId"
+          JOIN "programs" outside_program ON outside_program."id"=outside_semester."programId" AND outside_program."institutionId"=outside_semester."institutionId"
           WHERE outside_schedule."examSessionId"="exam_sessions"."id"
             AND outside_schedule."institutionId"=${institutionId}
-            AND outside_course."departmentId" NOT IN (${Prisma.join(ids)})
+            AND outside_program."departmentId" NOT IN (${Prisma.join(ids)})
         )
       )
     )`);
