@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import { PERMISSIONS, ROLE_PERMISSIONS } from "../config/rbac";
@@ -57,9 +59,7 @@ test("fee-structure permissions do not imply unrelated financial authority", () 
 });
 
 
-test("fee structure activation is only possible through pending approval and cannot be self-approved", async () => {
-  const fs = await import("node:fs");
-  const path = await import("node:path");
+test("fee structure activation is only possible through pending approval and cannot be self-approved", () => {
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const createStart = source.indexOf("export async function createFeeStructure(");
   const submitStart = source.indexOf("export async function submitFeeStructureForApproval(");
