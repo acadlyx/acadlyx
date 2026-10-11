@@ -28,6 +28,9 @@ test("Director workspace KPI queries are scoped through CampusAccess-derived dep
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/managementWorkspace.service.ts"), "utf8");
   assert.match(source, /getDirectorDepartmentIds\(institutionId, actor\.id\)/);
   assert.match(source, /getDirectorCampusIds\(institutionId, actor\.id\)/);
+  const accessScope = fs.readFileSync(path.resolve(process.cwd(), "src/services/accessScope.service.ts"), "utf8");
+  const directorCampusScope = accessScope.slice(accessScope.indexOf("export async function getDirectorCampusIds("), accessScope.indexOf("export async function getDirectorDepartmentIds("));
+  assert.match(directorCampusScope, /scope: "DIRECTOR"/);
   assert.match(source, /valid campus assignment remains valid even before departments are/);
   assert.match(source, /No campus scope is assigned to this director/);
   assert.match(source, /studentEnrollments/);
