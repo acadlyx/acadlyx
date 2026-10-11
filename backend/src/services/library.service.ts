@@ -184,11 +184,15 @@ export async function listBooks(
   };
 }
 
-export async function getBook(institutionId: string, id: string) {
+export async function getBook(institutionId: string, id: string, actor?: AuthenticatedUser) {
   const book = await prisma.libraryBook.findFirst({
     where: { id, institutionId },
   });
   if (!book) throw new AppError("Book not found", 404);
+
+  // Borrowers may inspect catalogue metadata, but not other borrowers' loans.
+  const canReadCirculation = Boolean(actor?.permissions.includes("library.read"));
+  if (!canReadCirculation) return { ...book, activeIssues: [] };
 
   const activeIssues = await prisma.libraryIssue.findMany({
     where: { institutionId, bookId: id, status: { in: ["ISSUED", "RESERVED"] } },
