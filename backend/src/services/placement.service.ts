@@ -341,7 +341,10 @@ export async function listPlacementCompanies(institutionId: string, actor: Authe
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  const where = { institutionId, ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
+  const directorScope = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  const directorCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && directorCampusIds.length === 0) throw new AppError("No campus scope is assigned to this director", 403);
+  const where = { institutionId, ...(directorScope ? { drives: { some: { campusId: { in: directorCampusIds } } } } : {}), ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
   if (isPlacementManager(actor)) {
     return prisma.placementCompany.findMany({
       where,
