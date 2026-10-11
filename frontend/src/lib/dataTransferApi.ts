@@ -66,7 +66,7 @@ export async function getImportJob(jobId: string) {
   return body.data;
 }
 
-export async function exportData(type: DataType, format: "xlsx" | "csv" | "json") {
+export async function exportData(type: DataType, format: "xlsx" | "csv" | "docx" | "pdf" | "json") {
   const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
   if (!response.ok) {
     const body = await response.json().catch(() => null);
@@ -78,9 +78,14 @@ export async function exportData(type: DataType, format: "xlsx" | "csv" | "json"
     throw new Error("The server returned an empty export file. No download was created.");
   }
 
-  const expectedType = format === "xlsx"
-    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    : format === "csv" ? "text/csv" : "application/json";
+  const expectedTypes: Record<typeof format, string> = {
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    csv: "text/csv",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    pdf: "application/pdf",
+    json: "application/json",
+  };
+  const expectedType = expectedTypes[format];
   const actualType = blob.type.split(";")[0].toLowerCase();
   if (actualType && actualType !== expectedType) {
     throw new Error("The server returned an unexpected file type. The export was not downloaded.");
