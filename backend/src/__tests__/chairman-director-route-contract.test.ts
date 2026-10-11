@@ -288,3 +288,14 @@ test("Director student list and profile responses filter nested enrollments to a
   assert.ok(service.includes("if (actor?.roles.includes(\"DIRECTOR\"))"));
   assert.ok(service.includes('in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"]'));
 });
+
+
+test("Chairman receives approval-only examination permissions without Examination Cell management", () => {
+  const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
+  const chairmanStart = rbac.indexOf("CHAIRMAN: [");
+  const chairmanEnd = rbac.indexOf("\n  MANAGEMENT: [", chairmanStart);
+  const chairman = rbac.slice(chairmanStart, chairmanEnd);
+  assert.ok(chairman.includes('"exams.approve"'));
+  assert.ok(chairman.includes('"exams.revaluate"'));
+  assert.ok(!chairman.includes('"exams.manage"'), "Chairman approvals must not grant operational scheduling/marks-entry authority");
+});
