@@ -21,7 +21,7 @@ export default function ChairmanOperationsPage() {
         <section className="rounded-3xl border border-amber-100 bg-[#faf7ef] p-6 shadow-sm sm:p-8">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Chairman workspace</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Institutional operations</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">Review institution-wide performance and open the dedicated page for each operational area. Approval authority remains governed by the workflow, current state, and explicit action permissions.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">Review institution-wide performance and open the dedicated page for each operational area. The Chairman can publish finalized fee structures directly; Accounts controls student-level fee assignment.</p>
         </section>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sections.map((section) => (
