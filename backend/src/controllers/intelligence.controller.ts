@@ -46,7 +46,10 @@ export const commandCenter = asyncHandler(async (req, res) => {
   const requestedDepartment = typeof req.query.departmentId === "string" ? req.query.departmentId : undefined;
   if (requestedDepartment && allowed && !allowed.includes(requestedDepartment)) throw new AppError("Department not authorized", 403);
   const departmentId = requestedDepartment || (allowed?.length === 1 ? allowed[0] : undefined);
-  if (allowed && !departmentId) throw new AppError("A department or campus scope is required for this account", 403);
+  // Multi-department leadership roles retain their full assigned scope when
+  // no single department is selected. Empty assignments stay empty and never
+  // fall back to institution-wide data.
+  const departmentIds = allowed && !departmentId ? allowed : undefined;
   const parseDate = (value: unknown) => {
     if (typeof value !== "string") return undefined;
     const date = new Date(value);
@@ -73,11 +76,15 @@ export const commandCenter = asyncHandler(async (req, res) => {
 
   const data = await intelligence.getInstitutionInsights(institutionId, {
     departmentId,
+    departmentIds,
     programId,
     semesterId,
     from: parseDate(req.query.from),
     to: parseDate(req.query.to),
   });
-  const atRiskStudents = await intelligence.getAtRiskStudents(institutionId, departmentId ? [departmentId] : undefined);
+  const atRiskStudents = await intelligence.getAtRiskStudents(
+    institutionId,
+    departmentId ? [departmentId] : allowed,
+  );
   res.json({ success: true, data: { ...data, atRiskStudents } });
 });
