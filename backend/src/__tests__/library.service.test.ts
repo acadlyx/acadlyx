@@ -119,6 +119,16 @@ test("cancelling a reservation does not masquerade as a physical book return", (
 });
 
 
+test("inventory synchronization remains institution-scoped", () => {
+  const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
+  const start = source.indexOf("export async function syncBookInventory(");
+  const end = source.indexOf("\nexport function calculateLostCharge(", start);
+  assert.ok(start >= 0 && end > start, "Expected inventory synchronization helper");
+  const sync = source.slice(start, end);
+  assert.match(sync, /where: \{ id: bookId, institutionId \}/);
+  assert.match(sync, /if \(updated\.count !== 1\)/);
+});
+
 test("return workflow derives inventory counts from copy state and rejects stale copy references", () => {
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/library.service.ts"), "utf8");
   const start = source.indexOf("export async function returnBook(");
