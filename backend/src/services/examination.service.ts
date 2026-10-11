@@ -3149,6 +3149,7 @@ export async function decideExamIncident(
     ["REPORTED", "UNDER_REVIEW", "UPHELD", "DISMISSED"] as const,
     "status"
   );
+  if (status === incident.status) throw new AppError("This incident is already in that state", 409);
 
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.$executeRaw`
