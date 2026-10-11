@@ -19,6 +19,7 @@ export function EventsGalleryContent({ embedded = false, workspaceBasePath }: { 
   const canManage=!!user?.permissions.includes("events.manage");
 
   const basePath = embedded ? "/admin/events-gallery" : workspaceBasePath || "/events-gallery";
+  const directorWorkspace = basePath.startsWith("/director/");
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
@@ -30,7 +31,7 @@ export function EventsGalleryContent({ embedded = false, workspaceBasePath }: { 
       {busy?<div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-500">Loading events…</div>:events.length===0?<div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center"><p className="text-lg font-black text-slate-900">No events found</p><p className="mt-2 text-sm text-slate-500">{canManage?"Create the institution's first event or adjust your filters.":"Published institutional events will appear here."}</p></div>:
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{events.map(event=><article key={event.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
           <Link href={`${basePath}/${event.id}`} className="block group"><div className="relative aspect-[16/10] overflow-hidden bg-slate-100">{event.coverImageUrl?<img src={event.coverImageUrl} alt={event.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105"/>:event.media[0]?<img src={event.media[0].url} alt={event.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105"/>:<div className="grid h-full place-items-center text-sm font-black text-slate-400">ACADLYX EVENT</div>}</div><div className="p-5"><div className="flex items-center justify-between text-[11px] font-bold text-slate-500"><span>{new Date(event.eventDate).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span><span>{event.media.length} photos</span></div><h2 className="mt-2 text-lg font-black text-slate-950">{event.title}</h2><p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{event.shortDescription||event.description||"Institutional event"}</p></div></Link>
-          {canManage&&<div className="flex gap-2 border-t border-slate-100 p-4"><Link href={`${basePath}/${event.id}/edit`} className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-black">Edit</Link><Link href={`${basePath}/${event.id}`} className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-black text-white">Manage</Link></div>}
+          {canManage&&(!directorWorkspace||!!event.department?.id)&&<div className="flex gap-2 border-t border-slate-100 p-4"><Link href={`${basePath}/${event.id}/edit`} className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-black">Edit</Link><Link href={`${basePath}/${event.id}`} className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-black text-white">Manage</Link></div>}
         </article>)}</div>}
     </div>
   );
