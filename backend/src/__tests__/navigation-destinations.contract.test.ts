@@ -51,10 +51,10 @@ function navigationObjects() {
     href: source.match(/href:\s*"([^"]+)"/)?.[1],
     roles: (source.match(/roles:\s*\[([^\]]*)\]/)?.[1] || "")
       .match(/"([^"]+)"/g)?.map((role) => role.slice(1, -1)) || [],
-  })).filter((item) => item.href && item.label);
+  })).filter((item): item is { label: string; href: string; roles: string[] } => Boolean(item.href && item.label));
 }
 
-function routeExists(href) {
+function routeExists(href: string) {
   const route = href.split(/[?#]/)[0].replace(/\/$/, "");
   if (!route.startsWith("/")) return true;
   const parts = route.split("/").filter(Boolean);
