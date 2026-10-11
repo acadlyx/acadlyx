@@ -145,3 +145,12 @@ Record command output and environment details; do not convert unavailable checks
 - Enabled Director finance exports only for datasets that can be restricted to assigned campus departments or enrolled students. Kept institution-wide fee-head and finance audit exports unavailable. Scoped attendance report options and data to Director-assigned departments.
 - Added a PostgreSQL-backed integration test for CampusAccess, fee structure lists and downloads, institutional insights, and attendance report options. CI now provisions PostgreSQL and runs migrations before tests on this branch.
 - Release gate: still NOT PASSED until the latest CI run is green and remaining end-to-end browser/API tests verify schedule, marks, publication, revaluation, exports, downloads, and cross-campus negative cases. No production merge/deployment was performed.
+
+
+### Batch 10 — Schema mapping, profile navigation and actionable decisions (partial; 2026-10-11)
+- Fixed all 17 placement model mappings so Prisma uses the actual snake-case tables created by the migration chain. The database-backed institutional insight test found the PlacementOffer naming mismatch; this was a real schema/runtime issue, not a test fixture issue.
+- Added PostgreSQL integration checks for Director examination session creation/listing/status mutation and negative cross-campus creation/read/update cases.
+- Implemented revaluation and incident decision controls in both separate Chairman and Director examination operations pages. Revaluation state transitions are now enforced server-side and decision notes/revised marks are validated before requests are sent.
+- Added dedicated Chairman/Director student profile route pages and role-local profile links. Replaced raw API exception messages with controlled user-facing errors on the leadership student and examination workspaces.
+- Route contract tests now assert that dashboard/operations destinations resolve to actual app-router pages and that examination action controls call the intended decision APIs.
+- Exit gate: NOT PASSED until the latest CI run finishes successfully, database-backed integration checks pass, and a browser-level authenticated workflow test is executed. No production branch change or deployment has occurred.
