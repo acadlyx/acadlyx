@@ -1139,9 +1139,9 @@ export async function updateFeeStructure(
   const current =
     existing[0];
 
-  if (current.status !== "DRAFT") {
+  if (current.status !== "DRAFT" && current.status !== "REJECTED") {
     throw new AppError(
-      "Only DRAFT fee structures can be edited; submitted or approved structures are immutable",
+      "Only DRAFT or REJECTED fee structures can be edited; submitted or approved structures are immutable",
       409
     );
   }
@@ -1158,9 +1158,11 @@ export async function updateFeeStructure(
     );
   }
 
-  const status =
-    input.status ??
-    (current.status as FeeStructureStatus);
+  // Editing a rejected submission returns it to DRAFT so it must be
+  // submitted and approved again before any fee assignment can occur.
+  const status: FeeStructureStatus = current.status === "REJECTED"
+    ? "DRAFT"
+    : input.status ?? (current.status as FeeStructureStatus);
 
   if (input.status === "ACTIVE") {
     throw new AppError("Fee structures must be activated through the explicit approval workflow", 409);
@@ -1265,7 +1267,7 @@ export async function updateFeeStructure(
 
   await prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw(
+      const changed = await tx.$executeRaw(
         Prisma.sql`
           UPDATE "fee_structures"
           SET
@@ -1279,8 +1281,12 @@ export async function updateFeeStructure(
             }
           WHERE "id" = ${structureId}
             AND "institutionId" = ${institutionId}
+            AND "status" = ${current.status}
         `
       );
+      if (changed !== 1) {
+        throw new AppError("Fee structure status changed while editing; reload and try again", 409);
+      }
 
       if (
         input.items !== undefined
