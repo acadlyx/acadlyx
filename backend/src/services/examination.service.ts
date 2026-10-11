@@ -598,6 +598,7 @@ export async function createExamSession(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertExamController(actor);
+  await assertDirectorSessionTargetsInScope(institutionId, actor, input);
   assertValue(input.examType, EXAM_TYPES, "examType");
 
   if (input.endDate < input.startDate) {
@@ -912,6 +913,18 @@ export async function updateExamSession(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
+  const scopeFieldsProvided = ["campusIds", "departmentIds", "programIds", "semesterIds", "sectionIds", "studentIds"].some((key) => Object.prototype.hasOwnProperty.call(input, key));
+  if (scopeFieldsProvided) {
+    await assertDirectorSessionTargetsInScope(institutionId, actor, {
+      campusIds: input.campusIds ?? jsonStringArray(session.campusIds),
+      departmentIds: input.departmentIds ?? jsonStringArray(session.departmentIds),
+      programIds: input.programIds ?? jsonStringArray(session.programIds),
+      semesterIds: input.semesterIds ?? jsonStringArray(session.semesterIds),
+      sectionIds: input.sectionIds ?? jsonStringArray(session.sectionIds),
+      studentIds: input.studentIds ?? jsonStringArray(session.studentIds),
+    });
+  }
 
   if (session.status === "PUBLISHED" || session.status === "CANCELLED") {
     throw new AppError(
@@ -1135,6 +1148,7 @@ export async function createExamSchedule(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, input.examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (["PUBLISHED", "CANCELLED", "COMPLETED"].includes(session.status)) {
     throw new AppError(
       "Schedules cannot be added to a completed or published session",
@@ -1142,6 +1156,14 @@ export async function createExamSchedule(
     );
   }
   await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    const offering = await prisma.courseOffering.findFirst({
+      where: { id: input.courseOfferingId, institutionId, semester: { program: { departmentId: { in: departmentIds } } } },
+      select: { id: true },
+    });
+    if (!offering) throw new AppError("Course offering not found in the assigned campus scope", 404);
+  }
 
   if (input.passMarks > input.maxMarks) {
     throw new AppError("passMarks cannot exceed maxMarks", 400);
@@ -2296,6 +2318,7 @@ export async function approveExamMarks(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
 
   const pending = await prisma.$queryRaw<
     Array<{ id: string; enteredById: string; marksObtained: number | null; status: string }>
@@ -2360,6 +2383,7 @@ export async function lockExamSchedule(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
   if (schedule.status === "LOCKED" || schedule.status === "RESULTS_PUBLISHED") {
     throw new AppError("This schedule is already locked", 409);
   }
@@ -2428,6 +2452,7 @@ export async function enqueuePublishExamResults(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
   if (schedule.status !== "LOCKED") throw new AppError("Lock the schedule before publishing its results", 409);
   const marks = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
     SELECT COUNT(*)::int AS count FROM "exam_marks"
@@ -2452,6 +2477,7 @@ export async function publishExamResults(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
   if (schedule.status !== "LOCKED") {
     throw new AppError(
       "Lock the schedule before publishing its results",
