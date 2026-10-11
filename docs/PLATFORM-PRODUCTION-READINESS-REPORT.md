@@ -8,9 +8,9 @@
 
 ## Executive status
 
-The isolated remediation branch was created successfully. A narrow backend change makes fee-structure approval an atomic DRAFT → ACTIVE transition and prevents a repeated or concurrent approval from silently succeeding. This is a code change, **not a verified fix**: no local checkout, dependencies, test database, or executable test runner is available through the current connected tools.
+The isolated remediation branch was created successfully. The fee-structure lifecycle now has code paths for DRAFT → PENDING_APPROVAL submission, PENDING_APPROVAL → ACTIVE approval, and PENDING_APPROVAL → REJECTED rejection with a reason. The creator cannot approve/reject their own structure; atomic conditional writes guard duplicate/concurrent decisions; create validation/service logic forces new structures to DRAFT; submitted/approved structures are blocked from edits; the Chairman queue and Accounts action buttons are wired; and session-scoped fee cache invalidation was corrected. These are code changes, **not verified fixes**: no local checkout, dependencies, test database, or executable test runner is available through the current connected tools.
 
-The requested platform-wide mission is not complete. The reported Library Return and Damaged internal errors remain unresolved because the actual server exception and a database-backed reproduction are not available. The fee submission/rejection workflow and Chairman approval queue are incomplete in the inspected code. Director campus scope also needs a full service/query audit.
+The requested platform-wide mission is not complete. The reported Library Return and Damaged internal errors remain unresolved because the actual server exception and a database-backed reproduction are not available. The new fee lifecycle and Chairman queue have not been built or tested. Director campus scope also needs a full service/query audit.
 
 ## Readiness scoring method
 
@@ -20,9 +20,9 @@ A percentage is reported only when a defined checklist has been executed with ev
 |---|---:|---|
 | Authentication and sessions | Not measured | No multi-role session/E2E run. |
 | RBAC and authorization visibility | Not measured | Need route/action matrix, direct API denials, UI visibility checks, and cross-tenant tests. |
-| Chairman workspace | Not measured | Dashboard code inspected; fee approval queue/review/rejection flow absent from inspected UI. |
+| Chairman workspace | Not measured | Approval queue route and dashboard link added; runtime access and actions not tested. |
 | Director workspace and campus scope | Not measured | Workspace requests backend stats; department-based Director financial scope observed, full campus model not verified. |
-| Accounts fee-structure lifecycle | Not measured | Atomic approval transition edited but untested; submit/reject/review/history and downstream activation tests remain. |
+| Accounts fee-structure lifecycle | Not measured | Submit/approve/reject routes and UI actions added; no tests run; audit persistence and downstream activation need database verification. |
 | Library return | Not measured | User-reported 500 not reproduced; database-backed failure trace unavailable. |
 | Library damaged-book workflow | Not measured | User-reported 500 not reproduced; inventory/fine/invoice effects not verified. |
 | Students, admissions, profiles, imports | Not measured | No workflow suite executed. |
@@ -42,7 +42,7 @@ A percentage is reported only when a defined checklist has been executed with ev
 
 ## Authorization and scope
 
-No global authorization bypass or universal permission grant was introduced. The approval service still requires `fees.structure.approve` and constrains the write by both institution and current status. However, this does not certify all roles or scopes. Chairman permission assignment, Director campus access, UI/action parity, export scope, and direct API enforcement require automated matrix tests.
+No global authorization bypass or universal permission grant was introduced. The approval service still requires `fees.structure.approve`, constrains writes by institution and current state, and rejects creator self-approval. New structures are forced to DRAFT and the update API no longer accepts ACTIVE as a caller-selected status. This does not certify all roles or scopes. Chairman permission assignment, Director campus access, UI/action parity, export scope, and direct API enforcement require automated matrix tests.
 
 ## Database and migration status
 
@@ -52,7 +52,11 @@ No database was accessed or mutated by this remediation. The approval change use
 
 - Repository metadata, branch refs, relevant source files, and pull request metadata inspected through connected GitHub tools.
 - Created branch `platform-error-remediation-2026-10-11` from `production-upgrade-2026-09-20`.
-- Edited `backend/src/services/feeStructure.service.ts` to add an atomic approval state transition.
+- Edited `backend/src/services/feeStructure.service.ts`, `backend/src/validators/feeStructure.validators.ts`, `backend/src/controllers/feeStructure.controller.ts`, and `backend/src/routes/erp.routes.ts` for fee lifecycle state transitions and request validation.
+- Added fee lifecycle client methods and Accounts actions in `frontend/src/lib/erpApi.ts` and `frontend/src/components/accounts/FinancePage.tsx`.
+- Added Chairman approval queue at `frontend/src/app/chairman/fee-approvals/page.tsx` and linked it from `frontend/src/components/dashboard/ChairmanDashboard.tsx`.
+- Fixed session-scoped fee cache invalidation in `frontend/src/lib/erpApi.ts`.
+- Updated issue register; CI status query for latest checked commit returned no status checks and no associated PR workflow runs.
 - **Local shell commands executed:** none.
 - **Frontend build:** not run.
 - **Backend TypeScript check:** not run.
@@ -70,4 +74,4 @@ No database was accessed or mutated by this remediation. The approval change use
 
 ## Release decision
 
-**NO-GO.** Do not merge or deploy this remediation. The single code change is unverified, Library errors remain blocked, fee approval lifecycle is incomplete, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
+**NO-GO.** Do not merge or deploy this remediation. The code changes are unverified, Library errors remain blocked, Director campus scope is unresolved, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
