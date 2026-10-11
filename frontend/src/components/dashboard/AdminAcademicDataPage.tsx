@@ -494,7 +494,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
             type={module}
             filters={{
               ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
-              ...(departmentId ? { departmentId } : {}),
+              ...(["programs", "courses", "semesters", "sections", "course-offerings"].includes(module) && departmentId ? { departmentId } : {}),
               ...(module === "departments" && campusId ? { campusId } : {}),
               ...(module === "semesters" && programId ? { programId } : {}),
               ...(module === "sections" && semesterId ? { semesterId } : {}),
