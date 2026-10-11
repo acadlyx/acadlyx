@@ -1633,6 +1633,14 @@ export async function createTimetableEntry(
   return row;
 }
 
+async function assertDirectorNoticeDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
+  const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!departmentId || !assignedDepartments.includes(departmentId)) {
+    throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+  }
+}
+
 export async function createNotice(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -1666,13 +1674,7 @@ export async function createNotice(
     );
   }
 
-  const isDirectorWorkspace = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
-  if (isDirectorWorkspace) {
-    const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!input.departmentId || !assignedDepartments.includes(input.departmentId)) {
-      throw new AppError("Director notices must target a department in the assigned campus scope", 403);
-    }
-  }
+  await assertDirectorNoticeDepartment(institutionId, actor, input.departmentId);
 
   await assertDepartmentScope(
     institutionId,
@@ -2626,6 +2628,11 @@ export async function listNotices(
     departmentIds = await getHodDepartmentIds(institutionId, actor);
   }
 
+  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
+  if (isDirectorWorkspace) {
+    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  }
+
   const audience =
     isStudent
       ? ["ALL", "STUDENT", "STUDENTS"]
@@ -2659,6 +2666,16 @@ export async function listNotices(
                 ...(departmentIds.length
                   ? [{ departmentId: { in: departmentIds } }]
                   : []),
+              ],
+            },
+          ]
+        : []),
+      ...(isDirectorWorkspace
+        ? [
+            {
+              OR: [
+                { departmentId: null, publishedAt: { not: null } },
+                ...(departmentIds.length ? [{ departmentId: { in: departmentIds } }] : []),
               ],
             },
           ]
@@ -2707,6 +2724,9 @@ export async function updateNotice(
     input.departmentId === undefined
       ? existing.departmentId
       : input.departmentId;
+
+  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
+  await assertDirectorNoticeDepartment(institutionId, actor, departmentId);
 
   await assertDepartmentScope(
     institutionId,
@@ -2791,6 +2811,7 @@ export async function deleteNotice(
     throw new AppError("Notice not found", 404);
   }
 
+  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
   await assertDepartmentScope(
     institutionId,
     actor,
