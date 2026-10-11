@@ -59,7 +59,15 @@ export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTI
    <div className="mx-auto max-w-[1500px] space-y-4">
     {view === "fee-structures" && <DataExportActions type="fee-structures" compact />}
     {view === "invoices" && <><DataExportActions type="fees" filters={deferredSearch ? { search: deferredSearch } : {}} currentPage={{ page: 1, pageSize: 25 }} compact /><DataExportActions type="paid-fees" filters={deferredSearch ? { search: deferredSearch } : {}} compact /></>}
+    {view === "fee-heads" && <DataExportActions type="fee-heads" compact />}
     {view === "payments" && <DataExportActions type="fee-payments" compact />}
+    {view === "receipts" && <DataExportActions type="fee-receipts" compact />}
+    {view === "transactions" && <DataExportActions type="fee-transactions" compact />}
+    {view === "collections" && <DataExportActions type="fee-transactions" compact />}
+    {view === "refunds" && <DataExportActions type="fee-refunds" compact />}
+    {view === "concessions" && <DataExportActions type="fee-concessions" compact />}
+    {view === "audit" && <DataExportActions type="fee-audit" compact />}
+    {view === "reports" && <DataExportActions type="fee-transactions" compact />}
     {view === "dues" && <DataExportActions type="outstanding-dues" compact />}
     {view==="overview" ? <CommandCenter d={data} period={period} setPeriod={setPeriod} can={can}/> :
      view==="dues" ? <Dues d={data} can={can}/> :
