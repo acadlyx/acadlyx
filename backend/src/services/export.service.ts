@@ -708,7 +708,24 @@ export async function exportData(
   }
 
   if (type === "attendance") {
-    const data = await collectInBatches((skip, take) => prisma.attendanceRecord.findMany({ skip, take, where: { attendanceSession: { institutionId } }, include: { student: { include: { profile: true } }, attendanceSession: { include: { courseOffering: { include: { course: true, section: true } } } } }, orderBy: { attendanceSession: { sessionDate: "desc" } }  }));
+    const data = await collectInBatches((skip, take) => prisma.attendanceRecord.findMany({
+      skip,
+      take,
+      where: {
+        attendanceSession: {
+          institutionId,
+          ...(scope.institutionWide ? {} : {
+            courseOffering: {
+              semester: { program: { departmentId: scopedDepartmentFilter } },
+              ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}),
+            },
+          }),
+        },
+        ...(scope.institutionWide ? {} : { student: { AND: [scope.studentWhere] } }),
+      },
+      include: { student: { include: { profile: true } }, attendanceSession: { include: { courseOffering: { include: { course: true, section: true } } } } },
+      orderBy: { attendanceSession: { sessionDate: "desc" } },
+    }));
     for (const a of data) rows.push({ id: a.id, studentEmail: a.student.email, admissionNumber: a.student.profile?.admissionNumber ?? null, courseCode: a.attendanceSession.courseOffering.course.code, section: a.attendanceSession.courseOffering.section.name, date: clean(a.attendanceSession.sessionDate), status: a.status });
   }
 
