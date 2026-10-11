@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createEvent, getEvent, getEventCategories, createEventCategory, updateEvent, uploadEventMedia, addEventMedia, removeEventMedia, reorderEventMedia, type InstitutionalEvent } from "@/lib/eventsApi";
 
-type Props = { eventId?: string };
+type Props = { eventId?: string; workspaceBasePath?: string };
 
 type EventForm = {
   title: string;
@@ -30,7 +30,7 @@ type EventForm = {
 
 
 
-export function EventEditor({ eventId }: Props) {
+export function EventEditor({ eventId, workspaceBasePath = "/events-gallery" }: Props) {
   const router = useRouter();
   const [event,setEvent]=useState<InstitutionalEvent|null>(null);
   const [categories,setCategories]=useState<Array<{id:string;name:string}>>([]);
@@ -76,7 +76,7 @@ export function EventEditor({ eventId }: Props) {
         tags:form.tags.split(",").map((x)=>x.trim()).filter(Boolean),videoUrls:form.videoUrls.split("\n").map((x)=>x.trim()).filter(Boolean),
         organizers:jsonArray(form.organizers),speakers:jsonArray(form.speakers),publicationStatus:publish?"PUBLISHED":form.publicationStatus};
       const response=eventId?await updateEvent(eventId,payload):await createEvent(payload);
-      const saved=response.data; setEvent(saved); if(!eventId) router.replace(`/events-gallery/${saved.id}/edit`); else setMessage(publish?"Event published.":"Event saved.");
+      const saved=response.data; setEvent(saved); if(!eventId) router.replace(`${workspaceBasePath}/${saved.id}/edit`); else setMessage(publish?"Event published.":"Event saved.");
     }catch(e){setMessage(e instanceof Error?e.message:"Save failed.");}finally{setBusy(false);}
   }
 
