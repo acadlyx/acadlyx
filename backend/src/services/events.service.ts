@@ -86,7 +86,6 @@ export async function listEvents(institutionId: string, actor: AuthenticatedUser
   if (isDirectorScope(actor)) {
     const allowedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
     where.AND = [
-      ...(where.AND || []),
       { OR: [
         ...(allowedDepartments.length ? [{ departmentId: { in: allowedDepartments } }] : []),
         { departmentId: null, publicationStatus: "PUBLISHED" },
@@ -105,7 +104,7 @@ export async function getEvent(institutionId:string, actor:AuthenticatedUser,id:
   const event=await prisma.institutionalEvent.findFirst({where:{id,institutionId},include});
   if(!event) throw new AppError("Event not found",404);
   if(!canManage(actor) && event.publicationStatus!=="PUBLISHED") throw new AppError("Event not found",404);
-  await assertDirectorEvent(institutionId, actor, event.departmentId, event.publicationStatus, canManage(actor));
+  await assertDirectorEvent(institutionId, actor, event.departmentId, event.publicationStatus, false);
   return event;
 }
 
