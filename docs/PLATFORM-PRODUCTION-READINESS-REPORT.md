@@ -10,7 +10,7 @@
 
 The isolated remediation branch was created successfully. The fee-structure lifecycle now has code paths for DRAFT → PENDING_APPROVAL submission, PENDING_APPROVAL → ACTIVE approval, and PENDING_APPROVAL → REJECTED rejection with a reason. The creator cannot approve/reject their own structure; atomic conditional writes guard duplicate/concurrent decisions; create validation/service logic forces new structures to DRAFT; submitted/approved structures are blocked from edits; the Chairman queue and Accounts action buttons are wired; and session-scoped fee cache invalidation was corrected. These are code changes, **not verified fixes**: no local checkout, dependencies, test database, or executable test runner is available through the current connected tools.
 
-The requested platform-wide mission is not complete. The reported Library Return and Damaged internal errors remain unresolved because the actual server exception and a database-backed reproduction are not available. The new fee lifecycle and Chairman queue have not been built or tested. Director campus scope also needs a full service/query audit.
+The requested platform-wide mission is not complete. Library code has been hardened for canonical inventory recalculation, stale copy detection, and borrower-only catalogue access, but the reported Return/Damaged 500s remain unverified because the actual server exception and a database-backed reproduction are not available. The fee lifecycle and Chairman queue have not been built or tested. Director campus scope also needs a full service/query audit.
 
 ## Readiness scoring method
 
@@ -19,12 +19,12 @@ A percentage is reported only when a defined checklist has been executed with ev
 | Area | Readiness | Evidence / remaining gates |
 |---|---:|---|
 | Authentication and sessions | Not measured | No multi-role session/E2E run. |
-| RBAC and authorization visibility | Not measured | Need route/action matrix, direct API denials, UI visibility checks, and cross-tenant tests. |
+| RBAC and authorization visibility | Not measured | Catalogue routes accept `library.read` or `library.borrow`; borrower detail responses suppress active circulation rows. Regression test added but not run. Full route/action matrix, direct API denials, UI visibility checks, and cross-tenant tests remain. |
 | Chairman workspace | Not measured | Approval queue route and dashboard link added; runtime access and actions not tested. |
 | Director workspace and campus scope | Not measured | Workspace requests backend stats; department-based Director financial scope observed, full campus model not verified. |
 | Accounts fee-structure lifecycle | Not measured | Submit/approve/reject routes and UI actions added; no tests run; audit persistence and downstream activation need database verification. |
-| Library return | Not measured | User-reported 500 not reproduced; database-backed failure trace unavailable. |
-| Library damaged-book workflow | Not measured | User-reported 500 not reproduced; inventory/fine/invoice effects not verified. |
+| Library return | Not measured | Added copy-scoped update, stale-copy rejection, and inventory recount. Source-regression test added but not run; user-reported 500 not reproduced; database-backed failure trace unavailable. |
+| Library damaged-book workflow | Not measured | Damaged/lost copy changes now trigger canonical inventory recount; source-regression test added but not run. User-reported 500 not reproduced; inventory/fine/invoice effects not database-verified. |
 | Students, admissions, profiles, imports | Not measured | No workflow suite executed. |
 | Attendance and academic records | Not measured | No workflow suite executed. |
 | Examinations, marks, results, student performance | Not measured | No end-to-end data-flow suite executed. |
@@ -56,6 +56,9 @@ No database was accessed or mutated by this remediation. The approval change use
 - Added fee lifecycle client methods and Accounts actions in `frontend/src/lib/erpApi.ts` and `frontend/src/components/accounts/FinancePage.tsx`.
 - Added Chairman approval queue at `frontend/src/app/chairman/fee-approvals/page.tsx` and linked it from `frontend/src/components/dashboard/ChairmanDashboard.tsx`.
 - Fixed session-scoped fee cache invalidation in `frontend/src/lib/erpApi.ts`.
+- Updated `backend/src/routes/library.routes.ts` and `backend/src/services/library.service.ts` to permit borrower catalogue access with either canonical read/borrow permission while keeping other borrowers’ circulation rows hidden from borrowers.
+- Changed library return inventory handling to conditionally update the institution/book-scoped copy, reject stale copy references, and recalculate aggregate inventory from canonical copy rows; legacy copy-less loans retain aggregate-only return handling.
+- Added source-regression checks in `backend/src/__tests__/library-access.test.ts` and `backend/src/__tests__/library.service.test.ts`. These tests have not been executed.
 - Updated issue register; CI status query for latest checked commit returned no status checks and no associated PR workflow runs.
 - **Local shell commands executed:** none.
 - **Frontend build:** not run.
@@ -74,4 +77,4 @@ No database was accessed or mutated by this remediation. The approval change use
 
 ## Release decision
 
-**NO-GO.** Do not merge or deploy this remediation. The code changes are unverified, Library errors remain blocked, Director campus scope is unresolved, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
+**NO-GO.** Do not merge or deploy this remediation. The code changes are unverified, reported Library errors still need a runtime trace and database-backed reproduction, Director campus scope is unresolved, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
