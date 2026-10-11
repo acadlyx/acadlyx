@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { createCsv, createDocx, createPdf } from "./exportDocuments.service";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
@@ -27,7 +28,7 @@ export const EXPORT_TYPES = [
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
-export type ExportFormat = "xlsx" | "csv" | "json";
+export type ExportFormat = "xlsx" | "csv" | "docx" | "pdf" | "json";
 
 type Row = Record<string, string | number | boolean | null>;
 
@@ -53,9 +54,22 @@ function clean(value: unknown): string | number | boolean | null {
 }
 
 export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
+  const date = new Date().toISOString().slice(0, 10);
   if (format === "json") {
     const buffer = Buffer.from(JSON.stringify(rows, null, 2), "utf8");
-    return { buffer, rowCount: rows.length, contentType: "application/json; charset=utf-8", filename: `acadlyx-${type}-${new Date().toISOString().slice(0, 10)}.json` };
+    return { buffer, rowCount: rows.length, contentType: "application/json; charset=utf-8", filename: "acadlyx-" + type + "-" + date + ".json" };
+  }
+  if (format === "csv") {
+    const buffer = createCsv(rows);
+    return { buffer, rowCount: rows.length, contentType: "text/csv; charset=utf-8", filename: "acadlyx-" + type + "-" + date + ".csv" };
+  }
+  if (format === "docx") {
+    const buffer = createDocx(rows, type);
+    return { buffer, rowCount: rows.length, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename: "acadlyx-" + type + "-" + date + ".docx" };
+  }
+  if (format === "pdf") {
+    const buffer = createPdf(rows, type);
+    return { buffer, rowCount: rows.length, contentType: "application/pdf", filename: "acadlyx-" + type + "-" + date + ".pdf" };
   }
 
   const workbook = XLSX.utils.book_new();
@@ -80,7 +94,7 @@ export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
 
   const output = XLSX.write(workbook, {
     type: "buffer",
-    bookType: format === "csv" ? "csv" : "xlsx",
+    bookType: "xlsx",
     compression: true,
   });
   const buffer = Buffer.from(output);
@@ -92,10 +106,8 @@ export function makeFile(rows: Row[], type: ExportType, format: ExportFormat) {
   return {
     buffer,
     rowCount: rows.length,
-    contentType: format === "csv"
-      ? "text/csv; charset=utf-8"
-      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    filename: `acadlyx-${type}-${new Date().toISOString().slice(0, 10)}.${format}`,
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    filename: "acadlyx-" + type + "-" + date + ".xlsx",
   };
 }
 
@@ -131,7 +143,7 @@ export async function exportData(
 ) {
   assertExportAccess(actor);
   if (!EXPORT_TYPES.includes(type)) throw new AppError(`Unsupported export type: ${type}`, 400);
-  if (!['xlsx', 'csv', 'json'].includes(format)) throw new AppError("Format must be xlsx, csv, or json", 400);
+  if (!['xlsx', 'csv', 'docx', 'pdf', 'json'].includes(format)) throw new AppError("Format must be xlsx, csv, docx, pdf, or json", 400);
 
   const rows: Row[] = [];
 
