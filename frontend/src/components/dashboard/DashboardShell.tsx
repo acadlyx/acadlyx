@@ -16,7 +16,7 @@ import { GlobalSearchBar } from "./GlobalSearchBar";
 import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
 
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/operations": "/chairman/operations", "/notices": "/chairman/notices", "/notifications": "/chairman/notifications", "/events-gallery": "/chairman/events-gallery" },
+  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/operations": "/chairman/operations", "/notices": "/chairman/notices", "/notifications": "/chairman/notifications", "/events-gallery": "/chairman/events-gallery" },
   DIRECTOR: { "/reports": "/director/reports", "/erp": "/director/operations", "/examinations": "/director/examinations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/calendar": "/director/calendar", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery" },
   DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students" },
   REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
@@ -34,7 +34,7 @@ function roleOwnedHref(role: string | null, href: string): string {
 
 function routeIsAllowedForRole(pathname: string, role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
   const overrides = ROLE_ROUTE_OVERRIDES[role || ""] || {};
-  const sourceRoute = Object.entries(overrides).find(([, destination]) => pathname === destination || pathname.startsWith(destination + "/"))?.[0];
+  const sourceRoute = Object.entries(overrides).sort((a, b) => b[1].length - a[1].length).find(([, destination]) => pathname === destination || pathname.startsWith(destination + "/"))?.[0];
 
   // A role-owned destination must inherit the source navigation item's
   // permission/feature contract. Namespace ownership alone is not enough.
