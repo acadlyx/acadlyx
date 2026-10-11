@@ -41,3 +41,16 @@ test("Director operations remains inside Director-specific routes", () => {
     assert.ok(existsSync(join(frontend, route.slice(1), "page.tsx")), `destination route must exist: ${route}`);
   }
 });
+
+test("Executive dashboard shortcuts stay in the correct workspace", () => {
+  const chairman = readFileSync(join(frontend, "../components/dashboard/ChairmanDashboard.tsx"), "utf8");
+  const director = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
+  for (const route of ["/chairman/intelligence", "/chairman/reports", "/chairman/fees", "/chairman/examinations", "/chairman/fee-approvals"]) {
+    assert.ok(chairman.includes(route), `Chairman dashboard should link to ${route}`);
+  }
+  for (const route of ["/director/operations", "/director/students", "/director/fees", "/director/placements"]) {
+    assert.ok(director.includes(route), `Director dashboard should link to ${route}`);
+  }
+  assert.ok(!director.includes('["Campus students","/students"]'), "Director shortcut must not route to the global student page");
+  assert.ok(!director.includes('["Admissions","/admissions"]'), "Director shortcut must not route to global admissions");
+});
