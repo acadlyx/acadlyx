@@ -2550,6 +2550,7 @@ export async function listNotices(
   const isParent = roles.includes("PARENT");
   const isFaculty = roles.includes("FACULTY");
   const isHod = roles.includes("HOD");
+  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
 
   if (
     !isStudent &&
@@ -2626,6 +2627,8 @@ export async function listNotices(
     );
   } else if (isHod) {
     departmentIds = await getHodDepartmentIds(institutionId, actor);
+  } else if (isDirectorWorkspace) {
+    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   }
 
   const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
@@ -2658,7 +2661,7 @@ export async function listNotices(
             },
           ]),
       ...(audience ? [{ audience: { in: audience } }] : []),
-      ...(isHod || isStudent || isParent
+      ...(isHod || isStudent || isParent || isDirectorWorkspace
         ? [
             {
               OR: [
