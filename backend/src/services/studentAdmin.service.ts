@@ -529,6 +529,24 @@ export async function listStudents(
   const search = params.search?.trim();
   await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentWhereScope(institutionId, actor);
+  const directorDepartmentIds = actor.roles.includes("DIRECTOR")
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : undefined;
+  const scopedStudentListInclude = directorDepartmentIds
+    ? {
+        ...studentListInclude,
+        studentEnrollments: {
+          ...studentListInclude.studentEnrollments,
+          where: {
+            program: {
+              departmentId: {
+                in: directorDepartmentIds.length ? directorDepartmentIds : ["__NO_AUTHORIZED_SCOPE__"],
+              },
+            },
+          },
+        },
+      }
+    : studentListInclude;
 
   const where: Prisma.UserWhereInput = {
     institutionId,
@@ -617,7 +635,7 @@ export async function listStudents(
           firstName: "asc",
         },
       ],
-      include: studentListInclude,
+      include: scopedStudentListInclude,
     }),
     prisma.user.count({ where }),
   ]);
@@ -634,13 +652,29 @@ export async function getStudent(
   actor?: AuthenticatedUser
 ) {
   if (actor) await assertStudentReadAccess(institutionId, userId, actor);
-  return serializeStudent(
-    await getStudentOrThrow(
-      institutionId,
-      userId
-    ),
-    actor
-  );
+  if (actor?.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    const student = await prisma.user.findFirst({
+      where: { id: userId, institutionId },
+      include: {
+        ...studentInclude,
+        studentEnrollments: {
+          ...studentInclude.studentEnrollments,
+          where: {
+            institutionId,
+            program: {
+              departmentId: {
+                in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"],
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!student) throw new AppError("Student not found in the assigned scope", 404);
+    return serializeStudent(student, actor);
+  }
+  return serializeStudent(await getStudentOrThrow(institutionId, userId), actor);
 }
 
 export async function createStudent(
