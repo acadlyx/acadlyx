@@ -302,12 +302,12 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   students: ["search", "departmentId", "programId", "semesterId", "sectionId", "programCode", "program", "academicYear", "semester", "section", "status"],
   faculty: ["search", "active"],
   departments: ["search", "active", "campusId"],
-  programs: ["search", "departmentCode", "level", "active"],
+  programs: ["search", "departmentId", "departmentCode", "level", "active"],
   "academic-years": ["search", "isCurrent", "startDate", "endDate"],
-  semesters: ["search", "programCode", "academicYear", "number"],
-  sections: ["search", "programCode", "academicYear", "semesterNumber", "active"],
-  courses: ["search", "departmentCode", "active"],
-  "course-offerings": ["search", "courseCode", "programCode", "academicYear", "semester", "section", "facultyEmail", "active"],
+  semesters: ["search", "departmentId", "programId", "programCode", "academicYear", "number"],
+  sections: ["search", "departmentId", "semesterId", "programCode", "academicYear", "semesterNumber", "active"],
+  courses: ["search", "departmentId", "departmentCode", "active"],
+  "course-offerings": ["search", "departmentId", "programId", "semesterId", "courseCode", "programCode", "academicYear", "semester", "section", "facultyEmail", "active"],
   exams: ["search", "courseCode", "section", "dateFrom", "dateTo"],
   marks: ["search", "studentEmail", "admissionNumber", "courseCode", "section", "component", "dateFrom", "dateTo"],
   attendance: ["search", "studentEmail", "admissionNumber", "courseCode", "section", "status", "dateFrom", "dateTo"],
@@ -563,7 +563,7 @@ export async function exportData(
 
   if (type === "programs") {
     const data = await collectInBatches((skip, take) => prisma.program.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { departmentId: scopedDepartmentFilter }) }, include: { department: true }, orderBy: { name: "asc" }  }));
-    for (const p of data) rows.push({ id: p.id, code: p.code, name: p.name, departmentCode: p.department.code, department: p.department.name, level: p.level, durationYears: p.durationYears, active: p.isActive });
+    for (const p of data) rows.push({ id: p.id, code: p.code, name: p.name, departmentId: p.departmentId, departmentCode: p.department.code, department: p.department.name, level: p.level, durationYears: p.durationYears, active: p.isActive });
   }
 
   if (type === "academic-years") {
@@ -573,22 +573,22 @@ export async function exportData(
 
   if (type === "semesters") {
     const data = await collectInBatches((skip, take) => prisma.semester.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { program: { departmentId: scopedDepartmentFilter } }) }, include: { program: true, academicYear: true }, orderBy: [{ academicYear: { startDate: "desc" } }, { number: "asc" }]  }));
-    for (const s of data) rows.push({ id: s.id, name: s.name, number: s.number, programCode: s.program.code, academicYear: s.academicYear.name, startDate: clean(s.startDate), endDate: clean(s.endDate), active: s.isActive });
+    for (const s of data) rows.push({ id: s.id, name: s.name, number: s.number, programId: s.programId, departmentId: s.program.departmentId, programCode: s.program.code, academicYear: s.academicYear.name, startDate: clean(s.startDate), endDate: clean(s.endDate), active: s.isActive });
   }
 
   if (type === "sections") {
     const data = await collectInBatches((skip, take) => prisma.section.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { semester: { program: { departmentId: scopedDepartmentFilter } } }) }, include: { semester: { include: { program: true, academicYear: true } } }, orderBy: { name: "asc" }  }));
-    for (const s of data) rows.push({ id: s.id, name: s.name, capacity: s.capacity, active: s.isActive, programCode: s.semester.program.code, academicYear: s.semester.academicYear.name, semesterNumber: s.semester.number });
+    for (const s of data) rows.push({ id: s.id, name: s.name, capacity: s.capacity, active: s.isActive, semesterId: s.semesterId, programId: s.semester.program.id, departmentId: s.semester.program.departmentId, programCode: s.semester.program.code, academicYear: s.semester.academicYear.name, semesterNumber: s.semester.number });
   }
 
   if (type === "courses") {
     const data = await collectInBatches((skip, take) => prisma.course.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { departmentId: scopedDepartmentFilter }) }, include: { department: true }, orderBy: { code: "asc" }  }));
-    for (const c of data) rows.push({ id: c.id, code: c.code, name: c.name, departmentCode: c.department.code, credits: c.credits, description: c.description, active: c.isActive });
+    for (const c of data) rows.push({ id: c.id, code: c.code, name: c.name, departmentId: c.departmentId, departmentCode: c.department.code, credits: c.credits, description: c.description, active: c.isActive });
   }
 
   if (type === "course-offerings") {
     const data = await collectInBatches((skip, take) => prisma.courseOffering.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) }) }, include: { course: true, semester: { include: { program: true, academicYear: true } }, section: true, faculty: true }, orderBy: { createdAt: "desc" }  }));
-    for (const o of data) rows.push({ id: o.id, courseCode: o.course.code, course: o.course.name, programCode: o.semester.program.code, academicYear: o.semester.academicYear.name, semester: o.semester.name, section: o.section.name, facultyEmail: o.faculty?.email ?? null, active: o.isActive });
+    for (const o of data) rows.push({ id: o.id, departmentId: o.semester.program.departmentId, programId: o.semester.program.id, semesterId: o.semester.id, courseCode: o.course.code, course: o.course.name, programCode: o.semester.program.code, academicYear: o.semester.academicYear.name, semester: o.semester.name, section: o.section.name, facultyEmail: o.faculty?.email ?? null, active: o.isActive });
   }
 
   if (type === "exams") {
