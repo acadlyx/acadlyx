@@ -5,7 +5,7 @@ const permissions = [
   "reports.read", "students.read", "faculty.read", "departments.read", "courses.read",
   "exams.read", "exams.approve", "results.read", "fees.read", "fees.structure.read",
   "fees.structure.manage", "fees.structure.approve", "fees.structure.publish", "fees.assign",
-  "attendance.read", "admissions.read", "placements.read", "obe.read", "lms.read",
+  "attendance.read", "admissions.read", "placements.read", "obe.read", "lms.read", "operations.read",
   "events.read", "notices.read", "notifications.read", "intelligence.read",
   "timetable.read", "calendar.read", "fees.reports.export", "students.export",
 ];
