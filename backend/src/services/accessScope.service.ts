@@ -36,13 +36,14 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
  * to Director campus scope merely because a legacy secondary role remains.
  */
 export function isDirectorScoped(actor: Pick<AuthenticatedUser, "roles">): boolean {
-  return hasAnyRole(actor, ["DIRECTOR"]) && !isInstitutionWide(actor);
+  return hasAnyRole(actor, ["DIRECTOR"]) && !hasAnyRole(actor, ["CHAIRMAN"]);
 }
 
 export async function getAuthorizedDepartmentIds(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<string[]> {
+  if (isDirectorScoped(actor)) return getDirectorDepartmentIds(institutionId, actor.id);
   if (isInstitutionWide(actor)) {
     const rows = await prisma.department.findMany({
       where: { institutionId, isActive: true },
@@ -53,7 +54,6 @@ export async function getAuthorizedDepartmentIds(
   }
 
   const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, actor.id);
   if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
   if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
   return [];
@@ -141,22 +141,14 @@ export async function getStudentWhereScope(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<Prisma.UserWhereInput> {
+  if (isDirectorScoped(actor)) {
+    const departments = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
+    return { studentEnrollments: { some: { institutionId, program: { departmentId: { in: departments } } } } };
+  }
   if (actor.id && isInstitutionWide(actor)) return {};
 
   const roles = getCanonicalRoleNames(actor.roles);
-
-  if (roles.includes("DIRECTOR")) {
-    const departments = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
-    return {
-      studentEnrollments: {
-        some: {
-          institutionId,
-          program: { departmentId: { in: departments } },
-        },
-      },
-    };
-  }
 
   if (roles.includes("DEAN") || roles.includes("HOD")) {
     const departments = await getManagedDepartmentIds(institutionId, actor.id);
@@ -266,7 +258,16 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     select: { id: true },
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
-  if (actor.id === studentId || isInstitutionWide(actor)) return;
+  if (actor.id === studentId) return;
+  if (isDirectorScoped(actor)) {
+    const [allowedDepartments, studentDepartments] = await Promise.all([
+      getDirectorDepartmentIds(institutionId, actor.id),
+      getStudentDepartmentIds(institutionId, studentId),
+    ]);
+    if (studentDepartments.some((id) => allowedDepartments.includes(id))) return;
+    throw new AppError("This student is outside your authorized campus scope", 403);
+  }
+  if (isInstitutionWide(actor)) return;
 
   const roles = getCanonicalRoleNames(actor.roles);
   if (roles.includes("PARENT")) {
@@ -275,14 +276,6 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
       select: { parentId: true },
     });
     if (link) return;
-  }
-
-  if (roles.includes("DIRECTOR")) {
-    const [allowedDepartments, studentDepartments] = await Promise.all([
-      getDirectorDepartmentIds(institutionId, actor.id),
-      getStudentDepartmentIds(institutionId, studentId),
-    ]);
-    if (studentDepartments.some((id) => allowedDepartments.includes(id))) return;
   }
 
   if (roles.includes("DEAN") || roles.includes("HOD")) {
