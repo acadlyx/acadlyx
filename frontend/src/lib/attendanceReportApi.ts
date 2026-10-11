@@ -135,7 +135,7 @@ function buildQuery(
 
 export async function downloadAttendanceReport(
   filters: AttendanceReportFilters,
-  format: "xlsx" | "csv",
+  format: "xlsx" | "csv" | "docx" | "pdf" | "json",
 ): Promise<{
   filename: string;
   rowCount: number;
