@@ -1276,7 +1276,9 @@ export async function updateFeeStructure(
             "currency" = ${currency},
             "notes" = ${
               input.notes === undefined
-                ? current.notes
+                ? current.status === "REJECTED"
+                  ? current.notes?.split("\\n[Approval rejection] ")[0] ?? null
+                  : current.notes
                 : input.notes?.trim() || null
             }
           WHERE "id" = ${structureId}
