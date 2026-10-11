@@ -39,6 +39,12 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, PermissionKey> = {
   campuses: "campuses.read",
   "paid-fees": "fees.read",
   "outstanding-dues": "fees.read",
+  "fee-heads": "fees.read",
+  "fee-receipts": "fees.read",
+  "fee-transactions": "fees.read",
+  "fee-refunds": "fees.read",
+  "fee-concessions": "fees.read",
+  "fee-audit": "audit.read",
 };
 
 function authorizeExportType(
