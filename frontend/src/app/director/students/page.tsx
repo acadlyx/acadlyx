@@ -5,7 +5,8 @@ export default function Page() {
     <RoleScopedStudents
       role="DIRECTOR"
       title="Director Students"
-      subtitle="Institution/campus student oversight within authorised scope"
+      subtitle="Assigned-campus student oversight within authorized scope"
+      detailBasePath="/director/students"
     />
   );
 }
