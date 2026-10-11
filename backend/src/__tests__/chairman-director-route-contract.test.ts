@@ -208,6 +208,7 @@ test("Director export and attendance reporting enforce campus-derived department
   const exporter = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
   assert.ok(exporter.includes("DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES"));
+  assert.ok(exporter.includes('"marks", "attendance", "notices"'), "attendance must be explicitly enabled for scoped export roles");
   assert.ok(exporter.includes('fs."programId" IS NOT NULL AND fs."programId" IN'));
   assert.ok(exporter.includes('fs."programId" IS NULL AND fs."semesterId" IN'), "semester-linked fee structures must also be exported within campus scope");
   assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
