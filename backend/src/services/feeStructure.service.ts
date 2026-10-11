@@ -452,7 +452,7 @@ async function assertFeeStructureInActorScope(
   actor: AuthenticatedUser,
   structureId: string,
 ): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR")) return;
+  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
 
   const rows = await prisma.$queryRaw<Array<{
     programId: string | null;
@@ -513,7 +513,7 @@ export async function listFeeStructures(
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
 
-  if (actor.roles.includes("DIRECTOR")) {
+  if (actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN")) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (departmentIds.length === 0) return [];
     conditions.push(Prisma.sql`(
