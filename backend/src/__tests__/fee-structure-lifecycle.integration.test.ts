@@ -99,6 +99,7 @@ test("Chairman draft publication unlocks idempotent Accounts assignment and pers
       semesterId: semester.id,
       items: [{ feeHeadId: feeHead.id, amount: 12500, dueDays: 30, installmentNumber: 1 }],
     });
+    assert.ok(created, "created fee structure should be persisted");
     assert.equal(created.status, "DRAFT", "create must never publish implicitly");
 
     await assert.rejects(
