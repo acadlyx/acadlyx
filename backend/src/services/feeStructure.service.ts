@@ -959,7 +959,7 @@ export async function rejectFeeStructure(
   }
   const changed = await prisma.$executeRaw(Prisma.sql`
     UPDATE "fee_structures"
-    SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), E'\\n[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
+    SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), CHR(10), '[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${structureId}
       AND "institutionId" = ${institutionId}
       AND "status" = 'PENDING_APPROVAL'
