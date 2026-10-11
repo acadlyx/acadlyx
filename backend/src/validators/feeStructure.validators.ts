@@ -219,3 +219,8 @@ export const feeStructureListSchema =
         .enum(["true", "false"])
         .optional(),
   });
+
+
+export const feeStructureRejectionSchema = z.object({
+  reason: z.string().trim().min(3).max(1000),
+});
