@@ -1069,12 +1069,8 @@ export const ROLE_PERMISSIONS: Record<
 
   LIBRARIAN: [
     ...EVENTS_READ,
-    // Library circulation is a people-facing workflow: librarians need
-    // to resolve borrowers and their academic context without gaining
-    // user-management or academic-management authority.
-    "users.read",
-    "students.read",
-    ...ACADEMIC_READ,
+    // Borrower details are resolved through institution-scoped library workflows.
+    // Do not silently grant the user directory, student directory, or full academic catalog.
     "registration.read",
     "calendar.read",
     "operations.read",
