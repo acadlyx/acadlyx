@@ -10,7 +10,7 @@ import { assertCanViewStudent, getDirectorDepartmentIds } from "../services/acce
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
 async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
   if (roles.some(r => ["CHAIRMAN", "MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
-  if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, userId);
+  if (roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN")) return getDirectorDepartmentIds(institutionId, userId);
   return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
 }
 
