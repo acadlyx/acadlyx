@@ -218,6 +218,108 @@ async function collectInBatches<T>(
   return all;
 }
 
+const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
+  users: ["search", "active", "roles"],
+  students: ["search", "programCode", "program", "academicYear", "semester", "section", "status"],
+  faculty: ["search", "active"],
+  departments: ["search", "active", "campusId"],
+  programs: ["search", "departmentCode", "level", "active"],
+  "academic-years": ["search", "isCurrent", "startDate", "endDate"],
+  semesters: ["search", "programCode", "academicYear", "number"],
+  sections: ["search", "programCode", "academicYear", "semesterNumber", "active"],
+  courses: ["search", "departmentCode", "active"],
+  "course-offerings": ["search", "courseCode", "programCode", "academicYear", "semester", "section", "facultyEmail", "active"],
+  exams: ["search", "courseCode", "section", "dateFrom", "dateTo"],
+  marks: ["search", "studentEmail", "admissionNumber", "courseCode", "section", "component", "dateFrom", "dateTo"],
+  attendance: ["search", "studentEmail", "admissionNumber", "courseCode", "section", "status", "dateFrom", "dateTo"],
+  fees: ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
+  "fee-payments": ["search", "reference", "invoiceTitle", "dateFrom", "dateTo"],
+  "fee-structures": ["search", "name", "status", "currency"],
+  notices: ["search", "audience", "departmentId", "dateFrom", "dateTo"],
+  timetable: ["search", "courseCode", "course", "section", "facultyEmail", "dayOfWeek"],
+  "parent-links": ["search", "parentEmail", "studentEmail", "relationship", "dateFrom", "dateTo"],
+  campuses: ["search", "active"],
+  "paid-fees": ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
+  "outstanding-dues": ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
+};
+
+const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
+  users: "createdAt",
+  campuses: "createdAt",
+  departments: "createdAt",
+  "academic-years": "startDate",
+  exams: "examDate",
+  marks: "updatedAt",
+  attendance: "date",
+  fees: "dueDate",
+  "fee-payments": "paidAt",
+  notices: "publishedAt",
+  "parent-links": "createdAt",
+  "paid-fees": "dueDate",
+  "outstanding-dues": "dueDate",
+};
+
+function applyExportOptions(rows: Row[], type: ExportType, options: ExportRequestOptions): Row[] {
+  const selection = options.selection ?? "all-filtered";
+  if (!["all-filtered", "current-page", "selected"].includes(selection)) {
+    throw new AppError("Selection must be all-filtered, current-page, or selected", 400);
+  }
+
+  const filters = options.filters ?? {};
+  const allowedFields = EXPORT_FILTER_FIELDS[type];
+  for (const [key, value] of Object.entries(filters)) {
+    if (!allowedFields.includes(key)) throw new AppError("Unsupported " + type + " export filter: " + key, 400);
+    if (typeof value !== "string" || value.length > 200) throw new AppError("Export filter values must be text with at most 200 characters", 400);
+  }
+  if ((filters.dateFrom || filters.dateTo) && !EXPORT_DATE_FIELD[type]) {
+    throw new AppError("Date filtering is not supported for this export", 400);
+  }
+  for (const key of ["dateFrom", "dateTo"]) {
+    if (filters[key] && !Number.isFinite(Date.parse(filters[key]))) {
+      throw new AppError("Invalid export date filter: " + key, 400);
+    }
+  }
+
+  const dateField = EXPORT_DATE_FIELD[type];
+  const filtered = rows.filter((row) => {
+    for (const [key, expected] of Object.entries(filters)) {
+      if (key === "search") {
+        const haystack = Object.values(row).map((value) => String(value ?? "")).join(" ").toLocaleLowerCase();
+        if (!haystack.includes(expected.toLocaleLowerCase())) return false;
+      } else if (key === "dateFrom" || key === "dateTo") {
+        const value = row[dateField!];
+        if (value === null || value === undefined) return false;
+        const actual = Date.parse(String(value));
+        const target = Date.parse(expected);
+        if (!Number.isFinite(actual)) return false;
+        if (key === "dateFrom" && actual < target) return false;
+        if (key === "dateTo" && actual > target) return false;
+      } else {
+        const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
+        if (!actualKey || String(row[actualKey] ?? "").toLocaleLowerCase() !== expected.toLocaleLowerCase()) return false;
+      }
+    }
+    return true;
+  });
+
+  if (selection === "selected") {
+    const ids = [...new Set(options.ids ?? [])].filter((id) => typeof id === "string" && id.length > 0 && id.length <= 128);
+    if (ids.length === 0) throw new AppError("Choose at least one row to export", 400);
+    if (ids.length > 500) throw new AppError("A selected-row export is limited to 500 selected IDs per request", 400);
+    const selected = new Set(ids);
+    return filtered.filter((row) => row.id !== null && row.id !== undefined && selected.has(String(row.id)));
+  }
+  if (options.ids?.length) throw new AppError("Row IDs are only accepted for selected-row exports", 400);
+  if (selection === "current-page") {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 25;
+    if (!Number.isSafeInteger(page) || page < 1) throw new AppError("Page must be a positive integer", 400);
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) throw new AppError("Page size must be between 1 and 1000", 400);
+    return filtered.slice((page - 1) * pageSize, page * pageSize);
+  }
+  return filtered;
+}
+
 export async function exportData(
   institutionId: string,
   actor: AuthenticatedUser,
