@@ -713,7 +713,23 @@ export async function exportData(
   }
 
   if (type === "fee-structures") {
-    const data = await prisma.$queryRaw<Array<any>>(Prisma.sql`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ${scope.institutionWide ? Prisma.empty : Prisma.sql`AND fs."programId" IN (SELECT p."id" FROM "programs" p WHERE p."institutionId" = ${institutionId} AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])}))`} ORDER BY fs."name", fsi."installmentNumber", fh."code"`);
+    const data = await prisma.$queryRaw<Array<any>>(Prisma.sql`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ${scope.institutionWide ? Prisma.empty : Prisma.sql`AND (
+  (fs."programId" IS NOT NULL AND fs."programId" IN (
+    SELECT p."id" FROM "programs" p WHERE p."institutionId" = ${institutionId}
+      AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+  ))
+  OR (fs."programId" IS NULL AND fs."semesterId" IN (
+    SELECT sem."id" FROM "semesters" sem
+    JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+    WHERE sem."institutionId" = ${institutionId}
+      AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+  ))
+) AND (fs."semesterId" IS NULL OR fs."semesterId" IN (
+  SELECT sem."id" FROM "semesters" sem
+  JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+  WHERE sem."institutionId" = ${institutionId}
+    AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+))`} ORDER BY fs."name", fsi."installmentNumber", fh."code"`);
     for (const r of data) rows.push({ id: r.id, name: r.name, status: r.status, currency: r.currency, notes: r.notes, academicYearId: r.academicYearId, programId: r.programId, semesterId: r.semesterId, feeHeadCode: r.feeHeadCode, feeHeadName: r.feeHeadName, amount: r.amount, dueDays: r.dueDays, installmentNumber: r.installmentNumber });
   }
 
