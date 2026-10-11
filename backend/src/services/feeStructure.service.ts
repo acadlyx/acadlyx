@@ -1139,11 +1139,9 @@ export async function updateFeeStructure(
   const current =
     existing[0];
 
-  if (
-    current.status === "ARCHIVED"
-  ) {
+  if (current.status !== "DRAFT") {
     throw new AppError(
-      "Archived fee structures cannot be modified",
+      "Only DRAFT fee structures can be edited; submitted or approved structures are immutable",
       409
     );
   }
