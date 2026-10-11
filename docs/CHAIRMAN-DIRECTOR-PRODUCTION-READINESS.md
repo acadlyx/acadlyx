@@ -88,3 +88,12 @@ Record command output and environment details; do not convert unavailable checks
 - Changed `frontend/src/components/dashboard/DirectorDashboard.tsx` shortcuts to Director-specific operations, students, fees, and placements routes.
 - Extended `backend/src/__tests__/chairman-director-route-contract.test.ts` to assert the dashboard destination contracts.
 - Test status remains **not run**; no local checkout or executable environment was available through the repository API.
+
+
+### Batch 4 — Dashboard reliability and metric-state handling (partial)
+- Reworked `frontend/src/components/dashboard/ChairmanDashboard.tsx` and `frontend/src/components/dashboard/DirectorDashboard.tsx` into readable, independently defined components with workspace-specific shortcuts.
+- Both dashboards now show an em dash and an explicit loading/unavailable state for metrics that have not loaded, rather than presenting missing values as zero.
+- Both dashboards show a generic safe failure message and a retry action rather than rendering arbitrary raw API error messages.
+- Added source-contract assertions for missing-data handling, retry controls, and dashboard shortcut destinations.
+- Important limitation: both dashboards still consume the shared `/erp/me/workspace` endpoint. Source inspection indicates Director KPIs are filtered using assigned-campus-derived department IDs, but no database-backed integration test has verified every aggregation or role. Chairman scope is currently the authenticated institution context returned by `requireInstitution`; multi-institution Chairman assignment behavior is not established by this work.
+- Exit gate: NOT PASSED. No local frontend build, backend typecheck, or test suite has been executed through the repository API.
