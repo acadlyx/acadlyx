@@ -89,3 +89,9 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - **Approval integrity:** added PostgreSQL checks for concurrent fee decisions (exactly one winner and one audit record) and maker-checker denial (no state transition/no audit row). Mark-correction decisions now reject the original requester and preserve conditional update plus transactional audit.
 - **Route verification:** route smoke coverage expanded to all role-specific pages; a static contract scans literal Chairman/Director links and router destinations. This is not a substitute for authenticated browser-level button/action testing.
 - Historical note for this batch: the implementation branch itself did not issue a production-branch write. Subsequent GitHub ref inspection shows production received PRs #47–#49 through commit `49620702216a2d5921b0af2d33f3502aa7283738`; follow-on changes after `4962070` are not included in that production merge chain.
+
+## Batch 12 — CI enabled for PostgreSQL concurrency tests (2026-10-11)
+- Set `RUN_POSTGRES_INTEGRATION=1` in the isolated verification workflow. This activates the previously skipped financial integration suite instead of counting skipped tests as coverage.
+- Verified code commit `8ea39b7a308902eaf9494702dc9107f690b20e88` passed Prisma validation/migration, backend typecheck/build, **199/199 backend tests with zero skips**, frontend typecheck/lint/build, and the expanded role-route smoke test.
+- The smoke suite checks route responses, not authenticated user interaction; browser-level verification of each visible action and its resulting page/API/state remains a release gate.
+- PRs #47–#49 appear in production history through `4962070`. No further merge or deployment was initiated by this batch.
