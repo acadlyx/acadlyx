@@ -965,14 +965,25 @@ export async function approveFeeStructure(
   }
   await assertFeeStructureInActorScope(institutionId, actor, structureId);
   // A creator cannot approve their own submission, even if they hold both permissions.
-  const changed = await prisma.$executeRaw(Prisma.sql`
-    UPDATE "fee_structures"
-    SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${structureId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'PENDING_APPROVAL'
-      AND "createdById" <> ${actor.id}
-  `);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql`
+      UPDATE "fee_structures"
+      SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'PENDING_APPROVAL'
+        AND "createdById" <> ${actor.id}
+    `);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.approve",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "ACTIVE" },
+      },
+    });
+    return count;
+  });
   if (changed !== 1) {
     const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
       SELECT "status", "createdById" FROM "fee_structures"
@@ -982,11 +993,6 @@ export async function approveFeeStructure(
     if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot approve their own submission", 403);
     throw new AppError("Only a pending fee structure can be approved", 409);
   }
-  await recordAuditLog({
-    institutionId, userId: actor.id, action: "fee-structure.approve",
-    entityType: "FeeStructure", entityId: structureId,
-    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "ACTIVE" },
-  });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 
@@ -1004,14 +1010,25 @@ export async function rejectFeeStructure(
   if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
     throw new AppError("A rejection reason between 3 and 1000 characters is required", 422);
   }
-  const changed = await prisma.$executeRaw(Prisma.sql`
-    UPDATE "fee_structures"
-    SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), CHR(10), '[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${structureId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'PENDING_APPROVAL'
-      AND "createdById" <> ${actor.id}
-  `);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql`
+      UPDATE "fee_structures"
+      SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), CHR(10), '[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'PENDING_APPROVAL'
+        AND "createdById" <> ${actor.id}
+    `);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.reject",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "REJECTED", reason: normalizedReason },
+      },
+    });
+    return count;
+  });
   if (changed !== 1) {
     const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
       SELECT "status", "createdById" FROM "fee_structures"
@@ -1021,11 +1038,6 @@ export async function rejectFeeStructure(
     if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot reject their own submission", 403);
     throw new AppError("Only a pending fee structure can be rejected", 409);
   }
-  await recordAuditLog({
-    institutionId, userId: actor.id, action: "fee-structure.reject",
-    entityType: "FeeStructure", entityId: structureId,
-    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "REJECTED", reason: normalizedReason },
-  });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 
