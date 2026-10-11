@@ -13,6 +13,7 @@ This branch is not declared production-ready. The first targeted correction addr
 - The implementation branch changes that helper to resolve Director department IDs from CampusAccess and require an active enrollment in one of those departments before allowing access. It also tenant-binds management access other than explicit SUPER_ADMIN.
 - Added `backend/src/__tests__/director-student-scope.contract.test.ts` as a source-level regression guard. This test has not been executed in this environment and does not replace database-backed tests.
 - Updated Chairman finance navigation entries to route to `/chairman/fees` and `/chairman/fees/collections` instead of generic shared routes.
+- Replaced the Chairman operations alias of the generic `/operations` page with an independent Chairman route index; Director operations now links only to existing `/director/**` routes. Added `backend/src/__tests__/chairman-director-route-contract.test.ts`.
 
 ### Not yet verified
 - Local working-tree status and uncommitted changes (the available method is GitHub repository API, not the user's local checkout).
@@ -42,8 +43,10 @@ This branch is not declared production-ready. The first targeted correction addr
 
 ### Batch 3 — Workspace routing (partial)
 - Chairman finance sidebar links now remain under the Chairman route namespace for finance overview and collections.
-- Existing Chairman/Director routes remain separate; additional generic links and the Director operations destinations still require a full route/action audit.
-- Exit gate: NOT PASSED.
+- Chairman operations now has its own page and no longer imports the generic operations page.
+- Director operations now links to existing Director-specific pages rather than global student/admissions routes.
+- Added a source-level route contract test checking role boundaries, link destinations, and destination file existence.
+- Exit gate: NOT PASSED; no frontend build or route contract tests have been executed, and DashboardShell/session behavior and all remaining workspace routes need verification.
 
 ### Remaining batches
 - Batch 3: separate route trees, effective navigation, shell continuity, and scoped context.
@@ -71,3 +74,9 @@ Record command output and environment details; do not convert unavailable checks
 - GitHub compare reports implementation branch `ahead` by 8 commits and `behind` by 0.
 - GitHub combined commit statuses returned no status checks; workflow-run lookup returned no runs for this commit. This is **not** evidence of a passing build or test suite.
 - The available access path writes repository files through the GitHub API; it does not expose the user's local working tree or a runnable checkout in this session. No local build, typecheck, lint, unit test, database test, or browser test has been claimed as executed.
+
+
+### Batch 3 continuation verification
+- Latest branch writes: Chairman operations page, Director operations page, and route contract test are committed on the implementation branch.
+- Route target existence was checked against the repository tree for the routes linked by the two operations indexes.
+- Runtime UI tests and backend destination endpoint scope checks remain unverified.
