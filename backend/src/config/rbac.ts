@@ -38,7 +38,8 @@ export type PermissionDependency = {
 
 export const PERMISSION_DEPENDENCIES: PermissionDependency[] = [
   { permission: "library.borrow", dependencies: [
-    { permission: "students.read", access: "READ" },
+    // Self-service circulation is scoped to the authenticated borrower by the
+    // service; it must not require staff-only student-directory access.
     { permission: "library.read", access: "READ" },
   ]},
   { permission: "library.manage", dependencies: [

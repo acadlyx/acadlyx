@@ -66,7 +66,14 @@ test("student self-service borrowing does not require staff student-directory ac
   assert.match(selfServiceRoute, /authorize\("library\.borrow"\)/);
   assert.doesNotMatch(selfServiceRoute, /authorizeWorkflow/);
   const missing = missingPermissionDependencies(studentPermissions, ["library.borrow"]);
-  assert.ok(missing.some((item) => item.permission === "students.read"));
+  assert.deepEqual(missing, [], "self-service borrowing must not require staff-only students.read");
+
+  const librarianPermissions = getEffectivePermissions(["LIBRARIAN"]);
+  const librarianMissing = missingPermissionDependencies(librarianPermissions, ["library.manage"]);
+  assert.ok(
+    librarianMissing.some((item) => item.permission === "students.read"),
+    "staff circulation management must continue to require student-directory read access",
+  );
   for (const routePath of ['"/reservations"', '"/reservations/:id/cancel"']) {
     const start = routes.indexOf(routePath);
     assert.ok(start >= 0, "student reservation route must exist: " + routePath);
