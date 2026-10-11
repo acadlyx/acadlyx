@@ -6,7 +6,7 @@ import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
 import { getCanonicalRoleNames } from "../config/rbac";
-import { getManagedDepartmentIds } from "./accessScope.service";
+import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -15,7 +15,7 @@ import {
 const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
 
 function isAdmin(user: AuthenticatedUser): boolean {
-  return user.roles.some((role) => ADMIN_ROLES.includes(role));
+  return user.roles.some((role) => ADMIN_ROLES.includes(role)) && !user.roles.includes("CHAIRMAN") && !isDirectorScoped(user);
 }
 
 function assertCanManageOffering(
@@ -303,19 +303,23 @@ export async function listSessions(
       : {}),
   };
 
-  const institutionWideRoles = new Set(["CHAIRMAN", "DIRECTOR", "DEAN", "REGISTRAR"]);
-  if (getCanonicalRoleNames(user.roles).some((role) => institutionWideRoles.has(role))) {
-    // Institution-wide reporting scope.
+  if (isInstitutionWide(user) && !isDirectorScoped(user)) {
+    // Institution-wide reporting scope. Chairman wins over any secondary Director role.
+  } else if (isDirectorScoped(user)) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, user.id);
+    where.courseOffering = {
+      semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } },
+    };
+  } else if (user.roles.includes("HOD") || user.roles.includes("DEAN")) {
+    const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
+    where.courseOffering = {
+      course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
+    };
   } else if (user.roles.includes("FACULTY")) {
     if (filters.facultyId && filters.facultyId !== user.id) {
       throw new AppError("Faculty may only view their own attendance sessions", 403);
     }
     where.facultyId = user.id;
-  } else if (user.roles.includes("HOD")) {
-    const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
-    where.courseOffering = {
-      course: { departmentId: { in: departmentIds } },
-    };
   } else {
     throw new AppError("Attendance history is not available for this role", 403);
   }
