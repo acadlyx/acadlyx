@@ -158,6 +158,11 @@ export default function DirectorNoticesPage {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (!form.departmentId) {
+      setError("Select a department in your assigned campus before publishing this notice.");
+      return;
+    }
+
     if (!form.title.trim() || !form.body.trim()) {
       setError("Title and message are required.");
       return;
@@ -335,7 +340,7 @@ export default function DirectorNoticesPage {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label>
                   <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Department scope
+                    Assigned campus department
                   </span>
                   <select
                     value={form.departmentId}
@@ -347,7 +352,7 @@ export default function DirectorNoticesPage {
                     }
                     className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
-                    <option value="">All departments</option>
+                    <option value="">Select an assigned campus department</option>
                     {departments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.name}
