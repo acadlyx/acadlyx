@@ -421,8 +421,12 @@ async function assertCanReadSchedule(
   }
   if (actor.roles.includes("DIRECTOR")) {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
-    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
-    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized campus scope",403);
+    if (!ids.length) throw new AppError("Examination is outside your authorized campus scope", 403);
+    const semester = await prisma.semester.findFirst({
+      where: { id: offering.semesterId, institutionId, program: { institutionId, departmentId: { in: ids } } },
+      select: { id: true },
+    });
+    if (!semester) throw new AppError("Examination is outside your authorized campus scope", 403);
     return;
   }
   throw new AppError("You are not authorized to access this examination schedule",403);
@@ -2848,10 +2852,13 @@ export async function listRevaluationRequests(
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" scoped_schedule
       JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
-      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      JOIN "semesters" scoped_semester ON scoped_semester."id" = scoped_offering."semesterId"
+        AND scoped_semester."institutionId" = scoped_schedule."institutionId"
+      JOIN "programs" scoped_program ON scoped_program."id" = scoped_semester."programId"
+        AND scoped_program."institutionId" = scoped_semester."institutionId"
       WHERE scoped_schedule."id" = r."examScheduleId"
         AND scoped_schedule."institutionId" = r."institutionId"
-        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+        AND scoped_program."departmentId" IN (${Prisma.join(departmentIds)})
     )`);
   }
   // Students and parents never see the whole queue.
@@ -3150,10 +3157,13 @@ export async function listExamIncidents(
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" scoped_schedule
       JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
-      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      JOIN "semesters" scoped_semester ON scoped_semester."id" = scoped_offering."semesterId"
+        AND scoped_semester."institutionId" = scoped_schedule."institutionId"
+      JOIN "programs" scoped_program ON scoped_program."id" = scoped_semester."programId"
+        AND scoped_program."institutionId" = scoped_semester."institutionId"
       WHERE scoped_schedule."id" = i."examScheduleId"
         AND scoped_schedule."institutionId" = i."institutionId"
-        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+        AND scoped_program."departmentId" IN (${Prisma.join(departmentIds)})
     )`);
   }
   if (filters.status) conditions.push(Prisma.sql`i."status" = ${filters.status}`);
@@ -3838,9 +3848,10 @@ export async function listExamMarkCorrectionRequests(
     ? Prisma.sql`AND "examScheduleId" IN (
         SELECT es."id" FROM "exam_schedules" es
         JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
-        JOIN "courses" c ON c."id" = co."courseId"
+        JOIN "semesters" sem ON sem."id" = co."semesterId" AND sem."institutionId" = es."institutionId"
+        JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
         WHERE es."institutionId" = ${institutionId}
-          AND c."departmentId" IN (${Prisma.join(departmentIds)})
+          AND p."departmentId" IN (${Prisma.join(departmentIds)})
       )`
     : Prisma.empty;
   const where = Prisma.sql`WHERE "institutionId" = ${institutionId} ${scopeClause}`;
