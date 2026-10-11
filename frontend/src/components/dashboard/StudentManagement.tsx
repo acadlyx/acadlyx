@@ -35,6 +35,17 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
   const emptyForm = { idNumber:"", email:"", firstName:"", lastName:"", phone:"", password:"", admissionNumber:"", dateOfBirth:"", gender:"", bloodGroup:"", nationality:"Indian", address:"", city:"", state:"", postalCode:"", guardianName:"", guardianPhone:"", guardianEmail:"", emergencyContactName:"", emergencyContactPhone:"", admissionDate:"", status:"ACTIVE", programId:"", academicYearId:"", semesterId:"", sectionId:"", rollNumber:"" };
   const [form, setForm] = useState(emptyForm); const [enrollment, setEnrollment] = useState({ academicYearId:"", programId:"", semesterId:"", sectionId:"", rollNumber:"", status:"ACTIVE" });
   const studentFilterReady = useRef(false);
+  function toggleStudentSelected(id: string, checked: boolean) {
+    setSelectedStudentIds((current) => checked
+      ? Array.from(new Set([...current, id]))
+      : current.filter((value) => value !== id));
+  }
+  function togglePageSelection(checked: boolean) {
+    const pageIds = students.map((student) => student.id);
+    setSelectedStudentIds((current) => checked
+      ? Array.from(new Set([...current, ...pageIds]))
+      : current.filter((id) => !pageIds.includes(id)));
+  }
   const loadLookups = useCallback(async () => {
     const [d,y] = await Promise.all([
       departmentId
