@@ -23,6 +23,8 @@ import {
   listIncidents,
   listMyInvigilation,
   listRevaluations,
+  decideRevaluation,
+  decideIncident,
   lockSchedule,
   publishResults,
   saveMarks,
@@ -87,6 +89,8 @@ export default function ChairmanExaminationOperationsPage() {
   const [invigilation, setInvigilation] = useState<Record<string, unknown>[]>([]);
   const [incidents, setIncidents] = useState<Record<string, unknown>[]>([]);
   const [revaluations, setRevaluations] = useState<Record<string, unknown>[]>([]);
+  const [revisedMarks, setRevisedMarks] = useState<Record<string, string>>({});
+  const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<(ExamSession & { schedules: ExamSchedule[] }) | null>(null);
   const [marks, setMarks] = useState<{ schedule: ExamSchedule; rows: any[] } | null>(null);
   const [draft, setDraft] = useState<Record<string,string>>({});
@@ -178,6 +182,42 @@ export default function ChairmanExaminationOperationsPage() {
     });
   }
 
+  async function decideRevaluationItem(item: Record<string, unknown>, status: "IN_REVIEW" | "COMPLETED" | "REJECTED") {
+    const id = String(item.id ?? "");
+    if (!id) { setError("This revaluation record is missing its identifier. Refresh the queue."); return; }
+    const note = decisionNotes[`revaluation:${id}`] ?? "";
+    const marksValue = revisedMarks[id] ?? "";
+    const parsedMarks = Number(marksValue);
+    if (status === "COMPLETED" && (!marksValue.trim() || !Number.isFinite(parsedMarks) || parsedMarks < 0)) {
+      setError("Enter a valid revised mark before completing this revaluation.");
+      return;
+    }
+    if (status === "REJECTED" && note.trim().length < 3) {
+      setError("Add a short decision note before rejecting a revaluation.");
+      return;
+    }
+    await run(async () => {
+      await decideRevaluation(id, { status, ...(status === "COMPLETED" ? { revisedMarks: parsedMarks } : {}), decisionNote: note.trim() || undefined });
+      setNotice(status === "IN_REVIEW" ? "Revaluation moved into review." : status === "COMPLETED" ? "Revaluation completed and recorded." : "Revaluation rejected and recorded.");
+      await load();
+    });
+  }
+
+  async function decideIncidentItem(item: Record<string, unknown>, status: "UNDER_REVIEW" | "UPHELD" | "DISMISSED") {
+    const id = String(item.id ?? "");
+    if (!id) { setError("This incident record is missing its identifier. Refresh the queue."); return; }
+    const actionTaken = decisionNotes[`incident:${id}`] ?? "";
+    if ((status === "UPHELD" || status === "DISMISSED") && actionTaken.trim().length < 3) {
+      setError("Add the decision or action taken before closing an incident.");
+      return;
+    }
+    await run(async () => {
+      await decideIncident(id, { status, actionTaken: actionTaken.trim() || undefined });
+      setNotice(status === "UNDER_REVIEW" ? "Incident moved into review." : status === "UPHELD" ? "Incident upheld and its decision recorded." : "Incident dismissed and its decision recorded.");
+      await load();
+    });
+  }
+
   const nav = [
     ["overview","Overview"],["examinations","All Examinations"],["create","Create Examination"],
     ["calendar","Examination Calendar"],["schedule","Schedule & Subjects"],["rooms","Rooms & Seating"],
@@ -223,8 +263,8 @@ export default function ChairmanExaminationOperationsPage() {
             {view === "invigilators" && <SimpleList title="Invigilators" description="Faculty duty assignments are tied to examination schedules. Conflict validation is enforced by the examination API." rows={invigilation} empty="No invigilation duties are assigned to you." />}
             {view === "exam-day" && <ExamDay schedules={schedules} incidents={incidents} onAttendance={openMarks} />}
             {view === "admit-cards" && <AdmitCards sessions={sessions} canManage={canManage} busy={busy} onGenerate={(id)=>void run(async()=>{const r=await generateHallTickets(id); setNotice(`Generated ${r.issued} admit cards; ${r.blocked} blocked; ${r.skipped} already issued.`);})} />}
-            {view === "incidents" && <SimpleList title="Examination Incidents" description="Malpractice, medical, late-arrival, paper and room incidents requiring examination-cell attention." rows={incidents} empty="No incidents require attention." />}
-            {view === "revaluation" && <SimpleList title="Revaluation / Backlog" description="Requests remain tied to examination schedules and are governed by examination permissions." rows={revaluations} empty="No revaluation requests." />}
+            {view === "incidents" && <section className="space-y-4 rounded-2xl border bg-white p-5"><div><h2 className="text-lg font-black text-slate-950">Examination incidents</h2><p className="mt-1 text-sm text-slate-600">Review incidents in the server-authorized scope. Final decisions are audited and malpractice mark changes retain history.</p></div>{incidents.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">No incidents require attention.</p> : <div className="space-y-3">{incidents.map((item, index) => { const row = item as Record<string, unknown>; const id = String(row.id ?? index); const status = String(row.status ?? "UNKNOWN"); return <article key={id} className="rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold text-slate-950">{String(row.studentName ?? "Student")}</p><p className="mt-1 text-sm text-slate-600">{String(row.category ?? "Incident")} · {String(row.courseCode ?? "Course")} · {String(row.severity ?? "Severity")}</p><p className="mt-2 text-sm text-slate-700">{String(row.description ?? "No incident description supplied.")}</p></div><Pill value={status} /></div><label className="mt-3 block text-xs font-bold text-slate-600">Review / action note<input value={decisionNotes[`incident:${id}`] ?? ""} onChange={e => setDecisionNotes(previous => ({...previous, [`incident:${id}`]: e.target.value}))} disabled={busy || status === "UPHELD" || status === "DISMISSED"} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" placeholder="Document the review outcome" /></label>{canApprove && <div className="mt-3 flex flex-wrap gap-2">{status === "REPORTED" && <button type="button" disabled={busy} onClick={() => void decideIncidentItem(row, "UNDER_REVIEW")} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Start review</button>}{status === "UNDER_REVIEW" && <><button type="button" disabled={busy} onClick={() => void decideIncidentItem(row, "UPHELD")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Uphold incident</button><button type="button" disabled={busy} onClick={() => void decideIncidentItem(row, "DISMISSED")} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Dismiss incident</button></>}</div>}</article>;})}</div>}</section>}
+            {view === "revaluation" && <section className="space-y-4 rounded-2xl border bg-white p-5"><div><h2 className="text-lg font-black text-slate-950">Revaluation / backlog decisions</h2><p className="mt-1 text-sm text-slate-600">Follow the state machine: Requested → In review → Completed or Rejected. Revised marks and decision notes are validated by the backend.</p></div>{revaluations.length === 0 ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">No revaluation requests.</p> : <div className="space-y-3">{revaluations.map((item, index) => { const row = item as Record<string, unknown>; const id = String(row.id ?? index); const status = String(row.status ?? "UNKNOWN"); return <article key={id} className="rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold text-slate-950">{String(row.studentName ?? "Student")}</p><p className="mt-1 text-sm text-slate-600">{String(row.courseCode ?? "Course")} · Exam date {date(String(row.examDate ?? ""))}</p><p className="mt-2 text-sm text-slate-700">{String(row.reason ?? "No reason supplied.")}</p><p className="mt-2 text-xs text-slate-500">Original marks: {row.originalMarks == null ? "—" : String(row.originalMarks)} · Current revised marks: {row.revisedMarks == null ? "—" : String(row.revisedMarks)}</p></div><Pill value={status} /></div><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-600">Revised marks<input type="number" min="0" step="0.01" value={revisedMarks[id] ?? (row.revisedMarks == null ? "" : String(row.revisedMarks))} onChange={e => setRevisedMarks(previous => ({...previous, [id]: e.target.value}))} disabled={busy || status !== "IN_REVIEW"} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" placeholder="Enter verified revised marks" /></label><label className="block text-xs font-bold text-slate-600">Decision note<input value={decisionNotes[`revaluation:${id}`] ?? ""} onChange={e => setDecisionNotes(previous => ({...previous, [`revaluation:${id}`]: e.target.value}))} disabled={busy || status === "COMPLETED" || status === "REJECTED"} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" placeholder="Required when rejecting" /></label></div>{canApprove && <div className="mt-3 flex flex-wrap gap-2">{status === "REQUESTED" && <button type="button" disabled={busy} onClick={() => void decideRevaluationItem(row, "IN_REVIEW")} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Start review</button>}{status === "IN_REVIEW" && <><button type="button" disabled={busy} onClick={() => void decideRevaluationItem(row, "COMPLETED")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Complete revaluation</button><button type="button" disabled={busy} onClick={() => void decideRevaluationItem(row, "REJECTED")} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Reject request</button></>}</div>}</article>;})}</div>}</section>}
             {view === "reports" && <Reports sessions={sessions} schedules={schedules} />}
             {view === "marks" && canMarks && <Marks marks={marks} draft={draft} setDraft={setDraft} busy={busy} canEnter={canEnter} canApprove={canApprove} onSave={(submit)=>void run(async()=>{if(!marks) return; await saveMarks(marks.schedule.id,Object.entries(draft).map(([studentId,v])=>({studentId,isAbsent:v.trim().toUpperCase()==="AB",marksObtained:v.trim()===""||v.trim().toUpperCase()==="AB"?null:Number(v)})),submit); setNotice(submit?"Marks submitted for approval.":"Marks draft saved."); setMarks(await getMarksSheet(marks.schedule.id));})} onApprove={()=>void run(async()=>{if(!marks)return; await approveMarks(marks.schedule.id); setNotice("Marks approved."); setMarks(await getMarksSheet(marks.schedule.id));})} onLock={()=>void run(async()=>{if(!marks)return; await lockSchedule(marks.schedule.id); setNotice("Marks locked."); await load();})} onPublish={()=>void run(async()=>{if(!marks)return; const r=await publishResults(marks.schedule.id); setNotice(`Published ${r.published} results.`); await load();})} />}
           </>
