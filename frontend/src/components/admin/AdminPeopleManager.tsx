@@ -338,6 +338,8 @@ function AdminPeopleManagerContent() {
   }>>([]);
 
   const [campuses, setCampuses] = useState<Array<{ id: string; name: string; code?: string | null }>>([]);
+  const [createRole, setCreateRole] = useState("FACULTY");
+  const [editRole, setEditRole] = useState("");
 
   const [error, setError] =
     useState("");
@@ -1611,7 +1613,7 @@ function AdminPeopleManagerContent() {
               {canUpdate ? (
                 <button
                   type="button"
-                  onClick={() => setActiveModal("edit")}
+                  onClick={() => { setEditRole(selected.roles[0]?.name || ""); setActiveModal("edit"); }}
                   className="rounded-[13px] bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white"
                 >
                   Edit user
@@ -1749,6 +1751,7 @@ function AdminPeopleManagerContent() {
                   <select
                     name="role"
                     defaultValue={selected.roles[0]?.name || ""}
+                    onChange={(event) => setEditRole(event.target.value)}
                     required
                     className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
                   >
@@ -1760,7 +1763,7 @@ function AdminPeopleManagerContent() {
                     </option>
                   </select>
                 </label>
-                <label>
+                {(editRole || selected.roles[0]?.name) === "HOD" ? <label>
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">HOD department</span>
                   <select
                     name="departmentId"
@@ -1774,14 +1777,14 @@ function AdminPeopleManagerContent() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="sm:col-span-2">
+                </label> : null}
+                {(editRole || selected.roles[0]?.name) === "DIRECTOR" ? <label className="sm:col-span-2">
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Director campus scope</span>
                   <select name="campusIds" multiple defaultValue={selected.campusAccesses?.map((access) => access.campusId) || []} className="min-h-28 w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400">
                     {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code ? campus.code + " — " : ""}{campus.name}</option>)}
                   </select>
-                  <span className="mt-1 block text-xs text-slate-500">Required for Director. Hold Ctrl/Command to select multiple campuses. Chairman remains institution-wide and must not receive a campus restriction.</span>
-                </label>
+                  <span className="mt-1 block text-xs text-slate-500">Required for Director. Hold Ctrl/Command to select multiple campuses.</span>
+                </label> : (editRole || selected.roles[0]?.name) === "CHAIRMAN" ? <div className="sm:col-span-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">Chairman scope is institution-wide. No campus or department restriction is assigned.</div> : null}
               </div>
 
               <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
@@ -1882,7 +1885,8 @@ function AdminPeopleManagerContent() {
                   <select
                     name="role"
                     required
-                    defaultValue="FACULTY"
+                    value={createRole}
+                    onChange={(event) => setCreateRole(event.target.value)}
                     className="w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
                   >
                     <option value="">
@@ -1905,7 +1909,7 @@ function AdminPeopleManagerContent() {
                   </select>
                 </label>
 
-                <label>
+                {createRole === "HOD" ? <label>
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">HOD department</span>
                   <select
                     name="departmentId"
@@ -1919,14 +1923,14 @@ function AdminPeopleManagerContent() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="sm:col-span-2">
+                </label> : null}
+                {createRole === "DIRECTOR" ? <label className="sm:col-span-2">
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Director campus scope</span>
                   <select name="campusIds" multiple defaultValue={[]} className="min-h-28 w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400">
                     {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code ? campus.code + " — " : ""}{campus.name}</option>)}
                   </select>
-                  <span className="mt-1 block text-xs text-slate-500">Required for Director. Hold Ctrl/Command to select multiple campuses. Chairman remains institution-wide.</span>
-                </label>
+                  <span className="mt-1 block text-xs text-slate-500">Required for Director. Hold Ctrl/Command to select multiple campuses.</span>
+                </label> : createRole === "CHAIRMAN" ? <div className="sm:col-span-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">Chairman scope is institution-wide. No campus or department restriction is assigned.</div> : null}
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
