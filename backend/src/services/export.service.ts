@@ -559,6 +559,33 @@ export async function exportData(
       ],
     },
   };
+  if (!scope.institutionWide) {
+    const filters = options.filters ?? {};
+    if (filters.departmentId && !scope.departmentIds.includes(filters.departmentId)) {
+      throw new AppError("Department filter is outside the authorized export scope", 404);
+    }
+    if (filters.programId) {
+      const program = await prisma.program.findFirst({
+        where: { id: filters.programId, institutionId, departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } },
+        select: { id: true },
+      });
+      if (!program) throw new AppError("Program filter is outside the authorized export scope", 404);
+    }
+    if (filters.semesterId) {
+      const semester = await prisma.semester.findFirst({
+        where: { id: filters.semesterId, institutionId, program: { departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } } },
+        select: { id: true },
+      });
+      if (!semester) throw new AppError("Semester filter is outside the authorized export scope", 404);
+    }
+    if (filters.sectionId) {
+      const section = await prisma.section.findFirst({
+        where: { id: filters.sectionId, institutionId, semester: { program: { departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } } } },
+        select: { id: true },
+      });
+      if (!section) throw new AppError("Section filter is outside the authorized export scope", 404);
+    }
+  }
   const rows: Row[] = [];
 
   if (type === "users") {
@@ -589,6 +616,7 @@ export async function exportData(
         profile: true,
         studentEnrollments: {
           where: {
+            ...(scope.institutionWide ? {} : { program: { departmentId: scopedDepartmentFilter } }),
             ...(options.filters?.programId ? { programId: options.filters.programId } : {}),
             ...(options.filters?.sectionId ? { sectionId: options.filters.sectionId } : {}),
             ...(options.filters?.semesterId ? { section: { semesterId: options.filters.semesterId } } : {}),
