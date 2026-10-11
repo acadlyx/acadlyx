@@ -125,6 +125,17 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     assert.equal((await prisma.feeStructure.findUnique({ where: { id: feeA.id } }))?.status, "ACTIVE");
     assert.equal((await prisma.feeStructure.findUnique({ where: { id: feeB.id } }))?.status, "PENDING_APPROVAL", "out-of-scope approval must not mutate the other campus record");
 
+    const raceFee = await prisma.feeStructure.create({
+      data: { institutionId: institution.id, name: "Concurrent approval fees", programId: programA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
+    });
+    const decisions = await Promise.allSettled([
+      approveFeeStructure(institution.id, directorActor, raceFee.id),
+      approveFeeStructure(institution.id, directorActor, raceFee.id),
+    ]);
+    assert.equal(decisions.filter((decision) => decision.status === "fulfilled").length, 1, "only one concurrent approval may win");
+    assert.equal(decisions.filter((decision) => decision.status === "rejected").length, 1, "the losing approval must receive a conflict");
+    assert.equal(await prisma.auditLog.count({ where: { institutionId: institution.id, userId: director.id, action: "fee-structure.approve", entityId: raceFee.id } }), 1, "one state transition must produce exactly one audit row");
+
     const financeExport = await exportData(institution.id, {
       id: director.id, institutionId: institution.id, email: director.email,
       roles: ["DIRECTOR"], permissions: ["fees.reports.export"],
