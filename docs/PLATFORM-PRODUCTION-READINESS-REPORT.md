@@ -73,7 +73,7 @@ No database was accessed or mutated by this remediation. The approval change use
 
 ## Environmental blockers
 
-1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools. GitHub Actions on `1101047` reported frontend build success; other workflows were queued/in progress at last check. Subsequent edits include tenant-scoped inventory helper, empty-campus Director behavior, fee rejected-draft recovery, and additional source-contract tests; the latest tip has not returned associated workflow runs and remains unverified.
+1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools. GitHub Actions for PR merge ref `6711ef2` (which contained head commit `1101047`) completed the ERP verification and Production Gate workflows successfully; backend tests reported 162 passed, 0 failed, 9 skipped, and the separate frontend build passed. The Production Quality workflow remained queued at last check. These results predate the latest changes: tenant-scoped inventory helper, empty-campus Director behavior, fee rejected-draft recovery/conditional edits, and additional source-contract tests. The latest tip has no returned workflow runs and remains unverified.
 2. No test database, live request credentials, or backend stack trace for the reported Library 500 errors is available in this session.
 3. Representative Chairman, Director, Accounts, Librarian, and Student test accounts and scoped institutional data have not been exercised.
 
