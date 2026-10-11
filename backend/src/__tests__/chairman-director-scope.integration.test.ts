@@ -206,6 +206,9 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
 
     const report = await getInstitutionInsights(institution.id, { departmentIds: assigned });
     assert.equal(report.kpis.departments, 1, "campus reports must count only the assigned department");
+    const conflictingReportFilter = await getInstitutionInsights(institution.id, { departmentIds: assigned, programId: programB.id });
+    assert.equal(conflictingReportFilter.kpis.students, 0, "a program filter must not override the assigned department scope");
+    assert.equal(conflictingReportFilter.kpis.attendance, 0, "attendance reports must intersect program filters with the assigned department scope");
     const reportOptions = await getAttendanceReportOptions(institution.id, {
       id: director.id, institutionId: institution.id, email: director.email,
       roles: ["DIRECTOR"], permissions: ["attendance.read"],
