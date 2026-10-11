@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError } from "@/lib/auth";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, type ErpNotification } from "@/lib/erpApi";
 
-export default function ChairmanNotificationsPage {
+export default function ChairmanNotificationsPage() {
   const router = useRouter();
   const [items, setItems] = useState<ErpNotification[]>([]);
   const [unread, setUnread] = useState(0);
