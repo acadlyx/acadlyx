@@ -242,3 +242,27 @@ test("Chairman and Director student profile links stay inside their workspaces",
   assert.ok(existsSync(join(frontend, "chairman/students/[id]/page.tsx")));
   assert.ok(existsSync(join(frontend, "director/students/[id]/page.tsx")));
 });
+
+
+test("Every literal Chairman/Director dashboard and operations destination resolves to a page", () => {
+  const sources = [
+    "../frontend/src/components/dashboard/ChairmanDashboard.tsx",
+    "../frontend/src/components/dashboard/DirectorDashboard.tsx",
+    "../frontend/src/app/chairman/operations/page.tsx",
+    "../frontend/src/app/director/operations/page.tsx",
+    "../frontend/src/app/chairman/examinations/page.tsx",
+    "../frontend/src/app/director/examinations/page.tsx",
+  ];
+  for (const relative of sources) {
+    const source = readFileSync(join(process.cwd(), relative), "utf8");
+    const routes = [...source.matchAll(/["'](\/(?:chairman|director)\/[a-z0-9/_-]+)["']/g)]
+      .map((match) => match[1])
+      .filter((route, index, all) => all.indexOf(route) === index);
+    for (const route of routes) {
+      assert.ok(
+        existsSync(join(frontend, route.slice(1), "page.tsx")),
+        `${relative} contains a route destination without a page: ${route}`,
+      );
+    }
+  }
+});
