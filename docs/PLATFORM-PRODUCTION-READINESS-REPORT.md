@@ -60,11 +60,13 @@ No database was accessed or mutated by this remediation. The approval change use
 - Changed library return inventory handling to conditionally update the institution/book-scoped copy, reject stale copy references, and recalculate aggregate inventory from canonical copy rows. The inventory helper now scopes its book update by institution and aborts on missing tenant-owned book; legacy copy-less loans retain aggregate-only return handling.
 - Updated `backend/src/services/managementWorkspace.service.ts` to scope Director dashboard KPIs through `CampusAccess`-derived department IDs for users/students/faculty, academic structures, attendance, assignments, marks, exams/results, invoices, documents, and notifications. The denial condition is based on missing campus assignments—not an empty department list—so a valid campus with no departments can show zero-scoped KPIs. Added a source-regression guard in `backend/src/__tests__/role-workspace-rbac.test.ts`.
 - Added source-regression checks in `backend/src/__tests__/library-access.test.ts` and `backend/src/__tests__/library.service.test.ts`, including tenant-scoped inventory synchronization. Added fee approval transition and conditional-edit contract checks to `backend/src/__tests__/fee-structure-rbac.test.ts`. These latest tests have not been executed.
-- Updated issue register; CI status query for latest checked commit returned no status checks and no associated PR workflow runs.
+- Updated `backend/src/middleware/errorHandler.ts` to retain a truncated server-side error message and stack for 5xx incidents while keeping client-facing error messages sanitized; added `backend/src/__tests__/error-handler-observability.test.ts`.
+- Restricted Director campus lookup to explicit `CampusAccess.scope = "DIRECTOR"` and added a regression guard.
+- Updated issue register and readiness report with current evidence and release blockers.
 - **Local shell commands executed:** none.
 - **GitHub Actions on prior checked commit `803d56d`:** backend `npm ci`, `npx prisma validate`, `npx prisma generate`, `npm run typecheck`, and `npm run build` passed; `npm test` failed with 160 passed, 1 failed, 9 skipped. The failed test was the new library return inventory source assertion; it incorrectly rejected the intentional legacy copy-less-loan increment and was corrected in commit `a517e36`, after that run. The corrected test has not been rerun.
-- **Frontend build on prior checked commit `803d56d`:** passed.
-- **Latest branch tip:** no associated workflow run/status was returned for later commits; subsequent edits are unverified.
+- **Frontend build:** passed on prior PR merge ref `6711ef2`; this predates latest source changes.
+- **Latest branch tip:** no associated workflow run/status was returned for later commits; subsequent edits and regression tests are unverified. The Production Quality workflow on the earlier PR event remained queued at last check.
 - **Lint/source validation:** no explicit result established.
 - **Prisma schema validation:** passed on prior checked commit; migration deployment/compatibility was not run.
 - **Unit/integration/E2E tests:** prior backend suite result above; no database-backed integration or E2E tests were run.
