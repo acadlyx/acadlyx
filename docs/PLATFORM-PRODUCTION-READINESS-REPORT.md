@@ -21,7 +21,7 @@ A percentage is reported only when a defined checklist has been executed with ev
 | Authentication and sessions | Not measured | No multi-role session/E2E run. |
 | RBAC and authorization visibility | Not measured | Catalogue routes accept `library.read` or `library.borrow`; borrower detail responses suppress active circulation rows. Regression test added but not run. Full route/action matrix, direct API denials, UI visibility checks, and cross-tenant tests remain. |
 | Chairman workspace | Not measured | Approval queue route and dashboard link added; runtime access and actions not tested. |
-| Director workspace and campus scope | Not measured | Workspace requests backend stats; department-based Director financial scope observed, full campus model not verified. |
+| Director workspace and campus scope | Not measured | Dashboard KPI queries now derive assigned campuses via `CampusAccess` and filter through descendant departments for supported data relations. Source-regression guard added but not run; broader Director APIs and live cross-campus isolation remain unverified. |
 | Accounts fee-structure lifecycle | Not measured | Submit/approve/reject routes and UI actions added; no tests run; audit persistence and downstream activation need database verification. |
 | Library return | Not measured | Added copy-scoped update, stale-copy rejection, and inventory recount. Source-regression test added but not run; user-reported 500 not reproduced; database-backed failure trace unavailable. |
 | Library damaged-book workflow | Not measured | Damaged/lost copy changes now trigger canonical inventory recount; source-regression test added but not run. User-reported 500 not reproduced; inventory/fine/invoice effects not database-verified. |
@@ -58,6 +58,7 @@ No database was accessed or mutated by this remediation. The approval change use
 - Fixed session-scoped fee cache invalidation in `frontend/src/lib/erpApi.ts`.
 - Updated `backend/src/routes/library.routes.ts` and `backend/src/services/library.service.ts` to permit borrower catalogue access with either canonical read/borrow permission while keeping other borrowers’ circulation rows hidden from borrowers.
 - Changed library return inventory handling to conditionally update the institution/book-scoped copy, reject stale copy references, and recalculate aggregate inventory from canonical copy rows; legacy copy-less loans retain aggregate-only return handling.
+- Updated `backend/src/services/managementWorkspace.service.ts` to scope Director dashboard KPIs through `CampusAccess`-derived department IDs for users/students/faculty, academic structures, attendance, assignments, marks, exams/results, invoices, documents, and notifications; Directors without assigned campuses fail closed. Added a source-regression guard in `backend/src/__tests__/role-workspace-rbac.test.ts`.
 - Added source-regression checks in `backend/src/__tests__/library-access.test.ts` and `backend/src/__tests__/library.service.test.ts`. These tests have not been executed.
 - Updated issue register; CI status query for latest checked commit returned no status checks and no associated PR workflow runs.
 - **Local shell commands executed:** none.
@@ -71,10 +72,10 @@ No database was accessed or mutated by this remediation. The approval change use
 
 ## Environmental blockers
 
-1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools.
+1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools. GitHub Actions are available but the current runs have not yet completed.
 2. No test database, live request credentials, or backend stack trace for the reported Library 500 errors is available in this session.
 3. Representative Chairman, Director, Accounts, Librarian, and Student test accounts and scoped institutional data have not been exercised.
 
 ## Release decision
 
-**NO-GO.** Do not merge or deploy this remediation. The code changes are unverified, reported Library errors still need a runtime trace and database-backed reproduction, Director campus scope is unresolved, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
+**NO-GO.** Do not merge or deploy this remediation. The code changes are unverified, reported Library errors still need a runtime trace and database-backed reproduction, Director campus KPI scope has been implemented but not verified, and platform-wide security/workflow checks have not been run. Resume once a writable checkout and safe test database plus logs are available; preserve production and do not use production financial/library records as test fixtures.
