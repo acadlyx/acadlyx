@@ -262,6 +262,11 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   "fee-audit": ["search", "action", "entityType", "dateFrom", "dateTo"],
 };
 
+const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
+  users: ["firstName", "lastName", "email", "phone", "roles"],
+  students: ["firstName", "lastName", "email", "admissionNumber"],
+  faculty: ["firstName", "lastName", "email", "assignedOfferings"],
+};
 const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   users: "createdAt",
   campuses: "createdAt",
@@ -309,7 +314,8 @@ function applyExportOptions(rows: Row[], type: ExportType, options: ExportReques
   const filtered = rows.filter((row) => {
     for (const [key, expected] of Object.entries(filters)) {
       if (key === "search") {
-        const haystack = Object.values(row).map((value) => String(value ?? "")).join(" ").toLocaleLowerCase();
+        const fields = EXPORT_SEARCH_FIELDS[type] ?? Object.keys(row);
+        const haystack = fields.map((field) => String(row[field] ?? "")).join(" ").toLocaleLowerCase();
         if (!haystack.includes(expected.toLocaleLowerCase())) return false;
       } else if (key === "dateFrom" || key === "dateTo") {
         const value = row[dateField!];
@@ -321,7 +327,12 @@ function applyExportOptions(rows: Row[], type: ExportType, options: ExportReques
         if (key === "dateTo" && actual > target) return false;
       } else {
         const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
-        if (!actualKey || String(row[actualKey] ?? "").toLocaleLowerCase() !== expected.toLocaleLowerCase()) return false;
+        if (!actualKey) return false;
+        if (key === "roles") {
+          const actualRoles = String(row[actualKey] ?? "").split(",").map((role) => role.trim().toLocaleUpperCase());
+          const requestedRoles = expected.split("|").map((role) => role.trim().toLocaleUpperCase()).filter(Boolean);
+          if (!requestedRoles.some((role) => actualRoles.includes(role))) return false;
+        } else if (String(row[actualKey] ?? "").toLocaleLowerCase() !== expected.toLocaleLowerCase()) return false;
       }
     }
     return true;
