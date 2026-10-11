@@ -2913,7 +2913,17 @@ export async function decideRevaluation(
     `);
     if (claimed.length !== 1) throw new AppError("This revaluation was decided by another request; reload the queue", 409);
 
-    if (status !== "COMPLETED" || input.revisedMarks === undefined) return;
+    if (status !== "COMPLETED" || input.revisedMarks === undefined) {
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.revaluation_decided",
+          entityType: "RevaluationRequest", entityId: revaluationId,
+          metadata: { status, previousMarks: request.originalMarks, revisedMarks: input.revisedMarks },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
+      return;
+    }
 
     const existing = await tx.$queryRaw<
       Array<{ id: string; marksObtained: number | null; status: string }>
@@ -2976,20 +2986,14 @@ export async function decideRevaluation(
         body: "Your revaluation has been processed and your result updated.",
       },
     });
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.revaluation_decided",
-    entityType: "RevaluationRequest",
-    entityId: revaluationId,
-    metadata: {
-      status,
-      previousMarks: request.originalMarks,
-      revisedMarks: input.revisedMarks,
-    },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.revaluation_decided",
+        entityType: "RevaluationRequest", entityId: revaluationId,
+        metadata: { status, previousMarks: request.originalMarks, revisedMarks: input.revisedMarks },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return requireTenantRow(
