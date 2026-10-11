@@ -2636,7 +2636,7 @@ export async function getExamMarkHistory(
   actor: AuthenticatedUser,
   examMarkId: string
 ) {
-  const mark = await requireTenantRow<{ id: string; studentId: string }>(
+  const mark = await requireTenantRow<{ id: string; studentId: string; examScheduleId: string }>(
     prisma,
     "exam_marks",
     institutionId,
@@ -2645,7 +2645,7 @@ export async function getExamMarkHistory(
   );
   await assertCanViewStudent(institutionId, actor, mark.studentId);
   if (!actor.roles.includes("STUDENT")) {
-    const markSchedule = await loadSchedule(institutionId, (await prisma.$queryRaw<Array<{ examScheduleId: string }>>(Prisma.sql`SELECT "examScheduleId" FROM "exam_marks" WHERE "id" = ${examMarkId} AND "institutionId" = ${institutionId}`))[0]?.examScheduleId ?? "");
+    const markSchedule = await loadSchedule(institutionId, mark.examScheduleId);
     await assertCanReadSchedule(institutionId, actor, markSchedule);
   }
 
