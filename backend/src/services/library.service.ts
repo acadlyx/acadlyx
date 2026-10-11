@@ -832,18 +832,20 @@ export async function returnBook(
     }
 
     if (existing.copyId) {
-      await tx.libraryBookCopy.update({
-        where: { id: existing.copyId },
+      await tx.libraryBookCopy.updateMany({
+        where: { id: existing.copyId, institutionId, bookId: existing.bookId },
         data: {
           status: input.condition === "RETURNED" ? "AVAILABLE" : input.condition,
           condition: input.condition === "RETURNED" ? "GOOD" : input.damageSeverity ?? input.condition,
         },
       });
-    }
-
-    if (input.condition === "RETURNED") {
-      await tx.libraryBook.update({
-        where: { id: existing.bookId },
+      // Derive counters from canonical copy rows so returned/damaged/lost
+      // copies cannot leave book-level inventory out of sync.
+      await syncBookInventory(tx, institutionId, existing.bookId);
+    } else if (input.condition === "RETURNED") {
+      // Legacy issues without a copy row still need their aggregate count updated.
+      await tx.libraryBook.updateMany({
+        where: { id: existing.bookId, institutionId },
         data: { availableCopies: { increment: 1 } },
       });
     }
