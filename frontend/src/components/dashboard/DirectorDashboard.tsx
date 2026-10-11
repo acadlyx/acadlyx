@@ -16,12 +16,7 @@ const metrics = [
   ["Results", "examResults"],
 ] as const;
 
-const shortcuts = [
-  ["Campus examination operations", "/director/examinations/operations"],
-  ["Campus intelligence", "/director/intelligence"],
-  ["Campus students", "/director/students"],
-  ["Notices", "/director/notices"],
-] as const;
+
 
 export function DirectorDashboard() {
   const router = useRouter();
