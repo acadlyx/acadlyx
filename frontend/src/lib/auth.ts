@@ -975,11 +975,15 @@ export async function authedFetch<T>(
 
   if (inflightMap && inflightKey) {
     inflightMap.set(inflightKey, request);
-    void request.finally(() => {
+    const cleanupInflightRequest = () => {
       if (inflightMap.get(inflightKey) === request) {
         inflightMap.delete(inflightKey);
       }
-    });
+    };
+    // finally() creates a second rejected promise when the request fails.
+    // If that promise is discarded, browsers report an unhandled rejection
+    // even when the original caller correctly catches the API error.
+    void request.then(cleanupInflightRequest, cleanupInflightRequest);
   }
 
   return request;
