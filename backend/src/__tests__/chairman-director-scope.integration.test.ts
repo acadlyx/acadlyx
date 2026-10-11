@@ -186,12 +186,19 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     assert.equal(decisions.filter((decision) => decision.status === "rejected").length, 1, "the losing approval must receive a conflict");
     assert.equal(await prisma.auditLog.count({ where: { institutionId: institution.id, userId: director.id, action: "fee-structure.approve", entityId: raceFee.id } }), 1, "one state transition must produce exactly one audit row");
 
+    const selfApprovalFee = await prisma.feeStructure.create({
+      data: { institutionId: institution.id, name: "Maker checker fees", programId: programA.id, createdById: director.id, status: "PENDING_APPROVAL" },
+    });
+    await assert.rejects(() => approveFeeStructure(institution.id, directorActor, selfApprovalFee.id), /cannot approve their own submission/i);
+    assert.equal((await prisma.feeStructure.findUnique({ where: { id: selfApprovalFee.id } }))?.status, "PENDING_APPROVAL");
+    assert.equal(await prisma.auditLog.count({ where: { institutionId: institution.id, userId: director.id, action: "fee-structure.approve", entityId: selfApprovalFee.id } }), 0, "a blocked self-approval must not create a decision audit row");
+
     const financeExport = await exportData(institution.id, {
       id: director.id, institutionId: institution.id, email: director.email,
       roles: ["DIRECTOR"], permissions: ["fees.reports.export"],
     }, "fee-structures", "json");
     const exportedFees = JSON.parse(financeExport.buffer.toString("utf8")) as Array<{ id: string }>;
-    assert.deepEqual(exportedFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id, raceFee.id].sort(), "downloaded fee structure exports must include program- and semester-linked assigned-campus structures and exclude the other campus");
+    assert.deepEqual(exportedFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id, raceFee.id, selfApprovalFee.id].sort(), "downloaded fee structure exports must include program- and semester-linked assigned-campus structures and exclude the other campus");
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["fees.reports.export"] }, "fee-structures", "json", { filters: { departmentId: departmentB.id } }), /outside the authorized export scope/i);
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["students.read"] }, "students", "json", { filters: { programId: programB.id } }), /outside the authorized export scope/i);
 

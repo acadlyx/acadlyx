@@ -3776,10 +3776,13 @@ export async function decideExamMarkCorrection(
   meta: { ipAddress?: string; userAgent?: string },
 ) {
   assertExamApprover(actor);
-  const req = await requireTenantRow<{id:string;examScheduleId:string;examMarkId:string;status:string;newMarks:number|null}>(
+  const req = await requireTenantRow<{id:string;examScheduleId:string;examMarkId:string;status:string;newMarks:number|null;requestedById:string}>(
     prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request"
   );
   if (req.status !== "PENDING") throw new AppError("This correction request has already been decided",409);
+  if (req.requestedById === actor.id) {
+    throw new AppError("The requester cannot decide their own mark correction", 403);
+  }
   const correctionSchedule = await loadSchedule(institutionId, req.examScheduleId);
   await assertExamApprovalScope(institutionId, actor, correctionSchedule);
   if (correctionSchedule.status === "RESULTS_PUBLISHED") {

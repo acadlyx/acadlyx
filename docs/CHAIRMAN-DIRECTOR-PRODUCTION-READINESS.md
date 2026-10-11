@@ -154,3 +154,14 @@ Record command output and environment details; do not convert unavailable checks
 - Added dedicated Chairman/Director student profile route pages and role-local profile links. Replaced raw API exception messages with controlled user-facing errors on the leadership student and examination workspaces.
 - Route contract tests now assert that dashboard/operations destinations resolve to actual app-router pages and that examination action controls call the intended decision APIs.
 - Exit gate: NOT PASSED until the latest CI run finishes successfully, database-backed integration checks pass, and a browser-level authenticated workflow test is executed. No production branch change or deployment has occurred.
+
+
+### Batch 11 — Campus-bound reporting/export hardening and verification (2026-10-11)
+- Fixed a report-filter composition bug where selecting a program could overwrite the Director department filter. Institutional intelligence now intersects department, program, and semester constraints and resolves academic scope through the offering semester's program.
+- Fixed attendance export authorization: Director was not in the scoped export allowlist, and the query did not filter by the assigned offering department or assigned-campus student enrollments. Attendance is now an explicitly scoped export type and the query filters both the offering and student.
+- Restricted exported exam result rows, marks, attendance rows, and assignment submissions to student records that remain inside the Director's assigned department scope; a course offering alone must not expose a student record from another campus.
+- Aligned examination schedule access, session lists, revaluation queues, incident queues, and correction queues with the offering's semester/program department rather than trusting the course's independently stored department field.
+- Added PostgreSQL integration assertions for campus-isolated attendance downloads, report filter intersection, concurrent fee approvals, fee maker-checker, and audit-row count. Added static contracts for role-page destinations, examination scope, and correction maker-checker.
+- Expanded the route smoke suite to cover every independent Chairman/Director workspace page, including OBE, placements, imports, fee collections, and role-specific examination/student routes.
+- CI previously passed frontend typecheck/lint/build/route smoke and backend typecheck/build/tests on earlier commits. Newer runs are being used to verify these additional changes; do not treat earlier green runs as validation of the current head.
+- Release decision remains **NO-GO** until CI passes on the final head, all PostgreSQL-backed scope tests pass, skipped legacy concurrency tests are either enabled or explicitly dispositioned, and authenticated browser workflows verify action outcomes. No production merge/deployment occurred.

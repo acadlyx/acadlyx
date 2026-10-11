@@ -80,3 +80,12 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - Added distinct /chairman/students/[id] and /director/students/[id] profile routes and changed directory links to stay within the corresponding role workspace. Profile and operation errors use controlled user-facing messages instead of raw authorization/internal errors.
 - Expanded route/action contract tests for role-isolated examination controls and route destination existence.
 - CI passed on commit ccdd7c9940ba666bc0d8e9abbeea9848af3aa3d7 before the newest PostgreSQL session-mutation additions. The newest commit must pass the full workflow before release approval.
+
+
+## Batch 11 — Scope defects found during verification (2026-10-11)
+- **Reporting:** program/semester filters previously replaced the department condition in a shared Prisma where object. Changed to an `AND` intersection and added a database-backed contradictory-filter test.
+- **Attendance downloads:** Director export was denied despite an implemented scope query; after enabling it, both course offering and student scope are enforced. PostgreSQL test asserts a campus-A Director receives only campus-A attendance rows.
+- **Examination:** Director authorization and queues now resolve the department through the offering's semester program. This avoids trusting a course.departmentId that can disagree with the program/campus hierarchy.
+- **Approval integrity:** added PostgreSQL checks for concurrent fee decisions (exactly one winner and one audit record) and maker-checker denial (no state transition/no audit row). Mark-correction decisions now reject the original requester and preserve conditional update plus transactional audit.
+- **Route verification:** route smoke coverage expanded to all role-specific pages; a static contract scans literal Chairman/Director links and router destinations. This is not a substitute for authenticated browser-level button/action testing.
+- Latest-head CI must be checked before release. The known production branch remains untouched.

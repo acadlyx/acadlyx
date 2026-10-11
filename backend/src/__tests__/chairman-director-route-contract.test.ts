@@ -208,6 +208,7 @@ test("Director export and attendance reporting enforce campus-derived department
   const exporter = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
   assert.ok(exporter.includes("DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES"));
+  assert.ok(exporter.includes('"marks", "attendance", "notices"'), "attendance must be explicitly enabled for scoped export roles");
   assert.ok(exporter.includes('fs."programId" IS NOT NULL AND fs."programId" IN'));
   assert.ok(exporter.includes('fs."programId" IS NULL AND fs."semesterId" IN'), "semester-linked fee structures must also be exported within campus scope");
   assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
@@ -350,7 +351,7 @@ test("Literal Chairman/Director page links and router destinations resolve to ro
   const failures: string[] = [];
   for (const file of pageFiles) {
     const source = readFileSync(file, "utf8");
-    const routePattern = /(?:href\s*=\s*|href\s*:\s*|router\.(?:push|replace)\(\s*)["'`]((?:\/chairman|\/director)\/[^"'\`$?#]*)/g;
+    const routePattern = /(?:href\s*=\s*|href\s*:\s*|router\.(?:push|replace)\(\s*)["'`]((?:\/chairman|\/director)\/[^"'`$?#]*)/g;
     for (const match of source.matchAll(routePattern)) {
       const route = match[1].replace(/\/$/, "");
       if (!route || route.includes("${")) continue;
@@ -359,4 +360,17 @@ test("Literal Chairman/Director page links and router destinations resolve to ro
     }
   }
   assert.deepEqual(failures, [], "every literal role-workspace destination must resolve to a page");
+});
+
+
+test("Examination mark correction decisions enforce maker-checker and atomic audit", () => {
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const start = exams.indexOf("export async function decideExamMarkCorrection(");
+  const end = exams.indexOf("export async function listExamMarkCorrectionRequests(", start);
+  const body = exams.slice(start, end);
+  assert.ok(body.includes("requestedById:string"));
+  assert.ok(body.includes("req.requestedById === actor.id"));
+  assert.ok(body.includes("The requester cannot decide their own mark correction"));
+  assert.ok(body.includes("tx.auditLog.create"));
+  assert.ok(body.includes("status") && body.includes("PENDING"));
 });
