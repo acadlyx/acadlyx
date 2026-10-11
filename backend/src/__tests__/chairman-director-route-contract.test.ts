@@ -188,9 +188,14 @@ test("Chairman and Director examination operations are separate full-lifecycle w
   const directorOperations = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
   for (const [name, source, role] of [["Chairman", chairman, "CHAIRMAN"], ["Director", director, "DIRECTOR"]] as const) {
     assert.ok(source.includes(`allowedRoles={["${role}"]}`), `${name} examination operations must be role-isolated`);
-    for (const workflow of ["createExamSession", "createExamSchedule", "getMarksSheet", "approveMarks", "lockSchedule", "publishResults", "listRevaluations", "decideRevaluation"]) {
+    for (const workflow of ["createExamSession", "createExamSchedule", "getMarksSheet", "approveMarks", "lockSchedule", "publishResults", "listRevaluations", "decideRevaluation", "decideIncident"]) {
       assert.ok(source.includes(workflow), `${name} operations must retain ${workflow}`);
     }
+    assert.ok(source.includes("decideRevaluationItem"), `${name} must wire revaluation decision controls to the API`);
+    assert.ok(source.includes("decideIncidentItem"), `${name} must wire incident decision controls to the API`);
+    assert.ok(source.includes("Complete revaluation"));
+    assert.ok(source.includes("Uphold incident"));
+    assert.ok(source.includes("Dismiss incident"));
   }
   assert.ok(chairmanOperations.includes('href: "/chairman/examinations/operations"'));
   assert.ok(directorOperations.includes('href: "/director/examinations/operations"'));
