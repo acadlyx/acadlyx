@@ -25,7 +25,7 @@ function navigationObjects() {
       else if (character === quote) quote = null;
       continue;
     }
-    if (character === "\"" || character === "'" || character === "`") {
+    if (character === '"' || character === "'" || character === String.fromCharCode(96)) {
       quote = character;
       if (braceDepth > 0) current += character;
       continue;
@@ -47,15 +47,15 @@ function navigationObjects() {
   }
 
   return objects.map((source) => ({
-    label: source.match(/label:\\s*"([^"]+)"/)?.[1],
-    href: source.match(/href:\\s*"([^"]+)"/)?.[1],
-    roles: (source.match(/roles:\\s*\\[([^\\]]*)\\]/)?.[1] || "")
+    label: source.match(/label:\s*"([^"]+)"/)?.[1],
+    href: source.match(/href:\s*"([^"]+)"/)?.[1],
+    roles: (source.match(/roles:\s*\[([^\]]*)\]/)?.[1] || "")
       .match(/"([^"]+)"/g)?.map((role) => role.slice(1, -1)) || [],
   })).filter((item) => item.href && item.label);
 }
 
 function routeExists(href) {
-  const route = href.split(/[?#]/)[0].replace(/\\/$/, "");
+  const route = href.split(/[?#]/)[0].replace(/\/$/, "");
   if (!route.startsWith("/")) return true;
   const parts = route.split("/").filter(Boolean);
   const direct = join(appRoot, ...parts, "page.tsx");
