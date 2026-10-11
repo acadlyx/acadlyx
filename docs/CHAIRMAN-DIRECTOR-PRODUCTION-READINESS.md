@@ -133,3 +133,5 @@ Record command output and environment details; do not convert unavailable checks
 - Added regression source contracts for these route boundaries and data-source choices.
 - This improves route isolation, but it is not completion of the underlying full finance or Examination Cell workflows. The operational examination page is read-only here; the full lifecycle must continue to use independently authorized workflows.
 - Exit gate: NOT PASSED. No frontend build, backend typecheck, lint, test suite, database-backed scope test, or browser interaction test has been executed.
+
+- Follow-up hardening: explicit program and semester filters on the intelligence endpoint are now checked against the server-derived assigned department set, including semester-only queries. Out-of-scope selections are returned as not-found rather than exposing whether another campus has that record.
