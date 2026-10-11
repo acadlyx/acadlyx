@@ -33,6 +33,7 @@ test("Director operations remains inside Director-specific routes", () => {
     "/director/examinations",
     "/director/obe",
     "/director/fees",
+    "/director/fee-approvals",
     "/director/placements",
     "/director/reports",
     "/director/imports",
@@ -86,7 +87,7 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
 
   assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
-  assert.ok(page.includes("/assigned campus scope"), "page must explain the campus boundary");
+  assert.ok(page.includes("assigned campus scope"), "page must explain the campus boundary");
   assert.ok(operations.includes('href: "/director/fee-approvals"'), "operations page must link to the dedicated approval page");
   assert.ok(dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "dashboard must link to the dedicated approval page");
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.read"'));
