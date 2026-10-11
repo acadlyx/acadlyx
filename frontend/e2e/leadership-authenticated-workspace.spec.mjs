@@ -69,14 +69,14 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   await expect(page.getByText("42")).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "Campus metrics are" })).toHaveCount(0);
 
-  await page.getByRole("link", { name: /Reports/i }).first().click();
-  await expect(page).toHaveURL(/\/director\/reports$/);
+  await page.locator('a[href="/director/operations"]').first().click();
+  await expect(page).toHaveURL(/\/director\/operations$/);
   await page.reload({ waitUntil: "networkidle" });
-  await expect(page).toHaveURL(/\/director\/reports$/);
+  await expect(page).toHaveURL(/\/director\/operations$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/director$/);
   await page.goForward();
-  await expect(page).toHaveURL(/\/director\/reports$/);
+  await expect(page).toHaveURL(/\/director\/operations$/);
   expect(pageErrors, "no unhandled browser exceptions").toEqual([]);
 });
 
