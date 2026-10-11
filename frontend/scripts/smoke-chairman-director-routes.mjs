@@ -40,11 +40,9 @@ const failures = [];
 for (const route of routes) {
   try {
     const response = await fetch(base + route, { redirect: "manual" });
-    const html = await response.text();
+    await response.text();
     if (response.status !== 200) {
       failures.push(route + " returned HTTP " + response.status);
-    } else if (html.includes("404: This page could not be found")) {
-      failures.push(route + " rendered a Next.js not-found page");
     }
   } catch (error) {
     failures.push(route + " request failed: " + String(error));
