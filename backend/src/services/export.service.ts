@@ -343,11 +343,6 @@ const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
   users: ["firstName", "lastName", "email", "phone", "roles"],
   students: ["firstName", "lastName", "email", "admissionNumber"],
   faculty: ["firstName", "lastName", "email", "assignedOfferings"],
-};
-const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
-  users: ["firstName", "lastName", "email", "phone", "roles"],
-  students: ["firstName", "lastName", "email", "admissionNumber"],
-  faculty: ["firstName", "lastName", "email", "assignedOfferings"],
   "library-books": ["title", "author", "isbn", "category", "publisher", "shelfLocation"],
   "library-copies": ["accessionNumber", "barcode", "title", "author"],
   "library-issues": ["borrowerEmail", "borrowerName", "bookTitle", "accessionNumber"],
