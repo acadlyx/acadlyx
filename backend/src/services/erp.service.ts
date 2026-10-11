@@ -2642,44 +2642,25 @@ export async function listNotices(
             ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
             : undefined;
 
-  const where: Prisma.NoticeWhereInput = {
-    institutionId,
-    AND: [
-      ...(includeExpired
-        ? []
-        : [
-            {
-              OR: [
-                { expiresAt: null },
-                { expiresAt: { gt: now } },
-              ],
-            },
-          ]),
-      ...(audience ? [{ audience: { in: audience } }] : []),
-      ...(isHod || isStudent || isParent
-        ? [
-            {
-              OR: [
-                { departmentId: null },
-                ...(departmentIds.length
-                  ? [{ departmentId: { in: departmentIds } }]
-                  : []),
-              ],
-            },
-          ]
-        : []),
-      ...(isDirectorWorkspace
-        ? [
-            {
-              OR: [
-                { departmentId: null, publishedAt: { not: null } },
-                ...(departmentIds.length ? [{ departmentId: { in: departmentIds } }] : []),
-              ],
-            },
-          ]
-        : []),
-    ],
-  };
+  const andFilters: Prisma.NoticeWhereInput[] = [];
+  if (!includeExpired) {
+    andFilters.push({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
+  }
+  if (audience) {
+    andFilters.push({ audience: { in: audience } });
+  }
+  if (isHod || isStudent || isParent) {
+    const audienceDepartments: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
+    if (departmentIds.length) audienceDepartments.push({ departmentId: { in: departmentIds } });
+    andFilters.push({ OR: audienceDepartments });
+  }
+  if (isDirectorWorkspace) {
+    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null, publishedAt: { not: null } }];
+    if (departmentIds.length) directorNoticeScope.push({ departmentId: { in: departmentIds } });
+    andFilters.push({ OR: directorNoticeScope });
+  }
+
+  const where: Prisma.NoticeWhereInput = { institutionId, AND: andFilters };
 
   return prisma.notice.findMany({
     where,
