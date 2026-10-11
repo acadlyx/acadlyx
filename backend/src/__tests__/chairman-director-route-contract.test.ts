@@ -69,17 +69,10 @@ test("Executive dashboards distinguish unavailable metrics from zero", () => {
   }
 });
 
-test("Chairman fee approval UI prevents duplicate mutations and avoids raw API errors", () => {
+test("Chairman legacy fee-approval route redirects to the direct publication workflow", () => {
   const page = readFileSync(join(frontend, "chairman/fee-approvals/page.tsx"), "utf8");
-  assert.ok(page.includes("const [busyId, setBusyId] = useState<string | null>(null)"));
-  assert.ok(page.includes("if (busyId) return;"), "approval handlers must ignore duplicate actions while busy");
-  assert.ok(page.includes("disabled={busyId !== null || loading}"), "approval controls must be disabled while processing");
-  assert.ok(page.includes("reason.trim().length < 3"), "rejection must validate a meaningful reason in the UI");
-  assert.ok(page.includes("catch { setError("), "API failures must use controlled user-facing messages");
-  assert.ok(!page.includes("setError(e instanceof Error ? e.message"), "raw API exception messages must not be displayed");
-  assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "legacy fee approval page must retain Chairman role boundary");
+  assert.ok(page.includes('redirect("/chairman/fees/structures")'));
 });
-
 
 test("Director fee approvals have a dedicated page and backend campus-scope enforcement", () => {
   const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
