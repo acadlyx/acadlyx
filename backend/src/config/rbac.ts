@@ -641,6 +641,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.structure.manage",
     "fees.structure.approve",
     "fees.structure.publish",
+    "notices.manage",
+    "events.manage",
     "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
@@ -694,6 +696,7 @@ export const ROLE_PERMISSIONS: Record<
     "fees.approve",
     "fees.structure.read",
     "fees.structure.approve",
+    "notices.manage",
     "library.fines.waive.approve",
 
     "audit.read",
