@@ -8,6 +8,7 @@ import { listFeeStructures } from "../services/feeStructure.service";
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
 import { getAttendanceReportOptions } from "../services/attendanceReport.service";
+import { createExamSession, getExamSession, listExamSessions } from "../services/examination.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
   skip: !process.env.DATABASE_URL,
@@ -47,6 +48,24 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     await prisma.campusAccess.create({
       data: { userId: director.id, campusId: campusA.id, scope: "DIRECTOR" },
     });
+    const chairman = await prisma.user.create({
+      data: {
+        institutionId: institution.id,
+        email: `chairman-${suffix}@scope-test.invalid`,
+        idNumber: `CH-${suffix}`,
+        passwordHash: "integration-test-not-a-real-password",
+        firstName: "Scope",
+        lastName: "Chairman",
+      },
+    });
+    const directorActor = {
+      id: director.id, institutionId: institution.id, email: director.email,
+      roles: ["DIRECTOR"], permissions: ["exams.approve", "exams.manage", "fees.structure.read", "fees.reports.export"],
+    };
+    const chairmanActor = {
+      id: chairman.id, institutionId: institution.id, email: chairman.email,
+      roles: ["CHAIRMAN"], permissions: ["exams.approve", "exams.manage", "fees.structure.read"],
+    };
     const [programA, programB] = await Promise.all([
       prisma.program.create({
         data: { institutionId: institution.id, departmentId: departmentA.id, name: "Assigned program", code: `PA-${suffix.slice(0, 8)}`, level: "UG", durationYears: 4 },
@@ -66,6 +85,37 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
 
     const assigned = await getDirectorDepartmentIds(institution.id, director.id);
     assert.deepEqual(assigned, [departmentA.id]);
+    const assignedSession = await createExamSession(institution.id, directorActor, {
+      name: "Assigned campus examination",
+      code: `DIR-${suffix.slice(0, 8)}`,
+      examType: "REGULAR",
+      startDate: new Date("2030-01-01T00:00:00.000Z"),
+      endDate: new Date("2030-01-03T00:00:00.000Z"),
+      departmentIds: [departmentA.id],
+    }, {});
+    const otherCampusSession = await createExamSession(institution.id, chairmanActor, {
+      name: "Other campus examination",
+      code: `CH-${suffix.slice(0, 8)}`,
+      examType: "REGULAR",
+      startDate: new Date("2030-02-01T00:00:00.000Z"),
+      endDate: new Date("2030-02-03T00:00:00.000Z"),
+      departmentIds: [departmentB.id],
+    }, {});
+    const directorSessions = await listExamSessions(institution.id, directorActor, { skip: 0, take: 100 }, {});
+    assert.ok(directorSessions.items.some((row) => row.id === assignedSession.id));
+    assert.ok(!directorSessions.items.some((row) => row.id === otherCampusSession.id), "Director session lists must exclude another campus");
+    await assert.rejects(
+      () => createExamSession(institution.id, directorActor, {
+        name: "Forbidden campus examination",
+        code: `NO-${suffix.slice(0, 8)}`,
+        examType: "REGULAR",
+        startDate: new Date("2030-03-01T00:00:00.000Z"),
+        endDate: new Date("2030-03-03T00:00:00.000Z"),
+        departmentIds: [departmentB.id],
+      }, {}),
+      /assigned scope|assigned to this account/i,
+    );
+    await assert.rejects(() => getExamSession(institution.id, directorActor, otherCampusSession.id));
     assert.ok(!assigned.includes(departmentB.id), "departments at an unassigned campus must never be inferred as authorized");
     assert.deepEqual(await getDirectorDepartmentIds(institution.id, `no-access-${suffix}`), []);
     const visibleFees = await listFeeStructures(institution.id, {
@@ -91,6 +141,7 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     assert.deepEqual(reportOptions.departments.map((row) => row.id), [departmentA.id]);
     assert.deepEqual(reportOptions.programs.map((row) => row.id), [programA.id]);
   } finally {
+    await prisma.$executeRaw`DELETE FROM "exam_sessions" WHERE "institutionId" = ${institution.id}`;
     await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
