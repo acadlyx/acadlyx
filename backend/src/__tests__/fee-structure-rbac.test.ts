@@ -10,6 +10,9 @@ test("fee-structure access is granted only through canonical scoped permissions"
   assert.ok(permissionKeys.has("fees.structure.read"));
   assert.ok(permissionKeys.has("fees.structure.manage"));
   assert.ok(permissionKeys.has("fees.structure.approve"));
+  assert.ok(permissionKeys.has("fees.structure.publish"));
+  assert.ok(ROLE_PERMISSIONS.CHAIRMAN.includes("fees.structure.publish"));
+  assert.ok(!ROLE_PERMISSIONS.DIRECTOR.includes("fees.structure.publish"));
 
   for (const role of ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"] as const) {
     assert.ok(
@@ -59,21 +62,27 @@ test("fee-structure permissions do not imply unrelated financial authority", () 
 });
 
 
-test("fee structure activation is only possible through pending approval and cannot be self-approved", () => {
+test("fee structure activation uses pending approval except for explicit Chairman direct publication", () => {
   const source = fs.readFileSync(path.resolve(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const createStart = source.indexOf("export async function createFeeStructure(");
   const submitStart = source.indexOf("export async function submitFeeStructureForApproval(");
+  const publishStart = source.indexOf("export async function publishFeeStructure(");
   const approveStart = source.indexOf("export async function approveFeeStructure(");
   const rejectStart = source.indexOf("export async function rejectFeeStructure(");
   const assignStart = source.indexOf("export async function assignFeeStructure(");
-  assert.ok(createStart >= 0 && submitStart > createStart && approveStart > submitStart && rejectStart > approveStart && assignStart > rejectStart);
+  assert.ok(createStart >= 0 && submitStart > createStart && publishStart > submitStart && approveStart > publishStart && rejectStart > approveStart && assignStart > rejectStart);
   const create = source.slice(createStart, submitStart);
   const submit = source.slice(submitStart, approveStart);
+  const publish = source.slice(publishStart, approveStart);
   const approve = source.slice(approveStart, rejectStart);
   const reject = source.slice(rejectStart, assignStart);
   assert.match(create, /const status: FeeStructureStatus = "DRAFT"/);
   assert.match(submit, /"status" = 'PENDING_APPROVAL'/);
   assert.match(submit, /"status" = 'DRAFT'/);
+  assert.match(publish, /actor\.roles\.includes\("CHAIRMAN"\)/);
+  assert.match(publish, /"status" = 'ACTIVE'/);
+  assert.match(publish, /"status" = 'DRAFT'/);
+  assert.match(publish, /fee-structure\.publish-direct/);
   assert.match(approve, /"status" = 'ACTIVE'/);
   assert.match(approve, /"status" = 'PENDING_APPROVAL'/);
   assert.match(approve, /"createdById" <> \$\{actor\.id\}/);
