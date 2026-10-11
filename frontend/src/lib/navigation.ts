@@ -316,7 +316,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Institution Collection",
-    href: "/fees/collections",
+    href: "/chairman/fees/collections",
     icon: "₹",
     roles: ["CHAIRMAN"],
     permissions: ["fees.collection.read"],
@@ -340,7 +340,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Financial oversight",
-    href: "/fees",
+    href: "/chairman/fees",
     icon: "₹",
     roles: ["CHAIRMAN"],
     permissions: ["fees.read"],
