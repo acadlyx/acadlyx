@@ -360,3 +360,16 @@ test("Literal Chairman/Director page links and router destinations resolve to ro
   }
   assert.deepEqual(failures, [], "every literal role-workspace destination must resolve to a page");
 });
+
+
+test("Examination mark correction decisions enforce maker-checker and atomic audit", () => {
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const start = exams.indexOf("export async function decideExamMarkCorrection(");
+  const end = exams.indexOf("export async function listExamMarkCorrectionRequests(", start);
+  const body = exams.slice(start, end);
+  assert.ok(body.includes("requestedById:string"));
+  assert.ok(body.includes("req.requestedById === actor.id"));
+  assert.ok(body.includes("The requester cannot decide their own mark correction"));
+  assert.ok(body.includes("tx.auditLog.create"));
+  assert.ok(body.includes('AND "status"='PENDING''));
+});
