@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as XLSX from "xlsx";
 import { createCsv, createDocx, createPdf } from "../services/exportDocuments.service";
-import { makeFile } from "../services/export.service";
+import { computeExportInvoiceBalance, makeFile } from "../services/export.service";
 
 test("XLSX export is non-empty and parseable", () => {
   const file = makeFile([{ id: "1", name: "Student", active: true }], "students", "xlsx");
@@ -64,4 +64,11 @@ test("negative numeric ledger values are not prefixed as formulas in CSV", () =>
   const csv = createCsv([{ refund: -25 }]).toString("utf8");
   assert.ok(csv.includes("-25"));
   assert.ok(!csv.includes("'-25"));
+});
+
+test("invoice balance does not subtract refunded amounts twice after paidAmount is netted", () => {
+  assert.equal(computeExportInvoiceBalance(100, 80), 20);
+  assert.equal(computeExportInvoiceBalance(100, 100), 0);
+  assert.equal(computeExportInvoiceBalance(100, 120), 0);
+  assert.equal(computeExportInvoiceBalance(100, Number.NaN), 100);
 });
