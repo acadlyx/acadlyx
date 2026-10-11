@@ -5,6 +5,7 @@ on:
     branches:
       - production-upgrade-2026-09-20
       - stabilization-platform-2026-10-09
+      - chairman-director-enterprise-workspaces-2026-10-11
   pull_request:
     branches:
       - production-upgrade-2026-09-20
@@ -329,7 +330,7 @@ jobs:
           exit 1
       - name: Run desktop and mobile browser tests
         working-directory: frontend
-        run: npx playwright test e2e/public-smoke.spec.mjs --reporter=line
+        run: npx playwright test e2e/*.spec.mjs --reporter=line
       - name: Collect browser server logs
         if: always()
         run: |

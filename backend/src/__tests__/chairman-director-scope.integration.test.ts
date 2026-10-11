@@ -8,6 +8,7 @@ import { approveFeeStructure, rejectFeeStructure, listFeeStructures } from "../s
 import { exportData } from "../services/export.service";
 import { getInstitutionInsights } from "../services/intelligence.service";
 import { getAttendanceReportOptions } from "../services/attendanceReport.service";
+import { getManagementWorkspace } from "../services/managementWorkspace.service";
 import { getExamSession, listExamSessions } from "../services/examination.service";
 
 test("Director CampusAccess resolves only departments inside assigned campuses", {
@@ -107,6 +108,13 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
       prisma.user.create({ data: { institutionId: institution.id, email: "student-a-" + suffix + "@scope-test.invalid", idNumber: "SA-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Assigned", lastName: "Student" } }),
       prisma.user.create({ data: { institutionId: institution.id, email: "student-b-" + suffix + "@scope-test.invalid", idNumber: "SB-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Other", lastName: "Student" } }),
     ]);
+    const studentRole = await prisma.role.create({
+      data: { institutionId: institution.id, name: "STUDENT", isSystem: true },
+    });
+    await Promise.all([
+      prisma.userRole.create({ data: { userId: studentA.id, roleId: studentRole.id } }),
+      prisma.userRole.create({ data: { userId: studentB.id, roleId: studentRole.id } }),
+    ]);
     await Promise.all([
       prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentA.id, programId: programA.id, academicYearId: academicYear.id, semesterId: semesterA.id, sectionId: sectionA.id } }),
       prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentB.id, programId: programB.id, academicYearId: academicYear.id, semesterId: semesterB.id, sectionId: sectionB.id } }),
@@ -166,6 +174,26 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     assert.deepEqual(visibleFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id].sort());
     assert.ok(!visibleFees.some((row) => row.id === feeB.id || row.id === semesterFeeB.id), "program- and semester-linked structures at another campus must not be returned to the Director");
+
+    const chairmanActor = {
+      id: chairman.id, institutionId: institution.id, email: chairman.email,
+      roles: ["CHAIRMAN"], permissions: ["fees.structure.read", "fees.reports.export", "fees.read", "students.read", "attendance.read"],
+    };
+    const chairmanFees = await listFeeStructures(institution.id, chairmanActor);
+    assert.deepEqual(
+      chairmanFees.map((row) => row.id).sort(),
+      [feeA.id, feeB.id, semesterFeeA.id, semesterFeeB.id].sort(),
+      "Chairman fee reads must span assigned and unassigned campuses within the same institution",
+    );
+    const chairmanFeeExport = await exportData(institution.id, chairmanActor, "fee-structures", "json");
+    const chairmanExportedFees = JSON.parse(chairmanFeeExport.buffer.toString("utf8")) as Array<{ id: string }>;
+    assert.deepEqual(
+      chairmanExportedFees.map((row) => row.id).sort(),
+      [feeA.id, feeB.id, semesterFeeA.id, semesterFeeB.id].sort(),
+      "Chairman exports must remain institution-wide rather than inheriting Director campus scope",
+    );
+    const chairmanReport = await getInstitutionInsights(institution.id, {});
+    assert.equal(chairmanReport.kpis.departments, 2, "Chairman reports must include both campuses' departments");
     await approveFeeStructure(institution.id, directorActor, feeA.id);
     await approveFeeStructure(institution.id, directorActor, semesterFeeA.id);
     await assert.rejects(() => approveFeeStructure(institution.id, directorActor, feeB.id), /not found|assigned scope/i);
@@ -224,6 +252,15 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     });
     assert.deepEqual(reportOptions.departments.map((row) => row.id), [departmentA.id]);
     assert.deepEqual(reportOptions.programs.map((row) => row.id), [programA.id]);
+
+    const directorMetrics = await getManagementWorkspace(institution.id, directorActor);
+    assert.equal(directorMetrics.workspaceType, "DIRECTOR");
+    assert.equal(directorMetrics.stats.departments, 1, "Director metrics must count only assigned-campus departments");
+    assert.equal(directorMetrics.stats.students, 1, "Director metrics must count only actively enrolled students in assigned-campus departments");
+    const chairmanMetrics = await getManagementWorkspace(institution.id, chairmanActor);
+    assert.equal(chairmanMetrics.workspaceType, "CHAIRMAN");
+    assert.equal(chairmanMetrics.stats.departments, 2, "Chairman metrics must remain institution-wide");
+    assert.equal(chairmanMetrics.stats.students, 2, "Chairman metrics must include students across both campuses");
   } finally {
     await prisma.$executeRaw`DELETE FROM "exam_sessions" WHERE "institutionId" = ${institution.id}`;
     await prisma.feeStructure.deleteMany({ where: { institutionId: institution.id } });
