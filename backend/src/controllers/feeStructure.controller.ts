@@ -77,7 +77,9 @@ export const listFeeStructures =
             "string"
               ? req.query.status as
                   | "DRAFT"
+                  | "PENDING_APPROVAL"
                   | "ACTIVE"
+                  | "REJECTED"
                   | "ARCHIVED"
               : undefined,
 
