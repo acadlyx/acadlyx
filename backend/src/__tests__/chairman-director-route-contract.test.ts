@@ -211,6 +211,9 @@ test("Director export and attendance reporting enforce campus-derived department
   assert.ok(exporter.includes('fs."programId" IS NOT NULL AND fs."programId" IN'));
   assert.ok(exporter.includes('fs."programId" IS NULL AND fs."semesterId" IN'), "semester-linked fee structures must also be exported within campus scope");
   assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
+  assert.ok(exporter.includes('attendanceSession: {\n          institutionId,\n          ...(scope.institutionWide ? {} : {'), "attendance export must filter the course offering to the assigned department");
+  assert.ok(exporter.includes('results: { where: scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }'), "exam export must not include result rows for students outside the Director scope");
+  assert.ok(exporter.includes('student: { AND: [scopedStudentFilter.student] }, courseOffering:'), "marks and submission exports must scope both the student and academic offering");
   assert.ok(attendance.includes("getDirectorDepartmentIds(institutionId, actor.id)"));
   assert.ok(attendance.includes('label: "Assigned campus scope"'));
   assert.ok(attendance.includes('"__NO_AUTHORIZED_SCOPE__"'), "an empty Director assignment must not broaden attendance reporting");
