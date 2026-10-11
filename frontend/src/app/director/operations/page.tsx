@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 const sections = [
+  { title: "Campus examination lifecycle", description: "Manage authorized campus schedules, marks approval, result publication and revaluation decisions.", href: "/director/examinations/operations", label: "Open campus examination operations" },
   { title: "Campus intelligence", description: "Review intelligence metrics and risks limited to your assigned campuses.", href: "/director/intelligence", label: "Open campus intelligence" },
   { title: "Student lifecycle", description: "Review students within the Director's assigned campus scope.", href: "/director/students", label: "Review campus students" },
   { title: "Examination readiness", description: "Review campus examination operations and authorized exceptions.", href: "/director/examinations", label: "Review examinations" },
