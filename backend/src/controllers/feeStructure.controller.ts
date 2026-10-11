@@ -142,6 +142,11 @@ export const updateFeeStructure =
   });
 
 
+export const publishFeeStructure = asyncHandler(async (req, res) => {
+  const data = await feeStructure.publishFeeStructure(requireInstitution(req), actor(req), req.params.id);
+  res.json({ success: true, data });
+});
+
 export const approveFeeStructure = asyncHandler(async (req, res) => {
   const data = await feeStructure.approveFeeStructure(
     requireInstitution(req), actor(req), req.params.id
