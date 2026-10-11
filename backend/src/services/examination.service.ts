@@ -2389,17 +2389,15 @@ export async function approveExamMarks(
            'Approved by examination controller', ${actor.id})
       `;
     }
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.marks_approved",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { count: changed.length, scheduleStatus: schedule.status },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
     return changed.length;
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.marks_approved",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { count: approvedCount, scheduleStatus: schedule.status },
-    ...meta,
   });
 
   return { approved: approvedCount };
