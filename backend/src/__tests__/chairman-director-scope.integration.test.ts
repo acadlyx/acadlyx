@@ -80,12 +80,29 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
         data: { institutionId: institution.id, departmentId: departmentB.id, name: "Unassigned program", code: `PB-${suffix.slice(0, 8)}`, level: "UG", durationYears: 4 },
       }),
     ]);
-    const [feeA, feeB] = await Promise.all([
+    const academicYear = await prisma.academicYear.create({
+      data: { institutionId: institution.id, name: `2029-30-${suffix.slice(0, 6)}`, startDate: new Date("2029-07-01T00:00:00.000Z"), endDate: new Date("2030-06-30T00:00:00.000Z") },
+    });
+    const [semesterA, semesterB] = await Promise.all([
+      prisma.semester.create({
+        data: { institutionId: institution.id, programId: programA.id, academicYearId: academicYear.id, number: 1, name: "Assigned semester" },
+      }),
+      prisma.semester.create({
+        data: { institutionId: institution.id, programId: programB.id, academicYearId: academicYear.id, number: 1, name: "Unassigned semester" },
+      }),
+    ]);
+    const [feeA, feeB, semesterFeeA, semesterFeeB] = await Promise.all([
       prisma.feeStructure.create({
         data: { institutionId: institution.id, name: "Assigned campus fees", programId: programA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
       }),
       prisma.feeStructure.create({
         data: { institutionId: institution.id, name: "Unassigned campus fees", programId: programB.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
+      }),
+      prisma.feeStructure.create({
+        data: { institutionId: institution.id, name: "Assigned semester fees", semesterId: semesterA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
+      }),
+      prisma.feeStructure.create({
+        data: { institutionId: institution.id, name: "Unassigned semester fees", semesterId: semesterB.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
       }),
     ]);
 
@@ -118,12 +135,16 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
       id: director.id, institutionId: institution.id, email: director.email,
       roles: ["DIRECTOR"], permissions: ["fees.structure.read"],
     });
-    assert.deepEqual(visibleFees.map((row) => row.id), [feeA.id]);
-    assert.ok(!visibleFees.some((row) => row.id === feeB.id), "fee structures at another campus must not be returned to the Director");
+    assert.deepEqual(visibleFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id].sort());
+    assert.ok(!visibleFees.some((row) => row.id === feeB.id || row.id === semesterFeeB.id), "program- and semester-linked structures at another campus must not be returned to the Director");
     await approveFeeStructure(institution.id, directorActor, feeA.id);
+    await approveFeeStructure(institution.id, directorActor, semesterFeeA.id);
     await assert.rejects(() => approveFeeStructure(institution.id, directorActor, feeB.id), /not found|assigned scope/i);
+    await assert.rejects(() => approveFeeStructure(institution.id, directorActor, semesterFeeB.id), /not found|assigned scope/i);
     assert.equal((await prisma.feeStructure.findUnique({ where: { id: feeA.id } }))?.status, "ACTIVE");
+    assert.equal((await prisma.feeStructure.findUnique({ where: { id: semesterFeeA.id } }))?.status, "ACTIVE");
     assert.equal((await prisma.feeStructure.findUnique({ where: { id: feeB.id } }))?.status, "PENDING_APPROVAL", "out-of-scope approval must not mutate the other campus record");
+    assert.equal((await prisma.feeStructure.findUnique({ where: { id: semesterFeeB.id } }))?.status, "PENDING_APPROVAL", "out-of-scope semester approval must not mutate the other campus record");
 
     const raceFee = await prisma.feeStructure.create({
       data: { institutionId: institution.id, name: "Concurrent approval fees", programId: programA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
@@ -141,7 +162,7 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
       roles: ["DIRECTOR"], permissions: ["fees.reports.export"],
     }, "fee-structures", "json");
     const exportedFees = JSON.parse(financeExport.buffer.toString("utf8")) as Array<{ id: string }>;
-    assert.deepEqual(exportedFees.map((row) => row.id).sort(), [feeA.id, raceFee.id].sort(), "downloaded fee structure exports must include assigned-campus structures and exclude the other campus");
+    assert.deepEqual(exportedFees.map((row) => row.id).sort(), [feeA.id, semesterFeeA.id, raceFee.id].sort(), "downloaded fee structure exports must include program- and semester-linked assigned-campus structures and exclude the other campus");
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["fees.reports.export"] }, "fee-structures", "json", { filters: { departmentId: departmentB.id } }), /outside the authorized export scope/i);
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["students.read"] }, "students", "json", { filters: { programId: programB.id } }), /outside the authorized export scope/i);
 
