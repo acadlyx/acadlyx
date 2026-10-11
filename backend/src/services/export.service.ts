@@ -330,7 +330,6 @@ export async function exportData(
   if (!EXPORT_TYPES.includes(type)) throw new AppError("Unsupported export type: " + type, 400);
   if (!["xlsx", "csv", "docx", "pdf", "json"].includes(format)) throw new AppError("Format must be xlsx, csv, docx, pdf, or json", 400);
   const scope = await assertExportAccess(institutionId, actor, type);
-  const departmentFilter = { in: scope.departmentIds };
   const noScopeSentinel = "__NO_AUTHORIZED_SCOPE__";
   const scopedDepartmentFilter = { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] };
   const rows: Row[] = [];
@@ -382,7 +381,7 @@ export async function exportData(
 
   if (type === "departments") {
     const data = await collectInBatches((skip, take) => prisma.department.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { id: { in: scope.departmentIds } }) }, orderBy: { name: "asc" }  }));
-    for (const d of data) rows.push({ id: d.id, code: d.code, name: d.name, active: d.isActive, createdAt: clean(d.createdAt) });
+    for (const d of data) rows.push({ id: d.id, code: d.code, name: d.name, campusId: d.campusId, active: d.isActive, createdAt: clean(d.createdAt) });
   }
 
   if (type === "programs") {
@@ -481,8 +480,9 @@ export async function exportData(
 
   if (type === "parent-links") {
     const data = await collectInBatches((skip, take) => prisma.parentStudentLink.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scope.studentWhere] } }) }, include: { parent: true, student: { include: { profile: true } } }, orderBy: { createdAt: "desc" }  }));
-    for (const l of data) rows.push({ parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
+    for (const l of data) rows.push({ id: l.id, parentEmail: l.parent.email, parentName: `${l.parent.firstName} ${l.parent.lastName}`.trim(), studentEmail: l.student.email, admissionNumber: l.student.profile?.admissionNumber ?? null, studentName: `${l.student.firstName} ${l.student.lastName}`.trim(), relationship: l.relationship, createdAt: clean(l.createdAt) });
   }
 
-  return makeFile(rows, type, format);
+  const finalRows = applyExportOptions(rows, type, options);
+  return makeFile(finalRows, type, format);
 }
