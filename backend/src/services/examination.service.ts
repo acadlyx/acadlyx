@@ -18,7 +18,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
@@ -452,6 +452,115 @@ async function assertCanConductSchedule(
       AND "facultyId"=${actor.id} LIMIT 1
   `);
   if (!rows.length) throw new AppError("You are not assigned to this examination duty",403);
+}
+
+
+/** Verify the resource scope after role-level approval permission. */
+async function assertExamApprovalScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  schedule: ExamScheduleRow,
+): Promise<void> {
+  assertExamApprover(actor);
+  await assertCanReadSchedule(institutionId, actor, schedule);
+}
+
+/**
+ * Directors can only create/edit sessions explicitly assigned to at least one
+ * campus or department they control. Empty targets must never mean "all".
+ */
+async function assertDirectorSessionTargetsInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  targets: {
+    campusIds?: string[];
+    departmentIds?: string[];
+    programIds?: string[];
+    semesterIds?: string[];
+    sectionIds?: string[];
+    studentIds?: string[];
+  },
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+
+  const [campusIds, departmentIds] = await Promise.all([
+    getDirectorCampusIds(institutionId, actor.id),
+    getDirectorDepartmentIds(institutionId, actor.id),
+  ]);
+  if (!campusIds.length || !departmentIds.length) {
+    throw new AppError("No campus scope is assigned to this account", 403);
+  }
+
+  const requestedCampuses = targets.campusIds ?? [];
+  const requestedDepartments = targets.departmentIds ?? [];
+  const requestedPrograms = targets.programIds ?? [];
+  const requestedSemesters = targets.semesterIds ?? [];
+  const requestedSections = targets.sectionIds ?? [];
+  const requestedStudents = targets.studentIds ?? [];
+
+  if (![requestedCampuses, requestedDepartments, requestedPrograms, requestedSemesters, requestedSections, requestedStudents].some((ids) => ids.length)) {
+    throw new AppError("Select at least one campus or academic scope assigned to this account", 400);
+  }
+  if (requestedCampuses.some((id) => !campusIds.includes(id))) {
+    throw new AppError("One or more selected campuses are outside the assigned scope", 404);
+  }
+  if (requestedDepartments.some((id) => !departmentIds.includes(id))) {
+    throw new AppError("One or more selected departments are outside the assigned scope", 404);
+  }
+
+  if (requestedPrograms.length) {
+    const rows = await prisma.program.findMany({
+      where: { institutionId, id: { in: requestedPrograms }, departmentId: { in: departmentIds } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedPrograms).size) throw new AppError("One or more programs are outside the assigned scope", 404);
+  }
+  if (requestedSemesters.length) {
+    const rows = await prisma.semester.findMany({
+      where: { institutionId, id: { in: requestedSemesters }, program: { departmentId: { in: departmentIds } } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedSemesters).size) throw new AppError("One or more semesters are outside the assigned scope", 404);
+  }
+  if (requestedSections.length) {
+    const rows = await prisma.section.findMany({
+      where: { institutionId, id: { in: requestedSections }, semester: { program: { departmentId: { in: departmentIds } } } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedSections).size) throw new AppError("One or more sections are outside the assigned scope", 404);
+  }
+  for (const studentId of requestedStudents) await assertCanViewStudent(institutionId, actor, studentId);
+}
+
+async function assertDirectorCanAccessSession(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  session: ExamSessionRow,
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+  const [campusIds, departmentIds] = await Promise.all([
+    getDirectorCampusIds(institutionId, actor.id),
+    getDirectorDepartmentIds(institutionId, actor.id),
+  ]);
+  if (!campusIds.length || !departmentIds.length) throw new AppError("Examination session not found in the assigned scope", 404);
+
+  const sessionCampuses = jsonStringArray(session.campusIds);
+  const sessionDepartments = jsonStringArray(session.departmentIds);
+  if (sessionCampuses.length || sessionDepartments.length) {
+    if (sessionCampuses.some((id) => campusIds.includes(id)) || sessionDepartments.some((id) => departmentIds.includes(id))) return;
+  }
+
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT es."id"
+    FROM "exam_schedules" es
+    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+    JOIN "courses" c ON c."id" = co."courseId"
+    WHERE es."institutionId" = ${institutionId}
+      AND es."examSessionId" = ${session.id}
+      AND c."departmentId" IN (${Prisma.join(departmentIds)})
+    LIMIT 1
+  `);
+  if (!rows.length) throw new AppError("Examination session not found in the assigned scope", 404);
 }
 
 // ==========================================================
