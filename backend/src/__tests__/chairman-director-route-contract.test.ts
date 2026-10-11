@@ -13,7 +13,7 @@ test("Chairman operations is an independent workspace page", () => {
   assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "Chairman route must retain its role boundary");
   for (const route of [
     "/chairman/intelligence",
-    "/chairman/fee-approvals",
+    "/chairman/fees/structures",
     "/chairman/fees",
     "/chairman/examinations",
     "/chairman/students",
@@ -48,7 +48,7 @@ test("Director operations remains inside Director-specific routes", () => {
 test("Executive dashboard shortcuts stay in the correct workspace", () => {
   const chairman = readFileSync(join(frontend, "../components/dashboard/ChairmanDashboard.tsx"), "utf8");
   const director = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
-  for (const route of ["/chairman/intelligence", "/chairman/reports", "/chairman/fees", "/chairman/examinations", "/chairman/fee-approvals"]) {
+  for (const route of ["/chairman/intelligence", "/chairman/reports", "/chairman/fees", "/chairman/fees/structures", "/chairman/examinations", "/chairman/students", "/chairman/notices", "/chairman/notifications", "/chairman/events-gallery"]) {
     assert.ok(chairman.includes(route), `Chairman dashboard should link to ${route}`);
   }
   for (const route of ["/director/operations", "/director/students", "/director/fees", "/director/placements"]) {
@@ -77,7 +77,7 @@ test("Chairman fee approval UI prevents duplicate mutations and avoids raw API e
   assert.ok(page.includes("reason.trim().length < 3"), "rejection must validate a meaningful reason in the UI");
   assert.ok(page.includes("catch { setError("), "API failures must use controlled user-facing messages");
   assert.ok(!page.includes("setError(e instanceof Error ? e.message"), "raw API exception messages must not be displayed");
-  assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "fee approval page must retain Chairman role boundary");
+  assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "legacy fee approval page must retain Chairman role boundary");
 });
 
 
@@ -90,8 +90,8 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
 
   assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
   assert.ok(page.includes("assigned campus scope"), "page must explain the campus boundary");
-  assert.ok(operations.includes('href: "/director/fee-approvals"'), "operations page must link to the dedicated approval page");
-  assert.ok(dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "dashboard must link to the dedicated approval page");
+  assert.ok(operations.includes('href: "/director/fee-approvals"'), "Director may retain campus fee approval workflow");
+  assert.ok(!dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "Director dashboard should not duplicate approval workflow shortcuts");
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.read"'));
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
   assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
@@ -373,4 +373,42 @@ test("Examination mark correction decisions enforce maker-checker and atomic aud
   assert.ok(body.includes("The requester cannot decide their own mark correction"));
   assert.ok(body.includes("tx.auditLog.create"));
   assert.ok(body.includes("status") && body.includes("PENDING"));
+});
+
+
+test("Chairman can publish fee drafts directly with explicit permission and audit", () => {
+  const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
+  const routes = readFileSync(join(process.cwd(), "src/routes/erp.routes.ts"), "utf8");
+  const api = readFileSync(join(frontend, "../lib/erpApi.ts"), "utf8");
+  const finance = readFileSync(join(frontend, "../components/accounts/FinancePage.tsx"), "utf8");
+  assert.ok(rbac.includes('"fees.structure.publish"'));
+  const chairman = rbac.slice(rbac.indexOf("CHAIRMAN:"), rbac.indexOf("MANAGEMENT:"));
+  const director = rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:"));
+  assert.ok(chairman.includes('"fees.structure.publish"'));
+  assert.ok(!director.includes('"fees.structure.publish"'), "direct publication must not be granted to Directors");
+  assert.ok(service.includes('action: "fee-structure.publish-direct"'));
+  assert.ok(service.includes('actor.roles.includes("CHAIRMAN")'));
+  assert.ok(routes.includes('/fee-structures/:id/publish'));
+  assert.ok(api.includes('export async function publishFeeStructure'));
+  assert.ok(finance.includes('can("fees.structure.publish")&&x.status==="DRAFT"'));
+});
+
+test("Chairman and Director have dedicated notice, notification and events routes", () => {
+  for (const role of ["chairman", "director"]) {
+    for (const section of ["notices", "notifications", "events-gallery"]) {
+      assert.ok(existsSync(join(frontend, role, section, "page.tsx")), `missing dedicated ${role} route: ${section}`);
+    }
+  }
+  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
+  assert.ok(!navigation.includes('label: "Institutional CMS"'));
+  assert.ok(navigation.includes('href: "/chairman/events-gallery"'));
+  assert.ok(navigation.includes('href: "/director/events-gallery"'));
+});
+
+test("Leadership workspace scope follows the resolved workspace role, not a secondary Director role", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/managementWorkspace.service.ts"), "utf8");
+  assert.ok(service.includes('const isDirector = getWorkspaceType(actor) === "DIRECTOR"'));
+  const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
+  assert.ok(feeService.includes('if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;'));
 });
