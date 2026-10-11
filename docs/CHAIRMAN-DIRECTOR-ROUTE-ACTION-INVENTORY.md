@@ -70,3 +70,13 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - Enabled campus-scoped Director finance exports for fee structures and student-linked invoice/payment/receipt/transaction/refund/concession data. Institution-wide fee-head and finance-audit exports remain unavailable to Directors. Fixed attendance report option/data scope so Director results use CampusAccess-derived department IDs; empty scope uses a no-match filter.
 - Added PostgreSQL-backed integration coverage for CampusAccess department resolution, fee structure lists/downloads, institutional aggregate metrics, and attendance report options. The consolidated verification workflow now runs on this isolated branch, starts PostgreSQL, deploys migrations, and runs backend/frontend checks.
 - Verification remains pending for the latest commit until GitHub Actions completes. No PR has been merged and the production branch has not been modified.
+
+
+## Batch 10 — PostgreSQL findings, profile routes, and actionable decisions (2026-10-11)
+- Fixed the Prisma mapping for all 17 placement models to match the snake-case tables created by the migration chain. This was found by the new PostgreSQL-backed report test, which surfaced a missing public.PlacementOffer table from the Prisma client's perspective.
+- Added real Director examination session integration coverage: create an in-scope session, list it, change its status, reject an out-of-scope session creation, and reject detail/status access to a Chairman-created session for another campus.
+- Replaced list-only incident and revaluation panels in both role-specific examination operations pages with decision controls wired to the existing APIs. The UI requires revised marks for completion and a decision note for rejection/incident closure.
+- Enforced server-side revaluation transitions (REQUESTED to IN_REVIEW to COMPLETED or REJECTED) so direct API calls cannot skip review.
+- Added distinct /chairman/students/[id] and /director/students/[id] profile routes and changed directory links to stay within the corresponding role workspace. Profile and operation errors use controlled user-facing messages instead of raw authorization/internal errors.
+- Expanded route/action contract tests for role-isolated examination controls and route destination existence.
+- CI passed on commit ccdd7c9940ba666bc0d8e9abbeea9848af3aa3d7 before the newest PostgreSQL session-mutation additions. The newest commit must pass the full workflow before release approval.
