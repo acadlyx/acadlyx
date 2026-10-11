@@ -1666,6 +1666,14 @@ export async function createNotice(
     );
   }
 
+  const isDirectorWorkspace = actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  if (isDirectorWorkspace) {
+    const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!input.departmentId || !assignedDepartments.includes(input.departmentId)) {
+      throw new AppError("Director notices must target a department in the assigned campus scope", 403);
+    }
+  }
+
   await assertDepartmentScope(
     institutionId,
     actor,
