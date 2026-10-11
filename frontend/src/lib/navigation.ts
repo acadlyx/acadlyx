@@ -936,7 +936,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Fee Structures",
     href: "/accounts/fee-structures",
     icon: "▤",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"],
+    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGEMENT", "ACCOUNTS"],
     permissions: ["fees.structure.read"],
     group: "Fee Management",
   },
