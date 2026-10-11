@@ -179,3 +179,30 @@ test("verification workflow runs for the isolated branch and migrates PostgreSQL
   assert.ok(workflow.includes("npx prisma migrate deploy"));
   assert.ok(workflow.indexOf("npx prisma migrate deploy") < workflow.indexOf("npm test"));
 });
+
+
+test("Chairman and Director examination operations are separate full-lifecycle workspaces", () => {
+  const chairman = readFileSync(join(process.cwd(), "../frontend/src/app/chairman/examinations/operations/page.tsx"), "utf8");
+  const director = readFileSync(join(process.cwd(), "../frontend/src/app/director/examinations/operations/page.tsx"), "utf8");
+  const chairmanOperations = readFileSync(join(frontend, "chairman/operations/page.tsx"), "utf8");
+  const directorOperations = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
+  for (const [name, source, role] of [["Chairman", chairman, "CHAIRMAN"], ["Director", director, "DIRECTOR"]] as const) {
+    assert.ok(source.includes(`allowedRoles={["${role}"]}`), `${name} examination operations must be role-isolated`);
+    for (const workflow of ["createExamSession", "createExamSchedule", "getMarksSheet", "approveMarks", "lockSchedule", "publishResults", "listRevaluations", "decideRevaluation"]) {
+      assert.ok(source.includes(workflow), `${name} operations must retain ${workflow}`);
+    }
+  }
+  assert.ok(chairmanOperations.includes('href: "/chairman/examinations/operations"'));
+  assert.ok(directorOperations.includes('href: "/director/examinations/operations"'));
+});
+
+test("Director export and attendance reporting enforce campus-derived department filters", () => {
+  const exporter = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
+  const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
+  assert.ok(exporter.includes("DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES"));
+  assert.ok(exporter.includes('AND fs."programId" IN (SELECT p."id"'));
+  assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
+  assert.ok(attendance.includes("getDirectorDepartmentIds(institutionId, actor.id)"));
+  assert.ok(attendance.includes('label: "Assigned campus scope"'));
+  assert.ok(attendance.includes('"__NO_AUTHORIZED_SCOPE__"'), "an empty Director assignment must not broaden attendance reporting");
+});
