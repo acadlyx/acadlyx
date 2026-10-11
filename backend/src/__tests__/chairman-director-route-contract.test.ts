@@ -54,3 +54,14 @@ test("Executive dashboard shortcuts stay in the correct workspace", () => {
   assert.ok(!director.includes('["Campus students","/students"]'), "Director shortcut must not route to the global student page");
   assert.ok(!director.includes('["Admissions","/admissions"]'), "Director shortcut must not route to global admissions");
 });
+
+test("Executive dashboards distinguish unavailable metrics from zero", () => {
+  const chairman = readFileSync(join(frontend, "../components/dashboard/ChairmanDashboard.tsx"), "utf8");
+  const director = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
+  for (const [name, source] of [["Chairman", chairman], ["Director", director]] as const) {
+    assert.ok(source.includes("setUnavailable(true)"), `${name} dashboard must track unavailable data`);
+    assert.ok(source.includes("value === undefined"), `${name} dashboard must not render missing metrics as zero`);
+    assert.ok(source.includes("Retry"), `${name} dashboard must offer a retry after load failure`);
+    assert.ok(!source.includes("setError(err.message)"), `${name} dashboard must not expose raw server errors`);
+  }
+});
