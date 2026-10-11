@@ -23,8 +23,8 @@ A percentage is reported only when a defined checklist has been executed with ev
 | Chairman workspace | Not measured | Approval queue route and dashboard link added; runtime access and actions not tested. |
 | Director workspace and campus scope | Not measured | Dashboard KPI queries now derive assigned campuses via `CampusAccess` and filter through descendant departments for supported data relations. Source-regression guard added but not run; broader Director APIs and live cross-campus isolation remain unverified. |
 | Accounts fee-structure lifecycle | Not measured | Submit/approve/reject routes and UI actions added; no tests run; audit persistence and downstream activation need database verification. |
-| Library return | Not measured | Added copy-scoped update, stale-copy rejection, and inventory recount. Source-regression test added but not run; user-reported 500 not reproduced; database-backed failure trace unavailable. |
-| Library damaged-book workflow | Not measured | Damaged/lost copy changes now trigger canonical inventory recount; source-regression test added but not run. User-reported 500 not reproduced; inventory/fine/invoice effects not database-verified. |
+| Library return | Not measured | Added copy-scoped update, stale-copy rejection, and inventory recount. On prior commit `803d56d`, backend tests reported 160 passed, 1 failed, 9 skipped; the failing new assertion incorrectly rejected the legacy copy-less-loan increment and was corrected in `a517e36`. Corrected test has not been rerun. User-reported 500 not reproduced; database-backed failure trace unavailable. |
+| Library damaged-book workflow | Not measured | Damaged/lost copy changes now trigger canonical inventory recount; corrected source-regression assertion is not rerun. User-reported 500 not reproduced; inventory/fine/invoice effects not database-verified. |
 | Students, admissions, profiles, imports | Not measured | No workflow suite executed. |
 | Attendance and academic records | Not measured | No workflow suite executed. |
 | Examinations, marks, results, student performance | Not measured | No end-to-end data-flow suite executed. |
