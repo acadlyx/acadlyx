@@ -32,8 +32,9 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
 }
 
 /**
- * A user who also carries an institution-wide role must not be narrowed
- * to Director campus scope merely because a legacy secondary role remains.
+ * Chairman workspace authority is institution-wide and wins over a legacy
+ * secondary Director role. Otherwise, a Director must stay campus-scoped even
+ * if an old account has additional role bindings.
  */
 export function isDirectorScoped(actor: Pick<AuthenticatedUser, "roles">): boolean {
   return hasAnyRole(actor, ["DIRECTOR"]) && !hasAnyRole(actor, ["CHAIRMAN"]);
