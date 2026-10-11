@@ -23,7 +23,7 @@ export function createCsv(rows: ExportDocumentRow[]): Buffer {
   const columns = rows.length ? Object.keys(rows[0]) : [];
   const protect = (input: unknown): string => {
     let value = valueText(input);
-    if (/^[\t\r\n ]*[=+\-@]/.test(value)) value = "'" + value;
+    if (typeof input !== "number" && typeof input !== "boolean" && /^[\t\r\n ]*[=+\-@]/.test(value)) value = "'" + value;
     if (/[",\r\n]/.test(value)) value = '"' + value.replace(/"/g, '""') + '"';
     return value;
   };
