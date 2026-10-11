@@ -438,6 +438,20 @@ test("Leadership workspace scope follows the resolved workspace role, not a seco
 });
 
 
+test("Chairman institution-wide role wins over a secondary Director role in every leadership data path", () => {
+  const accessScope = readFileSync(join(process.cwd(), "src/services/accessScope.service.ts"), "utf8");
+  const finance = readFileSync(join(process.cwd(), "src/services/finance.service.ts"), "utf8");
+  const students = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
+  assert.ok(accessScope.includes('hasAnyRole(actor, ["DIRECTOR"]) && !isInstitutionWide(actor)'), "Director scope must exclude actors with institution-wide authority");
+  assert.ok(finance.includes("isDirectorScoped(a)"), "finance must use resolved Director scope");
+  assert.ok(students.includes("const directorDepartmentIds = isDirectorScoped(actor)"), "student lists must not be narrowed by secondary Director roles");
+  assert.ok(students.includes("if (actor && isDirectorScoped(actor))"), "student profiles must preserve institution-wide Chairman scope");
+  assert.ok(exams.includes("isDirectorScoped(actor)"), "examination queues and mutations must resolve Director scope consistently");
+  assert.ok(attendance.includes("return isDirectorScoped(actor)"), "attendance reports must preserve institution-wide Chairman scope");
+});
+
 test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {
   const service = readFileSync(join(process.cwd(), "src/services/events.service.ts"), "utf8");
   assert.ok(service.includes("getDirectorDepartmentIds"), "event service must resolve Director scope from CampusAccess");
