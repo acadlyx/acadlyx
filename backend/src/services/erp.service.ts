@@ -177,31 +177,58 @@ async function assertStudentScope(
     return;
   }
 
-  if (
-    hasAnyRole(actor, MANAGEMENT_ROLES)
-  ) {
+  const actorRoles = getCanonicalRoleNames(actor.roles);
+
+  // Director is intentionally handled before the management-role shortcut.
+  // A DIRECTOR permission never grants institution-wide student access: the
+  // student's active enrollment must resolve to a department in an assigned
+  // campus, and the tenant must match the authenticated server-side identity.
+  if (actorRoles.includes("DIRECTOR")) {
+    if (actor.institutionId !== institutionId) {
+      throw new AppError("Student data is outside your authorized scope", 403);
+    }
+
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (departmentIds.length === 0) {
+      throw new AppError("Student data is outside your authorized scope", 403);
+    }
+
+    const enrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: studentId,
+        status: "ACTIVE",
+        program: { departmentId: { in: departmentIds } },
+      },
+      select: { id: true },
+    });
+
+    if (!enrollment) {
+      throw new AppError("Student data is outside your authorized scope", 403);
+    }
     return;
   }
 
-  if (actor.roles.includes("PARENT")) {
-    const linked =
-      await prisma.parentStudentLink.findFirst({
-        where: {
-          institutionId,
-          parentId: actor.id,
-          studentId,
-        },
-      });
+  if (hasAnyRole(actor, MANAGEMENT_ROLES)) {
+    // Institution-level management is still tenant-bound. Only the explicit
+    // platform administrator may cross the authenticated tenant boundary.
+    if (!actorRoles.includes("SUPER_ADMIN") && actor.institutionId !== institutionId) {
+      throw new AppError("Student data is outside your authorized scope", 403);
+    }
+    return;
+  }
+
+  if (actorRoles.includes("PARENT")) {
+    const linked = await prisma.parentStudentLink.findFirst({
+      where: { institutionId, parentId: actor.id, studentId },
+    });
 
     if (linked) {
       return;
     }
   }
 
-  throw new AppError(
-    "Student data is outside your authorized scope",
-    403
-  );
+  throw new AppError("Student data is outside your authorized scope", 403);
 }
 
 async function getStudentSection(
