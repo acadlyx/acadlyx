@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -211,6 +211,9 @@ test("Director export and attendance reporting enforce campus-derived department
   assert.ok(exporter.includes('fs."programId" IS NOT NULL AND fs."programId" IN'));
   assert.ok(exporter.includes('fs."programId" IS NULL AND fs."semesterId" IN'), "semester-linked fee structures must also be exported within campus scope");
   assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
+  assert.ok(exporter.includes('attendanceSession: {\n          institutionId,\n          ...(scope.institutionWide ? {} : {'), "attendance export must filter the course offering to the assigned department");
+  assert.ok(exporter.includes('results: { where: scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }'), "exam export must not include result rows for students outside the Director scope");
+  assert.ok(exporter.includes('student: { AND: [scopedStudentFilter.student] }, courseOffering:'), "marks and submission exports must scope both the student and academic offering");
   assert.ok(attendance.includes("getDirectorDepartmentIds(institutionId, actor.id)"));
   assert.ok(attendance.includes('label: "Assigned campus scope"'));
   assert.ok(attendance.includes('"__NO_AUTHORIZED_SCOPE__"'), "an empty Director assignment must not broaden attendance reporting");
@@ -300,4 +303,60 @@ test("Chairman receives approval-only examination permissions without Examinatio
   assert.ok(chairman.includes('"exams.approve"'));
   assert.ok(chairman.includes('"exams.revaluate"'));
   assert.ok(!chairman.includes('"exams.manage"'), "Chairman approvals must not grant operational scheduling/marks-entry authority");
+});
+
+
+test("Director examination read and decision queues derive campus scope from the offering program", () => {
+  const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const directorReadScope = exams.slice(exams.indexOf('if (actor.roles.includes("DIRECTOR"))', exams.indexOf("async function assertCanReadSchedule")), exams.indexOf("async function assertCanActOnSchedule"));
+  assert.ok(directorReadScope.includes("prisma.semester.findFirst"));
+  assert.ok(directorReadScope.includes("program: { institutionId, departmentId: { in: ids } }"));
+  const sessions = exams.slice(exams.indexOf("export async function listExamSessions("), exams.indexOf("export async function getExamSession("));
+  assert.ok(sessions.includes('JOIN "programs" p ON p."id"=sem."programId"'));
+  assert.ok(sessions.includes('outside_program."departmentId" NOT IN'));
+  const revaluations = exams.slice(exams.indexOf("export async function listRevaluationRequests("), exams.indexOf("export async function decideRevaluation("));
+  assert.ok(revaluations.includes('JOIN "programs" scoped_program'));
+  const incidents = exams.slice(exams.indexOf("export async function listExamIncidents("), exams.indexOf("export async function decideExamIncident("));
+  assert.ok(incidents.includes('JOIN "programs" scoped_program'));
+  const corrections = exams.slice(exams.indexOf("export async function listExamMarkCorrectionRequests("));
+  assert.ok(corrections.includes('JOIN "programs" p ON p."id" = sem."programId"'));
+});
+
+
+test("institutional intelligence combines program and semester filters with department scope", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/intelligence.service.ts"), "utf8");
+  const start = service.indexOf("export async function getInstitutionInsights");
+  const end = service.indexOf("export async function getAtRiskStudents", start);
+  const body = service.slice(start, end);
+  assert.ok(body.includes("const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {"));
+  assert.ok(body.includes("AND: ["));
+  assert.ok(body.includes("semester: { program: { departmentId: { in: scopedDepartmentIds } } }"));
+  assert.ok(body.includes("const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = courseOfferingFilter"));
+  assert.ok(!body.includes("course: { departmentId: { in: scopedDepartmentIds } }"), "report scope must follow the offering's program, not an independently assigned course department");
+});
+
+
+test("Literal Chairman/Director page links and router destinations resolve to route files", () => {
+  const roleRoots = [join(frontend, "chairman"), join(frontend, "director")];
+  const pageFiles: string[] = [];
+  const visit = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (entry.isFile() && entry.name === "page.tsx") pageFiles.push(full);
+    }
+  };
+  roleRoots.forEach(visit);
+  const failures: string[] = [];
+  for (const file of pageFiles) {
+    const source = readFileSync(file, "utf8");
+    const routePattern = /(?:href\s*=\s*|href\s*:\s*|router\.(?:push|replace)\(\s*)["'`]((?:\/chairman|\/director)\/[^"'\`$?#]*)/g;
+    for (const match of source.matchAll(routePattern)) {
+      const route = match[1].replace(/\/$/, "");
+      if (!route || route.includes("${")) continue;
+      const pagePath = join(frontend, route.slice(1), "page.tsx");
+      if (!existsSync(pagePath)) failures.push(file.replace(frontend, "frontend/src/app") + " -> " + route);
+    }
+  }
+  assert.deepEqual(failures, [], "every literal role-workspace destination must resolve to a page");
 });

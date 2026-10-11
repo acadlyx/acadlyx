@@ -91,6 +91,35 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
         data: { institutionId: institution.id, programId: programB.id, academicYearId: academicYear.id, number: 1, name: "Unassigned semester" },
       }),
     ]);
+    const [sectionA, sectionB] = await Promise.all([
+      prisma.section.create({ data: { institutionId: institution.id, semesterId: semesterA.id, name: "Assigned section" } }),
+      prisma.section.create({ data: { institutionId: institution.id, semesterId: semesterB.id, name: "Unassigned section" } }),
+    ]);
+    const [courseA, courseB] = await Promise.all([
+      prisma.course.create({ data: { institutionId: institution.id, departmentId: departmentA.id, code: "CA-" + suffix.slice(0, 8), name: "Assigned course", credits: 3 } }),
+      prisma.course.create({ data: { institutionId: institution.id, departmentId: departmentB.id, code: "CB-" + suffix.slice(0, 8), name: "Unassigned course", credits: 3 } }),
+    ]);
+    const [offeringA, offeringB] = await Promise.all([
+      prisma.courseOffering.create({ data: { institutionId: institution.id, courseId: courseA.id, semesterId: semesterA.id, sectionId: sectionA.id, facultyId: examinationCell.id } }),
+      prisma.courseOffering.create({ data: { institutionId: institution.id, courseId: courseB.id, semesterId: semesterB.id, sectionId: sectionB.id, facultyId: examinationCell.id } }),
+    ]);
+    const [studentA, studentB] = await Promise.all([
+      prisma.user.create({ data: { institutionId: institution.id, email: "student-a-" + suffix + "@scope-test.invalid", idNumber: "SA-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Assigned", lastName: "Student" } }),
+      prisma.user.create({ data: { institutionId: institution.id, email: "student-b-" + suffix + "@scope-test.invalid", idNumber: "SB-" + suffix, passwordHash: "integration-test-not-a-real-password", firstName: "Other", lastName: "Student" } }),
+    ]);
+    await Promise.all([
+      prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentA.id, programId: programA.id, academicYearId: academicYear.id, semesterId: semesterA.id, sectionId: sectionA.id } }),
+      prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: studentB.id, programId: programB.id, academicYearId: academicYear.id, semesterId: semesterB.id, sectionId: sectionB.id } }),
+    ]);
+    const [attendanceA, attendanceB] = await Promise.all([
+      prisma.attendanceSession.create({ data: { institutionId: institution.id, courseOfferingId: offeringA.id, facultyId: examinationCell.id, sessionDate: new Date("2030-03-01T00:00:00.000Z") } }),
+      prisma.attendanceSession.create({ data: { institutionId: institution.id, courseOfferingId: offeringB.id, facultyId: examinationCell.id, sessionDate: new Date("2030-03-02T00:00:00.000Z") } }),
+    ]);
+    await Promise.all([
+      prisma.attendanceRecord.create({ data: { attendanceSessionId: attendanceA.id, studentId: studentA.id, status: "PRESENT" } }),
+      prisma.attendanceRecord.create({ data: { attendanceSessionId: attendanceB.id, studentId: studentB.id, status: "PRESENT" } }),
+    ]);
+
     const [feeA, feeB, semesterFeeA, semesterFeeB] = await Promise.all([
       prisma.feeStructure.create({
         data: { institutionId: institution.id, name: "Assigned campus fees", programId: programA.id, createdById: chairman.id, status: "PENDING_APPROVAL" },
@@ -166,8 +195,20 @@ test("Director CampusAccess resolves only departments inside assigned campuses",
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["fees.reports.export"] }, "fee-structures", "json", { filters: { departmentId: departmentB.id } }), /outside the authorized export scope/i);
     await assert.rejects(() => exportData(institution.id, { id: director.id, institutionId: institution.id, email: director.email, roles: ["DIRECTOR"], permissions: ["students.read"] }, "students", "json", { filters: { programId: programB.id } }), /outside the authorized export scope/i);
 
+    const attendanceExport = await exportData(institution.id, {
+      id: director.id, institutionId: institution.id, email: director.email,
+      roles: ["DIRECTOR"], permissions: ["attendance.read"],
+    }, "attendance", "json");
+    const exportedAttendance = JSON.parse(attendanceExport.buffer.toString("utf8")) as Array<{ id: string; studentEmail: string }>;
+    const assignedAttendance = await prisma.attendanceRecord.findFirstOrThrow({ where: { attendanceSessionId: attendanceA.id } });
+    assert.deepEqual(exportedAttendance.map((row) => row.id), [assignedAttendance.id], "attendance downloads must include assigned-campus records only");
+    assert.ok(!exportedAttendance.some((row) => row.studentEmail === studentB.email), "attendance downloads must not expose students from another campus");
+
     const report = await getInstitutionInsights(institution.id, { departmentIds: assigned });
     assert.equal(report.kpis.departments, 1, "campus reports must count only the assigned department");
+    const conflictingReportFilter = await getInstitutionInsights(institution.id, { departmentIds: assigned, programId: programB.id });
+    assert.equal(conflictingReportFilter.kpis.students, 0, "a program filter must not override the assigned department scope");
+    assert.equal(conflictingReportFilter.kpis.attendance, 0, "attendance reports must intersect program filters with the assigned department scope");
     const reportOptions = await getAttendanceReportOptions(institution.id, {
       id: director.id, institutionId: institution.id, email: director.email,
       roles: ["DIRECTOR"], permissions: ["attendance.read"],

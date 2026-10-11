@@ -190,15 +190,11 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
   const scopedDepartmentIds = filters.departmentId ? [filters.departmentId] : filters.departmentIds;
   const enrollmentWhere = { institutionId, ...(filters.programId ? { programId: filters.programId } : {}), ...(scopedDepartmentIds ? { program: { departmentId: { in: scopedDepartmentIds } } } : {}), ...(filters.semesterId ? { section: { semesterId: filters.semesterId } } : {}) };
   const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
-    ...(scopedDepartmentIds
-      ? { course: { departmentId: { in: scopedDepartmentIds } } }
-      : {}),
-    ...(filters.programId
-      ? { semester: { programId: filters.programId } }
-      : {}),
-    ...(filters.semesterId
-      ? { semesterId: filters.semesterId }
-      : {}),
+    AND: [
+      ...(scopedDepartmentIds ? [{ semester: { program: { departmentId: { in: scopedDepartmentIds } } } }] : []),
+      ...(filters.programId ? [{ semester: { programId: filters.programId } }] : []),
+      ...(filters.semesterId ? [{ semesterId: filters.semesterId }] : []),
+    ],
   };
 
   const assignmentWhere: Prisma.AssignmentWhereInput = {
@@ -211,17 +207,7 @@ export async function getInstitutionInsights(institutionId: string, filters: { d
       : {}),
   };
 
-  const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = {
-    ...(scopedDepartmentIds
-      ? { course: { departmentId: { in: scopedDepartmentIds } } }
-      : {}),
-    ...(filters.programId
-      ? { semester: { programId: filters.programId } }
-      : {}),
-    ...(filters.semesterId
-      ? { semesterId: filters.semesterId }
-      : {}),
-  };
+  const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = courseOfferingFilter;
 
   const attendanceCourseOfferingFilter: Prisma.CourseOfferingWhereInput =
     facultyOfferingFilter;
