@@ -226,3 +226,19 @@ test("Fee and examination decisions persist state transitions with audit history
   }
   assert.ok(exams.includes('FOR UPDATE'), "mark and schedule decisions must serialize competing writes");
 });
+
+
+test("Chairman and Director student profile links stay inside their workspaces", () => {
+  const chairmanList = readFileSync(join(frontend, "chairman/students/page.tsx"), "utf8");
+  const directorList = readFileSync(join(frontend, "director/students/page.tsx"), "utf8");
+  const chairmanProfile = readFileSync(join(frontend, "chairman/students/[id]/page.tsx"), "utf8");
+  const directorProfile = readFileSync(join(frontend, "director/students/[id]/page.tsx"), "utf8");
+  assert.ok(chairmanList.includes('detailBasePath="/chairman/students"'));
+  assert.ok(directorList.includes('detailBasePath="/director/students"'));
+  assert.ok(chairmanProfile.includes('allowedRoles={["CHAIRMAN"]}'));
+  assert.ok(directorProfile.includes('allowedRoles={["DIRECTOR"]}'));
+  assert.ok(!chairmanProfile.includes('href="/students"'));
+  assert.ok(!directorProfile.includes('href="/students"'));
+  assert.ok(existsSync(join(frontend, "chairman/students/[id]/page.tsx")));
+  assert.ok(existsSync(join(frontend, "director/students/[id]/page.tsx")));
+});
