@@ -550,6 +550,18 @@ async function assertDirectorCanAccessSession(
       sessionDepartments.some((id) => !departmentIds.includes(id))) {
     throw new AppError("Examination session not found in the assigned scope", 404);
   }
+  const outsideRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT es."id"
+    FROM "exam_schedules" es
+    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+    JOIN "courses" c ON c."id" = co."courseId"
+    WHERE es."institutionId" = ${institutionId}
+      AND es."examSessionId" = ${session.id}
+      AND c."departmentId" NOT IN (${Prisma.join(departmentIds)})
+    LIMIT 1
+  `);
+  if (outsideRows.length) throw new AppError("Examination session contains a schedule outside the assigned scope", 404);
+
   if (sessionCampuses.length || sessionDepartments.length) return;
 
   const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
