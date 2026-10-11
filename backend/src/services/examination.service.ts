@@ -1612,6 +1612,7 @@ export async function generateHallTickets(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (session.status === "DRAFT") throw new AppError("Schedule the session before issuing hall tickets", 409);
 
   const students = await prisma.$queryRaw<Array<{ studentId: string }>>(Prisma.sql`
@@ -1715,19 +1716,24 @@ export async function updateHallTicketStatus(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertExamController(actor);
-  await requireTenantRow(
+  const ticket = await requireTenantRow<{ id: string; examSessionId: string; studentId: string; status: string }>(
     prisma,
     "hall_tickets",
     institutionId,
     hallTicketId,
     "Hall ticket"
   );
+  const ticketSession = await loadSession(institutionId, ticket.examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, ticketSession);
+  if (["REVOKED"].includes(ticket.status)) throw new AppError("A revoked hall ticket cannot be changed", 409);
 
-  await prisma.$executeRaw`
+  const changed = await prisma.$executeRaw`
     UPDATE "hall_tickets"
     SET "status" = ${status}, "blockedReason" = ${reason ?? null}
     WHERE "id" = ${hallTicketId} AND "institutionId" = ${institutionId}
+      AND "status" = ${ticket.status}
   `;
+  if (changed !== 1) throw new AppError("This hall ticket changed concurrently; reload and retry", 409);
 
   await recordAuditLog({
     institutionId,
@@ -1957,6 +1963,7 @@ export async function generateStudentMarksheetPdf(
 ): Promise<{ buffer: Buffer; filename: string }> {
   await assertCanViewStudent(institutionId, actor, studentId);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   const publication = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
     SELECT "status"
     FROM "exam_result_publications"
