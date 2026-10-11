@@ -31,7 +31,7 @@ export default function DIRECTORExaminationsPage() {
       <header className="rounded-3xl border border-amber-100 bg-[#faf7ef] p-7">
         <p className="text-xs font-black uppercase tracking-widest text-slate-500">Examination governance</p>
         <h1 className="mt-2 text-3xl font-black text-slate-950">Director Examination Oversight</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">Review examination signals within your assigned campuses. The backend workspace service applies the Director's CampusAccess-derived scope; this page is read-only.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">Review examination signals within your assigned campuses. The backend workspace service applies the Director&apos;s CampusAccess-derived scope; this page is read-only.</p>
       </header>
       {unavailable && <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800"><span>Examination oversight metrics are temporarily unavailable. No values are being reported as zero.</span><button type="button" onClick={() => void load()} disabled={loading} className="rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">Retry</button></section>}
       <section aria-busy={loading} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
