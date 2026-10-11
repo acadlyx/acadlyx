@@ -879,6 +879,39 @@ export async function createFeeStructure(
   }
 }
 
+export async function submitFeeStructureForApproval(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string
+) {
+  if (!actor.permissions.includes("fees.structure.manage")) {
+    throw new AppError("Fee structure management is not authorized", 403);
+  }
+  const changed = await prisma.$executeRaw(Prisma.sql`
+    UPDATE "fee_structures"
+    SET "status" = 'PENDING_APPROVAL', "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${structureId}
+      AND "institutionId" = ${institutionId}
+      AND "createdById" = ${actor.id}
+      AND "status" = 'DRAFT'
+  `);
+  if (changed !== 1) {
+    const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
+      SELECT "status", "createdById" FROM "fee_structures"
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId} LIMIT 1
+    `);
+    if (!rows[0]) throw new AppError("Fee structure not found", 404);
+    if (rows[0].createdById !== actor.id) throw new AppError("Only the draft creator can submit this fee structure", 403);
+    throw new AppError("Only a DRAFT fee structure can be submitted for approval", 409);
+  }
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "fee-structure.submit-for-approval",
+    entityType: "FeeStructure", entityId: structureId,
+    metadata: { fromStatus: "DRAFT", toStatus: "PENDING_APPROVAL" },
+  });
+  return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
+}
+
 export async function approveFeeStructure(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -887,42 +920,66 @@ export async function approveFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
-
-  // Approval is a one-way state transition from DRAFT. The conditional update
-  // is the concurrency guard: two approvers cannot both approve the same draft,
-  // and an already ACTIVE/ARCHIVED structure cannot be silently re-approved.
+  // A creator cannot approve their own submission, even if they hold both permissions.
   const changed = await prisma.$executeRaw(Prisma.sql`
     UPDATE "fee_structures"
     SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${structureId}
       AND "institutionId" = ${institutionId}
-      AND "status" = 'DRAFT'
+      AND "status" = 'PENDING_APPROVAL'
+      AND "createdById" <> ${actor.id}
   `);
-
   if (changed !== 1) {
-    const rows = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
-      SELECT "status" FROM "fee_structures"
-      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId}
-      LIMIT 1
+    const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
+      SELECT "status", "createdById" FROM "fee_structures"
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId} LIMIT 1
     `);
     if (!rows[0]) throw new AppError("Fee structure not found", 404);
-    throw new AppError(
-      rows[0].status === "ARCHIVED"
-        ? "Archived fee structures cannot be approved"
-        : rows[0].status === "ACTIVE"
-          ? "Fee structure is already approved"
-          : "Fee structure is not in an approvable draft state",
-      409
-    );
+    if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot approve their own submission", 403);
+    throw new AppError("Only a pending fee structure can be approved", 409);
   }
-
   await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "fee-structure.approve",
-    entityType: "FeeStructure",
-    entityId: structureId,
-    metadata: { fromStatus: "DRAFT", toStatus: "ACTIVE" },
+    institutionId, userId: actor.id, action: "fee-structure.approve",
+    entityType: "FeeStructure", entityId: structureId,
+    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "ACTIVE" },
+  });
+  return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
+}
+
+export async function rejectFeeStructure(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string,
+  reason: string
+) {
+  if (!actor.permissions.includes("fees.structure.approve")) {
+    throw new AppError("Fee structure rejection is not authorized", 403);
+  }
+  const normalizedReason = reason.trim();
+  if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
+    throw new AppError("A rejection reason between 3 and 1000 characters is required", 422);
+  }
+  const changed = await prisma.$executeRaw(Prisma.sql`
+    UPDATE "fee_structures"
+    SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), E'\\n[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${structureId}
+      AND "institutionId" = ${institutionId}
+      AND "status" = 'PENDING_APPROVAL'
+      AND "createdById" <> ${actor.id}
+  `);
+  if (changed !== 1) {
+    const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
+      SELECT "status", "createdById" FROM "fee_structures"
+      WHERE "id" = ${structureId} AND "institutionId" = ${institutionId} LIMIT 1
+    `);
+    if (!rows[0]) throw new AppError("Fee structure not found", 404);
+    if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot reject their own submission", 403);
+    throw new AppError("Only a pending fee structure can be rejected", 409);
+  }
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "fee-structure.reject",
+    entityType: "FeeStructure", entityId: structureId,
+    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "REJECTED", reason: normalizedReason },
   });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
