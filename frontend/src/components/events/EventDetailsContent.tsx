@@ -14,7 +14,8 @@ export function EventDetailsContent({ workspaceBasePath = "/events-gallery" }: {
   useEffect(()=>{getCurrentUser({background:true}).then(setUser).catch(()=>{});getEvent(params.id).then(r=>setEvent(r.data)).catch(e=>setError(e instanceof Error?e.message:"Unable to load event."));},[params.id]);
   if(error)return <div className="mx-auto max-w-5xl rounded-3xl border border-red-200 bg-red-50 p-8 text-red-700">{error}</div>;
   if(!event)return <div className="mx-auto max-w-5xl rounded-3xl border border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-500">Loading event…</div>;
-  const canManage=!!user?.permissions.includes("events.manage");
+  const directorWorkspace = workspaceBasePath.startsWith("/director/");
+  const canManage=!!user?.permissions.includes("events.manage") && (!directorWorkspace || !!event.department?.id);
   async function remove(){if(!confirm("Delete this event and its gallery?"))return;try{await deleteEvent(event!.id);router.replace(workspaceBasePath);}catch(e){setError(e instanceof Error?e.message:"Delete failed.");}}
   const time=event.startTime ? event.startTime + (event.endTime ? "–"+event.endTime : "") : "";
   return <div className="mx-auto max-w-6xl space-y-6">
