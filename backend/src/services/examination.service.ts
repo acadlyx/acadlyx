@@ -3185,7 +3185,15 @@ export async function decideExamIncident(
     ["REPORTED", "UNDER_REVIEW", "UPHELD", "DISMISSED"] as const,
     "status"
   );
-  if (status === incident.status) throw new AppError("This incident is already in that state", 409);
+  const allowedIncidentTransitions: Record<string, string[]> = {
+    REPORTED: ["UNDER_REVIEW", "UPHELD", "DISMISSED"],
+    UNDER_REVIEW: ["UPHELD", "DISMISSED"],
+    UPHELD: [],
+    DISMISSED: [],
+  };
+  if (!allowedIncidentTransitions[incident.status]?.includes(status)) {
+    throw new AppError(`An incident cannot move from ${incident.status} to ${status}`, 409);
+  }
 
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.$executeRaw`
