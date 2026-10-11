@@ -121,3 +121,22 @@ test("intelligence aggregate queries preserve all assigned departments without w
   assert.ok(controller.includes("const departmentIds = allowed && !departmentId ? allowed : undefined"));
   assert.ok(controller.includes("departmentId ? [departmentId] : allowed"), "risk records retain the same assigned scope");
 });
+
+test("Chairman and Director fee and examination landing routes do not alias generic operational pages", () => {
+  const chairmanFees = readFileSync(join(frontend, "chairman/fees/page.tsx"), "utf8");
+  const directorFees = readFileSync(join(frontend, "director/fees/page.tsx"), "utf8");
+  const chairmanExams = readFileSync(join(frontend, "chairman/examinations/page.tsx"), "utf8");
+  const directorExams = readFileSync(join(frontend, "director/examinations/page.tsx"), "utf8");
+  assert.ok(chairmanFees.includes('allowedRoles={["CHAIRMAN"]}'));
+  assert.ok(directorFees.includes('allowedRoles={["DIRECTOR"]}'));
+  assert.ok(chairmanFees.includes("listFeeStructures"), "Chairman finance view must use canonical fee structure data");
+  assert.ok(directorFees.includes("listFeeStructures"), "Director finance view must use the server-scoped fee structure API");
+  assert.ok(!chairmanFees.includes('from "@/app/fees/page"'));
+  assert.ok(!directorFees.includes('from "@/app/fees/page"'));
+  assert.ok(chairmanExams.includes('allowedRoles={["CHAIRMAN"]}'));
+  assert.ok(directorExams.includes('allowedRoles={["DIRECTOR"]}'));
+  assert.ok(!chairmanExams.includes('from "@/app/examination/page"'));
+  assert.ok(!directorExams.includes('from "@/app/examination/page"'));
+  assert.ok(chairmanExams.includes('authedFetch<{ data: Workspace }>("/erp/me/workspace")'));
+  assert.ok(directorExams.includes('authedFetch<{ data: Workspace }>("/erp/me/workspace")'));
+});
