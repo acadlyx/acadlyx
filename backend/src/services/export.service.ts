@@ -58,43 +58,43 @@ export const EXPORT_TYPES = [
   "placement-openings",
   "placement-applications",
   "placement-offers",
-  "student-enrollments",
-  "enrollment-requests",
-  "course-registrations",
-  "student-movement-requests",
-  "certificates",
-  "documents",
-  "library-policy",
-  "library-renewals",
-  "placement-interviews",
-  "placement-interview-participants",
-  "placement-tests",
-  "placement-test-participants",
-  "placement-company-history",
-  "placement-company-contacts",
-  "placement-joining-verifications",
-  "placement-academic-snapshots",
-  "placement-profiles",
-  "placement-certifications",
-  "placement-projects",
-  "placement-resumes",
-  "skills",
-  "target-roles",
-  "student-skills",
-  "career-paths",
-  "opportunities",
-  "programme-outcomes",
-  "course-outcomes",
-  "course-outcome-mappings",
-  "obe-policies",
-  "obe-assessments",
-  "obe-assessment-items",
-  "obe-assessment-scores",
-  "obe-indirect-assessments",
-  "obe-course-attainments",
-  "obe-attainment-runs",
-  "obe-run-course-outcomes",
-  "obe-run-programme-outcomes",
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
@@ -148,43 +148,6 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, string> = {
   "placement-openings": "placements.read",
   "placement-applications": "placements.read",
   "placement-offers": "placements.read",
-  "student-enrollments": "enrollment.read",
-  "enrollment-requests": "enrollment.read",
-  "course-registrations": "registration.read",
-  "student-movement-requests": "promotions.read",
-  certificates: "certificates.read",
-  documents: "documents.read",
-  "library-policy": "library.read",
-  "library-renewals": "library.read",
-  "placement-interviews": "placements.read",
-  "placement-interview-participants": "placements.read",
-  "placement-tests": "placements.read",
-  "placement-test-participants": "placements.read",
-  "placement-company-history": "placements.read",
-  "placement-company-contacts": "placements.read",
-  "placement-joining-verifications": "placements.read",
-  "placement-academic-snapshots": "placements.read",
-  "placement-profiles": "placements.read",
-  "placement-certifications": "placements.read",
-  "placement-projects": "placements.read",
-  "placement-resumes": "placements.read",
-  skills: "intelligence.read",
-  "target-roles": "intelligence.read",
-  "student-skills": "intelligence.read",
-  "career-paths": "intelligence.read",
-  opportunities: "placements.read",
-  "programme-outcomes": "obe.read",
-  "course-outcomes": "obe.read",
-  "course-outcome-mappings": "obe.read",
-  "obe-policies": "obe.read",
-  "obe-assessments": "obe.read",
-  "obe-assessment-items": "obe.read",
-  "obe-assessment-scores": "obe.read",
-  "obe-indirect-assessments": "obe.read",
-  "obe-course-attainments": "obe.read",
-  "obe-attainment-runs": "obe.read",
-  "obe-run-course-outcomes": "obe.read",
-  "obe-run-programme-outcomes": "obe.read",
 };
 
 export interface ExportRequestOptions {
@@ -207,12 +170,12 @@ const SCOPED_EXPORT_TYPES = new Set<ExportType>([
   "students", "faculty", "departments", "programs", "academic-years",
   "semesters", "sections", "courses", "course-offerings", "exams",
   "marks", "notices", "timetable", "parent-links", "assignments",
-  "assignment-submissions", "student-enrollments", "enrollment-requests",
-  "course-registrations", "student-movement-requests", "programme-outcomes",
-  "course-outcomes", "course-outcome-mappings", "obe-policies", "obe-assessments",
-  "obe-assessment-items", "obe-assessment-scores", "obe-indirect-assessments",
-  "obe-course-attainments", "obe-attainment-runs", "obe-run-course-outcomes",
-  "obe-run-programme-outcomes",
+  "assignment-submissions",  
+    
+     
+    
+    
+  
 ]);
 const FINANCE_EXPORT_TYPES = new Set<ExportType>([
   "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
@@ -235,27 +198,6 @@ const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "placement-openings": ["PLACEMENT"],
   "placement-applications": ["PLACEMENT"],
   "placement-offers": ["PLACEMENT"],
-  "library-policy": ["LIBRARIAN"],
-  "library-renewals": ["LIBRARIAN"],
-  certificates: ["REGISTRAR", "INSTITUTION_ADMIN"],
-  documents: ["REGISTRAR", "INSTITUTION_ADMIN", "HR", "ADMISSIONS", "PLACEMENT"],
-  "placement-interviews": ["PLACEMENT"],
-  "placement-interview-participants": ["PLACEMENT"],
-  "placement-tests": ["PLACEMENT"],
-  "placement-test-participants": ["PLACEMENT"],
-  "placement-company-history": ["PLACEMENT"],
-  "placement-company-contacts": ["PLACEMENT"],
-  "placement-joining-verifications": ["PLACEMENT"],
-  "placement-academic-snapshots": ["PLACEMENT"],
-  "placement-profiles": ["PLACEMENT"],
-  "placement-certifications": ["PLACEMENT"],
-  "placement-projects": ["PLACEMENT"],
-  "placement-resumes": ["PLACEMENT"],
-  skills: ["PLACEMENT", "INSTITUTION_ADMIN", "REGISTRAR"],
-  "target-roles": ["PLACEMENT", "INSTITUTION_ADMIN", "REGISTRAR"],
-  "student-skills": ["PLACEMENT"],
-  "career-paths": ["PLACEMENT"],
-  opportunities: ["PLACEMENT"],
 };
 
 async function assertExportAccess(
@@ -443,43 +385,6 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   "placement-openings": ["search", "role", "employmentType", "location", "dateFrom", "dateTo"],
   "placement-applications": ["search", "status", "company", "admissionNumber", "dateFrom", "dateTo"],
   "placement-offers": ["search", "status", "company", "joiningStatus", "dateFrom", "dateTo"],
-  "student-enrollments": ["search", "programId", "academicYearId", "semesterId", "sectionId", "status"],
-  "enrollment-requests": ["search", "status", "programId", "academicYearId", "semesterId", "sectionId", "dateFrom", "dateTo"],
-  "course-registrations": ["search", "status", "courseOfferingId", "courseCode", "section", "dateFrom", "dateTo"],
-  "student-movement-requests": ["search", "requestType", "status", "fromEnrollmentId", "dateFrom", "dateTo"],
-  certificates: ["search", "certificateType", "certificateNumber", "status", "dateFrom", "dateTo"],
-  documents: ["search", "title", "type", "ownerEmail", "dateFrom", "dateTo"],
-  "library-policy": ["search", "isActive"],
-  "library-renewals": ["search", "accessionNumber", "borrowerEmail", "dateFrom", "dateTo"],
-  "placement-interviews": ["search", "status", "roundType", "dateFrom", "dateTo"],
-  "placement-interview-participants": ["search", "attendanceStatus", "resultStatus", "studentEmail"],
-  "placement-tests": ["search", "status", "mode", "dateFrom", "dateTo"],
-  "placement-test-participants": ["search", "attendanceStatus", "resultStatus", "studentEmail"],
-  "placement-company-history": ["search", "company", "dateFrom", "dateTo"],
-  "placement-company-contacts": ["search", "company", "designation", "email"],
-  "placement-joining-verifications": ["search", "status", "studentEmail", "dateFrom", "dateTo"],
-  "placement-academic-snapshots": ["search", "academicStatus", "graduationEligible"],
-  "placement-profiles": ["search", "placementStatus", "studentEmail"],
-  "placement-certifications": ["search", "name", "issuer", "studentEmail", "dateFrom", "dateTo"],
-  "placement-projects": ["search", "title", "technologies", "studentEmail", "dateFrom", "dateTo"],
-  "placement-resumes": ["search", "fileName", "studentEmail", "isCurrent", "dateFrom", "dateTo"],
-  skills: ["search", "category", "isActive"],
-  "target-roles": ["search", "isActive"],
-  "student-skills": ["search", "skillName", "studentEmail", "proficiency"],
-  "career-paths": ["search", "targetRole", "studentEmail", "isPrimary"],
-  opportunities: ["search", "targetRole", "organization", "isActive", "dateFrom", "dateTo"],
-  "programme-outcomes": ["search", "programId", "type", "code", "isActive"],
-  "course-outcomes": ["search", "courseId", "code", "bloomLevel", "isActive"],
-  "course-outcome-mappings": ["search", "courseOutcomeId", "programmeOutcomeId", "status", "dateFrom", "dateTo"],
-  "obe-policies": ["search", "programId", "scopeType", "isActive"],
-  "obe-assessments": ["search", "courseOfferingId", "type", "status", "dateFrom", "dateTo"],
-  "obe-assessment-items": ["search", "assessmentId", "courseOutcomeId", "itemCode"],
-  "obe-assessment-scores": ["search", "studentId", "assessmentItemId", "isAbsent", "dateFrom", "dateTo"],
-  "obe-indirect-assessments": ["search", "courseOfferingId", "courseOutcomeId", "status", "dateFrom", "dateTo"],
-  "obe-course-attainments": ["search", "courseOfferingId", "courseOutcomeId", "calculationStatus"],
-  "obe-attainment-runs": ["search", "programId", "academicYearId", "semesterId", "status", "dateFrom", "dateTo"],
-  "obe-run-course-outcomes": ["search", "runId", "courseOfferingId", "courseOutcomeId"],
-  "obe-run-programme-outcomes": ["search", "runId", "programmeOutcomeId"],
 };
 
 const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
@@ -540,43 +445,6 @@ const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   "placement-openings": "deadline",
   "placement-applications": "appliedAt",
   "placement-offers": "offerDate",
-  "student-enrollments": "enrolledAt",
-  "enrollment-requests": "createdAt",
-  "course-registrations": "createdAt",
-  "student-movement-requests": "createdAt",
-  certificates: "createdAt",
-  documents: "createdAt",
-  "library-policy": "updatedAt",
-  "library-renewals": "createdAt",
-  "placement-interviews": "startsAt",
-  "placement-interview-participants": "createdAt",
-  "placement-tests": "scheduledAt",
-  "placement-test-participants": "createdAt",
-  "placement-company-history": "lastInteractionAt",
-  "placement-company-contacts": "createdAt",
-  "placement-joining-verifications": "createdAt",
-  "placement-academic-snapshots": "updatedAt",
-  "placement-profiles": "updatedAt",
-  "placement-certifications": "createdAt",
-  "placement-projects": "createdAt",
-  "placement-resumes": "createdAt",
-  skills: "createdAt",
-  "target-roles": "createdAt",
-  "student-skills": "updatedAt",
-  "career-paths": "createdAt",
-  opportunities: "deadline",
-  "programme-outcomes": "createdAt",
-  "course-outcomes": "createdAt",
-  "course-outcome-mappings": "createdAt",
-  "obe-policies": "createdAt",
-  "obe-assessments": "assessmentDate",
-  "obe-assessment-items": "createdAt",
-  "obe-assessment-scores": "createdAt",
-  "obe-indirect-assessments": "createdAt",
-  "obe-course-attainments": "calculatedAt",
-  "obe-attainment-runs": "createdAt",
-  "obe-run-course-outcomes": "createdAt",
-  "obe-run-programme-outcomes": "createdAt",
 };
 
 function applyExportOptions(rows: Row[], type: ExportType, options: ExportRequestOptions): Row[] {
