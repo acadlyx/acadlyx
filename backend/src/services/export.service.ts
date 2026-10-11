@@ -344,6 +344,27 @@ const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
   students: ["firstName", "lastName", "email", "admissionNumber"],
   faculty: ["firstName", "lastName", "email", "assignedOfferings"],
 };
+const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
+  users: ["firstName", "lastName", "email", "phone", "roles"],
+  students: ["firstName", "lastName", "email", "admissionNumber"],
+  faculty: ["firstName", "lastName", "email", "assignedOfferings"],
+  "library-books": ["title", "author", "isbn", "category", "publisher", "shelfLocation"],
+  "library-copies": ["accessionNumber", "barcode", "title", "author"],
+  "library-issues": ["borrowerEmail", "borrowerName", "bookTitle", "accessionNumber"],
+  "library-fines": ["studentEmail", "admissionNumber", "type", "reason", "status"],
+  "admission-applications": ["applicationNumber", "firstName", "lastName", "email", "phone"],
+  employees: ["employeeCode", "firstName", "lastName", "email", "designation", "department"],
+  "leave-requests": ["applicantName", "applicantEmail", "leaveType", "reason", "status"],
+  "calendar-events": ["title", "description", "eventType", "audience"],
+  "institutional-events": ["title", "slug", "shortDescription", "department", "category", "tags"],
+  "event-media": ["eventTitle", "title", "altText", "url"],
+  "placement-companies": ["name", "industry", "companyType", "relationshipStatus", "headquarters"],
+  "placement-drives": ["title", "company", "status", "venue"],
+  "placement-openings": ["role", "description", "employmentType", "location"],
+  "placement-applications": ["studentEmail", "admissionNumber", "company", "role", "status"],
+  "placement-offers": ["studentEmail", "admissionNumber", "company", "role", "status"],
+};
+
 const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   users: "createdAt",
   campuses: "createdAt",
@@ -650,6 +671,98 @@ export async function exportData(
     for (const x of data) rows.push({ id: x.id, action: x.action, entityType: x.entityType, entityId: x.entityId, userId: x.userId, createdAt: clean(x.createdAt) });
   }
 
+  if (type === "assignments") {
+    const data = await collectInBatches((skip, take) => prisma.assignment.findMany({
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) },
+      include: { courseOffering: { include: { course: true, section: true, faculty: true } } },
+      orderBy: { dueDate: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, description: x.description, courseCode: x.courseOffering.course.code, course: x.courseOffering.course.name, section: x.courseOffering.section.name, facultyEmail: x.courseOffering.faculty?.email ?? null, dueDate: clean(x.dueDate), maxMarks: x.maxMarks, status: x.status, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "assignment-submissions") {
+    const data = await collectInBatches((skip, take) => prisma.assignmentSubmission.findMany({
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { assignment: { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } } }) },
+      include: { student: { include: { profile: true } }, assignment: { include: { courseOffering: { include: { course: true, section: true } } } } },
+      orderBy: { submittedAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, assignmentId: x.assignmentId, assignmentTitle: x.assignment.title, courseCode: x.assignment.courseOffering.course.code, section: x.assignment.courseOffering.section.name, studentId: x.studentId, studentName: (x.student.firstName + " " + x.student.lastName).trim(), studentEmail: x.student.email, admissionNumber: x.student.profile?.admissionNumber ?? null, status: x.status, submittedAt: clean(x.submittedAt), marksAwarded: x.marksAwarded, feedback: x.feedback, reviewedAt: clean(x.reviewedAt) });
+  }
+
+  if (type === "library-books") {
+    const data = await collectInBatches((skip, take) => prisma.libraryBook.findMany({ skip, take, where: { institutionId }, orderBy: { title: "asc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, author: x.author, isbn: x.isbn, category: x.category, publisher: x.publisher, shelfLocation: x.shelfLocation, totalCopies: x.totalCopies, availableCopies: x.availableCopies, active: x.isActive, defaultAcquisitionCost: x.defaultAcquisitionCost, defaultReplacementValue: x.defaultReplacementValue, defaultCurrentValue: x.defaultCurrentValue, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "library-copies") {
+    const data = await collectInBatches((skip, take) => prisma.libraryBookCopy.findMany({ skip, take, where: { institutionId }, include: { book: true }, orderBy: { accessionNumber: "asc" } }));
+    for (const x of data) rows.push({ id: x.id, accessionNumber: x.accessionNumber, barcode: x.barcode, bookId: x.bookId, title: x.book.title, author: x.book.author, location: x.location, shelf: x.shelf, acquisitionDate: clean(x.acquisitionDate), acquisitionCost: x.acquisitionCost, replacementValue: x.replacementValue, currentValue: x.currentValue, condition: x.condition, status: x.status, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "library-issues") {
+    const data = await collectInBatches((skip, take) => prisma.libraryIssue.findMany({ skip, take, where: { institutionId }, include: { book: true, borrower: { include: { profile: true } }, copy: true }, orderBy: { issuedAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, bookId: x.bookId, bookTitle: x.book.title, borrowerId: x.borrowerId, borrowerName: (x.borrower.firstName + " " + x.borrower.lastName).trim(), borrowerEmail: x.borrower.email, admissionNumber: x.borrower.profile?.admissionNumber ?? null, accessionNumber: x.copy?.accessionNumber ?? null, issuedAt: clean(x.issuedAt), dueDate: clean(x.dueDate), returnedAt: clean(x.returnedAt), status: x.returnedAt ? "RETURNED" : "ISSUED", fineAmount: x.fineAmount, note: x.note });
+  }
+
+  if (type === "library-fines") {
+    const data = await collectInBatches((skip, take) => prisma.libraryFine.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, issue: { include: { book: true } } }, orderBy: { createdAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, issueId: x.issueId, bookTitle: x.issue.book.title, studentId: x.studentId, studentEmail: x.student.email, admissionNumber: x.student.profile?.admissionNumber ?? null, type: x.type, originalAmount: Number(x.originalAmount), waivedAmount: Number(x.waivedAmount), outstandingAmount: Math.max(0, Number(x.originalAmount) - Number(x.waivedAmount)), reason: x.reason, status: x.status, financialInvoiceId: x.financialInvoiceId, approvedAt: clean(x.approvedAt), createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "admission-applications") {
+    const data = await collectInBatches((skip, take) => prisma.admissionApplication.findMany({ skip, take, where: { institutionId }, include: { program: true, academicYear: true }, orderBy: { createdAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, applicationNumber: x.applicationNumber, firstName: x.firstName, lastName: x.lastName, email: x.email, phone: x.phone, dateOfBirth: clean(x.dateOfBirth), gender: x.gender, guardianName: x.guardianName, guardianPhone: x.guardianPhone, program: x.program.name, programId: x.programId, academicYear: x.academicYear.name, academicYearId: x.academicYearId, previousInstitution: x.previousInstitution, previousPercentage: x.previousPercentage, status: x.status, remarks: x.remarks, createdAt: clean(x.createdAt), updatedAt: clean(x.updatedAt) });
+  }
+
+  if (type === "employees") {
+    const data = await collectInBatches((skip, take) => prisma.employeeProfile.findMany({ skip, take, where: { institutionId }, include: { user: true, department: true }, orderBy: { employeeCode: "asc" } }));
+    for (const x of data) rows.push({ id: x.id, userId: x.userId, employeeCode: x.employeeCode, firstName: x.user.firstName, lastName: x.user.lastName, email: x.user.email, phone: x.user.phone, department: x.department?.name ?? null, departmentId: x.departmentId, designation: x.designation, employmentType: x.employmentType, joiningDate: clean(x.joiningDate), status: x.status, qualification: x.qualification, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "leave-requests") {
+    const data = await collectInBatches((skip, take) => prisma.leaveRequest.findMany({ skip, take, where: { institutionId }, include: { applicant: true, leaveType: true }, orderBy: { fromDate: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, applicantId: x.applicantId, applicantName: (x.applicant.firstName + " " + x.applicant.lastName).trim(), applicantEmail: x.applicant.email, leaveType: x.leaveType.name, fromDate: clean(x.fromDate), toDate: clean(x.toDate), days: x.days, reason: x.reason, status: x.status, decidedById: x.decidedById, decidedAt: clean(x.decidedAt), decisionNote: x.decisionNote, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "calendar-events") {
+    const data = await collectInBatches((skip, take) => prisma.calendarEvent.findMany({ skip, take, where: { institutionId }, include: { academicYear: true }, orderBy: { startDate: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, description: x.description, eventType: x.eventType, startDate: clean(x.startDate), endDate: clean(x.endDate), academicYear: x.academicYear?.name ?? null, audience: x.audience, createdById: x.createdById, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "institutional-events") {
+    const data = await collectInBatches((skip, take) => prisma.institutionalEvent.findMany({ skip, take, where: { institutionId }, include: { category: true, department: true }, orderBy: { eventDate: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, slug: x.slug, shortDescription: x.shortDescription, description: x.description, eventDate: clean(x.eventDate), startTime: x.startTime, endTime: x.endTime, venue: x.venue, category: x.category?.name ?? null, department: x.department?.name ?? null, departmentId: x.departmentId, status: x.status, publicationStatus: x.publicationStatus, isFeatured: x.isFeatured, tags: x.tags ? JSON.stringify(x.tags) : null, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "event-media") {
+    const data = await collectInBatches((skip, take) => prisma.eventMedia.findMany({ skip, take, where: { institutionId }, include: { event: true }, orderBy: [{ eventId: "asc" }, { displayOrder: "asc" }] }));
+    for (const x of data) rows.push({ id: x.id, eventId: x.eventId, eventTitle: x.event.title, title: x.title, altText: x.altText, url: x.url, displayOrder: x.displayOrder, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "placement-companies") {
+    const data = await collectInBatches((skip, take) => prisma.placementCompany.findMany({ skip, take, where: { institutionId }, orderBy: { name: "asc" } }));
+    for (const x of data) rows.push({ id: x.id, name: x.name, industry: x.industry, companyType: x.companyType, website: x.website, description: x.description, headquarters: x.headquarters, relationshipStatus: x.relationshipStatus, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "placement-drives") {
+    const data = await collectInBatches((skip, take) => prisma.placementDrive.findMany({ skip, take, where: { institutionId }, include: { company: true, opening: true }, orderBy: { driveDate: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, company: x.company.name, companyId: x.companyId, openingRole: x.opening?.role ?? null, campusId: x.campusId, status: x.status, applicationDeadline: clean(x.applicationDeadline), driveDate: clean(x.driveDate), venue: x.venue, cgpaRequirement: x.cgpaRequirement, maxBacklogs: x.maxBacklogs, vacancies: x.vacancies });
+  }
+
+  if (type === "placement-openings") {
+    const data = await collectInBatches((skip, take) => prisma.placementOpening.findMany({ skip, take, where: { institutionId }, include: { company: true }, orderBy: { deadline: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, company: x.company.name, companyId: x.companyId, role: x.role, description: x.description, employmentType: x.employmentType, location: x.location, totalCtc: x.totalCtc === null ? null : Number(x.totalCtc), fixedCtc: x.fixedCtc === null ? null : Number(x.fixedCtc), variableCtc: x.variableCtc === null ? null : Number(x.variableCtc), bonus: x.bonus === null ? null : Number(x.bonus), stipend: x.stipend === null ? null : Number(x.stipend), currency: x.currency, deadline: clean(x.deadline) });
+  }
+
+  if (type === "placement-applications") {
+    const data = await collectInBatches((skip, take) => prisma.application.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, opportunity: true, placementDrive: { include: { company: true } }, placementOpening: { include: { company: true } } }, orderBy: { appliedAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, opportunityTitle: x.opportunity.title, company: x.placementDrive?.company.name ?? x.placementOpening?.company.name ?? null, role: x.placementOpening?.role ?? null, status: x.status, appliedAt: clean(x.appliedAt) });
+  }
+
+  if (type === "placement-offers") {
+    const data = await collectInBatches((skip, take) => prisma.placementOffer.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, company: true }, orderBy: { offerDate: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, company: x.company.name, role: x.role, status: x.status, totalCtc: x.totalCtc === null ? null : Number(x.totalCtc), fixedCtc: x.fixedCtc === null ? null : Number(x.fixedCtc), variableCtc: x.variableCtc === null ? null : Number(x.variableCtc), currency: x.currency, offerDate: clean(x.offerDate), acceptanceAt: clean(x.acceptanceAt), joiningDate: clean(x.joiningDate), joiningStatus: x.joiningStatus, joiningVerifiedAt: clean(x.joiningVerifiedAt) });
+  }
   if (type === "notices") {
     const data = await collectInBatches((skip, take) => prisma.notice.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { OR: [{ departmentId: null }, { departmentId: scopedDepartmentFilter }] }) }, orderBy: { publishedAt: "desc" }  }));
     for (const n of data) rows.push({ id: n.id, title: n.title, body: n.body, audience: n.audience, departmentId: n.departmentId, publishedAt: clean(n.publishedAt), expiresAt: clean(n.expiresAt) });
