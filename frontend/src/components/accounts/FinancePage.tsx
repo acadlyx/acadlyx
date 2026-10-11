@@ -63,11 +63,11 @@ export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTI
     {view === "payments" && <DataExportActions type="fee-payments" compact />}
     {view === "receipts" && <DataExportActions type="fee-receipts" compact />}
     {view === "transactions" && <DataExportActions type="fee-transactions" compact />}
-    {view === "collections" && <DataExportActions type="fee-transactions" compact />}
+    {view === "collections" && <DataExportActions type="fee-payments" compact />}
     {view === "refunds" && <DataExportActions type="fee-refunds" compact />}
     {view === "concessions" && <DataExportActions type="fee-concessions" compact />}
-    {view === "audit" && <DataExportActions type="fee-audit" compact />}
-    {view === "reports" && <DataExportActions type="fee-transactions" compact />}
+    {view === "audit" && can("audit.read") && <DataExportActions type="fee-audit" compact />}
+    {view === "reports" && <><DataExportActions type="fees" compact /><DataExportActions type="fee-payments" compact /><DataExportActions type="fee-transactions" compact /></>}
     {view === "dues" && <DataExportActions type="outstanding-dues" compact />}
     {view==="overview" ? <CommandCenter d={data} period={period} setPeriod={setPeriod} can={can}/> :
      view==="dues" ? <Dues d={data} can={can}/> :
