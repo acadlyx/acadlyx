@@ -96,6 +96,7 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
   assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
   assert.ok(feeService.includes('fs."programId" IN ('), "Director fee listing must be filtered to programs in assigned campus departments");
+  assert.ok(feeService.includes('semester_program."departmentId"'), "semester-only fee structures must be resolved through their owning program");
   assert.ok(feeService.includes("assertFeeStructureInActorScope(institutionId, actor, structureId)"), "approval and rejection mutations must validate record scope");
 });
 
@@ -207,7 +208,8 @@ test("Director export and attendance reporting enforce campus-derived department
   const exporter = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
   const attendance = readFileSync(join(process.cwd(), "src/services/attendanceReport.service.ts"), "utf8");
   assert.ok(exporter.includes("DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES"));
-  assert.ok(exporter.includes('AND fs."programId" IN (SELECT p."id"'));
+  assert.ok(exporter.includes('fs."programId" IS NOT NULL AND fs."programId" IN'));
+  assert.ok(exporter.includes('fs."programId" IS NULL AND fs."semesterId" IN'), "semester-linked fee structures must also be exported within campus scope");
   assert.ok(exporter.includes("scopedStudentFilter"), "invoice-related export/download datasets must filter by scoped student enrollment");
   assert.ok(attendance.includes("getDirectorDepartmentIds(institutionId, actor.id)"));
   assert.ok(attendance.includes('label: "Assigned campus scope"'));
