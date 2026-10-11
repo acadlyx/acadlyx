@@ -8,6 +8,23 @@ export const DATA_TYPES = [
 ] as const;
 
 export type DataType = typeof DATA_TYPES[number];
+export type ExportType = DataType | "paid-fees" | "outstanding-dues";
+export type ExportFormat = "xlsx" | "csv" | "docx" | "pdf" | "json";
+export interface ExportOptions {
+  selection?: "all-filtered" | "current-page" | "selected";
+  ids?: string[];
+  page?: number;
+  pageSize?: number;
+  filters?: Record<string, string>;
+}
+function exportUrl(type: ExportType, format: ExportFormat, options: ExportOptions = {}): string {
+  const params = new URLSearchParams({ format, selection: options.selection || "all-filtered" });
+  if (options.page !== undefined) params.set("page", String(options.page));
+  if (options.pageSize !== undefined) params.set("pageSize", String(options.pageSize));
+  for (const id of options.ids || []) params.append("ids", id);
+  for (const [key, value] of Object.entries(options.filters || {})) params.set("filter_" + key, value);
+  return "/exports/" + encodeURIComponent(type) + "?" + params.toString();
+}
 
 export interface ImportPreviewResult {
   totalRows: number;
@@ -66,19 +83,15 @@ export async function getImportJob(jobId: string) {
   return body.data;
 }
 
-export async function exportData(type: DataType, format: "xlsx" | "csv" | "docx" | "pdf" | "json") {
-  const response = await authedBlobFetch(`/exports/${type}?format=${format}`);
+export async function exportData(type: ExportType, format: ExportFormat, options: ExportOptions = {}): Promise<void> {
+  const response = await authedBlobFetch(exportUrl(type, format, options));
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message || `Export failed (${response.status})`);
+    throw new Error(body?.error?.message || "Export failed (" + response.status + ")");
   }
-
   const blob = await response.blob();
-  if (blob.size === 0) {
-    throw new Error("The server returned an empty export file. No download was created.");
-  }
-
-  const expectedTypes: Record<typeof format, string> = {
+  if (blob.size === 0) throw new Error("The server returned an empty export file. No download was created.");
+  const expectedTypes: Record<ExportFormat, string> = {
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     csv: "text/csv",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -90,10 +103,9 @@ export async function exportData(type: DataType, format: "xlsx" | "csv" | "docx"
   if (actualType && actualType !== expectedType) {
     throw new Error("The server returned an unexpected file type. The export was not downloaded.");
   }
-
   const disposition = response.headers.get("Content-Disposition") || "";
   const match = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = match?.[1] || `acadlyx-${type}.${format}`;
+  const filename = match?.[1] || ("acadlyx-" + type + "." + format);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -101,12 +113,12 @@ export async function exportData(type: DataType, format: "xlsx" | "csv" | "docx"
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Open the authorized server export in a print-friendly browser document. */
-export async function printExport(type: DataType): Promise<void> {
-  const response = await authedBlobFetch(`/exports/${type}?format=json`);
+export async function printExport(type: ExportType, options: ExportOptions = {}): Promise<void> {
+  const response = await authedBlobFetch(exportUrl(type, "json", options));
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.error?.message || `Print export failed (${response.status})`);
