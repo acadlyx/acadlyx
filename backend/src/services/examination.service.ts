@@ -774,15 +774,25 @@ export async function listExamSessions(
     ]);
     if (!ids.length || !campusIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`(
-      ("campusIds" <> '[]'::jsonb AND "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
-      OR ("departmentIds" <> '[]'::jsonb AND "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
-      OR EXISTS (
-        SELECT 1 FROM "exam_schedules" es
-        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-        JOIN "courses" c ON c."id"=co."courseId"
-        WHERE es."examSessionId"="exam_sessions"."id"
-          AND es."institutionId"=${institutionId}
-          AND c."departmentId" IN (${Prisma.join(ids)})
+      (
+        (("campusIds" <> '[]'::jsonb AND "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
+          OR ("departmentIds" <> '[]'::jsonb AND "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
+          OR EXISTS (
+            SELECT 1 FROM "exam_schedules" es
+            JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+            JOIN "courses" c ON c."id"=co."courseId"
+            WHERE es."examSessionId"="exam_sessions"."id"
+              AND es."institutionId"=${institutionId}
+              AND c."departmentId" IN (${Prisma.join(ids)})
+          ))
+        AND NOT EXISTS (
+          SELECT 1 FROM "exam_schedules" outside_schedule
+          JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
+          JOIN "courses" outside_course ON outside_course."id"=outside_offering."courseId"
+          WHERE outside_schedule."examSessionId"="exam_sessions"."id"
+            AND outside_schedule."institutionId"=${institutionId}
+            AND outside_course."departmentId" NOT IN (${Prisma.join(ids)})
+        )
       )
     )`);
   }
