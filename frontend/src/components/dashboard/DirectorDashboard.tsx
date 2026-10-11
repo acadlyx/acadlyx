@@ -19,17 +19,8 @@ const metrics = [
 const shortcuts = [
   ["Campus examination operations", "/director/examinations/operations"],
   ["Campus intelligence", "/director/intelligence"],
-  ["Campus operations", "/director/operations"],
   ["Campus students", "/director/students"],
-  ["Campus finance", "/director/fees"],
-  ["Placement outcomes", "/director/placements"],
   ["Notices", "/director/notices"],
-  ["Notifications", "/director/notifications"],
-  ["Events & Gallery", "/director/events-gallery"],
-  ["Campus calendar", "/director/calendar"],
-  ["Notices", "/director/notices"],
-  ["Notifications", "/director/notifications"],
-  ["Events & Gallery", "/director/events-gallery"],
 ] as const;
 
 export function DirectorDashboard() {
