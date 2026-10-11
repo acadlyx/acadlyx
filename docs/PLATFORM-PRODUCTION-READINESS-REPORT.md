@@ -62,17 +62,18 @@ No database was accessed or mutated by this remediation. The approval change use
 - Added source-regression checks in `backend/src/__tests__/library-access.test.ts` and `backend/src/__tests__/library.service.test.ts`. These tests have not been executed.
 - Updated issue register; CI status query for latest checked commit returned no status checks and no associated PR workflow runs.
 - **Local shell commands executed:** none.
-- **Frontend build:** not run.
-- **Backend TypeScript check:** not run.
-- **Lint/source validation:** not run.
-- **Prisma schema/migration validation:** not run.
-- **Unit/integration/E2E tests:** not run.
+- **GitHub Actions on prior checked commit `803d56d`:** backend `npm ci`, `npx prisma validate`, `npx prisma generate`, `npm run typecheck`, and `npm run build` passed; `npm test` failed with 160 passed, 1 failed, 9 skipped. The failed test was the new library return inventory source assertion; it incorrectly rejected the intentional legacy copy-less-loan increment and was corrected in commit `a517e36`, after that run. The corrected test has not been rerun.
+- **Frontend build on prior checked commit `803d56d`:** passed.
+- **Latest branch tip:** no associated workflow run/status was returned for later commits; subsequent edits are unverified.
+- **Lint/source validation:** no explicit result established.
+- **Prisma schema validation:** passed on prior checked commit; migration deployment/compatibility was not run.
+- **Unit/integration/E2E tests:** prior backend suite result above; no database-backed integration or E2E tests were run.
 - **Live API/database verification:** not run.
 - **Deployment/merge:** not performed by this remediation.
 
 ## Environmental blockers
 
-1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools. GitHub Actions are available but the current runs have not yet completed.
+1. No verified writable local checkout or shell/dependency execution environment is available through the current connected GitHub tools. GitHub Actions ran on prior commit `803d56d`; subsequent edits did not return associated workflow runs and remain unverified.
 2. No test database, live request credentials, or backend stack trace for the reported Library 500 errors is available in this session.
 3. Representative Chairman, Director, Accounts, Librarian, and Student test accounts and scoped institutional data have not been exercised.
 
