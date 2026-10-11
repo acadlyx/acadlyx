@@ -131,7 +131,7 @@ export function StudentManagement({ onChanged, departmentId }: Props) {
                   const e = student.currentEnrollment;
                   return (
                     <tr key={student.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4"><button onClick={() => void openStudent(student)} className="text-left"><p className="font-semibold text-slate-900">{student.firstName} {student.lastName}</p><p className="text-xs text-slate-400">{student.email}</p></button></td>
+                      <td className="px-4 py-4"><input type="checkbox" aria-label={"Select " + student.firstName + " " + student.lastName} checked={selectedStudentIds.includes(student.id)} onChange={(event) => toggleStudentSelected(student.id, event.target.checked)} /></td><td className="px-4 py-4"><button onClick={() => void openStudent(student)} className="text-left"><p className="font-semibold text-slate-900">{student.firstName} {student.lastName}</p><p className="text-xs text-slate-400">{student.email}</p></button></td>
                       <td className="px-4 py-4 font-medium text-slate-700">{student.profile?.admissionNumber || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{e?.program?.department?.name || "—"}</td>
                       <td className="px-4 py-4 text-slate-600">{e?.program?.name || "Not enrolled"}</td>
