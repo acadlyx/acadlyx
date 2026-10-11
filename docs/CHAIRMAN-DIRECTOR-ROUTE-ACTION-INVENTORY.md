@@ -29,3 +29,10 @@ Baseline: `879a0dc54797d2bee70ed5df80117af456e16c98`. This inventory is delibera
 ## Action inventory rule
 
 For each interactive element, record: source page, label, destination/endpoint, required permission, scope resolver, validation, loading/error/success behavior, idempotency, audit event, and test ID. Do not mark an action complete merely because its button renders. This inventory remains an audit worklist until automated browser coverage exists for every visible action.
+
+
+## Batch 3 route corrections (2026-10-11)
+- `/chairman/operations` no longer imports and aliases the generic `/operations` page. It now presents a separate Chairman executive operations index linking only to existing Chairman routes: intelligence, fee approvals, finance, examinations, students, placements, and reports.
+- `/director/operations` no longer links to global `/students` or `/admissions`. It links to existing Director-specific pages for students, examinations, OBE, fees, placements, reports, and imports.
+- Added `backend/src/__tests__/chairman-director-route-contract.test.ts` to assert these page boundaries and verify that each linked route file exists.
+- These are source-level route contract checks. They have not been executed here, and do not verify page behavior or backend scope for the destination APIs.
