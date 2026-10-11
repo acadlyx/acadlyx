@@ -2539,6 +2539,14 @@ export async function publishExamResults(
   const title = `${session.name} — ${offering.course.code}`;
 
   await prisma.$transaction(async (tx) => {
+    const claimed = await tx.$executeRaw`
+      UPDATE "exam_schedules"
+      SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+        AND "status" = 'LOCKED'
+    `;
+    if (claimed !== 1) throw new AppError("Results were published or the schedule changed concurrently; reload and retry", 409);
+
     let legacyExamId = schedule.legacyExamId;
 
     if (legacyExamId) {
@@ -2609,11 +2617,6 @@ export async function publishExamResults(
         AND "status" = 'APPROVED'
     `;
 
-    await tx.$executeRaw`
-      UPDATE "exam_schedules"
-      SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
-    `;
     await tx.$executeRaw`
       UPDATE "exam_sessions"
       SET "resultStatus"='PUBLISHED', "registrationStatus"=CASE WHEN "registrationRequired" THEN 'CLOSED' ELSE "registrationStatus" END
