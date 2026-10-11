@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { createAssignment, listAssignments } from "@/lib/academicsApi";
@@ -110,6 +111,11 @@ export default function FacultyAssignmentsPage() {
         <Link href="/faculty" className="text-xs font-medium text-slate-500 hover:text-slate-800">
           ← Back to dashboard
         </Link>
+
+        <div className="mb-4 flex flex-wrap gap-3">
+          <DataExportActions type="assignments" compact />
+          <DataExportActions type="assignment-submissions" compact />
+        </div>
 
         <div className="mt-3 mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-slate-900">Assignments</h1>
