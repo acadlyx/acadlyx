@@ -182,7 +182,7 @@ export default function DirectorCalendarPage() {
 
   if (state === "loading") {
     return (
-      <DashboardShell title="Academic Calendar" subtitle="Institutional dates">
+      <DashboardShell title="Director Calendar" subtitle="Campus calendar and institutional dates" allowedRoles={["DIRECTOR"]}>
         <div className="p-8 text-sm text-slate-500">Loading calendar…</div>
       </DashboardShell>
     );
@@ -190,7 +190,7 @@ export default function DirectorCalendarPage() {
 
   if (state === "error") {
     return (
-      <DashboardShell title="Academic Calendar" subtitle="Institutional dates">
+      <DashboardShell title="Director Calendar" subtitle="Campus calendar and institutional dates" allowedRoles={["DIRECTOR"]}>
         <div className="m-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
           {errorMessage}
         </div>
@@ -200,8 +200,9 @@ export default function DirectorCalendarPage() {
 
   return (
     <DashboardShell
-      title="Academic Calendar"
-      subtitle="Holidays, examinations, deadlines and events"
+      title="Director Calendar"
+      subtitle="Campus calendar, holidays, examinations, deadlines and events"
+      allowedRoles={["DIRECTOR"]}
     >
       <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
         <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
