@@ -41,6 +41,23 @@ export const EXPORT_TYPES = [
   "fee-refunds",
   "fee-concessions",
   "fee-audit",
+  "assignments",
+  "assignment-submissions",
+  "library-books",
+  "library-copies",
+  "library-issues",
+  "library-fines",
+  "admission-applications",
+  "employees",
+  "leave-requests",
+  "calendar-events",
+  "institutional-events",
+  "event-media",
+  "placement-companies",
+  "placement-drives",
+  "placement-openings",
+  "placement-applications",
+  "placement-offers",
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
@@ -77,6 +94,23 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, string> = {
   "fee-refunds": "fees.read",
   "fee-concessions": "fees.read",
   "fee-audit": "audit.read",
+  assignments: "assignments.read",
+  "assignment-submissions": "assignments.read",
+  "library-books": "library.read",
+  "library-copies": "library.read",
+  "library-issues": "library.read",
+  "library-fines": "library.read",
+  "admission-applications": "admissions.read",
+  employees: "hr.read",
+  "leave-requests": "hr.read",
+  "calendar-events": "calendar.read",
+  "institutional-events": "events.read",
+  "event-media": "events.read",
+  "placement-companies": "placements.read",
+  "placement-drives": "placements.read",
+  "placement-openings": "placements.read",
+  "placement-applications": "placements.read",
+  "placement-offers": "placements.read",
 };
 
 export interface ExportRequestOptions {
@@ -98,12 +132,31 @@ interface ExportActorScope {
 const SCOPED_EXPORT_TYPES = new Set<ExportType>([
   "students", "faculty", "departments", "programs", "academic-years",
   "semesters", "sections", "courses", "course-offerings", "exams",
-  "marks", "notices", "timetable", "parent-links",
+  "marks", "notices", "timetable", "parent-links", "assignments",
+  "assignment-submissions",
 ]);
 const FINANCE_EXPORT_TYPES = new Set<ExportType>([
   "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
   "fee-heads", "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions", "fee-audit",
 ]);
+
+const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
+  "library-books": ["LIBRARIAN"],
+  "library-copies": ["LIBRARIAN"],
+  "library-issues": ["LIBRARIAN"],
+  "library-fines": ["LIBRARIAN"],
+  "admission-applications": ["ADMISSIONS"],
+  employees: ["HR"],
+  "leave-requests": ["HR"],
+  "calendar-events": ["INSTITUTION_ADMIN", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY", "ADMISSIONS", "EXAMINATION", "HR", "LIBRARIAN", "PLACEMENT", "IT"],
+  "institutional-events": ["INSTITUTION_ADMIN", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "PLACEMENT", "IT"],
+  "event-media": ["INSTITUTION_ADMIN", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "PLACEMENT", "IT"],
+  "placement-companies": ["PLACEMENT"],
+  "placement-drives": ["PLACEMENT"],
+  "placement-openings": ["PLACEMENT"],
+  "placement-applications": ["PLACEMENT"],
+  "placement-offers": ["PLACEMENT"],
+};
 
 async function assertExportAccess(
   institutionId: string,
@@ -117,6 +170,13 @@ async function assertExportAccess(
   }
   const institutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
   if (institutionWide) {
+    return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
+  }
+  const moduleRoles = MODULE_EXPORT_ROLES[type];
+  if (moduleRoles) {
+    if (!moduleRoles.some((role) => roles.has(role))) {
+      throw new AppError("Export requires the corresponding module workspace role", 403);
+    }
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
   const scopedAcademicRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY"].some((role) => roles.has(role));
@@ -260,6 +320,23 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   "fee-refunds": ["search", "status", "reason", "dateFrom", "dateTo"],
   "fee-concessions": ["search", "status", "type", "reason", "dateFrom", "dateTo"],
   "fee-audit": ["search", "action", "entityType", "dateFrom", "dateTo"],
+  assignments: ["search", "courseCode", "section", "status", "dateFrom", "dateTo"],
+  "assignment-submissions": ["search", "courseCode", "section", "status", "dateFrom", "dateTo"],
+  "library-books": ["search", "author", "category", "isActive"],
+  "library-copies": ["search", "accessionNumber", "barcode", "status", "condition"],
+  "library-issues": ["search", "borrowerEmail", "bookTitle", "status", "dateFrom", "dateTo"],
+  "library-fines": ["search", "status", "type", "dateFrom", "dateTo"],
+  "admission-applications": ["search", "status", "program", "academicYear", "dateFrom", "dateTo"],
+  employees: ["search", "employeeCode", "department", "designation", "status"],
+  "leave-requests": ["search", "status", "leaveType", "dateFrom", "dateTo"],
+  "calendar-events": ["search", "eventType", "audience", "dateFrom", "dateTo"],
+  "institutional-events": ["search", "status", "publicationStatus", "department", "dateFrom", "dateTo"],
+  "event-media": ["search", "eventTitle", "mediaType", "dateFrom", "dateTo"],
+  "placement-companies": ["search", "industry", "relationshipStatus"],
+  "placement-drives": ["search", "status", "company", "campusId", "dateFrom", "dateTo"],
+  "placement-openings": ["search", "role", "employmentType", "location", "dateFrom", "dateTo"],
+  "placement-applications": ["search", "status", "company", "admissionNumber", "dateFrom", "dateTo"],
+  "placement-offers": ["search", "status", "company", "joiningStatus", "dateFrom", "dateTo"],
 };
 
 const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
@@ -287,6 +364,23 @@ const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   "fee-refunds": "createdAt",
   "fee-concessions": "createdAt",
   "fee-audit": "createdAt",
+  assignments: "dueDate",
+  "assignment-submissions": "submittedAt",
+  "library-books": "createdAt",
+  "library-copies": "createdAt",
+  "library-issues": "issuedAt",
+  "library-fines": "createdAt",
+  "admission-applications": "submittedAt",
+  employees: "joiningDate",
+  "leave-requests": "fromDate",
+  "calendar-events": "startDate",
+  "institutional-events": "eventDate",
+  "event-media": "createdAt",
+  "placement-companies": "createdAt",
+  "placement-drives": "driveDate",
+  "placement-openings": "deadline",
+  "placement-applications": "appliedAt",
+  "placement-offers": "offerDate",
 };
 
 function applyExportOptions(rows: Row[], type: ExportType, options: ExportRequestOptions): Row[] {
