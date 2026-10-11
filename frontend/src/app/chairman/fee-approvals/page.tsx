@@ -12,6 +12,7 @@ export default function ChairmanFeeApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [canApprove, setCanApprove] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -21,14 +22,14 @@ export default function ChairmanFeeApprovalsPage() {
       if (!user.permissions.includes("fees.structure.approve")) {
         setCanApprove(false);
         setRows([]);
-        setError("Your account does not have fee-structure approval permission.");
+        setError("");
         return;
       }
       setCanApprove(true);
       setRows(await listFeeStructures({ status: "PENDING_APPROVAL" }));
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
-      else setError(e instanceof Error ? e.message : "Unable to load pending fee approvals.");
+      else setError("Pending fee approvals could not be loaded. Please retry; the failure has been recorded by the server.");
     } finally {
       setLoading(false);
     }
@@ -37,16 +38,25 @@ export default function ChairmanFeeApprovalsPage() {
   useEffect(() => { void load(); }, [load]);
 
   async function approve(row: FeeStructure) {
+    if (busyId) return;
     if (!window.confirm(`Approve “${row.name}”? This makes the structure eligible for fee assignment.`)) return;
+    setBusyId(row.id);
+    setError("");
     try { await approveFeeStructure(row.id); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Unable to approve this fee structure."); }
+    catch { setError("This fee structure could not be approved. Its status may have changed; refresh the queue and review the current record."); }
+    finally { setBusyId(null); }
   }
 
   async function reject(row: FeeStructure) {
+    if (busyId) return;
     const reason = window.prompt("Enter the reason for rejection (required):");
     if (reason === null) return;
+    if (reason.trim().length < 3) { setError("Enter a rejection reason of at least 3 characters."); return; }
+    setBusyId(row.id);
+    setError("");
     try { await rejectFeeStructure(row.id, reason); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Unable to reject this fee structure."); }
+    catch { setError("This fee structure could not be rejected. Its status may have changed; refresh the queue and review the current record."); }
+    finally { setBusyId(null); }
   }
 
   return <DashboardShell title="Fee Structure Approvals" subtitle="Review pending institutional fee structures" allowedRoles={["CHAIRMAN"]}>
@@ -66,7 +76,7 @@ export default function ChairmanFeeApprovalsPage() {
           </div>
           <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b text-xs text-slate-500"><th className="py-2 pr-3">Fee head</th><th className="py-2 pr-3">Installment</th><th className="py-2 text-right">Amount</th></tr></thead><tbody>{row.items.map(item => <tr key={item.id} className="border-b last:border-0"><td className="py-2 pr-3">{item.feeHeadName}</td><td className="py-2 pr-3">{item.installmentNumber}</td><td className="py-2 text-right">{new Intl.NumberFormat("en-IN", { style: "currency", currency: row.currency || "INR" }).format(item.amount)}</td></tr>)}</tbody></table></div>
           {row.notes && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">Notes: {row.notes}</p>}
-          <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void approve(row)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Approve fee structure</button><button type="button" onClick={() => void reject(row)} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-bold text-red-700">Reject with reason</button></div>
+          <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={busyId !== null || loading} onClick={() => void approve(row)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyId === row.id ? "Processing…" : "Approve fee structure"}</button><button type="button" disabled={busyId !== null || loading} onClick={() => void reject(row)} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busyId === row.id ? "Processing…" : "Reject with reason"}</button></div>
         </article>)}</div>}
     </main>
   </DashboardShell>;

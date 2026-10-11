@@ -45,7 +45,7 @@ export function RoleScopedStudents({
           reason instanceof AuthRequiredError
             ? "Your session has expired. Please sign in again."
             : reason instanceof Error
-              ? reason.message
+              ? "Unable to load students in the current authorized scope."
               : "Unable to load students."
         );
       })

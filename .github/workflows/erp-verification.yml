@@ -2,7 +2,7 @@ name: ACADLYX ERP verification
 
 on:
   push:
-    branches: ["production-upgrade-2026-09-20", "stabilization-platform-2026-10-09"]
+    branches: ["production-upgrade-2026-09-20", "stabilization-platform-2026-10-09", "chairman-director-enterprise-workspaces-2026-10-11"]
   pull_request:
     branches: ["production-upgrade-2026-09-20"]
 
@@ -12,6 +12,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acadlyx
+          POSTGRES_PASSWORD: acadlyx
+          POSTGRES_DB: acadlyx_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U acadlyx -d acadlyx_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -27,6 +41,7 @@ jobs:
       - run: npm ci
       - run: npx prisma validate
       - run: npx prisma generate
+      - run: npx prisma migrate deploy
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
@@ -47,3 +62,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+      - name: Smoke-test Chairman and Director routes
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/acadlyx-next.log 2>&1 &
+          echo $! > /tmp/acadlyx-next.pid
+          node scripts/smoke-chairman-director-routes.mjs

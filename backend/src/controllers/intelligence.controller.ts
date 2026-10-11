@@ -46,7 +46,10 @@ export const commandCenter = asyncHandler(async (req, res) => {
   const requestedDepartment = typeof req.query.departmentId === "string" ? req.query.departmentId : undefined;
   if (requestedDepartment && allowed && !allowed.includes(requestedDepartment)) throw new AppError("Department not authorized", 403);
   const departmentId = requestedDepartment || (allowed?.length === 1 ? allowed[0] : undefined);
-  if (allowed && !departmentId) throw new AppError("A department or campus scope is required for this account", 403);
+  // Multi-department leadership roles retain their full assigned scope when
+  // no single department is selected. Empty assignments stay empty and never
+  // fall back to institution-wide data.
+  const departmentIds = allowed && !departmentId ? allowed : undefined;
   const parseDate = (value: unknown) => {
     if (typeof value !== "string") return undefined;
     const date = new Date(value);
@@ -61,23 +64,30 @@ export const commandCenter = asyncHandler(async (req, res) => {
       programId ? prisma.program.findFirst({ where: { id: programId, institutionId }, select: { id: true, departmentId: true } }) : Promise.resolve(null),
       semesterId ? prisma.semester.findFirst({ where: { id: semesterId, institutionId }, select: { id: true, programId: true } }) : Promise.resolve(null),
     ]);
-    if (programId && !program) throw new AppError("Program not authorized", 403);
-    if (semesterId && !semester) throw new AppError("Semester not authorized", 403);
+    if (programId && !program) throw new AppError("Program not found in this institution", 404);
+    if (semesterId && !semester) throw new AppError("Semester not found in this institution", 404);
+    if (allowed && program && !allowed.includes(program.departmentId)) throw new AppError("Program not found in the assigned scope", 404);
     if (departmentId && program && program.departmentId !== departmentId) throw new AppError("Program does not belong to the selected department", 400);
     if (program && semester && program.id !== semester.programId) throw new AppError("Semester does not belong to the selected program", 400);
-    if (departmentId && semester && !program) {
+    if (semester && !program) {
       const semesterProgram = await prisma.program.findFirst({ where: { id: semester.programId, institutionId }, select: { departmentId: true } });
-      if (!semesterProgram || semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
+      if (!semesterProgram) throw new AppError("Semester not found in this institution", 404);
+      if (departmentId && semesterProgram.departmentId !== departmentId) throw new AppError("Semester does not belong to the selected department", 400);
+      if (allowed && !allowed.includes(semesterProgram.departmentId)) throw new AppError("Semester not found in the assigned scope", 404);
     }
   }
 
   const data = await intelligence.getInstitutionInsights(institutionId, {
     departmentId,
+    departmentIds,
     programId,
     semesterId,
     from: parseDate(req.query.from),
     to: parseDate(req.query.to),
   });
-  const atRiskStudents = await intelligence.getAtRiskStudents(institutionId, departmentId ? [departmentId] : undefined);
+  const atRiskStudents = await intelligence.getAtRiskStudents(
+    institutionId,
+    departmentId ? [departmentId] : allowed,
+  );
   res.json({ success: true, data: { ...data, atRiskStudents } });
 });

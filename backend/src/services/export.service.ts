@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { createCsv, createDocx, createPdf } from "./exportDocuments.service";
 import { prisma } from "../lib/prisma";
@@ -181,6 +181,10 @@ const FINANCE_EXPORT_TYPES = new Set<ExportType>([
   "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
   "fee-heads", "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions", "fee-audit",
 ]);
+const DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES = new Set<ExportType>([
+  "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
+  "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions",
+]);
 
 const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "library-books": ["LIBRARIAN"],
@@ -207,7 +211,11 @@ async function assertExportAccess(
 ): Promise<ExportActorScope> {
   const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const permission = EXPORT_PERMISSION_BY_TYPE[type];
-  if (!permission || !actor.permissions.includes(permission)) {
+  const hasScopedFinanceExportPermission =
+    roles.has("DIRECTOR") &&
+    DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type) &&
+    actor.permissions.includes("fees.reports.export");
+  if (!permission || (!actor.permissions.includes(permission) && !hasScopedFinanceExportPermission)) {
     throw new AppError("You do not have permission to export this dataset", 403);
   }
   const institutionWide = INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
@@ -225,13 +233,14 @@ async function assertExportAccess(
   if (!scopedAcademicRole) {
     throw new AppError("Export is not available for this role", 403);
   }
-  if (FINANCE_EXPORT_TYPES.has(type) || type === "users") {
+  const directorScopedFinance = roles.has("DIRECTOR") && DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type);
+  if ((FINANCE_EXPORT_TYPES.has(type) && !directorScopedFinance) || type === "users") {
     throw new AppError("This export requires institution-wide finance or user-directory authority", 403);
   }
   if (type === "campuses" && !roles.has("DIRECTOR")) {
     throw new AppError("Campus export requires an assigned Director campus scope", 403);
   }
-  if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses") {
+  if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses" && !directorScopedFinance) {
     throw new AppError("This dataset does not support scoped export for this role", 403);
   }
   const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
@@ -526,6 +535,57 @@ export async function exportData(
   const scope = await assertExportAccess(institutionId, actor, type);
   const noScopeSentinel = "__NO_AUTHORIZED_SCOPE__";
   const scopedDepartmentFilter = { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] };
+  const scopedStudentFilter = {
+    student: {
+      AND: [
+        {
+          studentEnrollments: {
+            some: {
+              institutionId,
+              program: { departmentId: scopedDepartmentFilter },
+            },
+          },
+        },
+        {
+          NOT: {
+            studentEnrollments: {
+              some: {
+                institutionId,
+                program: { departmentId: { notIn: scope.departmentIds } },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+  if (!scope.institutionWide) {
+    const filters = options.filters ?? {};
+    if (filters.departmentId && !scope.departmentIds.includes(filters.departmentId)) {
+      throw new AppError("Department filter is outside the authorized export scope", 404);
+    }
+    if (filters.programId) {
+      const program = await prisma.program.findFirst({
+        where: { id: filters.programId, institutionId, departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } },
+        select: { id: true },
+      });
+      if (!program) throw new AppError("Program filter is outside the authorized export scope", 404);
+    }
+    if (filters.semesterId) {
+      const semester = await prisma.semester.findFirst({
+        where: { id: filters.semesterId, institutionId, program: { departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } } },
+        select: { id: true },
+      });
+      if (!semester) throw new AppError("Semester filter is outside the authorized export scope", 404);
+    }
+    if (filters.sectionId) {
+      const section = await prisma.section.findFirst({
+        where: { id: filters.sectionId, institutionId, semester: { program: { departmentId: { in: scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel] } } } },
+        select: { id: true },
+      });
+      if (!section) throw new AppError("Section filter is outside the authorized export scope", 404);
+    }
+  }
   const rows: Row[] = [];
 
   if (type === "users") {
@@ -556,6 +616,7 @@ export async function exportData(
         profile: true,
         studentEnrollments: {
           where: {
+            ...(scope.institutionWide ? {} : { program: { departmentId: scopedDepartmentFilter } }),
             ...(options.filters?.programId ? { programId: options.filters.programId } : {}),
             ...(options.filters?.sectionId ? { sectionId: options.filters.sectionId } : {}),
             ...(options.filters?.semesterId ? { section: { semesterId: options.filters.semesterId } } : {}),
@@ -652,13 +713,29 @@ export async function exportData(
   }
 
   if (type === "fee-structures") {
-    const data = await prisma.$queryRaw<Array<any>>`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ORDER BY fs."name", fsi."installmentNumber", fh."code"`;
+    const data = await prisma.$queryRaw<Array<any>>(Prisma.sql`SELECT fs."id", fs."name", fs."status", fs."currency", fs."notes", fs."academicYearId", fs."programId", fs."semesterId", fh."code" AS "feeHeadCode", fh."name" AS "feeHeadName", fsi."amount", fsi."dueDays", fsi."installmentNumber" FROM "fee_structures" fs LEFT JOIN "fee_structure_items" fsi ON fsi."feeStructureId" = fs."id" LEFT JOIN "fee_heads" fh ON fh."id" = fsi."feeHeadId" WHERE fs."institutionId" = ${institutionId} ${scope.institutionWide ? Prisma.empty : Prisma.sql`AND (
+  (fs."programId" IS NOT NULL AND fs."programId" IN (
+    SELECT p."id" FROM "programs" p WHERE p."institutionId" = ${institutionId}
+      AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+  ))
+  OR (fs."programId" IS NULL AND fs."semesterId" IN (
+    SELECT sem."id" FROM "semesters" sem
+    JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+    WHERE sem."institutionId" = ${institutionId}
+      AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+  ))
+) AND (fs."semesterId" IS NULL OR fs."semesterId" IN (
+  SELECT sem."id" FROM "semesters" sem
+  JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+  WHERE sem."institutionId" = ${institutionId}
+    AND p."departmentId" IN (${Prisma.join(scope.departmentIds.length ? scope.departmentIds : [noScopeSentinel])})
+))`} ORDER BY fs."name", fsi."installmentNumber", fh."code"`);
     for (const r of data) rows.push({ id: r.id, name: r.name, status: r.status, currency: r.currency, notes: r.notes, academicYearId: r.academicYearId, programId: r.programId, semesterId: r.semesterId, feeHeadCode: r.feeHeadCode, feeHeadName: r.feeHeadName, amount: r.amount, dueDays: r.dueDays, installmentNumber: r.installmentNumber });
   }
 
   if (type === "fees" || type === "fee-payments" || type === "paid-fees" || type === "outstanding-dues") {
     const data = await collectInBatches((skip, take) => prisma.feeInvoice.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : scopedStudentFilter) },
       include: { student: { include: { profile: true } }, payments: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -699,7 +776,7 @@ export async function exportData(
 
   if (type === "fee-receipts") {
     const data = await collectInBatches((skip, take) => prisma.feeReceipt.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : scopedStudentFilter) },
       include: { payment: true, invoice: true, student: { include: { profile: true } } },
       orderBy: { issuedAt: "desc" },
     }));
@@ -708,7 +785,7 @@ export async function exportData(
 
   if (type === "fee-transactions") {
     const data = await collectInBatches((skip, take) => prisma.feeTransaction.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -717,7 +794,7 @@ export async function exportData(
 
   if (type === "fee-refunds") {
     const data = await collectInBatches((skip, take) => prisma.feeRefund.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true, payment: true },
       orderBy: { createdAt: "desc" },
     }));
@@ -726,7 +803,7 @@ export async function exportData(
 
   if (type === "fee-concessions") {
     const data = await collectInBatches((skip, take) => prisma.feeConcession.findMany({
-      skip, take, where: { institutionId },
+      skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { student: { AND: [scopedStudentFilter.student] } }) },
       include: { student: { include: { profile: true } }, invoice: true, feeStructure: true },
       orderBy: { createdAt: "desc" },
     }));

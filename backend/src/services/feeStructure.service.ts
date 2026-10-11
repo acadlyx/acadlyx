@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { hasFeeActionPermission } from "./feeAuthorization";
+import { getDirectorDepartmentIds } from "./accessScope.service";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -440,6 +441,54 @@ export async function updateFeeHead(
   return feeHead;
 }
 
+/**
+ * Director fee visibility and decisions are campus-scoped. A fee structure
+ * must identify a program whose department belongs to a campus explicitly
+ * assigned through CampusAccess. Unscoped structures remain institution-wide
+ * and are intentionally not exposed to campus directors.
+ */
+async function assertFeeStructureInActorScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  structureId: string,
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+
+  const rows = await prisma.$queryRaw<Array<{
+    programId: string | null;
+    semesterId: string | null;
+    programDepartmentId: string | null;
+    semesterDepartmentId: string | null;
+  }>>(Prisma.sql`
+    SELECT fs."programId", fs."semesterId",
+      direct_program."departmentId" AS "programDepartmentId",
+      semester_program."departmentId" AS "semesterDepartmentId"
+    FROM "fee_structures" fs
+    LEFT JOIN "programs" direct_program
+      ON direct_program."id" = fs."programId"
+      AND direct_program."institutionId" = fs."institutionId"
+    LEFT JOIN "semesters" semester_scope
+      ON semester_scope."id" = fs."semesterId"
+      AND semester_scope."institutionId" = fs."institutionId"
+    LEFT JOIN "programs" semester_program
+      ON semester_program."id" = semester_scope."programId"
+      AND semester_program."institutionId" = fs."institutionId"
+    WHERE fs."id" = ${structureId}
+      AND fs."institutionId" = ${institutionId}
+    LIMIT 1
+  `);
+  const row = rows[0];
+  const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (
+    !row ||
+    (!row.programId && !row.semesterId) ||
+    (row.programId && (!row.programDepartmentId || !allowedDepartmentIds.includes(row.programDepartmentId))) ||
+    (row.semesterId && (!row.semesterDepartmentId || !allowedDepartmentIds.includes(row.semesterDepartmentId)))
+  ) {
+    throw new AppError("Fee structure not found in your campus scope", 404);
+  }
+}
+
 export async function listFeeStructures(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -463,6 +512,29 @@ export async function listFeeStructures(
   const conditions: Prisma.Sql[] = [
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
+
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (departmentIds.length === 0) return [];
+    conditions.push(Prisma.sql`(
+      (fs."programId" IS NOT NULL AND fs."programId" IN (
+        SELECT p."id" FROM "programs" p
+        WHERE p."institutionId" = ${institutionId}
+          AND p."departmentId" IN (${Prisma.join(departmentIds)})
+      ))
+      OR (fs."programId" IS NULL AND fs."semesterId" IN (
+        SELECT sem."id" FROM "semesters" sem
+        JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+        WHERE sem."institutionId" = ${institutionId}
+          AND p."departmentId" IN (${Prisma.join(departmentIds)})
+      ))
+    ) AND (fs."semesterId" IS NULL OR fs."semesterId" IN (
+      SELECT sem."id" FROM "semesters" sem
+      JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+      WHERE sem."institutionId" = ${institutionId}
+        AND p."departmentId" IN (${Prisma.join(departmentIds)})
+    ))`);
+  }
 
   if (input?.status) {
     conditions.push(
@@ -918,15 +990,27 @@ export async function approveFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   // A creator cannot approve their own submission, even if they hold both permissions.
-  const changed = await prisma.$executeRaw(Prisma.sql`
-    UPDATE "fee_structures"
-    SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${structureId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'PENDING_APPROVAL'
-      AND "createdById" <> ${actor.id}
-  `);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql`
+      UPDATE "fee_structures"
+      SET "status" = 'ACTIVE', "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'PENDING_APPROVAL'
+        AND "createdById" <> ${actor.id}
+    `);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.approve",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "ACTIVE" },
+      },
+    });
+    return count;
+  });
   if (changed !== 1) {
     const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
       SELECT "status", "createdById" FROM "fee_structures"
@@ -936,11 +1020,6 @@ export async function approveFeeStructure(
     if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot approve their own submission", 403);
     throw new AppError("Only a pending fee structure can be approved", 409);
   }
-  await recordAuditLog({
-    institutionId, userId: actor.id, action: "fee-structure.approve",
-    entityType: "FeeStructure", entityId: structureId,
-    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "ACTIVE" },
-  });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 
@@ -953,18 +1032,30 @@ export async function rejectFeeStructure(
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure rejection is not authorized", 403);
   }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   const normalizedReason = reason.trim();
   if (normalizedReason.length < 3 || normalizedReason.length > 1000) {
     throw new AppError("A rejection reason between 3 and 1000 characters is required", 422);
   }
-  const changed = await prisma.$executeRaw(Prisma.sql`
-    UPDATE "fee_structures"
-    SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), CHR(10), '[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
-    WHERE "id" = ${structureId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'PENDING_APPROVAL'
-      AND "createdById" <> ${actor.id}
-  `);
+  const changed = await prisma.$transaction(async (tx) => {
+    const count = await tx.$executeRaw(Prisma.sql`
+      UPDATE "fee_structures"
+      SET "status" = 'REJECTED', "notes" = CONCAT(COALESCE("notes", ''), CHR(10), '[Approval rejection] ', ${normalizedReason}), "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${structureId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'PENDING_APPROVAL'
+        AND "createdById" <> ${actor.id}
+    `);
+    if (count !== 1) return count;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "fee-structure.reject",
+        entityType: "FeeStructure", entityId: structureId,
+        metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "REJECTED", reason: normalizedReason },
+      },
+    });
+    return count;
+  });
   if (changed !== 1) {
     const rows = await prisma.$queryRaw<Array<{ status: string; createdById: string }>>(Prisma.sql`
       SELECT "status", "createdById" FROM "fee_structures"
@@ -974,11 +1065,6 @@ export async function rejectFeeStructure(
     if (rows[0].createdById === actor.id) throw new AppError("The fee structure creator cannot reject their own submission", 403);
     throw new AppError("Only a pending fee structure can be rejected", 409);
   }
-  await recordAuditLog({
-    institutionId, userId: actor.id, action: "fee-structure.reject",
-    entityType: "FeeStructure", entityId: structureId,
-    metadata: { fromStatus: "PENDING_APPROVAL", toStatus: "REJECTED", reason: normalizedReason },
-  });
   return (await listFeeStructures(institutionId, actor, {})).find(x => x.id === structureId) ?? null;
 }
 

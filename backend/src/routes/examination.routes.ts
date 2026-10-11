@@ -835,6 +835,7 @@ router.get(
     const pagination = parsePagination(req);
     const { items, total } = await service.listExamIncidents(
       requireInstitution(req),
+      requireAuthenticatedUser(req),
       pagination,
       {
         status: req.query.status as string | undefined,

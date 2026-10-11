@@ -18,7 +18,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
@@ -454,6 +454,129 @@ async function assertCanConductSchedule(
   if (!rows.length) throw new AppError("You are not assigned to this examination duty",403);
 }
 
+
+/** Verify the resource scope after role-level approval permission. */
+async function assertExamApprovalScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  schedule: ExamScheduleRow,
+): Promise<void> {
+  assertExamApprover(actor);
+  await assertCanReadSchedule(institutionId, actor, schedule);
+}
+
+/**
+ * Directors can only create/edit sessions explicitly assigned to at least one
+ * campus or department they control. Empty targets must never mean "all".
+ */
+async function assertDirectorSessionTargetsInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  targets: {
+    campusIds?: string[];
+    departmentIds?: string[];
+    programIds?: string[];
+    semesterIds?: string[];
+    sectionIds?: string[];
+    studentIds?: string[];
+  },
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+
+  const [campusIds, departmentIds] = await Promise.all([
+    getDirectorCampusIds(institutionId, actor.id),
+    getDirectorDepartmentIds(institutionId, actor.id),
+  ]);
+  if (!campusIds.length || !departmentIds.length) {
+    throw new AppError("No campus scope is assigned to this account", 403);
+  }
+
+  const requestedCampuses = targets.campusIds ?? [];
+  const requestedDepartments = targets.departmentIds ?? [];
+  const requestedPrograms = targets.programIds ?? [];
+  const requestedSemesters = targets.semesterIds ?? [];
+  const requestedSections = targets.sectionIds ?? [];
+  const requestedStudents = targets.studentIds ?? [];
+
+  if (![requestedCampuses, requestedDepartments, requestedPrograms, requestedSemesters, requestedSections, requestedStudents].some((ids) => ids.length)) {
+    throw new AppError("Select at least one campus or academic scope assigned to this account", 400);
+  }
+  if (requestedCampuses.some((id) => !campusIds.includes(id))) {
+    throw new AppError("One or more selected campuses are outside the assigned scope", 404);
+  }
+  if (requestedDepartments.some((id) => !departmentIds.includes(id))) {
+    throw new AppError("One or more selected departments are outside the assigned scope", 404);
+  }
+
+  if (requestedPrograms.length) {
+    const rows = await prisma.program.findMany({
+      where: { institutionId, id: { in: requestedPrograms }, departmentId: { in: departmentIds } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedPrograms).size) throw new AppError("One or more programs are outside the assigned scope", 404);
+  }
+  if (requestedSemesters.length) {
+    const rows = await prisma.semester.findMany({
+      where: { institutionId, id: { in: requestedSemesters }, program: { departmentId: { in: departmentIds } } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedSemesters).size) throw new AppError("One or more semesters are outside the assigned scope", 404);
+  }
+  if (requestedSections.length) {
+    const rows = await prisma.section.findMany({
+      where: { institutionId, id: { in: requestedSections }, semester: { program: { departmentId: { in: departmentIds } } } },
+      select: { id: true },
+    });
+    if (rows.length !== new Set(requestedSections).size) throw new AppError("One or more sections are outside the assigned scope", 404);
+  }
+  for (const studentId of requestedStudents) await assertCanViewStudent(institutionId, actor, studentId);
+}
+
+async function assertDirectorCanAccessSession(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  session: ExamSessionRow,
+): Promise<void> {
+  if (!actor.roles.includes("DIRECTOR")) return;
+  const [campusIds, departmentIds] = await Promise.all([
+    getDirectorCampusIds(institutionId, actor.id),
+    getDirectorDepartmentIds(institutionId, actor.id),
+  ]);
+  if (!campusIds.length || !departmentIds.length) throw new AppError("Examination session not found in the assigned scope", 404);
+
+  const sessionCampuses = jsonStringArray(session.campusIds);
+  const sessionDepartments = jsonStringArray(session.departmentIds);
+  if (sessionCampuses.some((id) => !campusIds.includes(id)) ||
+      sessionDepartments.some((id) => !departmentIds.includes(id))) {
+    throw new AppError("Examination session not found in the assigned scope", 404);
+  }
+  const outsideRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT es."id"
+    FROM "exam_schedules" es
+    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+    JOIN "courses" c ON c."id" = co."courseId"
+    WHERE es."institutionId" = ${institutionId}
+      AND es."examSessionId" = ${session.id}
+      AND c."departmentId" NOT IN (${Prisma.join(departmentIds)})
+    LIMIT 1
+  `);
+  if (outsideRows.length) throw new AppError("Examination session contains a schedule outside the assigned scope", 404);
+
+  if (sessionCampuses.length || sessionDepartments.length) return;
+
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT es."id"
+    FROM "exam_schedules" es
+    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+    JOIN "courses" c ON c."id" = co."courseId"
+    WHERE es."institutionId" = ${institutionId}
+      AND es."examSessionId" = ${session.id}
+      AND c."departmentId" IN (${Prisma.join(departmentIds)})
+    LIMIT 1
+  `);
+  if (!rows.length) throw new AppError("Examination session not found in the assigned scope", 404);
+}
+
 // ==========================================================
 // EXAM SESSIONS
 // ==========================================================
@@ -489,6 +612,7 @@ export async function createExamSession(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertExamController(actor);
+  await assertDirectorSessionTargetsInScope(institutionId, actor, input);
   assertValue(input.examType, EXAM_TYPES, "examType");
 
   if (input.endDate < input.startDate) {
@@ -644,15 +768,31 @@ export async function listExamSessions(
       )
     )`);
   } else if (roles.includes("DIRECTOR")) {
-    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!ids.length) return { items: [], total: 0 };
+    const [ids, campusIds] = await Promise.all([
+      getDirectorDepartmentIds(institutionId, actor.id),
+      getDirectorCampusIds(institutionId, actor.id),
+    ]);
+    if (!ids.length || !campusIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`(
-      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
-      OR EXISTS (
-        SELECT 1 FROM "exam_schedules" es
-        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-        JOIN "courses" c ON c."id"=co."courseId"
-        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+      (
+        (("campusIds" <> '[]'::jsonb AND "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
+          OR ("departmentIds" <> '[]'::jsonb AND "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
+          OR EXISTS (
+            SELECT 1 FROM "exam_schedules" es
+            JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+            JOIN "courses" c ON c."id"=co."courseId"
+            WHERE es."examSessionId"="exam_sessions"."id"
+              AND es."institutionId"=${institutionId}
+              AND c."departmentId" IN (${Prisma.join(ids)})
+          ))
+        AND NOT EXISTS (
+          SELECT 1 FROM "exam_schedules" outside_schedule
+          JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
+          JOIN "courses" outside_course ON outside_course."id"=outside_offering."courseId"
+          WHERE outside_schedule."examSessionId"="exam_sessions"."id"
+            AND outside_schedule."institutionId"=${institutionId}
+            AND outside_course."departmentId" NOT IN (${Prisma.join(ids)})
+        )
       )
     )`);
   }
@@ -689,6 +829,7 @@ export async function getExamSession(
   examSessionId: string
 ) {
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (actor.roles.includes("STUDENT")) {
     const context = await loadStudentExamContext(institutionId, actor.id);
     if (!sessionTargetsStudent(session, context, actor.id)) throw new AppError("Examination is outside your academic scope",403);
@@ -749,6 +890,7 @@ export async function updateExamSessionStatus(
   assertExamController(actor);
   const status = assertValue(nextStatus, SESSION_STATUSES, "status");
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
 
   if (!SESSION_TRANSITIONS[session.status].includes(status)) {
     throw new AppError(
@@ -773,13 +915,15 @@ export async function updateExamSessionStatus(
     }
   }
 
-  await prisma.$executeRaw`
+  const changed = await prisma.$executeRaw`
     UPDATE "exam_sessions"
     SET "status" = ${status},
         "resultPublishedAt" = CASE WHEN ${status} = 'PUBLISHED'
           THEN CURRENT_TIMESTAMP ELSE "resultPublishedAt" END
     WHERE "id" = ${examSessionId} AND "institutionId" = ${institutionId}
+      AND "status" = ${session.status}
   `;
+  if (changed !== 1) throw new AppError("This examination session changed concurrently; reload and retry", 409);
 
   await recordAuditLog({
     institutionId,
@@ -803,6 +947,18 @@ export async function updateExamSession(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
+  const scopeFieldsProvided = ["campusIds", "departmentIds", "programIds", "semesterIds", "sectionIds", "studentIds"].some((key) => Object.prototype.hasOwnProperty.call(input, key));
+  if (scopeFieldsProvided) {
+    await assertDirectorSessionTargetsInScope(institutionId, actor, {
+      campusIds: input.campusIds ?? jsonStringArray(session.campusIds),
+      departmentIds: input.departmentIds ?? jsonStringArray(session.departmentIds),
+      programIds: input.programIds ?? jsonStringArray(session.programIds),
+      semesterIds: input.semesterIds ?? jsonStringArray(session.semesterIds),
+      sectionIds: input.sectionIds ?? jsonStringArray(session.sectionIds),
+      studentIds: input.studentIds ?? jsonStringArray(session.studentIds),
+    });
+  }
 
   if (session.status === "PUBLISHED" || session.status === "CANCELLED") {
     throw new AppError(
@@ -1026,6 +1182,7 @@ export async function createExamSchedule(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, input.examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (["PUBLISHED", "CANCELLED", "COMPLETED"].includes(session.status)) {
     throw new AppError(
       "Schedules cannot be added to a completed or published session",
@@ -1033,6 +1190,14 @@ export async function createExamSchedule(
     );
   }
   await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    const offering = await prisma.courseOffering.findFirst({
+      where: { id: input.courseOfferingId, institutionId, semester: { program: { departmentId: { in: departmentIds } } } },
+      select: { id: true },
+    });
+    if (!offering) throw new AppError("Course offering not found in the assigned campus scope", 404);
+  }
 
   if (input.passMarks > input.maxMarks) {
     throw new AppError("passMarks cannot exceed maxMarks", 400);
@@ -1108,6 +1273,7 @@ export async function updateExamSchedule(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
 
   if (["LOCKED", "RESULTS_PUBLISHED"].includes(schedule.status)) {
     throw new AppError(
@@ -1229,6 +1395,7 @@ export async function allocateSeating(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
   if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
     throw new AppError(
       "Seating cannot be changed after the schedule is locked",
@@ -1340,6 +1507,7 @@ export async function assignInvigilators(
 ) {
   assertExamController(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertCanReadSchedule(institutionId, actor, schedule);
   if (["RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
     throw new AppError(
       "Invigilation cannot be changed after results are published",
@@ -1472,6 +1640,7 @@ export async function generateHallTickets(
 ) {
   assertExamController(actor);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (session.status === "DRAFT") throw new AppError("Schedule the session before issuing hall tickets", 409);
 
   const students = await prisma.$queryRaw<Array<{ studentId: string }>>(Prisma.sql`
@@ -1575,19 +1744,24 @@ export async function updateHallTicketStatus(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertExamController(actor);
-  await requireTenantRow(
+  const ticket = await requireTenantRow<{ id: string; examSessionId: string; studentId: string; status: string }>(
     prisma,
     "hall_tickets",
     institutionId,
     hallTicketId,
     "Hall ticket"
   );
+  const ticketSession = await loadSession(institutionId, ticket.examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, ticketSession);
+  if (["REVOKED"].includes(ticket.status)) throw new AppError("A revoked hall ticket cannot be changed", 409);
 
-  await prisma.$executeRaw`
+  const changed = await prisma.$executeRaw`
     UPDATE "hall_tickets"
     SET "status" = ${status}, "blockedReason" = ${reason ?? null}
     WHERE "id" = ${hallTicketId} AND "institutionId" = ${institutionId}
+      AND "status" = ${ticket.status}
   `;
+  if (changed !== 1) throw new AppError("This hall ticket changed concurrently; reload and retry", 409);
 
   await recordAuditLog({
     institutionId,
@@ -1817,6 +1991,7 @@ export async function generateStudentMarksheetPdf(
 ): Promise<{ buffer: Buffer; filename: string }> {
   await assertCanViewStudent(institutionId, actor, studentId);
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   const publication = await prisma.$queryRaw<Array<{ status: string }>>(Prisma.sql`
     SELECT "status"
     FROM "exam_result_publications"
@@ -2109,6 +2284,17 @@ export async function saveExamMarks(
   }
 
   await prisma.$transaction(async (tx) => {
+    const lockedSchedule = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "exam_schedules"
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    if (!lockedSchedule.length || lockedSchedule[0].status !== schedule.status) {
+      throw new AppError("The examination schedule changed while marks were being saved; reload and retry", 409);
+    }
+    if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(lockedSchedule[0].status)) {
+      throw new AppError("Marks are locked or this examination is closed", 409);
+    }
     for (const entry of entries) {
       const existing = await tx.$queryRaw<
         Array<{ id: string; marksObtained: number | null; status: ExamMarkStatus }>
@@ -2163,16 +2349,15 @@ export async function saveExamMarks(
            ${actor.id})
       `;
     }
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: submit ? "exam.marks_submitted" : "exam.marks_saved",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { count: entries.length },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id,
+        action: submit ? "exam.marks_submitted" : "exam.marks_saved",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { count: entries.length, status: nextStatus },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return { saved: entries.length, status: nextStatus };
@@ -2185,38 +2370,46 @@ export async function approveExamMarks(
   examScheduleId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
 
-  const pending = await prisma.$queryRaw<
-    Array<{ id: string; enteredById: string; marksObtained: number | null; status: string }>
-  >(Prisma.sql`
-    SELECT "id", "enteredById", "marksObtained", "status"
-    FROM "exam_marks"
-    WHERE "examScheduleId" = ${examScheduleId}
-      AND "institutionId" = ${institutionId}
-      AND "status" = 'SUBMITTED'
-  `);
+  const approvedCount = await prisma.$transaction(async (tx) => {
+    // Serialize decisions for a schedule. A concurrent second approver sees
+    // no SUBMITTED rows after the first transaction commits.
+    const pending = await tx.$queryRaw<
+      Array<{ id: string; enteredById: string; marksObtained: number | null; status: string }>
+    >(Prisma.sql`
+      SELECT "id", "enteredById", "marksObtained", "status"
+      FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'SUBMITTED'
+      FOR UPDATE
+    `);
 
-  if (pending.length === 0) {
-    throw new AppError("There are no submitted marks awaiting approval", 409);
-  }
-  if (pending.some((mark) => mark.enteredById === actor.id)) {
-    throw new AppError(
-      "Marks must be approved by someone other than the person who entered them",
-      403
-    );
-  }
+    if (pending.length === 0) {
+      throw new AppError("There are no submitted marks awaiting approval", 409);
+    }
+    if (pending.some((mark) => mark.enteredById === actor.id)) {
+      throw new AppError(
+        "Marks must be approved by someone other than the person who entered them",
+        403
+      );
+    }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const changed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE "exam_marks"
       SET "status" = 'APPROVED', "approvedById" = ${actor.id},
           "approvedAt" = CURRENT_TIMESTAMP
       WHERE "examScheduleId" = ${examScheduleId}
         AND "institutionId" = ${institutionId}
         AND "status" = 'SUBMITTED'
-    `;
+      RETURNING "id"
+    `);
+    if (changed.length !== pending.length) {
+      throw new AppError("Marks changed while approval was in progress; reload and retry", 409);
+    }
+
     for (const mark of pending) {
       await tx.$executeRaw`
         INSERT INTO "exam_mark_histories"
@@ -2228,19 +2421,18 @@ export async function approveExamMarks(
            'Approved by examination controller', ${actor.id})
       `;
     }
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.marks_approved",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { count: changed.length, scheduleStatus: schedule.status },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
+    return changed.length;
   });
 
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.marks_approved",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { count: pending.length, scheduleStatus: schedule.status },
-    ...meta,
-  });
-
-  return { approved: pending.length };
+  return { approved: approvedCount };
 }
 
 export async function lockExamSchedule(
@@ -2251,67 +2443,90 @@ export async function lockExamSchedule(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
-  if (schedule.status === "LOCKED" || schedule.status === "RESULTS_PUBLISHED") {
-    throw new AppError("This schedule is already locked", 409);
+  await assertExamApprovalScope(institutionId, actor, schedule);
+  if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(schedule.status)) {
+    throw new AppError("This schedule is already locked or closed", 409);
   }
 
   const roster = await getCourseOfferingRoster(institutionId, schedule.courseOfferingId);
-  const sessionForLock = await loadSession(institutionId, schedule.examSessionId);
-  const expectedCandidates = sessionForLock.registrationRequired
-    ? await countRows(prisma, "exam_registrations", Prisma.sql`WHERE "institutionId"=${institutionId} AND "examSessionId"=${schedule.examSessionId} AND "status"='REGISTERED'`)
-    : roster.length;
-  const enteredCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId}`);
-  if (enteredCount !== expectedCandidates) {
-    throw new AppError(`Cannot lock results: ${Math.max(0, expectedCandidates - enteredCount)} student mark(s) are missing`,409);
-  }
-  const outstanding = await countRows(
-    prisma,
-    "exam_marks",
-    Prisma.sql`WHERE "examScheduleId" = ${examScheduleId}
-      AND "institutionId" = ${institutionId}
-      AND "status" <> 'APPROVED'`
-  );
-  if (outstanding > 0) {
-    throw new AppError(
-      `${outstanding} mark(s) are not approved yet`,
-      409
-    );
-  }
+  const session = await loadSession(institutionId, schedule.examSessionId);
 
-  await prisma.$executeRaw`
-    UPDATE "exam_schedules"
-    SET "status" = 'LOCKED', "marksLockedAt" = CURRENT_TIMESTAMP,
-        "marksLockedById" = ${actor.id}
-    WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
-  `;
-  const approvedCount = await countRows(prisma, "exam_marks", Prisma.sql`WHERE "examScheduleId"=${examScheduleId} AND "institutionId"=${institutionId} AND "status"='APPROVED'`);
-  await prisma.$executeRaw`
-    INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
-    VALUES (${randomUUID()},${institutionId},${examScheduleId},'APPROVED',${approvedCount},0,${actor.id},CURRENT_TIMESTAMP)
-    ON CONFLICT ("examScheduleId") DO UPDATE SET
-      "status"='APPROVED',"totalCandidates"=${approvedCount},"approvedById"=${actor.id},"approvedAt"=CURRENT_TIMESTAMP
-  `;
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.$queryRaw<Array<{ status: string }>>(Prisma.sql`
+      SELECT "status" FROM "exam_schedules"
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    if (!current.length || current[0].status !== schedule.status) {
+      throw new AppError("The examination schedule changed concurrently; reload and retry", 409);
+    }
+    if (["LOCKED", "RESULTS_PUBLISHED", "CANCELLED"].includes(current[0].status)) {
+      throw new AppError("This schedule is already locked or closed", 409);
+    }
 
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.schedule_locked",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    ...meta,
+    let expectedCandidates = roster.length;
+    if (session.registrationRequired) {
+      const registered = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS count FROM "exam_registrations"
+        WHERE "institutionId" = ${institutionId}
+          AND "examSessionId" = ${schedule.examSessionId}
+          AND "status" = 'REGISTERED'
+      `);
+      expectedCandidates = registered[0]?.count ?? 0;
+    }
+    const enteredRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId} AND "institutionId" = ${institutionId}
+    `);
+    const enteredCount = enteredRows[0]?.count ?? 0;
+    if (enteredCount !== expectedCandidates) {
+      throw new AppError(`Cannot lock results: ${Math.max(0, expectedCandidates - enteredCount)} student mark(s) are missing`, 409);
+    }
+    const outstandingRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" <> 'APPROVED'
+    `);
+    const outstanding = outstandingRows[0]?.count ?? 0;
+    if (outstanding > 0) throw new AppError(`${outstanding} mark(s) are not approved yet`, 409);
+
+    const changed = await tx.$executeRaw`
+      UPDATE "exam_schedules"
+      SET "status" = 'LOCKED', "marksLockedAt" = CURRENT_TIMESTAMP,
+          "marksLockedById" = ${actor.id}
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+        AND "status" = ${schedule.status}
+        AND "status" NOT IN ('LOCKED', 'RESULTS_PUBLISHED', 'CANCELLED')
+    `;
+    if (changed !== 1) throw new AppError("This schedule was locked or changed concurrently; reload and retry", 409);
+
+    const approvedRows = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count FROM "exam_marks"
+      WHERE "examScheduleId" = ${examScheduleId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = 'APPROVED'
+    `);
+    const approvedCount = approvedRows[0]?.count ?? 0;
+    await tx.$executeRaw`
+      INSERT INTO "exam_result_publications" ("id","institutionId","examScheduleId","status","totalCandidates","processedCandidates","approvedById","approvedAt")
+      VALUES (${randomUUID()},${institutionId},${examScheduleId},'APPROVED',${approvedCount},0,${actor.id},CURRENT_TIMESTAMP)
+      ON CONFLICT ("examScheduleId") DO UPDATE SET
+        "status"='APPROVED',"totalCandidates"=${approvedCount},"approvedById"=${actor.id},"approvedAt"=CURRENT_TIMESTAMP
+    `;
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.schedule_locked",
+        entityType: "ExamSchedule", entityId: examScheduleId,
+        metadata: { approvedCount, expectedCandidates },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return loadSchedule(institutionId, examScheduleId);
 }
 
-/**
- * Publishes a locked schedule's results.
- *
- * Publication mirrors approved marks into the Exam/ExamResult models
- * inside the same transaction, which is what makes the new examination
- * module show up in existing transcripts, grade sheets and CGPA without
- * duplicating the grading rules.
- */
 export async function enqueuePublishExamResults(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -2319,6 +2534,7 @@ export async function enqueuePublishExamResults(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
   if (schedule.status !== "LOCKED") throw new AppError("Lock the schedule before publishing its results", 409);
   const marks = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
     SELECT COUNT(*)::int AS count FROM "exam_marks"
@@ -2343,6 +2559,7 @@ export async function publishExamResults(
 ) {
   assertExamApprover(actor);
   const schedule = await loadSchedule(institutionId, examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
   if (schedule.status !== "LOCKED") {
     throw new AppError(
       "Lock the schedule before publishing its results",
@@ -2372,6 +2589,14 @@ export async function publishExamResults(
   const title = `${session.name} — ${offering.course.code}`;
 
   await prisma.$transaction(async (tx) => {
+    const claimed = await tx.$executeRaw`
+      UPDATE "exam_schedules"
+      SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
+        AND "status" = 'LOCKED'
+    `;
+    if (claimed !== 1) throw new AppError("Results were published or the schedule changed concurrently; reload and retry", 409);
+
     let legacyExamId = schedule.legacyExamId;
 
     if (legacyExamId) {
@@ -2443,11 +2668,6 @@ export async function publishExamResults(
     `;
 
     await tx.$executeRaw`
-      UPDATE "exam_schedules"
-      SET "status" = 'RESULTS_PUBLISHED', "resultsPublishedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${examScheduleId} AND "institutionId" = ${institutionId}
-    `;
-    await tx.$executeRaw`
       UPDATE "exam_sessions"
       SET "resultStatus"='PUBLISHED', "registrationStatus"=CASE WHEN "registrationRequired" THEN 'CLOSED' ELSE "registrationStatus" END
       WHERE "id"=${session.id} AND "institutionId"=${institutionId}
@@ -2469,17 +2689,21 @@ export async function publishExamResults(
         body: `${title} results are now available in your results page.`,
       })),
     });
+    await tx.auditLog.create({
+      data: {
+        institutionId,
+        userId: actor.id,
+        action: "exam.results_published",
+        entityType: "ExamSchedule",
+        entityId: examScheduleId,
+        metadata: { published: marks.length, course: offering.course.code },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      },
+    });
   });
 
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.results_published",
-    entityType: "ExamSchedule",
-    entityId: examScheduleId,
-    metadata: { published: marks.length, course: offering.course.code },
-    ...meta,
-  });
+
 
   return { published: marks.length };
 }
@@ -2489,7 +2713,7 @@ export async function getExamMarkHistory(
   actor: AuthenticatedUser,
   examMarkId: string
 ) {
-  const mark = await requireTenantRow<{ id: string; studentId: string }>(
+  const mark = await requireTenantRow<{ id: string; studentId: string; examScheduleId: string }>(
     prisma,
     "exam_marks",
     institutionId,
@@ -2497,6 +2721,10 @@ export async function getExamMarkHistory(
     "Examination mark"
   );
   await assertCanViewStudent(institutionId, actor, mark.studentId);
+  if (!actor.roles.includes("STUDENT")) {
+    const markSchedule = await loadSchedule(institutionId, mark.examScheduleId);
+    await assertCanReadSchedule(institutionId, actor, markSchedule);
+  }
 
   return prisma.$queryRaw<
     Array<{
@@ -2544,6 +2772,7 @@ export async function requestRevaluation(
   }
 
   const schedule = await loadSchedule(institutionId, input.examScheduleId);
+  if (studentId !== actor.id) await assertCanReadSchedule(institutionId, actor, schedule);
   if (schedule.status !== "RESULTS_PUBLISHED") {
     throw new AppError(
       "Revaluation can only be requested after results are published",
@@ -2613,10 +2842,26 @@ export async function listRevaluationRequests(
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`r."examScheduleId" = ${filters.examScheduleId}`);
   }
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
+      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      WHERE scoped_schedule."id" = r."examScheduleId"
+        AND scoped_schedule."institutionId" = r."institutionId"
+        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+    )`);
+  }
   // Students and parents never see the whole queue.
   if (filters.mine || actor.roles.includes("STUDENT")) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
-  } else if (!isInstitutionWide(actor) && !actor.permissions.includes("exams.manage")) {
+  } else if (
+    !isInstitutionWide(actor) &&
+    !actor.permissions.includes("exams.manage") &&
+    !actor.roles.includes("DIRECTOR")
+  ) {
     conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
   }
 
@@ -2671,7 +2916,7 @@ export async function decideRevaluation(
   input: { status: string; revisedMarks?: number; decisionNote?: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const request = await requireTenantRow<{
     id: string;
     examScheduleId: string;
@@ -2697,6 +2942,16 @@ export async function decideRevaluation(
   );
 
   const schedule = await loadSchedule(institutionId, request.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
+  const allowedRevaluationTransitions: Record<string, string[]> = {
+    REQUESTED: ["IN_REVIEW"],
+    IN_REVIEW: ["COMPLETED", "REJECTED"],
+    COMPLETED: [],
+    REJECTED: [],
+  };
+  if (!allowedRevaluationTransitions[request.status]?.includes(status)) {
+    throw new AppError(`A revaluation cannot move from ${request.status} to ${status}`, 409);
+  }
 
   if (status === "COMPLETED") {
     if (input.revisedMarks === undefined) {
@@ -2711,17 +2966,32 @@ export async function decideRevaluation(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE "revaluation_requests"
       SET "status" = ${status},
           "revisedMarks" = ${input.revisedMarks ?? null},
           "decisionNote" = ${input.decisionNote ?? null},
           "reviewedById" = ${actor.id},
           "decidedAt" = CASE WHEN ${status} = 'IN_REVIEW' THEN NULL ELSE CURRENT_TIMESTAMP END
-      WHERE "id" = ${revaluationId} AND "institutionId" = ${institutionId}
-    `;
+      WHERE "id" = ${revaluationId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = ${request.status}
+        AND "status" NOT IN ('COMPLETED', 'REJECTED')
+      RETURNING "id"
+    `);
+    if (claimed.length !== 1) throw new AppError("This revaluation was decided by another request; reload the queue", 409);
 
-    if (status !== "COMPLETED" || input.revisedMarks === undefined) return;
+    if (status !== "COMPLETED" || input.revisedMarks === undefined) {
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.revaluation_decided",
+          entityType: "RevaluationRequest", entityId: revaluationId,
+          metadata: { status, previousMarks: request.originalMarks, revisedMarks: input.revisedMarks },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
+      return;
+    }
 
     const existing = await tx.$queryRaw<
       Array<{ id: string; marksObtained: number | null; status: string }>
@@ -2731,7 +3001,7 @@ export async function decideRevaluation(
         AND "studentId" = ${request.studentId}
       LIMIT 1
     `);
-    if (existing.length === 0) return;
+    if (existing.length === 0) throw new AppError("The published mark no longer exists; the revaluation was not applied", 409);
 
     await tx.$executeRaw`
       UPDATE "exam_marks"
@@ -2784,20 +3054,14 @@ export async function decideRevaluation(
         body: "Your revaluation has been processed and your result updated.",
       },
     });
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.revaluation_decided",
-    entityType: "RevaluationRequest",
-    entityId: revaluationId,
-    metadata: {
-      status,
-      previousMarks: request.originalMarks,
-      revisedMarks: input.revisedMarks,
-    },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.revaluation_decided",
+        entityType: "RevaluationRequest", entityId: revaluationId,
+        metadata: { status, previousMarks: request.originalMarks, revisedMarks: input.revisedMarks },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return requireTenantRow(
@@ -2873,12 +3137,25 @@ export async function reportExamIncident(
 
 export async function listExamIncidents(
   institutionId: string,
+  actor: AuthenticatedUser,
   pagination: PaginationParams,
   filters: { status?: string; examScheduleId?: string }
 ) {
   const conditions: Prisma.Sql[] = [
     Prisma.sql`i."institutionId" = ${institutionId}`,
   ];
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
+      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      WHERE scoped_schedule."id" = i."examScheduleId"
+        AND scoped_schedule."institutionId" = i."institutionId"
+        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+    )`);
+  }
   if (filters.status) conditions.push(Prisma.sql`i."status" = ${filters.status}`);
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`i."examScheduleId" = ${filters.examScheduleId}`);
@@ -2926,32 +3203,64 @@ export async function decideExamIncident(
   input: { status: string; actionTaken?: string },
   meta: { ipAddress?: string; userAgent?: string }
 ) {
-  assertExamController(actor);
+  assertExamApprover(actor);
   const incident = await requireTenantRow<{
     id: string;
     studentId: string;
     examScheduleId: string;
     status: string;
   }>(prisma, "exam_incidents", institutionId, incidentId, "Examination incident");
+  if (["UPHELD", "DISMISSED"].includes(incident.status)) throw new AppError("This incident has already been decided", 409);
+  const incidentSchedule = await loadSchedule(institutionId, incident.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, incidentSchedule);
 
   const status = assertValue(
     input.status,
     ["REPORTED", "UNDER_REVIEW", "UPHELD", "DISMISSED"] as const,
     "status"
   );
+  const allowedIncidentTransitions: Record<string, string[]> = {
+    REPORTED: ["UNDER_REVIEW", "UPHELD", "DISMISSED"],
+    UNDER_REVIEW: ["UPHELD", "DISMISSED"],
+    UPHELD: [],
+    DISMISSED: [],
+  };
+  if (!allowedIncidentTransitions[incident.status]?.includes(status)) {
+    throw new AppError(`An incident cannot move from ${incident.status} to ${status}`, 409);
+  }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$executeRaw`
       UPDATE "exam_incidents"
       SET "status" = ${status}, "actionTaken" = ${input.actionTaken ?? null},
           "decidedById" = ${actor.id},
           "decidedAt" = CASE WHEN ${status} IN ('UPHELD','DISMISSED')
             THEN CURRENT_TIMESTAMP ELSE NULL END
       WHERE "id" = ${incidentId} AND "institutionId" = ${institutionId}
+        AND "status" = ${incident.status} AND "status" NOT IN ('UPHELD','DISMISSED')
     `;
+    if (claimed !== 1) throw new AppError("This incident was decided concurrently; reload and retry", 409);
 
     if (status === "UPHELD") {
-      // An upheld malpractice finding voids the paper.
+      // Preserve an immutable mark-history record before voiding the paper.
+      const marks = await tx.$queryRaw<Array<{ id: string; marksObtained: number | null; status: string }>>(Prisma.sql`
+        SELECT "id", "marksObtained", "status" FROM "exam_marks"
+        WHERE "examScheduleId" = ${incident.examScheduleId}
+          AND "studentId" = ${incident.studentId}
+          AND "institutionId" = ${institutionId}
+        FOR UPDATE
+      `);
+      for (const mark of marks) {
+        await tx.$executeRaw`
+          INSERT INTO "exam_mark_histories"
+            ("id", "institutionId", "examMarkId", "previousMarks", "newMarks",
+             "previousStatus", "newStatus", "reason", "changedById")
+          VALUES
+            (${randomUUID()}, ${institutionId}, ${mark.id}, ${mark.marksObtained},
+             0, ${mark.status}, ${mark.status},
+             ${"Malpractice incident " + incidentId + " upheld"}, ${actor.id})
+        `;
+      }
       await tx.$executeRaw`
         UPDATE "exam_marks"
         SET "marksObtained" = 0, "isAbsent" = FALSE,
@@ -2972,16 +3281,14 @@ export async function decideExamIncident(
           AND "status" = 'MALPRACTICE'
       `;
     }
-  });
-
-  await recordAuditLog({
-    institutionId,
-    userId: actor.id,
-    action: "exam.incident_decided",
-    entityType: "ExamIncident",
-    entityId: incidentId,
-    metadata: { status, actionTaken: input.actionTaken },
-    ...meta,
+    await tx.auditLog.create({
+      data: {
+        institutionId, userId: actor.id, action: "exam.incident_decided",
+        entityType: "ExamIncident", entityId: incidentId,
+        metadata: { status, actionTaken: input.actionTaken },
+        ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+      },
+    });
   });
 
   return requireTenantRow(
@@ -3462,35 +3769,58 @@ export async function decideExamMarkCorrection(
   );
   if (req.status !== "PENDING") throw new AppError("This correction request has already been decided",409);
   const correctionSchedule = await loadSchedule(institutionId, req.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, correctionSchedule);
   if (correctionSchedule.status === "RESULTS_PUBLISHED") {
     throw new AppError("Published results require the controlled revaluation workflow", 409);
   }
   if (decision === "APPROVED") {
     await prisma.$transaction(async tx => {
-      await tx.$executeRaw`
+      const claimed = await tx.$executeRaw`
         UPDATE "exam_mark_correction_requests"
         SET "status"='APPROVED',"decisionNote"=${decisionNote ?? null},
             "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP,"unlockedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${requestId} AND "institutionId"=${institutionId}
+        WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
       `;
-      await tx.$executeRaw`
+      if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
+      const changedMark = await tx.$executeRaw`
         UPDATE "exam_marks" SET "status"='DRAFT',"correctionRequestId"=${requestId}
         WHERE "id"=${req.examMarkId} AND "institutionId"=${institutionId}
       `;
-      await tx.$executeRaw`
+      if (changedMark !== 1) throw new AppError("The mark no longer exists; correction was rolled back", 409);
+      const changedSchedule = await tx.$executeRaw`
         UPDATE "exam_schedules" SET "status"='CORRECTION_OPEN'
         WHERE "id"=${req.examScheduleId} AND "institutionId"=${institutionId}
+          AND "status" IN ('PUBLISHED','LOCKED','CORRECTION_OPEN')
       `;
+      if (changedSchedule !== 1) throw new AppError("The examination schedule changed; correction was rolled back", 409);
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.mark_correction_decided",
+          entityType: "ExamMarkCorrectionRequest", entityId: requestId,
+          metadata: { decision, decisionNote: decisionNote ?? null },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
     });
   } else {
-    await prisma.$executeRaw`
-      UPDATE "exam_mark_correction_requests"
-      SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
-          "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${requestId} AND "institutionId"=${institutionId}
-    `;
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.$executeRaw`
+        UPDATE "exam_mark_correction_requests"
+        SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
+            "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
+      `;
+      if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
+      await tx.auditLog.create({
+        data: {
+          institutionId, userId: actor.id, action: "exam.mark_correction_decided",
+          entityType: "ExamMarkCorrectionRequest", entityId: requestId,
+          metadata: { decision, decisionNote: decisionNote ?? null },
+          ipAddress: meta.ipAddress, userAgent: meta.userAgent,
+        },
+      });
+    });
   }
-  await recordAuditLog({ institutionId,userId:actor.id,action:"exam.mark_correction_decided",entityType:"ExamMarkCorrectionRequest",entityId:requestId,metadata:{decision,decisionNote:decisionNote??null},...meta });
   return requireTenantRow(prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request");
 }
 
@@ -3499,11 +3829,26 @@ export async function listExamMarkCorrectionRequests(
   actor: AuthenticatedUser,
   pagination: PaginationParams,
 ) {
-  assertExamController(actor);
-  const where = Prisma.sql`WHERE "institutionId"=${institutionId} ORDER BY "createdAt" DESC LIMIT ${pagination.take} OFFSET ${pagination.skip}`;
-  const items = await prisma.$queryRaw<Array<Record<string,unknown>>>(Prisma.sql`SELECT * FROM "exam_mark_correction_requests" ${where}`);
-  const total = await countRows(prisma, "exam_mark_correction_requests", Prisma.sql`WHERE "institutionId"=${institutionId}`);
-  return { items, total };
+  assertExamApprover(actor);
+  const departmentIds = actor.roles.includes("DIRECTOR")
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : undefined;
+  if (departmentIds && !departmentIds.length) return { items: [], total: 0 };
+  const scopeClause = departmentIds
+    ? Prisma.sql`AND "examScheduleId" IN (
+        SELECT es."id" FROM "exam_schedules" es
+        JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
+        JOIN "courses" c ON c."id" = co."courseId"
+        WHERE es."institutionId" = ${institutionId}
+          AND c."departmentId" IN (${Prisma.join(departmentIds)})
+      )`
+    : Prisma.empty;
+  const where = Prisma.sql`WHERE "institutionId" = ${institutionId} ${scopeClause}`;
+  const [items, totalRows] = await Promise.all([
+    prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`SELECT * FROM "exam_mark_correction_requests" ${where} ORDER BY "createdAt" DESC LIMIT ${pagination.take} OFFSET ${pagination.skip}`),
+    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`SELECT COUNT(*)::bigint AS count FROM "exam_mark_correction_requests" ${where}`),
+  ]);
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
 
 

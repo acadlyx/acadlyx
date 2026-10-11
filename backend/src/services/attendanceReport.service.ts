@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
   getManagedDepartmentIds,
+  getDirectorDepartmentIds,
   INSTITUTION_WIDE_ROLES,
 } from "./accessScope.service";
 import { AttendanceReportQuery } from "../validators/attendanceReport.validators";
@@ -128,6 +129,10 @@ function isHod(
   );
 }
 
+function isDirector(actor: AuthenticatedUser): boolean {
+  return canonicalRoles(actor).has("DIRECTOR");
+}
+
 function isInstitutionWide(
   actor: AuthenticatedUser,
 ): boolean {
@@ -145,6 +150,7 @@ function assertExportRole(
   if (
     isFaculty(actor) ||
     isHod(actor) ||
+    isDirector(actor) ||
     isInstitutionWide(actor)
   ) {
     return;
@@ -262,8 +268,19 @@ async function resolveScope(
   }
 
   /*
-   * Dean / Director / other institution-wide
-   * roles are scoped to the authenticated tenant.
+   * Directors are scoped by CampusAccess, resolved to the departments
+   * physically assigned to those campuses. They are never tenant-wide here.
+   */
+  if (isDirector(actor)) {
+    return {
+      kind: "DEPARTMENT",
+      label: "Assigned campus scope",
+      departmentIds: await getDirectorDepartmentIds(institutionId, actor.id),
+    };
+  }
+
+  /*
+   * Chairman and other institution-wide roles remain tenant-wide.
    */
   return {
     kind: "INSTITUTION",
@@ -391,12 +408,11 @@ async function buildScopedWhere(
   if (filters.departmentId) {
     courseWhere.departmentId =
       filters.departmentId;
-  } else if (
-    scope.departmentIds &&
-    scope.departmentIds.length > 0
-  ) {
+  } else if (scope.departmentIds) {
     courseWhere.departmentId = {
-      in: scope.departmentIds,
+      in: scope.departmentIds.length > 0
+        ? scope.departmentIds
+        : ["__NO_AUTHORIZED_SCOPE__"],
     };
   }
 

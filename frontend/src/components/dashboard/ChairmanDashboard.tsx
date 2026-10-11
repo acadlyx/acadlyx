@@ -1,21 +1,95 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "./DashboardShell";
 import { authedFetch, AuthRequiredError } from "@/lib/auth";
 
-type Data={stats:Record<string,number>};
-export function ChairmanDashboard(){
- const router=useRouter(); const [data,setData]=useState<Data|null>(null); const [error,setError]=useState("");
- useEffect(()=>{authedFetch<{success:true;data:Data}>("/erp/me/workspace").then(r=>setData(r.data)).catch(e=>{if(e instanceof AuthRequiredError) router.replace("/login"); else setError(e instanceof Error?e.message:"Unable to load executive intelligence.")});},[router]);
- const s=data?.stats??{};
- return <DashboardShell title="Chairman Command Center" subtitle="Executive oversight, institutional intelligence and strategic decisions" allowedRoles={["CHAIRMAN"]}>
-  <main className="mx-auto w-full max-w-7xl space-y-6">
-   <section className="rounded-3xl bg-slate-950 p-7 text-white"><p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-300">Executive oversight</p><h1 className="mt-2 text-3xl font-black">Institutional Command Center</h1><p className="mt-2 max-w-3xl text-sm text-slate-300">Strategic visibility without entering operational specialist workflows.</p></section>
-   {error&&<div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-   <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[["Students","students"],["Faculty","faculty"],["Departments","departments"],["Invoiced","totalInvoiced"],["Paid invoices","paidInvoices"],["Exam results","examResults"]].map(([l,k])=><article key={k} className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{l}</p><p className="mt-2 text-3xl font-black">{k==="totalInvoiced"?`₹${(s[k]??0).toLocaleString("en-IN")}`:(s[k]??0).toLocaleString("en-IN")}</p></article>)}</section>
-   <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[["Institution intelligence","/intelligence"],["Strategic reports","/reports"],["Financial overview","/fees"],["Academic performance","/examination"]].map(([l,h])=><button key={h} onClick={()=>router.push(h)} className="rounded-2xl border bg-white p-5 text-left font-bold hover:shadow-md">{l}<span className="mt-2 block text-xs font-normal text-slate-500">Open executive view →</span></button>)}</section>
-   <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><h2 className="font-bold text-slate-900">Financial approvals</h2><p className="mt-1 text-sm text-slate-600">Review pending fee structures, inspect their fee heads and amounts, and record an approval or rejection reason.</p><button type="button" onClick={()=>router.push("/chairman/fee-approvals")} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Open fee approval queue</button></section>
-  </main>
- </DashboardShell>;
+type WorkspaceData = { stats: Record<string, number> };
+
+const metrics = [
+  ["Students", "students", "count"],
+  ["Faculty", "faculty", "count"],
+  ["Departments", "departments", "count"],
+  ["Invoiced", "totalInvoiced", "currency"],
+  ["Paid invoices", "paidInvoices", "count"],
+  ["Exam results", "examResults", "count"],
+] as const;
+
+const shortcuts = [
+  ["Examination operations", "/chairman/examinations/operations"],
+  ["Institution intelligence", "/chairman/intelligence"],
+  ["Strategic reports", "/chairman/reports"],
+  ["Financial overview", "/chairman/fees"],
+  ["Academic performance", "/chairman/examinations"],
+] as const;
+
+export function ChairmanDashboard() {
+  const router = useRouter();
+  const [data, setData] = useState<WorkspaceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
+
+  const loadWorkspace = useCallback(async () => {
+    setLoading(true);
+    setUnavailable(false);
+    try {
+      const response = await authedFetch<{ success: true; data: WorkspaceData }>("/erp/me/workspace");
+      setData(response.data);
+    } catch (error) {
+      if (error instanceof AuthRequiredError) {
+        router.replace("/login");
+        return;
+      }
+      setUnavailable(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => { void loadWorkspace(); }, [loadWorkspace]);
+
+  const stats = data?.stats;
+  return (
+    <DashboardShell title="Chairman Command Center" subtitle="Executive oversight, institutional intelligence and strategic decisions" allowedRoles={["CHAIRMAN"]}>
+      <main className="mx-auto w-full max-w-7xl space-y-6">
+        <section className="rounded-3xl bg-slate-950 p-7 text-white">
+          <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-300">Executive oversight</p>
+          <h1 className="mt-2 text-3xl font-black">Institutional Command Center</h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-300">Strategic visibility within your assigned institution scope.</p>
+        </section>
+        {unavailable && (
+          <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
+            <span>Institutional metrics are temporarily unavailable. No values are being reported as zero.</span>
+            <button type="button" onClick={() => void loadWorkspace()} disabled={loading} className="rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">Retry</button>
+          </section>
+        )}
+        <section aria-busy={loading} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {metrics.map(([label, key, format]) => {
+            const value = stats?.[key];
+            const display = loading || value === undefined || !Number.isFinite(value)
+              ? "—"
+              : format === "currency"
+                ? `₹${value.toLocaleString("en-IN")}`
+                : value.toLocaleString("en-IN");
+            return <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+              <p className="mt-2 text-3xl font-black text-slate-950">{display}</p>
+              <p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : value === undefined ? "Unavailable" : "Current authorized scope"}</p>
+            </article>;
+          })}
+        </section>
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {shortcuts.map(([label, href]) => <button key={href} type="button" onClick={() => router.push(href)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left font-bold text-slate-950 hover:shadow-md">
+            {label}<span className="mt-2 block text-xs font-normal text-slate-500">Open dedicated executive view →</span>
+          </button>)}
+        </section>
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <h2 className="font-bold text-slate-900">Financial approvals</h2>
+          <p className="mt-1 text-sm text-slate-600">Review fee structures assigned to the Chairman approval workflow and record decisions where explicitly permitted.</p>
+          <button type="button" onClick={() => router.push("/chairman/fee-approvals")} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Open fee approval queue</button>
+        </section>
+      </main>
+    </DashboardShell>
+  );
 }

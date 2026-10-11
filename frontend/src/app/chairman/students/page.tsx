@@ -5,7 +5,8 @@ export default function Page() {
     <RoleScopedStudents
       role="CHAIRMAN"
       title="Chairman Students"
-      subtitle="Institution-level student oversight within authorised scope"
+      subtitle="Institution-wide student oversight within authorized scope"
+      detailBasePath="/chairman/students"
     />
   );
 }
