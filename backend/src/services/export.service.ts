@@ -25,6 +25,9 @@ export const EXPORT_TYPES = [
   "timetable",
   "parent-links",
   "users",
+  "campuses",
+  "paid-fees",
+  "outstanding-dues",
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
@@ -173,6 +176,16 @@ export async function exportData(
     for (const f of faculty) rows.push({ id: f.id, email: f.email, firstName: f.firstName, lastName: f.lastName, phone: f.phone, active: f.isActive, assignedOfferings: f.facultyCourseOfferings.length });
   }
 
+  if (type === "campuses") {
+    const campuses = await collectInBatches((skip, take) => prisma.campus.findMany({
+      skip, take, where: { institutionId }, orderBy: { name: "asc" },
+    }));
+    for (const c of campuses) rows.push({
+      id: c.id, code: c.code, name: c.name, address: c.address,
+      active: c.isActive, createdAt: clean(c.createdAt),
+    });
+  }
+
   if (type === "departments") {
     const data = await collectInBatches((skip, take) => prisma.department.findMany({ skip, take, where: { institutionId }, orderBy: { name: "asc" }  }));
     for (const d of data) rows.push({ id: d.id, code: d.code, name: d.name, active: d.isActive, createdAt: clean(d.createdAt) });
@@ -231,11 +244,34 @@ export async function exportData(
     for (const r of data) rows.push({ id: r.id, name: r.name, status: r.status, currency: r.currency, notes: r.notes, academicYearId: r.academicYearId, programId: r.programId, semesterId: r.semesterId, feeHeadCode: r.feeHeadCode, feeHeadName: r.feeHeadName, amount: r.amount, dueDays: r.dueDays, installmentNumber: r.installmentNumber });
   }
 
-  if (type === "fees" || type === "fee-payments") {
-    const data = await collectInBatches((skip, take) => prisma.feeInvoice.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, payments: true }, orderBy: { createdAt: "desc" }  }));
+  if (type === "fees" || type === "fee-payments" || type === "paid-fees" || type === "outstanding-dues") {
+    const data = await collectInBatches((skip, take) => prisma.feeInvoice.findMany({
+      skip, take, where: { institutionId },
+      include: { student: { include: { profile: true } }, payments: true },
+      orderBy: { createdAt: "desc" },
+    }));
     for (const i of data) {
-      if (type === "fees") rows.push({ id: i.id, studentEmail: i.student.email, admissionNumber: i.student.profile?.admissionNumber ?? null, title: i.title, amount: i.amount, paid: i.payments.reduce((sum, p) => sum + p.amount, 0), balance: Math.max(0, i.amount - i.payments.reduce((sum, p) => sum + p.amount, 0)), status: i.status, sourceModule: i.sourceModule ?? "FEES", sourceType: i.sourceType ?? "FEE", sourceEntityId: i.sourceEntityId ?? null, feeStructureId: i.feeStructureId ?? null, dueDate: clean(i.dueDate), createdAt: clean(i.createdAt) });
-      else for (const p of i.payments) rows.push({ id: p.id, invoiceId: i.id, studentEmail: i.student.email, admissionNumber: i.student.profile?.admissionNumber ?? null, invoiceTitle: i.title, amount: p.amount, reference: p.reference, paidAt: clean(p.paidAt), createdAt: clean(p.createdAt) });
+      const paid = i.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const amount = Number(i.amount);
+      const balance = Math.max(0, amount - paid);
+      if (type === "fees" || (type === "paid-fees" && paid > 0 && balance === 0) || (type === "outstanding-dues" && balance > 0)) {
+        rows.push({
+          id: i.id, studentEmail: i.student.email,
+          admissionNumber: i.student.profile?.admissionNumber ?? null,
+          title: i.title, amount, paid, balance, status: i.status,
+          sourceModule: i.sourceModule ?? "FEES", sourceType: i.sourceType ?? "FEE",
+          sourceEntityId: i.sourceEntityId ?? null, feeStructureId: i.feeStructureId ?? null,
+          dueDate: clean(i.dueDate), createdAt: clean(i.createdAt),
+        });
+      }
+      if (type === "fee-payments") {
+        for (const p of i.payments) rows.push({
+          id: p.id, invoiceId: i.id, studentEmail: i.student.email,
+          admissionNumber: i.student.profile?.admissionNumber ?? null,
+          invoiceTitle: i.title, amount: Number(p.amount), reference: p.reference,
+          paidAt: clean(p.paidAt), createdAt: clean(p.createdAt),
+        });
+      }
     }
   }
 
