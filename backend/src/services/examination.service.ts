@@ -3037,12 +3037,25 @@ export async function reportExamIncident(
 
 export async function listExamIncidents(
   institutionId: string,
+  actor: AuthenticatedUser,
   pagination: PaginationParams,
   filters: { status?: string; examScheduleId?: string }
 ) {
   const conditions: Prisma.Sql[] = [
     Prisma.sql`i."institutionId" = ${institutionId}`,
   ];
+  if (actor.roles.includes("DIRECTOR")) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
+      JOIN "courses" scoped_course ON scoped_course."id" = scoped_offering."courseId"
+      WHERE scoped_schedule."id" = i."examScheduleId"
+        AND scoped_schedule."institutionId" = i."institutionId"
+        AND scoped_course."departmentId" IN (${Prisma.join(departmentIds)})
+    )`);
+  }
   if (filters.status) conditions.push(Prisma.sql`i."status" = ${filters.status}`);
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`i."examScheduleId" = ${filters.examScheduleId}`);
@@ -3097,6 +3110,9 @@ export async function decideExamIncident(
     examScheduleId: string;
     status: string;
   }>(prisma, "exam_incidents", institutionId, incidentId, "Examination incident");
+  if (["UPHELD", "DISMISSED"].includes(incident.status)) throw new AppError("This incident has already been decided", 409);
+  const incidentSchedule = await loadSchedule(institutionId, incident.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, incidentSchedule);
 
   const status = assertValue(
     input.status,
@@ -3105,14 +3121,16 @@ export async function decideExamIncident(
   );
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$executeRaw`
       UPDATE "exam_incidents"
       SET "status" = ${status}, "actionTaken" = ${input.actionTaken ?? null},
           "decidedById" = ${actor.id},
           "decidedAt" = CASE WHEN ${status} IN ('UPHELD','DISMISSED')
             THEN CURRENT_TIMESTAMP ELSE NULL END
       WHERE "id" = ${incidentId} AND "institutionId" = ${institutionId}
+        AND "status" = ${incident.status} AND "status" NOT IN ('UPHELD','DISMISSED')
     `;
+    if (claimed !== 1) throw new AppError("This incident was decided concurrently; reload and retry", 409);
 
     if (status === "UPHELD") {
       // An upheld malpractice finding voids the paper.
