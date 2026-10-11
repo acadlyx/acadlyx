@@ -756,15 +756,21 @@ export async function listExamSessions(
       )
     )`);
   } else if (roles.includes("DIRECTOR")) {
-    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!ids.length) return { items: [], total: 0 };
+    const [ids, campusIds] = await Promise.all([
+      getDirectorDepartmentIds(institutionId, actor.id),
+      getDirectorCampusIds(institutionId, actor.id),
+    ]);
+    if (!ids.length || !campusIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`(
-      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
+      ("campusIds" <> '[]'::jsonb AND "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
+      OR ("departmentIds" <> '[]'::jsonb AND "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
       OR EXISTS (
         SELECT 1 FROM "exam_schedules" es
         JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
         JOIN "courses" c ON c."id"=co."courseId"
-        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+        WHERE es."examSessionId"="exam_sessions"."id"
+          AND es."institutionId"=${institutionId}
+          AND c."departmentId" IN (${Prisma.join(ids)})
       )
     )`);
   }
