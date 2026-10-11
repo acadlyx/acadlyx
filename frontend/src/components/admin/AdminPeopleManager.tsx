@@ -1706,7 +1706,7 @@ function AdminPeopleManagerContent() {
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">
                   Edit user
                 </p>
-                <h2 className="mt-1 text-xl font-black">Update account</h2>
+                <h2 className="mt-1 text-xl font-black">Update {roleLabel(editRole || selected.roles[0]?.name || "account")} account</h2>
               </div>
               <button
                 type="button"
@@ -1787,9 +1787,7 @@ function AdminPeopleManagerContent() {
                 </label> : (editRole || selected.roles[0]?.name) === "CHAIRMAN" ? <div className="sm:col-span-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">Chairman scope is institution-wide. No campus or department restriction is assigned.</div> : null}
               </div>
 
-              <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">
-                Department assignment is used for HOD data scoping. An HOD must have exactly one department. Changing the user away from HOD removes HOD department access.
-              </div>
+              {(editRole || selected.roles[0]?.name) === "HOD" ? <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">An HOD must have exactly one department. Changing the role away from HOD removes HOD department access.</div> : null}
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <button type="button" onClick={() => {
@@ -1817,9 +1815,7 @@ function AdminPeopleManagerContent() {
                   Create account
                 </p>
 
-                <h2 className="mt-1 text-xl font-black">
-                  Add institution staff
-                </h2>
+                <h2 className="mt-1 text-xl font-black">Add {roleLabel(createRole)} account</h2>
               </div>
 
               <button
