@@ -642,6 +642,11 @@ export const ROLE_PERMISSIONS: Record<
     "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
+    // Leadership may approve examination decisions institution-wide without
+    // gaining Examination Cell scheduling/marks-entry management privileges.
+    "exams.approve",
+    "exams.revaluate",
+
     "audit.read",
     "lms.read",
   ],
