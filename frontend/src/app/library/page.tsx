@@ -423,7 +423,7 @@ export default function LibraryPage() {
           </section>
         )}
 
-        {canManage && tab !== "mine" && (
+        {canManage && (tab === "catalogue" || tab === "circulation" || tab === "fines") && (
           <div className="flex flex-wrap gap-3">
             <DataExportActions type={tab === "catalogue" ? "library-books" : tab === "circulation" ? "library-issues" : "library-fines"} compact />
             {tab === "catalogue" && <DataExportActions type="library-copies" compact />}
