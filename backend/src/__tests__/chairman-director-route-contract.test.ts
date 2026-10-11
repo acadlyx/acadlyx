@@ -371,5 +371,5 @@ test("Examination mark correction decisions enforce maker-checker and atomic aud
   assert.ok(body.includes("req.requestedById === actor.id"));
   assert.ok(body.includes("The requester cannot decide their own mark correction"));
   assert.ok(body.includes("tx.auditLog.create"));
-  assert.ok(body.includes('AND "status"='PENDING''));
+  assert.ok(body.includes("AND \\"status\\"=\'PENDING\'"));
 });
