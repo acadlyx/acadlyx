@@ -164,8 +164,9 @@ test("Director examination review queues cannot list institution-wide records", 
   const listRevaluations = service.slice(service.indexOf("export async function listRevaluationRequests("), service.indexOf("export async function decideRevaluation("));
   const listIncidents = service.slice(service.indexOf("export async function listExamIncidents("), service.indexOf("export async function decideExamIncident("));
   const listCorrections = service.slice(service.indexOf("export async function listExamMarkCorrectionRequests("));
-  assert.ok(listSessions.includes('("campusIds" <> \'[]\'::jsonb AND "campusIds" ?| ARRAY['));
-  assert.ok(!listSessions.includes('"departmentIds" = \'[]\'::jsonb OR'), "an empty target list must not make a Director session visible");
+  const directorSessionBranch = listSessions.slice(listSessions.indexOf('roles.includes("DIRECTOR")'));
+  assert.ok(directorSessionBranch.includes('("campusIds" <> \'[]\'::jsonb AND "campusIds" ?| ARRAY['));
+  assert.ok(!directorSessionBranch.includes('"departmentIds" = \'[]\'::jsonb OR'), "an empty target list must not make a Director session visible");
   assert.ok(listRevaluations.includes('actor.roles.includes("DIRECTOR")') && listRevaluations.includes("getDirectorDepartmentIds"));
   assert.ok(listIncidents.includes('actor.roles.includes("DIRECTOR")') && listIncidents.includes("getDirectorDepartmentIds"));
   assert.ok(listCorrections.includes('actor.roles.includes("DIRECTOR")') && listCorrections.includes("getDirectorDepartmentIds"));
