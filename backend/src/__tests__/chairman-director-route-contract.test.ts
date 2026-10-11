@@ -45,21 +45,26 @@ test("Director operations remains inside Director-specific routes", () => {
   }
 });
 
-test("Executive dashboards stay concise and route primary actions within their workspace", () => {
+test("Executive dashboards stay sidebar-centric and every leadership destination resolves", () => {
   const chairman = readFileSync(join(frontend, "../components/dashboard/ChairmanDashboard.tsx"), "utf8");
   const director = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
-  for (const route of ["/chairman/examinations/operations", "/chairman/intelligence", "/chairman/fees/structures", "/chairman/notices"]) {
-    assert.ok(chairman.includes(route), `Chairman primary action missing: ${route}`);
-  }
-  for (const route of ["/director/examinations/operations", "/director/intelligence", "/director/students", "/director/notices"]) {
-    assert.ok(director.includes(route), `Director primary action missing: ${route}`);
-  }
-  for (const route of ["/chairman/notifications", "/chairman/events-gallery", "/director/notifications", "/director/events-gallery", "/director/admissions", "/director/calendar"]) {
+  const routes = [
+    "/chairman/examinations/operations", "/chairman/intelligence", "/chairman/fees/structures",
+    "/chairman/notices", "/chairman/notifications", "/chairman/events-gallery", "/chairman/students",
+    "/director/examinations/operations", "/director/intelligence", "/director/students", "/director/notices",
+    "/director/notifications", "/director/events-gallery", "/director/admissions", "/director/calendar",
+    "/director/fee-approvals",
+  ];
+  for (const route of routes) {
     assert.ok(navigation.includes(route), `sidebar route missing: ${route}`);
+    assert.ok(existsSync(join(frontend, route.slice(1), "page.tsx")), `destination route must resolve: ${route}`);
   }
-  assert.ok(!director.includes('["Campus students","/students"]'), "Director shortcut must not route to the global student page");
-  assert.ok(!director.includes('["Admissions","/admissions"]'), "Director shortcut must not route to global admissions");
+  assert.ok(!chairman.includes("/chairman/examinations/operations"), "Chairman dashboard should rely on the sidebar, not duplicate action cards");
+  assert.ok(!director.includes("/director/examinations/operations"), "Director dashboard should rely on the sidebar, not duplicate action cards");
+  assert.ok(!director.includes('["Campus students","/students"]'), "Director must not route to the global student page");
+  assert.ok(!director.includes('["Admissions","/admissions"]'), "Director must not route to global admissions");
+  assert.ok(!navigation.includes('label: "Institutional CMS"'), "leadership sidebars must not expose Institutional CMS");
 });
 
 test("Executive dashboards distinguish unavailable metrics from zero", () => {
@@ -93,7 +98,7 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
   assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
   assert.ok(feeService.includes('fs."programId" IN ('), "Director fee listing must be filtered to programs in assigned campus departments");
-  assert.ok(feeService.includes('semester_program."departmentId"'), "semester-only fee structures must be resolved through their owning program");
+  assert.ok(feeService.includes('JOIN "programs" p ON p."id" = sem."programId"') && feeService.includes('p."departmentId" IN ('), "semester-only fee structures must be resolved through the owning program in assigned departments");
   assert.ok(feeService.includes("assertFeeStructureInActorScope(institutionId, actor, structureId)"), "approval and rejection mutations must validate record scope");
 });
 
@@ -107,7 +112,9 @@ test("Chairman and Director intelligence routes are separate and role-scoped", (
   assert.ok(!chairman.includes('from "@/app/intelligence/page"'), "Chairman must not alias the generic intelligence page");
   assert.ok(!director.includes('from "@/app/intelligence/page"'), "Director must not alias the generic intelligence page");
   assert.ok(directorOps.includes('href: "/director/intelligence"'));
-  assert.ok(directorDashboard.includes('["Campus intelligence", "/director/intelligence"]'));
+  assert.ok(!directorDashboard.includes('["Campus intelligence", "/director/intelligence"]'), "Director dashboard should not duplicate sidebar destinations");
+  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
+  assert.ok(navigation.includes('href: "/director/intelligence"'), "Director intelligence must be reachable from the sidebar");
 });
 
 test("intelligence aggregate queries preserve all assigned departments without widening scope", () => {
@@ -129,7 +136,9 @@ test("Chairman and Director fee and examination landing routes do not alias gene
   const directorExams = readFileSync(join(frontend, "director/examinations/page.tsx"), "utf8");
   assert.ok(chairmanFees.includes('allowedRoles={["CHAIRMAN"]}'));
   assert.ok(directorFees.includes('allowedRoles={["DIRECTOR"]}'));
-  assert.ok(chairmanFees.includes("listFeeStructures"), "Chairman finance view must use canonical fee structure data");
+  assert.ok(chairmanFees.includes('href="/chairman/fees/structures"'), "Chairman finance view must link to the dedicated publication workflow");
+  const chairmanStructures = readFileSync(join(frontend, "chairman/fees/structures/page.tsx"), "utf8");
+  assert.ok(chairmanStructures.includes('view="fee-structures"'), "Chairman publication page must use the canonical finance structure view");
   assert.ok(directorFees.includes("listFeeStructures"), "Director finance view must use the server-scoped fee structure API");
   assert.ok(!chairmanFees.includes('from "@/app/fees/page"'));
   assert.ok(!directorFees.includes('from "@/app/fees/page"'));
@@ -386,7 +395,7 @@ test("Chairman can publish fee drafts directly with explicit permission and audi
   assert.ok(!director.includes('"fees.structure.publish"'), "direct publication must not be granted to Directors");
   assert.ok(service.includes('action: "fee-structure.publish-direct"'));
   assert.ok(service.includes('actor.roles.includes("CHAIRMAN")'));
-  assert.ok(routes.includes('/fee-structures/:id/publish'));
+  assert.ok(routes.includes('"/fee-structures/:id/publish"'), "direct publication endpoint must be explicitly routed");
   assert.ok(api.includes('export async function publishFeeStructure'));
   assert.ok(finance.includes('can("fees.structure.publish")&&x.status==="DRAFT"'));
 });
