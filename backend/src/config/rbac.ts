@@ -641,7 +641,7 @@ export const ROLE_PERMISSIONS: Record<
     "fees.structure.manage",
     "fees.structure.approve",
     "fees.structure.publish",
-    "obe.read", "obe.reports.read"
+    "obe.read", "obe.reports.read",
     ...LEADERSHIP_READ,
 
     // Leadership may approve examination decisions institution-wide without
