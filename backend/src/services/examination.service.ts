@@ -799,6 +799,7 @@ export async function getExamSession(
   examSessionId: string
 ) {
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
   if (actor.roles.includes("STUDENT")) {
     const context = await loadStudentExamContext(institutionId, actor.id);
     if (!sessionTargetsStudent(session, context, actor.id)) throw new AppError("Examination is outside your academic scope",403);
@@ -859,6 +860,7 @@ export async function updateExamSessionStatus(
   assertExamController(actor);
   const status = assertValue(nextStatus, SESSION_STATUSES, "status");
   const session = await loadSession(institutionId, examSessionId);
+  await assertDirectorCanAccessSession(institutionId, actor, session);
 
   if (!SESSION_TRANSITIONS[session.status].includes(status)) {
     throw new AppError(
@@ -2840,6 +2842,8 @@ export async function decideRevaluation(
   );
 
   const schedule = await loadSchedule(institutionId, request.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, schedule);
+  if (status === request.status) throw new AppError("This revaluation is already in that state", 409);
 
   if (status === "COMPLETED") {
     if (input.revisedMarks === undefined) {
@@ -2854,15 +2858,20 @@ export async function decideRevaluation(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
+    const claimed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       UPDATE "revaluation_requests"
       SET "status" = ${status},
           "revisedMarks" = ${input.revisedMarks ?? null},
           "decisionNote" = ${input.decisionNote ?? null},
           "reviewedById" = ${actor.id},
           "decidedAt" = CASE WHEN ${status} = 'IN_REVIEW' THEN NULL ELSE CURRENT_TIMESTAMP END
-      WHERE "id" = ${revaluationId} AND "institutionId" = ${institutionId}
-    `;
+      WHERE "id" = ${revaluationId}
+        AND "institutionId" = ${institutionId}
+        AND "status" = ${request.status}
+        AND "status" NOT IN ('COMPLETED', 'REJECTED')
+      RETURNING "id"
+    `);
+    if (claimed.length !== 1) throw new AppError("This revaluation was decided by another request; reload the queue", 409);
 
     if (status !== "COMPLETED" || input.revisedMarks === undefined) return;
 
@@ -3605,17 +3614,19 @@ export async function decideExamMarkCorrection(
   );
   if (req.status !== "PENDING") throw new AppError("This correction request has already been decided",409);
   const correctionSchedule = await loadSchedule(institutionId, req.examScheduleId);
+  await assertExamApprovalScope(institutionId, actor, correctionSchedule);
   if (correctionSchedule.status === "RESULTS_PUBLISHED") {
     throw new AppError("Published results require the controlled revaluation workflow", 409);
   }
   if (decision === "APPROVED") {
     await prisma.$transaction(async tx => {
-      await tx.$executeRaw`
+      const claimed = await tx.$executeRaw`
         UPDATE "exam_mark_correction_requests"
         SET "status"='APPROVED',"decisionNote"=${decisionNote ?? null},
             "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP,"unlockedAt"=CURRENT_TIMESTAMP
-        WHERE "id"=${requestId} AND "institutionId"=${institutionId}
+        WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
       `;
+      if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
       await tx.$executeRaw`
         UPDATE "exam_marks" SET "status"='DRAFT',"correctionRequestId"=${requestId}
         WHERE "id"=${req.examMarkId} AND "institutionId"=${institutionId}
@@ -3626,12 +3637,13 @@ export async function decideExamMarkCorrection(
       `;
     });
   } else {
-    await prisma.$executeRaw`
+    const claimed = await prisma.$executeRaw`
       UPDATE "exam_mark_correction_requests"
       SET "status"='REJECTED',"decisionNote"=${decisionNote ?? null},
           "decidedById"=${actor.id},"decidedAt"=CURRENT_TIMESTAMP
-      WHERE "id"=${requestId} AND "institutionId"=${institutionId}
+      WHERE "id"=${requestId} AND "institutionId"=${institutionId} AND "status"='PENDING'
     `;
+    if (claimed !== 1) throw new AppError("This correction request was decided concurrently; reload and retry", 409);
   }
   await recordAuditLog({ institutionId,userId:actor.id,action:"exam.mark_correction_decided",entityType:"ExamMarkCorrectionRequest",entityId:requestId,metadata:{decision,decisionNote:decisionNote??null},...meta });
   return requireTenantRow(prisma,"exam_mark_correction_requests",institutionId,requestId,"Mark correction request");
