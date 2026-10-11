@@ -45,7 +45,8 @@ This branch is not declared production-ready. The first targeted correction addr
 - Chairman finance sidebar links now remain under the Chairman route namespace for finance overview and collections.
 - Chairman operations now has its own page and no longer imports the generic operations page.
 - Director operations now links to existing Director-specific pages rather than global student/admissions routes.
-- Added a source-level route contract test checking role boundaries, link destinations, and destination file existence.
+- Fixed incorrect dashboard shortcuts: Chairman links previously pointed to generic `/intelligence`, `/reports`, `/fees`, and `/examination`; Director shortcuts previously pointed to global `/students` and `/admissions` and mislabeled reports as approvals. Both dashboards now link to workspace-specific routes.
+- Expanded a source-level route contract test to check role boundaries, link destinations, and destination file existence.
 - Exit gate: NOT PASSED; no frontend build or route contract tests have been executed, and DashboardShell/session behavior and all remaining workspace routes need verification.
 
 ### Remaining batches
@@ -80,3 +81,10 @@ Record command output and environment details; do not convert unavailable checks
 - Latest branch writes: Chairman operations page, Director operations page, and route contract test are committed on the implementation branch.
 - Route target existence was checked against the repository tree for the routes linked by the two operations indexes.
 - Runtime UI tests and backend destination endpoint scope checks remain unverified.
+
+
+### Batch 3 — Dashboard navigation follow-up
+- Changed `frontend/src/components/dashboard/ChairmanDashboard.tsx` shortcuts to `/chairman/intelligence`, `/chairman/reports`, `/chairman/fees`, and `/chairman/examinations`.
+- Changed `frontend/src/components/dashboard/DirectorDashboard.tsx` shortcuts to Director-specific operations, students, fees, and placements routes.
+- Extended `backend/src/__tests__/chairman-director-route-contract.test.ts` to assert the dashboard destination contracts.
+- Test status remains **not run**; no local checkout or executable environment was available through the repository API.
