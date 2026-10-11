@@ -31,6 +31,14 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
   return hasAnyRole(actor, INSTITUTION_WIDE_ROLES);
 }
 
+/**
+ * A user who also carries an institution-wide role must not be narrowed
+ * to Director campus scope merely because a legacy secondary role remains.
+ */
+export function isDirectorScoped(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return hasAnyRole(actor, ["DIRECTOR"]) && !isInstitutionWide(actor);
+}
+
 export async function getAuthorizedDepartmentIds(
   institutionId: string,
   actor: AuthenticatedUser
