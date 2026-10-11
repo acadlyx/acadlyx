@@ -233,7 +233,7 @@ async function collectInBatches<T>(
 
 const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   users: ["search", "active", "roles"],
-  students: ["search", "departmentId", "programCode", "program", "academicYear", "semester", "section", "status"],
+  students: ["search", "departmentId", "programId", "semesterId", "sectionId", "programCode", "program", "academicYear", "semester", "section", "status"],
   faculty: ["search", "active"],
   departments: ["search", "active", "campusId"],
   programs: ["search", "departmentCode", "level", "active"],
@@ -376,7 +376,7 @@ export async function exportData(
      }));
     for (const s of students) {
       const e = s.studentEnrollments[0];
-      rows.push({ id: s.id, email: s.email, firstName: s.firstName, lastName: s.lastName, phone: s.phone, admissionNumber: s.profile?.admissionNumber ?? null, dateOfBirth: clean(s.profile?.dateOfBirth), gender: s.profile?.gender ?? null, guardianName: s.profile?.guardianName ?? null, guardianPhone: s.profile?.guardianPhone ?? null, departmentId: e?.program.departmentId ?? null, programCode: e?.program.code ?? null, program: e?.program.name ?? null, academicYear: e?.academicYear.name ?? null, semester: e?.section?.semester.name ?? null, section: e?.section?.name ?? null, rollNumber: e?.rollNumber ?? null, status: e?.status ?? s.profile?.status ?? "ACTIVE" });
+      rows.push({ id: s.id, email: s.email, firstName: s.firstName, lastName: s.lastName, phone: s.phone, admissionNumber: s.profile?.admissionNumber ?? null, dateOfBirth: clean(s.profile?.dateOfBirth), gender: s.profile?.gender ?? null, guardianName: s.profile?.guardianName ?? null, guardianPhone: s.profile?.guardianPhone ?? null, departmentId: e?.program.departmentId ?? null, programId: e?.programId ?? e?.program.id ?? null, semesterId: e?.semesterId ?? null, sectionId: e?.sectionId ?? null, programCode: e?.program.code ?? null, program: e?.program.name ?? null, academicYear: e?.academicYear.name ?? null, semester: e?.section?.semester.name ?? null, section: e?.section?.name ?? null, rollNumber: e?.rollNumber ?? null, status: s.profile?.status ?? e?.status ?? "ACTIVE" });
     }
   }
 
