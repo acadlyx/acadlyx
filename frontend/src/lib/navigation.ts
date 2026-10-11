@@ -326,7 +326,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Fee structures",
-    href: "/chairman/fees",
+    href: "/chairman/fees/structures",
     icon: "₹",
     roles: ["CHAIRMAN"],
     permissions: ["fees.structure.read"],
