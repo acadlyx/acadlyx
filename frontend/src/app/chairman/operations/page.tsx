@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 const sections = [
   { title: "Examination lifecycle", description: "Schedule examinations, review marks, approve publication and manage revaluation requests.", href: "/chairman/examinations/operations", label: "Open examination operations" },
   { title: "Executive overview", description: "Institution-wide operational signals and executive priorities.", href: "/chairman/intelligence", label: "Open institutional intelligence" },
-  { title: "Fee structure decisions", description: "Review and decide fee structures assigned to the Chairman approval workflow.", href: "/chairman/fee-approvals", label: "Review fee approvals" },
+  { title: "Fee structures", description: "Create draft fee structures and publish finalized institution-wide fee schedules for Accounts to assign.", href: "/chairman/fees/structures", label: "Create / publish fee structures" },
   { title: "Finance oversight", description: "Review institution-level financial activity and collection summaries.", href: "/chairman/fees", label: "Open finance oversight" },
   { title: "Academic oversight", description: "Review examination readiness and academic outcome indicators.", href: "/chairman/examinations", label: "Review examinations" },
   { title: "Student lifecycle", description: "Review institutional student and enrollment information available to your role.", href: "/chairman/students", label: "Review students" },
