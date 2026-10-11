@@ -142,3 +142,39 @@ test("Chairman and Director fee and examination landing routes do not alias gene
   assert.ok(chairmanExams.includes('authedFetch<{ data: Workspace }>("/erp/me/workspace")'));
   assert.ok(directorExams.includes('authedFetch<{ data: Workspace }>("/erp/me/workspace")'));
 });
+
+
+test("Director examination writes and decisions enforce assigned campus scope", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const routes = readFileSync(join(process.cwd(), "src/routes/examination.routes.ts"), "utf8");
+  assert.ok(service.includes("assertDirectorSessionTargetsInScope"), "Director session creation and scoped edits validate target IDs");
+  assert.ok(service.includes("assertDirectorCanAccessSession"), "session reads and session-level mutations check Director campus scope");
+  assert.ok(service.includes("assertExamApprovalScope"), "schedule approvals re-check the resource scope after role permission");
+  assert.ok(service.includes("await assertExamApprovalScope(institutionId, actor, schedule)"), "approval actions check the target schedule");
+  assert.ok(service.includes('AND "status" = ${request.status}'), "revaluation transitions use compare-and-set semantics");
+  assert.ok(service.includes("This correction request was decided concurrently"), "mark-correction decisions detect races");
+  assert.ok(service.includes("This incident was decided concurrently"), "incident decisions detect races");
+  assert.ok(service.includes("getDirectorCampusIds(institutionId, actor.id)"), "Director campus assignments come from CampusAccess");
+  assert.ok(routes.includes("requireAuthenticatedUser(req),\n      pagination,"), "incident list receives the authenticated actor for scope filtering");
+});
+
+test("Director examination review queues cannot list institution-wide records", () => {
+  const service = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
+  const listSessions = service.slice(service.indexOf("function listExamSessions("), service.indexOf("export async function getExamSession("));
+  const listRevaluations = service.slice(service.indexOf("export async function listRevaluationRequests("), service.indexOf("export async function decideRevaluation("));
+  const listIncidents = service.slice(service.indexOf("export async function listExamIncidents("), service.indexOf("export async function decideExamIncident("));
+  const listCorrections = service.slice(service.indexOf("export async function listExamMarkCorrectionRequests("));
+  assert.ok(listSessions.includes('("campusIds" <> \'[]\'::jsonb AND "campusIds" ?| ARRAY['));
+  assert.ok(!listSessions.includes('"departmentIds" = \'[]\'::jsonb OR'), "an empty target list must not make a Director session visible");
+  assert.ok(listRevaluations.includes('actor.roles.includes("DIRECTOR")') && listRevaluations.includes("getDirectorDepartmentIds"));
+  assert.ok(listIncidents.includes('actor.roles.includes("DIRECTOR")') && listIncidents.includes("getDirectorDepartmentIds"));
+  assert.ok(listCorrections.includes('actor.roles.includes("DIRECTOR")') && listCorrections.includes("getDirectorDepartmentIds"));
+});
+
+test("verification workflow runs for the isolated branch and migrates PostgreSQL before backend tests", () => {
+  const workflow = readFileSync(join(process.cwd(), "../.github/workflows/erp-verification.yml"), "utf8");
+  assert.ok(workflow.includes("chairman-director-enterprise-workspaces-2026-10-11"));
+  assert.ok(workflow.includes("image: postgres:16"));
+  assert.ok(workflow.includes("npx prisma migrate deploy"));
+  assert.ok(workflow.indexOf("npx prisma migrate deploy") < workflow.indexOf("npm test"));
+});
