@@ -52,7 +52,7 @@ test("Executive dashboards stay sidebar-centric and every leadership destination
     "/chairman/examinations/operations", "/chairman/intelligence", "/chairman/fees/structures",
     "/chairman/notices", "/chairman/notifications", "/chairman/events-gallery", "/chairman/students",
     "/director/examinations/operations", "/director/intelligence", "/director/students", "/director/notices",
-    "/director/notifications", "/director/events-gallery", "/director/admissions", "/director/calendar",
+    "/director/notifications", "/director/events-gallery", "/director/admissions",
     "/director/fee-approvals",
   ];
   for (const route of routes) {
@@ -64,6 +64,7 @@ test("Executive dashboards stay sidebar-centric and every leadership destination
   assert.ok(!director.includes('["Campus students","/students"]'), "Director must not route to the global student page");
   assert.ok(!director.includes('["Admissions","/admissions"]'), "Director must not route to global admissions");
   assert.ok(!navigation.includes('label: "Institutional CMS"'), "leadership sidebars must not expose Institutional CMS");
+  assert.ok(!navigation.includes('href: "/calendar"'), "Director must not be routed into the unscoped generic calendar");
 });
 
 test("Executive dashboards distinguish unavailable metrics from zero", () => {
