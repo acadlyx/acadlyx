@@ -35,6 +35,12 @@ export const EXPORT_TYPES = [
   "campuses",
   "paid-fees",
   "outstanding-dues",
+  "fee-heads",
+  "fee-receipts",
+  "fee-transactions",
+  "fee-refunds",
+  "fee-concessions",
+  "fee-audit",
 ] as const;
 
 export type ExportType = typeof EXPORT_TYPES[number];
@@ -65,6 +71,12 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, string> = {
   campuses: "campuses.read",
   "paid-fees": "fees.read",
   "outstanding-dues": "fees.read",
+  "fee-heads": "fees.read",
+  "fee-receipts": "fees.read",
+  "fee-transactions": "fees.read",
+  "fee-refunds": "fees.read",
+  "fee-concessions": "fees.read",
+  "fee-audit": "audit.read",
 };
 
 export interface ExportRequestOptions {
@@ -90,6 +102,7 @@ const SCOPED_EXPORT_TYPES = new Set<ExportType>([
 ]);
 const FINANCE_EXPORT_TYPES = new Set<ExportType>([
   "fees", "fee-payments", "fee-structures", "paid-fees", "outstanding-dues",
+  "fee-heads", "fee-receipts", "fee-transactions", "fee-refunds", "fee-concessions", "fee-audit",
 ]);
 
 async function assertExportAccess(
@@ -241,6 +254,12 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   campuses: ["search", "active"],
   "paid-fees": ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
   "outstanding-dues": ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
+  "fee-heads": ["search", "active"],
+  "fee-receipts": ["search", "receiptNumber", "invoiceNumber", "studentEmail", "dateFrom", "dateTo"],
+  "fee-transactions": ["search", "type", "reference", "dateFrom", "dateTo"],
+  "fee-refunds": ["search", "status", "reason", "dateFrom", "dateTo"],
+  "fee-concessions": ["search", "status", "type", "reason", "dateFrom", "dateTo"],
+  "fee-audit": ["search", "action", "entityType", "dateFrom", "dateTo"],
 };
 
 const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
@@ -257,6 +276,12 @@ const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   "parent-links": "createdAt",
   "paid-fees": "dueDate",
   "outstanding-dues": "dueDate",
+  "fee-heads": "createdAt",
+  "fee-receipts": "issuedAt",
+  "fee-transactions": "createdAt",
+  "fee-refunds": "createdAt",
+  "fee-concessions": "createdAt",
+  "fee-audit": "createdAt",
 };
 
 function applyExportOptions(rows: Row[], type: ExportType, options: ExportRequestOptions): Row[] {
@@ -469,6 +494,55 @@ export async function exportData(
         });
       }
     }
+  }
+
+  if (type === "fee-heads") {
+    const data = await collectInBatches((skip, take) => prisma.feeHead.findMany({ skip, take, where: { institutionId }, orderBy: { name: "asc" } }));
+    for (const x of data) rows.push({ id: x.id, code: x.code, name: x.name, description: x.description, active: x.isActive, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "fee-receipts") {
+    const data = await collectInBatches((skip, take) => prisma.feeReceipt.findMany({
+      skip, take, where: { institutionId },
+      include: { payment: true, invoice: true, student: { include: { profile: true } } },
+      orderBy: { issuedAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, receiptNumber: x.receiptNumber, invoiceNumber: x.invoice.invoiceNumber, studentEmail: x.student.email, admissionNumber: x.student.profile?.admissionNumber ?? null, amount: Number(x.payment.amount), method: x.payment.method, paymentStatus: x.payment.status, issuedAt: clean(x.issuedAt) });
+  }
+
+  if (type === "fee-transactions") {
+    const data = await collectInBatches((skip, take) => prisma.feeTransaction.findMany({
+      skip, take, where: { institutionId },
+      include: { student: { include: { profile: true } }, invoice: true },
+      orderBy: { createdAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, type: x.type, amount: Number(x.amount), reference: x.reference, invoiceNumber: x.invoice?.invoiceNumber ?? null, studentEmail: x.student?.email ?? null, admissionNumber: x.student?.profile?.admissionNumber ?? null, createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "fee-refunds") {
+    const data = await collectInBatches((skip, take) => prisma.feeRefund.findMany({
+      skip, take, where: { institutionId },
+      include: { student: { include: { profile: true } }, invoice: true, payment: true },
+      orderBy: { createdAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, invoiceNumber: x.invoice.invoiceNumber, receiptNumber: x.payment.receiptNumber, studentEmail: x.student.email, admissionNumber: x.student.profile?.admissionNumber ?? null, amount: Number(x.amount), reason: x.reason, status: x.status, reference: x.reference, approvedAt: clean(x.approvedAt), processedAt: clean(x.processedAt), createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "fee-concessions") {
+    const data = await collectInBatches((skip, take) => prisma.feeConcession.findMany({
+      skip, take, where: { institutionId },
+      include: { student: { include: { profile: true } }, invoice: true, feeStructure: true },
+      orderBy: { createdAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, name: x.name, type: x.type, concessionType: x.concessionType, studentEmail: x.student.email, admissionNumber: x.student.profile?.admissionNumber ?? null, invoiceNumber: x.invoice?.invoiceNumber ?? null, feeStructure: x.feeStructure?.name ?? null, amount: Number(x.amount), percentage: x.percentage === null ? null : Number(x.percentage), reason: x.reason, status: x.status, approvedAt: clean(x.approvedAt), createdAt: clean(x.createdAt) });
+  }
+
+  if (type === "fee-audit") {
+    const data = await collectInBatches((skip, take) => prisma.auditLog.findMany({
+      skip, take, where: { institutionId, action: { startsWith: "finance." } },
+      orderBy: { createdAt: "desc" },
+    }));
+    for (const x of data) rows.push({ id: x.id, action: x.action, entityType: x.entityType, entityId: x.entityId, userId: x.userId, createdAt: clean(x.createdAt) });
   }
 
   if (type === "notices") {
