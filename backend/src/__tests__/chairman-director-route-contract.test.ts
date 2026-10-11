@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { isDirectorScoped } from "../services/accessScope.service";
 
 const frontend = join(process.cwd(), "../frontend/src/app");
 const intelligenceServicePath = join(process.cwd(), "src/services/intelligence.service.ts");
 const intelligenceControllerPath = join(process.cwd(), "src/controllers/intelligence.controller.ts");
+
+test("Director scope is not applied when the actor also has institution-wide Chairman authority", () => {
+  assert.equal(isDirectorScoped({ roles: ["DIRECTOR"] }), true);
+  assert.equal(isDirectorScoped({ roles: ["CHAIRMAN", "DIRECTOR"] }), false);
+  assert.equal(isDirectorScoped({ roles: ["CHAIRMAN"] }), false);
+});
 
 test("Chairman operations is an independent workspace page", () => {
   const page = readFileSync(join(frontend, "chairman/operations/page.tsx"), "utf8");
