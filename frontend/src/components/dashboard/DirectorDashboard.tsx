@@ -20,6 +20,7 @@ const shortcuts = [
   ["Campus operations", "/director/operations"],
   ["Campus students", "/director/students"],
   ["Campus finance", "/director/fees"],
+  ["Campus fee approvals", "/director/fee-approvals"],
   ["Placement outcomes", "/director/placements"],
 ] as const;
 
