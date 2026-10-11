@@ -315,7 +315,7 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   "fee-payments": ["search", "reference", "invoiceTitle", "dateFrom", "dateTo"],
   "fee-structures": ["search", "name", "status", "currency"],
   notices: ["search", "audience", "departmentId", "dateFrom", "dateTo"],
-  timetable: ["search", "courseCode", "course", "section", "facultyEmail", "dayOfWeek"],
+  timetable: ["search", "courseCode", "course", "programId", "semesterId", "sectionId", "departmentId", "section", "facultyEmail", "dayOfWeek"],
   "parent-links": ["search", "parentEmail", "studentEmail", "relationship", "dateFrom", "dateTo"],
   campuses: ["search", "active"],
   "paid-fees": ["search", "status", "sourceModule", "sourceType", "dateFrom", "dateTo"],
@@ -772,8 +772,8 @@ export async function exportData(
   }
 
   if (type === "timetable") {
-    const data = await collectInBatches((skip, take) => prisma.timetableEntry.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) }, include: { courseOffering: { include: { course: true, section: true, faculty: true } } }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }]  }));
-    for (const t of data) rows.push({ id: t.id, courseCode: t.courseOffering.course.code, course: t.courseOffering.course.name, section: t.courseOffering.section.name, facultyEmail: t.courseOffering.faculty?.email ?? null, dayOfWeek: t.dayOfWeek, startTime: t.startTime, endTime: t.endTime, room: t.room });
+    const data = await collectInBatches((skip, take) => prisma.timetableEntry.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { courseOffering: { semester: { program: { departmentId: scopedDepartmentFilter } }, ...(scope.roles.has("FACULTY") ? { facultyId: actor.id } : {}) } }) }, include: { courseOffering: { include: { course: true, semester: { include: { program: true } }, section: true, faculty: true } } }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }]  }));
+    for (const t of data) rows.push({ id: t.id, programId: t.courseOffering.semester.program.id, semesterId: t.courseOffering.semester.id, departmentId: t.courseOffering.semester.program.departmentId, sectionId: t.courseOffering.section.id, courseCode: t.courseOffering.course.code, course: t.courseOffering.course.name, section: t.courseOffering.section.name, facultyEmail: t.courseOffering.faculty?.email ?? null, dayOfWeek: t.dayOfWeek, startTime: t.startTime, endTime: t.endTime, room: t.room });
   }
 
   if (type === "parent-links") {
