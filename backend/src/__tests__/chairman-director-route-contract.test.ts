@@ -171,14 +171,14 @@ test("Director examination review queues cannot list institution-wide records", 
   const listRevaluations = service.slice(service.indexOf("export async function listRevaluationRequests("), service.indexOf("export async function decideRevaluation("));
   const listIncidents = service.slice(service.indexOf("export async function listExamIncidents("), service.indexOf("export async function decideExamIncident("));
   const listCorrections = service.slice(service.indexOf("export async function listExamMarkCorrectionRequests("));
-  const directorSessionBranch = listSessions.slice(listSessions.indexOf('roles.includes("DIRECTOR")'));
+  const directorSessionBranch = listSessions.slice(listSessions.indexOf("isDirectorScoped(actor)"));
   assert.ok(directorSessionBranch.includes('("campusIds" <> \'[]\'::jsonb AND "campusIds" ?| ARRAY['));
   assert.ok(!directorSessionBranch.includes('"departmentIds" = \'[]\'::jsonb OR'), "an empty target list must not make a Director session visible");
-  assert.ok(listRevaluations.includes('actor.roles.includes("DIRECTOR")') && listRevaluations.includes("getDirectorDepartmentIds"));
-  assert.ok(listIncidents.includes('actor.roles.includes("DIRECTOR")') && listIncidents.includes("getDirectorDepartmentIds"));
-  assert.ok(listCorrections.includes('actor.roles.includes("DIRECTOR")') && listCorrections.includes("getDirectorDepartmentIds"));
+  assert.ok(listRevaluations.includes("isDirectorScoped(actor)") && listRevaluations.includes("getDirectorDepartmentIds"));
+  assert.ok(listIncidents.includes("isDirectorScoped(actor)") && listIncidents.includes("getDirectorDepartmentIds"));
+  assert.ok(listCorrections.includes("isDirectorScoped(actor)") && listCorrections.includes("getDirectorDepartmentIds"));
   assert.ok(listCorrections.includes("assertExamApprover(actor)"), "scoped Directors must be allowed to review correction decisions");
-  assert.ok(listRevaluations.includes('!actor.roles.includes("DIRECTOR")'), "Director queues must not fall into the student self-only filter");
+  assert.ok(listRevaluations.includes("!isDirectorScoped(actor)"), "Director queues must not fall into the student self-only filter");
 });
 
 test("verification workflow runs for the isolated branch and migrates PostgreSQL before backend tests", () => {
@@ -315,7 +315,7 @@ test("Chairman receives approval-only examination permissions without Examinatio
 
 test("Director examination read and decision queues derive campus scope from the offering program", () => {
   const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
-  const directorReadScope = exams.slice(exams.indexOf('if (actor.roles.includes("DIRECTOR"))', exams.indexOf("async function assertCanReadSchedule")), exams.indexOf("async function assertCanActOnSchedule"));
+  const directorReadScope = exams.slice(exams.indexOf("if (isDirectorScoped(actor))", exams.indexOf("async function assertCanReadSchedule")), exams.indexOf("async function assertCanActOnSchedule"));
   assert.ok(directorReadScope.includes("prisma.semester.findFirst"));
   assert.ok(directorReadScope.includes("program: { institutionId, departmentId: { in: ids } }"));
   const sessions = exams.slice(exams.indexOf("export async function listExamSessions("), exams.indexOf("export async function getExamSession("));
