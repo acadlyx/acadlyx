@@ -36,3 +36,10 @@ For each interactive element, record: source page, label, destination/endpoint, 
 - `/director/operations` no longer links to global `/students` or `/admissions`. It links to existing Director-specific pages for students, examinations, OBE, fees, placements, reports, and imports.
 - Added `backend/src/__tests__/chairman-director-route-contract.test.ts` to assert these page boundaries and verify that each linked route file exists.
 - These are source-level route contract checks. They have not been executed here, and do not verify page behavior or backend scope for the destination APIs.
+
+
+## Batch 6 Director fee approval route (2026-10-11)
+- Added `/director/fee-approvals` as an independent Director page, linked from `/director/operations` and the Director dashboard.
+- Backend fee-structure listing is restricted for Directors to program departments derived from assigned `CampusAccess` rows; approval and rejection mutations run an explicit scope assertion before changing status.
+- Director RBAC now includes fee-structure read and approval permissions. Backend permission and scope checks remain authoritative; hiding the page is not relied upon as a security boundary.
+- Caveat: structures lacking a `programId` are currently omitted from Director listing. Semester-only linkage and cross-campus mismatch scenarios need database-backed validation. Source-contract test assertions have not been executed.
