@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 const sections = [
+  { title: "Examination lifecycle", description: "Schedule examinations, review marks, approve publication and manage revaluation requests.", href: "/chairman/examinations/operations", label: "Open examination operations" },
   { title: "Executive overview", description: "Institution-wide operational signals and executive priorities.", href: "/chairman/intelligence", label: "Open institutional intelligence" },
   { title: "Fee structure decisions", description: "Review and decide fee structures assigned to the Chairman approval workflow.", href: "/chairman/fee-approvals", label: "Review fee approvals" },
   { title: "Finance oversight", description: "Review institution-level financial activity and collection summaries.", href: "/chairman/fees", label: "Open finance oversight" },
