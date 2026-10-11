@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 const sections = [
+  { title: "Campus intelligence", description: "Review intelligence metrics and risks limited to your assigned campuses.", href: "/director/intelligence", label: "Open campus intelligence" },
   { title: "Student lifecycle", description: "Review students within the Director's assigned campus scope.", href: "/director/students", label: "Review campus students" },
   { title: "Examination readiness", description: "Review campus examination operations and authorized exceptions.", href: "/director/examinations", label: "Review examinations" },
   { title: "Academic outcomes", description: "Review campus outcome-based education indicators.", href: "/director/obe", label: "Review academic outcomes" },
