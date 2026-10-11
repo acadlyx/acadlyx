@@ -128,7 +128,7 @@ test("return workflow derives inventory counts from copy state and rejects stale
   assert.match(returning, /tx\.libraryBookCopy\.updateMany\(/);
   assert.match(returning, /copyUpdate\.count !== 1/);
   assert.match(returning, /await syncBookInventory\(tx, institutionId, existing\.bookId\)/);
-  const copyBackedReturn = returning.slice(returning.indexOf("if (existing.copyId)"), returning.indexOf("else if (input.condition === \\"RETURNED\\")"));
+  const copyBackedReturn = returning.slice(returning.indexOf("if (existing.copyId)"), returning.indexOf('else if (input.condition === "RETURNED")'));
   assert.doesNotMatch(copyBackedReturn, /availableCopies: \{ increment: 1 \}/);
   assert.match(returning, /else if \(input\.condition === "RETURNED"\)/);
   assert.match(returning, /Legacy issues without a copy row still need their aggregate count updated/);
