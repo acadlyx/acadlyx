@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -333,4 +333,30 @@ test("institutional intelligence combines program and semester filters with depa
   assert.ok(body.includes("semester: { program: { departmentId: { in: scopedDepartmentIds } } }"));
   assert.ok(body.includes("const facultyOfferingFilter: Prisma.CourseOfferingWhereInput = courseOfferingFilter"));
   assert.ok(!body.includes("course: { departmentId: { in: scopedDepartmentIds } }"), "report scope must follow the offering's program, not an independently assigned course department");
+});
+
+
+test("Literal Chairman/Director page links and router destinations resolve to route files", () => {
+  const roleRoots = [join(frontend, "chairman"), join(frontend, "director")];
+  const pageFiles: string[] = [];
+  const visit = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (entry.isFile() && entry.name === "page.tsx") pageFiles.push(full);
+    }
+  };
+  roleRoots.forEach(visit);
+  const failures: string[] = [];
+  for (const file of pageFiles) {
+    const source = readFileSync(file, "utf8");
+    const routePattern = /(?:href\\s*=\\s*|href\\s*:\\s*|router\\.(?:push|replace)\\(\\s*)["'`]((?:\\/chairman|\\/director)\\/[^"'\`$?#]*)/g;
+    for (const match of source.matchAll(routePattern)) {
+      const route = match[1].replace(/\\/$/, "");
+      if (!route || route.includes("${")) continue;
+      const pagePath = join(frontend, route.slice(1), "page.tsx");
+      if (!existsSync(pagePath)) failures.push(file.replace(frontend, "frontend/src/app") + " -> " + route);
+    }
+  }
+  assert.deepEqual(failures, [], "every literal role-workspace destination must resolve to a page");
 });
