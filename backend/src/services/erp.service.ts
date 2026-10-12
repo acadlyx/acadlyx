@@ -13,14 +13,6 @@ import {
   isDirectorScoped,
 } from "./accessScope.service";
 
-const MANAGEMENT_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "CHAIRMAN",
-  "ACCOUNTS",
-];
-
 /** Evaluated per call: a module-level constant would freeze the weekday at process start. */
 const todayWeekday = () => new Date().getDay();
 
@@ -2290,28 +2282,6 @@ export async function linkParent(
  * and add no new database requirements.
  * ============================================================ */
 
-async function getHodDepartmentIds(
-  institutionId: string,
-  actor: AuthenticatedUser
-): Promise<string[]> {
-  if (!actor.roles.includes("HOD")) {
-    return [];
-  }
-
-  const rows = await prisma.departmentAccess.findMany({
-    where: {
-      userId: actor.id,
-      department: {
-        institutionId,
-      },
-    },
-    select: {
-      departmentId: true,
-    },
-  });
-
-  return rows.map((row) => row.departmentId);
-}
 
 export async function listTimetableEntries(
   institutionId: string,
@@ -2603,21 +2573,11 @@ export async function listNotices(
   const isStudent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && roles.has("STUDENT");
   const isParent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && !isStudent && roles.has("PARENT");
 
-  const allowedRoles = [
-    "SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "CHAIRMAN", "MANAGEMENT",
-    "DEAN", "REGISTRAR", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION",
-    "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF",
-    "FACULTY", "HOD", "STUDENT", "PARENT",
-  ];
-  if (!roles.has("SUPER_ADMIN") && !roles.size) {
-    throw new AppError("You are not allowed to view notices", 403);
-  }
-  if (!institutionWide && ![
-    isDirectorWorkspace, isDeanWorkspace, isHod, isFaculty, isStudent, isParent,
-    roles.has("PLACEMENT"), roles.has("HR"), roles.has("ADMISSIONS"),
-    roles.has("EXAMINATION"), roles.has("LIBRARIAN"), roles.has("IT"),
-    roles.has("CMS"), roles.has("CLUB_PRESIDENT"), roles.has("STAFF"),
-  ].some(Boolean) && !allowedRoles.some((role) => roles.has(role))) {
+  const canReadNoticeWorkspace = institutionWide || isDirectorWorkspace ||
+    isDeanWorkspace || isHod || isFaculty || isStudent || isParent ||
+    ["PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+      .some((role) => roles.has(role));
+  if (!canReadNoticeWorkspace) {
     throw new AppError("You are not allowed to view notices", 403);
   }
 
