@@ -278,6 +278,55 @@ export async function assertHodCanReachUser(institutionId: string, actor: Authen
   }
 }
 
+/**
+ * Enforce record-level visibility for user-linked workflows (leave,
+ * user-account lifecycle, approval queues). A broad permission grants the
+ * action family, not visibility of every person's record.
+ */
+export async function assertCanViewUserRecord(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  targetUserId: string,
+): Promise<void> {
+  const target = await prisma.user.findFirst({
+    where: { id: targetUserId, institutionId, deletedAt: null },
+    select: {
+      id: true,
+      userRoles: { select: { role: { select: { name: true } } } },
+    },
+  });
+  if (!target) throw new AppError("User not found in this institution", 404);
+  if (actor.id === targetUserId) return;
+
+  const targetRoles = getCanonicalRoleNames(target.userRoles.map((binding) => binding.role.name));
+  if (targetRoles.includes("STUDENT")) {
+    await assertCanViewStudent(institutionId, actor, targetUserId);
+    return;
+  }
+
+  if (isInstitutionWide(actor)) return;
+
+  const actorRoles = getCanonicalRoleNames(actor.roles);
+  let allowedDepartmentIds: string[] = [];
+  if (isDirectorScoped(actor)) {
+    allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  } else if (actorRoles.includes("DEAN") || actorRoles.includes("HOD")) {
+    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+  } else {
+    // Students, parents, placement staff, and faculty do not gain generic
+    // access to other employee/user records through a general read permission.
+    throw new AppError("This user is outside your authorized scope", 403);
+  }
+
+  if (allowedDepartmentIds.length === 0) {
+    throw new AppError("No department scope is assigned to this account", 403);
+  }
+  const targetDepartmentIds = await getStaffDepartmentIds(institutionId, targetUserId);
+  if (!targetDepartmentIds.some((id) => allowedDepartmentIds.includes(id))) {
+    throw new AppError("This user is outside your authorized scope", 403);
+  }
+}
+
 export async function assertCanViewStudent(institutionId: string, actor: AuthenticatedUser, studentId: string): Promise<void> {
   const student = await prisma.user.findFirst({
     where: { id: studentId, institutionId, userRoles: { some: { role: { name: "STUDENT" } } } },
