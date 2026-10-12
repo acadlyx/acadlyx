@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, isDirectorScoped } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -268,6 +268,10 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if (x.studentId !== actor.id) {
     requireWorkflowRead(actor, ["results.read","results.manage","exams.read","exams.manage","marks.read"], "You do not have access to this examination result.");
     if (!isInstitutionWideExamination(actor)) {
+      const activeRole = getEffectiveWorkspaceRole(actor);
+      if (!["DIRECTOR", "DEAN", "HOD", "FACULTY", "PARENT"].includes(activeRole)) {
+        throw new AppError("This examination result is outside your authorized workspace", 403);
+      }
       await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
     }
   }
