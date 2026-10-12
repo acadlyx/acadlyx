@@ -1307,15 +1307,20 @@ export async function listStudentEnrollments(
   actor: AuthenticatedUser
 ) {
   await assertStudentReadAccess(institutionId, userId, actor);
-  await getStudentOrThrow(
-    institutionId,
-    userId
-  );
+  await getStudentOrThrow(institutionId, userId);
+
+  const scope = await getStudentWhereScope(institutionId, actor);
+  const scopedEnrollments = scope.studentEnrollments;
+  const scopedEnrollmentWhere =
+    scopedEnrollments && "some" in scopedEnrollments
+      ? scopedEnrollments.some
+      : undefined;
 
   return prisma.studentEnrollment.findMany({
     where: {
       institutionId,
       userId,
+      ...(scopedEnrollmentWhere || {}),
     },
     orderBy: {
       enrolledAt: "desc",
