@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { isInstitutionWideFinance } from "./accessScope.service";
+import { isInstitutionWideFinance, hasScopedWorkspaceRole } from "./accessScope.service";
 import {
   getManagedDepartmentIds,
   getStudentDepartmentIds,
@@ -146,6 +146,6 @@ export function assertFeeApprovalAuthority(actor: AuthenticatedUser): void {
 }
 
 export function assertExaminationController(actor: AuthenticatedUser): void {
-  if (actor.roles.includes("EXAMINATION")) return;
-  throw new AppError("Only the Examination Cell may perform this operational examination action", 403);
+  if (actor.roles.includes("EXAMINATION") && !hasScopedWorkspaceRole(actor)) return;
+  throw new AppError("Only the Examination workspace may perform this institutional examination action", 403);
 }
