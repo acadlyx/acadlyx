@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isDirectorScoped } from "./accessScope.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -254,7 +254,9 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
     requireWorkflowRead(actor, ["fees.read","fees.manage","payments.manage","fees.payment.read","fees.invoice.read"], "You do not have access to this fee invoice.");
-    await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
+    if (!isInstitutionWideFinance(actor)) {
+      await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
+    }
   }
   table="fee_invoices";updatedAt=x.updatedAt;
   state=x.status==="PAID"||x.paidAmount>=x.amount?"PAID":x.status==="CANCELLED"?"CANCELLED":"PENDING";
