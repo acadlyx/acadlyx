@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isDirectorScoped } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, isDirectorScoped } from "./accessScope.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -267,7 +267,9 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
     requireWorkflowRead(actor, ["results.read","results.manage","exams.read","exams.manage","marks.read"], "You do not have access to this examination result.");
-    await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
+    if (!isInstitutionWideExamination(actor)) {
+      await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
+    }
   }
   table="exam_results";updatedAt=x.updatedAt;state="PUBLISHED";
   const manage=has(actor,"results.manage")||has(actor,"exams.manage"); editable=manage;
