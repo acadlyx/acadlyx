@@ -1702,12 +1702,36 @@ export async function createTimetableEntry(
   return row;
 }
 
-async function assertDirectorNoticeDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
-  if (!isDirectorScoped(actor)) return;
-  const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
-  if (!departmentId || !assignedDepartments.includes(departmentId)) {
-    throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+async function assertNoticeDepartmentScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  departmentId?: string | null,
+): Promise<void> {
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  if (isInstitutionWide(actor)) return;
+
+  if (isDirectorScoped(actor)) {
+    const assigned = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentId || !assigned.includes(departmentId)) {
+      throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+    }
+    return;
   }
+
+  if (roles.has("DEAN") || roles.has("HOD")) {
+    const assigned = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentId || !assigned.includes(departmentId)) {
+      throw new AppError("Dean/HOD notice actions must target an assigned department", 403);
+    }
+    return;
+  }
+
+  // CMS can publish institution-wide notices in its own tenant workspace.
+  // This is a module entitlement, not permission to browse other modules'
+  // institution-wide records.
+  if (roles.has("CMS") && !hasScopedWorkspaceRole(actor)) return;
+
+  throw new AppError("Notice management is outside your authorized scope", 403);
 }
 
 export async function createNotice(
@@ -1750,7 +1774,7 @@ export async function createNotice(
     );
   }
 
-  await assertDirectorNoticeDepartment(institutionId, actor, input.departmentId);
+  await assertNoticeDepartmentScope(institutionId, actor, input.departmentId);
 
   await assertDepartmentScope(
     institutionId,
@@ -2709,8 +2733,8 @@ export async function updateNotice(
       ? existing.departmentId
       : input.departmentId;
 
-  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
-  await assertDirectorNoticeDepartment(institutionId, actor, departmentId);
+  await assertNoticeDepartmentScope(institutionId, actor, existing.departmentId);
+  await assertNoticeDepartmentScope(institutionId, actor, departmentId);
 
   await assertDepartmentScope(
     institutionId,
