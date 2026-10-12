@@ -8,7 +8,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
-import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped } from "./accessScope.service";
+import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -430,14 +430,15 @@ function serializeStudent(student: any, actor?: AuthenticatedUser) {
         ? "MISSING"
         : classifyStudentEnrollmentState(student.profile, currentEnrollment);
 
-  const restrictedProfileRoles = new Set([
+  const restrictedProfileRoles = new Set<string>([
     "PLACEMENT",
     "LIBRARIAN",
     "ACCOUNTS",
     "EXAMINATION",
   ]);
-  const hasRestrictedProfileAccess =
-    actor?.roles.some((role) => restrictedProfileRoles.has(role.toUpperCase())) ?? false;
+  const hasRestrictedProfileAccess = actor
+    ? restrictedProfileRoles.has(getEffectiveWorkspaceRole(actor))
+    : false;
 
   const profile = hasRestrictedProfileAccess && student.profile
     ? {
