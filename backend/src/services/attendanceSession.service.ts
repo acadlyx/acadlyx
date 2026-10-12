@@ -189,7 +189,7 @@ export async function upsertRecords(
     throw new AppError("Attendance session not found", 404);
   }
 
-  assertCanManageOffering(user, session.courseOffering.facultyId);
+  await assertCanManageOffering(institutionId, user, session.courseOfferingId, session.courseOffering.facultyId);
 
   /*
    * Finalised attendance is evidence. Once a session is locked the only
