@@ -44,27 +44,34 @@ export type DashboardId =
 
 const ROLE_ALIASES: Record<string, string> = {};
 
+/**
+ * Effective workspace priority matches backend scope enforcement:
+ * Chairman is the explicit institution-wide override; otherwise scoped
+ * academic/owner roles are resolved before secondary administrative grants.
+ * A secondary Institution Admin or specialist role must not switch a scoped
+ * account into a broader dashboard.
+ */
 const DASHBOARD_PRIORITY = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
   "CHAIRMAN",
-  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
-  "REGISTRAR",
   "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "MANAGEMENT",
+  "REGISTRAR",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
   "EXAMINATION",
   "LIBRARIAN",
-  "PLACEMENT",
   "IT",
   "CMS",
-  "FACULTY",
   "CLUB_PRESIDENT",
-  "STUDENT",
-  "PARENT",
 ] as const;
 
 export function normalizeRole(
