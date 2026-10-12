@@ -123,7 +123,7 @@ async function getOfferingReadScope(
   actor: AuthenticatedUser,
 ): Promise<Prisma.CourseOfferingWhereInput> {
   if (isInstitutionWide(actor)) return {};
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
 
   if (isDirectorScoped(actor)) {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
@@ -231,7 +231,7 @@ async function assertFeeInvoiceScope(
   studentId: string,
 ): Promise<void> {
   if (isInstitutionWideFinance(actor)) {
-    const roles = new Set(getCanonicalRoleNames(actor.roles));
+    const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
     if (!roles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
       throw new AppError("Fee data is outside your authorized institution scope", 403);
     }
@@ -245,7 +245,7 @@ async function assertStudentScope(
   actor: AuthenticatedUser,
   studentId: string,
 ): Promise<void> {
-  const actorRoles = new Set(getCanonicalRoleNames(actor.roles));
+  const actorRoles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (!actorRoles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
     throw new AppError("Student data is outside your authorized scope", 403);
   }
@@ -2580,7 +2580,7 @@ export async function listNotices(
     throw new AppError("Notice read permission is required", 403);
   }
 
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const institutionWide = isInstitutionWide(actor);
   const now = new Date();
 
@@ -3147,7 +3147,7 @@ export async function listFeeInvoices(
   actor: AuthenticatedUser,
   filters: { studentId?: string; status?: string } = {}
 ) {
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const institutionWide = isInstitutionWideFinance(actor) &&
     ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT", "REGISTRAR"].some((role) => roles.has(role));
 
@@ -3223,7 +3223,7 @@ export async function getFeeInvoice(
 
   await assertFeeInvoiceScope(institutionId, actor, invoice.studentId);
 
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (
     actor.id !== invoice.studentId &&
     ![...roles].some((role) =>
@@ -3396,7 +3396,7 @@ export async function listParentLinks(
     "REGISTRAR",
   ]);
 
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const where: Prisma.ParentStudentLinkWhereInput = {
     institutionId,
     ...(studentId ? { studentId } : {}),
