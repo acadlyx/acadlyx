@@ -529,20 +529,23 @@ export async function listStudents(
   const search = params.search?.trim();
   await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentWhereScope(institutionId, actor);
-  const directorDepartmentIds = isDirectorScoped(actor)
-    ? await getDirectorDepartmentIds(institutionId, actor.id)
-    : undefined;
-  const scopedStudentListInclude = directorDepartmentIds
+  const {
+    studentEnrollments: scopeEnrollmentFilter,
+  } = scope;
+  const includeEnrollmentWhere =
+    scopeEnrollmentFilter && "some" in scopeEnrollmentFilter
+      ? scopeEnrollmentFilter.some
+      : undefined;
+  const scopedStudentListInclude = includeEnrollmentWhere
     ? {
         ...studentListInclude,
         studentEnrollments: {
           ...studentListInclude.studentEnrollments,
           where: {
-            program: {
-              departmentId: {
-                in: directorDepartmentIds.length ? directorDepartmentIds : ["__NO_AUTHORIZED_SCOPE__"],
-              },
-            },
+            AND: [
+              studentListInclude.studentEnrollments.where ?? {},
+              includeEnrollmentWhere,
+            ],
           },
         },
       }
@@ -550,7 +553,10 @@ export async function listStudents(
 
   const where: Prisma.UserWhereInput = {
     institutionId,
-    ...scope,
+    ...scopeWithoutEnrollment,
+    ...(enrollmentPredicates.length
+      ? { studentEnrollments: { some: { AND: enrollmentPredicates } } }
+      : {}),
 
     userRoles: {
       some: {
@@ -602,19 +608,6 @@ export async function listStudents(
         }
       : {}),
 
-    ...(params.departmentId || params.academicYearId || params.programId || params.semesterId || params.sectionId
-      ? {
-          studentEnrollments: {
-            some: {
-              ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
-              ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
-              ...(params.programId ? { programId: params.programId } : {}),
-              ...(params.semesterId ? { semesterId: params.semesterId } : {}),
-              ...(params.sectionId ? { sectionId: params.sectionId } : {}),
-            },
-          },
-        }
-      : {}),
   };
 
   const [items, total] = await prisma.$transaction([
