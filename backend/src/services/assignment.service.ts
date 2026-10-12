@@ -20,7 +20,9 @@ import {
 
 const isAdmin = (user: AuthenticatedUser) => ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user));
 const isScopedAcademicLead = (user: AuthenticatedUser) =>
-  user.roles.some((role) => ["DIRECTOR", "DEAN", "HOD"].includes(role));
+  ["DIRECTOR", "DEAN", "HOD"].includes(getEffectiveWorkspaceRole(user));
+const isFaculty = (user: AuthenticatedUser) => getEffectiveWorkspaceRole(user) === "FACULTY";
+const isStudent = (user: AuthenticatedUser) => getEffectiveWorkspaceRole(user) === "STUDENT";
 
 async function assertCanReviewOffering(
   institutionId: string,
@@ -38,7 +40,7 @@ async function assertCanReviewOffering(
   }
   throw new AppError("You are not allowed to review submissions for this course offering", 403);
 }
-const isFaculty = (user: AuthenticatedUser) => user.roles.includes("FACULTY");
+
 
 const assignmentInclude = {
   courseOffering: {
@@ -88,7 +90,7 @@ export async function listAssignments(
         semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } },
       },
     };
-  } else if (user.roles.includes("STUDENT")) {
+  } else if (isStudent(user)) {
     const enrolledOfferingIds = await getStudentCourseOfferingIds(institutionId, user.id);
     where = {
       ...where,
