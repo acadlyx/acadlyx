@@ -8,7 +8,7 @@ import { getCourseOfferingRosterIds } from "../utils/academicRoster";
 import { EnterMarksInput } from "../validators/internalMark.validators";
 import { recordAuditLog } from "./audit.service";
 import { getCanonicalRoleNames } from "../config/rbac";
-import { getDirectorDepartmentIds, getManagedDepartmentIds } from "./accessScope.service";
+import { getDirectorDepartmentIds, getManagedDepartmentIds, isInstitutionWide } from "./accessScope.service";
 
 export async function enterMarks(institutionId: string, user: AuthenticatedUser, input: EnterMarksInput) {
   const offering = await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
@@ -40,7 +40,7 @@ export async function listMarks(institutionId: string, user: AuthenticatedUser, 
     ...(filters.component ? { component: filters.component } : {}),
   };
 
-  if (roles.some((role) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "REGISTRAR", "EXAMINATION"].includes(role))) {
+  if (isInstitutionWide(user) && roles.some((role) => ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "REGISTRAR", "EXAMINATION", "MANAGEMENT", "ACCOUNTS"].includes(role))) {
     // Institution-wide read is permission-controlled at the route boundary.
   } else if (roles.includes("DIRECTOR")) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, user.id);
