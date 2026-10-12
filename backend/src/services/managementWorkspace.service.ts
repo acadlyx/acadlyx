@@ -8,6 +8,7 @@ import {
 const LEADERSHIP_ROLES = [
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
+  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
   "REGISTRAR",
@@ -46,6 +47,10 @@ function getWorkspaceType(
     )
   ) {
     return "REGISTRAR";
+  }
+
+  if (actor.roles.includes("MANAGEMENT")) {
+    return "MANAGEMENT";
   }
 
   return "INSTITUTION_ADMIN";
@@ -300,7 +305,7 @@ export async function getManagementWorkspaceSummary(
   if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN")) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
-  if (!["CHAIRMAN", "DIRECTOR", "DEAN"].includes(workspaceType)) {
+  if (!["CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN"].includes(workspaceType)) {
     throw new AppError("A leadership summary is not available for this workspace", 403);
   }
 
@@ -308,7 +313,7 @@ export async function getManagementWorkspaceSummary(
   const studentRole = { userRoles: { some: { role: { name: "STUDENT" } } } };
   const facultyRole = { userRoles: { some: { role: { name: "FACULTY" } } } };
 
-  if (workspaceType === "CHAIRMAN") {
+  if (workspaceType === "CHAIRMAN" || workspaceType === "MANAGEMENT") {
     const [
       students,
       faculty,
