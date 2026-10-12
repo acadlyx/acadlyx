@@ -306,6 +306,11 @@ export const PERMISSIONS = [
   { key: "campuses.delete", module: "campuses", description: "Remove campuses" },
 
   { key: "plans.manage", module: "saas", description: "Manage platform subscription plans" },
+
+  // Typed capabilities granted by getRolePermissions() for scoped communications.
+  { key: "notices.read", module: "notices", description: "View notices within the user's authorized scope" },
+  { key: "notices.manage", module: "notices", description: "Create and manage notices within the user's authorized scope" },
+  { key: "notifications.read", module: "notifications", description: "View notifications available to the authenticated user" },
 ] as const;
 
 export type PermissionKey =
