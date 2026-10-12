@@ -19,7 +19,7 @@ type PortalActor = {
   roles: string[];
 };
 
-const scopedPortalManagerRoles = new Set(["DIRECTOR", "DEAN", "HOD"]);
+const scopedPortalManagerRoles = new Set<string>(["DIRECTOR", "DEAN", "HOD"]);
 
 function isScopedPortalManager(actor: PortalActor): boolean {
   const roles = new Set(getCanonicalRoleNames(actor.roles));
