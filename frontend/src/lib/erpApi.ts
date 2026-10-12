@@ -286,6 +286,7 @@ function invalidateUsers(
 }
 
 export function clearErpClientCache(): void {
+  cacheGeneration += 1;
   responseCache.clear();
   inFlightRequests.clear();
 }
