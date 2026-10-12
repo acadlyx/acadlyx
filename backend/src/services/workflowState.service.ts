@@ -22,17 +22,41 @@ export interface WorkflowStateResult {
 }
 
 const has=(a:AuthenticatedUser,p:string)=>a.permissions.includes(p);
-const role=(a:AuthenticatedUser,r:string)=>a.roles.some(x=>x.toUpperCase()===r);
+const activeRole=(a:AuthenticatedUser)=>getEffectiveWorkspaceRole(a);
+const role=(a:AuthenticatedUser,r:string)=>activeRole(a)===r;
+const hasWorkflowPermission=(
+ actor:AuthenticatedUser,
+ permissions:readonly string[],
+ roles:readonly string[],
+):boolean=>roles.includes(activeRole(actor))&&permissions.some((permission)=>has(actor,permission));
+
+const WORKFLOW_READ_ROLES = {
+ assignmentSubmission: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","FACULTY"],
+ enrollment: ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD"],
+ attendance: ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","FACULTY"],
+ registration: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","PARENT"],
+ application: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","ADMISSIONS","DIRECTOR","DEAN","HOD","PARENT"],
+ leave: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","HR","DIRECTOR","DEAN","HOD"],
+ admission: ["ADMISSIONS","DIRECTOR","DEAN","HOD"],
+ user: ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD"],
+ movement: ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD"],
+ certificate: ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","PLACEMENT"],
+ fees: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","ACCOUNTS","DIRECTOR","DEAN","HOD","PARENT"],
+ exam: ["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION","DIRECTOR","DEAN","HOD","FACULTY","PARENT"],
+} as const;
 
 function action(key:string,label:string,enabled:boolean,permission?:string,reason?:string,kind:WorkflowAction["kind"]="secondary",reversible=false):WorkflowAction{
  return {key,label,kind,enabled,permission,reason,reversible};
 }
 
 
-function requireWorkflowRead(actor: AuthenticatedUser, permissions: string[], message: string): void {
-  if (!permissions.some((permission) => has(actor, permission))) {
-    throw new AppError(message, 403);
-  }
+function requireWorkflowRead(
+ actor:AuthenticatedUser,
+ permissions:readonly string[],
+ allowedRoles:readonly string[],
+ message:string,
+):void {
+ if(!hasWorkflowPermission(actor,permissions,allowedRoles)) throw new AppError(message,403);
 }
 
 async function assertCanViewWorkflowStudent(
@@ -108,7 +132,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.assignmentSubmission.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,submittedAt:true,updatedAt:true,studentId:true,assignment:{select:{courseOffering:{select:{id:true,facultyId:true}}}}}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["assignments.read","assignments.manage","assignments.review"], "You do not have access to this submission.");
+    requireWorkflowRead(actor, ["assignments.read","assignments.manage","assignments.review"], WORKFLOW_READ_ROLES.assignmentSubmission, "You do not have access to this submission.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   if (role(actor, "FACULTY") && x.studentId !== actor.id) {
@@ -128,7 +152,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.studentEnrollment.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,enrolledAt:true,updatedAt:true,userId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.userId !== actor.id) {
-    requireWorkflowRead(actor, ["students.read","students.manage","enrollment.read","enrollment.approve"], "You do not have access to this enrollment.");
+    requireWorkflowRead(actor, ["students.read","students.manage","enrollment.read","enrollment.approve"], WORKFLOW_READ_ROLES.enrollment, "You do not have access to this enrollment.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.userId);
   }
   table="student_enrollments";updatedAt=x.updatedAt;
@@ -141,7 +165,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
  } else if(w==="attendance_session"||w==="attendance"){
   const x=await prisma.attendanceSession.findFirst({where:{id:entityId,institutionId},select:{id:true,isSubmitted:true,isLocked:true,submittedAt:true,updatedAt:true,facultyId:true,courseOfferingId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
-  requireWorkflowRead(actor, ["attendance.read","attendance.mark","attendance.manage","attendance.approve","attendance.lock"], "You do not have access to this attendance session.");
+  requireWorkflowRead(actor, ["attendance.read","attendance.mark","attendance.manage","attendance.approve","attendance.lock"], WORKFLOW_READ_ROLES.attendance, "You do not have access to this attendance session.");
   await assertCanViewWorkflowOffering(institutionId, actor, x.courseOfferingId, x.facultyId);
   table="attendance_sessions";updatedAt=x.updatedAt;
   state=x.isLocked?"LOCKED":x.isSubmitted?"MARKED":"PENDING";
@@ -152,7 +176,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.courseRegistration.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["registration.read","registration.approve","courses.manage","enrollment.read","enrollment.approve"], "You do not have access to this registration.");
+    requireWorkflowRead(actor, ["registration.read","registration.approve","courses.manage","enrollment.read","enrollment.approve"], WORKFLOW_READ_ROLES.registration, "You do not have access to this registration.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="course_registrations";updatedAt=x.updatedAt;
@@ -164,7 +188,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["applications.read","applications.manage","admissions.read","admissions.manage"], "You do not have access to this application.");
+    requireWorkflowRead(actor, ["applications.read","applications.manage","admissions.read","admissions.manage"], WORKFLOW_READ_ROLES.application, "You do not have access to this application.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="applications";updatedAt=x.appliedAt;
@@ -176,7 +200,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.leaveRequest.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,applicantId:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.applicantId !== actor.id) {
-    requireWorkflowRead(actor, ["leave.read","leave.approve","leave.manage"], "You do not have access to this leave request.");
+    requireWorkflowRead(actor, ["leave.read","leave.approve","leave.manage"], WORKFLOW_READ_ROLES.leave, "You do not have access to this leave request.");
     await assertCanViewUserRecord(institutionId, actor, x.applicantId);
   }
   table="leave_requests";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"PENDING";
@@ -189,7 +213,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     select:{id:true,status:true,updatedAt:true,programId:true},
   });
   if(!x) throw new AppError("Workflow record not found",404);
-  requireWorkflowRead(actor, ["admissions.read","admissions.manage"], "You do not have access to this admission application.");
+  requireWorkflowRead(actor, ["admissions.read","admissions.manage"], WORKFLOW_READ_ROLES.admission, "You do not have access to this admission application.");
 
   // Admission records are scoped through their selected program. A secondary
   // ADMISSIONS role cannot bypass a Director's campus or Dean/HOD department.
@@ -221,7 +245,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.user.findFirst({where:{id:entityId,institutionId},select:{id:true,isActive:true,deletedAt:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (actor.id !== x.id) {
-    requireWorkflowRead(actor, ["users.read"], "You do not have access to this user.");
+    requireWorkflowRead(actor, ["users.read"], WORKFLOW_READ_ROLES.user, "You do not have access to this user.");
     await assertCanViewUserRecord(institutionId, actor, x.id);
   }
   table="users";updatedAt=x.updatedAt;
@@ -233,7 +257,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.studentMovementRequest.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["students.read","students.update","students.manage"], "You do not have access to this student movement request.");
+    requireWorkflowRead(actor, ["students.read","students.update","students.manage"], WORKFLOW_READ_ROLES.movement, "You do not have access to this student movement request.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="student_movement_requests";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"PENDING";
@@ -243,7 +267,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.certificate.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["certificates.read","certificates.issue","students.manage"], "You do not have access to this certificate.");
+    requireWorkflowRead(actor, ["certificates.read","certificates.issue","students.manage"], WORKFLOW_READ_ROLES.certificate, "You do not have access to this certificate.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"REQUESTED";
@@ -253,7 +277,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.feeInvoice.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,paidAmount:true,amount:true,updatedAt:true,studentId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["fees.read","fees.manage","payments.manage","fees.payment.read","fees.invoice.read"], "You do not have access to this fee invoice.");
+    requireWorkflowRead(actor, ["fees.read","fees.manage","payments.manage","fees.payment.read","fees.invoice.read"], WORKFLOW_READ_ROLES.fees, "You do not have access to this fee invoice.");
     if (!isInstitutionWideFinance(actor)) {
       await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
     }
@@ -266,7 +290,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   const x=await prisma.examResult.findFirst({where:{id:entityId,institutionId},select:{id:true,updatedAt:true,studentId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
-    requireWorkflowRead(actor, ["results.read","results.manage","exams.read","exams.manage","marks.read"], "You do not have access to this examination result.");
+    requireWorkflowRead(actor, ["results.read","results.manage","exams.read","exams.manage","marks.read"], WORKFLOW_READ_ROLES.exam, "You do not have access to this examination result.");
     if (!isInstitutionWideExamination(actor)) {
       const activeRole = getEffectiveWorkspaceRole(actor);
       if (!["DIRECTOR", "DEAN", "HOD", "FACULTY", "PARENT"].includes(activeRole)) {
