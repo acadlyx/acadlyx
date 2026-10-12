@@ -67,16 +67,55 @@ export function hasScopedWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">):
   return roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]));
 }
 
+/**
+ * The active workspace is derived from the same priority as the frontend.
+ * A permission from a secondary role cannot silently switch the request into
+ * a broader or different module. Keep this list aligned with frontend/authority.ts.
+ */
+const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
+  "CHAIRMAN",
+  "DIRECTOR",
+  "DEAN",
+  "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "MANAGEMENT",
+  "REGISTRAR",
+  "ACCOUNTS",
+  "HR",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "IT",
+  "CMS",
+  "CLUB_PRESIDENT",
+  "STAFF",
+] as const;
+
+export function getEffectiveWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): string {
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  return EFFECTIVE_WORKSPACE_ROLE_PRIORITY.find((role) => roles.has(role)) ?? "UNASSIGNED";
+}
+
 export function isInstitutionWideForRole(
   actor: Pick<AuthenticatedUser, "roles">,
   moduleRole: "ACCOUNTS" | "ADMISSIONS" | "EXAMINATION",
 ): boolean {
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("CHAIRMAN")) return true;
-  if (roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]))) {
-    return false;
-  }
-  return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role)) || roles.includes(moduleRole);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const allowedByModule: Record<typeof moduleRole, readonly string[]> = {
+    // Institution Admin intentionally does not own Accounts/Fees.
+    ACCOUNTS: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
+    // Institution Admin may administer admissions, but this role must not
+    // grant generic finance or examination authority.
+    ADMISSIONS: ["SUPER_ADMIN", "CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
+    // Institution Admin intentionally does not own Exams/Examination.
+    EXAMINATION: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
+  };
+  return allowedByModule[moduleRole].includes(activeRole);
 }
 
 export function isInstitutionWideFinance(actor: Pick<AuthenticatedUser, "roles">): boolean {
