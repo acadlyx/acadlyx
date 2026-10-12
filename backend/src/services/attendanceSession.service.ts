@@ -5,16 +5,16 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
-import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped, assertCourseOfferingInScope } from "./accessScope.service";
+import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped, assertCourseOfferingInScope, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
 } from "../validators/attendanceSession.validators";
 
 function isAdmin(user: AuthenticatedUser): boolean {
-  // A legacy secondary Institution Admin role cannot widen a Director,
-  // Dean, HOD, Faculty, Student, Parent, or Placement workspace.
-  return isInstitutionWide(user);
+  // Scope-aware institutional workspace roles only; the active role remains
+  // the policy boundary even when permissions from secondary roles exist.
+  return ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user));
 }
 
 async function assertCanManageOffering(
@@ -24,13 +24,13 @@ async function assertCanManageOffering(
   facultyId: string | null,
 ): Promise<void> {
   if (isAdmin(user)) return;
-  if (user.roles.includes("FACULTY")) {
+  if (getEffectiveWorkspaceRole(user) === "FACULTY") {
     if (facultyId !== user.id) {
       throw new AppError("You are not the assigned faculty for this course offering", 403);
     }
     return;
   }
-  if (isDirectorScoped(user) || user.roles.includes("DEAN") || user.roles.includes("HOD")) {
+  if (["DIRECTOR", "DEAN", "HOD"].includes(getEffectiveWorkspaceRole(user))) {
     await assertCourseOfferingInScope(institutionId, user, courseOfferingId);
     return;
   }
@@ -316,12 +316,12 @@ export async function listSessions(
     where.courseOffering = {
       semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } },
     };
-  } else if (user.roles.includes("HOD") || user.roles.includes("DEAN")) {
+  } else if (getEffectiveWorkspaceRole(user) === "HOD" || getEffectiveWorkspaceRole(user) === "DEAN") {
     const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
     where.courseOffering = {
       course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
     };
-  } else if (user.roles.includes("FACULTY")) {
+  } else if (getEffectiveWorkspaceRole(user) === "FACULTY") {
     if (filters.facultyId && filters.facultyId !== user.id) {
       throw new AppError("Faculty may only view their own attendance sessions", 403);
     }
