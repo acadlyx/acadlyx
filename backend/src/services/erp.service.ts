@@ -24,8 +24,8 @@ function assertRole(
   user: AuthenticatedUser,
   allowed: string[]
 ): void {
-  const actorRoles = getCanonicalRoleNames(user.roles);
-  const allowedRoles = getCanonicalRoleNames(allowed);
+  const actorRoles: string[] = getCanonicalRoleNames(user.roles);
+  const allowedRoles: string[] = getCanonicalRoleNames(allowed);
 
   // Chairman is the one explicit institution-wide workspace exception. For
   // other multi-role accounts, a scoped workspace takes precedence over
@@ -87,7 +87,7 @@ async function assertDepartmentScope(
     return;
   }
 
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (roles.has("DEAN") || roles.has("HOD")) {
     const allowed = await getManagedDepartmentIds(institutionId, actor.id);
     if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
