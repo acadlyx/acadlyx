@@ -407,18 +407,8 @@ async function assertCanReadSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (isInstitutionWide(actor)) return;
+  if (isInstitutionWideExamination(actor)) return;
   const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
-  if (actor.roles.includes("FACULTY")) {
-    if (offering.facultyId !== actor.id) throw new AppError("Examination is outside your assignment scope",403);
-    return;
-  }
-  if (actor.roles.includes("HOD") || actor.roles.includes("DEAN")) {
-    const ids = await getManagedDepartmentIds(institutionId, actor.id);
-    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
-    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized academic scope",403);
-    return;
-  }
   if (isDirectorScoped(actor)) {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!ids.length) throw new AppError("Examination is outside your authorized campus scope", 403);
@@ -427,6 +417,16 @@ async function assertCanReadSchedule(
       select: { id: true },
     });
     if (!semester) throw new AppError("Examination is outside your authorized campus scope", 403);
+    return;
+  }
+  if (actor.roles.includes("HOD") || actor.roles.includes("DEAN")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
+    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized academic scope",403);
+    return;
+  }
+  if (actor.roles.includes("FACULTY")) {
+    if (offering.facultyId !== actor.id) throw new AppError("Examination is outside your assignment scope",403);
     return;
   }
   throw new AppError("You are not authorized to access this examination schedule",403);
@@ -438,7 +438,7 @@ async function assertCanActOnSchedule(
   schedule: ExamScheduleRow
 ): Promise<void> {
   if (actor.roles.includes("EXAMINATION")) {
-    if (isInstitutionWide(actor)) return;
+    if (isInstitutionWideExamination(actor)) return;
     await assertCanReadSchedule(institutionId, actor, schedule);
     return;
   }
