@@ -189,6 +189,10 @@ const DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES = new Set<ExportType>([
 ]);
 
 const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
+  // Examination has institution-wide authority within the examination domain,
+  // but not generic institution-wide access to student/user records.
+  exams: ["EXAMINATION"],
+  marks: ["EXAMINATION"],
   "library-books": ["LIBRARIAN"],
   "library-copies": ["LIBRARIAN"],
   "library-issues": ["LIBRARIAN"],
