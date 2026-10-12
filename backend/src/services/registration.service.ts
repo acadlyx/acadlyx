@@ -7,7 +7,9 @@ import { recordAuditLog } from "./audit.service";
 import { assertRegistrationApprovalAuthority } from "./workflowAuthority.service";
 import {
   getManagedDepartmentIds,
+  getDirectorDepartmentIds,
   isInstitutionWide,
+  isDirectorScoped,
 } from "./accessScope.service";
 import {
   OfferingCapacityInput,
@@ -586,22 +588,41 @@ export async function listRegistrations(
       : {}),
   };
 
-  /* A HOD only ever sees registrations for courses owned by a
-     department they manage. */
-  if (!isInstitutionWide(actor) && actor.roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
-      ...(typeof where.courseOffering === "object" && where.courseOffering !== null
-        ? where.courseOffering
-        : {}),
-      course: {
-        departmentId: {
-          in: managed.length ? managed : ["__none__"],
-        },
-      },
-    };
-
-    where.courseOffering = courseOfferingFilter;
+  // Enforce the effective workspace scope for all registration list paths.
+  // Department/campus leaders see only assigned departments; Faculty see the
+  // offerings they teach; Students and Parents see only their own/linked rows.
+  if (!isInstitutionWide(actor)) {
+    const roles = new Set(actor.roles);
+    if (isDirectorScoped(actor)) {
+      const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+      const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
+        ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
+        course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
+      };
+      where.courseOffering = courseOfferingFilter;
+    } else if (roles.has("DEAN") || roles.has("HOD")) {
+      const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+      const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
+        ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
+        course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
+      };
+      where.courseOffering = courseOfferingFilter;
+    } else if (roles.has("FACULTY")) {
+      where.courseOffering = {
+        ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
+        facultyId: actor.id,
+      };
+    } else if (roles.has("STUDENT")) {
+      where.studentId = actor.id;
+    } else if (roles.has("PARENT")) {
+      const links = await prisma.parentStudentLink.findMany({
+        where: { institutionId, parentId: actor.id },
+        select: { studentId: true },
+      });
+      where.studentId = { in: links.length ? links.map((link) => link.studentId) : ["__NO_LINKED_STUDENT__"] };
+    } else {
+      throw new AppError("Course registrations are not available for this role", 403);
+    }
   }
 
   const [items, total, grouped] = await Promise.all([
