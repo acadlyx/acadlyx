@@ -3003,76 +3003,80 @@ export async function listRevaluationRequests(
   pagination: PaginationParams,
   filters: { status?: string; examScheduleId?: string; mine?: boolean }
 ) {
+  const workspace = assertExamReadWorkspace(actor);
   const conditions: Prisma.Sql[] = [
     Prisma.sql`r."institutionId" = ${institutionId}`,
   ];
-  if (filters.status) conditions.push(Prisma.sql`r."status" = ${filters.status}`);
-  if (filters.examScheduleId) {
-    conditions.push(Prisma.sql`r."examScheduleId" = ${filters.examScheduleId}`);
+  if(filters.status)conditions.push(Prisma.sql`r."status" = ${filters.status}`);
+  if(filters.examScheduleId)conditions.push(Prisma.sql`r."examScheduleId" = ${filters.examScheduleId}`);
+
+  if(filters.mine && workspace!=="STUDENT" && workspace!=="PARENT") {
+    return {items:[],total:0};
   }
-  if (isDirectorScoped(actor)) {
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!departmentIds.length) return { items: [], total: 0 };
+  if(workspace==="STUDENT") {
+    conditions.push(Prisma.sql`r."studentId"=${actor.id}`);
+  } else if(workspace==="PARENT") {
+    const links=await prisma.parentStudentLink.findMany({
+      where:{institutionId,parentId:actor.id,student:{isActive:true}},
+      select:{studentId:true},
+    });
+    const studentIds=links.map((link)=>link.studentId);
+    if(!studentIds.length)return {items:[],total:0};
+    conditions.push(Prisma.sql`r."studentId" IN (${Prisma.join(studentIds)})`);
+  } else if(workspace==="FACULTY") {
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" scoped_schedule
-      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
-      JOIN "semesters" scoped_semester ON scoped_semester."id" = scoped_offering."semesterId"
-        AND scoped_semester."institutionId" = scoped_schedule."institutionId"
-      JOIN "programs" scoped_program ON scoped_program."id" = scoped_semester."programId"
-        AND scoped_program."institutionId" = scoped_semester."institutionId"
-      WHERE scoped_schedule."id" = r."examScheduleId"
-        AND scoped_schedule."institutionId" = r."institutionId"
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id"=scoped_schedule."courseOfferingId"
+      WHERE scoped_schedule."id"=r."examScheduleId"
+        AND scoped_schedule."institutionId"=r."institutionId"
+        AND scoped_offering."facultyId"=${actor.id}
+    )`);
+  } else if(["DIRECTOR","DEAN","HOD"].includes(workspace)) {
+    const departmentIds=workspace==="DIRECTOR"
+      ? await getDirectorDepartmentIds(institutionId,actor.id)
+      : await getManagedDepartmentIds(institutionId,actor.id);
+    if(!departmentIds.length)return {items:[],total:0};
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id"=scoped_schedule."courseOfferingId"
+      JOIN "semesters" scoped_semester ON scoped_semester."id"=scoped_offering."semesterId"
+        AND scoped_semester."institutionId"=scoped_schedule."institutionId"
+      JOIN "programs" scoped_program ON scoped_program."id"=scoped_semester."programId"
+        AND scoped_program."institutionId"=scoped_semester."institutionId"
+      WHERE scoped_schedule."id"=r."examScheduleId"
+        AND scoped_schedule."institutionId"=r."institutionId"
         AND scoped_program."departmentId" IN (${Prisma.join(departmentIds)})
     )`);
-  }
-  // Students and parents never see the whole queue.
-  if (filters.mine || actor.roles.includes("STUDENT")) {
-    conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
-  } else if (
-    !isInstitutionWide(actor) &&
-    !actor.permissions.includes("exams.manage") &&
-    !isDirectorScoped(actor)
-  ) {
-    conditions.push(Prisma.sql`r."studentId" = ${actor.id}`);
+  } else if(!isInstitutionWideExamination(actor)) {
+    return {items:[],total:0};
   }
 
-  const where = andWhere(conditions);
-
-  const [items, totalRows] = await Promise.all([
-    prisma.$queryRaw<
-      Array<{
-        id: string;
-        status: string;
-        reason: string;
-        originalMarks: number | null;
-        revisedMarks: number | null;
-        studentName: string;
-        courseCode: string;
-        examDate: Date;
-        createdAt: Date;
-      }>
-    >(Prisma.sql`
-      SELECT r."id", r."status", r."reason", r."originalMarks", r."revisedMarks",
-             r."createdAt", r."feeAmount", r."decisionNote",
+  const where=andWhere(conditions);
+  const [items,totalRows]=await Promise.all([
+    prisma.$queryRaw<Array<{
+      id:string;status:string;reason:string;originalMarks:number|null;revisedMarks:number|null;
+      studentName:string;courseCode:string;examDate:Date;createdAt:Date;
+    }>>(Prisma.sql`
+      SELECT r."id",r."status",r."reason",r."originalMarks",r."revisedMarks",
+             r."createdAt",r."feeAmount",r."decisionNote",
              u."firstName" || ' ' || u."lastName" AS "studentName",
-             c."code" AS "courseCode", s."examDate"
+             c."code" AS "courseCode",s."examDate"
       FROM "revaluation_requests" r
-      JOIN "users" u ON u."id" = r."studentId"
-      JOIN "exam_schedules" s ON s."id" = r."examScheduleId"
-      JOIN "course_offerings" co ON co."id" = s."courseOfferingId"
-      JOIN "courses" c ON c."id" = co."courseId"
+      JOIN "users" u ON u."id"=r."studentId"
+      JOIN "exam_schedules" s ON s."id"=r."examScheduleId"
+      JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+      JOIN "courses" c ON c."id"=co."courseId"
       ${where}
       ORDER BY r."createdAt" DESC
       LIMIT ${pagination.take} OFFSET ${pagination.skip}
     `),
-    prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+    prisma.$queryRaw<{count:bigint}[]>(Prisma.sql`
       SELECT COUNT(*)::bigint AS "count"
       FROM "revaluation_requests" r
       ${where}
     `),
   ]);
-
-  return { items, total: Number(totalRows[0]?.count ?? 0) };
+  return {items,total:Number(totalRows[0]?.count ?? 0)};
 }
 
 /**
