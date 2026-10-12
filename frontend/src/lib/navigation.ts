@@ -98,7 +98,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Events & Gallery",
     href: "/events-gallery",
     icon: "◫",
-    roles: ["MANAGEMENT","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
+    roles: ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
     permissions: ["events.read"],
     group: "Institution",
     activeMatch: "nested",
@@ -1749,7 +1749,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/dean", ["DEAN"]],
   ["/registrar", ["REGISTRAR"]],
   ["/hod", ["HOD"]],
-  ["/accounts", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]],
+
   ["/hr", ["HR"]],
 
 
@@ -1828,17 +1828,15 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   [
     "/students",
     [
+      "SUPER_ADMIN",
       "INSTITUTION_ADMIN",
       "CHAIRMAN",
+      "MANAGEMENT",
       "DIRECTOR",
       "DEAN",
       "REGISTRAR",
       "HOD",
       "FACULTY",
-      "ACCOUNTS",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
       "PLACEMENT",
     ],
   ],
@@ -1887,7 +1885,11 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   [
     "/fees",
     [
+      "SUPER_ADMIN",
+      "INSTITUTION_ADMIN",
       "CHAIRMAN",
+      "MANAGEMENT",
+      "REGISTRAR",
       "DIRECTOR",
       "DEAN",
       "HOD",
