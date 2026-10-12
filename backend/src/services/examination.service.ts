@@ -352,9 +352,23 @@ function assertExamController(actor: AuthenticatedUser): void {
   assertExaminationController(actor);
 }
 
+const EXAM_READ_ROLES = [
+  "SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","EXAMINATION",
+  "DIRECTOR","DEAN","HOD","FACULTY","STUDENT","PARENT",
+] as const;
+
+function assertExamReadWorkspace(actor: AuthenticatedUser): string {
+  const role = getEffectiveWorkspaceRole(actor);
+  if (!EXAM_READ_ROLES.includes(role as typeof EXAM_READ_ROLES[number])) {
+    throw new AppError("Examination access is not available in the active workspace",403);
+  }
+  return role;
+}
+
 function assertExamApprover(actor: AuthenticatedUser): void {
-  if (!actor.roles.some((role) => ["EXAMINATION","DIRECTOR","REGISTRAR","CHAIRMAN"].includes(role))) {
-    throw new AppError("Examination approval authority is required for this operation", 403);
+  const role = getEffectiveWorkspaceRole(actor);
+  if (!["EXAMINATION","DIRECTOR","REGISTRAR","CHAIRMAN"].includes(role)) {
+    throw new AppError("Examination approval authority is required in the active workspace",403);
   }
 }
 
@@ -782,25 +796,43 @@ export async function listExamSessions(
   pagination: PaginationParams,
   filters: { status?: string; examType?: string; search?: string }
 ) {
+  const workspace = assertExamReadWorkspace(actor);
   const conditions: Prisma.Sql[] = [
     Prisma.sql`"institutionId" = ${institutionId}`,
   ];
-  const roles = actor.roles;
-  if (roles.includes("STUDENT")) {
+
+  const targetFilter = (studentId: string, context: StudentExamContext) => Prisma.sql`(
+    ("studentIds" = '[]'::jsonb OR "studentIds" ? ${studentId})
+    AND ("campusIds" = '[]'::jsonb OR ("campusIds" ? ${context.campusId ?? ""}))
+    AND ("departmentIds" = '[]'::jsonb OR ("departmentIds" ? ${context.departmentId ?? ""}))
+    AND ("programIds" = '[]'::jsonb OR ("programIds" ? ${context.programId ?? ""}))
+    AND ("semesterIds" = '[]'::jsonb OR ("semesterIds" ? ${context.semesterId ?? ""}))
+    AND ("sectionIds" = '[]'::jsonb OR ("sectionIds" ? ${context.sectionId ?? ""}))
+    AND ("academicYearId" IS NULL OR "academicYearId" = ${context.academicYearId})
+    AND ("semesterId" IS NULL OR "semesterId" = ${context.semesterId})
+  )`;
+
+  if (workspace === "STUDENT") {
     const context = await loadStudentExamContext(institutionId, actor.id);
-    conditions.push(Prisma.sql`(
-      ("studentIds" = '[]'::jsonb OR "studentIds" ? ${actor.id})
-      AND ("campusIds" = '[]'::jsonb OR ("campusIds" ? ${context.campusId ?? ""}))
-      AND ("departmentIds" = '[]'::jsonb OR ("departmentIds" ? ${context.departmentId ?? ""}))
-      AND ("programIds" = '[]'::jsonb OR ("programIds" ? ${context.programId ?? ""}))
-      AND ("semesterIds" = '[]'::jsonb OR ("semesterIds" ? ${context.semesterId ?? ""}))
-      AND ("sectionIds" = '[]'::jsonb OR ("sectionIds" ? ${context.sectionId ?? ""}))
-      AND ("academicYearId" IS NULL OR "academicYearId"=${context.academicYearId})
-      AND ("semesterId" IS NULL OR "semesterId"=${context.semesterId})
-    )`);
-  } else if (roles.includes("PARENT")) {
-    return { items: [], total: 0 };
-  } else if (roles.includes("FACULTY")) {
+    conditions.push(targetFilter(actor.id, context));
+  } else if (workspace === "PARENT") {
+    const links = await prisma.parentStudentLink.findMany({
+      where: { institutionId, parentId: actor.id, student: { isActive: true } },
+      select: { studentId: true },
+    });
+    const contexts = await Promise.all(links.map(async ({ studentId }) => {
+      try {
+        return { studentId, context: await loadStudentExamContext(institutionId, studentId) };
+      } catch {
+        return null;
+      }
+    }));
+    const visibleChildren = contexts.filter(
+      (value): value is { studentId: string; context: StudentExamContext } => value !== null,
+    );
+    if (!visibleChildren.length) return { items: [], total: 0 };
+    conditions.push(Prisma.sql`(${Prisma.join(visibleChildren.map(({studentId,context}) => targetFilter(studentId,context)), " OR ")})`);
+  } else if (workspace === "FACULTY") {
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" es
       JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
@@ -808,79 +840,90 @@ export async function listExamSessions(
         AND es."institutionId"=${institutionId}
         AND co."facultyId"=${actor.id}
     )`);
-  } else if (roles.includes("HOD")) {
+  } else if (workspace === "HOD" || workspace === "DEAN") {
     const ids = await getManagedDepartmentIds(institutionId, actor.id);
     if (!ids.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`(
-      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
-      OR EXISTS (
-        SELECT 1 FROM "exam_schedules" es
-        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-        JOIN "courses" c ON c."id"=co."courseId"
-        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
+      ("departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text("departmentIds") target_department(id)
+        WHERE target_department.id NOT IN (${Prisma.join(ids)})
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM "exam_schedules" outside_schedule
+        JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
+        JOIN "courses" outside_course ON outside_course."id"=outside_offering."courseId"
+        WHERE outside_schedule."examSessionId"="exam_sessions"."id"
+          AND outside_schedule."institutionId"=${institutionId}
+          AND outside_course."departmentId" NOT IN (${Prisma.join(ids)})
+      )
+      AND (
+        "departmentIds" <> '[]'::jsonb OR EXISTS (
+          SELECT 1 FROM "exam_schedules" scoped_schedule
+          JOIN "course_offerings" scoped_offering ON scoped_offering."id"=scoped_schedule."courseOfferingId"
+          JOIN "courses" scoped_course ON scoped_course."id"=scoped_offering."courseId"
+          WHERE scoped_schedule."examSessionId"="exam_sessions"."id"
+            AND scoped_schedule."institutionId"=${institutionId}
+            AND scoped_course."departmentId" IN (${Prisma.join(ids)})
+        )
       )
     )`);
-  } else if (roles.includes("DEAN")) {
-    const ids = await getManagedDepartmentIds(institutionId, actor.id);
-    if (!ids.length) return { items: [], total: 0 };
-    conditions.push(Prisma.sql`(
-      "departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}]
-      OR EXISTS (
-        SELECT 1 FROM "exam_schedules" es
-        JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-        JOIN "courses" c ON c."id"=co."courseId"
-        WHERE es."examSessionId"="exam_sessions"."id" AND c."departmentId" IN (${Prisma.join(ids)})
-      )
-    )`);
-  } else if (isDirectorScoped(actor)) {
+  } else if (workspace === "DIRECTOR") {
     const [ids, campusIds] = await Promise.all([
       getDirectorDepartmentIds(institutionId, actor.id),
       getDirectorCampusIds(institutionId, actor.id),
     ]);
     if (!ids.length || !campusIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`(
-      (
-        (("campusIds" <> '[]'::jsonb AND "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
-          OR ("departmentIds" <> '[]'::jsonb AND "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
-          OR EXISTS (
-            SELECT 1 FROM "exam_schedules" es
-            JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-            JOIN "semesters" sem ON sem."id"=co."semesterId" AND sem."institutionId"=es."institutionId"
-            JOIN "programs" p ON p."id"=sem."programId" AND p."institutionId"=sem."institutionId"
-            WHERE es."examSessionId"="exam_sessions"."id"
-              AND es."institutionId"=${institutionId}
-              AND p."departmentId" IN (${Prisma.join(ids)})
-          ))
-        AND NOT EXISTS (
-          SELECT 1 FROM "exam_schedules" outside_schedule
-          JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
-          JOIN "semesters" outside_semester ON outside_semester."id"=outside_offering."semesterId" AND outside_semester."institutionId"=outside_schedule."institutionId"
-          JOIN "programs" outside_program ON outside_program."id"=outside_semester."programId" AND outside_program."institutionId"=outside_semester."institutionId"
-          WHERE outside_schedule."examSessionId"="exam_sessions"."id"
-            AND outside_schedule."institutionId"=${institutionId}
-            AND outside_program."departmentId" NOT IN (${Prisma.join(ids)})
+      ("campusIds" = '[]'::jsonb OR "campusIds" ?| ARRAY[${Prisma.join(campusIds)}])
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text("campusIds") target_campus(id)
+        WHERE target_campus.id NOT IN (${Prisma.join(campusIds)})
+      )
+      AND ("departmentIds" = '[]'::jsonb OR "departmentIds" ?| ARRAY[${Prisma.join(ids)}])
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements_text("departmentIds") target_department(id)
+        WHERE target_department.id NOT IN (${Prisma.join(ids)})
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM "exam_schedules" outside_schedule
+        JOIN "course_offerings" outside_offering ON outside_offering."id"=outside_schedule."courseOfferingId"
+        JOIN "semesters" outside_semester ON outside_semester."id"=outside_offering."semesterId"
+          AND outside_semester."institutionId"=outside_schedule."institutionId"
+        JOIN "programs" outside_program ON outside_program."id"=outside_semester."programId"
+          AND outside_program."institutionId"=outside_semester."institutionId"
+        WHERE outside_schedule."examSessionId"="exam_sessions"."id"
+          AND outside_schedule."institutionId"=${institutionId}
+          AND outside_program."departmentId" NOT IN (${Prisma.join(ids)})
+      )
+      AND (
+        ("campusIds" <> '[]'::jsonb OR "departmentIds" <> '[]'::jsonb)
+        OR EXISTS (
+          SELECT 1 FROM "exam_schedules" scoped_schedule
+          JOIN "course_offerings" scoped_offering ON scoped_offering."id"=scoped_schedule."courseOfferingId"
+          JOIN "semesters" scoped_semester ON scoped_semester."id"=scoped_offering."semesterId"
+            AND scoped_semester."institutionId"=scoped_schedule."institutionId"
+          JOIN "programs" scoped_program ON scoped_program."id"=scoped_semester."programId"
+            AND scoped_program."institutionId"=scoped_semester."institutionId"
+          WHERE scoped_schedule."examSessionId"="exam_sessions"."id"
+            AND scoped_schedule."institutionId"=${institutionId}
+            AND scoped_program."departmentId" IN (${Prisma.join(ids)})
         )
       )
     )`);
   }
-  if (filters.status) {
-    conditions.push(Prisma.sql`"status" = ${filters.status}`);
-  }
-  if (filters.examType) {
-    conditions.push(Prisma.sql`"examType" = ${filters.examType}`);
-  }
+
+  if (filters.status) conditions.push(Prisma.sql`"status" = ${filters.status}`);
+  if (filters.examType) conditions.push(Prisma.sql`"examType" = ${filters.examType}`);
   if (filters.search) {
     const like = `%${filters.search}%`;
-    conditions.push(
-      Prisma.sql`("name" ILIKE ${like} OR "code" ILIKE ${like})`
-    );
+    conditions.push(Prisma.sql`("name" ILIKE ${like} OR "code" ILIKE ${like})`);
   }
   const where = andWhere(conditions);
 
   const [items, total] = await Promise.all([
     prisma.$queryRaw<ExamSessionRow[]>(Prisma.sql`
-      SELECT * FROM "exam_sessions"
-      ${where}
+      SELECT * FROM "exam_sessions" ${where}
       ORDER BY "startDate" DESC
       LIMIT ${pagination.take} OFFSET ${pagination.skip}
     `),
