@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isDirectorScoped } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isDirectorScoped } from "./accessScope.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -193,7 +193,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
 
   // Admission records are scoped through their selected program. A secondary
   // ADMISSIONS role cannot bypass a Director's campus or Dean/HOD department.
-  if (!isInstitutionWide(actor)) {
+  if (!isInstitutionWideAdmissions(actor)) {
     if (isDirectorScoped(actor) || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
       await assertProgramInScope(institutionId, actor, x.programId);
     } else {
