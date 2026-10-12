@@ -1,8 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-
-const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
+import { isInstitutionWide } from "../services/accessScope.service";
 
 /**
  * Shared ownership check: a permission like `assignments.create` or
@@ -17,8 +16,7 @@ export function assertOwnsCourseOffering(
   user: AuthenticatedUser,
   facultyId: string | null
 ): void {
-  const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r));
-  if (isAdmin) return;
+  if (isInstitutionWide(user)) return;
   if (facultyId && facultyId === user.id) return;
   throw new AppError(
     "You are not the assigned faculty for this course offering",
