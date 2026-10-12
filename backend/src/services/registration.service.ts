@@ -608,10 +608,13 @@ export async function listRegistrations(
       };
       where.courseOffering = courseOfferingFilter;
     } else if (roles.has("FACULTY")) {
-      where.courseOffering = {
-        ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
+      const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
+        ...(typeof where.courseOffering === "object" && where.courseOffering !== null && "facultyId" in where.courseOffering
+          ? where.courseOffering
+          : {}),
         facultyId: actor.id,
       };
+      where.courseOffering = courseOfferingFilter;
     } else if (roles.has("STUDENT")) {
       where.studentId = actor.id;
     } else if (roles.has("PARENT")) {
