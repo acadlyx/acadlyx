@@ -1776,13 +1776,6 @@ export async function createNotice(
 
   await assertNoticeDepartmentScope(institutionId, actor, input.departmentId);
 
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    input.departmentId
-  );
-
   if (input.departmentId) {
     const department =
       await prisma.department.findFirst({
@@ -2736,13 +2729,6 @@ export async function updateNotice(
   await assertNoticeDepartmentScope(institutionId, actor, existing.departmentId);
   await assertNoticeDepartmentScope(institutionId, actor, departmentId);
 
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    departmentId || undefined
-  );
-
   if (departmentId) {
     const department = await prisma.department.findFirst({
       where: {
@@ -2827,13 +2813,6 @@ export async function deleteNotice(
   }
 
   await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    existing.departmentId || undefined
-  );
-
   await prisma.notice.delete({
     where: { id },
   });
