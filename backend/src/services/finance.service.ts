@@ -5,7 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
-import { getDirectorCampusIds, isDirectorScoped } from "./accessScope.service";
+import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance } from "./accessScope.service";
 
 type Scope={institutionId:string;studentIds?:string[];departmentIds?:string[];campusIds?:string[]};
 const has=(a:AuthenticatedUser,p:string)=>a.permissions.includes(p);
@@ -13,27 +13,58 @@ const rs=(a:AuthenticatedUser)=>getCanonicalRoleNames(a.roles);
 
 async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  const r=rs(a);
- // Chairman is the only leadership role that overrides a secondary Director assignment.
+
+ // Explicit Chairman authority is institution-wide, even if the user retains
+ // a legacy secondary Director role. All other scoped roles are resolved
+ // before financial module-wide roles to prevent Accounts/Registrar bindings
+ // from widening a Dean, HOD, Faculty, Student or Parent.
  if(r.includes("CHAIRMAN")) return {institutionId};
- if(isDirectorScoped(a)) return {institutionId,campusIds:await getDirectorCampusIds(institutionId,a.id)};
- if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role))) return {institutionId};
+
+ if(isDirectorScoped(a)) {
+  const campusIds=await getDirectorCampusIds(institutionId,a.id);
+  return {institutionId,campusIds};
+ }
+
+ if(r.includes("DEAN")||r.includes("HOD")) {
+  const departmentIds=await getManagedDepartmentIds(institutionId,a.id);
+  return {institutionId,departmentIds};
+ }
+
  if(r.includes("STUDENT")) return {institutionId,studentIds:[a.id]};
- if(r.includes("PARENT")) return {institutionId,studentIds:(await prisma.parentStudentLink.findMany({where:{institutionId,parentId:a.id},select:{studentId:true}})).map(x=>x.studentId)};
- // Department-scoped roles must not gain institution-wide data scope from a broad action permission.
- if(r.includes("HOD")||r.includes("DEAN")) return {institutionId,departmentIds:(await prisma.departmentAccess.findMany({where:{userId:a.id,department:{institutionId}},select:{departmentId:true}})).map(x=>x.departmentId)};
+
+ if(r.includes("PARENT")) {
+  const studentIds=(await prisma.parentStudentLink.findMany({
+   where:{institutionId,parentId:a.id},select:{studentId:true}
+  })).map(x=>x.studentId);
+  return {institutionId,studentIds};
+ }
+
+ if(isInstitutionWideFinance(a)) return {institutionId};
+
  throw new AppError("Financial scope is not authorized",403);
 }
 function invoiceWhere(s:Scope):Prisma.FeeInvoiceWhereInput{
  if(s.studentIds)return{institutionId:s.institutionId,studentId:{in:s.studentIds}};
- if(s.departmentIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}}}};
- if(s.campusIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}};
+ if(s.departmentIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,departmentId:{in:s.departmentIds}}}}}};
+ if(s.campusIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}}}}}}};
  return{institutionId:s.institutionId};
 }
-function paymentWhere(s:Scope):Prisma.FeePaymentWhereInput{return{institutionId:s.institutionId,invoice:s.studentIds?{studentId:{in:s.studentIds}}:s.departmentIds?{student:{studentEnrollments:{some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}}}}:s.campusIds?{student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}}:{}}}
-function studentFinancialFilter(s:Scope):Record<string,any>{
+function paymentWhere(s:Scope):Prisma.FeePaymentWhereInput{
+ return {
+  institutionId:s.institutionId,
+  invoice:s.studentIds
+   ? {studentId:{in:s.studentIds}}
+   : s.departmentIds
+    ? {student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,departmentId:{in:s.departmentIds}}}}}}
+    : s.campusIds
+     ? {student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}}}}}}}
+     : {},
+ };
+}
+function studentFinancialFilter(s:Scope):Record<string,unknown>{
  if(s.studentIds)return{studentId:{in:s.studentIds}};
- if(s.departmentIds)return{invoice:{student:{studentEnrollments:{some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}}}}};
- if(s.campusIds)return{invoice:{student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}}};
+ if(s.departmentIds)return{invoice:{student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,departmentId:{in:s.departmentIds}}}}}}};
+ if(s.campusIds)return{invoice:{student:{studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}}}}}}}};
  return{};
 }
 function dec(v:unknown){const x=new Prisma.Decimal(String(v??"0"));if(x.lte(0))throw new AppError("Amount must be greater than zero",400);return x}
