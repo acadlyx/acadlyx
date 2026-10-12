@@ -10,6 +10,7 @@ import {
   getDirectorDepartmentIds,
   isInstitutionWide,
   isDirectorScoped,
+  getEffectiveWorkspaceRole,
 } from "./accessScope.service";
 import {
   OfferingCapacityInput,
@@ -208,12 +209,12 @@ export async function register(
   const studentId = input.studentId ?? actor.id;
 
   /* Registering someone else is a registrar action, never a student one. */
-  if (
-    studentId !== actor.id &&
-    !actor.permissions.includes("registration.approve") &&
-    !actor.permissions.includes("registration.read")
-  ) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (studentId !== actor.id && !actor.permissions.includes("registration.approve")) {
     throw new AppError("You may only register yourself", 403);
+  }
+  if (studentId === actor.id && activeRole !== "STUDENT") {
+    throw new AppError("Only the active Student workspace may submit self-registration", 403);
   }
 
   const student = await prisma.user.findFirst({
@@ -242,6 +243,9 @@ export async function register(
       },
     });
     if (!offering) throw new AppError("Course offering not found", 404);
+    if (studentId !== actor.id) {
+      await assertApproverScope(institutionId, actor, offering.course.departmentId);
+    }
     if (!offering.registrationOpen) {
       throw new AppError("Registration is closed for this offering", 409);
     }
@@ -502,7 +506,7 @@ export async function bulkRegister(
   courseOfferingIds: string[],
   meta: Meta
 ) {
-  if (!actor.roles.includes("STUDENT")) throw new AppError("Only students may submit their own course registration", 403);
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT") throw new AppError("Only the active Student workspace may submit course registrations", 403);
   const unique = [...new Set(courseOfferingIds)];
   const results: { courseOfferingId: string; status: "SUBMITTED" | "SKIPPED"; reason?: string; registration?: unknown }[] = [];
   for (const courseOfferingId of unique) {
@@ -525,8 +529,12 @@ export async function bulkDecideRegistrations(
   remarks: string | undefined,
   meta: Meta
 ) {
-  if (!actor.permissions.includes("registration.approve") || actor.roles.includes("STUDENT")) {
-    throw new AppError("You are not authorized to decide course registrations", 403);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (
+    !actor.permissions.includes("registration.approve") ||
+    !["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD"].includes(activeRole)
+  ) {
+    throw new AppError("The active workspace cannot decide course registrations", 403);
   }
   const unique = [...new Set(ids)];
   const results: { id: string; status: "APPROVED" | "SKIPPED"; reason?: string }[] = [];
@@ -592,22 +600,22 @@ export async function listRegistrations(
   // Department/campus leaders see only assigned departments; Faculty see the
   // offerings they teach; Students and Parents see only their own/linked rows.
   if (!isInstitutionWide(actor)) {
-    const roles = new Set(actor.roles);
-    if (isDirectorScoped(actor)) {
+    const activeRole = getEffectiveWorkspaceRole(actor);
+    if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
       const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
       const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
         ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
         course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
       };
       where.courseOffering = courseOfferingFilter;
-    } else if (roles.has("DEAN") || roles.has("HOD")) {
+    } else if (activeRole === "DEAN" || activeRole === "HOD") {
       const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
       const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
         ...(typeof where.courseOffering === "object" && where.courseOffering !== null ? where.courseOffering : {}),
         course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
       };
       where.courseOffering = courseOfferingFilter;
-    } else if (roles.has("FACULTY")) {
+    } else if (activeRole === "FACULTY") {
       const courseOfferingFilter: Prisma.CourseOfferingWhereInput = {
         ...(typeof where.courseOffering === "object" && where.courseOffering !== null && "facultyId" in where.courseOffering
           ? where.courseOffering
@@ -615,9 +623,9 @@ export async function listRegistrations(
         facultyId: actor.id,
       };
       where.courseOffering = courseOfferingFilter;
-    } else if (roles.has("STUDENT")) {
+    } else if (activeRole === "STUDENT") {
       where.studentId = actor.id;
-    } else if (roles.has("PARENT")) {
+    } else if (activeRole === "PARENT") {
       const links = await prisma.parentStudentLink.findMany({
         where: { institutionId, parentId: actor.id },
         select: { studentId: true },
@@ -676,8 +684,8 @@ export async function bulkAssignCourses(
   },
   meta: Meta
 ) {
-  if (!actor.roles.includes("HOD")) {
-    throw new AppError("Only an HOD may use bulk course assignment", 403);
+  if (getEffectiveWorkspaceRole(actor) !== "HOD") {
+    throw new AppError("Only the active HOD workspace may use bulk course assignment", 403);
   }
 
   const studentIds = Array.from(new Set(input.studentIds));
