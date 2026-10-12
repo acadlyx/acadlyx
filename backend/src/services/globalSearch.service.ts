@@ -9,6 +9,7 @@ import {
   getStudentDepartmentIds,
   isInstitutionWide,
   isDirectorScoped,
+  getEffectiveWorkspaceRole,
 } from "./accessScope.service";
 
 export type GlobalSearchResult = { type: "person" | "course" | "notice"; id: string; title: string; subtitle: string; href: string };
@@ -31,12 +32,12 @@ export async function globalSearch(
   const canNotices = actor.permissions.includes("notices.read") || roles.includes("STUDENT");
 
   const institutionWide = isInstitutionWide(actor);
-  const directorWorkspace = !institutionWide && isDirectorScoped(actor);
-  const departmentWorkspace = !institutionWide && !directorWorkspace &&
-    (roles.includes("HOD") || roles.includes("DEAN"));
-  const facultyWorkspace = !institutionWide && !directorWorkspace && !departmentWorkspace && roles.includes("FACULTY");
-  const studentWorkspace = !institutionWide && !directorWorkspace && !departmentWorkspace && !facultyWorkspace && roles.includes("STUDENT");
-  const parentWorkspace = !institutionWide && !directorWorkspace && !departmentWorkspace && !facultyWorkspace && !studentWorkspace && roles.includes("PARENT");
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const directorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor);
+  const departmentWorkspace = !institutionWide && (activeRole === "HOD" || activeRole === "DEAN");
+  const facultyWorkspace = !institutionWide && activeRole === "FACULTY";
+  const studentWorkspace = !institutionWide && activeRole === "STUDENT";
+  const parentWorkspace = !institutionWide && activeRole === "PARENT";
 
   const managedDepartments = directorWorkspace
     ? await getDirectorDepartmentIds(institutionId, actor.id)
@@ -120,7 +121,7 @@ export async function globalSearch(
         SELECT "id","code","name" FROM "courses" WHERE "institutionId"=${institutionId}
           AND ("code" ILIKE ${like} OR "name" ILIKE ${like}) ORDER BY "code" LIMIT 8
       `) as typeof courses;
-    } else if (roles.includes("HOD") || roles.includes("DEAN") || roles.includes("DIRECTOR")) {
+    } else if (directorWorkspace || departmentWorkspace) {
       if (managedDepartments.length) {
         courses = await prisma.$queryRaw(Prisma.sql`
           SELECT "id","code","name" FROM "courses" WHERE "institutionId"=${institutionId}
@@ -128,7 +129,7 @@ export async function globalSearch(
             AND ("code" ILIKE ${like} OR "name" ILIKE ${like}) ORDER BY "code" LIMIT 8
         `) as typeof courses;
       }
-    } else if (roles.includes("FACULTY")) {
+    } else if (facultyWorkspace) {
       courses = await prisma.$queryRaw(Prisma.sql`
         SELECT DISTINCT c."id",c."code",c."name" FROM "courses" c
         INNER JOIN "course_offerings" co ON co."courseId"=c."id"
@@ -156,8 +157,8 @@ export async function globalSearch(
     if (studentWorkspace) audiences = ["ALL", "STUDENT", "STUDENTS"];
     else if (parentWorkspace) audiences = ["ALL", "PARENT", "PARENTS"];
     else if (facultyWorkspace) audiences = ["ALL", "FACULTY", "TEACHERS"];
-    else if (roles.includes("HOD") && !institutionWide) audiences = ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"];
-    else if (roles.includes("DEAN") && !institutionWide) audiences = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
+    else if (activeRole === "HOD" && !institutionWide) audiences = ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"];
+    else if (activeRole === "DEAN" && !institutionWide) audiences = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
     else if (directorWorkspace) audiences = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
     else if (!institutionWide) {
       const specialist = ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
