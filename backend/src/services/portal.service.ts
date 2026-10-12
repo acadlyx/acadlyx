@@ -191,24 +191,6 @@ async function assertStudentSelfAccess(
 }
 
 
-async function assertHodStudentAccess(
-  institutionId: string,
-  actorId: string,
-  studentId: string,
-  roles: string[],
-): Promise<void> {
-  await assertCanViewStudent(
-    institutionId,
-    {
-      id: actorId,
-      institutionId,
-      email: "",
-      roles: getCanonicalRoleNames(roles),
-      permissions: [],
-    },
-    studentId,
-  );
-}
 
 async function assertStudentExists(
   institutionId: string,
