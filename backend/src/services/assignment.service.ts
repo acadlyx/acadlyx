@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
 import { publishDomainEvent } from "./domainEvent.service";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCourseOfferingInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { assertCourseOfferingInScope, getAuthorizedDepartmentIds, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   assertOwnsCourseOffering,
   loadCourseOfferingOrThrow,
@@ -18,7 +18,7 @@ import {
   UpdateAssignmentInput,
 } from "../validators/assignment.validators";
 
-const isAdmin = (user: AuthenticatedUser) => isInstitutionWide(user);
+const isAdmin = (user: AuthenticatedUser) => ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user));
 const isScopedAcademicLead = (user: AuthenticatedUser) =>
   user.roles.some((role) => ["DIRECTOR", "DEAN", "HOD"].includes(role));
 
