@@ -14,11 +14,12 @@ import {
   UpdateUserInput,
 } from "../validators/user.validators";
 import { assertTenantQuota } from "./entitlement.service";
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 
 const SYSTEM_ROLE_SET = new Set<string>(SYSTEM_ROLE_NAMES);
 
 function isSuperAdmin(actor: AuthenticatedUser): boolean {
-  return actor.roles.includes("SUPER_ADMIN");
+  return getEffectiveWorkspaceRole(actor) === "SUPER_ADMIN";
 }
 
 /**
