@@ -2584,133 +2584,104 @@ export async function deleteTimetableEntry(
 export async function listNotices(
   institutionId: string,
   actor: AuthenticatedUser,
-  includeExpired = true
+  includeExpired = true,
 ) {
-  const roles = actor.roles.map((role) => role.toUpperCase());
+  if (!actor.permissions.includes("notices.read")) {
+    throw new AppError("Notice read permission is required", 403);
+  }
+
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const institutionWide = isInstitutionWide(actor);
   const now = new Date();
 
-  const isStudent = roles.includes("STUDENT");
-  const isParent = roles.includes("PARENT");
-  const isFaculty = roles.includes("FACULTY");
-  const isHod = roles.includes("HOD");
-  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
+  // Apply the most restrictive assigned workspace first. A secondary Admin
+  // role never removes a Director/Dean/HOD/Faculty/Student/Parent data filter.
+  const isDirectorWorkspace = !institutionWide && isDirectorScoped(actor);
+  const isDeanWorkspace = !institutionWide && !isDirectorWorkspace && roles.has("DEAN");
+  const isHod = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && roles.has("HOD");
+  const isFaculty = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && roles.has("FACULTY");
+  const isStudent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && roles.has("STUDENT");
+  const isParent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && !isStudent && roles.has("PARENT");
 
-  if (
-    !isStudent &&
-    !isParent &&
-    !isFaculty &&
-    !isHod &&
-    !hasAnyRole(actor, [
-      "SUPER_ADMIN",
-      "INSTITUTION_ADMIN",
-      "DIRECTOR",
-      "CHAIRMAN",
-      "MANAGEMENT",
-      "DEAN",
-      "REGISTRAR",
-      "ACCOUNTS",
-      "HR",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
-      "PLACEMENT",
-      "IT",
-      "CMS",
-      "CLUB_PRESIDENT",
-      "STAFF",
-    ])
-  ) {
+  const allowedRoles = [
+    "SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "CHAIRMAN", "MANAGEMENT",
+    "DEAN", "REGISTRAR", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION",
+    "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF",
+    "FACULTY", "HOD", "STUDENT", "PARENT",
+  ];
+  if (!roles.has("SUPER_ADMIN") && !roles.size) {
+    throw new AppError("You are not allowed to view notices", 403);
+  }
+  if (!institutionWide && ![
+    isDirectorWorkspace, isDeanWorkspace, isHod, isFaculty, isStudent, isParent,
+    roles.has("PLACEMENT"), roles.has("HR"), roles.has("ADMISSIONS"),
+    roles.has("EXAMINATION"), roles.has("LIBRARIAN"), roles.has("IT"),
+    roles.has("CMS"), roles.has("CLUB_PRESIDENT"), roles.has("STAFF"),
+  ].some(Boolean) && !allowedRoles.some((role) => roles.has(role))) {
     throw new AppError("You are not allowed to view notices", 403);
   }
 
   let departmentIds: string[] = [];
-
-  if (isStudent) {
-    const enrollment = await prisma.studentEnrollment.findFirst({
-      where: {
-        institutionId,
-        userId: actor.id,
-        status: "ACTIVE",
-      },
-      orderBy: { academicYear: { startDate: "desc" } },
-      select: {
-        program: { select: { departmentId: true } },
-      },
+  if (isDirectorWorkspace) {
+    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  } else if (isDeanWorkspace || isHod) {
+    departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+  } else if (isFaculty) {
+    departmentIds = await getStaffDepartmentIds(institutionId, actor.id);
+  } else if (isStudent) {
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { institutionId, userId: actor.id, status: "ACTIVE" },
+      select: { program: { select: { departmentId: true } } },
     });
-
-    if (enrollment?.program.departmentId) {
-      departmentIds = [enrollment.program.departmentId];
-    }
+    departmentIds = Array.from(new Set(enrollments.map((row) => row.program.departmentId)));
   } else if (isParent) {
     const links = await prisma.parentStudentLink.findMany({
-      where: {
-        institutionId,
-        parentId: actor.id,
-      },
+      where: { institutionId, parentId: actor.id },
       select: {
         student: {
           select: {
             studentEnrollments: {
               where: { institutionId, status: "ACTIVE" },
-              orderBy: { academicYear: { startDate: "desc" } },
-              take: 1,
-              select: {
-                program: { select: { departmentId: true } },
-              },
+              select: { program: { select: { departmentId: true } } },
             },
           },
         },
       },
     });
-
-    departmentIds = Array.from(
-      new Set(
-        links.flatMap((link) =>
-          link.student.studentEnrollments.map(
-            (enrollment) => enrollment.program.departmentId,
-          ),
-        ),
-      ),
-    );
-  } else if (isHod) {
-    departmentIds = await getHodDepartmentIds(institutionId, actor);
-  } else if (isDirectorWorkspace) {
-    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    departmentIds = Array.from(new Set(
+      links.flatMap((link) => link.student.studentEnrollments.map((enrollment) => enrollment.program.departmentId)),
+    ));
   }
 
-  const audience =
-    isStudent
-      ? ["ALL", "STUDENT", "STUDENTS"]
-      : isParent
-        ? ["ALL", "PARENT", "PARENTS"]
-        : isFaculty
-          ? ["ALL", "FACULTY", "TEACHERS"]
-          : isHod
-            ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
-            : undefined;
+  let audience: string[] | undefined;
+  if (isStudent) audience = ["ALL", "STUDENT", "STUDENTS"];
+  else if (isParent) audience = ["ALL", "PARENT", "PARENTS"];
+  else if (isFaculty) audience = ["ALL", "FACULTY", "TEACHERS"];
+  else if (isHod) audience = ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"];
+  else if (isDeanWorkspace) audience = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
+  else if (isDirectorWorkspace) audience = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
+  else if (!institutionWide) {
+    const workspaceAudience = ["HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+      .find((role) => roles.has(role));
+    if (workspaceAudience) audience = ["ALL", workspaceAudience];
+  }
 
   const andFilters: Prisma.NoticeWhereInput[] = [];
   if (!includeExpired) {
     andFilters.push({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
   }
-  if (audience) {
-    andFilters.push({ audience: { in: audience } });
-  }
-  if (isHod || isStudent || isParent) {
+  if (audience) andFilters.push({ audience: { in: audience } });
+
+  // All non-wide workspaces are limited to broadcasts and notices targeted
+  // at their assigned departments. An unassigned account sees broadcasts only.
+  if (!institutionWide) {
     const audienceDepartments: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
     if (departmentIds.length) audienceDepartments.push({ departmentId: { in: departmentIds } });
     andFilters.push({ OR: audienceDepartments });
   }
-  if (isDirectorWorkspace) {
-    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
-    if (departmentIds.length) directorNoticeScope.push({ departmentId: { in: departmentIds } });
-    andFilters.push({ OR: directorNoticeScope });
-  }
-
-  const where: Prisma.NoticeWhereInput = { institutionId, AND: andFilters };
 
   return prisma.notice.findMany({
-    where,
+    where: { institutionId, AND: andFilters },
     orderBy: { publishedAt: "desc" },
   });
 }
