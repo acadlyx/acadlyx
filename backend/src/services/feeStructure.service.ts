@@ -6,7 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { hasFeeActionPermission } from "./feeAuthorization";
-import { getAuthorizedDepartmentIds, isInstitutionWideFinance } from "./accessScope.service";
+import { getAuthorizedDepartmentIds, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -117,7 +117,7 @@ export async function listFeeHeads(
   includeInactive = false
 ) {
   if (
-    !actor.roles.includes("SUPER_ADMIN") &&
+    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
     !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
@@ -1041,7 +1041,7 @@ export async function publishFeeStructure(
   actor: AuthenticatedUser,
   structureId: string
 ) {
-  if (!actor.roles.includes("CHAIRMAN") || !actor.permissions.includes("fees.structure.publish")) {
+  if (getEffectiveWorkspaceRole(actor) !== "CHAIRMAN" || !actor.permissions.includes("fees.structure.publish")) {
     throw new AppError("Direct fee-structure publication is reserved for the Chairman workspace", 403);
   }
   await assertFeeStructureInActorScope(institutionId, actor, structureId);
