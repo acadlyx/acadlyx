@@ -3005,6 +3005,7 @@ export async function getExamDetails(
       "INSTITUTION_ADMIN",
       "DIRECTOR",
       "CHAIRMAN",
+      "DEAN",
       "HOD",
       "ACCOUNTS",
       "FACULTY",
@@ -3195,10 +3196,11 @@ export async function listFeeInvoices(
   actor: AuthenticatedUser,
   filters: { studentId?: string; status?: string } = {}
 ) {
-  const roles = getCanonicalRoleNames(actor.roles);
-  const institutionWide = roles.some(role => ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","ACCOUNTS"].includes(role));
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const institutionWide = isInstitutionWide(actor) &&
+    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT"].some((role) => roles.has(role));
 
-  if (!institutionWide && !roles.some(role => ["DIRECTOR","DEAN","HOD"].includes(role))) {
+  if (!institutionWide && !isDirectorScoped(actor) && !roles.has("DEAN") && !roles.has("HOD")) {
     throw new AppError("Not authorized to view fee invoices", 403);
   }
 
@@ -3208,14 +3210,22 @@ export async function listFeeInvoices(
     ...(filters.status ? { status: filters.status } : {}),
   };
 
-  if (!institutionWide && roles.includes("DIRECTOR")) {
+  if (!institutionWide && isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) throw new AppError("No campus scope is assigned to this director", 403);
-    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
-  } else if (!institutionWide && (roles.includes("DEAN") || roles.includes("HOD"))) {
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  } else if (!institutionWide && (roles.has("DEAN") || roles.has("HOD"))) {
     const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) throw new AppError("No department scope is assigned to this account", 403);
-    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
   }
 
   return prisma.feeInvoice.findMany({
@@ -3266,24 +3276,14 @@ export async function getFeeInvoice(
     invoice.studentId
   );
 
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
   if (
     actor.id !== invoice.studentId &&
-    !actor.roles.some((role) =>
-      [
-        "INSTITUTION_ADMIN",
-        "DIRECTOR",
-        "CHAIRMAN",
-        "ACCOUNTS",
-        "DEAN",
-        "HOD",
-        "PARENT",
-      ].includes(role)
+    ![...roles].some((role) =>
+      ["INSTITUTION_ADMIN", "DIRECTOR", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT", "DEAN", "HOD", "PARENT", "SUPER_ADMIN"].includes(role)
     )
   ) {
-    throw new AppError(
-      "Not authorized to view this invoice",
-      403
-    );
+    throw new AppError("Not authorized to view this invoice", 403);
   }
 
   const paid = invoice.payments.reduce(
@@ -3446,13 +3446,34 @@ export async function listParentLinks(
     "ACCOUNTS",
   ]);
 
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const where: Prisma.ParentStudentLinkWhereInput = {
+    institutionId,
+    ...(studentId ? { studentId } : {}),
+  };
+
+  // Directors can inspect parent links only for students in active enrollments
+  // in departments belonging to explicitly assigned active campuses.
+  if (isDirectorScoped(actor)) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return [];
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  } else if (!isInstitutionWide(actor) && (roles.has("DEAN") || roles.has("HOD"))) {
+    const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return [];
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  }
+
   return prisma.parentStudentLink.findMany({
-    where: {
-      institutionId,
-      ...(studentId
-        ? { studentId }
-        : {}),
-    },
+    where,
     include: {
       parent: {
         select: {
