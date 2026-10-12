@@ -6,7 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { hasFeeActionPermission } from "./feeAuthorization";
-import { getDirectorDepartmentIds } from "./accessScope.service";
+import { getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -452,7 +452,7 @@ async function assertFeeStructureInActorScope(
   actor: AuthenticatedUser,
   structureId: string,
 ): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
+  if (isInstitutionWide(actor)) return;
 
   const rows = await prisma.$queryRaw<Array<{
     programId: string | null;
@@ -478,7 +478,7 @@ async function assertFeeStructureInActorScope(
     LIMIT 1
   `);
   const row = rows[0];
-  const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
   if (
     !row ||
     (!row.programId && !row.semesterId) ||
@@ -513,8 +513,8 @@ export async function listFeeStructures(
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
 
-  if (actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN")) {
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!isInstitutionWide(actor)) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
     if (departmentIds.length === 0) return [];
     conditions.push(Prisma.sql`(
       (fs."programId" IS NOT NULL AND fs."programId" IN (
