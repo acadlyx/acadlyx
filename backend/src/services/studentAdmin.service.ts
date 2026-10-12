@@ -763,6 +763,7 @@ export async function createStudent(
       institutionId,
       input
     );
+  await assertAcademicPlacementInActorScope(institutionId, actor, placement.program.departmentId);
 
   if (placement.section) {
     if (
@@ -1140,9 +1141,7 @@ export async function updateStudent(
     },
   });
 
-  return serializeStudent(
-    updated
-  );
+  return serializeStudent(updated, actor);
 }
 
 export async function enrollStudent(
