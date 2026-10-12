@@ -51,13 +51,53 @@ async function assertCanViewWorkflowOffering(
   assignedFacultyId: string | null,
 ): Promise<void> {
   if (isInstitutionWide(actor)) return;
+
+  if (isDirectorScoped(actor) || role(actor, "DEAN") || role(actor, "HOD")) {
+    await assertCourseOfferingInScope(institutionId, actor, courseOfferingId);
+    return;
+  }
+
   if (role(actor, "FACULTY")) {
     if (assignedFacultyId !== actor.id) {
       throw new AppError("This course offering is outside your teaching assignment", 403);
     }
     return;
   }
-  await assertCourseOfferingInScope(institutionId, actor, courseOfferingId);
+
+  // Student and parent attendance status is read-only, but it must still be
+  // tied to the student's active enrollment or an explicit parent link.
+  const offering = await prisma.courseOffering.findFirst({
+    where: { id: courseOfferingId, institutionId, isActive: true },
+    select: { semesterId: true, sectionId: true },
+  });
+  if (!offering) throw new AppError("Course offering not found", 404);
+
+  const roles = actor.roles.map((value) => value.toUpperCase());
+  let studentIds = role(actor, "STUDENT") ? [actor.id] : [];
+  if (role(actor, "PARENT")) {
+    const links = await prisma.parentStudentLink.findMany({
+      where: { institutionId, parentId: actor.id },
+      select: { studentId: true },
+    });
+    studentIds = links.map((link) => link.studentId);
+  }
+  if (!studentIds.length || (!roles.includes("STUDENT") && !roles.includes("PARENT"))) {
+    throw new AppError("This course offering is outside your authorized attendance scope", 403);
+  }
+
+  const enrollment = await prisma.studentEnrollment.findFirst({
+    where: {
+      institutionId,
+      userId: { in: studentIds },
+      status: "ACTIVE",
+      semesterId: offering.semesterId,
+      ...(offering.sectionId ? { sectionId: offering.sectionId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!enrollment) {
+    throw new AppError("This course offering is outside your authorized attendance scope", 403);
+  }
 }
 
 export async function getWorkflowState(institutionId:string, actor:AuthenticatedUser, workflow:string, entityId:string):Promise<WorkflowStateResult>{
