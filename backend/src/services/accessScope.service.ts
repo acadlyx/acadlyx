@@ -11,15 +11,18 @@ import { getCanonicalRoleNames } from "../config/rbac";
  * Scope is always derived server-side.
  */
 
+/**
+ * Roles that have general cross-module institutional record scope. Specialist
+ * workspaces (Accounts, Admissions, Examination) are intentionally excluded:
+ * each may be institution-wide inside its own module but must not inherit
+ * generic access to student profiles, user records, notices or other modules.
+ */
 export const INSTITUTION_WIDE_ROLES = [
+  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "MANAGEMENT",
   "REGISTRAR",
-  "ACCOUNTS",
-  "ADMISSIONS",
-  "EXAMINATION",
-  "SUPER_ADMIN",
 ];
 
 export function hasAnyRole(actor: Pick<AuthenticatedUser, "roles">, roles: readonly string[]): boolean {
@@ -51,6 +54,36 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
     return false;
   }
   return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role));
+}
+
+/**
+ * Module-specific institution-wide authority. This is deliberately separate
+ * from isInstitutionWide(), which is used by generic student/user/record
+ * scope guards and must not treat specialist role grants as global directory
+ * access. Chairman is the explicit institution-wide override.
+ */
+export function isInstitutionWideForRole(
+  actor: Pick<AuthenticatedUser, "roles">,
+  moduleRole: "ACCOUNTS" | "ADMISSIONS" | "EXAMINATION",
+): boolean {
+  const roles = getCanonicalRoleNames(actor.roles);
+  if (roles.includes("CHAIRMAN")) return true;
+  if (roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]))) {
+    return false;
+  }
+  return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role)) || roles.includes(moduleRole);
+}
+
+export function isInstitutionWideFinance(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "ACCOUNTS");
+}
+
+export function isInstitutionWideAdmissions(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "ADMISSIONS");
+}
+
+export function isInstitutionWideExamination(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "EXAMINATION");
 }
 
 /**
