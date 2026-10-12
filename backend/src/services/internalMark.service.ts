@@ -32,7 +32,7 @@ export async function enterMarks(institutionId: string, user: AuthenticatedUser,
 export interface ListFilters extends PaginationParams { courseOfferingId?: string; studentId?: string; component?: string; }
 
 export async function listMarks(institutionId: string, user: AuthenticatedUser, filters: ListFilters) {
-  const roles = getCanonicalRoleNames(user.roles);
+  const effectiveRole = getEffectiveWorkspaceRole(user);
   const where: Prisma.InternalMarkWhereInput = {
     institutionId,
     ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
@@ -42,15 +42,15 @@ export async function listMarks(institutionId: string, user: AuthenticatedUser, 
 
   if (["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user)) || isInstitutionWideExamination(user)) {
     // Institution-wide read is permission-controlled at the route boundary.
-  } else if (roles.includes("DIRECTOR")) {
+  } else if (effectiveRole === "DIRECTOR") {
     const departmentIds = await getDirectorDepartmentIds(institutionId, user.id);
     if (!departmentIds.length) throw new AppError("No campus scope is assigned to this director", 403);
     where.courseOffering = { course: { departmentId: { in: departmentIds } } };
-  } else if (roles.includes("DEAN") || roles.includes("HOD")) {
+  } else if (effectiveRole === "DEAN" || effectiveRole === "HOD") {
     const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
     if (!departmentIds.length) throw new AppError("No department scope is assigned to this account", 403);
     where.courseOffering = { course: { departmentId: { in: departmentIds } } };
-  } else if (roles.includes("FACULTY")) {
+  } else if (effectiveRole === "FACULTY") {
     where.courseOffering = { facultyId: user.id };
   } else {
     throw new AppError("Marks list is not available for this role", 403);
