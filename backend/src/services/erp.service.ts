@@ -10,6 +10,10 @@ import {
   getDirectorDepartmentIds,
   getStaffDepartmentIds,
   isInstitutionWide,
+  isInstitutionWideFinance,
+  isInstitutionWideAdmissions,
+  isInstitutionWideExamination,
+  hasScopedWorkspaceRole,
   isDirectorScoped,
 } from "./accessScope.service";
 
@@ -219,6 +223,21 @@ async function assertParentExists(
       404
     );
   }
+}
+
+async function assertFeeInvoiceScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+): Promise<void> {
+  if (isInstitutionWideFinance(actor)) {
+    const roles = new Set(getCanonicalRoleNames(actor.roles));
+    if (!roles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
+      throw new AppError("Fee data is outside your authorized institution scope", 403);
+    }
+    return;
+  }
+  await assertStudentScope(institutionId, actor, studentId);
 }
 
 async function assertStudentScope(
@@ -1336,7 +1355,7 @@ export async function getMyWorkspace(
    */
   const canonicalRoles = getCanonicalRoleNames(actor.roles);
 
-  if (canonicalRoles.includes("ACCOUNTS")) {
+  if (canonicalRoles.includes("ACCOUNTS") && isInstitutionWideFinance(actor)) {
     const [students, invoices, payments, invoiceTotals] =
       await Promise.all([
         prisma.user.count({
@@ -1369,7 +1388,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("HR")) {
+  if (canonicalRoles.includes("HR") && !hasScopedWorkspaceRole(actor)) {
     const [employees, activeEmployees, pendingLeave] = await Promise.all([
       prisma.employeeProfile.count({ where: { institutionId } }),
       prisma.employeeProfile.count({
@@ -1390,7 +1409,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("ADMISSIONS")) {
+  if (canonicalRoles.includes("ADMISSIONS") && isInstitutionWideAdmissions(actor)) {
     const [applications, submitted, selected, enrolled] = await Promise.all([
       prisma.admissionApplication.count({
         where: { institutionId },
@@ -1417,7 +1436,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("EXAMINATION")) {
+  if (canonicalRoles.includes("EXAMINATION") && isInstitutionWideExamination(actor)) {
     const [exams, upcomingExams, results] = await Promise.all([
       prisma.exam.count({ where: { institutionId } }),
       prisma.exam.count({
@@ -1439,7 +1458,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("LIBRARIAN")) {
+  if (canonicalRoles.includes("LIBRARIAN") && !hasScopedWorkspaceRole(actor)) {
     const [books, issued, overdue] = await Promise.all([
       prisma.libraryBook.count({
         where: { institutionId, isActive: true },
@@ -1485,7 +1504,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("IT")) {
+  if (canonicalRoles.includes("IT") && !hasScopedWorkspaceRole(actor)) {
     const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const [users, activeUsers, recentAuditEvents] = await Promise.all([
       prisma.user.count({ where: { institutionId } }),
@@ -1508,7 +1527,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CMS")) {
+  if (canonicalRoles.includes("CMS") && !hasScopedWorkspaceRole(actor)) {
     const [notices, notifications] = await Promise.all([
       prisma.notice.count({ where: { institutionId } }),
       prisma.notification.count({ where: { institutionId } }),
@@ -1523,7 +1542,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CLUB_PRESIDENT")) {
+  if (canonicalRoles.includes("CLUB_PRESIDENT") && !hasScopedWorkspaceRole(actor)) {
     const notifications = await prisma.notification.count({
       where: { institutionId, userId: actor.id },
     });
@@ -3129,8 +3148,8 @@ export async function listFeeInvoices(
   filters: { studentId?: string; status?: string } = {}
 ) {
   const roles = new Set(getCanonicalRoleNames(actor.roles));
-  const institutionWide = isInstitutionWide(actor) &&
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT"].some((role) => roles.has(role));
+  const institutionWide = isInstitutionWideFinance(actor) &&
+    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT", "REGISTRAR"].some((role) => roles.has(role));
 
   if (!institutionWide && !isDirectorScoped(actor) && !roles.has("DEAN") && !roles.has("HOD")) {
     throw new AppError("Not authorized to view fee invoices", 403);
@@ -3202,11 +3221,7 @@ export async function getFeeInvoice(
     throw new AppError("Invoice not found", 404);
   }
 
-  await assertStudentScope(
-    institutionId,
-    actor,
-    invoice.studentId
-  );
+  await assertFeeInvoiceScope(institutionId, actor, invoice.studentId);
 
   const roles = new Set(getCanonicalRoleNames(actor.roles));
   if (
@@ -3372,10 +3387,13 @@ export async function listParentLinks(
   studentId?: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
-    "ACCOUNTS",
+    "DEAN",
+    "HOD",
+    "REGISTRAR",
   ]);
 
   const roles = new Set(getCanonicalRoleNames(actor.roles));
