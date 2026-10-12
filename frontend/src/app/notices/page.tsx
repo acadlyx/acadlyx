@@ -146,7 +146,7 @@ export default function NoticesPage() {
 
     try {
       const user = await getCurrentUser();
-      const manage = user.permissions.includes("notices.manage");
+      const manage = !user.roles.includes("STUDENT") && user.permissions.includes("notices.manage");
 
       setCanManage(manage);
 
