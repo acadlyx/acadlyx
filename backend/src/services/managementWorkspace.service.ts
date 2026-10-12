@@ -282,6 +282,151 @@ async function getInstitutionAdminWorkspace(
   };
 }
 
+/**
+ * Lightweight KPI payload for the Chairman, Director and Dean landing
+ * dashboards. Detailed records remain on their dedicated module endpoints.
+ * Keeps dashboard first paint from waiting on every operational count and
+ * the notices query included in the full workspace payload.
+ */
+export async function getManagementWorkspaceSummary(
+  institutionId: string,
+  actor: AuthenticatedUser,
+) {
+  const workspaceType = getWorkspaceType(actor);
+
+  if (workspaceType === "INSTITUTION_ADMIN") {
+    return getInstitutionAdminWorkspace(institutionId, actor);
+  }
+
+  const activeUser = { institutionId, isActive: true };
+  const studentRole = { userRoles: { some: { role: { name: "STUDENT" } } } };
+  const facultyRole = { userRoles: { some: { role: { name: "FACULTY" } } } };
+
+  if (workspaceType === "CHAIRMAN") {
+    const [
+      students,
+      faculty,
+      departments,
+      examResults,
+      invoiceAggregate,
+      paidInvoices,
+    ] = await Promise.all([
+      prisma.user.count({ where: { ...activeUser, ...studentRole } }),
+      prisma.user.count({ where: { ...activeUser, ...facultyRole } }),
+      prisma.department.count({ where: { institutionId, isActive: true } }),
+      prisma.examResult.count({ where: { institutionId } }),
+      prisma.feeInvoice.aggregate({
+        where: { institutionId },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.feeInvoice.count({ where: { institutionId, status: "PAID" } }),
+    ]);
+
+    return {
+      workspaceType,
+      stats: {
+        students,
+        faculty,
+        departments,
+        examResults,
+        totalInvoiced: Number(invoiceAggregate._sum.amount ?? 0),
+        paidInvoices,
+      },
+    };
+  }
+
+  if (workspaceType === "DIRECTOR") {
+    // Resolve the same canonical campus assignments used by the full
+    // workspace. Department scope is derived only from assigned active
+    // campuses, never from a caller-provided department identifier.
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (campusIds.length === 0) {
+      throw new AppError("No campus scope is assigned to this director", 403);
+    }
+
+    const departmentRows = await prisma.department.findMany({
+      where: { institutionId, campusId: { in: campusIds }, isActive: true },
+      select: { id: true },
+    });
+    const departmentIds = departmentRows.map((row) => row.id);
+    const departmentScope = { in: departmentIds };
+    const scopedStudent = {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          status: "ACTIVE",
+          program: { departmentId: departmentScope },
+        },
+      },
+    };
+    const scopedOffering = {
+      course: { departmentId: departmentScope },
+      semester: { program: { departmentId: departmentScope } },
+    };
+
+    const [
+      students,
+      faculty,
+      departments,
+      courses,
+      exams,
+      examResults,
+    ] = await Promise.all([
+      prisma.user.count({
+        where: { ...activeUser, ...studentRole, ...scopedStudent },
+      }),
+      prisma.user.count({
+        where: {
+          ...activeUser,
+          ...facultyRole,
+          facultyCourseOfferings: {
+            some: {
+              institutionId,
+              course: { departmentId: departmentScope },
+            },
+          },
+        },
+      }),
+      prisma.department.count({
+        where: { institutionId, isActive: true, id: departmentScope },
+      }),
+      prisma.course.count({
+        where: { institutionId, isActive: true, departmentId: departmentScope },
+      }),
+      prisma.exam.count({
+        where: { institutionId, courseOffering: scopedOffering },
+      }),
+      prisma.examResult.count({
+        where: { institutionId, exam: { courseOffering: scopedOffering } },
+      }),
+    ]);
+
+    return {
+      workspaceType,
+      stats: { students, faculty, departments, courses, exams, examResults },
+    };
+  }
+
+  if (workspaceType === "DEAN") {
+    const [students, faculty, programs, courses, assignments, exams] = await Promise.all([
+      prisma.user.count({ where: { ...activeUser, ...studentRole } }),
+      prisma.user.count({ where: { ...activeUser, ...facultyRole } }),
+      prisma.program.count({ where: { institutionId, isActive: true } }),
+      prisma.course.count({ where: { institutionId, isActive: true } }),
+      prisma.assignment.count({ where: { institutionId } }),
+      prisma.exam.count({ where: { institutionId } }),
+    ]);
+
+    return {
+      workspaceType,
+      stats: { students, faculty, programs, courses, assignments, exams },
+    };
+  }
+
+  throw new AppError("A leadership summary is not available for this workspace", 403);
+}
+
 export async function getManagementWorkspace(
   institutionId: string,
   actor: AuthenticatedUser
