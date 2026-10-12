@@ -599,11 +599,11 @@ export async function getManagementWorkspace(
       }),
 
       prisma.internalMark.count({
-        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.exam.count({
-        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.examResult.count({
