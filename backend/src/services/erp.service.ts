@@ -2346,42 +2346,21 @@ export async function listTimetableEntries(
     "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
+    "DEAN",
     "HOD",
     "ACCOUNTS",
     "FACULTY",
+    "STUDENT",
+    "PARENT",
   ]);
 
-  const hodDepartmentIds = actor.roles.includes("HOD")
-    ? await getManagedDepartmentIds(institutionId, actor.id)
-    : [];
-
+  const offeringScope = await getOfferingReadScope(institutionId, actor);
   return prisma.timetableEntry.findMany({
     where: {
       institutionId,
-      ...(filters.dayOfWeek !== undefined
-        ? { dayOfWeek: filters.dayOfWeek }
-        : {}),
-      ...(filters.courseOfferingId
-        ? { courseOfferingId: filters.courseOfferingId }
-        : {}),
-      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              ...(actor.roles.includes("HOD")
-                ? {
-                    course: {
-                      departmentId: {
-                        in: hodDepartmentIds,
-                      },
-                    },
-                  }
-                : {}),
-              ...(actor.roles.includes("FACULTY")
-                ? { facultyId: actor.id }
-                : {}),
-            },
-          }
-        : {}),
+      ...(filters.dayOfWeek !== undefined ? { dayOfWeek: filters.dayOfWeek } : {}),
+      ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
+      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
     },
     include: {
       courseOffering: {
@@ -2941,40 +2920,20 @@ export async function listExams(
     "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
+    "DEAN",
     "HOD",
     "ACCOUNTS",
     "FACULTY",
+    "STUDENT",
+    "PARENT",
   ]);
 
-  const hodDepartmentIds = await getHodDepartmentIds(
-    institutionId,
-    actor
-  );
-
+  const offeringScope = await getOfferingReadScope(institutionId, actor);
   return prisma.exam.findMany({
     where: {
       institutionId,
-      ...(courseOfferingId
-        ? { courseOfferingId }
-        : {}),
-      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              ...(actor.roles.includes("HOD")
-                ? {
-                    course: {
-                      departmentId: {
-                        in: hodDepartmentIds,
-                      },
-                    },
-                  }
-                : {}),
-              ...(actor.roles.includes("FACULTY")
-                ? { facultyId: actor.id }
-                : {}),
-            },
-          }
-        : {}),
+      ...(courseOfferingId ? { courseOfferingId } : {}),
+      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
     },
     include: {
       courseOffering: {
