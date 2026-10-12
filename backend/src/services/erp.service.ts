@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
-import { getManagementWorkspace, getManagementWorkspaceSummary } from "./managementWorkspace.service";
+import { getManagementWorkspace, getManagementWorkspaceSummary, getWorkspaceType } from "./managementWorkspace.service";
 import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
@@ -431,16 +431,8 @@ export async function getMyWorkspace(
    * the authenticated role. Department/school-specific authority is not
    * inferred here; it is enforced by the underlying module APIs.
    */
-  if (
-    hasAnyRole(actor, [
-      "INSTITUTION_ADMIN",
-      "CHAIRMAN",
-      "MANAGEMENT",
-      "DIRECTOR",
-      "DEAN",
-      "REGISTRAR",
-    ])
-  ) {
+  const workspaceType = getWorkspaceType(actor);
+  if (["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR"].includes(workspaceType)) {
     return getManagementWorkspace(institutionId, actor);
   }
 
