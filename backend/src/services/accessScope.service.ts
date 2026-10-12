@@ -27,8 +27,30 @@ export function hasAnyRole(actor: Pick<AuthenticatedUser, "roles">, roles: reado
   return canonical.some((role) => roles.includes(role));
 }
 
+/**
+ * Role bindings may contain legacy secondary roles. A broad secondary role
+ * must not erase a narrower assigned workspace. Chairman is the explicit
+ * exception: institution-wide Chairman authority intentionally wins over a
+ * legacy Director binding. Otherwise campus/department/class/ownership roles
+ * take precedence over institution-wide operational roles.
+ */
+const SCOPED_ROLES = [
+  "DIRECTOR",
+  "DEAN",
+  "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+] as const;
+
 export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): boolean {
-  return hasAnyRole(actor, INSTITUTION_WIDE_ROLES);
+  const roles = getCanonicalRoleNames(actor.roles);
+  if (roles.includes("CHAIRMAN")) return true;
+  if (roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]))) {
+    return false;
+  }
+  return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role));
 }
 
 /**
@@ -104,11 +126,14 @@ export async function assertCourseOfferingInScope(institutionId: string, actor: 
 
 
 export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
+  // Inactive departments are no longer part of an operational workspace.
+  // Keep the access rows for audit/history, but never grant live scope through
+  // a disabled or cross-institution department.
   const rows = await prisma.departmentAccess.findMany({
-    where: { userId, department: { institutionId } },
+    where: { userId, department: { institutionId, isActive: true } },
     select: { departmentId: true },
   });
-  return rows.map((row) => row.departmentId);
+  return Array.from(new Set(rows.map((row) => row.departmentId)));
 }
 
 /**
