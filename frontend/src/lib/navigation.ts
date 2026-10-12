@@ -1794,24 +1794,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     label: "Notifications", href: "/superadmin/notifications", icon: "◉", roles: ["SUPER_ADMIN"], group: "Institution", activeMatch: "nested",
   },
   {
-    label: "Notices", href: "/admin/notices", icon: "◌", roles: ["INSTITUTION_ADMIN"], group: "Institution", activeMatch: "nested",
-  },
-  {
-    label: "Notifications", href: "/admin/notifications", icon: "◉", roles: ["INSTITUTION_ADMIN"], group: "Institution", activeMatch: "nested",
-  },
-  {
-    label: "Notices", href: "/chairman/notices", icon: "◌", roles: ["CHAIRMAN"], group: "Institution", activeMatch: "nested",
-  },
-  {
-    label: "Notifications", href: "/chairman/notifications", icon: "◉", roles: ["CHAIRMAN"], group: "Institution", activeMatch: "nested",
-  },
-  {
-    label: "Notices", href: "/director/notices", icon: "◌", roles: ["DIRECTOR"], group: "Institution", activeMatch: "nested",
-  },
-  {
-    label: "Notifications", href: "/director/notifications", icon: "◉", roles: ["DIRECTOR"], group: "Institution", activeMatch: "nested",
-  },
-  {
     label: "Notices", href: "/management/notices", icon: "◌", roles: ["MANAGEMENT"], group: "Institution", activeMatch: "nested",
   },
   {
