@@ -1815,7 +1815,6 @@ export async function createExam(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -1900,7 +1899,6 @@ export async function upsertExamResult(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -2027,7 +2025,6 @@ export async function createInvoice(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
@@ -2816,7 +2813,6 @@ export async function listExams(
   courseOfferingId?: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
     "DEAN",
@@ -2967,7 +2963,6 @@ export async function updateExam(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -3065,7 +3060,6 @@ export async function deleteExam(
   id: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -3244,7 +3238,6 @@ export async function updateFeeInvoice(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
@@ -3322,7 +3315,6 @@ export async function deleteFeeInvoice(
   id: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
