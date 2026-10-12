@@ -125,17 +125,19 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     requireWorkflowRead(actor, ["assignments.read","assignments.manage","assignments.review"], WORKFLOW_READ_ROLES.assignmentSubmission, "You do not have access to this submission.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
-  if (role(actor, "FACULTY") && x.studentId !== actor.id) {
+  if (["DIRECTOR","DEAN","HOD","FACULTY"].includes(activeRole(actor)) && x.studentId !== actor.id) {
     await assertCanViewWorkflowOffering(institutionId, actor, x.assignment.courseOffering.id, x.assignment.courseOffering.facultyId);
   }
   table="assignment_submissions"; updatedAt=x.updatedAt;
   state=x.status==="REVIEWED"?"REVIEWED":x.status==="LATE"?"LATE":x.status==="REOPENED"?"REOPENED":"SUBMITTED";
   const mine=x.studentId===actor.id;
-  const canReopen=has(actor,"assignments.manage")||has(actor,"assignments.update")||(role(actor,"FACULTY")&&x.assignment.courseOffering.facultyId===actor.id);
-  editable=mine && state==="REOPENED";
+  const canReview = hasWorkflowPermission(actor,["assignments.manage","assignments.update"],WORKFLOW_READ_ROLES.assignmentSubmission);
+  const canReopen = canReview || (role(actor,"FACULTY") && x.assignment.courseOffering.facultyId===actor.id &&
+    hasWorkflowPermission(actor,["assignments.update"],["FACULTY"]));
+  editable=(mine && state==="REOPENED" && hasWorkflowPermission(actor,["assignments.submit"],["STUDENT"])) || canReview;
   actions=[
    action("view","View submission",true,undefined,undefined,"secondary"),
-   ...(mine?[]:[action("review","Review",canReopen,"assignments.update",canReopen?undefined:"You do not have permission to review submissions.","primary")]),
+   ...(mine?[]:[action("review","Review",canReview,"assignments.update",canReview?undefined:"This active workspace cannot review submissions.","primary")]),
    ...(canReopen?[action("reopen","Reopen",true,"assignments.update",undefined,"danger",true)]:[])
   ];
  } else if(w==="enrollment"||w==="student_enrollment"){
@@ -147,11 +149,13 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
   table="student_enrollments";updatedAt=x.updatedAt;
   state=x.status==="ACTIVE"?"ENROLLED":x.status==="DROPPED"?"DROPPED":x.status==="COMPLETED"?"COMPLETED":x.status==="TRANSFERRED"?"TRANSFERRED":"CANCELLED";
-  const mine=x.userId===actor.id; const canWithdraw=has(actor,"students.update")||has(actor,"students.manage");
-  editable=canWithdraw;
+  const mine=x.userId===actor.id;
+  const canManage=hasWorkflowPermission(actor,["students.update","students.manage"],WORKFLOW_READ_ROLES.enrollment);
+  const canSelfWithdraw=mine&&hasWorkflowPermission(actor,["students.update"],["STUDENT"]);
+  editable=canManage||canSelfWithdraw;
   actions=[action("view","View enrollment",true)];
-  if(state==="ENROLLED"&&mine&&canWithdraw) actions.push(action("withdraw","Withdraw",true,"students.update",undefined,"danger",true));
-  else if(state==="ENROLLED"&&!mine&&canWithdraw) actions.push(action("manage","Manage enrollment",true,"students.update"));
+  if(state==="ENROLLED"&&canSelfWithdraw) actions.push(action("withdraw","Withdraw",true,"students.update",undefined,"danger",true));
+  else if(state==="ENROLLED"&&!mine&&canManage) actions.push(action("manage","Manage enrollment",true,"students.update"));
  } else if(w==="attendance_session"||w==="attendance"){
   const x=await prisma.attendanceSession.findFirst({where:{id:entityId,institutionId},select:{id:true,isSubmitted:true,isLocked:true,submittedAt:true,updatedAt:true,facultyId:true,courseOfferingId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
@@ -159,7 +163,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   await assertCanViewWorkflowOffering(institutionId, actor, x.courseOfferingId, x.facultyId);
   table="attendance_sessions";updatedAt=x.updatedAt;
   state=x.isLocked?"LOCKED":x.isSubmitted?"MARKED":"PENDING";
-  const canEdit=(x.facultyId===actor.id&&has(actor,"attendance.mark"))||has(actor,"attendance.manage");
+  const canEdit=(role(actor,"FACULTY")&&x.facultyId===actor.id&&hasWorkflowPermission(actor,["attendance.mark"],["FACULTY"]))||
+    hasWorkflowPermission(actor,["attendance.manage"],WORKFLOW_READ_ROLES.attendance);
   editable=canEdit&&!x.isLocked;
   actions=[action("view","View attendance",true),state==="PENDING"?action("mark","Mark attendance",canEdit,"attendance.mark",canEdit?undefined:"You do not have permission to mark attendance.","primary"):action("edit","Edit attendance",canEdit&&!x.isLocked,"attendance.mark",x.isLocked?"Attendance is locked.":undefined,"secondary",true)];
  } else if(w==="course_registration"||w==="registration"){
@@ -171,9 +176,11 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
   table="course_registrations";updatedAt=x.updatedAt;
   state=x.status==="APPROVED"?"APPROVED":x.status==="REJECTED"?"REJECTED":x.status==="NEEDS_CORRECTION"?"REVIEWED":x.status==="DROPPED"?"DROPPED":"REQUESTED";
-  const mine=x.studentId===actor.id; const manage=has(actor,"registration.approve")||has(actor,"courses.manage");
-  editable=manage;
-  actions=[action("view","View registration",true),...(state==="REQUESTED"&&manage?[action("approve","Approve",true,"registration.approve",undefined,"primary"),action("reject","Reject",true,"registration.approve",undefined,"danger")]:[]),...(state==="REQUESTED"&&mine?[action("withdraw","Withdraw request",true,"registration.submit",undefined,"danger",true)]:[]),...(state==="APPROVED"&&mine?[action("drop","Drop registration",true,"registration.submit",undefined,"danger",true)]:[]),...(["REJECTED","REVIEWED"].includes(state)&&mine?[action("resubmit","Fix & resubmit",true,"registration.submit",undefined,"primary")]:[])];
+  const mine=x.studentId===actor.id;
+  const manage=hasWorkflowPermission(actor,["registration.approve","courses.manage"],["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD"]);
+  const canSelfSubmit=hasWorkflowPermission(actor,["registration.submit"],["STUDENT"]);
+  editable=manage||(mine&&canSelfSubmit);
+  actions=[action("view","View registration",true),...(state==="REQUESTED"&&manage?[action("approve","Approve",true,"registration.approve",undefined,"primary"),action("reject","Reject",true,"registration.approve",undefined,"danger")]:[]),...(state==="REQUESTED"&&mine&&canSelfSubmit?[action("withdraw","Withdraw request",true,"registration.submit",undefined,"danger",true)]:[]),...(state==="APPROVED"&&mine&&canSelfSubmit?[action("drop","Drop registration",true,"registration.submit",undefined,"danger",true)]:[]),...(["REJECTED","REVIEWED"].includes(state)&&mine&&canSelfSubmit?[action("resubmit","Fix & resubmit",true,"registration.submit",undefined,"primary")]:[])];
  } else if(w==="application"){
   const x=await prisma.application.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,appliedAt:true}});
   if(!x) throw new AppError("Workflow record not found",404);
@@ -183,7 +190,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
   table="applications";updatedAt=x.appliedAt;
   state=(x.status as WorkflowState)||"APPLIED";
-  const manage=has(actor,"applications.manage")||has(actor,"admissions.manage");
+  const manage=hasWorkflowPermission(actor,["applications.manage","admissions.manage"],WORKFLOW_READ_ROLES.application.filter((candidate)=>candidate!=="PARENT"));
   editable=manage;
   actions=[action("view","View application",true),...(manage?[action("review","Review",true,"applications.manage")]:[])];
  } else if(w==="leave_request"||w==="leave"){
@@ -194,7 +201,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     await assertCanViewUserRecord(institutionId, actor, x.applicantId);
   }
   table="leave_requests";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"PENDING";
-  const mine=x.applicantId===actor.id;const canApprove=has(actor,"leave.approve")||has(actor,"leave.manage");
+  const mine=x.applicantId===actor.id;
+  const canApprove=hasWorkflowPermission(actor,["leave.approve","leave.manage"],WORKFLOW_READ_ROLES.leave);
   editable=canApprove;
   actions=[action("view","View leave",true),...(state==="PENDING"&&canApprove?[action("approve","Approve",true,"leave.approve",undefined,"primary"),action("reject","Reject",true,"leave.approve",undefined,"danger")]:[]),...(state==="PENDING"&&mine?[action("cancel","Cancel request",true,"leave.apply",undefined,"danger",true)]:[])];
  } else if(w==="admission_application"||w==="admission"){
@@ -208,7 +216,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   // Admission records are scoped through their selected program. A secondary
   // ADMISSIONS role cannot bypass a Director's campus or Dean/HOD department.
   if (!isInstitutionWideAdmissions(actor)) {
-    if (isDirectorScoped(actor) || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
+    if (["DIRECTOR","DEAN","HOD"].includes(activeRole(actor))) {
       await assertProgramInScope(institutionId, actor, x.programId);
     } else {
       throw new AppError("This admission application is outside your authorized workspace",403);
@@ -216,7 +224,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
 
   table="admission_applications";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"SUBMITTED";
-  const manage=has(actor,"admissions.manage");
+  const manage=hasWorkflowPermission(actor,["admissions.manage"],["ADMISSIONS"]);
   editable=manage;
   const nextByState:Record<string,string[]>={
     SUBMITTED:["UNDER_REVIEW","DOCUMENTS_PENDING","REJECTED","WITHDRAWN"],
@@ -240,7 +248,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
   table="users";updatedAt=x.updatedAt;
   state=x.deletedAt?"DEACTIVATED":x.isActive?"ACTIVE":"DEACTIVATED";
-  const manage=has(actor,"users.update");
+  const manage=hasWorkflowPermission(actor,["users.update"],WORKFLOW_READ_ROLES.user);
   editable=manage;
   actions=[action("view","View user",true),...(manage&&state==="ACTIVE"? [action("deactivate","Deactivate",true,"users.update",undefined,"danger",true)] : manage?[action("activate","Activate",true,"users.update",undefined,"primary",true)]:[])];
  } else if(w==="student_movement"||w==="movement_request"){
@@ -251,7 +259,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="student_movement_requests";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"PENDING";
-  const manage=has(actor,"students.update")||has(actor,"students.manage");editable=manage;
+  const manage=hasWorkflowPermission(actor,["students.update","students.manage"],WORKFLOW_READ_ROLES.movement);editable=manage;
   actions=[action("view","View request",true),...(state==="PENDING"&&manage?[action("approve","Approve",true,"students.update",undefined,"primary"),action("reject","Reject",true,"students.update",undefined,"danger")]:[])];
  } else if(w==="certificate"){
   const x=await prisma.certificate.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,studentId:true,updatedAt:true}});
@@ -261,7 +269,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
   table="certificates";updatedAt=x.updatedAt; state=x.status==="ISSUED"?"ISSUED":x.status==="REJECTED"?"REJECTED":"REQUESTED";
-  const manage=has(actor,"certificates.issue")||has(actor,"students.manage");
+  const manage=hasWorkflowPermission(actor,["certificates.issue","students.manage"],WORKFLOW_READ_ROLES.certificate);
   editable=manage; actions=[action("view","View certificate",true),...(state==="REQUESTED"&&manage?[action("issue","Issue certificate",true,"certificates.issue","", "primary")]:[])];
  } else if(w==="fee_invoice"){
   const x=await prisma.feeInvoice.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,paidAmount:true,amount:true,updatedAt:true,studentId:true}});
@@ -274,8 +282,10 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   }
   table="fee_invoices";updatedAt=x.updatedAt;
   state=x.status==="PAID"||x.paidAmount>=x.amount?"PAID":x.status==="CANCELLED"?"CANCELLED":"PENDING";
-  const manage=has(actor,"fees.manage")||has(actor,"payments.manage");
-  editable=manage; actions=[action("view","View fee",true),...(state==="PENDING"&&actor.id===x.studentId?[action("pay","Pay fee",true,"fees.pay",undefined,"primary")]:[]),...(manage?[action("manage","Manage fee",true,"fees.manage")]:[])];
+  const manage=hasWorkflowPermission(actor,["fees.manage","payments.manage"],WORKFLOW_READ_ROLES.fees.filter((candidate)=>candidate!=="PARENT"));
+  const canPay=actor.id===x.studentId&&hasWorkflowPermission(actor,["fees.pay"],["STUDENT"]);
+  editable=manage||canPay;
+  actions=[action("view","View fee",true),...(state==="PENDING"&&canPay?[action("pay","Pay fee",true,"fees.pay",undefined,"primary")]:[]),...(manage?[action("manage","Manage fee",true,"fees.manage")]:[])];
  } else if(w==="exam_result"){
   const x=await prisma.examResult.findFirst({where:{id:entityId,institutionId},select:{id:true,updatedAt:true,studentId:true}});
   if(!x) throw new AppError("Workflow record not found",404);
@@ -290,7 +300,8 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     }
   }
   table="exam_results";updatedAt=x.updatedAt;state="PUBLISHED";
-  const manage=has(actor,"results.manage")||has(actor,"exams.manage"); editable=manage;
+  const manage=hasWorkflowPermission(actor,["results.manage","exams.manage"],WORKFLOW_READ_ROLES.exam.filter((candidate)=>candidate!=="PARENT"));
+  editable=manage;
   actions=[action("view","View result",true),...(manage?[action("edit","Edit result",true,"results.manage",undefined,"secondary",true)]:[])];
  } else throw new AppError(`Unsupported workflow: ${workflow}`,400);
 
