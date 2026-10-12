@@ -1965,6 +1965,7 @@ export async function listStudentHallTickets(
   actor: AuthenticatedUser,
   studentId: string
 ): Promise<Awaited<ReturnType<typeof getStudentHallTicket>>[]> {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
 
   const now = new Date();
@@ -1999,6 +2000,7 @@ export async function getStudentHallTicket(
   examSessionId: string,
   studentId: string
 ) {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
   const session = await loadSession(institutionId, examSessionId);
 
@@ -2026,7 +2028,7 @@ export async function getStudentHallTicket(
   }
 
   if (session.hallTicketReleaseAt && session.hallTicketReleaseAt > new Date()) {
-    if (actor.id === studentId || actor.roles.includes("PARENT")) {
+    if (actor.id === studentId || getEffectiveWorkspaceRole(actor) === "PARENT") {
       throw new AppError(
         "Hall tickets for this session have not been released yet",
         403
@@ -2878,6 +2880,7 @@ export async function getExamMarkHistory(
   actor: AuthenticatedUser,
   examMarkId: string
 ) {
+  assertExamReadWorkspace(actor);
   const mark = await requireTenantRow<{ id: string; studentId: string; examScheduleId: string }>(
     prisma,
     "exam_marks",
@@ -2886,7 +2889,7 @@ export async function getExamMarkHistory(
     "Examination mark"
   );
   await assertCanViewStudent(institutionId, actor, mark.studentId);
-  if (!actor.roles.includes("STUDENT")) {
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT") {
     const markSchedule = await loadSchedule(institutionId, mark.examScheduleId);
     await assertCanReadSchedule(institutionId, actor, markSchedule);
   }
@@ -3481,6 +3484,7 @@ export async function getStudentExaminations(
   actor: AuthenticatedUser,
   studentId: string
 ) {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
 
   const [upcoming, results] = await Promise.all([
@@ -3680,6 +3684,7 @@ export async function listStudentExamEligibility(
   actor: AuthenticatedUser,
   studentId: string,
 ) {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
   const context = await loadStudentExamContext(institutionId, studentId);
   const sessions = await prisma.$queryRaw<ExamSessionRow[]>(Prisma.sql`
@@ -3734,8 +3739,9 @@ export async function registerStudentForExam(
   studentId: string,
   meta: { ipAddress?: string; userAgent?: string },
 ) {
-  if (actor.id !== studentId) await assertCanViewStudent(institutionId, actor, studentId);
-  if (!actor.roles.includes("STUDENT") && actor.id !== studentId) throw new AppError("Only the student can create their examination registration", 403);
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT" || actor.id !== studentId) {
+    throw new AppError("Only the active Student workspace can register its own examination account",403);
+  }
   const session = await loadSession(institutionId, examSessionId);
   if (!session.registrationRequired) throw new AppError("Registration is not required for this examination", 409);
   const now = new Date();
@@ -3785,6 +3791,7 @@ export async function getStudentExamPerformance(
   actor: AuthenticatedUser,
   studentId: string,
 ) {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
 
   // New exam marks remain subject to the approval workflow. Older ACADLYX
@@ -3840,6 +3847,7 @@ export async function getStudentPublishedResults(
   actor: AuthenticatedUser,
   studentId: string,
 ) {
+  assertExamReadWorkspace(actor);
   await assertCanViewStudent(institutionId, actor, studentId);
   return prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT s."id" AS "examScheduleId", es."id" AS "examSessionId", es."name" AS "examName",
