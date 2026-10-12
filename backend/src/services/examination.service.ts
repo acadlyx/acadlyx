@@ -18,7 +18,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide, isInstitutionWideExamination, isDirectorScoped, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWideExamination, isDirectorScoped, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds, getEffectiveWorkspaceRole } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
@@ -407,9 +407,11 @@ async function assertCanReadSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWideExamination(actor)) return;
+
   const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR") {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!ids.length) throw new AppError("Examination is outside your authorized campus scope", 403);
     const semester = await prisma.semester.findFirst({
@@ -419,17 +421,52 @@ async function assertCanReadSchedule(
     if (!semester) throw new AppError("Examination is outside your authorized campus scope", 403);
     return;
   }
-  if (actor.roles.includes("HOD") || actor.roles.includes("DEAN")) {
+
+  if (activeRole === "HOD" || activeRole === "DEAN") {
     const ids = await getManagedDepartmentIds(institutionId, actor.id);
-    const course = await prisma.course.findFirst({ where:{id:offering.courseId,institutionId}, select:{departmentId:true} });
-    if (!course || !ids.includes(course.departmentId)) throw new AppError("Examination is outside your authorized academic scope",403);
+    const course = await prisma.course.findFirst({
+      where: { id: offering.courseId, institutionId },
+      select: { departmentId: true },
+    });
+    if (!course || !ids.includes(course.departmentId)) {
+      throw new AppError("Examination is outside your authorized academic scope", 403);
+    }
     return;
   }
-  if (actor.roles.includes("FACULTY")) {
-    if (offering.facultyId !== actor.id) throw new AppError("Examination is outside your assignment scope",403);
+
+  if (activeRole === "FACULTY") {
+    if (offering.facultyId !== actor.id) {
+      throw new AppError("Examination is outside your teaching assignment", 403);
+    }
     return;
   }
-  throw new AppError("You are not authorized to access this examination schedule",403);
+
+  // Students may read only the schedule for their own active enrollment.
+  // Parents may read schedules for students linked to their account.
+  let studentIds: string[] = [];
+  if (activeRole === "STUDENT") {
+    studentIds = [actor.id];
+  } else if (activeRole === "PARENT") {
+    studentIds = (await prisma.parentStudentLink.findMany({
+      where: { institutionId, parentId: actor.id },
+      select: { studentId: true },
+    })).map((link) => link.studentId);
+  }
+  if (studentIds.length) {
+    const enrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: { in: studentIds },
+        status: "ACTIVE",
+        semesterId: offering.semesterId,
+        ...(offering.sectionId ? { sectionId: offering.sectionId } : {}),
+      },
+      select: { id: true },
+    });
+    if (enrollment) return;
+  }
+
+  throw new AppError("You are not authorized to access this examination schedule", 403);
 }
 
 async function assertCanActOnSchedule(
@@ -437,14 +474,22 @@ async function assertCanActOnSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.includes("EXAMINATION")) {
-    if (isInstitutionWideExamination(actor)) return;
-    await assertCanReadSchedule(institutionId, actor, schedule);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "EXAMINATION") {
+    if (!isInstitutionWideExamination(actor)) {
+      throw new AppError("Examination workspace scope is not available for this account", 403);
+    }
     return;
   }
+
+  // Do not allow a secondary EXAMINATION role on a Student/Parent account to
+  // turn schedule viewing access into write access.
+  if (activeRole !== "FACULTY") {
+    throw new AppError("You are not authorized to modify this examination schedule", 403);
+  }
   const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
-  if (!actor.roles.includes("FACULTY") || offering.facultyId !== actor.id) {
-    throw new AppError("You are not authorized to modify this examination schedule",403);
+  if (offering.facultyId !== actor.id) {
+    throw new AppError("You are not assigned to this examination schedule", 403);
   }
 }
 
@@ -453,10 +498,18 @@ async function assertCanConductSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.includes("EXAMINATION")) {
-    if (isInstitutionWide(actor)) return;
-    await assertCanReadSchedule(institutionId, actor, schedule);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "EXAMINATION") {
+    if (!isInstitutionWideExamination(actor)) {
+      throw new AppError("Examination workspace scope is not available for this account", 403);
+    }
     return;
+  }
+
+  // Faculty duty is tied to the explicit invigilator assignment. Having an
+  // additional Examination role cannot bypass this per-schedule relationship.
+  if (activeRole !== "FACULTY") {
+    throw new AppError("You are not assigned to this examination duty", 403);
   }
   const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT "id" FROM "exam_invigilators"
