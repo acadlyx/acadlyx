@@ -136,7 +136,7 @@ export async function assertTenantFeature(
   if (unavailableStatuses.has(subscription.status) || (subscription.expiresAt && subscription.expiresAt < new Date())) {
     throw new AppError("This tenant subscription is not active", 402);
   }
-  let entitlement = subscription.entitlements[0];
+  let entitlement = subscription.entitlements[0] ?? null;
   if (!entitlement) {
     await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
     entitlement = await prisma.tenantFeatureEntitlement.findUnique({
