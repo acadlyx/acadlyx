@@ -1886,7 +1886,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     "/fees",
     [
       "SUPER_ADMIN",
-      "INSTITUTION_ADMIN",
       "CHAIRMAN",
       "MANAGEMENT",
       "REGISTRAR",
