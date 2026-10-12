@@ -1327,7 +1327,7 @@ export function getRolePermissions(
   // Notices are a scoped communication capability for every non-student role.
   // Services must still constrain create/update operations to the actor's scope.
   if (normalized === "STUDENT") return [...basePermissions, "notices.read", "notifications.read"];
-  return [...new Set([...basePermissions, "notices.read", "notices.manage", "notifications.read"])];
+  return [...new Set<PermissionKey>([...basePermissions, "notices.read", "notices.manage", "notifications.read"])];
 }
 
 export function getEffectivePermissions(
