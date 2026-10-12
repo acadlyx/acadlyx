@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { isInstitutionWideFinance } from "./accessScope.service";
 import {
   getManagedDepartmentIds,
   getStudentDepartmentIds,
@@ -140,7 +141,7 @@ export async function assertMovementApprovalAuthority(
 export function assertFeeApprovalAuthority(actor: AuthenticatedUser): void {
   const roles = new Set(getCanonicalRoleNames(actor.roles));
   if (isDirectorScoped(actor) && roles.has("DIRECTOR")) return;
-  if (isInstitutionWide(actor) && roles.has("ACCOUNTS")) return;
+  if (isInstitutionWideFinance(actor) && roles.has("ACCOUNTS")) return;
   throw new AppError("Only Accounts or a Director in their assigned campus scope may approve this financial action", 403);
 }
 
