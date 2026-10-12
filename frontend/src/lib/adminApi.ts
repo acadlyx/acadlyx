@@ -1,10 +1,12 @@
 import { authedFetch } from "./auth";
 import { getErpWorkspace, invalidateErpWorkspace } from "./erpApi";
+import { invalidateWorkspaceCache } from "./workspaceCache";
 
 async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const result = await authedFetch<T>(path, init);
   if ((init?.method || "GET").toUpperCase() !== "GET") {
     invalidateErpWorkspace();
+    invalidateWorkspaceCache();
   }
   return result;
 }
