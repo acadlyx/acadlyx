@@ -507,7 +507,7 @@ async function assertFeeStructureContextInActorScope(
   programId?: string,
   semesterId?: string,
 ): Promise<void> {
-  if (isInstitutionWide(actor)) return;
+  if (isInstitutionWideFinance(actor)) return;
   if (!programId && !semesterId) {
     throw new AppError("A fee structure must target a program or semester within your assigned scope", 403);
   }
