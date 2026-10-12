@@ -616,44 +616,60 @@ async function assertDirectorCanAccessSession(
   actor: AuthenticatedUser,
   session: ExamSessionRow,
 ): Promise<void> {
-  if (!isDirectorScoped(actor)) return;
-  const [campusIds, departmentIds] = await Promise.all([
-    getDirectorCampusIds(institutionId, actor.id),
-    getDirectorDepartmentIds(institutionId, actor.id),
-  ]);
-  if (!campusIds.length || !departmentIds.length) throw new AppError("Examination session not found in the assigned scope", 404);
+  const workspace = getEffectiveWorkspaceRole(actor);
+  if (!["DIRECTOR","DEAN","HOD"].includes(workspace)) return;
+
+  const departmentIds = workspace === "DIRECTOR"
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : await getManagedDepartmentIds(institutionId, actor.id);
+  if (!departmentIds.length) {
+    throw new AppError("Examination session not found in the assigned scope",404);
+  }
+
+  const campusIds = workspace === "DIRECTOR"
+    ? await getDirectorCampusIds(institutionId, actor.id)
+    : Array.from(new Set((await prisma.department.findMany({
+        where:{institutionId,id:{in:departmentIds},isActive:true},
+        select:{campusId:true},
+      })).map((department)=>department.campusId).filter((id):id is string=>Boolean(id))));
+  if (!campusIds.length) {
+    throw new AppError("Examination session not found in the assigned scope",404);
+  }
 
   const sessionCampuses = jsonStringArray(session.campusIds);
   const sessionDepartments = jsonStringArray(session.departmentIds);
-  if (sessionCampuses.some((id) => !campusIds.includes(id)) ||
-      sessionDepartments.some((id) => !departmentIds.includes(id))) {
-    throw new AppError("Examination session not found in the assigned scope", 404);
+  if (sessionCampuses.some((id)=>!campusIds.includes(id)) ||
+      sessionDepartments.some((id)=>!departmentIds.includes(id))) {
+    throw new AppError("Examination session not found in the assigned scope",404);
   }
-  const outsideRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+
+  const outsideRows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT es."id"
     FROM "exam_schedules" es
-    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
-    JOIN "courses" c ON c."id" = co."courseId"
-    WHERE es."institutionId" = ${institutionId}
-      AND es."examSessionId" = ${session.id}
+    JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    WHERE es."institutionId"=${institutionId}
+      AND es."examSessionId"=${session.id}
       AND c."departmentId" NOT IN (${Prisma.join(departmentIds)})
     LIMIT 1
   `);
-  if (outsideRows.length) throw new AppError("Examination session contains a schedule outside the assigned scope", 404);
+  if(outsideRows.length) {
+    throw new AppError("Examination session contains a schedule outside the assigned scope",404);
+  }
 
-  if (sessionCampuses.length || sessionDepartments.length) return;
+  if(sessionCampuses.length||sessionDepartments.length) return;
 
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT es."id"
     FROM "exam_schedules" es
-    JOIN "course_offerings" co ON co."id" = es."courseOfferingId"
-    JOIN "courses" c ON c."id" = co."courseId"
-    WHERE es."institutionId" = ${institutionId}
-      AND es."examSessionId" = ${session.id}
+    JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    WHERE es."institutionId"=${institutionId}
+      AND es."examSessionId"=${session.id}
       AND c."departmentId" IN (${Prisma.join(departmentIds)})
     LIMIT 1
   `);
-  if (!rows.length) throw new AppError("Examination session not found in the assigned scope", 404);
+  if(!rows.length) throw new AppError("Examination session not found in the assigned scope",404);
 }
 
 // ==========================================================
@@ -938,53 +954,92 @@ export async function getExamSession(
   actor: AuthenticatedUser,
   examSessionId: string
 ) {
+  const workspace = assertExamReadWorkspace(actor);
   const session = await loadSession(institutionId, examSessionId);
   await assertDirectorCanAccessSession(institutionId, actor, session);
-  if (actor.roles.includes("STUDENT")) {
-    const context = await loadStudentExamContext(institutionId, actor.id);
-    if (!sessionTargetsStudent(session, context, actor.id)) throw new AppError("Examination is outside your academic scope",403);
-  } else if (actor.roles.includes("FACULTY")) {
-    const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
+
+  let portalContexts: Array<{studentId:string;context:StudentExamContext}> = [];
+  if(workspace==="STUDENT") {
+    const context=await loadStudentExamContext(institutionId,actor.id);
+    if(!sessionTargetsStudent(session,context,actor.id)) {
+      throw new AppError("Examination is outside your academic scope",404);
+    }
+    portalContexts=[{studentId:actor.id,context}];
+  } else if(workspace==="PARENT") {
+    const links=await prisma.parentStudentLink.findMany({
+      where:{institutionId,parentId:actor.id,student:{isActive:true}},
+      select:{studentId:true},
+    });
+    const resolved=await Promise.all(links.map(async ({studentId})=>{
+      try {
+        const context=await loadStudentExamContext(institutionId,studentId);
+        return sessionTargetsStudent(session,context,studentId)?{studentId,context}:null;
+      } catch {
+        return null;
+      }
+    }));
+    portalContexts=resolved.filter(
+      (value):value is {studentId:string;context:StudentExamContext}=>value!==null,
+    );
+    if(!portalContexts.length)throw new AppError("Examination session not found in the linked student scope",404);
+  } else if(workspace==="FACULTY") {
+    const assigned=await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
       SELECT es."id" FROM "exam_schedules" es
       JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-      WHERE es."examSessionId"=${examSessionId} AND es."institutionId"=${institutionId} AND co."facultyId"=${actor.id} LIMIT 1`);
-    if (!rows.length) throw new AppError("Examination is outside your assignment scope",403);
-  } else if (actor.roles.includes("HOD") || actor.roles.includes("DEAN") || isDirectorScoped(actor)) {
-    const ids = isDirectorScoped(actor) ? await getDirectorDepartmentIds(institutionId, actor.id) : await getManagedDepartmentIds(institutionId, actor.id);
-    if (!ids.length) throw new AppError("No examination scope is assigned to this account",403);
-    const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
-      SELECT es."id" FROM "exam_schedules" es
-      JOIN "course_offerings" co ON co."id"=es."courseOfferingId"
-      JOIN "courses" c ON c."id"=co."courseId"
-      WHERE es."examSessionId"=${examSessionId} AND es."institutionId"=${institutionId} AND c."departmentId" IN (${Prisma.join(ids)}) LIMIT 1`);
-    const target = jsonStringArray(session.departmentIds);
-    if (!rows.length && !(target.length === 0 || target.some(id => ids.includes(id)))) throw new AppError("Examination is outside your authorized scope",403);
+      WHERE es."examSessionId"=${examSessionId}
+        AND es."institutionId"=${institutionId}
+        AND co."facultyId"=${actor.id}
+      LIMIT 1
+    `);
+    if(!assigned.length)throw new AppError("Examination is outside your teaching assignment",404);
   }
 
-  const schedules = await prisma.$queryRaw<
-    Array<
-      ExamScheduleRow & {
-        courseCode: string;
-        courseName: string;
-        sectionName: string | null;
-        seatCount: number;
-        markCount: number;
-      }
-    >
+  const scheduleConditions: Prisma.Sql[] = [
+    Prisma.sql`s."examSessionId"=${examSessionId}`,
+    Prisma.sql`s."institutionId"=${institutionId}`,
+  ];
+  if(["DIRECTOR","DEAN","HOD"].includes(workspace)) {
+    const departmentIds=workspace==="DIRECTOR"
+      ? await getDirectorDepartmentIds(institutionId,actor.id)
+      : await getManagedDepartmentIds(institutionId,actor.id);
+    if(!departmentIds.length)throw new AppError("No examination scope is assigned to this account",403);
+    scheduleConditions.push(Prisma.sql`c."departmentId" IN (${Prisma.join(departmentIds)})`);
+  } else if(workspace==="FACULTY") {
+    scheduleConditions.push(Prisma.sql`co."facultyId"=${actor.id}`);
+  } else if(workspace==="STUDENT"||workspace==="PARENT") {
+    const filters=portalContexts.map(({context})=>Prisma.sql`(
+      co."semesterId"=${context.semesterId}
+      AND (
+        (${context.sectionId}::text IS NOT NULL AND co."sectionId"=${context.sectionId})
+        OR (${context.sectionId}::text IS NULL AND co."sectionId" IS NULL)
+      )
+    )`);
+    if(!filters.length)throw new AppError("No examination schedules are available in your academic scope",404);
+    scheduleConditions.push(Prisma.sql`(${Prisma.join(filters," OR ")})`);
+  }
+
+  const schedulesWhere=andWhere(scheduleConditions);
+  const schedules=await prisma.$queryRaw<
+    Array<ExamScheduleRow & {
+      courseCode:string;
+      courseName:string;
+      sectionName:string|null;
+      seatCount:number;
+      markCount:number;
+    }>
   >(Prisma.sql`
     SELECT s.*,
-      c."code"  AS "courseCode",
-      c."name"  AS "courseName",
+      c."code" AS "courseCode",
+      c."name" AS "courseName",
       sec."name" AS "sectionName",
-      (SELECT COUNT(*) FROM "exam_seat_allocations" a WHERE a."examScheduleId" = s."id")::int AS "seatCount",
-      (SELECT COUNT(*) FROM "exam_marks" m WHERE m."examScheduleId" = s."id")::int AS "markCount"
+      (SELECT COUNT(*) FROM "exam_seat_allocations" a WHERE a."examScheduleId"=s."id")::int AS "seatCount",
+      (SELECT COUNT(*) FROM "exam_marks" m WHERE m."examScheduleId"=s."id")::int AS "markCount"
     FROM "exam_schedules" s
-    JOIN "course_offerings" co ON co."id" = s."courseOfferingId"
-    JOIN "courses" c ON c."id" = co."courseId"
-    LEFT JOIN "sections" sec ON sec."id" = co."sectionId"
-    WHERE s."examSessionId" = ${examSessionId}
-      AND s."institutionId" = ${institutionId}
-    ORDER BY s."examDate" ASC, s."startTime" ASC
+    JOIN "course_offerings" co ON co."id"=s."courseOfferingId"
+    JOIN "courses" c ON c."id"=co."courseId"
+    LEFT JOIN "sections" sec ON sec."id"=co."sectionId"
+    ${schedulesWhere}
+    ORDER BY s."examDate" ASC,s."startTime" ASC
   `);
 
   return { ...session, schedules };
