@@ -6,7 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { hasFeeActionPermission } from "./feeAuthorization";
-import { getAuthorizedDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { getAuthorizedDepartmentIds, isInstitutionWideFinance } from "./accessScope.service";
 
 const STRUCTURE_STATUSES = [
   "DRAFT",
@@ -184,6 +184,9 @@ export async function createFeeHead(
   }
 ) {
   assertCanManageFees(actor);
+  if (!isInstitutionWideFinance(actor)) {
+    throw new AppError("Only Accounts or institution-wide administrators may manage shared fee heads", 403);
+  }
 
   const name = normalizeName(input.name);
   const code = normalizeCode(input.code);
@@ -298,6 +301,9 @@ export async function updateFeeHead(
   }
 ) {
   assertCanManageFees(actor);
+  if (!isInstitutionWideFinance(actor)) {
+    throw new AppError("Only Accounts or institution-wide administrators may manage shared fee heads", 403);
+  }
 
   const existing =
     await prisma.$queryRaw<
@@ -452,7 +458,7 @@ async function assertFeeStructureInActorScope(
   actor: AuthenticatedUser,
   structureId: string,
 ): Promise<void> {
-  if (isInstitutionWide(actor)) return;
+  if (isInstitutionWideFinance(actor)) return;
 
   const rows = await prisma.$queryRaw<Array<{
     programId: string | null;
@@ -559,7 +565,7 @@ export async function listFeeStructures(
     Prisma.sql`fs."institutionId" = ${institutionId}`,
   ];
 
-  if (!isInstitutionWide(actor)) {
+  if (!isInstitutionWideFinance(actor)) {
     const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
     if (departmentIds.length === 0) return [];
     conditions.push(Prisma.sql`(
