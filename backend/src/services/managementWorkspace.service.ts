@@ -14,57 +14,39 @@ const LEADERSHIP_ROLES = [
   "REGISTRAR",
 ];
 
-function getWorkspaceType(
-  actor: AuthenticatedUser
-): string {
-  if (
-    actor.roles.includes(
-      "CHAIRMAN"
-    )
-  ) {
-    return "CHAIRMAN";
-  }
-
-  if (
-    actor.roles.includes(
-      "DIRECTOR"
-    )
-  ) {
-    return "DIRECTOR";
-  }
-
-  if (
-    actor.roles.includes(
-      "DEAN"
-    )
-  ) {
-    return "DEAN";
-  }
-
-  if (
-    actor.roles.includes(
-      "REGISTRAR"
-    )
-  ) {
-    return "REGISTRAR";
-  }
-
-  if (actor.roles.includes("MANAGEMENT")) {
-    return "MANAGEMENT";
-  }
-
-  return "INSTITUTION_ADMIN";
+export function getWorkspaceType(actor: AuthenticatedUser): string {
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  // This list matches the frontend's effective dashboard role priority:
+  // scoped operational workspaces are resolved before secondary broad grants.
+  const priority = [
+    "CHAIRMAN",
+    "DIRECTOR",
+    "DEAN",
+    "HOD",
+    "FACULTY",
+    "STUDENT",
+    "PARENT",
+    "PLACEMENT",
+    "SUPER_ADMIN",
+    "INSTITUTION_ADMIN",
+    "MANAGEMENT",
+    "REGISTRAR",
+    "ACCOUNTS",
+    "HR",
+    "ADMISSIONS",
+    "EXAMINATION",
+    "LIBRARIAN",
+    "IT",
+    "CMS",
+    "CLUB_PRESIDENT",
+    "STAFF",
+  ];
+  return priority.find((role) => roles.has(role)) ?? "UNASSIGNED";
 }
 
-export function isLeadershipActor(
-  actor: AuthenticatedUser
-): boolean {
-  return actor.roles.some(
-    (role) =>
-      LEADERSHIP_ROLES.includes(
-        role
-      )
-  );
+export function isLeadershipActor(actor: AuthenticatedUser): boolean {
+  return ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR"]
+    .includes(getWorkspaceType(actor));
 }
 
 /**
@@ -305,7 +287,7 @@ export async function getManagementWorkspaceSummary(
   if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN") && isInstitutionWide(actor)) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
-  if (!["CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN"].includes(workspaceType)) {
+  if (!["CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR"].includes(workspaceType)) {
     throw new AppError("A leadership summary is not available for this workspace", 403);
   }
 
@@ -313,7 +295,7 @@ export async function getManagementWorkspaceSummary(
   const studentRole = { userRoles: { some: { role: { name: "STUDENT" } } } };
   const facultyRole = { userRoles: { some: { role: { name: "FACULTY" } } } };
 
-  if (workspaceType === "CHAIRMAN" || workspaceType === "MANAGEMENT") {
+  if (workspaceType === "CHAIRMAN" || workspaceType === "MANAGEMENT" || workspaceType === "REGISTRAR") {
     const [
       students,
       faculty,
@@ -476,8 +458,8 @@ export async function getManagementWorkspace(
   if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN") && isInstitutionWide(actor)) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
-  if (!LEADERSHIP_ROLES.some((role) => roles.has(role))) {
-    throw new AppError("A leadership workspace is not available for this role", 403);
+  if (!["CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR"].includes(workspaceType)) {
+    throw new AppError("A leadership workspace is not available for this effective role", 403);
   }
 
   const now = new Date();
