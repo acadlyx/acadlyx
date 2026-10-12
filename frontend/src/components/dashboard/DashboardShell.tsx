@@ -12,6 +12,7 @@ import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authorit
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
+import { getErpWorkspace, getErpWorkspaceSummary } from "@/lib/erpApi";
 import { GlobalSearchBar } from "./GlobalSearchBar";
 import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
 
@@ -101,6 +102,21 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     });
     return () => { alive = false; };
   }, [router, embeddedInWorkspaceShell]);
+
+  // Prefetch the first workspace payload alongside auth reconciliation.
+  // The API independently enforces the user's real role and tenant scope; the
+  // result is only rendered by the page after the shell has resolved the user.
+  useEffect(() => {
+    if (embeddedInWorkspaceShell) return;
+    const roleNames = (allowedRoles || []).map(normalizeRole);
+    if (roleNames.includes("INSTITUTION_ADMIN")) {
+      void getErpWorkspace().catch(() => undefined);
+      return;
+    }
+    if (roleNames.some((role) => ["CHAIRMAN", "DIRECTOR", "DEAN"].includes(role))) {
+      void getErpWorkspaceSummary().catch(() => undefined);
+    }
+  }, [embeddedInWorkspaceShell, allowedRolesKey]);
 
   useEffect(() => {
     if (embeddedInWorkspaceShell || workspaceRole !== "INSTITUTION_ADMIN") return;
