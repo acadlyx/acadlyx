@@ -9,6 +9,7 @@ import {
   getStudentWhereScope,
   isDirectorScoped,
   isInstitutionWide,
+  getEffectiveWorkspaceRole,
 } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
@@ -91,11 +92,11 @@ async function assertPortalUserTargetScope(
 }
 
 function isParent(actor: PortalActor): boolean {
-  return actor.roles.includes("PARENT");
+  return getEffectiveWorkspaceRole(actor) === "PARENT";
 }
 
 function isStudent(actor: PortalActor): boolean {
-  return actor.roles.includes("STUDENT");
+  return getEffectiveWorkspaceRole(actor) === "STUDENT";
 }
 
 async function assertInstitutionUser(
