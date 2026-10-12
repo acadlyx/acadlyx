@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { isInstitutionWideFinance, hasScopedWorkspaceRole, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   getManagedDepartmentIds,
   getStudentDepartmentIds,
@@ -101,7 +101,6 @@ export async function assertRegistrationApprovalAuthority(
     throw new AppError("This course is outside your department approval scope", 403);
   }
 
-  if (roles.has("REGISTRAR") && isInstitutionWide(actor)) return;
   throw new AppError("You are not a configured registration approver", 403);
 }
 
@@ -129,7 +128,6 @@ export async function assertMovementApprovalAuthority(
     throw new AppError("This student is outside your department approval scope", 403);
   }
 
-  if (roles.has("REGISTRAR") && isInstitutionWide(actor)) return;
   throw new AppError("You are not a configured student-lifecycle approver", 403);
 }
 
