@@ -2237,8 +2237,9 @@ export async function linkParent(
   relationship?: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "ACCOUNTS",
+    "REGISTRAR",
   ]);
 
   if (parentId === studentId) {
@@ -3438,8 +3439,9 @@ export async function deleteParentLink(
   studentId: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "ACCOUNTS",
+    "REGISTRAR",
   ]);
 
   const existing = await prisma.parentStudentLink.findFirst({
