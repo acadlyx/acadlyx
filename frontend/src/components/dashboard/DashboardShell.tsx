@@ -67,23 +67,33 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
       ? getCurrentUser({ force: true })
       : getCurrentUser();
 
-    reconcile.then(async (current) => {
+    // Workspace context is independent of /auth/me. Start both requests at
+    // the same time so the shell doesn't add a serial network/database trip
+    // before loading breadcrumbs and institution branding.
+    void workspaceGet<{
+      data?: {
+        institution?: { name?: string; logoUrl?: string | null };
+        breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }>;
+      };
+    }>("/workspace/context").then((response) => {
+      if (!alive) return;
+      const institution = response?.data?.institution;
+      setWorkspaceContext({ breadcrumbs: response?.data?.breadcrumbs || [] });
+      if (institution) {
+        setInstitutionBrand({
+          name: institution.name || "",
+          logoUrl: institution.logoUrl || null,
+        });
+      }
+    }).catch(() => {
+      // Workspace context/branding is supplementary. Route authorization
+      // still waits for /auth/me and the backend enforces every API scope.
+    });
+
+    reconcile.then((current) => {
       if (!alive) return;
       setUser(current);
       setRouteAuthReady(true);
-      try {
-        const response = await workspaceGet<{ data?: { institution?: { name?: string; logoUrl?: string | null }; breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } }>("/workspace/context");
-        const institution = response?.data?.institution;
-        if (alive) setWorkspaceContext({ breadcrumbs: response?.data?.breadcrumbs || [] });
-        if (alive && institution) {
-          setInstitutionBrand({
-            name: institution.name || "",
-            logoUrl: institution.logoUrl || null,
-          });
-        }
-      } catch {
-        // Branding is non-critical.
-      }
     }).catch((error) => {
       if (!alive) return;
       setRouteAuthReady(true);
@@ -153,7 +163,22 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     });
   }, [adminDepartments, user, workspaceRole]);
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div role="status" aria-live="polite" className="min-h-[40vh] animate-pulse p-6 sm:p-8">
+        <span className="sr-only">Loading your secure workspace…</span>
+        <div className="mx-auto max-w-7xl space-y-5">
+          <div className="h-8 w-56 rounded-xl bg-slate-200" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-28 rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+          <div className="h-64 rounded-2xl bg-slate-100" />
+        </div>
+      </div>
+    );
+  }
 
   const roles = user.roles?.length ? user.roles : allowedRoles || [];
   const role = getPrimaryRole(roles);
