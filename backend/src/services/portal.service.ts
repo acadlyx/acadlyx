@@ -885,19 +885,6 @@ export async function getParentChildren(
     institutionId,
     parentId: actor.id,
   };
-  let enrollmentScope: Prisma.StudentEnrollmentWhereInput | undefined;
-  if (false) {
-    const studentScope = await getStudentWhereScope(institutionId, toScopeActor(institutionId, actor));
-    if ("studentEnrollments" in studentScope && studentScope.studentEnrollments && "some" in studentScope.studentEnrollments) {
-      enrollmentScope = studentScope.studentEnrollments.some;
-    } else if ("id" in studentScope) {
-      parentLinksWhere.student = studentScope;
-    } else if ("OR" in studentScope) {
-      parentLinksWhere.student = studentScope;
-    }
-    if (enrollmentScope) parentLinksWhere.student = { studentEnrollments: { some: enrollmentScope } };
-  }
-
   const links = await prisma.parentStudentLink.findMany({
     where: parentLinksWhere,
     include: {
