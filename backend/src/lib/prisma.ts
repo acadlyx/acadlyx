@@ -19,7 +19,10 @@ export const prisma =
     ],
   });
 
-const slowQueryThresholdMs = Number(process.env.SLOW_DB_QUERY_THRESHOLD_MS || 150);
+const configuredSlowQueryThresholdMs = Number(process.env.SLOW_DB_QUERY_THRESHOLD_MS || 150);
+const slowQueryThresholdMs = Number.isFinite(configuredSlowQueryThresholdMs) && configuredSlowQueryThresholdMs > 0
+  ? configuredSlowQueryThresholdMs
+  : 150;
 
 // This lets slow_api request logs be correlated with slow database operations
 // without logging query parameters or user-provided values.
