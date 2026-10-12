@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, isInstitutionWide } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -144,9 +144,23 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   editable=canApprove;
   actions=[action("view","View leave",true),...(state==="PENDING"&&canApprove?[action("approve","Approve",true,"leave.approve",undefined,"primary"),action("reject","Reject",true,"leave.approve",undefined,"danger")]:[]),...(state==="PENDING"&&mine?[action("cancel","Cancel request",true,"leave.apply",undefined,"danger",true)]:[])];
  } else if(w==="admission_application"||w==="admission"){
-  const x=await prisma.admissionApplication.findFirst({where:{id:entityId,institutionId},select:{id:true,status:true,updatedAt:true}});
+  const x=await prisma.admissionApplication.findFirst({
+    where:{id:entityId,institutionId},
+    select:{id:true,status:true,updatedAt:true,programId:true},
+  });
   if(!x) throw new AppError("Workflow record not found",404);
   requireWorkflowRead(actor, ["admissions.read","admissions.manage"], "You do not have access to this admission application.");
+
+  // Admission records are scoped through their selected program. A secondary
+  // ADMISSIONS role cannot bypass a Director's campus or Dean/HOD department.
+  if (!isInstitutionWide(actor)) {
+    if (isDirectorScoped(actor) || actor.roles.includes("DEAN") || actor.roles.includes("HOD")) {
+      await assertProgramInScope(institutionId, actor, x.programId);
+    } else {
+      throw new AppError("This admission application is outside your authorized workspace",403);
+    }
+  }
+
   table="admission_applications";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"SUBMITTED";
   const manage=has(actor,"admissions.manage");
   editable=manage;
