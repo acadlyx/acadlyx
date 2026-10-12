@@ -172,7 +172,7 @@ export interface ErpDocument {
  * the same tenant data during a single active browser session.
  */
 
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 15_000;
 
 interface CacheEntry<T = unknown> {
   value: T;
@@ -343,9 +343,11 @@ async function cachedRequest<T>(
         return value;
       })
       .finally(() => {
-        inFlightRequests.delete(
-          scopedKey
-        );
+        // An invalidation may have allowed a newer request to reuse this key.
+        // An older request must not delete that newer request's dedupe entry.
+        if (inFlightRequests.get(scopedKey) === promise) {
+          inFlightRequests.delete(scopedKey);
+        }
       });
 
   inFlightRequests.set(
