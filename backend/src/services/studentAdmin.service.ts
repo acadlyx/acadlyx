@@ -1154,25 +1154,7 @@ export async function enrollStudent(
   requireStudentProfile(student);
 
   const placement = await validateAcademicPlacement(institutionId, input);
-
-  const roles = actor.roles;
-  if (roles.includes("STUDENT") || roles.includes("PARENT") || roles.includes("FACULTY")) {
-    throw new AppError("This role cannot modify authoritative student enrollment", 403);
-  }
-
-  if (isDirectorScoped(actor)) {
-    const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!allowed.includes(placement.program.departmentId)) {
-      throw new AppError("The selected program is outside your campus scope", 403);
-    }
-  } else if (roles.includes("DEAN") || roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (!managed.includes(placement.program.departmentId)) {
-      throw new AppError("The selected program is outside your department scope", 403);
-    }
-  } else if (!isInstitutionWide(actor)) {
-    throw new AppError("You are not authorized to manage student enrollment", 403);
-  }
+  await assertAcademicPlacementInActorScope(institutionId, actor, placement.program.departmentId);
 
   if (placement.section) {
     const enrolledCount =
@@ -1211,6 +1193,20 @@ export async function enrollStudent(
         },
       },
     });
+
+  // A fresh enrollment may target this caller’s assigned program. Updating an
+  // existing active enrollment from another department/campus is a movement,
+  // and must pass through the authorized student-movement workflow.
+  if (existing?.status === "ACTIVE") {
+    const existingProgram = await prisma.program.findFirst({
+      where: { id: existing.programId, institutionId },
+      select: { departmentId: true },
+    });
+    const activeScope = await getAcademicDepartmentScope(institutionId, actor);
+    if (activeScope && (!existingProgram || !activeScope.includes(existingProgram.departmentId))) {
+      throw new AppError("This student has an active enrollment outside your scope. Use the approved student-movement workflow.", 403);
+    }
+  }
 
   const enrollment =
     await prisma.studentEnrollment.upsert({
