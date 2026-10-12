@@ -2578,23 +2578,24 @@ export async function listNotices(
     throw new AppError("Notice read permission is required", 403);
   }
 
+  const activeRole = getEffectiveWorkspaceRole(actor);
   const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const institutionWide = isInstitutionWide(actor);
   const now = new Date();
 
-  // Apply the most restrictive assigned workspace first. A secondary Admin
-  // role never removes a Director/Dean/HOD/Faculty/Student/Parent data filter.
-  const isDirectorWorkspace = !institutionWide && isDirectorScoped(actor);
-  const isDeanWorkspace = !institutionWide && !isDirectorWorkspace && roles.has("DEAN");
-  const isHod = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && roles.has("HOD");
-  const isFaculty = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && roles.has("FACULTY");
-  const isStudent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && roles.has("STUDENT");
-  const isParent = !institutionWide && !isDirectorWorkspace && !isDeanWorkspace && !isHod && !isFaculty && !isStudent && roles.has("PARENT");
+  // Module audience and data scope are derived from one effective workspace,
+  // never from the union of secondary role bindings.
+  const isDirectorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor);
+  const isDeanWorkspace = !institutionWide && activeRole === "DEAN";
+  const isHod = !institutionWide && activeRole === "HOD";
+  const isFaculty = !institutionWide && activeRole === "FACULTY";
+  const isStudent = !institutionWide && activeRole === "STUDENT";
+  const isParent = !institutionWide && activeRole === "PARENT";
 
   const canReadNoticeWorkspace = institutionWide || isDirectorWorkspace ||
     isDeanWorkspace || isHod || isFaculty || isStudent || isParent ||
     ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
-      .some((role) => roles.has(role));
+      .includes(activeRole);
   if (!canReadNoticeWorkspace) {
     throw new AppError("You are not allowed to view notices", 403);
   }
@@ -2640,7 +2641,7 @@ export async function listNotices(
   else if (isDirectorWorkspace) audience = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
   else if (!institutionWide) {
     const workspaceAudience = ["ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
-      .find((role) => roles.has(role));
+      .includes(activeRole) ? activeRole : undefined;
     if (workspaceAudience) audience = ["ALL", workspaceAudience];
   }
 
@@ -3128,11 +3129,10 @@ export async function listFeeInvoices(
   actor: AuthenticatedUser,
   filters: { studentId?: string; status?: string } = {}
 ) {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
-  const institutionWide = isInstitutionWideFinance(actor) &&
-    ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT", "REGISTRAR"].some((role) => roles.has(role));
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const institutionWide = isInstitutionWideFinance(actor);
 
-  if (!institutionWide && !isDirectorScoped(actor) && !roles.has("DEAN") && !roles.has("HOD")) {
+  if (!institutionWide && !["DIRECTOR","DEAN","HOD"].includes(activeRole)) {
     throw new AppError("Not authorized to view fee invoices", 403);
   }
 
@@ -3150,7 +3150,7 @@ export async function listFeeInvoices(
         some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
       },
     };
-  } else if (!institutionWide && (roles.has("DEAN") || roles.has("HOD"))) {
+  } else if (!institutionWide && (activeRole === "DEAN" || activeRole === "HOD")) {
     const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) throw new AppError("No department scope is assigned to this account", 403);
     where.student = {
@@ -3204,12 +3204,10 @@ export async function getFeeInvoice(
 
   await assertFeeInvoiceScope(institutionId, actor, invoice.studentId);
 
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (
     actor.id !== invoice.studentId &&
-    ![...roles].some((role) =>
-      ["INSTITUTION_ADMIN", "DIRECTOR", "CHAIRMAN", "ACCOUNTS", "MANAGEMENT", "DEAN", "HOD", "PARENT", "SUPER_ADMIN"].includes(role)
-    )
+    !["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","ACCOUNTS","PARENT"].includes(activeRole)
   ) {
     throw new AppError("Not authorized to view this invoice", 403);
   }
@@ -3375,7 +3373,7 @@ export async function listParentLinks(
     "REGISTRAR",
   ]);
 
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const activeRole = getEffectiveWorkspaceRole(actor);
   const where: Prisma.ParentStudentLinkWhereInput = {
     institutionId,
     ...(studentId ? { studentId } : {}),
@@ -3383,7 +3381,7 @@ export async function listParentLinks(
 
   // Directors can inspect parent links only for students in active enrollments
   // in departments belonging to explicitly assigned active campuses.
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) return [];
     where.student = {
@@ -3391,7 +3389,7 @@ export async function listParentLinks(
         some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
       },
     };
-  } else if (!isInstitutionWide(actor) && (roles.has("DEAN") || roles.has("HOD"))) {
+  } else if (!isInstitutionWide(actor) && (activeRole === "DEAN" || activeRole === "HOD")) {
     const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) return [];
     where.student = {
