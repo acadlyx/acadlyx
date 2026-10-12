@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { getDirectorCampusIds, getDirectorDepartmentIds, getManagedDepartmentIds } from "./accessScope.service";
+import { getDirectorCampusIds, getManagedDepartmentIds } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
