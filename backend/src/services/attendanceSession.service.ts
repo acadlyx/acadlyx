@@ -11,10 +11,10 @@ import {
   UpdateRecordsInput,
 } from "../validators/attendanceSession.validators";
 
-const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
-
 function isAdmin(user: AuthenticatedUser): boolean {
-  return user.roles.some((role) => ADMIN_ROLES.includes(role)) && !user.roles.includes("CHAIRMAN") && !isDirectorScoped(user);
+  // A legacy secondary Institution Admin role cannot widen a Director,
+  // Dean, HOD, Faculty, Student, Parent, or Placement workspace.
+  return isInstitutionWide(user);
 }
 
 function assertCanManageOffering(
