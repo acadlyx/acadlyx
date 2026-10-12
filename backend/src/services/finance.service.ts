@@ -5,34 +5,32 @@ import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
-import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance } from "./accessScope.service";
+import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 type Scope={institutionId:string;studentIds?:string[];departmentIds?:string[];campusIds?:string[]};
 const has=(a:AuthenticatedUser,p:string)=>a.permissions.includes(p);
 const rs=(a:AuthenticatedUser)=>getCanonicalRoleNames(a.roles);
 
 async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
- const r=rs(a);
+ const activeRole=getEffectiveWorkspaceRole(a);
 
- // Explicit Chairman authority is institution-wide, even if the user retains
- // a legacy secondary Director role. All other scoped roles are resolved
- // before financial module-wide roles to prevent Accounts/Registrar bindings
- // from widening a Dean, HOD, Faculty, Student or Parent.
- if(r.includes("CHAIRMAN")) return {institutionId};
+ // The effective role is the authority boundary for financial access. Other
+ // role bindings cannot change the meaning of this request.
+ if(activeRole==="CHAIRMAN") return {institutionId};
 
- if(isDirectorScoped(a)) {
+ if(activeRole==="DIRECTOR"&&isDirectorScoped(a)) {
   const campusIds=await getDirectorCampusIds(institutionId,a.id);
   return {institutionId,campusIds};
  }
 
- if(r.includes("DEAN")||r.includes("HOD")) {
+ if(activeRole==="DEAN"||activeRole==="HOD") {
   const departmentIds=await getManagedDepartmentIds(institutionId,a.id);
   return {institutionId,departmentIds};
  }
 
- if(r.includes("STUDENT")) return {institutionId,studentIds:[a.id]};
+ if(activeRole==="STUDENT") return {institutionId,studentIds:[a.id]};
 
- if(r.includes("PARENT")) {
+ if(activeRole==="PARENT") {
   const studentIds=(await prisma.parentStudentLink.findMany({
    where:{institutionId,parentId:a.id},select:{studentId:true}
   })).map(x=>x.studentId);
