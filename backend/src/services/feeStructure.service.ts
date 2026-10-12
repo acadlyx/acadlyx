@@ -552,7 +552,7 @@ export async function listFeeStructures(
   }
 ) {
   if (
-    !actor.roles.includes("SUPER_ADMIN") &&
+    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
     !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
