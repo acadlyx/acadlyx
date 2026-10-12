@@ -382,11 +382,11 @@ export async function assertCanViewUserRecord(
 
   if (isInstitutionWide(actor)) return;
 
-  const actorRoles = getCanonicalRoleNames(actor.roles);
+  const activeRole = getEffectiveWorkspaceRole(actor);
   let allowedDepartmentIds: string[] = [];
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-  } else if (actorRoles.includes("DEAN") || actorRoles.includes("HOD")) {
+  } else if (activeRole === "DEAN" || activeRole === "HOD") {
     allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
   } else {
     // Students, parents, placement staff, and faculty do not gain generic
