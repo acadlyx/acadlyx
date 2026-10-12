@@ -5,7 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
-import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
+import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped, assertCourseOfferingInScope } from "./accessScope.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -17,17 +17,24 @@ function isAdmin(user: AuthenticatedUser): boolean {
   return isInstitutionWide(user);
 }
 
-function assertCanManageOffering(
+async function assertCanManageOffering(
+  institutionId: string,
   user: AuthenticatedUser,
-  facultyId: string | null
-): void {
+  courseOfferingId: string,
+  facultyId: string | null,
+): Promise<void> {
   if (isAdmin(user)) return;
-  if (facultyId === user.id) return;
-
-  throw new AppError(
-    "You are not the assigned faculty for this course offering",
-    403
-  );
+  if (user.roles.includes("FACULTY")) {
+    if (facultyId !== user.id) {
+      throw new AppError("You are not the assigned faculty for this course offering", 403);
+    }
+    return;
+  }
+  if (isDirectorScoped(user) || user.roles.includes("DEAN") || user.roles.includes("HOD")) {
+    await assertCourseOfferingInScope(institutionId, user, courseOfferingId);
+    return;
+  }
+  throw new AppError("This course offering is outside your attendance-management scope", 403);
 }
 
 async function loadCourseOfferingForInstitution(
@@ -106,7 +113,7 @@ export async function getOrCreateSession(
     input.courseOfferingId
   );
 
-  assertCanManageOffering(user, offering.facultyId);
+  await assertCanManageOffering(institutionId, user, offering.id, offering.facultyId);
 
   const existing = await prisma.attendanceSession.findFirst({
     where: {
@@ -149,7 +156,7 @@ export async function getSessionById(
     throw new AppError("Attendance session not found", 404);
   }
 
-  assertCanManageOffering(user, session.courseOffering.facultyId);
+  await assertCanManageOffering(institutionId, user, session.courseOfferingId, session.courseOffering.facultyId);
 
   return withRoster(institutionId, session);
 }
