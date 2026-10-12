@@ -187,6 +187,12 @@ const inFlightRequests =
     Promise<unknown>
   >();
 
+let cacheGeneration = 0;
+
+function matchesCachePrefix(key: string, prefix: string): boolean {
+  return key === prefix || key.includes(`:${prefix}`);
+}
+
 function getCached<T>(
   key: string
 ): T | undefined {
@@ -222,6 +228,7 @@ function setCached<T>(
 function invalidate(
   predicate: (key: string) => boolean
 ): void {
+  cacheGeneration += 1;
   for (const key of responseCache.keys()) {
     if (predicate(key)) {
       responseCache.delete(key);
@@ -230,19 +237,11 @@ function invalidate(
 }
 
 export function invalidateErpWorkspace(): void {
-  invalidate((key) =>
-    key.startsWith(
-      "erp:workspace"
-    )
-  );
+  invalidate((key) => matchesCachePrefix(key, "erp:workspace"));
 }
 
 function invalidateOfferings(): void {
-  invalidate((key) =>
-    key.startsWith(
-      "erp:offerings"
-    )
-  );
+  invalidate((key) => matchesCachePrefix(key, "erp:offerings"));
 
   invalidateErpWorkspace();
 }
@@ -251,31 +250,23 @@ function invalidateFeeData(): void {
   // cachedRequest prefixes keys with the auth-session scope; match the
   // canonical ERP cache segment rather than the unscoped prefix.
   invalidate((key) =>
-    key.includes(":erp:fee-heads") ||
-    key.includes(":erp:fee-structures") ||
-    key.includes(":erp:workspace")
+    matchesCachePrefix(key, "erp:fee-heads") ||
+    matchesCachePrefix(key, "erp:fee-structures") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
 function invalidateNotifications(): void {
   invalidate((key) =>
-    key.startsWith(
-      "erp:notifications"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    matchesCachePrefix(key, "erp:notifications") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
 function invalidateDocuments(): void {
   invalidate((key) =>
-    key.startsWith(
-      "erp:documents"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    matchesCachePrefix(key, "erp:documents") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
@@ -283,13 +274,9 @@ function invalidateUsers(
   role?: string
 ): void {
   if (!role) {
-    invalidate((key) =>
-      key.startsWith("erp:users:")
-    );
+    invalidate((key) => matchesCachePrefix(key, "erp:users:"));
   } else {
-    responseCache.delete(
-      `erp:users:${role}`
-    );
+    invalidate((key) => matchesCachePrefix(key, `erp:users:${role}`));
   }
 }
 
@@ -340,14 +327,14 @@ async function cachedRequest<T>(
     return existing as Promise<T>;
   }
 
+  const generationAtStart = cacheGeneration;
   const promise =
     request()
       .then((value) => {
-        setCached(
-          scopedKey,
-          value
-        );
-
+        // Do not let an older in-flight GET repopulate cache after mutation.
+        if (generationAtStart === cacheGeneration) {
+          setCached(scopedKey, value);
+        }
         return value;
       })
       .finally(() => {
