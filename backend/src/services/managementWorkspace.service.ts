@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { getDirectorCampusIds, getDirectorDepartmentIds } from "./accessScope.service";
+import { getDirectorCampusIds, getDirectorDepartmentIds, getManagedDepartmentIds } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
@@ -292,16 +292,17 @@ export async function getManagementWorkspaceSummary(
   institutionId: string,
   actor: AuthenticatedUser,
 ) {
-  // This endpoint is reachable directly, so never infer admin authority from
-  // getWorkspaceType()'s fallback for unrecognized roles.
-  if (actor.roles.includes("INSTITUTION_ADMIN")) {
+  // Resolve the effective workspace before granting an institution-wide
+  // admin branch. A legacy secondary INSTITUTION_ADMIN binding must not
+  // override a Director's campus scope or a Dean's department scope.
+  const workspaceType = getWorkspaceType(actor);
+  const roles = new Set(actor.roles);
+  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN")) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
-  const allowedSummaryRoles = ["CHAIRMAN", "DIRECTOR", "DEAN"];
-  if (!actor.roles.some((role) => allowedSummaryRoles.includes(role))) {
+  if (!["CHAIRMAN", "DIRECTOR", "DEAN"].includes(workspaceType)) {
     throw new AppError("A leadership summary is not available for this workspace", 403);
   }
-  const workspaceType = getWorkspaceType(actor);
 
   const activeUser = { institutionId, isActive: true };
   const studentRole = { userRoles: { some: { role: { name: "STUDENT" } } } };
@@ -414,13 +415,42 @@ export async function getManagementWorkspaceSummary(
   }
 
   if (workspaceType === "DEAN") {
+    const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    if (departmentIds.length === 0) {
+      throw new AppError("No department scope is assigned to this Dean", 403);
+    }
+    const departmentScope = { in: departmentIds };
+    const scopedStudent = {
+      studentEnrollments: {
+        some: {
+          institutionId,
+          status: "ACTIVE",
+          program: { departmentId: departmentScope },
+        },
+      },
+    };
+    const scopedOffering = {
+      course: { departmentId: departmentScope },
+      semester: { program: { departmentId: departmentScope } },
+    };
     const [students, faculty, programs, courses, assignments, exams] = await Promise.all([
-      prisma.user.count({ where: { ...activeUser, ...studentRole } }),
-      prisma.user.count({ where: { ...activeUser, ...facultyRole } }),
-      prisma.program.count({ where: { institutionId, isActive: true } }),
-      prisma.course.count({ where: { institutionId, isActive: true } }),
-      prisma.assignment.count({ where: { institutionId } }),
-      prisma.exam.count({ where: { institutionId } }),
+      prisma.user.count({
+        where: { ...activeUser, ...studentRole, ...scopedStudent },
+      }),
+      prisma.user.count({
+        where: {
+          ...activeUser,
+          ...facultyRole,
+          OR: [
+            { facultyCourseOfferings: { some: { institutionId, course: { departmentId: departmentScope } } } },
+            { employeeProfile: { departmentId: departmentScope } },
+          ],
+        },
+      }),
+      prisma.program.count({ where: { institutionId, isActive: true, departmentId: departmentScope } }),
+      prisma.course.count({ where: { institutionId, isActive: true, departmentId: departmentScope } }),
+      prisma.assignment.count({ where: { institutionId, courseOffering: scopedOffering } }),
+      prisma.exam.count({ where: { institutionId, courseOffering: scopedOffering } }),
     ]);
 
     return {
@@ -436,52 +466,60 @@ export async function getManagementWorkspace(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  if (
-    actor.roles.includes(
-      "INSTITUTION_ADMIN"
-    )
-  ) {
-    return getInstitutionAdminWorkspace(
-      institutionId,
-      actor
-    );
+  const workspaceType = getWorkspaceType(actor);
+  const roles = new Set(actor.roles);
+  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN")) {
+    return getInstitutionAdminWorkspace(institutionId, actor);
+  }
+  if (!LEADERSHIP_ROLES.some((role) => roles.has(role))) {
+    throw new AppError("A leadership workspace is not available for this role", 403);
   }
 
   const now = new Date();
-  // Resolve scope from the active leadership workspace, not merely a secondary role.
-  // Users with both CHAIRMAN and DIRECTOR roles must retain institution-wide Chairman scope.
-  const isDirector = getWorkspaceType(actor) === "DIRECTOR";
+  // Scope selection follows the effective workspace: Chairman has institution
+  // scope, Director has explicitly assigned campuses, and Dean has assigned
+  // departments. A secondary admin role never widens a scoped workspace.
+  const isDirector = workspaceType === "DIRECTOR";
+  const isDean = workspaceType === "DEAN";
+  const isDepartmentScoped = isDirector || isDean;
   const directorCampusIds = isDirector
     ? await getDirectorCampusIds(institutionId, actor.id)
     : [];
   if (isDirector && directorCampusIds.length === 0) {
     throw new AppError("No campus scope is assigned to this director", 403);
   }
-  // A valid campus assignment remains valid even before departments are
-  // created. In that case department-scoped KPIs should safely return zero,
-  // not misreport missing authorization.
-  const directorDepartmentIds = isDirector
-    ? await getDirectorDepartmentIds(institutionId, actor.id)
-    : [];
-  const inDirectorScope = { in: directorDepartmentIds };
+  const scopedDepartmentIds = isDirector
+    ? (await prisma.department.findMany({
+        where: { institutionId, isActive: true, campusId: { in: directorCampusIds } },
+        select: { id: true },
+      })).map((row) => row.id)
+    : isDean
+      ? await getManagedDepartmentIds(institutionId, actor.id)
+      : [];
+  if (isDean && scopedDepartmentIds.length === 0) {
+    throw new AppError("No department scope is assigned to this Dean", 403);
+  }
+  // An assigned campus can exist before any departments are created, in which
+  // case its scoped KPI counts safely resolve to zero.
+  const inScopedDepartments = { in: scopedDepartmentIds };
   const scopedStudent = {
     studentEnrollments: {
       some: {
         institutionId,
         status: "ACTIVE",
-        program: { departmentId: inDirectorScope },
+        program: { departmentId: inScopedDepartments },
       },
     },
   };
   const scopedOffering = {
-    course: { departmentId: inDirectorScope },
-    semester: { program: { departmentId: inDirectorScope } },
+    course: { departmentId: inScopedDepartments },
+    semester: { program: { departmentId: inScopedDepartments } },
   };
   const scopedUser = {
     OR: [
       scopedStudent,
-      { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inDirectorScope } } } },
-      { employeeProfile: { departmentId: inDirectorScope } },
+      { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inScopedDepartments } } } },
+      { employeeProfile: { departmentId: inScopedDepartments } },
     ],
   };
 
@@ -510,7 +548,7 @@ export async function getManagementWorkspace(
         where: {
           institutionId,
           isActive: true,
-          ...(isDirector ? scopedUser : {}),
+          ...(isDepartmentScoped ? scopedUser : {}),
         },
       }),
 
@@ -519,7 +557,7 @@ export async function getManagementWorkspace(
           institutionId,
           isActive: true,
           userRoles: { some: { role: { name: "STUDENT" } } },
-          ...(isDirector ? scopedStudent : {}),
+          ...(isDepartmentScoped ? scopedStudent : {}),
         },
       }),
 
@@ -528,20 +566,20 @@ export async function getManagementWorkspace(
           institutionId,
           isActive: true,
           userRoles: { some: { role: { name: "FACULTY" } } },
-          ...(isDirector ? { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inDirectorScope } } } } : {}),
+          ...(isDepartmentScoped ? { facultyCourseOfferings: { some: { institutionId, course: { departmentId: inScopedDepartments } } } } : {}),
         },
       }),
 
       prisma.department.count({
-        where: { institutionId, isActive: true, ...(isDirector ? { id: inDirectorScope } : {}) },
+        where: { institutionId, isActive: true, ...(isDepartmentScoped ? { id: inScopedDepartments } : {}) },
       }),
 
       prisma.program.count({
-        where: { institutionId, isActive: true, ...(isDirector ? { departmentId: inDirectorScope } : {}) },
+        where: { institutionId, isActive: true, ...(isDepartmentScoped ? { departmentId: inScopedDepartments } : {}) },
       }),
 
       prisma.section.count({
-        where: { institutionId, isActive: true, ...(isDirector ? { semester: { program: { departmentId: inDirectorScope } } } : {}) },
+        where: { institutionId, isActive: true, ...(isDepartmentScoped ? { semester: { program: { departmentId: inScopedDepartments } } } : {}) },
       }),
 
       prisma.course.count({
@@ -549,11 +587,11 @@ export async function getManagementWorkspace(
       }),
 
       prisma.courseOffering.count({
-        where: { institutionId, isActive: true, ...(isDirector ? scopedOffering : {}) },
+        where: { institutionId, isActive: true, ...(isDepartmentScoped ? scopedOffering : {}) },
       }),
 
       prisma.attendanceSession.count({
-        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.assignment.count({
@@ -569,11 +607,11 @@ export async function getManagementWorkspace(
       }),
 
       prisma.examResult.count({
-        where: { institutionId, ...(isDirector ? { exam: { courseOffering: scopedOffering } } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { exam: { courseOffering: scopedOffering } } : {}) },
       }),
 
       prisma.feeInvoice.aggregate({
-        where: { institutionId, ...(isDirector ? { student: scopedStudent } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { student: scopedStudent } : {}) },
         _count: {
           _all: true,
         },
@@ -588,11 +626,11 @@ export async function getManagementWorkspace(
       }),
 
       prisma.document.count({
-        where: { institutionId, ...(isDirector ? { owner: scopedUser } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { owner: scopedUser } : {}) },
       }),
 
       prisma.notification.count({
-        where: { institutionId, ...(isDirector ? { user: scopedUser } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { user: scopedUser } : {}) },
       }),
 
       prisma.notice.findMany({
@@ -620,6 +658,18 @@ export async function getManagementWorkspace(
               ...actor.roles,
             ],
           },
+          ...(isDepartmentScoped
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { departmentId: null },
+                      { departmentId: inScopedDepartments },
+                    ],
+                  },
+                ],
+              }
+            : {}),
         },
 
         orderBy: {
