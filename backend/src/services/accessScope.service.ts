@@ -244,16 +244,15 @@ export async function getStudentWhereScope(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<Prisma.UserWhereInput> {
-  if (isDirectorScoped(actor)) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const departments = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return { studentEnrollments: { some: { institutionId, program: { departmentId: { in: departments } } } } };
   }
   if (actor.id && isInstitutionWide(actor)) return {};
 
-  const roles = getCanonicalRoleNames(actor.roles);
-
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const departments = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return {
@@ -266,7 +265,7 @@ export async function getStudentWhereScope(
     };
   }
 
-  if (roles.includes("FACULTY")) {
+  if (activeRole === "FACULTY") {
     const offerings = await prisma.courseOffering.findMany({
       where: { institutionId, facultyId: actor.id, isActive: true },
       select: { sectionId: true, semesterId: true },
@@ -282,12 +281,12 @@ export async function getStudentWhereScope(
     };
   }
 
-  if (roles.includes("STUDENT")) return { id: actor.id };
+  if (activeRole === "STUDENT") return { id: actor.id };
 
   // Placement Cell is not a generic institution-wide student directory.
   // Student access is limited to records that have an explicit placement
   // relationship: placement profile/snapshot or a placement application.
-  if (roles.includes("PLACEMENT")) {
+  if (activeRole === "PLACEMENT") {
     return {
       OR: [
         { placementProfile: { isNot: null } },
@@ -376,7 +375,7 @@ export async function assertCanViewUserRecord(
   if (actor.id === targetUserId) return;
 
   const targetRoles = getCanonicalRoleNames(target.userRoles.map((binding) => binding.role.name));
-  if (targetRoles.includes("STUDENT")) {
+  if (getEffectiveWorkspaceRole({ roles: targetRoles }) === "STUDENT") {
     await assertCanViewStudent(institutionId, actor, targetUserId);
     return;
   }
@@ -411,7 +410,8 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
   if (actor.id === studentId) return;
-  if (isDirectorScoped(actor)) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const [allowedDepartments, studentDepartments] = await Promise.all([
       getDirectorDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -421,8 +421,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
   }
   if (isInstitutionWide(actor)) return;
 
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("PARENT")) {
+  if (activeRole === "PARENT") {
     const link = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
       select: { parentId: true },
@@ -430,7 +429,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (link) return;
   }
 
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const [managed, studentDepartments] = await Promise.all([
       getManagedDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -438,7 +437,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (managed.length > 0 && studentDepartments.some((id) => managed.includes(id))) return;
   }
 
-  if (roles.includes("PLACEMENT")) {
+  if (activeRole === "PLACEMENT") {
     const eligible = await prisma.user.findFirst({
       where: {
         id: studentId,
@@ -454,7 +453,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (eligible) return;
   }
 
-  if (roles.includes("FACULTY")) {
+  if (activeRole === "FACULTY") {
     const taught = await prisma.courseOffering.findFirst({
       where: {
         institutionId,
