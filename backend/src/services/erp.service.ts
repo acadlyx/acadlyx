@@ -1653,11 +1653,26 @@ export async function createNotice(
   }
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "DIRECTOR",
     "CHAIRMAN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "DEAN",
+    "REGISTRAR",
     "HOD",
+    "FACULTY",
     "ACCOUNTS",
+    "HR",
+    "ADMISSIONS",
+    "EXAMINATION",
+    "LIBRARIAN",
+    "PLACEMENT",
+    "IT",
+    "CMS",
+    "PARENT",
+    "CLUB_PRESIDENT",
+    "STAFF",
   ]);
 
   if (!input.title?.trim()) {
@@ -2558,9 +2573,11 @@ export async function listNotices(
     !isFaculty &&
     !isHod &&
     !hasAnyRole(actor, [
+      "SUPER_ADMIN",
       "INSTITUTION_ADMIN",
       "DIRECTOR",
       "CHAIRMAN",
+      "MANAGEMENT",
       "DEAN",
       "REGISTRAR",
       "ACCOUNTS",
@@ -2570,6 +2587,8 @@ export async function listNotices(
       "LIBRARIAN",
       "PLACEMENT",
       "IT",
+      "CMS",
+      "CLUB_PRESIDENT",
       "STAFF",
     ])
   ) {
@@ -2681,11 +2700,26 @@ export async function updateNotice(
   }
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "DIRECTOR",
     "CHAIRMAN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "DEAN",
+    "REGISTRAR",
     "HOD",
+    "FACULTY",
     "ACCOUNTS",
+    "HR",
+    "ADMISSIONS",
+    "EXAMINATION",
+    "LIBRARIAN",
+    "PLACEMENT",
+    "IT",
+    "CMS",
+    "PARENT",
+    "CLUB_PRESIDENT",
+    "STAFF",
   ]);
 
   const existing = await prisma.notice.findFirst({
@@ -2772,11 +2806,26 @@ export async function deleteNotice(
   id: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "DIRECTOR",
     "CHAIRMAN",
+    "DIRECTOR",
+    "MANAGEMENT",
+    "DEAN",
+    "REGISTRAR",
     "HOD",
+    "FACULTY",
     "ACCOUNTS",
+    "HR",
+    "ADMISSIONS",
+    "EXAMINATION",
+    "LIBRARIAN",
+    "PLACEMENT",
+    "IT",
+    "CMS",
+    "PARENT",
+    "CLUB_PRESIDENT",
+    "STAFF",
   ]);
 
   const existing = await prisma.notice.findFirst({
