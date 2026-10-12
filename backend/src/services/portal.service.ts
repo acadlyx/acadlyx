@@ -22,7 +22,7 @@ type PortalActor = {
 const scopedPortalManagerRoles = new Set<string>(["DIRECTOR", "DEAN", "HOD"]);
 
 function isScopedPortalManager(actor: PortalActor): boolean {
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   return !isInstitutionWide(actor) &&
     (isDirectorScoped(actor) || [...scopedPortalManagerRoles].some((role) => roles.has(role)));
 }
