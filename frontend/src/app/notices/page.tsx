@@ -42,6 +42,8 @@ const READ_ROLES = [
   "STAFF",
   "STUDENT",
   "PARENT",
+  "CMS",
+  "CLUB_PRESIDENT",
 ];
 
 function formatDate(value?: string | null) {
