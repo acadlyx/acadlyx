@@ -27,12 +27,11 @@ export async function globalSearch(
   const like = `%${q}%`;
   const out: GlobalSearchResult[] = [];
   const roles: string[] = getCanonicalRoleNames(actor.roles);
-  const canPeople = actor.permissions.includes("users.read") || actor.permissions.includes("students.read") || actor.permissions.includes("faculty.read");
-  const canCourses = actor.permissions.includes("courses.read") || roles.includes("STUDENT");
-  const canNotices = actor.permissions.includes("notices.read") || roles.includes("STUDENT");
-
   const institutionWide = isInstitutionWide(actor);
   const activeRole = getEffectiveWorkspaceRole(actor);
+  const canPeople = actor.permissions.includes("users.read") || actor.permissions.includes("students.read") || actor.permissions.includes("faculty.read");
+  const canCourses = actor.permissions.includes("courses.read") || activeRole === "STUDENT" || activeRole === "PARENT";
+  const canNotices = actor.permissions.includes("notices.read") || activeRole === "STUDENT" || activeRole === "PARENT";
   const directorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor);
   const departmentWorkspace = !institutionWide && (activeRole === "HOD" || activeRole === "DEAN");
   const facultyWorkspace = !institutionWide && activeRole === "FACULTY";
@@ -162,7 +161,7 @@ export async function globalSearch(
     else if (directorWorkspace) audiences = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
     else if (!institutionWide) {
       const specialist = ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
-        .find((role) => roles.includes(role));
+        .includes(activeRole) ? activeRole : undefined;
       if (specialist) audiences = ["ALL", specialist];
     }
 
