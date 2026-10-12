@@ -7,7 +7,7 @@ import {
 import { getCanonicalRoleNames } from "../config/rbac";
 
 export function getWorkspaceType(actor: AuthenticatedUser): string {
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   // This list matches the frontend's effective dashboard role priority:
   // scoped operational workspaces are resolved before secondary broad grants.
   const priority = [
