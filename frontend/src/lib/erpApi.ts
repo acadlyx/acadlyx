@@ -230,9 +230,13 @@ function invalidate(
 ): void {
   cacheGeneration += 1;
   for (const key of responseCache.keys()) {
-    if (predicate(key)) {
-      responseCache.delete(key);
-    }
+    if (predicate(key)) responseCache.delete(key);
+  }
+  // Pending request keys are session:<scope>:<resource-key>; check the
+  // resource segment too, so invalidation prevents stale in-flight reuse.
+  for (const key of inFlightRequests.keys()) {
+    const resourceKey = key.split(":").slice(2).join(":");
+    if (predicate(key) || predicate(resourceKey)) inFlightRequests.delete(key);
   }
 }
 
