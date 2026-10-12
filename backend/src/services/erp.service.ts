@@ -9,10 +9,8 @@ import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
   getStaffDepartmentIds,
-  getAuthorizedDepartmentIds,
   isInstitutionWide,
   isDirectorScoped,
-  getStudentWhereScope,
 } from "./accessScope.service";
 
 const MANAGEMENT_ROLES = [
@@ -234,28 +232,22 @@ async function assertParentExists(
 async function assertStudentScope(
   institutionId: string,
   actor: AuthenticatedUser,
-  studentId: string
+  studentId: string,
 ): Promise<void> {
-  if (actor.id === studentId) {
-    return;
+  const actorRoles = new Set(getCanonicalRoleNames(actor.roles));
+  if (!actorRoles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
+    throw new AppError("Student data is outside your authorized scope", 403);
   }
+  if (actor.id === studentId) return;
 
-  const actorRoles = getCanonicalRoleNames(actor.roles);
+  // Scope is resolved before generic management roles. This prevents a
+  // secondary Admin/Accounts role from widening a Director, Dean, or HOD.
+  if (isInstitutionWide(actor)) return;
 
-  // Director is intentionally handled before the management-role shortcut.
-  // A DIRECTOR permission never grants institution-wide student access: the
-  // student's active enrollment must resolve to a department in an assigned
-  // campus, and the tenant must match the authenticated server-side identity.
-  if (actorRoles.includes("DIRECTOR")) {
-    if (actor.institutionId !== institutionId) {
+  const requireScopedEnrollment = async (departmentIds: string[]) => {
+    if (!departmentIds.length) {
       throw new AppError("Student data is outside your authorized scope", 403);
     }
-
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (departmentIds.length === 0) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
-
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: {
         institutionId,
@@ -265,30 +257,25 @@ async function assertStudentScope(
       },
       select: { id: true },
     });
+    if (!enrollment) throw new AppError("Student data is outside your authorized scope", 403);
+  };
 
-    if (!enrollment) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
+  if (isDirectorScoped(actor)) {
+    await requireScopedEnrollment(await getDirectorDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (hasAnyRole(actor, MANAGEMENT_ROLES)) {
-    // Institution-level management is still tenant-bound. Only the explicit
-    // platform administrator may cross the authenticated tenant boundary.
-    if (!actorRoles.includes("SUPER_ADMIN") && actor.institutionId !== institutionId) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
+  if (actorRoles.has("DEAN") || actorRoles.has("HOD")) {
+    await requireScopedEnrollment(await getManagedDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (actorRoles.includes("PARENT")) {
+  if (actorRoles.has("PARENT")) {
     const linked = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
+      select: { parentId: true },
     });
-
-    if (linked) {
-      return;
-    }
+    if (linked) return;
   }
 
   throw new AppError("Student data is outside your authorized scope", 403);
@@ -1704,7 +1691,7 @@ export async function createTimetableEntry(
 }
 
 async function assertDirectorNoticeDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
+  if (!isDirectorScoped(actor)) return;
   const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
   if (!departmentId || !assignedDepartments.includes(departmentId)) {
     throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
@@ -1731,19 +1718,11 @@ export async function createNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   if (!input.title?.trim()) {
     throw new AppError(
@@ -2757,19 +2736,11 @@ export async function updateNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   const existing = await prisma.notice.findFirst({
     where: {
@@ -2863,19 +2834,11 @@ export async function deleteNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   const existing = await prisma.notice.findFirst({
     where: {
