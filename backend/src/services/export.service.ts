@@ -11,7 +11,6 @@ import {
   isDirectorScoped,
   isInstitutionWide,
   getStudentWhereScope,
-  INSTITUTION_WIDE_ROLES,
 } from "./accessScope.service";
 
 export const EXPORT_TYPES = [
