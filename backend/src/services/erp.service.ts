@@ -54,7 +54,8 @@ async function assertDepartmentScope(
   courseOfferingId?: string,
   departmentId?: string,
 ): Promise<void> {
-  if (isInstitutionWide(actor)) return;
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) && !["DIRECTOR","DEAN","HOD","FACULTY","STUDENT","PARENT","PLACEMENT"].includes(activeRole)) return;
 
   let scopedDepartmentId = departmentId;
   let assignedFacultyId: string | null = null;
@@ -69,7 +70,7 @@ async function assertDepartmentScope(
     assignedFacultyId = offering.facultyId;
   }
 
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
       throw new AppError("This operation is outside your assigned campus scope", 403);
@@ -77,8 +78,7 @@ async function assertDepartmentScope(
     return;
   }
 
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
-  if (roles.has("DEAN") || roles.has("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const allowed = await getManagedDepartmentIds(institutionId, actor.id);
     if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
       throw new AppError("This operation is outside your assigned department scope", 403);
@@ -86,7 +86,7 @@ async function assertDepartmentScope(
     return;
   }
 
-  if (roles.has("FACULTY")) {
+  if (activeRole === "FACULTY") {
     if (courseOfferingId) {
       if (assignedFacultyId !== actor.id) {
         throw new AppError("This course offering is outside your teaching assignment", 403);
@@ -112,21 +112,21 @@ async function getOfferingReadScope(
   institutionId: string,
   actor: AuthenticatedUser,
 ): Promise<Prisma.CourseOfferingWhereInput> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWide(actor) || isInstitutionWideExamination(actor)) return {};
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
 
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const ids = await getDirectorDepartmentIds(institutionId, actor.id);
     return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
   }
-  if (roles.has("DEAN") || roles.has("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const ids = await getManagedDepartmentIds(institutionId, actor.id);
     return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
   }
-  if (roles.has("FACULTY")) return { facultyId: actor.id };
+  if (activeRole === "FACULTY") return { facultyId: actor.id };
 
-  if (roles.has("STUDENT") || roles.has("PARENT")) {
-    const studentIds = roles.has("STUDENT")
+  if (activeRole === "STUDENT" || activeRole === "PARENT") {
+    const studentIds = activeRole === "STUDENT"
       ? [actor.id]
       : (await prisma.parentStudentLink.findMany({
           where: { institutionId, parentId: actor.id },
@@ -235,6 +235,7 @@ async function assertStudentScope(
   actor: AuthenticatedUser,
   studentId: string,
 ): Promise<void> {
+  const effectiveRole = getEffectiveWorkspaceRole(actor);
   const actorRoles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (!actorRoles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
     throw new AppError("Student data is outside your authorized scope", 403);
@@ -261,17 +262,17 @@ async function assertStudentScope(
     if (!enrollment) throw new AppError("Student data is outside your authorized scope", 403);
   };
 
-  if (isDirectorScoped(actor)) {
+  if (effectiveRole === "DIRECTOR" && isDirectorScoped(actor)) {
     await requireScopedEnrollment(await getDirectorDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (actorRoles.has("DEAN") || actorRoles.has("HOD")) {
+  if (effectiveRole === "DEAN" || effectiveRole === "HOD") {
     await requireScopedEnrollment(await getManagedDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (actorRoles.has("PARENT")) {
+  if (effectiveRole === "PARENT") {
     const linked = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
       select: { parentId: true },
@@ -429,7 +430,7 @@ export async function getMyWorkspace(
   /*
    * HOD
    */
-  if (actor.roles.includes("HOD")) {
+  if (getEffectiveWorkspaceRole(actor) === "HOD") {
     const departments =
       await getHodDepartments(
         institutionId,
@@ -692,7 +693,7 @@ export async function getMyWorkspace(
   /*
    * FACULTY
    */
-  if (actor.roles.includes("FACULTY")) {
+  if (getEffectiveWorkspaceRole(actor) === "FACULTY") {
     const offerings =
       await getFacultyOfferings(
         institutionId,
@@ -896,7 +897,7 @@ export async function getMyWorkspace(
   /*
    * PARENT
    */
-  if (actor.roles.includes("PARENT")) {
+  if (getEffectiveWorkspaceRole(actor) === "PARENT") {
     const children =
       await prisma.parentStudentLink.findMany({
         where: {
@@ -1072,7 +1073,7 @@ export async function getMyWorkspace(
   /*
    * STUDENT
    */
-  if (actor.roles.includes("STUDENT")) {
+  if (getEffectiveWorkspaceRole(actor) === "STUDENT") {
     const enrollment =
       await getStudentSection(
         institutionId,
@@ -1848,7 +1849,7 @@ export async function createExam(
     isActive: true,
   };
 
-  if (actor.roles.includes("FACULTY")) {
+  if (getEffectiveWorkspaceRole(actor) === "FACULTY") {
     offeringWhere.facultyId = actor.id;
   }
 
@@ -1927,7 +1928,7 @@ export async function upsertExamResult(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     exam.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -2919,7 +2920,7 @@ export async function getExamDetails(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     exam.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -2983,7 +2984,7 @@ export async function updateExam(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     existing.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -3085,7 +3086,7 @@ export async function deleteExam(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     existing.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
