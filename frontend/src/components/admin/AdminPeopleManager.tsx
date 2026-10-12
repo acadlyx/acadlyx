@@ -838,11 +838,16 @@ function AdminPeopleManagerContent() {
           ? departmentId
             ? [departmentId]
             : []
-          : [];
+          : role === "DEAN"
+            ? form.getAll("departmentIds").map((value) => String(value)).filter(Boolean)
+            : [];
       const campusIds = form.getAll("campusIds").map((value) => String(value)).filter(Boolean);
 
       if (role === "HOD" && departmentIds.length !== 1) {
         throw new Error("Select the department assigned to this HOD.");
+      }
+      if (role === "DEAN" && departmentIds.length === 0) {
+        throw new Error("Select at least one department assigned to this Dean.");
       }
       if (role === "DIRECTOR" && campusIds.length === 0) {
         throw new Error("Select at least one campus assigned to this Director.");
@@ -923,10 +928,17 @@ function AdminPeopleManagerContent() {
         throw new Error("Select at least one campus assigned to this Director.");
       }
 
-      if (role === "HOD" && !departmentId) {
-        throw new Error(
-          "Select the department assigned to this HOD.",
-        );
+      const departmentIds = role === "HOD"
+        ? [departmentId].filter(Boolean)
+        : role === "DEAN"
+          ? form.getAll("departmentIds").map((value) => String(value)).filter(Boolean)
+          : [];
+
+      if (role === "HOD" && departmentIds.length !== 1) {
+        throw new Error("Select the department assigned to this HOD.");
+      }
+      if (role === "DEAN" && departmentIds.length === 0) {
+        throw new Error("Select at least one department assigned to this Dean.");
       }
 
       const created =
@@ -974,10 +986,7 @@ function AdminPeopleManagerContent() {
             ),
 
           role,
-          departmentIds:
-            role === "HOD"
-              ? [String(form.get("departmentId") || "").trim()].filter(Boolean)
-              : [],
+          departmentIds,
           campusIds,
         });
 
@@ -1778,6 +1787,22 @@ function AdminPeopleManagerContent() {
                     ))}
                   </select>
                 </label> : null}
+                {(editRole || selected.roles[0]?.name) === "DEAN" ? <label className="sm:col-span-2">
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Dean department scope</span>
+                  <select
+                    name="departmentIds"
+                    multiple
+                    defaultValue={selected.departmentAccesses?.map((access) => access.departmentId) || []}
+                    className="min-h-28 w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
+                  >
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code ? `${department.code} — ` : ""}{department.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-500">Required. The Dean’s dashboard and academic views are limited to these departments.</span>
+                </label> : null}
                 {(editRole || selected.roles[0]?.name) === "DIRECTOR" ? <label className="sm:col-span-2">
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Director campus scope</span>
                   <select name="campusIds" multiple defaultValue={selected.campusAccesses?.map((access) => access.campusId) || []} className="min-h-28 w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400">
@@ -1788,6 +1813,7 @@ function AdminPeopleManagerContent() {
               </div>
 
               {(editRole || selected.roles[0]?.name) === "HOD" ? <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">An HOD must have exactly one department. Changing the role away from HOD removes HOD department access.</div> : null}
+              {(editRole || selected.roles[0]?.name) === "DEAN" ? <div className="rounded-[16px] border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-800">A Dean must have one or more active departments assigned. Changing to another role removes this department scope.</div> : null}
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <button type="button" onClick={() => {
@@ -1919,6 +1945,22 @@ function AdminPeopleManagerContent() {
                       </option>
                     ))}
                   </select>
+                </label> : null}
+                {createRole === "DEAN" ? <label className="sm:col-span-2">
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Dean department scope</span>
+                  <select
+                    name="departmentIds"
+                    multiple
+                    defaultValue={[]}
+                    className="min-h-28 w-full rounded-[13px] border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-blue-400"
+                  >
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code ? `${department.code} — ` : ""}{department.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-slate-500">Select at least one active department. The Dean will only see these assigned departments.</span>
                 </label> : null}
                 {createRole === "DIRECTOR" ? <label className="sm:col-span-2">
                   <span className="mb-1.5 block text-xs font-bold text-slate-600">Director campus scope</span>
