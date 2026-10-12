@@ -407,7 +407,7 @@ async function assertCanReadSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.includes("EXAMINATION") || actor.roles.includes("CHAIRMAN") || actor.roles.includes("REGISTRAR")) return;
+  if (isInstitutionWide(actor)) return;
   const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
   if (actor.roles.includes("FACULTY")) {
     if (offering.facultyId !== actor.id) throw new AppError("Examination is outside your assignment scope",403);
@@ -437,7 +437,11 @@ async function assertCanActOnSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.includes("EXAMINATION")) return;
+  if (actor.roles.includes("EXAMINATION")) {
+    if (isInstitutionWide(actor)) return;
+    await assertCanReadSchedule(institutionId, actor, schedule);
+    return;
+  }
   const offering = await loadCourseOfferingOrThrow(institutionId, schedule.courseOfferingId);
   if (!actor.roles.includes("FACULTY") || offering.facultyId !== actor.id) {
     throw new AppError("You are not authorized to modify this examination schedule",403);
@@ -449,7 +453,11 @@ async function assertCanConductSchedule(
   actor: AuthenticatedUser,
   schedule: ExamScheduleRow
 ): Promise<void> {
-  if (actor.roles.includes("EXAMINATION")) return;
+  if (actor.roles.includes("EXAMINATION")) {
+    if (isInstitutionWide(actor)) return;
+    await assertCanReadSchedule(institutionId, actor, schedule);
+    return;
+  }
   const rows = await prisma.$queryRaw<Array<{id:string}>>(Prisma.sql`
     SELECT "id" FROM "exam_invigilators"
     WHERE "institutionId"=${institutionId} AND "examScheduleId"=${schedule.id}
