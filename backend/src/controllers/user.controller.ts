@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
+import { getCanonicalRoleNames } from "../config/rbac";
 
 import * as userService from "../services/user.service";
 import * as userDeletionService from "../services/userDeletion.service";
@@ -35,20 +36,22 @@ function requireUser(req: Request) {
  * The route itself additionally uses users.read/users.create/users.update/
  * users.delete. This function protects the workspace-level boundary.
  */
+function hasInstitutionAdminWorkspace(user: NonNullable<Request["user"]>): boolean {
+  const roles = new Set(getCanonicalRoleNames(user.roles));
+  // User administration is its own workspace. A second binding to
+  // INSTITUTION_ADMIN must not grant user-directory control to Chairman,
+  // Director, Dean, HOD, Accounts, Student, Parent, or specialist accounts.
+  return roles.size === 1 && roles.has("INSTITUTION_ADMIN");
+}
+
 function requireUserManagementRole(req: Request) {
   const user = requireUser(req);
-
-  const canManageUsers =
-    user.roles.includes("SUPER_ADMIN") ||
-    user.roles.includes("INSTITUTION_ADMIN");
+  const roles = new Set(getCanonicalRoleNames(user.roles));
+  const canManageUsers = roles.has("SUPER_ADMIN") || hasInstitutionAdminWorkspace(user);
 
   if (!canManageUsers) {
-    throw new AppError(
-      "This account does not have user-management authority",
-      403,
-    );
+    throw new AppError("This account does not have user-management authority", 403);
   }
-
   return user;
 }
 
@@ -91,11 +94,9 @@ export const list = asyncHandler(
         ? undefined
         : req.query.isActive === "true";
 
-    const isSuperAdmin =
-      user.roles.includes("SUPER_ADMIN");
-
-    const isInstitutionAdmin =
-      user.roles.includes("INSTITUTION_ADMIN");
+    const effectiveRoles = new Set(getCanonicalRoleNames(user.roles));
+    const isSuperAdmin = effectiveRoles.has("SUPER_ADMIN");
+    const isInstitutionAdmin = hasInstitutionAdminWorkspace(user);
 
     if (
       !isSuperAdmin &&
