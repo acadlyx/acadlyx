@@ -11,7 +11,12 @@ export function requireFeature(feature: TenantFeature) {
       // Platform operations do not belong to a tenant entitlement.
       if (req.user.roles.includes("SUPER_ADMIN") && !req.user.institutionId) return next();
       if (!req.user.institutionId) throw new AppError("Tenant context is required", 403);
-      await assertTenantFeature(req.user.institutionId, feature);
+      const subscriptionSnapshot = (
+        req as Request & {
+          tenantSubscriptionSnapshot?: { status: string; expiresAt: Date | null } | null;
+        }
+      ).tenantSubscriptionSnapshot;
+      await assertTenantFeature(req.user.institutionId, feature, subscriptionSnapshot);
       next();
     } catch (error) { next(error); }
   };
