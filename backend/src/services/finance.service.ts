@@ -158,8 +158,8 @@ export async function createInvoice(institutionId:string,a:AuthenticatedUser,inp
  const s=await scope(institutionId,a);
  if(s.studentIds&&!s.studentIds.includes(input.studentId))throw new AppError("Student is outside your financial scope",403);
  const studentWhere:Prisma.UserWhereInput={id:input.studentId,institutionId,userRoles:{some:{role:{name:"STUDENT"}}}};
- if(s.departmentIds)studentWhere.studentEnrollments={some:{status:"ACTIVE",program:{departmentId:{in:s.departmentIds}}}};
- if(s.campusIds)studentWhere.studentEnrollments={some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}};
+ if(s.departmentIds)studentWhere.studentEnrollments={some:{institutionId,status:"ACTIVE",program:{institutionId,departmentId:{in:s.departmentIds}}}};
+ if(s.campusIds)studentWhere.studentEnrollments={some:{institutionId,status:"ACTIVE",program:{institutionId,department:{institutionId,campusId:{in:s.campusIds}}}}};
  const student=await prisma.user.findFirst({where:studentWhere,select:{id:true}});
  if(!student)throw new AppError("Student is outside your financial scope",403);
  const amount=dec(input.amount);
@@ -167,8 +167,12 @@ export async function createInvoice(institutionId:string,a:AuthenticatedUser,inp
  const total=items.reduce((n:any,x:any)=>n.plus(x.amount),new Prisma.Decimal(0));
  if(items.length&&!total.eq(amount))throw new AppError("Invoice amount must equal line items",400);
  const created=await prisma.$transaction(async tx=>{
-  const i=await tx.feeInvoice.create({data:{institutionId,studentId:student.id,title:String(input.title).trim(),amount:Number(amount),grossAmount:Number(amount),dueDate:input.dueDate?new Date(input.dueDate):null,status:"PENDING",feeStructureId:input.feeStructureId||null,academicYearId:input.academicYearId||null,semesterId:input.semesterId||null,createdById:a.id,invoiceNumber:await invoiceNo(),items:{create:items}}});
-  await tx.feeTransaction.create({data:{institutionId,studentId:student.id,invoiceId:i.id,amount,type:"INVOICE",createdById:a.id}});
+  // Re-check assigned enrollment inside the write transaction so a transfer
+  // between initial validation and invoice insertion cannot bypass scope.
+  const scopedStudent=await tx.user.findFirst({where:studentWhere,select:{id:true}});
+  if(!scopedStudent)throw new AppError("Student is outside your financial scope",403);
+  const i=await tx.feeInvoice.create({data:{institutionId,studentId:scopedStudent.id,title:String(input.title).trim(),amount:Number(amount),grossAmount:Number(amount),dueDate:input.dueDate?new Date(input.dueDate):null,status:"PENDING",feeStructureId:input.feeStructureId||null,academicYearId:input.academicYearId||null,semesterId:input.semesterId||null,createdById:a.id,invoiceNumber:await invoiceNo(),items:{create:items}}});
+  await tx.feeTransaction.create({data:{institutionId,studentId:scopedStudent.id,invoiceId:i.id,amount,type:"INVOICE",createdById:a.id}});
   return i;
  });
  await audit(institutionId,a.id,"finance.invoice.create","FeeInvoice",created.id,{amount:amount.toString(),studentId:student.id});
@@ -191,7 +195,7 @@ export async function payment(institutionId:string,a:AuthenticatedUser,id:string
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);
   const duplicate=await tx.feePayment.findFirst({where:{institutionId,idempotencyKey},select:{id:true,invoiceId:true,amount:true,method:true,reference:true}});
   if(duplicate){replay(duplicate);return {paymentId:duplicate.id,created:false};}
-  const fresh=await tx.feeInvoice.findFirst({where:{id,institutionId},select:{studentId:true,amount:true,paidAmount:true,refundedAmount:true}});
+  const fresh=await tx.feeInvoice.findFirst({where:{id,...invoiceWhere(s)},select:{studentId:true,amount:true,paidAmount:true,refundedAmount:true}});
   if(!fresh)throw new AppError("Invoice not found",404);
   const balance=new Prisma.Decimal(fresh.amount).minus(fresh.paidAmount).minus(fresh.refundedAmount);
   if(amount.gt(balance))throw new AppError("Payment exceeds outstanding balance",409);
@@ -247,7 +251,7 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
   // Serialize all refund reservations for this invoice before recomputing available balance.
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${p.invoiceId} AND "institutionId" = ${institutionId} FOR UPDATE`);
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_payments" WHERE "id" = ${paymentId} AND "institutionId" = ${institutionId} FOR UPDATE`);
-  const fresh=await tx.feePayment.findFirst({where:{id:paymentId,institutionId},select:{id:true,invoiceId:true,amount:true,refundedAmount:true,invoice:{select:{studentId:true}}}});
+  const fresh=await tx.feePayment.findFirst({where:{id:paymentId,...paymentWhere(s)},select:{id:true,invoiceId:true,amount:true,refundedAmount:true,invoice:{select:{studentId:true}}}});
   if(!fresh)throw new AppError("Payment not found",404);
   // Processed refunds are already included in feePayment.refundedAmount; count only outstanding reservations here to avoid subtracting them twice.
   const used=await tx.feeRefund.aggregate({where:{paymentId,status:{in:["REQUESTED","APPROVED"]}},_sum:{amount:true}});
@@ -258,12 +262,31 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
  await audit(institutionId,a.id,"finance.refund.request","FeeRefund",x.id,{paymentId,amount:amount.toString()});
  return x
 }
-export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:string){if(!has(a,"fees.refund.approve"))throw new AppError("Refund approval permission required",403);const x=await prisma.feeRefund.findFirst({where:{id,institutionId,status:"REQUESTED"}});if(!x)throw new AppError("Refund request not found",404);const y=await prisma.feeRefund.update({where:{id},data:{status:"APPROVED",approvedById:a.id,approvedAt:new Date()}});await audit(institutionId,a.id,"finance.refund.approve","FeeRefund",id);return y}
+export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:string){
+ if(!has(a,"fees.refund.approve"))throw new AppError("Refund approval permission required",403);
+ const s=await scope(institutionId,a);
+ const y=await prisma.$transaction(async tx=>{
+  const x=await tx.feeRefund.findFirst({where:{id,institutionId,status:"REQUESTED"},select:{id:true,invoiceId:true}});
+  if(!x)throw new AppError("Refund request not found",404);
+  const visibleInvoice=await tx.feeInvoice.findFirst({where:{id:x.invoiceId,...invoiceWhere(s)},select:{id:true}});
+  if(!visibleInvoice)throw new AppError("Refund request is outside your financial scope",403);
+  const changed=await tx.feeRefund.updateMany({where:{id,institutionId,status:"REQUESTED"},data:{status:"APPROVED",approvedById:a.id,approvedAt:new Date()}});
+  if(changed.count!==1)throw new AppError("Refund request is no longer pending",409);
+  const updated=await tx.feeRefund.findFirst({where:{id,institutionId}});
+  if(!updated)throw new AppError("Refund request not found",404);
+  return updated;
+ });
+ await audit(institutionId,a.id,"finance.refund.approve","FeeRefund",id);
+ return y;
+}
 export async function processRefund(institutionId:string,a:AuthenticatedUser,id:string){
  if(!has(a,"fees.refund.process"))throw new AppError("Refund processing permission required",403);
+ const s=await scope(institutionId,a);
  const processed = await prisma.$transaction(async tx=>{
   const candidate=await tx.feeRefund.findFirst({where:{id,institutionId,status:"APPROVED"},select:{id:true,invoiceId:true,paymentId:true}});
   if(!candidate)throw new AppError("Approved refund not found",404);
+  const visibleInvoice=await tx.feeInvoice.findFirst({where:{id:candidate.invoiceId,...invoiceWhere(s)},select:{id:true}});
+  if(!visibleInvoice)throw new AppError("Refund request is outside your financial scope",403);
   // Lock in a consistent invoice -> payment -> refund order shared with refund requests.
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${candidate.invoiceId} AND "institutionId" = ${institutionId} FOR UPDATE`);
   await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`SELECT "id" FROM "fee_payments" WHERE "id" = ${candidate.paymentId} AND "institutionId" = ${institutionId} FOR UPDATE`);
@@ -383,10 +406,13 @@ export async function requestConcession(institutionId: string, a: AuthenticatedU
 }
 export async function approveConcession(institutionId: string, a: AuthenticatedUser, id: string) {
   if (!has(a, "fees.concession.approve")) throw new AppError("Concession approval permission required", 403);
+  const s = await scope(institutionId, a);
   const y = await prisma.$transaction(async tx => {
     const candidate = await tx.feeConcession.findFirst({ where: { id, institutionId, status: "PENDING" }, select: { id: true, invoiceId: true } });
     if (!candidate) throw new AppError("Pending concession not found", 404);
     if (!candidate.invoiceId) throw new AppError("Concession is not linked to an invoice", 409);
+    const visibleInvoice = await tx.feeInvoice.findFirst({ where: { id: candidate.invoiceId, ...invoiceWhere(s) }, select: { id: true } });
+    if (!visibleInvoice) throw new AppError("Concession is outside your financial scope", 403);
     await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "fee_invoices" WHERE "id" = ${candidate.invoiceId} AND "institutionId" = ${institutionId} FOR UPDATE`);
     const claimed = await tx.feeConcession.updateMany({
       where: { id, institutionId, status: "PENDING" },
