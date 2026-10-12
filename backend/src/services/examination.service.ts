@@ -18,7 +18,7 @@ import { recordAuditLog } from "./audit.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
 import { assertExaminationController } from "./workflowAuthority.service";
-import { assertCanViewStudent, isInstitutionWide, isDirectorScoped, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
+import { assertCanViewStudent, isInstitutionWide, isInstitutionWideExamination, isDirectorScoped, getManagedDepartmentIds, getDirectorDepartmentIds, getDirectorCampusIds } from "./accessScope.service";
 import { getStudentAttendancePercentage } from "./attendancePolicy.service";
 import { createAdmitCardPdf } from "./admitCardPdf.service";
 import { getActiveAdmitCardTemplate } from "./admitCardTemplate.service";
