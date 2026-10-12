@@ -489,6 +489,52 @@ async function assertFeeStructureInActorScope(
   }
 }
 
+/**
+ * A scoped workspace may create/submit/assign fee structures only when every
+ * selected program and semester resolves to one of its allowed departments.
+ * Institution-wide structures are deliberately unavailable to Directors,
+ * Deans and HODs because they cannot be assigned to a specific data scope.
+ */
+async function assertFeeStructureContextInActorScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  programId?: string,
+  semesterId?: string,
+): Promise<void> {
+  if (isInstitutionWide(actor)) return;
+  if (!programId && !semesterId) {
+    throw new AppError("A fee structure must target a program or semester within your assigned scope", 403);
+  }
+
+  const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+  if (!allowedDepartmentIds.length) {
+    throw new AppError("No department scope is assigned to this account", 403);
+  }
+
+  if (programId) {
+    const programs = await prisma.$queryRaw<Array<{ departmentId: string }>>(Prisma.sql`
+      SELECT "departmentId" FROM "programs"
+      WHERE "id" = ${programId} AND "institutionId" = ${institutionId} LIMIT 1
+    `);
+    if (!programs[0] || !allowedDepartmentIds.includes(programs[0].departmentId)) {
+      throw new AppError("The selected program is outside your assigned campus/department scope", 403);
+    }
+  }
+
+  if (semesterId) {
+    const semesters = await prisma.$queryRaw<Array<{ departmentId: string }>>(Prisma.sql`
+      SELECT p."departmentId"
+      FROM "semesters" sem
+      JOIN "programs" p ON p."id" = sem."programId" AND p."institutionId" = sem."institutionId"
+      WHERE sem."id" = ${semesterId} AND sem."institutionId" = ${institutionId}
+      LIMIT 1
+    `);
+    if (!semesters[0] || !allowedDepartmentIds.includes(semesters[0].departmentId)) {
+      throw new AppError("The selected semester is outside your assigned campus/department scope", 403);
+    }
+  }
+}
+
 export async function listFeeStructures(
   institutionId: string,
   actor: AuthenticatedUser,
@@ -705,6 +751,7 @@ export async function createFeeStructure(
   }
 
   // Creation is never an approval operation; every new structure starts as DRAFT.
+  await assertFeeStructureContextInActorScope(institutionId, actor, input.programId, input.semesterId);
   const status: FeeStructureStatus = "DRAFT";
 
   if (
@@ -957,6 +1004,7 @@ export async function submitFeeStructureForApproval(
   if (!actor.permissions.includes("fees.structure.manage")) {
     throw new AppError("Fee structure management is not authorized", 403);
   }
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   const changed = await prisma.$executeRaw(Prisma.sql`
     UPDATE "fee_structures"
     SET "status" = 'PENDING_APPROVAL', "updatedAt" = CURRENT_TIMESTAMP
@@ -1124,6 +1172,7 @@ export async function assignFeeStructure(
     FROM "fee_structures" WHERE "id"=${structureId} AND "institutionId"=${institutionId} LIMIT 1
   `);
   if (!structure[0]) throw new AppError("Fee structure not found", 404);
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
   if (structure[0].status !== "ACTIVE") throw new AppError("Only an ACTIVE fee structure can be assigned", 409);
 
   const items = await prisma.$queryRaw<Array<{ feeHeadId: string; feeHeadName: string; amount: number; dueDays: number | null; installmentNumber: number }>>(Prisma.sql`
@@ -1262,6 +1311,8 @@ export async function updateFeeStructure(
 
   const current =
     existing[0];
+
+  await assertFeeStructureInActorScope(institutionId, actor, structureId);
 
   if (current.status !== "DRAFT" && current.status !== "REJECTED") {
     throw new AppError(
