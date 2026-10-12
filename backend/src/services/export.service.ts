@@ -234,11 +234,20 @@ async function assertExportAccess(
     if (!moduleRoles.some((role) => roles.has(role))) {
       throw new AppError("Export requires the corresponding module workspace role", 403);
     }
-    // These module exports don't yet apply a department/campus predicate.
-    // Refuse broad exports to scoped academic workspaces instead of silently
-    // converting a permission into institution-wide data access.
-    const hasScopedAcademicWorkspace = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT"].some((role) => roles.has(role));
-    if (!institutionWide && hasScopedAcademicWorkspace) {
+    // These module exports do not yet apply department/campus predicates.
+    // Do not widen a mixed/scoped account just because it also has HR,
+    // Placement, Admissions, IT or another specialist grant. Only allow the
+    // Placement workspace's own datasets from its isolated role.
+    const scopedWorkspaceRoles = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"];
+    const hasScopedWorkspace = scopedWorkspaceRoles.some((role) => roles.has(role));
+    const placementDataset = [
+      "placement-companies", "placement-drives", "placement-openings",
+      "placement-applications", "placement-offers",
+    ].includes(type);
+    const placementOnly = placementDataset &&
+      roles.has("PLACEMENT") &&
+      !scopedWorkspaceRoles.some((role) => role !== "PLACEMENT" && roles.has(role));
+    if (!institutionWide && hasScopedWorkspace && !placementOnly) {
       throw new AppError("This export does not yet support your assigned department/campus scope", 403);
     }
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
