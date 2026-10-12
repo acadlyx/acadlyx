@@ -62,6 +62,11 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
  * scope guards and must not treat specialist role grants as global directory
  * access. Chairman is the explicit institution-wide override.
  */
+export function hasScopedWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  const roles = getCanonicalRoleNames(actor.roles);
+  return roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]));
+}
+
 export function isInstitutionWideForRole(
   actor: Pick<AuthenticatedUser, "roles">,
   moduleRole: "ACCOUNTS" | "ADMISSIONS" | "EXAMINATION",
