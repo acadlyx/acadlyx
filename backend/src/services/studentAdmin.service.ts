@@ -1124,15 +1124,15 @@ export async function enrollStudent(
     throw new AppError("This role cannot modify authoritative student enrollment", 403);
   }
 
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (!managed.includes(placement.program.departmentId)) {
-      throw new AppError("The selected program is outside your department scope", 403);
-    }
-  } else if (isDirectorScoped(actor)) {
+  if (isDirectorScoped(actor)) {
     const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!allowed.includes(placement.program.departmentId)) {
       throw new AppError("The selected program is outside your campus scope", 403);
+    }
+  } else if (roles.includes("DEAN") || roles.includes("HOD")) {
+    const managed = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!managed.includes(placement.program.departmentId)) {
+      throw new AppError("The selected program is outside your department scope", 403);
     }
   } else if (!isInstitutionWide(actor)) {
     throw new AppError("You are not authorized to manage student enrollment", 403);
