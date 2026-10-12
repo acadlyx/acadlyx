@@ -8,6 +8,7 @@ import {
   isInstitutionWideAdmissions,
   isInstitutionWideExamination,
   isInstitutionWideFinance,
+  getEffectiveWorkspaceRole,
 } from "../services/accessScope.service";
 
 const actor = (...roles: string[]) => ({ roles });
@@ -53,6 +54,19 @@ test("Chairman remains institution-wide when a legacy Director role is also pres
   const user = actor("CHAIRMAN", "DIRECTOR");
   assert.equal(isInstitutionWide(user), true);
   assert.equal(isDirectorScoped(user), false);
+});
+
+test("Institution Admin cannot inherit Accounts or Examination from secondary roles", () => {
+  const user = actor("INSTITUTION_ADMIN", "ACCOUNTS", "EXAMINATION");
+  assert.equal(getEffectiveWorkspaceRole(user), "INSTITUTION_ADMIN");
+  assert.equal(isInstitutionWideFinance(user), false);
+  assert.equal(isInstitutionWideExamination(user), false);
+});
+
+test("an active scoped workspace takes precedence over secondary admin grants", () => {
+  assert.equal(getEffectiveWorkspaceRole(actor("HOD", "REGISTRAR", "INSTITUTION_ADMIN")), "HOD");
+  assert.equal(getEffectiveWorkspaceRole(actor("DIRECTOR", "SUPER_ADMIN")), "DIRECTOR");
+  assert.equal(getEffectiveWorkspaceRole(actor("CHAIRMAN", "DIRECTOR")), "CHAIRMAN");
 });
 
 test("ordinary institution-wide roles still retain generic scope", () => {
