@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { getDirectorCampusIds, getManagedDepartmentIds } from "./accessScope.service";
+import { getDirectorCampusIds, getManagedDepartmentIds, isInstitutionWide } from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
@@ -302,7 +302,7 @@ export async function getManagementWorkspaceSummary(
   // override a Director's campus scope or a Dean's department scope.
   const workspaceType = getWorkspaceType(actor);
   const roles = new Set(actor.roles);
-  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN")) {
+  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN") && isInstitutionWide(actor)) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
   if (!["CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN"].includes(workspaceType)) {
@@ -473,7 +473,7 @@ export async function getManagementWorkspace(
 ) {
   const workspaceType = getWorkspaceType(actor);
   const roles = new Set(actor.roles);
-  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN")) {
+  if (workspaceType === "INSTITUTION_ADMIN" && roles.has("INSTITUTION_ADMIN") && isInstitutionWide(actor)) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
   if (!LEADERSHIP_ROLES.some((role) => roles.has(role))) {
