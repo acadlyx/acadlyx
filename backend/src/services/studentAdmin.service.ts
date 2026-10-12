@@ -3,11 +3,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
-import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
+import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -372,6 +373,32 @@ async function ensureStudentRole(
 }
 
 
+async function getAcademicDepartmentScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+): Promise<string[] | null> {
+  if (isDirectorScoped(actor)) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!ids.length) throw new AppError("No campus scope is assigned to this Director", 403);
+    return ids;
+  }
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  if (roles.has("DEAN") || roles.has("HOD")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!ids.length) throw new AppError("No department scope is assigned to this account", 403);
+    return ids;
+  }
+  // Admissions is institution-wide only inside its own intake pipeline.
+  if (isInstitutionWide(actor) || isInstitutionWideAdmissions(actor)) return null;
+  throw new AppError("This account cannot manage authoritative academic placements", 403);
+}
+
+async function assertAcademicPlacementInActorScope(institutionId: string, actor: AuthenticatedUser, departmentId: string): Promise<void> {
+  const allowedDepartmentIds = await getAcademicDepartmentScope(institutionId, actor);
+  if (allowedDepartmentIds && !allowedDepartmentIds.includes(departmentId)) {
+    throw new AppError("The selected program is outside your assigned campus/department scope", 403);
+  }
+}
 async function assertStudentReadAccess(
   institutionId: string,
   userId: string,
