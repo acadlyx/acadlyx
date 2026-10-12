@@ -1787,6 +1787,114 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "STAFF",
     ],
   ],
+  {
+    label: "Notices", href: "/superadmin/notices", icon: "◌", roles: ["SUPER_ADMIN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/superadmin/notifications", icon: "◉", roles: ["SUPER_ADMIN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/management/notices", icon: "◌", roles: ["MANAGEMENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/management/notifications", icon: "◉", roles: ["MANAGEMENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/dean/notices", icon: "◌", roles: ["DEAN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/dean/notifications", icon: "◉", roles: ["DEAN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/registrar/notices", icon: "◌", roles: ["REGISTRAR"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/registrar/notifications", icon: "◉", roles: ["REGISTRAR"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/hod/notices", icon: "◌", roles: ["HOD"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/hod/notifications", icon: "◉", roles: ["HOD"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/faculty/notices", icon: "◌", roles: ["FACULTY"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/faculty/notifications", icon: "◉", roles: ["FACULTY"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/accounts/notices", icon: "◌", roles: ["ACCOUNTS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/accounts/notifications", icon: "◉", roles: ["ACCOUNTS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/hr/notices", icon: "◌", roles: ["HR"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/hr/notifications", icon: "◉", roles: ["HR"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/admissions/notices", icon: "◌", roles: ["ADMISSIONS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/admissions/notifications", icon: "◉", roles: ["ADMISSIONS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/examination/notices", icon: "◌", roles: ["EXAMINATION"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/examination/notifications", icon: "◉", roles: ["EXAMINATION"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/library/notices", icon: "◌", roles: ["LIBRARIAN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/library/notifications", icon: "◉", roles: ["LIBRARIAN"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/placements/notices", icon: "◌", roles: ["PLACEMENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/placements/notifications", icon: "◉", roles: ["PLACEMENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/it/notices", icon: "◌", roles: ["IT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/it/notifications", icon: "◉", roles: ["IT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/site-content/notices", icon: "◌", roles: ["CMS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/site-content/notifications", icon: "◉", roles: ["CMS"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/student/notices", icon: "◌", roles: ["STUDENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/student/notifications", icon: "◉", roles: ["STUDENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/parent/notices", icon: "◌", roles: ["PARENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/parent/notifications", icon: "◉", roles: ["PARENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/club-president/notices", icon: "◌", roles: ["CLUB_PRESIDENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/club-president/notifications", icon: "◉", roles: ["CLUB_PRESIDENT"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notices", href: "/staff/notices", icon: "◌", roles: ["STAFF"], group: "Institution", activeMatch: "nested",
+  },
+  {
+    label: "Notifications", href: "/staff/notifications", icon: "◉", roles: ["STAFF"], group: "Institution", activeMatch: "nested",
+  },
 ];
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem): boolean {
