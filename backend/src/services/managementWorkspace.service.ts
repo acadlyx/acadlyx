@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
 } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 
 export function getWorkspaceType(actor: AuthenticatedUser): string {
   const roles = new Set(getCanonicalRoleNames(actor.roles));
