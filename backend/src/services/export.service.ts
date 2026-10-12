@@ -9,6 +9,7 @@ import {
   getAuthorizedDepartmentIds,
   getDirectorCampusIds,
   isDirectorScoped,
+  isInstitutionWide,
   getStudentWhereScope,
   INSTITUTION_WIDE_ROLES,
 } from "./accessScope.service";
@@ -219,7 +220,7 @@ async function assertExportAccess(
   if (!permission || (!actor.permissions.includes(permission) && !hasScopedFinanceExportPermission)) {
     throw new AppError("You do not have permission to export this dataset", 403);
   }
-  const institutionWide = !isDirectorScoped(actor) && INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
+  const institutionWide = isInstitutionWide(actor);
   if (institutionWide) {
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
@@ -228,9 +229,12 @@ async function assertExportAccess(
     if (!moduleRoles.some((role) => roles.has(role))) {
       throw new AppError("Export requires the corresponding module workspace role", 403);
     }
-    // These module exports have no reliable campus predicate. Never let a Director export them institution-wide.
-    if (isDirectorScoped(actor) && ["calendar-events", "institutional-events", "event-media"].includes(type)) {
-      throw new AppError("This export is not available until campus-scoped export data is available", 403);
+    // These module exports don't yet apply a department/campus predicate.
+    // Refuse broad exports to scoped academic workspaces instead of silently
+    // converting a permission into institution-wide data access.
+    const hasScopedAcademicWorkspace = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT"].some((role) => roles.has(role));
+    if (!institutionWide && hasScopedAcademicWorkspace) {
+      throw new AppError("This export does not yet support your assigned department/campus scope", 403);
     }
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
