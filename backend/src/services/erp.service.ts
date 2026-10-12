@@ -2812,7 +2812,7 @@ export async function deleteNotice(
     throw new AppError("Notice not found", 404);
   }
 
-  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
+  await assertNoticeDepartmentScope(institutionId, actor, existing.departmentId);
   await prisma.notice.delete({
     where: { id },
   });
