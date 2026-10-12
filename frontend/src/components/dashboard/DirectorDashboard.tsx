@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "./DashboardShell";
-import { authedFetch, AuthRequiredError, HttpRequestError } from "@/lib/auth";
+import { AuthRequiredError } from "@/lib/auth";
+import { getErpWorkspaceSummary } from "@/lib/erpApi";
 
 type WorkspaceData = { stats: Record<string, number> };
 
@@ -30,8 +31,8 @@ export function DirectorDashboard() {
     setUnavailable(false);
     setScopeMissing(false);
     try {
-      const response = await authedFetch<{ success: true; data: WorkspaceData }>("/erp/me/workspace");
-      setData(response.data);
+      const response = await getErpWorkspaceSummary();
+      setData({ stats: response.stats || {} });
     } catch (error) {
       if (error instanceof AuthRequiredError) {
         router.replace("/login");

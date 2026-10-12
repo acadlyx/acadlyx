@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
-import { getManagementWorkspace } from "./managementWorkspace.service";
+import { getManagementWorkspace, getManagementWorkspaceSummary } from "./managementWorkspace.service";
 import { getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
 
 const MANAGEMENT_ROLES = [
@@ -347,6 +347,13 @@ async function getHodDepartments(
     scope: "HOD",
     department,
   })));
+}
+
+export async function getMyWorkspaceSummary(
+  institutionId: string,
+  actor: AuthenticatedUser
+) {
+  return getManagementWorkspaceSummary(institutionId, actor);
 }
 
 export async function getMyWorkspace(

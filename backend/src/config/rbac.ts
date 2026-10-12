@@ -195,8 +195,6 @@ export const PERMISSIONS = [
   { key: "timetable.read", module: "timetable", description: "View timetables" },
   { key: "timetable.manage", module: "timetable", description: "Manage timetables" },
 
-  { key: "notices.read", module: "notices", description: "View notices" },
-  { key: "notices.manage", module: "notices", description: "Publish and manage notices" },
 
   { key: "exams.read", module: "exams", description: "View examinations" },
   { key: "exams.manage", module: "exams", description: "Manage examination operations" },
@@ -239,7 +237,6 @@ export const PERMISSIONS = [
   { key: "parent-links.manage", module: "parent-portal", description: "Manage parent-student links" },
   { key: "parent-portal.read", module: "parent-portal", description: "Use linked-student portal views" },
 
-  { key: "notifications.read", module: "notifications", description: "Read own notifications" },
   { key: "notifications.manage", module: "notifications", description: "Send notifications within scope" },
 
   { key: "documents.read", module: "documents", description: "View documents within scope" },

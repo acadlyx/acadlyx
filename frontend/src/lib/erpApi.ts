@@ -11,6 +11,7 @@ interface ApiEnvelope<T> {
 export interface ErpWorkspace {
   workspaceType: string;
   stats?: Record<string, number>;
+  modules?: Record<string, boolean>;
   notices?: Array<Record<string, unknown>>;
   timetable?: Array<Record<string, unknown>>;
   notifications?: Array<Record<string, unknown>>;
@@ -171,7 +172,7 @@ export interface ErpDocument {
  * the same tenant data during a single active browser session.
  */
 
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 15_000;
 
 interface CacheEntry<T = unknown> {
   value: T;
@@ -186,6 +187,12 @@ const inFlightRequests =
     string,
     Promise<unknown>
   >();
+
+let cacheGeneration = 0;
+
+function matchesCachePrefix(key: string, prefix: string): boolean {
+  return key === prefix || key.includes(`:${prefix}`);
+}
 
 function getCached<T>(
   key: string
@@ -222,27 +229,24 @@ function setCached<T>(
 function invalidate(
   predicate: (key: string) => boolean
 ): void {
+  cacheGeneration += 1;
   for (const key of responseCache.keys()) {
-    if (predicate(key)) {
-      responseCache.delete(key);
-    }
+    if (predicate(key)) responseCache.delete(key);
+  }
+  // Pending request keys are session:<scope>:<resource-key>; check the
+  // resource segment too, so invalidation prevents stale in-flight reuse.
+  for (const key of inFlightRequests.keys()) {
+    const resourceKey = key.split(":").slice(2).join(":");
+    if (predicate(key) || predicate(resourceKey)) inFlightRequests.delete(key);
   }
 }
 
 export function invalidateErpWorkspace(): void {
-  invalidate((key) =>
-    key.startsWith(
-      "erp:workspace"
-    )
-  );
+  invalidate((key) => matchesCachePrefix(key, "erp:workspace"));
 }
 
 function invalidateOfferings(): void {
-  invalidate((key) =>
-    key.startsWith(
-      "erp:offerings"
-    )
-  );
+  invalidate((key) => matchesCachePrefix(key, "erp:offerings"));
 
   invalidateErpWorkspace();
 }
@@ -251,31 +255,23 @@ function invalidateFeeData(): void {
   // cachedRequest prefixes keys with the auth-session scope; match the
   // canonical ERP cache segment rather than the unscoped prefix.
   invalidate((key) =>
-    key.includes(":erp:fee-heads") ||
-    key.includes(":erp:fee-structures") ||
-    key.includes(":erp:workspace")
+    matchesCachePrefix(key, "erp:fee-heads") ||
+    matchesCachePrefix(key, "erp:fee-structures") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
 function invalidateNotifications(): void {
   invalidate((key) =>
-    key.startsWith(
-      "erp:notifications"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    matchesCachePrefix(key, "erp:notifications") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
 function invalidateDocuments(): void {
   invalidate((key) =>
-    key.startsWith(
-      "erp:documents"
-    ) ||
-    key.startsWith(
-      "erp:workspace"
-    )
+    matchesCachePrefix(key, "erp:documents") ||
+    matchesCachePrefix(key, "erp:workspace")
   );
 }
 
@@ -283,17 +279,14 @@ function invalidateUsers(
   role?: string
 ): void {
   if (!role) {
-    invalidate((key) =>
-      key.startsWith("erp:users:")
-    );
+    invalidate((key) => matchesCachePrefix(key, "erp:users:"));
   } else {
-    responseCache.delete(
-      `erp:users:${role}`
-    );
+    invalidate((key) => matchesCachePrefix(key, `erp:users:${role}`));
   }
 }
 
 export function clearErpClientCache(): void {
+  cacheGeneration += 1;
   responseCache.clear();
   inFlightRequests.clear();
 }
@@ -340,20 +333,22 @@ async function cachedRequest<T>(
     return existing as Promise<T>;
   }
 
+  const generationAtStart = cacheGeneration;
   const promise =
     request()
       .then((value) => {
-        setCached(
-          scopedKey,
-          value
-        );
-
+        // Do not let an older in-flight GET repopulate cache after mutation.
+        if (generationAtStart === cacheGeneration) {
+          setCached(scopedKey, value);
+        }
         return value;
       })
       .finally(() => {
-        inFlightRequests.delete(
-          scopedKey
-        );
+        // An invalidation may have allowed a newer request to reuse this key.
+        // An older request must not delete that newer request's dedupe entry.
+        if (inFlightRequests.get(scopedKey) === promise) {
+          inFlightRequests.delete(scopedKey);
+        }
       });
 
   inFlightRequests.set(
@@ -381,6 +376,19 @@ export async function getErpWorkspace(): Promise<ErpWorkspace> {
           "/erp/me/workspace"
         );
 
+      return response.data;
+    }
+  );
+}
+
+/** Lightweight first-paint data for leadership landing dashboards. */
+export async function getErpWorkspaceSummary(): Promise<ErpWorkspace> {
+  return cachedRequest(
+    "erp:workspace-summary",
+    async () => {
+      const response = await authedFetch<ApiEnvelope<ErpWorkspace>>(
+        "/erp/me/summary"
+      );
       return response.data;
     }
   );

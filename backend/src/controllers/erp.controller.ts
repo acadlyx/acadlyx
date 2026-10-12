@@ -31,6 +31,18 @@ export const workspace = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * GET /api/v1/erp/me/summary
+ * Returns only the KPI data needed for first paint on leadership dashboards.
+ */
+export const workspaceSummary = asyncHandler(async (req, res) => {
+  const institutionId = requireInstitution(req);
+  const user = actor(req);
+  const data = await erp.getMyWorkspaceSummary(institutionId, user);
+
+  res.status(200).json({ success: true, data });
+});
+
 /* -------------------------------------------------------------------------- */
 /* TIMETABLE                                                                   */
 /* -------------------------------------------------------------------------- */

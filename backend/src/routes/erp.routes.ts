@@ -45,6 +45,13 @@ const router = Router();
 router.use(authenticate);
 
 router.get(
+  "/me/summary",
+  requireFeature("notices"),
+  authorize("notifications.read"),
+  controller.workspaceSummary
+);
+
+router.get(
   "/me/workspace",
   requireFeature("notices"),
   authorize("notifications.read"),

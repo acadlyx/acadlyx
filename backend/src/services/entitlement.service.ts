@@ -89,12 +89,46 @@ export async function provisionTenantEntitlements(
   return subscription;
 }
 
-export async function assertTenantFeature(institutionId: string, feature: TenantFeature) {
+export async function assertTenantFeature(
+  institutionId: string,
+  feature: TenantFeature,
+  subscriptionSnapshot?: { status: string; expiresAt: Date | null } | null,
+) {
+  // authenticate() already reads and validates the institution subscription
+  // for this same request. Reuse that request-local snapshot to avoid querying
+  // the subscription a second time in requireFeature(). The feature row is
+  // still read live, so feature revocations are not hidden by a shared cache.
+  if (subscriptionSnapshot) {
+    if (
+      unavailableStatuses.has(subscriptionSnapshot.status) ||
+      (subscriptionSnapshot.expiresAt && subscriptionSnapshot.expiresAt < new Date())
+    ) {
+      throw new AppError("This tenant subscription is not active", 402);
+    }
+
+    let entitlement = await prisma.tenantFeatureEntitlement.findUnique({
+      where: { institutionId_featureKey: { institutionId, featureKey: feature } },
+    });
+
+    if (!entitlement) {
+      // Preserve lazy provisioning for features added after tenant creation.
+      await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
+      entitlement = await prisma.tenantFeatureEntitlement.findUnique({
+        where: { institutionId_featureKey: { institutionId, featureKey: feature } },
+      });
+    }
+
+    if (!entitlement || !entitlement.isEnabled) {
+      throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
+    }
+    return entitlement;
+  }
+
+  // Legacy tenants without a subscription snapshot retain the established
+  // lazy-provisioning path. Missing rows are never treated as permission.
   const subscription = await prisma.tenantSubscription.findUnique({
     where: { institutionId }, include: { entitlements: { where: { featureKey: feature } } },
   });
-  // Existing tenants created before the migration are provisioned lazily once,
-  // so there is no insecure or surprising "missing row means disabled" gap.
   if (!subscription) {
     await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
     return assertTenantFeature(institutionId, feature);
@@ -102,19 +136,21 @@ export async function assertTenantFeature(institutionId: string, feature: Tenant
   if (unavailableStatuses.has(subscription.status) || (subscription.expiresAt && subscription.expiresAt < new Date())) {
     throw new AppError("This tenant subscription is not active", 402);
   }
-  let entitlement = subscription.entitlements[0];
-  if (!entitlement) {
-    // A feature added after this tenant was provisioned has no row yet.
-    // Provision the missing default rows once (idempotent), then re-read.
+  const existingEntitlement = subscription.entitlements[0];
+  if (!existingEntitlement) {
     await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
-    entitlement = (await prisma.tenantFeatureEntitlement.findUnique({
+    const provisionedEntitlement = await prisma.tenantFeatureEntitlement.findUnique({
       where: { institutionId_featureKey: { institutionId, featureKey: feature } },
-    })) as typeof entitlement;
+    });
+    if (!provisionedEntitlement || !provisionedEntitlement.isEnabled) {
+      throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
+    }
+    return provisionedEntitlement;
   }
-  if (!entitlement || !entitlement.isEnabled) {
+  if (!existingEntitlement.isEnabled) {
     throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
   }
-  return entitlement;
+  return existingEntitlement;
 }
 
 export async function assertTenantQuota(institutionId: string, kind: "users" | "students" | "faculty") {

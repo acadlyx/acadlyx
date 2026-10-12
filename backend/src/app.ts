@@ -112,7 +112,7 @@ export function createApp(): Application {
         console.warn(JSON.stringify({
           type: "slow_api",
           method: req.method,
-          path: req.originalUrl,
+          path: req.path,
           status: res.statusCode,
           durationMs: Math.round(elapsedMs),
         }));

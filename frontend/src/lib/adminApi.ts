@@ -1,4 +1,15 @@
 import { authedFetch } from "./auth";
+import { getErpWorkspace, invalidateErpWorkspace } from "./erpApi";
+import { invalidateWorkspaceCache } from "./workspaceCache";
+
+async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const result = await authedFetch<T>(path, init);
+  if ((init?.method || "GET").toUpperCase() !== "GET") {
+    invalidateErpWorkspace();
+    invalidateWorkspaceCache();
+  }
+  return result;
+}
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -187,14 +198,12 @@ export interface MyProfilePhotoResponse {
  */
 export async function getAdminWorkspace():
   Promise<AdminWorkspace> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<AdminWorkspace>
-    >(
-      "/erp/me/workspace",
-    );
-
-  return response.data;
+  const workspace = await getErpWorkspace();
+  return {
+    workspaceType: "INSTITUTION_ADMIN",
+    stats: (workspace.stats || {}) as AdminWorkspaceStats,
+    modules: (workspace.modules || {}) as AdminWorkspaceModules,
+  };
 }
 
 /**
@@ -245,7 +254,7 @@ export async function listAdminUsers(
   }
 
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<
         | AdminUser[]
         | {
@@ -278,7 +287,7 @@ export async function getAdminUser(
   id: string,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<AdminUser>
     >(
       `/users/${encodeURIComponent(
@@ -296,7 +305,7 @@ export async function createAdminUser(
   input: CreateAdminUserInput,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<AdminUser>
     >(
       "/users",
@@ -333,7 +342,7 @@ export async function updateAdminUser(
   }>,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<AdminUser>
     >(
       `/users/${encodeURIComponent(
@@ -361,7 +370,7 @@ export interface AdminDepartment {
 }
 
 export async function listAdminDepartments(): Promise<AdminDepartment[]> {
-  const response = await authedFetch<
+  const response = await adminFetch<
     ApiEnvelope<AdminDepartment[] | { items: AdminDepartment[] }>
   >(
     "/departments?page=1&pageSize=100&isActive=true",
@@ -380,7 +389,7 @@ export interface AdminCampus {
 }
 
 export async function listAdminCampuses(): Promise<AdminCampus[]> {
-  const response = await authedFetch<ApiEnvelope<AdminCampus[] | { items: AdminCampus[] }>>(
+  const response = await adminFetch<ApiEnvelope<AdminCampus[] | { items: AdminCampus[] }>>(
     "/campuses?page=1&pageSize=100&isActive=true",
   );
   return Array.isArray(response.data) ? response.data : response.data.items || [];
@@ -397,7 +406,7 @@ export async function setAdminUserActive(
   isActive: boolean,
 ): Promise<AdminUser> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<AdminUser>
     >(
       `/users/${encodeURIComponent(
@@ -428,7 +437,7 @@ export async function requestAdminUserPermanentDeletion(
   reason?: string,
 ): Promise<PermanentDeletionResult> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<PermanentDeletionResult>
     >(
       `/users/${encodeURIComponent(
@@ -456,7 +465,7 @@ export async function requestAdminUserPermanentDeletion(
 export async function listAdminUserDeletionRequests():
   Promise<UserDeletionRequest[]> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<
         UserDeletionRequest[]
       >
@@ -474,7 +483,7 @@ export async function approveAdminUserDeletionRequest(
   requestId: string,
 ): Promise<PermanentDeletionResult> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<PermanentDeletionResult>
     >(
       `/users/permanent-deletion-requests/${encodeURIComponent(
@@ -499,7 +508,7 @@ export async function rejectAdminUserDeletionRequest(
   status: "REJECTED";
 }> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<{
         requestId: string;
         status:
@@ -534,7 +543,7 @@ export async function getAdminUserPhotos(
   }
 
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<
         Record<
           string,
@@ -558,7 +567,7 @@ export async function uploadAdminUserPhoto(
   dataUrl: string,
 ): Promise<AdminUserPhotoResponse> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<AdminUserPhotoResponse>
     >(
       `/users/${encodeURIComponent(
@@ -585,7 +594,7 @@ export async function uploadMyProfilePhoto(
   dataUrl: string,
 ): Promise<MyProfilePhotoResponse> {
   const response =
-    await authedFetch<
+    await adminFetch<
       ApiEnvelope<MyProfilePhotoResponse>
     >(
       "/auth/account/photo",
@@ -661,7 +670,7 @@ export interface DeletedAdminUser extends AdminUser {
 }
 
 export async function getAdminUserLifecycle(id: string): Promise<AdminUserLifecycle> {
-  const response = await authedFetch<ApiEnvelope<AdminUserLifecycle>>(
+  const response = await adminFetch<ApiEnvelope<AdminUserLifecycle>>(
     `/users/${encodeURIComponent(id)}/lifecycle`,
   );
   return response.data;
@@ -672,7 +681,7 @@ export async function deactivateAdminUser(
   reason: string,
   note?: string,
 ): Promise<{ id: string; isActive: boolean }> {
-  const response = await authedFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
+  const response = await adminFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
     `/users/${encodeURIComponent(id)}/deactivate`,
     { method: "POST", body: JSON.stringify({ reason, note }) },
   );
@@ -683,7 +692,7 @@ export async function reactivateAdminUser(
   id: string,
   reason?: string,
 ): Promise<{ id: string; isActive: boolean }> {
-  const response = await authedFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
+  const response = await adminFetch<ApiEnvelope<{ id: string; isActive: boolean }>>(
     `/users/${encodeURIComponent(id)}/reactivate`,
     { method: "POST", body: JSON.stringify({ reason }) },
   );
@@ -695,7 +704,7 @@ export async function deleteAdminUser(
   reason: string,
   note?: string,
 ): Promise<{ id: string; deletedAt: string; recoveryDeadline: string }> {
-  const response = await authedFetch<ApiEnvelope<{ id: string; deletedAt: string; recoveryDeadline: string }>>(
+  const response = await adminFetch<ApiEnvelope<{ id: string; deletedAt: string; recoveryDeadline: string }>>(
     `/users/${encodeURIComponent(id)}/delete`,
     { method: "POST", body: JSON.stringify({ reason, note }) },
   );
@@ -706,7 +715,7 @@ export async function recoverAdminUser(
   id: string,
   reason?: string,
 ): Promise<AdminUserLifecycle> {
-  const response = await authedFetch<ApiEnvelope<AdminUserLifecycle>>(
+  const response = await adminFetch<ApiEnvelope<AdminUserLifecycle>>(
     `/users/${encodeURIComponent(id)}/recover`,
     { method: "POST", body: JSON.stringify({ reason }) },
   );
@@ -726,35 +735,35 @@ export async function listDeletedAdminUsers(options?: {
   if (options?.search) params.set("search", options.search);
   if (options?.role) params.set("role", options.role);
   if (options?.expiringSoon) params.set("expiringSoon", "true");
-  const response = await authedFetch<ApiEnvelope<DeletedAdminUser[]> & { meta?: { total?: number } }>(
+  const response = await adminFetch<ApiEnvelope<DeletedAdminUser[]> & { meta?: { total?: number } }>(
     `/users/deleted?${params.toString()}`,
   );
   return { items: response.data, total: response.meta?.total ?? response.data.length };
 }
 
 export async function adminResetUserPassword(id: string) {
-  const response = await authedFetch<ApiEnvelope<{ userId: string; delivered: boolean; expiresAt: string | null }>>(
+  const response = await adminFetch<ApiEnvelope<{ userId: string; delivered: boolean; expiresAt: string | null }>>(
     `/users/${encodeURIComponent(id)}/reset-password`,
     { method: "POST" },
   );
   return response.data;
 }
 export async function forceAdminUserPasswordChange(id: string) {
-  const response = await authedFetch<ApiEnvelope<{ userId: string; forcePasswordChange: boolean }>>(
+  const response = await adminFetch<ApiEnvelope<{ userId: string; forcePasswordChange: boolean }>>(
     `/users/${encodeURIComponent(id)}/force-password-change`,
     { method: "POST" },
   );
   return response.data;
 }
 export async function revokeAdminUserSessions(id: string) {
-  const response = await authedFetch<ApiEnvelope<{ userId: string; revoked: number }>>(
+  const response = await adminFetch<ApiEnvelope<{ userId: string; revoked: number }>>(
     `/users/${encodeURIComponent(id)}/revoke-sessions`,
     { method: "POST" },
   );
   return response.data;
 }
 export async function unlockAdminUser(id: string) {
-  const response = await authedFetch<ApiEnvelope<{ userId: string; unlocked: boolean }>>(
+  const response = await adminFetch<ApiEnvelope<{ userId: string; unlocked: boolean }>>(
     `/users/${encodeURIComponent(id)}/unlock`,
     { method: "POST" },
   );

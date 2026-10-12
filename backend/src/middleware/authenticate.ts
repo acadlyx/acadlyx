@@ -156,21 +156,16 @@ export async function authenticate(
       return;
     }
 
-    const session = await prisma.refreshToken.findUnique({
-      where: { id: payload.sid },
-      select: { userId: true, revokedAt: true, expiresAt: true },
-    });
-
-    if (!isActiveRefreshSession(session, payload.sub)) {
-      next(new AppError("Session has expired or been revoked", 401));
-      return;
-    }
-
-    const user =
-      await prisma.user.findUnique({
-        where: {
-          id: payload.sub,
-        },
+    // Session validity and user identity are independent reads. Fetch them
+    // concurrently to avoid paying two database/network round trips on every
+    // protected request. Both checks must still pass before req.user is set.
+    const [session, user] = await Promise.all([
+      prisma.refreshToken.findUnique({
+        where: { id: payload.sid },
+        select: { userId: true, revokedAt: true, expiresAt: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: payload.sub },
         select: {
           id: true,
           institutionId: true,
@@ -179,7 +174,6 @@ export async function authenticate(
           firstName: true,
           lastName: true,
           isActive: true,
-
           userRoles: {
             include: {
               role: {
@@ -191,7 +185,13 @@ export async function authenticate(
             },
           },
         },
-      });
+      }),
+    ]);
+
+    if (!isActiveRefreshSession(session, payload.sub)) {
+      next(new AppError("Session has expired or been revoked", 401));
+      return;
+    }
 
     if (!user || !user.isActive) {
       next(
@@ -319,6 +319,13 @@ export async function authenticate(
         );
         return;
       }
+
+      // Make the subscription state read above available to this request's
+      // feature-entitlement middleware. This is request-local only: there is
+      // no cross-request cache and entitlement rows are still checked live.
+      (req as Request & {
+        tenantSubscriptionSnapshot?: { status: string; expiresAt: Date | null } | null;
+      }).tenantSubscriptionSnapshot = subscription;
     }
 
     const roles = getCanonicalRoleNames(
