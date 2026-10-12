@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { assertLeaveDecisionAuthority } from "./workflowAuthority.service";
 
 export type WorkflowState =
   | "NOT_STARTED" | "AVAILABLE" | "IN_PROGRESS" | "PENDING" | "SUBMITTED"
@@ -56,7 +57,7 @@ function requireWorkflowRead(
  allowedRoles:readonly string[],
  message:string,
 ):void {
- if(!hasWorkflowPermission(actor,permissions,allowedRoles)) throw new AppError(message,403);
+ if(!hasWorkflowPermission(actor,permissions,allowedRoles))throw new AppError(message,403);
 }
 
 async function assertCanViewWorkflowStudent(
@@ -69,59 +70,48 @@ async function assertCanViewWorkflowStudent(
 }
 
 async function assertCanViewWorkflowOffering(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  courseOfferingId: string,
-  assignedFacultyId: string | null,
-): Promise<void> {
-  if (isInstitutionWide(actor)) return;
+ institutionId:string,
+ actor:AuthenticatedUser,
+ courseOfferingId:string,
+ assignedFacultyId:string|null,
+):Promise<void>{
+ const workspace=activeRole(actor);
+ if(["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR"].includes(workspace))return;
 
-  if (isDirectorScoped(actor) || role(actor, "DEAN") || role(actor, "HOD")) {
-    await assertCourseOfferingInScope(institutionId, actor, courseOfferingId);
-    return;
-  }
+ if(["DIRECTOR","DEAN","HOD"].includes(workspace)){
+  await assertCourseOfferingInScope(institutionId,actor,courseOfferingId);
+  return;
+ }
+ if(workspace==="FACULTY"){
+  if(assignedFacultyId!==actor.id)throw new AppError("This course offering is outside your teaching assignment",403);
+  return;
+ }
 
-  if (role(actor, "FACULTY")) {
-    if (assignedFacultyId !== actor.id) {
-      throw new AppError("This course offering is outside your teaching assignment", 403);
-    }
-    return;
-  }
+ // Student/Parent attendance status is read-only and must match active
+ // enrollment or a currently linked child, not just a second role grant.
+ const offering=await prisma.courseOffering.findFirst({
+  where:{id:courseOfferingId,institutionId,isActive:true},
+  select:{semesterId:true,sectionId:true},
+ });
+ if(!offering)throw new AppError("Course offering not found",404);
+ let studentIds:string[]=[];
+ if(workspace==="STUDENT")studentIds=[actor.id];
+ else if(workspace==="PARENT"){
+  studentIds=(await prisma.parentStudentLink.findMany({
+   where:{institutionId,parentId:actor.id},
+   select:{studentId:true},
+  })).map((link)=>link.studentId);
+ }
+ if(!studentIds.length)throw new AppError("This course offering is outside your authorized attendance scope",403);
 
-  // Student and parent attendance status is read-only, but it must still be
-  // tied to the student's active enrollment or an explicit parent link.
-  const offering = await prisma.courseOffering.findFirst({
-    where: { id: courseOfferingId, institutionId, isActive: true },
-    select: { semesterId: true, sectionId: true },
-  });
-  if (!offering) throw new AppError("Course offering not found", 404);
-
-  const roles = actor.roles.map((value) => value.toUpperCase());
-  let studentIds = role(actor, "STUDENT") ? [actor.id] : [];
-  if (role(actor, "PARENT")) {
-    const links = await prisma.parentStudentLink.findMany({
-      where: { institutionId, parentId: actor.id },
-      select: { studentId: true },
-    });
-    studentIds = links.map((link) => link.studentId);
-  }
-  if (!studentIds.length || (!roles.includes("STUDENT") && !roles.includes("PARENT"))) {
-    throw new AppError("This course offering is outside your authorized attendance scope", 403);
-  }
-
-  const enrollment = await prisma.studentEnrollment.findFirst({
-    where: {
-      institutionId,
-      userId: { in: studentIds },
-      status: "ACTIVE",
-      semesterId: offering.semesterId,
-      ...(offering.sectionId ? { sectionId: offering.sectionId } : {}),
-    },
-    select: { id: true },
-  });
-  if (!enrollment) {
-    throw new AppError("This course offering is outside your authorized attendance scope", 403);
-  }
+ const enrollment=await prisma.studentEnrollment.findFirst({
+  where:{
+   institutionId,userId:{in:studentIds},status:"ACTIVE",semesterId:offering.semesterId,
+   ...(offering.sectionId?{sectionId:offering.sectionId}:{}),
+  },
+  select:{id:true},
+ });
+ if(!enrollment)throw new AppError("This course offering is outside your authorized attendance scope",403);
 }
 
 export async function getWorkflowState(institutionId:string, actor:AuthenticatedUser, workflow:string, entityId:string):Promise<WorkflowStateResult>{
