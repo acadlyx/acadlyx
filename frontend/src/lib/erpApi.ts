@@ -11,6 +11,7 @@ interface ApiEnvelope<T> {
 export interface ErpWorkspace {
   workspaceType: string;
   stats?: Record<string, number>;
+  modules?: Record<string, boolean>;
   notices?: Array<Record<string, unknown>>;
   timetable?: Array<Record<string, unknown>>;
   notifications?: Array<Record<string, unknown>>;
