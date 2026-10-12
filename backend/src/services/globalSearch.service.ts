@@ -160,7 +160,7 @@ export async function globalSearch(
     else if (roles.includes("DEAN") && !institutionWide) audiences = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
     else if (directorWorkspace) audiences = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
     else if (!institutionWide) {
-      const specialist = ["PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+      const specialist = ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
         .find((role) => roles.includes(role));
       if (specialist) audiences = ["ALL", specialist];
     }
