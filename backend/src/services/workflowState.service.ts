@@ -125,7 +125,7 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
     requireWorkflowRead(actor, ["assignments.read","assignments.manage","assignments.review"], WORKFLOW_READ_ROLES.assignmentSubmission, "You do not have access to this submission.");
     await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
   }
-  if (["DIRECTOR","DEAN","HOD","FACULTY"].includes(activeRole(actor)) && x.studentId !== actor.id) {
+  if (["DIRECTOR","DEAN","HOD","FACULTY","STUDENT","PARENT"].includes(activeRole(actor)) && x.studentId !== actor.id) {
     await assertCanViewWorkflowOffering(institutionId, actor, x.assignment.courseOffering.id, x.assignment.courseOffering.facultyId);
   }
   table="assignment_submissions"; updatedAt=x.updatedAt;
@@ -198,7 +198,11 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.applicantId !== actor.id) {
     requireWorkflowRead(actor, ["leave.read","leave.approve","leave.manage"], WORKFLOW_READ_ROLES.leave, "You do not have access to this leave request.");
-    await assertCanViewUserRecord(institutionId, actor, x.applicantId);
+    if (["HR","DIRECTOR","DEAN","HOD"].includes(activeRole(actor))) {
+      await assertLeaveDecisionAuthority(institutionId, actor, x.applicantId);
+    } else {
+      await assertCanViewUserRecord(institutionId, actor, x.applicantId);
+    }
   }
   table="leave_requests";updatedAt=x.updatedAt;state=(x.status as WorkflowState)||"PENDING";
   const mine=x.applicantId===actor.id;
@@ -287,16 +291,28 @@ export async function getWorkflowState(institutionId:string, actor:Authenticated
   editable=manage||canPay;
   actions=[action("view","View fee",true),...(state==="PENDING"&&canPay?[action("pay","Pay fee",true,"fees.pay",undefined,"primary")]:[]),...(manage?[action("manage","Manage fee",true,"fees.manage")]:[])];
  } else if(w==="exam_result"){
-  const x=await prisma.examResult.findFirst({where:{id:entityId,institutionId},select:{id:true,updatedAt:true,studentId:true}});
+  const x=await prisma.examResult.findFirst({
+    where:{id:entityId,institutionId},
+    select:{
+      id:true,updatedAt:true,studentId:true,
+      exam:{select:{courseOfferingId:true,courseOffering:{select:{id:true,facultyId:true}}}},
+    },
+  });
   if(!x) throw new AppError("Workflow record not found",404);
   if (x.studentId !== actor.id) {
     requireWorkflowRead(actor, ["results.read","results.manage","exams.read","exams.manage","marks.read"], WORKFLOW_READ_ROLES.exam, "You do not have access to this examination result.");
     if (!isInstitutionWideExamination(actor)) {
-      const activeRole = getEffectiveWorkspaceRole(actor);
-      if (!["DIRECTOR", "DEAN", "HOD", "FACULTY", "PARENT"].includes(activeRole)) {
-        throw new AppError("This examination result is outside your authorized workspace", 403);
+      const roleName=activeRole(actor);
+      if (!["DIRECTOR","DEAN","HOD","FACULTY","PARENT"].includes(roleName)) {
+        throw new AppError("This examination result is outside your authorized workspace",403);
       }
       await assertCanViewWorkflowStudent(institutionId, actor, x.studentId);
+      await assertCanViewWorkflowOffering(
+        institutionId,
+        actor,
+        x.exam.courseOfferingId,
+        x.exam.courseOffering.facultyId,
+      );
     }
   }
   table="exam_results";updatedAt=x.updatedAt;state="PUBLISHED";
