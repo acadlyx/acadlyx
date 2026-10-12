@@ -416,6 +416,7 @@ export async function getMyWorkspace(
     hasAnyRole(actor, [
       "INSTITUTION_ADMIN",
       "CHAIRMAN",
+      "MANAGEMENT",
       "DIRECTOR",
       "DEAN",
       "REGISTRAR",
