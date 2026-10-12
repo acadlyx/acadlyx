@@ -2595,7 +2595,7 @@ export async function listNotices(
 
   const canReadNoticeWorkspace = institutionWide || isDirectorWorkspace ||
     isDeanWorkspace || isHod || isFaculty || isStudent || isParent ||
-    ["PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+    ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
       .some((role) => roles.has(role));
   if (!canReadNoticeWorkspace) {
     throw new AppError("You are not allowed to view notices", 403);
@@ -2641,7 +2641,7 @@ export async function listNotices(
   else if (isDeanWorkspace) audience = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
   else if (isDirectorWorkspace) audience = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
   else if (!institutionWide) {
-    const workspaceAudience = ["HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+    const workspaceAudience = ["ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
       .find((role) => roles.has(role));
     if (workspaceAudience) audience = ["ALL", workspaceAudience];
   }
