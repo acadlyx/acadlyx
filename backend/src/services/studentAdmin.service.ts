@@ -557,23 +557,40 @@ export async function listStudents(
   await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentWhereScope(institutionId, actor);
   const {
-    studentEnrollments: scopeEnrollmentFilter,
+    studentEnrollments: scopedEnrollments,
+    ...scopeWithoutEnrollment
   } = scope;
-  const includeEnrollmentWhere =
-    scopeEnrollmentFilter && "some" in scopeEnrollmentFilter
-      ? scopeEnrollmentFilter.some
+
+  const enrollmentPredicates: Prisma.StudentEnrollmentWhereInput[] = [];
+  const serverEnrollmentPredicate =
+    scopedEnrollments && "some" in scopedEnrollments
+      ? scopedEnrollments.some
       : undefined;
-  const scopedStudentListInclude = includeEnrollmentWhere
+  if (serverEnrollmentPredicate) enrollmentPredicates.push(serverEnrollmentPredicate);
+
+  const hasRequestedAcademicFilter = Boolean(
+    params.departmentId || params.academicYearId || params.programId ||
+    params.semesterId || params.sectionId
+  );
+  if (hasRequestedAcademicFilter) {
+    enrollmentPredicates.push({
+      institutionId,
+      ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
+      ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
+      ...(params.programId ? { programId: params.programId } : {}),
+      ...(params.semesterId ? { semesterId: params.semesterId } : {}),
+      ...(params.sectionId ? { sectionId: params.sectionId } : {}),
+    });
+  }
+
+  // Scope and query filters are ANDed. A request filter is never allowed to
+  // replace the server-derived enrollment predicate.
+  const scopedStudentListInclude: Prisma.UserInclude = enrollmentPredicates.length
     ? {
         ...studentListInclude,
         studentEnrollments: {
           ...studentListInclude.studentEnrollments,
-          where: {
-            AND: [
-              studentListInclude.studentEnrollments.where ?? {},
-              includeEnrollmentWhere,
-            ],
-          },
+          where: { AND: enrollmentPredicates },
         },
       }
     : studentListInclude;
@@ -693,10 +710,7 @@ export async function getStudent(
         studentEnrollments: {
           ...studentInclude.studentEnrollments,
           where: {
-            AND: [
-              studentInclude.studentEnrollments.where ?? {},
-              enrollmentScope,
-            ],
+            AND: [enrollmentScope],
           },
         },
       }
