@@ -516,8 +516,16 @@ async function syncCampusAccess(tx: Prisma.TransactionClient, userId: string, in
     return;
   }
   if (campusIds === undefined) {
-    const count = await tx.campusAccess.count({ where: { userId, scope: "DIRECTOR", campus: { institutionId: institutionId || undefined } } });
-    if (!count) throw new AppError("A Director must have at least one campus assigned", 400);
+    const count = await tx.campusAccess.count({
+      where: {
+        userId,
+        scope: "DIRECTOR",
+        campus: { institutionId: institutionId || undefined, isActive: true },
+      },
+    });
+    if (!count) {
+      throw new AppError("A Director must have at least one active campus assigned", 400);
+    }
     return;
   }
   const ids = await validateCampusIds(campusIds, institutionId, roleName);
@@ -539,22 +547,21 @@ async function syncDepartmentAccess(
   }
 
   if (departmentIds === undefined) {
-    const existing = await tx.departmentAccess.count({
+    const existing = await tx.departmentAccess.findMany({
       where: { userId, department: { institutionId: institutionId || undefined, isActive: true } },
+      select: { departmentId: true },
     });
 
-    if (existing === 0) {
-      throw new AppError(
-        roleName === "DEAN"
-          ? "A Dean must have at least one active department assigned"
-          : "An HOD must have a department assigned",
-        400,
-      );
+    if (roleName === "DEAN" && existing.length === 0) {
+      throw new AppError("A Dean must have at least one active department assigned", 400);
+    }
+    if (roleName === "HOD" && existing.length !== 1) {
+      throw new AppError("An HOD must have exactly one active department assigned", 400);
     }
 
-    // Keep legacy assignments attached when an editor changes profile fields
-    // without resubmitting the scope picker, but update the scope label when
-    // a supported role transition (HOD <-> Dean) occurs.
+    // Keep assignments intact when an editor changes profile fields without
+    // resubmitting scope, while ensuring a role transition cannot preserve an
+    // invalid HOD multi-department assignment.
     await tx.departmentAccess.updateMany({
       where: { userId, department: { institutionId: institutionId || undefined, isActive: true } },
       data: { scope: roleName },
