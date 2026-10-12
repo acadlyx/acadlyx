@@ -289,7 +289,7 @@ export async function assertCanViewUserRecord(
   targetUserId: string,
 ): Promise<void> {
   const target = await prisma.user.findFirst({
-    where: { id: targetUserId, institutionId, deletedAt: null },
+    where: { id: targetUserId, institutionId },
     select: {
       id: true,
       userRoles: { select: { role: { select: { name: true } } } },
