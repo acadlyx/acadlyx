@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
 import { getCanonicalRoleNames } from "../config/rbac";
+import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 
 import * as userService from "../services/user.service";
 import * as userDeletionService from "../services/userDeletion.service";
@@ -37,17 +38,13 @@ function requireUser(req: Request) {
  * users.delete. This function protects the workspace-level boundary.
  */
 function hasInstitutionAdminWorkspace(user: NonNullable<Request["user"]>): boolean {
-  const roles = new Set(getCanonicalRoleNames(user.roles));
-  // User administration is its own workspace. A second binding to
-  // INSTITUTION_ADMIN must not grant user-directory control to Chairman,
-  // Director, Dean, HOD, Accounts, Student, Parent, or specialist accounts.
-  return roles.size === 1 && roles.has("INSTITUTION_ADMIN");
+  return getEffectiveWorkspaceRole(user) === "INSTITUTION_ADMIN";
 }
 
 function requireUserManagementRole(req: Request) {
   const user = requireUser(req);
-  const roles = new Set(getCanonicalRoleNames(user.roles));
-  const canManageUsers = roles.has("SUPER_ADMIN") || hasInstitutionAdminWorkspace(user);
+  const activeRole = getEffectiveWorkspaceRole(user);
+  const canManageUsers = activeRole === "SUPER_ADMIN" || hasInstitutionAdminWorkspace(user);
 
   if (!canManageUsers) {
     throw new AppError("This account does not have user-management authority", 403);
@@ -94,9 +91,9 @@ export const list = asyncHandler(
         ? undefined
         : req.query.isActive === "true";
 
-    const effectiveRoles = new Set(getCanonicalRoleNames(user.roles));
-    const isSuperAdmin = effectiveRoles.has("SUPER_ADMIN");
-    const isInstitutionAdmin = hasInstitutionAdminWorkspace(user);
+    const activeRole = getEffectiveWorkspaceRole(user);
+    const isSuperAdmin = activeRole === "SUPER_ADMIN";
+    const isInstitutionAdmin = activeRole === "INSTITUTION_ADMIN";
 
     if (
       !isSuperAdmin &&
