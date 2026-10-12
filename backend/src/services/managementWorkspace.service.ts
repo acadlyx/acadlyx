@@ -583,7 +583,7 @@ export async function getManagementWorkspace(
       }),
 
       prisma.course.count({
-        where: { institutionId, isActive: true, ...(isDirector ? { departmentId: inDirectorScope } : {}) },
+        where: { institutionId, isActive: true, ...(isDepartmentScoped ? { departmentId: inScopedDepartments } : {}) },
       }),
 
       prisma.courseOffering.count({
@@ -595,7 +595,7 @@ export async function getManagementWorkspace(
       }),
 
       prisma.assignment.count({
-        where: { institutionId, ...(isDirector ? { courseOffering: scopedOffering } : {}) },
+        where: { institutionId, ...(isDepartmentScoped ? { courseOffering: scopedOffering } : {}) },
       }),
 
       prisma.internalMark.count({
@@ -622,7 +622,7 @@ export async function getManagementWorkspace(
       }),
 
       prisma.feeInvoice.count({
-        where: { institutionId, status: "PAID", ...(isDirector ? { student: scopedStudent } : {}) },
+        where: { institutionId, status: "PAID", ...(isDepartmentScoped ? { student: scopedStudent } : {}) },
       }),
 
       prisma.document.count({
