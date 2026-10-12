@@ -103,21 +103,72 @@ async function assertDepartmentScope(
   }
 
   if (roles.has("FACULTY")) {
-    if (!courseOfferingId || assignedFacultyId !== actor.id) {
-      // A faculty department assignment is not teaching authority. Writes tied
-      // to a course must target the exact course offering assigned to them.
-      if (!departmentId) throw new AppError("Faculty actions require an assigned course offering", 403);
-      const staffDepartments = await getStaffDepartmentIds(institutionId, actor.id);
-      if (!staffDepartments.includes(departmentId)) {
-        throw new AppError("This operation is outside your assigned academic scope", 403);
+    if (courseOfferingId) {
+      if (assignedFacultyId !== actor.id) {
+        throw new AppError("This course offering is outside your teaching assignment", 403);
       }
       return;
+    }
+    if (!departmentId) throw new AppError("Faculty actions require an assigned course offering or department", 403);
+    const staffDepartments = await getStaffDepartmentIds(institutionId, actor.id);
+    if (!staffDepartments.includes(departmentId)) {
+      throw new AppError("This operation is outside your assigned academic scope", 403);
     }
     return;
   }
 
   throw new AppError("This operation requires an institution-wide or assigned academic scope", 403);
 }
+/**
+ * Scope a legacy ERP course-offering query to the actor's effective workspace.
+ * Used by timetable and exam-list endpoints so the older ERP APIs follow the
+ * same department/campus/enrollment boundaries as canonical module APIs.
+ */
+async function getOfferingReadScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+): Promise<Prisma.CourseOfferingWhereInput> {
+  if (isInstitutionWide(actor)) return {};
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+
+  if (isDirectorScoped(actor)) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
+  }
+  if (roles.has("DEAN") || roles.has("HOD")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
+  }
+  if (roles.has("FACULTY")) return { facultyId: actor.id };
+
+  if (roles.has("STUDENT") || roles.has("PARENT")) {
+    const studentIds = roles.has("STUDENT")
+      ? [actor.id]
+      : (await prisma.parentStudentLink.findMany({
+          where: { institutionId, parentId: actor.id },
+          select: { studentId: true },
+        })).map((row) => row.studentId);
+
+    if (!studentIds.length) return { id: { in: ["__NO_AUTHORIZED_SCOPE__"] } };
+
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { institutionId, userId: { in: studentIds }, status: "ACTIVE" },
+      select: { semesterId: true, sectionId: true },
+    });
+    const semesterIds = Array.from(new Set(enrollments.map((row) => row.semesterId).filter(Boolean))) as string[];
+    const sectionIds = Array.from(new Set(enrollments.map((row) => row.sectionId).filter(Boolean))) as string[];
+    if (!semesterIds.length && !sectionIds.length) return { id: { in: ["__NO_AUTHORIZED_SCOPE__"] } };
+    return {
+      OR: [
+        ...(semesterIds.length ? [{ semesterId: { in: semesterIds } }] : []),
+        ...(sectionIds.length ? [{ sectionId: { in: sectionIds } }] : []),
+      ],
+    };
+  }
+
+  throw new AppError("This workspace has no course-offering read scope", 403);
+}
+
 async function assertStudentExists(
   institutionId: string,
   studentId: string
