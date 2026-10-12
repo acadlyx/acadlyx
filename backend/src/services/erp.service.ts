@@ -122,7 +122,7 @@ async function getOfferingReadScope(
   institutionId: string,
   actor: AuthenticatedUser,
 ): Promise<Prisma.CourseOfferingWhereInput> {
-  if (isInstitutionWide(actor)) return {};
+  if (isInstitutionWide(actor) || isInstitutionWideExamination(actor)) return {};
   const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
 
   if (isDirectorScoped(actor)) {
@@ -2840,6 +2840,7 @@ export async function listExams(
     "FACULTY",
     "STUDENT",
     "PARENT",
+    "EXAMINATION",
   ]);
 
   const offeringScope = await getOfferingReadScope(institutionId, actor);
@@ -2945,11 +2946,9 @@ export async function getExamDetails(
     );
   }
 
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    exam.courseOfferingId
-  );
+  if (!isInstitutionWideExamination(actor)) {
+    await assertDepartmentScope(institutionId, actor, exam.courseOfferingId);
+  }
 
   if (
     !hasAnyRole(actor, [
@@ -2960,6 +2959,7 @@ export async function getExamDetails(
       "HOD",
       "ACCOUNTS",
       "FACULTY",
+      "EXAMINATION",
     ])
   ) {
     throw new AppError(
