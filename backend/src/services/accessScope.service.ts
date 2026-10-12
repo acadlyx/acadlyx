@@ -97,7 +97,7 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
 ] as const;
 
 export function getEffectiveWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): string {
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   return EFFECTIVE_WORKSPACE_ROLE_PRIORITY.find((role) => roles.has(role)) ?? "UNASSIGNED";
 }
 
