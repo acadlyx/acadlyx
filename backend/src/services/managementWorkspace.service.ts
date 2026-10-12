@@ -5,15 +5,6 @@ import {
   AuthenticatedUser,
 } from "../types/auth";
 
-const LEADERSHIP_ROLES = [
-  "INSTITUTION_ADMIN",
-  "CHAIRMAN",
-  "MANAGEMENT",
-  "DIRECTOR",
-  "DEAN",
-  "REGISTRAR",
-];
-
 export function getWorkspaceType(actor: AuthenticatedUser): string {
   const roles = new Set(getCanonicalRoleNames(actor.roles));
   // This list matches the frontend's effective dashboard role priority:
