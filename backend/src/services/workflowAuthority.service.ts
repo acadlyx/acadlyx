@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { isInstitutionWideFinance, hasScopedWorkspaceRole } from "./accessScope.service";
+import { isInstitutionWideFinance, hasScopedWorkspaceRole, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   getManagedDepartmentIds,
   getStudentDepartmentIds,
@@ -139,10 +139,11 @@ export async function assertMovementApprovalAuthority(
 }
 
 export function assertFeeApprovalAuthority(actor: AuthenticatedUser): void {
-  const roles = new Set(getCanonicalRoleNames(actor.roles));
-  if (isDirectorScoped(actor) && roles.has("DIRECTOR")) return;
-  if (isInstitutionWideFinance(actor) && roles.has("ACCOUNTS")) return;
-  throw new AppError("Only Accounts or a Director in their assigned campus scope may approve this financial action", 403);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "CHAIRMAN") return;
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) return;
+  if (activeRole === "ACCOUNTS" && isInstitutionWideFinance(actor)) return;
+  throw new AppError("Only Chairman, Accounts, or a Director in their assigned campus scope may approve this financial action", 403);
 }
 
 export function assertExaminationController(actor: AuthenticatedUser): void {
