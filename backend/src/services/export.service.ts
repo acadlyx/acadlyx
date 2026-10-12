@@ -10,6 +10,7 @@ import {
   getDirectorCampusIds,
   isDirectorScoped,
   isInstitutionWide,
+  isInstitutionWideFinance,
   getStudentWhereScope,
 } from "./accessScope.service";
 
@@ -221,6 +222,11 @@ async function assertExportAccess(
   }
   const institutionWide = isInstitutionWide(actor);
   if (institutionWide) {
+    return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
+  }
+  // Accounts may export finance datasets across the tenant, but this scoped
+  // authority must never be reused for generic student/user or event exports.
+  if (FINANCE_EXPORT_TYPES.has(type) && roles.has("ACCOUNTS") && isInstitutionWideFinance(actor)) {
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
   const moduleRoles = MODULE_EXPORT_ROLES[type];
