@@ -5,35 +5,10 @@ import {
   AuthenticatedUser,
 } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 
 export function getWorkspaceType(actor: AuthenticatedUser): string {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
-  // This list matches the frontend's effective dashboard role priority:
-  // scoped operational workspaces are resolved before secondary broad grants.
-  const priority = [
-    "CHAIRMAN",
-    "DIRECTOR",
-    "DEAN",
-    "HOD",
-    "FACULTY",
-    "STUDENT",
-    "PARENT",
-    "PLACEMENT",
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "MANAGEMENT",
-    "REGISTRAR",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "IT",
-    "CMS",
-    "CLUB_PRESIDENT",
-    "STAFF",
-  ];
-  return priority.find((role) => roles.has(role)) ?? "UNASSIGNED";
+  return getEffectiveWorkspaceRole(actor);
 }
 
 export function isLeadershipActor(actor: AuthenticatedUser): boolean {
