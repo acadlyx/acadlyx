@@ -632,7 +632,7 @@ async function assertDirectorCanAccessSession(
         where:{institutionId,id:{in:departmentIds},isActive:true},
         select:{campusId:true},
       })).map((department)=>department.campusId).filter((id):id is string=>Boolean(id))));
-  if (!campusIds.length) {
+  if (workspace==="DIRECTOR" && !campusIds.length) {
     throw new AppError("Examination session not found in the assigned scope",404);
   }
 
@@ -946,7 +946,15 @@ export async function listExamSessions(
     countRows(prisma, "exam_sessions", where),
   ]);
 
-  return { items, total };
+  const exposeStudentIds = isInstitutionWideExamination(actor);
+  const safeItems = items.map((item) => ({
+    ...item,
+    // Scoped dashboards do not need raw UUID lists of other students. Keep
+    // targeting opaque in ordinary list responses; the session detail path
+    // applies an even narrower sanitization for Student/Parent workspaces.
+    ...(exposeStudentIds ? {} : { studentIds: [] }),
+  }));
+  return { items: safeItems, total };
 }
 
 export async function getExamSession(
@@ -1042,7 +1050,17 @@ export async function getExamSession(
     ORDER BY s."examDate" ASC,s."startTime" ASC
   `);
 
-  return { ...session, schedules };
+  const exposeStudentIds = isInstitutionWideExamination(actor);
+  const visibleStudentIds = portalContexts.map(({studentId})=>studentId);
+  const safeSession = exposeStudentIds
+    ? session
+    : {
+        ...session,
+        studentIds: portalContexts.length
+          ? jsonStringArray(session.studentIds).filter((id)=>visibleStudentIds.includes(id))
+          : [],
+      };
+  return { ...safeSession, schedules };
 }
 
 export async function updateExamSessionStatus(
