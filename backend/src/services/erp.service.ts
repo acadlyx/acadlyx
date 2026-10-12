@@ -5,7 +5,15 @@ import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { getManagementWorkspace, getManagementWorkspaceSummary } from "./managementWorkspace.service";
-import { getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
+import {
+  getManagedDepartmentIds,
+  getDirectorDepartmentIds,
+  getStaffDepartmentIds,
+  getAuthorizedDepartmentIds,
+  isInstitutionWide,
+  isDirectorScoped,
+  getStudentWhereScope,
+} from "./accessScope.service";
 
 const MANAGEMENT_ROLES = [
   "SUPER_ADMIN",
@@ -24,11 +32,26 @@ function assertRole(
 ): void {
   const actorRoles = getCanonicalRoleNames(user.roles);
   const allowedRoles = getCanonicalRoleNames(allowed);
+
+  // Chairman is the one explicit institution-wide workspace exception. For
+  // other multi-role accounts, a scoped workspace takes precedence over
+  // secondary Admin/Accounts/Registrar bindings so those bindings cannot
+  // silently widen a record-level operation.
+  if (actorRoles.includes("CHAIRMAN")) {
+    if (allowedRoles.includes("CHAIRMAN")) return;
+    throw new AppError("This operation is not available in the Chairman workspace", 403);
+  }
+  const scopedRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"]
+    .find((role) => actorRoles.includes(role));
+  if (scopedRole) {
+    if (!allowedRoles.includes(scopedRole)) {
+      throw new AppError("Not authorized for this ERP operation in your active scoped workspace", 403);
+    }
+    return;
+  }
+
   if (!actorRoles.some((role) => allowedRoles.includes(role))) {
-    throw new AppError(
-      "Not authorized for this ERP operation",
-      403
-    );
+    throw new AppError("Not authorized for this ERP operation", 403);
   }
 }
 
@@ -45,67 +68,56 @@ async function assertDepartmentScope(
   institutionId: string,
   actor: AuthenticatedUser,
   courseOfferingId?: string,
-  departmentId?: string
+  departmentId?: string,
 ): Promise<void> {
-  if (!hasAnyRole(actor, ["HOD"])) {
+  if (isInstitutionWide(actor)) return;
+
+  let scopedDepartmentId = departmentId;
+  let assignedFacultyId: string | null = null;
+
+  if (courseOfferingId) {
+    const offering = await prisma.courseOffering.findFirst({
+      where: { id: courseOfferingId, institutionId, isActive: true },
+      select: { facultyId: true, course: { select: { departmentId: true } } },
+    });
+    if (!offering) throw new AppError("Course offering not found in this institution", 404);
+    scopedDepartmentId = offering.course.departmentId;
+    assignedFacultyId = offering.facultyId;
+  }
+
+  if (isDirectorScoped(actor)) {
+    const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
+      throw new AppError("This operation is outside your assigned campus scope", 403);
+    }
     return;
   }
 
-  let scopedDepartmentId = departmentId;
-
-  if (courseOfferingId) {
-    const offering =
-      await prisma.courseOffering.findFirst({
-        where: {
-          id: courseOfferingId,
-          institutionId,
-        },
-        select: {
-          course: {
-            select: {
-              departmentId: true,
-            },
-          },
-        },
-      });
-
-    if (!offering) {
-      throw new AppError(
-        "Course offering not found in this institution",
-        404
-      );
+  const roles = new Set(getCanonicalRoleNames(actor.roles));
+  if (roles.has("DEAN") || roles.has("HOD")) {
+    const allowed = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
+      throw new AppError("This operation is outside your assigned department scope", 403);
     }
-
-    scopedDepartmentId =
-      offering.course.departmentId;
+    return;
   }
 
-  if (!scopedDepartmentId) {
-    throw new AppError(
-      "HOD actions require a department scope",
-      403
-    );
+  if (roles.has("FACULTY")) {
+    if (!courseOfferingId || assignedFacultyId !== actor.id) {
+      // A faculty department assignment is not teaching authority. Writes tied
+      // to a course must target the exact course offering assigned to them.
+      if (!departmentId) throw new AppError("Faculty actions require an assigned course offering", 403);
+      const staffDepartments = await getStaffDepartmentIds(institutionId, actor.id);
+      if (!staffDepartments.includes(departmentId)) {
+        throw new AppError("This operation is outside your assigned academic scope", 403);
+      }
+      return;
+    }
+    return;
   }
 
-  const access =
-    await prisma.departmentAccess.findFirst({
-      where: {
-        userId: actor.id,
-        departmentId: scopedDepartmentId,
-        department: {
-          institutionId,
-        },
-      },
-    });
-
-  if (!access) {
-    throw new AppError(
-      "Department is outside your authorized scope",
-      403
-    );
-  }
+  throw new AppError("This operation requires an institution-wide or assigned academic scope", 403);
 }
-
 async function assertStudentExists(
   institutionId: string,
   studentId: string
