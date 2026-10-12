@@ -378,6 +378,19 @@ export async function getErpWorkspace(): Promise<ErpWorkspace> {
   );
 }
 
+/** Lightweight first-paint data for leadership landing dashboards. */
+export async function getErpWorkspaceSummary(): Promise<ErpWorkspace> {
+  return cachedRequest(
+    "erp:workspace-summary",
+    async () => {
+      const response = await authedFetch<ApiEnvelope<ErpWorkspace>>(
+        "/erp/me/summary"
+      );
+      return response.data;
+    }
+  );
+}
+
 /*
  * ---------------------------------------------------------------------------
  * USERS
