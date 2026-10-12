@@ -18,6 +18,8 @@ import { getCanonicalRoleNames } from "../config/rbac";
 type PortalActor = {
   id: string;
   roles: string[];
+  permissions?: string[];
+  institutionId?: string;
 };
 
 const scopedPortalManagerRoles = new Set<string>(["DIRECTOR", "DEAN", "HOD"]);
@@ -97,6 +99,49 @@ function isParent(actor: PortalActor): boolean {
 
 function isStudent(actor: PortalActor): boolean {
   return getEffectiveWorkspaceRole(actor) === "STUDENT";
+}
+
+function hasPortalPermission(actor: PortalActor, permissions: readonly string[]): boolean {
+  const granted = actor.permissions ?? [];
+  return permissions.some((permission) => granted.includes(permission));
+}
+
+function canReadStudentPortalDomain(
+  actor: PortalActor,
+  domain: "attendance" | "assignments" | "fees" | "marks" | "exams",
+): boolean {
+  const role = getEffectiveWorkspaceRole(actor);
+  // The student and linked parent may always read the corresponding child's
+  // own portal modules; non-owner workspaces need both an appropriate active
+  // role and the module's read/manage permission.
+  if (role === "STUDENT" || role === "PARENT") return true;
+
+  const policy: Record<typeof domain, { roles: readonly string[]; permissions: readonly string[] }> = {
+    attendance: {
+      roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY"],
+      permissions: ["attendance.read", "attendance.mark", "attendance.manage"],
+    },
+    assignments: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY"],
+      permissions: ["assignments.read", "assignments.manage", "assignments.review"],
+    },
+    fees: {
+      // Institution Admin is intentionally excluded from finance and invoice data.
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS"],
+      permissions: ["fees.read", "fees.invoice.read", "fees.manage", "payments.manage"],
+    },
+    marks: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY", "EXAMINATION"],
+      permissions: ["marks.read", "results.read", "results.manage", "exams.read", "exams.manage"],
+    },
+    exams: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY", "EXAMINATION"],
+      permissions: ["exams.read", "exams.manage", "results.read", "marks.read"],
+    },
+  };
+
+  return policy[domain].roles.includes(role) &&
+    hasPortalPermission(actor, policy[domain].permissions);
 }
 
 async function assertInstitutionUser(
@@ -832,16 +877,16 @@ export async function getParentChildren(
 ) {
   assertActor(actor);
 
-  if (!isParent(actor) && !isManagement(actor)) {
-    throw new AppError("Parent portal access is outside your authorized workspace", 403);
+  if (!isParent(actor)) {
+    throw new AppError("Parent portal access is available only to the active Parent workspace", 403);
   }
 
   const parentLinksWhere: Prisma.ParentStudentLinkWhereInput = {
     institutionId,
-    ...(isParent(actor) ? { parentId: actor.id } : {}),
+    parentId: actor.id,
   };
   let enrollmentScope: Prisma.StudentEnrollmentWhereInput | undefined;
-  if (!isParent(actor) && !isInstitutionWide(actor)) {
+  if (false) {
     const studentScope = await getStudentWhereScope(institutionId, toScopeActor(institutionId, actor));
     if ("studentEnrollments" in studentScope && studentScope.studentEnrollments && "some" in studentScope.studentEnrollments) {
       enrollmentScope = studentScope.studentEnrollments.some;
@@ -1002,30 +1047,22 @@ export async function getStudentPortal(
     courseOfferings,
     parents,
   ] = await Promise.all([
-    getStudentEnrollment(
-      institutionId,
-      studentId
-    ),
-    getAttendanceSummary(
-      institutionId,
-      studentId
-    ),
-    getMarksSummary(
-      institutionId,
-      studentId
-    ),
-    getAssignmentSummary(
-      institutionId,
-      studentId
-    ),
-    getFeeSummary(
-      institutionId,
-      studentId
-    ),
-    getExamSummary(
-      institutionId,
-      studentId
-    ),
+    getStudentEnrollment(institutionId, studentId),
+    canReadStudentPortalDomain(actor, "attendance")
+      ? getAttendanceSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "marks")
+      ? getMarksSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "assignments")
+      ? getAssignmentSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "fees")
+      ? getFeeSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "exams")
+      ? getExamSummary(institutionId, studentId)
+      : [],
     getDocumentsForOwner(
       institutionId,
       studentId
@@ -1117,11 +1154,8 @@ export async function getParentDashboard(
 ) {
   assertActor(actor);
 
-  if (!isParent(actor) && !isManagement(actor)) {
-    throw new AppError(
-      "Parent portal access required",
-      403
-    );
+  if (!isParent(actor)) {
+    throw new AppError("Parent dashboard is available only to the active Parent workspace", 403);
   }
 
   const children = await getParentChildren(
