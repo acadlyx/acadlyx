@@ -292,11 +292,16 @@ export async function getManagementWorkspaceSummary(
   institutionId: string,
   actor: AuthenticatedUser,
 ) {
-  const workspaceType = getWorkspaceType(actor);
-
-  if (workspaceType === "INSTITUTION_ADMIN") {
+  // This endpoint is reachable directly, so never infer admin authority from
+  // getWorkspaceType()'s fallback for unrecognized roles.
+  if (actor.roles.includes("INSTITUTION_ADMIN")) {
     return getInstitutionAdminWorkspace(institutionId, actor);
   }
+  const allowedSummaryRoles = ["CHAIRMAN", "DIRECTOR", "DEAN"];
+  if (!actor.roles.some((role) => allowedSummaryRoles.includes(role))) {
+    throw new AppError("A leadership summary is not available for this workspace", 403);
+  }
+  const workspaceType = getWorkspaceType(actor);
 
   const activeUser = { institutionId, isActive: true };
   const studentRole = { userRoles: { some: { role: { name: "STUDENT" } } } };
