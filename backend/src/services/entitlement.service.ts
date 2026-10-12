@@ -136,17 +136,21 @@ export async function assertTenantFeature(
   if (unavailableStatuses.has(subscription.status) || (subscription.expiresAt && subscription.expiresAt < new Date())) {
     throw new AppError("This tenant subscription is not active", 402);
   }
-  let entitlement = subscription.entitlements[0] ?? null;
-  if (!entitlement) {
+  const existingEntitlement = subscription.entitlements[0];
+  if (!existingEntitlement) {
     await prisma.$transaction((tx) => provisionTenantEntitlements(tx, institutionId));
-    entitlement = await prisma.tenantFeatureEntitlement.findUnique({
+    const provisionedEntitlement = await prisma.tenantFeatureEntitlement.findUnique({
       where: { institutionId_featureKey: { institutionId, featureKey: feature } },
     });
+    if (!provisionedEntitlement || !provisionedEntitlement.isEnabled) {
+      throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
+    }
+    return provisionedEntitlement;
   }
-  if (!entitlement || !entitlement.isEnabled) {
+  if (!existingEntitlement.isEnabled) {
     throw new AppError(`The ${feature} feature is not enabled for this tenant`, 403);
   }
-  return entitlement;
+  return existingEntitlement;
 }
 
 export async function assertTenantQuota(institutionId: string, kind: "users" | "students" | "faculty") {
