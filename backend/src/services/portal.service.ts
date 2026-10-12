@@ -22,12 +22,11 @@ type PortalActor = {
   institutionId?: string;
 };
 
-const scopedPortalManagerRoles = new Set<string>(["DIRECTOR", "DEAN", "HOD"]);
-
 function isScopedPortalManager(actor: PortalActor): boolean {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const activeRole = getEffectiveWorkspaceRole(actor);
   return !isInstitutionWide(actor) &&
-    (isDirectorScoped(actor) || [...scopedPortalManagerRoles].some((role) => roles.has(role)));
+    ((activeRole === "DIRECTOR" && isDirectorScoped(actor)) ||
+      activeRole === "DEAN" || activeRole === "HOD");
 }
 
 function assertActor(actor: PortalActor): void {
@@ -82,7 +81,7 @@ async function assertPortalUserTargetScope(
 
   const target = await assertInstitutionUser(institutionId, targetUserId);
   const targetRoles = getCanonicalRoleNames(target.userRoles.map((binding) => binding.role.name));
-  if (targetRoles.includes("STUDENT")) {
+  if (getEffectiveWorkspaceRole({ roles: targetRoles }) === "STUDENT") {
     await assertPortalStudentAccess(institutionId, actor, targetUserId);
     return;
   }
