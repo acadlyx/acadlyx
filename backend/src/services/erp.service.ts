@@ -15,6 +15,7 @@ import {
   isInstitutionWideExamination,
   hasScopedWorkspaceRole,
   isDirectorScoped,
+  getEffectiveWorkspaceRole,
 } from "./accessScope.service";
 
 /** Evaluated per call: a module-level constant would freeze the weekday at process start. */
@@ -24,28 +25,17 @@ function assertRole(
   user: AuthenticatedUser,
   allowed: string[]
 ): void {
-  const actorRoles: string[] = getCanonicalRoleNames(user.roles);
   const allowedRoles: string[] = getCanonicalRoleNames(allowed);
+  const effectiveRole = getEffectiveWorkspaceRole(user);
 
-  // Chairman is the one explicit institution-wide workspace exception. For
-  // other multi-role accounts, a scoped workspace takes precedence over
-  // secondary Admin/Accounts/Registrar bindings so those bindings cannot
-  // silently widen a record-level operation.
-  if (actorRoles.includes("CHAIRMAN")) {
-    if (allowedRoles.includes("CHAIRMAN")) return;
-    throw new AppError("This operation is not available in the Chairman workspace", 403);
-  }
-  const scopedRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"]
-    .find((role) => actorRoles.includes(role));
-  if (scopedRole) {
-    if (!allowedRoles.includes(scopedRole)) {
-      throw new AppError("Not authorized for this ERP operation in your active scoped workspace", 403);
-    }
-    return;
-  }
-
-  if (!actorRoles.some((role) => allowedRoles.includes(role))) {
-    throw new AppError("Not authorized for this ERP operation", 403);
+  // Role-gated legacy ERP routes must honor the same single active workspace
+  // as navigation and the canonical module scope helpers. A secondary role
+  // can never be used as an alternate doorway into a different module.
+  if (!allowedRoles.includes(effectiveRole)) {
+    throw new AppError(
+      "Not authorized for this ERP operation in your active workspace",
+      403,
+    );
   }
 }
 
