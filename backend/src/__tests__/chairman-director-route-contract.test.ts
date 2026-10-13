@@ -91,7 +91,7 @@ test("Chairman legacy fee-approval route redirects to the direct publication wor
   assert.ok(page.includes('redirect("/chairman/fees/structures")'));
 });
 
-test("Director fee approvals have a dedicated page and backend campus-scope enforcement", () => {
+test("Director fee approvals have a dedicated page and backend program/semester scope enforcement", () => {
   const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
   const operations = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
   const dashboard = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
@@ -104,9 +104,21 @@ test("Director fee approvals have a dedicated page and backend campus-scope enfo
   assert.ok(!dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "Director dashboard should not duplicate approval workflow shortcuts");
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.read"'));
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
-  assert.ok(feeService.includes("getDirectorDepartmentIds"), "fee service must derive Director scope from server-side campus assignments");
-  assert.ok(feeService.includes('fs."programId" IN ('), "Director fee listing must be filtered to programs in assigned campus departments");
-  assert.ok(feeService.includes('JOIN "programs" p ON p."id" = sem."programId"') && feeService.includes('p."departmentId" IN ('), "semester-only fee structures must be resolved through the owning program in assigned departments");
+
+  const structureScope = feeService.slice(
+    feeService.indexOf("async function assertFeeStructureInActorScope"),
+    feeService.indexOf("async function assertFeeStructureContextInActorScope"),
+  );
+  const contextScope = feeService.slice(
+    feeService.indexOf("async function assertFeeStructureContextInActorScope"),
+    feeService.indexOf("export async function listFeeStructures"),
+  );
+  assert.ok(feeService.includes("getAuthorizedDepartmentIds"), "shared scope resolver must derive departments from CampusAccess for Directors");
+  assert.ok(structureScope.includes('fs."programId"') && structureScope.includes('fs."semesterId"'), "existing structures must be checked using either program or semester ownership");
+  assert.ok(structureScope.includes('semester_program."departmentId"'), "semester-only structures must be resolved through their owning program");
+  assert.ok(contextScope.includes('FROM "programs"'), "creation must check selected program scope");
+  assert.ok(contextScope.includes('FROM "semesters" sem'), "creation must check selected semester scope");
+  assert.ok(contextScope.includes("allowedDepartmentIds.includes"), "both program and semester must belong to allowed department scope");
   assert.ok(feeService.includes("assertFeeStructureInActorScope(institutionId, actor, structureId)"), "approval and rejection mutations must validate record scope");
 });
 
@@ -173,20 +185,27 @@ test("Director examination writes and decisions enforce assigned campus scope", 
   assert.ok(routes.includes("requireAuthenticatedUser(req),\n      pagination,"), "incident list receives the authenticated actor for scope filtering");
 });
 
-test("Director examination review queues cannot list institution-wide records", () => {
+test("Director and scoped academic examination queues enforce active workspace and target scope", () => {
   const service = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
-  const listSessions = service.slice(service.indexOf("function listExamSessions("), service.indexOf("export async function getExamSession("));
+  const listSessions = service.slice(service.indexOf("export async function listExamSessions("), service.indexOf("export async function getExamSession("));
   const listRevaluations = service.slice(service.indexOf("export async function listRevaluationRequests("), service.indexOf("export async function decideRevaluation("));
   const listIncidents = service.slice(service.indexOf("export async function listExamIncidents("), service.indexOf("export async function decideExamIncident("));
   const listCorrections = service.slice(service.indexOf("export async function listExamMarkCorrectionRequests("));
-  const directorSessionBranch = listSessions.slice(listSessions.indexOf("isDirectorScoped(actor)"));
-  assert.ok(directorSessionBranch.includes('("campusIds" <> \'[]\'::jsonb AND "campusIds" ?| ARRAY['));
-  assert.ok(!directorSessionBranch.includes('"departmentIds" = \'[]\'::jsonb OR'), "an empty target list must not make a Director session visible");
-  assert.ok(listRevaluations.includes("isDirectorScoped(actor)") && listRevaluations.includes("getDirectorDepartmentIds"));
-  assert.ok(listIncidents.includes("isDirectorScoped(actor)") && listIncidents.includes("getDirectorDepartmentIds"));
-  assert.ok(listCorrections.includes("isDirectorScoped(actor)") && listCorrections.includes("getDirectorDepartmentIds"));
-  assert.ok(listCorrections.includes("assertExamApprover(actor)"), "scoped Directors must be allowed to review correction decisions");
-  assert.ok(listRevaluations.includes("!isDirectorScoped(actor)"), "Director queues must not fall into the student self-only filter");
+
+  assert.ok(listSessions.includes("assertExamReadWorkspace(actor)"), "session list must resolve an active examination-capable workspace");
+  assert.ok(listSessions.includes('workspace === "DIRECTOR"'), "Director session visibility must be explicit");
+  assert.ok(listSessions.includes("getDirectorCampusIds(institutionId, actor.id)"), "Director session scope must use CampusAccess");
+  assert.ok(listSessions.includes('outside_program."departmentId" NOT IN'), "a mixed-scope session must not leak schedules from other departments");
+  assert.ok(listRevaluations.includes("assertExamReadWorkspace(actor)"), "revaluation lists must resolve the active workspace");
+  assert.ok(listRevaluations.includes('["DIRECTOR","DEAN","HOD"].includes(workspace)'), "academic leads need scoped review queues");
+  assert.ok(listRevaluations.includes("getDirectorDepartmentIds(institutionId,actor.id)"), "Director revaluation queue must derive assigned departments");
+  assert.ok(listRevaluations.includes('JOIN "programs" scoped_program'), "revaluation rows must be scoped through offering -> semester -> program");
+  assert.ok(listIncidents.includes("assertExamReadWorkspace(actor)"), "incident queue must not trust a secondary examination permission");
+  assert.ok(listIncidents.includes('["DIRECTOR", "DEAN", "HOD"].includes(workspace)'), "leadership incident queue must use active role scope");
+  assert.ok(listIncidents.includes("scoped_program.\"departmentId\" IN"), "incident visibility must be tied to assigned academic departments");
+  assert.ok(listCorrections.includes("assertExamApprover(actor)"), "correction queue must require the configured examination approval role");
+  assert.ok(listCorrections.includes("getDirectorDepartmentIds"), "Director correction queue must derive CampusAccess scope");
+  assert.ok(listCorrections.includes('JOIN "programs"'), "correction queue must filter via the course offering's program");
 });
 
 test("verification workflow runs for the isolated branch and migrates PostgreSQL before backend tests", () => {
@@ -301,14 +320,25 @@ test("Every literal Chairman/Director dashboard and operations destination resol
 });
 
 
-test("Director student list and profile responses filter nested enrollments to assigned departments", () => {
+test("Student list and profile queries combine requested filters with server-derived enrollment scope", () => {
   const service = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
-  assert.ok(service.includes("const scopedStudentListInclude = directorDepartmentIds"));
-  assert.ok(service.includes("include: scopedStudentListInclude"));
-  assert.ok(service.includes("if (actor && isDirectorScoped(actor))"));
-  assert.ok(service.includes('in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"]'));
-});
+  const listStart = service.indexOf("export async function listStudents(");
+  const listEnd = service.indexOf("export async function getStudent(", listStart);
+  const list = service.slice(listStart, listEnd);
+  const profileStart = service.indexOf("export async function getStudent(");
+  const profileEnd = service.indexOf("export async function createStudent(", profileStart);
+  const profile = service.slice(profileStart, profileEnd);
 
+  assert.ok(list.includes("getStudentWhereScope(institutionId, actor)"), "list must derive scope from the canonical helper");
+  assert.ok(list.includes("const serverEnrollmentPredicate"), "server enrollment scope must be preserved");
+  assert.ok(list.includes("enrollmentPredicates.push(serverEnrollmentPredicate)"), "server scope must be combined with user filters");
+  assert.ok(list.includes("where: { AND: enrollmentPredicates }"), "included enrollment rows must be filtered by all scope predicates");
+  assert.ok(list.includes("studentEnrollments: { some: { AND: enrollmentPredicates } }"), "the list itself must not be widened by query filters");
+  assert.ok(list.includes("include: scopedStudentListInclude"));
+  assert.ok(profile.includes("await assertStudentReadAccess(institutionId, userId, actor)"), "profile reads must authorize the target student");
+  assert.ok(profile.includes("getStudentWhereScope(institutionId, actor)"), "profile nested enrollment history must use the same resolved scope");
+  assert.ok(profile.includes("where: { AND: [enrollmentScope] }"), "profile must hide enrollment history outside the allowed scope");
+});
 
 test("Chairman receives approval-only examination permissions without Examination Cell management", () => {
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
@@ -321,22 +351,34 @@ test("Chairman receives approval-only examination permissions without Examinatio
 });
 
 
-test("Director examination read and decision queues derive campus scope from the offering program", () => {
+test("Examination reads and decisions derive campus scope through assigned departments and offerings", () => {
   const exams = readFileSync(join(process.cwd(), "src/services/examination.service.ts"), "utf8");
-  const directorReadScope = exams.slice(exams.indexOf("if (isDirectorScoped(actor))", exams.indexOf("async function assertCanReadSchedule")), exams.indexOf("async function assertCanActOnSchedule"));
-  assert.ok(directorReadScope.includes("prisma.semester.findFirst"));
+  const readStart = exams.indexOf("async function assertCanReadSchedule(");
+  const readEnd = exams.indexOf("async function assertCanActOnSchedule(", readStart);
+  const directorReadScope = exams.slice(readStart, readEnd);
+  assert.ok(directorReadScope.includes('activeRole === "DIRECTOR"'));
+  assert.ok(directorReadScope.includes("getDirectorDepartmentIds(institutionId, actor.id)"));
   assert.ok(directorReadScope.includes("program: { institutionId, departmentId: { in: ids } }"));
-  const sessions = exams.slice(exams.indexOf("export async function listExamSessions("), exams.indexOf("export async function getExamSession("));
-  assert.ok(sessions.includes('JOIN "programs" p ON p."id"=sem."programId"'));
-  assert.ok(sessions.includes('outside_program."departmentId" NOT IN'));
-  const revaluations = exams.slice(exams.indexOf("export async function listRevaluationRequests("), exams.indexOf("export async function decideRevaluation("));
-  assert.ok(revaluations.includes('JOIN "programs" scoped_program'));
-  const incidents = exams.slice(exams.indexOf("export async function listExamIncidents("), exams.indexOf("export async function decideExamIncident("));
-  assert.ok(incidents.includes('JOIN "programs" scoped_program'));
-  const corrections = exams.slice(exams.indexOf("export async function listExamMarkCorrectionRequests("));
-  assert.ok(corrections.includes('JOIN "programs" p ON p."id" = sem."programId"'));
-});
 
+  const sessions = exams.slice(exams.indexOf("export async function listExamSessions("), exams.indexOf("export async function getExamSession("));
+  assert.ok(sessions.includes("assertExamReadWorkspace(actor)"));
+  assert.ok(sessions.includes('outside_program."departmentId" NOT IN'));
+  assert.ok(sessions.includes('scoped_program."departmentId" IN'));
+
+  const revaluations = exams.slice(exams.indexOf("export async function listRevaluationRequests("), exams.indexOf("export async function decideRevaluation("));
+  assert.ok(revaluations.includes('["DIRECTOR","DEAN","HOD"].includes(workspace)'));
+  assert.ok(revaluations.includes('JOIN "programs" scoped_program'));
+
+  const incidents = exams.slice(exams.indexOf("export async function listExamIncidents("), exams.indexOf("export async function decideExamIncident("));
+  assert.ok(incidents.includes("assertExamReadWorkspace(actor)"));
+  assert.ok(incidents.includes('JOIN "programs" scoped_program'));
+  assert.ok(incidents.includes('scoped_program."departmentId" IN'));
+
+  const corrections = exams.slice(exams.indexOf("export async function listExamMarkCorrectionRequests("));
+  assert.ok(corrections.includes("assertExamApprover(actor)"));
+  assert.ok(corrections.includes("getDirectorDepartmentIds"));
+  assert.ok(corrections.includes('JOIN "programs"'));
+});
 
 test("institutional intelligence combines program and semester filters with department scope", () => {
   const service = readFileSync(join(process.cwd(), "src/services/intelligence.service.ts"), "utf8");
