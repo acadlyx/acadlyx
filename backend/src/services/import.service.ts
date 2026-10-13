@@ -46,7 +46,7 @@ function bool(v: any): boolean { return [true, 1, "1", "true", "yes", "y"].inclu
 function date(v: any): Date { if (v instanceof Date) return v; if (typeof v === "number") return XLSX.SSF.parse_date_code(v) ? new Date(Date.UTC(XLSX.SSF.parse_date_code(v).y, XLSX.SSF.parse_date_code(v).m - 1, XLSX.SSF.parse_date_code(v).d)) : new Date(v); const d = new Date(v); if (Number.isNaN(d.getTime())) throw new AppError(`Invalid date: ${v}`, 400); return d; }
 function normalizeRow(row: Row): Row { return Object.fromEntries(Object.entries(row).map(([k,v]) => [k.toLowerCase().replace(/[\\s_-]+/g, ""), v])); }
 
-function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED" {
+export function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED" {
   const raw = text(value).toUpperCase().replace(/[\\s-]+/g, "_");
   if (!raw) return "ACTIVE";
   const aliases: Record<string, "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED"> = {
