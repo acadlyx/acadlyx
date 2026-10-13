@@ -546,6 +546,6 @@ test("Director notices and admissions enforce assigned campus scope at the servi
   assert.ok(admissions.includes("getDirectorDepartmentIds"), "admissions must derive Director scope from CampusAccess");
   assert.ok(admissions.includes("assertProgramScope(institutionId, actor, existing.programId)"), "status mutations must be scoped to the application program");
   assert.ok(admissions.includes('getEffectiveWorkspaceRole(actor) === "DIRECTOR"'), "a secondary Director role must not override a different active workspace");
-  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\\n      pagination"), "admission list API must receive the authenticated actor for scoping");
+  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\n      pagination"), "admission list API must receive the authenticated actor for scoping");
   assert.ok(admissionRoutes.includes("service.getApplication(requireInstitution(req), requireAuthenticatedUser(req), req.params.id)"), "admission detail API must receive the authenticated actor for scoping");
 });
