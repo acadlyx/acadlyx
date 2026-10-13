@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 
 import * as userService from "../services/user.service";
