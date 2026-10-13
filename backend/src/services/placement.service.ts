@@ -262,6 +262,7 @@ export async function transitionApplication(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const application = await prisma.application.findFirst({ where: { id, institutionId } });
   if (!application) throw new AppError("Placement application not found.", 404);
+  await assertCanViewStudent(institutionId, actor, application.studentId);
   const next = status.trim().toUpperCase();
   if (!APPLICATION_TRANSITIONS[application.status]?.includes(next)) {
     throw new AppError(`Invalid placement application transition: ${application.status} -> ${next}`, 409);
@@ -762,6 +763,7 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const application = await prisma.application.findFirst({ where: { id: input.applicationId, institutionId }, include: { student: { select: { id: true } }, opportunity: { select: { organization: true } } } });
   if (!application) throw new AppError("Application not found.", 404);
+  await assertCanViewStudent(institutionId, actor, application.student.id);
   if (!["INTERVIEW","OFFERED","ACCEPTED"].includes(application.status)) throw new AppError("Application is not in an offerable state.", 409);
   const company = await prisma.placementCompany.findFirst({ where: { institutionId, name: application.opportunity.organization }, select: { id: true } });
   if (!company) throw new AppError("Create the canonical company record before issuing an offer.", 409);
@@ -916,11 +918,36 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
-  return prisma.placementVisit.findMany({
-    where: { institutionId },
-    include: { company: { select: { id: true, name: true, logoUrl: true } }, drive: { select: { id: true, title: true, status: true } } },
+  const workspace = activeWorkspace(actor);
+  if (!["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","PLACEMENT"].includes(workspace)) {
+    return [];
+  }
+  const directorScope = workspace === "DIRECTOR";
+  const campusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && !campusIds.length) return [];
+  const departmentIds = ["DIRECTOR","DEAN","HOD"].includes(workspace)
+    ? await getAuthorizedDepartmentIds(institutionId, actor)
+    : null;
+  if (departmentIds && !departmentIds.length) return [];
+  const visits = await prisma.placementVisit.findMany({
+    where: {
+      institutionId,
+      ...(directorScope ? { drive: { campusId: { in: campusIds } } } : {}),
+    },
+    include: {
+      company: { select: { id: true, name: true, logoUrl: true } },
+      drive: { select: { id: true, title: true, status: true, campusId: true, eligibleDepartments: true } },
+    },
     orderBy: { startsAt: "asc" },
     take: 100,
+  });
+  if (!departmentIds) return visits;
+  const allowed = new Set(departmentIds);
+  return visits.filter((visit) => {
+    const departments = Array.isArray(visit.drive?.eligibleDepartments)
+      ? visit.drive.eligibleDepartments.filter((id): id is string => typeof id === "string")
+      : [];
+    return departments.length === 0 || departments.some((id) => allowed.has(id));
   });
 }
 
