@@ -8,7 +8,7 @@ import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboa
 import { useWorkspaceShellContext, WorkspaceShellProvider } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
-import { getCanonicalRoles, getPrimaryRole, normalizeRole } from "@/lib/authority";
+import { getPrimaryRole, normalizeRole } from "@/lib/authority";
 import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
@@ -146,15 +146,13 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   useEffect(() => {
     if (!user || !routeAuthReady) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
-    if (allowedRoles?.length) {
-      const canonicalRoles = getCanonicalRoles(roles);
-      if (!allowedRoles.some((role) => canonicalRoles.includes(normalizeRole(role)))) {
-        router.replace(workspaceHome(roles));
-        return;
-      }
+    const primaryRole = getPrimaryRole(roles);
+    if (allowedRoles?.length &&
+        !allowedRoles.some((role) => normalizeRole(role) === primaryRole)) {
+      router.replace(workspaceHome(roles));
+      return;
     }
     if (embeddedInWorkspaceShell) return;
-    const primaryRole = getPrimaryRole(roles);
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
   }, [pathname, router, user, routeAuthReady, allowedRolesKey, embeddedInWorkspaceShell]);
 

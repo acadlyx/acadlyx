@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
 import { publishDomainEvent } from "./domainEvent.service";
 import { AuthenticatedUser } from "../types/auth";
+import { assertCourseOfferingInScope, getAuthorizedDepartmentIds, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   assertOwnsCourseOffering,
   loadCourseOfferingOrThrow,
@@ -17,10 +18,29 @@ import {
   UpdateAssignmentInput,
 } from "../validators/assignment.validators";
 
-const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
-const isAdmin = (user: AuthenticatedUser) =>
-  user.roles.some((r) => ADMIN_ROLES.includes(r));
-const isFaculty = (user: AuthenticatedUser) => user.roles.includes("FACULTY");
+const isAdmin = (user: AuthenticatedUser) => ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user));
+const isScopedAcademicLead = (user: AuthenticatedUser) =>
+  ["DIRECTOR", "DEAN", "HOD"].includes(getEffectiveWorkspaceRole(user));
+const isFaculty = (user: AuthenticatedUser) => getEffectiveWorkspaceRole(user) === "FACULTY";
+const isStudent = (user: AuthenticatedUser) => getEffectiveWorkspaceRole(user) === "STUDENT";
+
+async function assertCanReviewOffering(
+  institutionId: string,
+  user: AuthenticatedUser,
+  assignment: { courseOfferingId: string; courseOffering: { facultyId: string | null } },
+): Promise<void> {
+  if (isAdmin(user)) return;
+  if (isFaculty(user)) {
+    assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+    return;
+  }
+  if (isScopedAcademicLead(user)) {
+    await assertCourseOfferingInScope(institutionId, user, assignment.courseOfferingId);
+    return;
+  }
+  throw new AppError("You are not allowed to review submissions for this course offering", 403);
+}
+
 
 const assignmentInclude = {
   courseOffering: {
@@ -59,19 +79,27 @@ export async function listAssignments(
   };
 
   if (isAdmin(user)) {
-    // no extra scoping
+    // Institution-wide authority is evaluated after narrow workspace roles.
   } else if (isFaculty(user)) {
     where = { ...where, courseOffering: { facultyId: user.id } };
-  } else {
-    const enrolledOfferingIds = await getStudentCourseOfferingIds(
-      institutionId,
-      user.id
-    );
+  } else if (isScopedAcademicLead(user)) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, user);
+    where = {
+      ...where,
+      courseOffering: {
+        semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } },
+      },
+    };
+  } else if (isStudent(user)) {
+    const enrolledOfferingIds = await getStudentCourseOfferingIds(institutionId, user.id);
     where = {
       ...where,
       status: "PUBLISHED",
       courseOfferingId: { in: enrolledOfferingIds },
     };
+  } else {
+    // Do not fall back to a student's personal enrolments for arbitrary roles.
+    where = { ...where, courseOfferingId: { in: [] } };
   }
 
   const [items, total] = await Promise.all([
@@ -107,12 +135,12 @@ export async function getAssignmentById(
   const assignment = await loadAssignmentOrThrow(institutionId, id);
 
   if (isAdmin(user)) return { ...assignment, mySubmission: null };
-  if (isFaculty(user)) {
-    assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+  if (isFaculty(user) || isScopedAcademicLead(user)) {
+    await assertCanReviewOffering(institutionId, user, assignment);
     return { ...assignment, mySubmission: null };
   }
 
-  // Student/parent: only if published and enrolled in that section.
+  // Student: only if published and enrolled in that section.
   if (assignment.status !== "PUBLISHED") {
     throw new AppError("Assignment not found", 404);
   }
@@ -168,7 +196,7 @@ export async function getSubmissionsForAssignment(
   assignmentId: string
 ) {
   const assignment = await loadAssignmentOrThrow(institutionId, assignmentId);
-  assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+  await assertCanReviewOffering(institutionId, user, assignment);
 
   const [roster, submissions] = await Promise.all([
     getCourseOfferingRoster(institutionId, assignment.courseOfferingId),
@@ -269,7 +297,7 @@ export async function reviewSubmission(
   input: ReviewSubmissionInput
 ) {
   const assignment = await loadAssignmentOrThrow(institutionId, assignmentId);
-  assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+  await assertCanReviewOffering(institutionId, user, assignment);
 
   if (input.marksAwarded > assignment.maxMarks) {
     throw new AppError(
@@ -401,7 +429,7 @@ export async function reopenSubmission(
   studentId: string,
 ) {
   const assignment = await loadAssignmentOrThrow(institutionId, assignmentId);
-  assertOwnsCourseOffering(user, assignment.courseOffering.facultyId);
+  await assertCanReviewOffering(institutionId, user, assignment);
   const submission = await prisma.assignmentSubmission.findUnique({
     where: { assignmentId_studentId: { assignmentId, studentId } },
   });

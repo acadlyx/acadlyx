@@ -4,16 +4,19 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
-import { getManagementWorkspace, getManagementWorkspaceSummary } from "./managementWorkspace.service";
-import { getManagedDepartmentIds, getDirectorDepartmentIds } from "./accessScope.service";
-
-const MANAGEMENT_ROLES = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "CHAIRMAN",
-  "ACCOUNTS",
-];
+import { getManagementWorkspace, getManagementWorkspaceSummary, getWorkspaceType } from "./managementWorkspace.service";
+import {
+  getManagedDepartmentIds,
+  getDirectorDepartmentIds,
+  getStaffDepartmentIds,
+  isInstitutionWide,
+  isInstitutionWideFinance,
+  isInstitutionWideAdmissions,
+  isInstitutionWideExamination,
+  hasScopedWorkspaceRole,
+  isDirectorScoped,
+  getEffectiveWorkspaceRole,
+} from "./accessScope.service";
 
 /** Evaluated per call: a module-level constant would freeze the weekday at process start. */
 const todayWeekday = () => new Date().getDay();
@@ -22,88 +25,123 @@ function assertRole(
   user: AuthenticatedUser,
   allowed: string[]
 ): void {
-  const actorRoles = getCanonicalRoleNames(user.roles);
-  const allowedRoles = getCanonicalRoleNames(allowed);
-  if (!actorRoles.some((role) => allowedRoles.includes(role))) {
+  const allowedRoles: string[] = getCanonicalRoleNames(allowed);
+  const effectiveRole = getEffectiveWorkspaceRole(user);
+
+  // Role-gated legacy ERP routes must honor the same single active workspace
+  // as navigation and the canonical module scope helpers. A secondary role
+  // can never be used as an alternate doorway into a different module.
+  if (!allowedRoles.includes(effectiveRole)) {
     throw new AppError(
-      "Not authorized for this ERP operation",
-      403
+      "Not authorized for this ERP operation in your active workspace",
+      403,
     );
   }
-}
-
-function hasAnyRole(
-  user: AuthenticatedUser,
-  roles: string[]
-): boolean {
-  const actorRoles = getCanonicalRoleNames(user.roles);
-  const allowedRoles = getCanonicalRoleNames(roles);
-  return actorRoles.some((role) => allowedRoles.includes(role));
 }
 
 async function assertDepartmentScope(
   institutionId: string,
   actor: AuthenticatedUser,
   courseOfferingId?: string,
-  departmentId?: string
+  departmentId?: string,
 ): Promise<void> {
-  if (!hasAnyRole(actor, ["HOD"])) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) && !["DIRECTOR","DEAN","HOD","FACULTY","STUDENT","PARENT","PLACEMENT"].includes(activeRole)) return;
+
+  let scopedDepartmentId = departmentId;
+  let assignedFacultyId: string | null = null;
+
+  if (courseOfferingId) {
+    const offering = await prisma.courseOffering.findFirst({
+      where: { id: courseOfferingId, institutionId, isActive: true },
+      select: { facultyId: true, course: { select: { departmentId: true } } },
+    });
+    if (!offering) throw new AppError("Course offering not found in this institution", 404);
+    scopedDepartmentId = offering.course.departmentId;
+    assignedFacultyId = offering.facultyId;
+  }
+
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
+      throw new AppError("This operation is outside your assigned campus scope", 403);
+    }
     return;
   }
 
-  let scopedDepartmentId = departmentId;
-
-  if (courseOfferingId) {
-    const offering =
-      await prisma.courseOffering.findFirst({
-        where: {
-          id: courseOfferingId,
-          institutionId,
-        },
-        select: {
-          course: {
-            select: {
-              departmentId: true,
-            },
-          },
-        },
-      });
-
-    if (!offering) {
-      throw new AppError(
-        "Course offering not found in this institution",
-        404
-      );
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    const allowed = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!scopedDepartmentId || !allowed.includes(scopedDepartmentId)) {
+      throw new AppError("This operation is outside your assigned department scope", 403);
     }
-
-    scopedDepartmentId =
-      offering.course.departmentId;
+    return;
   }
 
-  if (!scopedDepartmentId) {
-    throw new AppError(
-      "HOD actions require a department scope",
-      403
-    );
+  if (activeRole === "FACULTY") {
+    if (courseOfferingId) {
+      if (assignedFacultyId !== actor.id) {
+        throw new AppError("This course offering is outside your teaching assignment", 403);
+      }
+      return;
+    }
+    if (!departmentId) throw new AppError("Faculty actions require an assigned course offering or department", 403);
+    const staffDepartments = await getStaffDepartmentIds(institutionId, actor.id);
+    if (!staffDepartments.includes(departmentId)) {
+      throw new AppError("This operation is outside your assigned academic scope", 403);
+    }
+    return;
   }
 
-  const access =
-    await prisma.departmentAccess.findFirst({
-      where: {
-        userId: actor.id,
-        departmentId: scopedDepartmentId,
-        department: {
-          institutionId,
-        },
-      },
+  throw new AppError("This operation requires an institution-wide or assigned academic scope", 403);
+}
+/**
+ * Scope a legacy ERP course-offering query to the actor's effective workspace.
+ * Used by timetable and exam-list endpoints so the older ERP APIs follow the
+ * same department/campus/enrollment boundaries as canonical module APIs.
+ */
+async function getOfferingReadScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+): Promise<Prisma.CourseOfferingWhereInput> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) || isInstitutionWideExamination(actor)) return {};
+
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
+  }
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    return { course: { departmentId: { in: ids.length ? ids : ["__NO_AUTHORIZED_SCOPE__"] } } };
+  }
+  if (activeRole === "FACULTY") return { facultyId: actor.id };
+
+  if (activeRole === "STUDENT" || activeRole === "PARENT") {
+    const studentIds = activeRole === "STUDENT"
+      ? [actor.id]
+      : (await prisma.parentStudentLink.findMany({
+          where: { institutionId, parentId: actor.id },
+          select: { studentId: true },
+        })).map((row) => row.studentId);
+
+    if (!studentIds.length) return { id: { in: ["__NO_AUTHORIZED_SCOPE__"] } };
+
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { institutionId, userId: { in: studentIds }, status: "ACTIVE" },
+      select: { semesterId: true, sectionId: true },
     });
-
-  if (!access) {
-    throw new AppError(
-      "Department is outside your authorized scope",
-      403
-    );
+    const semesterIds = Array.from(new Set(enrollments.map((row) => row.semesterId).filter(Boolean))) as string[];
+    const sectionIds = Array.from(new Set(enrollments.map((row) => row.sectionId).filter(Boolean))) as string[];
+    if (!semesterIds.length && !sectionIds.length) return { id: { in: ["__NO_AUTHORIZED_SCOPE__"] } };
+    return {
+      OR: [
+        ...(semesterIds.length ? [{ semesterId: { in: semesterIds } }] : []),
+        ...(sectionIds.length ? [{ sectionId: { in: sectionIds } }] : []),
+      ],
+    };
   }
+
+  throw new AppError("This workspace has no course-offering read scope", 403);
 }
 
 async function assertStudentExists(
@@ -168,31 +206,39 @@ async function assertParentExists(
   }
 }
 
+async function assertFeeInvoiceScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+): Promise<void> {
+  if (isInstitutionWideFinance(actor)) {
+    if (getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" && actor.institutionId !== institutionId) {
+      throw new AppError("Fee data is outside your authorized institution scope", 403);
+    }
+    return;
+  }
+  await assertStudentScope(institutionId, actor, studentId);
+}
+
 async function assertStudentScope(
   institutionId: string,
   actor: AuthenticatedUser,
-  studentId: string
+  studentId: string,
 ): Promise<void> {
-  if (actor.id === studentId) {
-    return;
+  const effectiveRole = getEffectiveWorkspaceRole(actor);
+  if (effectiveRole !== "SUPER_ADMIN" && actor.institutionId !== institutionId) {
+    throw new AppError("Student data is outside your authorized scope", 403);
   }
+  if (actor.id === studentId) return;
 
-  const actorRoles = getCanonicalRoleNames(actor.roles);
+  // Scope is resolved before generic management roles. This prevents a
+  // secondary Admin/Accounts role from widening a Director, Dean, or HOD.
+  if (isInstitutionWide(actor)) return;
 
-  // Director is intentionally handled before the management-role shortcut.
-  // A DIRECTOR permission never grants institution-wide student access: the
-  // student's active enrollment must resolve to a department in an assigned
-  // campus, and the tenant must match the authenticated server-side identity.
-  if (actorRoles.includes("DIRECTOR")) {
-    if (actor.institutionId !== institutionId) {
+  const requireScopedEnrollment = async (departmentIds: string[]) => {
+    if (!departmentIds.length) {
       throw new AppError("Student data is outside your authorized scope", 403);
     }
-
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (departmentIds.length === 0) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
-
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: {
         institutionId,
@@ -202,30 +248,25 @@ async function assertStudentScope(
       },
       select: { id: true },
     });
+    if (!enrollment) throw new AppError("Student data is outside your authorized scope", 403);
+  };
 
-    if (!enrollment) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
+  if (effectiveRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    await requireScopedEnrollment(await getDirectorDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (hasAnyRole(actor, MANAGEMENT_ROLES)) {
-    // Institution-level management is still tenant-bound. Only the explicit
-    // platform administrator may cross the authenticated tenant boundary.
-    if (!actorRoles.includes("SUPER_ADMIN") && actor.institutionId !== institutionId) {
-      throw new AppError("Student data is outside your authorized scope", 403);
-    }
+  if (effectiveRole === "DEAN" || effectiveRole === "HOD") {
+    await requireScopedEnrollment(await getManagedDepartmentIds(institutionId, actor.id));
     return;
   }
 
-  if (actorRoles.includes("PARENT")) {
+  if (effectiveRole === "PARENT") {
     const linked = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
+      select: { parentId: true },
     });
-
-    if (linked) {
-      return;
-    }
+    if (linked) return;
   }
 
   throw new AppError("Student data is outside your authorized scope", 403);
@@ -336,7 +377,7 @@ async function getHodDepartments(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  if (!hasAnyRole(actor, ["HOD"])) return [];
+  if (getEffectiveWorkspaceRole(actor) !== "HOD") return [];
   const ids = await getManagedDepartmentIds(institutionId, actor.id);
   if (!ids.length) return [];
   return prisma.department.findMany({
@@ -370,22 +411,15 @@ export async function getMyWorkspace(
    * the authenticated role. Department/school-specific authority is not
    * inferred here; it is enforced by the underlying module APIs.
    */
-  if (
-    hasAnyRole(actor, [
-      "INSTITUTION_ADMIN",
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-      "REGISTRAR",
-    ])
-  ) {
+  const workspaceType = getWorkspaceType(actor);
+  if (["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR"].includes(workspaceType)) {
     return getManagementWorkspace(institutionId, actor);
   }
 
   /*
    * HOD
    */
-  if (actor.roles.includes("HOD")) {
+  if (getEffectiveWorkspaceRole(actor) === "HOD") {
     const departments =
       await getHodDepartments(
         institutionId,
@@ -648,7 +682,7 @@ export async function getMyWorkspace(
   /*
    * FACULTY
    */
-  if (actor.roles.includes("FACULTY")) {
+  if (getEffectiveWorkspaceRole(actor) === "FACULTY") {
     const offerings =
       await getFacultyOfferings(
         institutionId,
@@ -852,7 +886,7 @@ export async function getMyWorkspace(
   /*
    * PARENT
    */
-  if (actor.roles.includes("PARENT")) {
+  if (getEffectiveWorkspaceRole(actor) === "PARENT") {
     const children =
       await prisma.parentStudentLink.findMany({
         where: {
@@ -1028,7 +1062,7 @@ export async function getMyWorkspace(
   /*
    * STUDENT
    */
-  if (actor.roles.includes("STUDENT")) {
+  if (getEffectiveWorkspaceRole(actor) === "STUDENT") {
     const enrollment =
       await getStudentSection(
         institutionId,
@@ -1291,9 +1325,9 @@ export async function getMyWorkspace(
    * Specialists use focused KPI summaries at the workspace root. Detail
    * screens remain the source of truth and enforce their own permissions.
    */
-  const canonicalRoles = getCanonicalRoleNames(actor.roles);
+  const activeWorkspace = getEffectiveWorkspaceRole(actor);
 
-  if (canonicalRoles.includes("ACCOUNTS")) {
+  if (activeWorkspace === "ACCOUNTS" && isInstitutionWideFinance(actor)) {
     const [students, invoices, payments, invoiceTotals] =
       await Promise.all([
         prisma.user.count({
@@ -1326,7 +1360,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("HR")) {
+  if (activeWorkspace === "HR" && !hasScopedWorkspaceRole(actor)) {
     const [employees, activeEmployees, pendingLeave] = await Promise.all([
       prisma.employeeProfile.count({ where: { institutionId } }),
       prisma.employeeProfile.count({
@@ -1347,7 +1381,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("ADMISSIONS")) {
+  if (activeWorkspace === "ADMISSIONS" && isInstitutionWideAdmissions(actor)) {
     const [applications, submitted, selected, enrolled] = await Promise.all([
       prisma.admissionApplication.count({
         where: { institutionId },
@@ -1374,7 +1408,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("EXAMINATION")) {
+  if (activeWorkspace === "EXAMINATION" && isInstitutionWideExamination(actor)) {
     const [exams, upcomingExams, results] = await Promise.all([
       prisma.exam.count({ where: { institutionId } }),
       prisma.exam.count({
@@ -1396,7 +1430,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("LIBRARIAN")) {
+  if (activeWorkspace === "LIBRARIAN" && !hasScopedWorkspaceRole(actor)) {
     const [books, issued, overdue] = await Promise.all([
       prisma.libraryBook.count({
         where: { institutionId, isActive: true },
@@ -1423,7 +1457,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("PLACEMENT")) {
+  if (activeWorkspace === "PLACEMENT") {
     const [opportunities, applications] = await Promise.all([
       prisma.opportunity.count({
         where: { institutionId, isActive: true },
@@ -1442,7 +1476,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("IT")) {
+  if (activeWorkspace === "IT" && !hasScopedWorkspaceRole(actor)) {
     const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const [users, activeUsers, recentAuditEvents] = await Promise.all([
       prisma.user.count({ where: { institutionId } }),
@@ -1465,7 +1499,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CMS")) {
+  if (activeWorkspace === "CMS" && !hasScopedWorkspaceRole(actor)) {
     const [notices, notifications] = await Promise.all([
       prisma.notice.count({ where: { institutionId } }),
       prisma.notification.count({ where: { institutionId } }),
@@ -1480,7 +1514,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CLUB_PRESIDENT")) {
+  if (activeWorkspace === "CLUB_PRESIDENT" && !hasScopedWorkspaceRole(actor)) {
     const notifications = await prisma.notification.count({
       where: { institutionId, userId: actor.id },
     });
@@ -1640,12 +1674,36 @@ export async function createTimetableEntry(
   return row;
 }
 
-async function assertDirectorNoticeDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
-  if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;
-  const assignedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
-  if (!departmentId || !assignedDepartments.includes(departmentId)) {
-    throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+async function assertNoticeDepartmentScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  departmentId?: string | null,
+): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor)) return;
+
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    const assigned = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentId || !assigned.includes(departmentId)) {
+      throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
+    }
+    return;
   }
+
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    const assigned = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentId || !assigned.includes(departmentId)) {
+      throw new AppError("Dean/HOD notice actions must target an assigned department", 403);
+    }
+    return;
+  }
+
+  // CMS can publish institution-wide notices in its own tenant workspace.
+  // This is a module entitlement, not permission to browse other modules'
+  // institution-wide records.
+  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) return;
+
+  throw new AppError("Notice management is outside your authorized scope", 403);
 }
 
 export async function createNotice(
@@ -1668,19 +1726,11 @@ export async function createNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   if (!input.title?.trim()) {
     throw new AppError(
@@ -1696,14 +1746,7 @@ export async function createNotice(
     );
   }
 
-  await assertDirectorNoticeDepartment(institutionId, actor, input.departmentId);
-
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    input.departmentId
-  );
+  await assertNoticeDepartmentScope(institutionId, actor, input.departmentId);
 
   if (input.departmentId) {
     const department =
@@ -1762,7 +1805,6 @@ export async function createExam(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -1796,7 +1838,7 @@ export async function createExam(
     isActive: true,
   };
 
-  if (actor.roles.includes("FACULTY")) {
+  if (getEffectiveWorkspaceRole(actor) === "FACULTY") {
     offeringWhere.facultyId = actor.id;
   }
 
@@ -1847,7 +1889,6 @@ export async function upsertExamResult(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -1876,7 +1917,7 @@ export async function upsertExamResult(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     exam.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -1974,7 +2015,6 @@ export async function createInvoice(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
@@ -2187,8 +2227,9 @@ export async function linkParent(
   relationship?: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "ACCOUNTS",
+    "REGISTRAR",
   ]);
 
   if (parentId === studentId) {
@@ -2248,28 +2289,6 @@ export async function linkParent(
  * and add no new database requirements.
  * ============================================================ */
 
-async function getHodDepartmentIds(
-  institutionId: string,
-  actor: AuthenticatedUser
-): Promise<string[]> {
-  if (!actor.roles.includes("HOD")) {
-    return [];
-  }
-
-  const rows = await prisma.departmentAccess.findMany({
-    where: {
-      userId: actor.id,
-      department: {
-        institutionId,
-      },
-    },
-    select: {
-      departmentId: true,
-    },
-  });
-
-  return rows.map((row) => row.departmentId);
-}
 
 export async function listTimetableEntries(
   institutionId: string,
@@ -2283,42 +2302,21 @@ export async function listTimetableEntries(
     "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
+    "DEAN",
     "HOD",
     "ACCOUNTS",
     "FACULTY",
+    "STUDENT",
+    "PARENT",
   ]);
 
-  const hodDepartmentIds = actor.roles.includes("HOD")
-    ? await getManagedDepartmentIds(institutionId, actor.id)
-    : [];
-
+  const offeringScope = await getOfferingReadScope(institutionId, actor);
   return prisma.timetableEntry.findMany({
     where: {
       institutionId,
-      ...(filters.dayOfWeek !== undefined
-        ? { dayOfWeek: filters.dayOfWeek }
-        : {}),
-      ...(filters.courseOfferingId
-        ? { courseOfferingId: filters.courseOfferingId }
-        : {}),
-      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              ...(actor.roles.includes("HOD")
-                ? {
-                    course: {
-                      departmentId: {
-                        in: hodDepartmentIds,
-                      },
-                    },
-                  }
-                : {}),
-              ...(actor.roles.includes("FACULTY")
-                ? { facultyId: actor.id }
-                : {}),
-            },
-          }
-        : {}),
+      ...(filters.dayOfWeek !== undefined ? { dayOfWeek: filters.dayOfWeek } : {}),
+      ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
+      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
     },
     include: {
       courseOffering: {
@@ -2563,133 +2561,94 @@ export async function deleteTimetableEntry(
 export async function listNotices(
   institutionId: string,
   actor: AuthenticatedUser,
-  includeExpired = true
+  includeExpired = true,
 ) {
-  const roles = actor.roles.map((role) => role.toUpperCase());
+  if (!actor.permissions.includes("notices.read")) {
+    throw new AppError("Notice read permission is required", 403);
+  }
+
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const institutionWide = isInstitutionWide(actor);
   const now = new Date();
 
-  const isStudent = roles.includes("STUDENT");
-  const isParent = roles.includes("PARENT");
-  const isFaculty = roles.includes("FACULTY");
-  const isHod = roles.includes("HOD");
-  const isDirectorWorkspace = roles.includes("DIRECTOR") && !roles.includes("CHAIRMAN");
+  // Module audience and data scope are derived from one effective workspace,
+  // never from the union of secondary role bindings.
+  const isDirectorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor);
+  const isDeanWorkspace = !institutionWide && activeRole === "DEAN";
+  const isHod = !institutionWide && activeRole === "HOD";
+  const isFaculty = !institutionWide && activeRole === "FACULTY";
+  const isStudent = !institutionWide && activeRole === "STUDENT";
+  const isParent = !institutionWide && activeRole === "PARENT";
 
-  if (
-    !isStudent &&
-    !isParent &&
-    !isFaculty &&
-    !isHod &&
-    !hasAnyRole(actor, [
-      "SUPER_ADMIN",
-      "INSTITUTION_ADMIN",
-      "DIRECTOR",
-      "CHAIRMAN",
-      "MANAGEMENT",
-      "DEAN",
-      "REGISTRAR",
-      "ACCOUNTS",
-      "HR",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
-      "PLACEMENT",
-      "IT",
-      "CMS",
-      "CLUB_PRESIDENT",
-      "STAFF",
-    ])
-  ) {
+  const canReadNoticeWorkspace = institutionWide || isDirectorWorkspace ||
+    isDeanWorkspace || isHod || isFaculty || isStudent || isParent ||
+    ["ACCOUNTS", "PLACEMENT", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+      .includes(activeRole);
+  if (!canReadNoticeWorkspace) {
     throw new AppError("You are not allowed to view notices", 403);
   }
 
   let departmentIds: string[] = [];
-
-  if (isStudent) {
-    const enrollment = await prisma.studentEnrollment.findFirst({
-      where: {
-        institutionId,
-        userId: actor.id,
-        status: "ACTIVE",
-      },
-      orderBy: { academicYear: { startDate: "desc" } },
-      select: {
-        program: { select: { departmentId: true } },
-      },
+  if (isDirectorWorkspace) {
+    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  } else if (isDeanWorkspace || isHod) {
+    departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+  } else if (isFaculty) {
+    departmentIds = await getStaffDepartmentIds(institutionId, actor.id);
+  } else if (isStudent) {
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { institutionId, userId: actor.id, status: "ACTIVE" },
+      select: { program: { select: { departmentId: true } } },
     });
-
-    if (enrollment?.program.departmentId) {
-      departmentIds = [enrollment.program.departmentId];
-    }
+    departmentIds = Array.from(new Set(enrollments.map((row) => row.program.departmentId)));
   } else if (isParent) {
     const links = await prisma.parentStudentLink.findMany({
-      where: {
-        institutionId,
-        parentId: actor.id,
-      },
+      where: { institutionId, parentId: actor.id },
       select: {
         student: {
           select: {
             studentEnrollments: {
               where: { institutionId, status: "ACTIVE" },
-              orderBy: { academicYear: { startDate: "desc" } },
-              take: 1,
-              select: {
-                program: { select: { departmentId: true } },
-              },
+              select: { program: { select: { departmentId: true } } },
             },
           },
         },
       },
     });
-
-    departmentIds = Array.from(
-      new Set(
-        links.flatMap((link) =>
-          link.student.studentEnrollments.map(
-            (enrollment) => enrollment.program.departmentId,
-          ),
-        ),
-      ),
-    );
-  } else if (isHod) {
-    departmentIds = await getHodDepartmentIds(institutionId, actor);
-  } else if (isDirectorWorkspace) {
-    departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    departmentIds = Array.from(new Set(
+      links.flatMap((link) => link.student.studentEnrollments.map((enrollment) => enrollment.program.departmentId)),
+    ));
   }
 
-  const audience =
-    isStudent
-      ? ["ALL", "STUDENT", "STUDENTS"]
-      : isParent
-        ? ["ALL", "PARENT", "PARENTS"]
-        : isFaculty
-          ? ["ALL", "FACULTY", "TEACHERS"]
-          : isHod
-            ? ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"]
-            : undefined;
+  let audience: string[] | undefined;
+  if (isStudent) audience = ["ALL", "STUDENT", "STUDENTS"];
+  else if (isParent) audience = ["ALL", "PARENT", "PARENTS"];
+  else if (isFaculty) audience = ["ALL", "FACULTY", "TEACHERS"];
+  else if (isHod) audience = ["ALL", "HOD", "STAFF", "FACULTY", "TEACHERS"];
+  else if (isDeanWorkspace) audience = ["ALL", "DEAN", "STAFF", "FACULTY", "TEACHERS"];
+  else if (isDirectorWorkspace) audience = ["ALL", "DIRECTOR", "STAFF", "FACULTY", "TEACHERS"];
+  else if (!institutionWide) {
+    const workspaceAudience = ["ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "CLUB_PRESIDENT", "STAFF"]
+      .includes(activeRole) ? activeRole : undefined;
+    if (workspaceAudience) audience = ["ALL", workspaceAudience];
+  }
 
   const andFilters: Prisma.NoticeWhereInput[] = [];
   if (!includeExpired) {
     andFilters.push({ OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
   }
-  if (audience) {
-    andFilters.push({ audience: { in: audience } });
-  }
-  if (isHod || isStudent || isParent) {
+  if (audience) andFilters.push({ audience: { in: audience } });
+
+  // All non-wide workspaces are limited to broadcasts and notices targeted
+  // at their assigned departments. An unassigned account sees broadcasts only.
+  if (!institutionWide) {
     const audienceDepartments: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
     if (departmentIds.length) audienceDepartments.push({ departmentId: { in: departmentIds } });
     andFilters.push({ OR: audienceDepartments });
   }
-  if (isDirectorWorkspace) {
-    const directorNoticeScope: Prisma.NoticeWhereInput[] = [{ departmentId: null }];
-    if (departmentIds.length) directorNoticeScope.push({ departmentId: { in: departmentIds } });
-    andFilters.push({ OR: directorNoticeScope });
-  }
-
-  const where: Prisma.NoticeWhereInput = { institutionId, AND: andFilters };
 
   return prisma.notice.findMany({
-    where,
+    where: { institutionId, AND: andFilters },
     orderBy: { publishedAt: "desc" },
   });
 }
@@ -2715,19 +2674,11 @@ export async function updateNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   const existing = await prisma.notice.findFirst({
     where: {
@@ -2745,15 +2696,8 @@ export async function updateNotice(
       ? existing.departmentId
       : input.departmentId;
 
-  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
-  await assertDirectorNoticeDepartment(institutionId, actor, departmentId);
-
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    departmentId || undefined
-  );
+  await assertNoticeDepartmentScope(institutionId, actor, existing.departmentId);
+  await assertNoticeDepartmentScope(institutionId, actor, departmentId);
 
   if (departmentId) {
     const department = await prisma.department.findFirst({
@@ -2821,19 +2765,11 @@ export async function deleteNotice(
     "DEAN",
     "REGISTRAR",
     "HOD",
-    "FACULTY",
-    "ACCOUNTS",
-    "HR",
-    "ADMISSIONS",
-    "EXAMINATION",
-    "LIBRARIAN",
-    "PLACEMENT",
-    "IT",
     "CMS",
-    "PARENT",
-    "CLUB_PRESIDENT",
-    "STAFF",
   ]);
+  if (!actor.permissions.includes("notices.manage")) {
+    throw new AppError("Notice management permission is required", 403);
+  }
 
   const existing = await prisma.notice.findFirst({
     where: {
@@ -2846,14 +2782,7 @@ export async function deleteNotice(
     throw new AppError("Notice not found", 404);
   }
 
-  await assertDirectorNoticeDepartment(institutionId, actor, existing.departmentId);
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    undefined,
-    existing.departmentId || undefined
-  );
-
+  await assertNoticeDepartmentScope(institutionId, actor, existing.departmentId);
   await prisma.notice.delete({
     where: { id },
   });
@@ -2875,43 +2804,23 @@ export async function listExams(
   courseOfferingId?: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
+    "DEAN",
     "HOD",
     "ACCOUNTS",
     "FACULTY",
+    "STUDENT",
+    "PARENT",
+    "EXAMINATION",
   ]);
 
-  const hodDepartmentIds = await getHodDepartmentIds(
-    institutionId,
-    actor
-  );
-
+  const offeringScope = await getOfferingReadScope(institutionId, actor);
   return prisma.exam.findMany({
     where: {
       institutionId,
-      ...(courseOfferingId
-        ? { courseOfferingId }
-        : {}),
-      ...(actor.roles.includes("HOD") || actor.roles.includes("FACULTY")
-        ? {
-            courseOffering: {
-              ...(actor.roles.includes("HOD")
-                ? {
-                    course: {
-                      departmentId: {
-                        in: hodDepartmentIds,
-                      },
-                    },
-                  }
-                : {}),
-              ...(actor.roles.includes("FACULTY")
-                ? { facultyId: actor.id }
-                : {}),
-            },
-          }
-        : {}),
+      ...(courseOfferingId ? { courseOfferingId } : {}),
+      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
     },
     include: {
       courseOffering: {
@@ -3000,7 +2909,7 @@ export async function getExamDetails(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     exam.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -3009,24 +2918,25 @@ export async function getExamDetails(
     );
   }
 
-  await assertDepartmentScope(
-    institutionId,
-    actor,
-    exam.courseOfferingId
-  );
+  if (!isInstitutionWideExamination(actor)) {
+    await assertDepartmentScope(institutionId, actor, exam.courseOfferingId);
+  }
 
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (
-    !hasAnyRole(actor, [
+    ![
       "INSTITUTION_ADMIN",
       "DIRECTOR",
       "CHAIRMAN",
+      "DEAN",
       "HOD",
       "ACCOUNTS",
       "FACULTY",
-    ])
+      "EXAMINATION",
+    ].includes(activeRole)
   ) {
     throw new AppError(
-      "Not authorized for this ERP operation",
+      "The active workspace cannot access this ERP examination operation",
       403
     );
   }
@@ -3045,7 +2955,6 @@ export async function updateExam(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -3065,7 +2974,7 @@ export async function updateExam(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     existing.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -3143,7 +3052,6 @@ export async function deleteExam(
   id: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "HOD",
     "FACULTY",
   ]);
@@ -3168,7 +3076,7 @@ export async function deleteExam(
   }
 
   if (
-    actor.roles.includes("FACULTY") &&
+    getEffectiveWorkspaceRole(actor) === "FACULTY" &&
     existing.courseOffering.facultyId !== actor.id
   ) {
     throw new AppError(
@@ -3210,10 +3118,10 @@ export async function listFeeInvoices(
   actor: AuthenticatedUser,
   filters: { studentId?: string; status?: string } = {}
 ) {
-  const roles = getCanonicalRoleNames(actor.roles);
-  const institutionWide = roles.some(role => ["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","ACCOUNTS"].includes(role));
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const institutionWide = isInstitutionWideFinance(actor);
 
-  if (!institutionWide && !roles.some(role => ["DIRECTOR","DEAN","HOD"].includes(role))) {
+  if (!institutionWide && !["DIRECTOR","DEAN","HOD"].includes(activeRole)) {
     throw new AppError("Not authorized to view fee invoices", 403);
   }
 
@@ -3223,14 +3131,22 @@ export async function listFeeInvoices(
     ...(filters.status ? { status: filters.status } : {}),
   };
 
-  if (!institutionWide && roles.includes("DIRECTOR")) {
+  if (!institutionWide && isDirectorScoped(actor)) {
     const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) throw new AppError("No campus scope is assigned to this director", 403);
-    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
-  } else if (!institutionWide && (roles.includes("DEAN") || roles.includes("HOD"))) {
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  } else if (!institutionWide && (activeRole === "DEAN" || activeRole === "HOD")) {
     const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) throw new AppError("No department scope is assigned to this account", 403);
-    where.student = { studentEnrollments: { some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } } } };
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
   }
 
   return prisma.feeInvoice.findMany({
@@ -3275,30 +3191,14 @@ export async function getFeeInvoice(
     throw new AppError("Invoice not found", 404);
   }
 
-  await assertStudentScope(
-    institutionId,
-    actor,
-    invoice.studentId
-  );
+  await assertFeeInvoiceScope(institutionId, actor, invoice.studentId);
 
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (
     actor.id !== invoice.studentId &&
-    !actor.roles.some((role) =>
-      [
-        "INSTITUTION_ADMIN",
-        "DIRECTOR",
-        "CHAIRMAN",
-        "ACCOUNTS",
-        "DEAN",
-        "HOD",
-        "PARENT",
-      ].includes(role)
-    )
+    !["SUPER_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","ACCOUNTS","PARENT"].includes(activeRole)
   ) {
-    throw new AppError(
-      "Not authorized to view this invoice",
-      403
-    );
+    throw new AppError("Not authorized to view this invoice", 403);
   }
 
   const paid = invoice.payments.reduce(
@@ -3327,7 +3227,6 @@ export async function updateFeeInvoice(
   }
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
@@ -3405,7 +3304,6 @@ export async function deleteFeeInvoice(
   id: string
 ) {
   assertRole(actor, [
-    "INSTITUTION_ADMIN",
     "ACCOUNTS",
   ]);
 
@@ -3455,19 +3353,43 @@ export async function listParentLinks(
   studentId?: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
     "DIRECTOR",
     "CHAIRMAN",
-    "ACCOUNTS",
+    "DEAN",
+    "HOD",
+    "REGISTRAR",
   ]);
 
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const where: Prisma.ParentStudentLinkWhereInput = {
+    institutionId,
+    ...(studentId ? { studentId } : {}),
+  };
+
+  // Directors can inspect parent links only for students in active enrollments
+  // in departments belonging to explicitly assigned active campuses.
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return [];
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  } else if (!isInstitutionWide(actor) && (activeRole === "DEAN" || activeRole === "HOD")) {
+    const departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) return [];
+    where.student = {
+      studentEnrollments: {
+        some: { institutionId, status: "ACTIVE", program: { departmentId: { in: departmentIds } } },
+      },
+    };
+  }
+
   return prisma.parentStudentLink.findMany({
-    where: {
-      institutionId,
-      ...(studentId
-        ? { studentId }
-        : {}),
-    },
+    where,
     include: {
       parent: {
         select: {
@@ -3505,8 +3427,9 @@ export async function deleteParentLink(
   studentId: string
 ) {
   assertRole(actor, [
+    "SUPER_ADMIN",
     "INSTITUTION_ADMIN",
-    "ACCOUNTS",
+    "REGISTRAR",
   ]);
 
   const existing = await prisma.parentStudentLink.findFirst({

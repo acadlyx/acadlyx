@@ -3,7 +3,13 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
-import { assertCanViewStudent } from "./accessScope.service";
+import {
+  assertCanViewStudent,
+  assertCanViewUserRecord,
+  isDirectorScoped,
+  isInstitutionWide,
+  getEffectiveWorkspaceRole,
+} from "./accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import { recordAuditLog } from "./audit.service";
 import { getCanonicalRoleNames } from "../config/rbac";
@@ -11,16 +17,16 @@ import { getCanonicalRoleNames } from "../config/rbac";
 type PortalActor = {
   id: string;
   roles: string[];
+  permissions?: string[];
+  institutionId?: string | null;
 };
 
-const managementRoles = new Set([
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "DIRECTOR",
-  "CHAIRMAN",
-  "HOD",
-  "ACCOUNTS",
-]);
+function isScopedPortalManager(actor: PortalActor): boolean {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  return !isInstitutionWide(actor) &&
+    ((activeRole === "DIRECTOR" && isDirectorScoped(actor)) ||
+      activeRole === "DEAN" || activeRole === "HOD");
+}
 
 function assertActor(actor: PortalActor): void {
   if (!actor?.id) {
@@ -29,15 +35,111 @@ function assertActor(actor: PortalActor): void {
 }
 
 function isManagement(actor: PortalActor): boolean {
-  return getCanonicalRoleNames(actor.roles).some((role) => managementRoles.has(role));
+  // Parent/HR/Accounts/Examination role grants do not imply generic access to
+  // the parent/student portal. Scoped academic leads are permitted only with
+  // record-level scope enforced by assertPortalUserTargetScope.
+  return isInstitutionWide(actor) || isScopedPortalManager(actor);
+}
+
+function toScopeActor(institutionId: string, actor: PortalActor) {
+  return {
+    id: actor.id,
+    institutionId,
+    email: "",
+    roles: getCanonicalRoleNames(actor.roles),
+    permissions: [],
+  };
+}
+
+async function assertPortalStudentAccess(
+  institutionId: string,
+  actor: PortalActor,
+  studentId: string,
+): Promise<void> {
+  if (isParent(actor)) {
+    await assertParentChildAccess(institutionId, actor.id, studentId);
+    return;
+  }
+  if (isStudent(actor)) {
+    await assertStudentSelfAccess(institutionId, actor.id, studentId);
+    return;
+  }
+  if (isInstitutionWide(actor) || isScopedPortalManager(actor)) {
+    await assertCanViewStudent(institutionId, toScopeActor(institutionId, actor), studentId);
+    return;
+  }
+  throw new AppError("Student portal access is outside your authorized workspace", 403);
+}
+
+async function assertPortalUserTargetScope(
+  institutionId: string,
+  actor: PortalActor,
+  targetUserId: string,
+): Promise<void> {
+  if (actor.id === targetUserId || isInstitutionWide(actor)) return;
+
+  const target = await assertInstitutionUser(institutionId, targetUserId);
+  const targetRoles = getCanonicalRoleNames(target.userRoles.map((binding) => binding.role.name));
+  if (getEffectiveWorkspaceRole({ roles: targetRoles }) === "STUDENT") {
+    await assertPortalStudentAccess(institutionId, actor, targetUserId);
+    return;
+  }
+
+  if (!isScopedPortalManager(actor)) {
+    throw new AppError("This user is outside your authorized portal scope", 403);
+  }
+  await assertCanViewUserRecord(institutionId, toScopeActor(institutionId, actor), targetUserId);
 }
 
 function isParent(actor: PortalActor): boolean {
-  return actor.roles.includes("PARENT");
+  return getEffectiveWorkspaceRole(actor) === "PARENT";
 }
 
 function isStudent(actor: PortalActor): boolean {
-  return actor.roles.includes("STUDENT");
+  return getEffectiveWorkspaceRole(actor) === "STUDENT";
+}
+
+function hasPortalPermission(actor: PortalActor, permissions: readonly string[]): boolean {
+  const granted = actor.permissions ?? [];
+  return permissions.some((permission) => granted.includes(permission));
+}
+
+function canReadStudentPortalDomain(
+  actor: PortalActor,
+  domain: "attendance" | "assignments" | "fees" | "marks" | "exams",
+): boolean {
+  const role = getEffectiveWorkspaceRole(actor);
+  // The student and linked parent may always read the corresponding child's
+  // own portal modules; non-owner workspaces need both an appropriate active
+  // role and the module's read/manage permission.
+  if (role === "STUDENT" || role === "PARENT") return true;
+
+  const policy: Record<typeof domain, { roles: readonly string[]; permissions: readonly string[] }> = {
+    attendance: {
+      roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY"],
+      permissions: ["attendance.read", "attendance.mark", "attendance.manage"],
+    },
+    assignments: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY"],
+      permissions: ["assignments.read", "assignments.manage", "assignments.review"],
+    },
+    fees: {
+      // Institution Admin is intentionally excluded from finance and invoice data.
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS"],
+      permissions: ["fees.read", "fees.invoice.read", "fees.manage", "payments.manage"],
+    },
+    marks: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY", "EXAMINATION"],
+      permissions: ["marks.read", "results.read", "results.manage", "exams.read", "exams.manage"],
+    },
+    exams: {
+      roles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "FACULTY", "EXAMINATION"],
+      permissions: ["exams.read", "exams.manage", "results.read", "marks.read"],
+    },
+  };
+
+  return policy[domain].roles.includes(role) &&
+    hasPortalPermission(actor, policy[domain].permissions);
 }
 
 async function assertInstitutionUser(
@@ -133,34 +235,6 @@ async function assertStudentSelfAccess(
 }
 
 
-async function assertHodStudentAccess(
-  institutionId: string,
-  actorId: string,
-  studentId: string
-): Promise<void> {
-  const actor = await prisma.user.findFirst({
-    where: { id: actorId, institutionId, isActive: true },
-    select: {
-      id: true,
-      userRoles: {
-        select: {
-          role: { select: { name: true } },
-        },
-      },
-    },
-  });
-  if (!actor) throw new AppError("User not found", 404);
-
-  await assertCanViewStudent(
-    institutionId,
-    {
-      ...actor,
-      roles: actor.userRoles.map((binding) => binding.role.name),
-      permissions: [],
-    } as any,
-    studentId,
-  );
-}
 
 async function assertStudentExists(
   institutionId: string,
@@ -801,22 +875,16 @@ export async function getParentChildren(
 ) {
   assertActor(actor);
 
-  if (!isParent(actor) && !isManagement(actor)) {
-    throw new AppError(
-      "Parent portal access required",
-      403
-    );
+  if (!isParent(actor)) {
+    throw new AppError("Parent portal access is available only to the active Parent workspace", 403);
   }
 
+  const parentLinksWhere: Prisma.ParentStudentLinkWhereInput = {
+    institutionId,
+    parentId: actor.id,
+  };
   const links = await prisma.parentStudentLink.findMany({
-    where: {
-      institutionId,
-      ...(isParent(actor)
-        ? {
-            parentId: actor.id,
-          }
-        : {}),
-    },
+    where: parentLinksWhere,
     include: {
       student: {
         select: {
@@ -834,6 +902,11 @@ export async function getParentChildren(
             },
           },
           studentEnrollments: {
+            where: {
+              institutionId,
+              status: "ACTIVE",
+
+            },
             orderBy: {
               enrolledAt: "desc",
             },
@@ -940,30 +1013,7 @@ export async function getStudentPortal(
 ) {
   assertActor(actor);
 
-  if (isParent(actor)) {
-    await assertParentChildAccess(
-      institutionId,
-      actor.id,
-      studentId
-    );
-  } else if (isStudent(actor)) {
-    await assertStudentSelfAccess(
-      institutionId,
-      actor.id,
-      studentId
-    );
-  } else if (actor.roles.includes("HOD")) {
-    await assertHodStudentAccess(
-      institutionId,
-      actor.id,
-      studentId
-    );
-  } else if (!isManagement(actor)) {
-    throw new AppError(
-      "Student portal access denied",
-      403
-    );
-  }
+  await assertPortalStudentAccess(institutionId, actor, studentId);
 
   const student = await assertStudentExists(
     institutionId,
@@ -982,30 +1032,22 @@ export async function getStudentPortal(
     courseOfferings,
     parents,
   ] = await Promise.all([
-    getStudentEnrollment(
-      institutionId,
-      studentId
-    ),
-    getAttendanceSummary(
-      institutionId,
-      studentId
-    ),
-    getMarksSummary(
-      institutionId,
-      studentId
-    ),
-    getAssignmentSummary(
-      institutionId,
-      studentId
-    ),
-    getFeeSummary(
-      institutionId,
-      studentId
-    ),
-    getExamSummary(
-      institutionId,
-      studentId
-    ),
+    getStudentEnrollment(institutionId, studentId),
+    canReadStudentPortalDomain(actor, "attendance")
+      ? getAttendanceSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "marks")
+      ? getMarksSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "assignments")
+      ? getAssignmentSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "fees")
+      ? getFeeSummary(institutionId, studentId)
+      : [],
+    canReadStudentPortalDomain(actor, "exams")
+      ? getExamSummary(institutionId, studentId)
+      : [],
     getDocumentsForOwner(
       institutionId,
       studentId
@@ -1097,11 +1139,8 @@ export async function getParentDashboard(
 ) {
   assertActor(actor);
 
-  if (!isParent(actor) && !isManagement(actor)) {
-    throw new AppError(
-      "Parent portal access required",
-      403
-    );
+  if (!isParent(actor)) {
+    throw new AppError("Parent dashboard is available only to the active Parent workspace", 403);
   }
 
   const children = await getParentChildren(
@@ -1261,6 +1300,7 @@ export async function createNotification(
       institutionId,
       input.userId
     );
+  await assertPortalUserTargetScope(institutionId, actor, recipient.id);
 
   const notification =
     await prisma.notification.create({
@@ -1332,6 +1372,11 @@ export async function createBulkNotifications(
       400
     );
   }
+  if (!isInstitutionWide(actor)) {
+    await Promise.all(recipients.map((recipient) =>
+      assertPortalUserTargetScope(institutionId, actor, recipient.id)
+    ));
+  }
 
   const result =
     await prisma.notification.createMany({
@@ -1380,24 +1425,7 @@ export async function listStudentDocuments(
 ) {
   assertActor(actor);
 
-  if (isParent(actor)) {
-    await assertParentChildAccess(
-      institutionId,
-      actor.id,
-      studentId
-    );
-  } else if (isStudent(actor)) {
-    await assertStudentSelfAccess(
-      institutionId,
-      actor.id,
-      studentId
-    );
-  } else if (!isManagement(actor)) {
-    throw new AppError(
-      "Document access denied",
-      403
-    );
-  }
+  await assertPortalStudentAccess(institutionId, actor, studentId);
 
   return getDocumentsForOwner(
     institutionId,
@@ -1429,6 +1457,7 @@ export async function createDocument(
       institutionId,
       input.ownerId
     );
+  await assertPortalUserTargetScope(institutionId, actor, owner.id);
 
   const document =
     await prisma.document.create({
@@ -1489,11 +1518,11 @@ export async function deleteDocument(
   const ownerAllowed =
     document.ownerId === actor.id;
 
-  if (!isManagement(actor) && !ownerAllowed) {
-    throw new AppError(
-      "You do not have permission to delete this document",
-      403
-    );
+  if (!ownerAllowed) {
+    if (!isManagement(actor)) {
+      throw new AppError("You do not have permission to delete this document", 403);
+    }
+    await assertPortalUserTargetScope(institutionId, actor, document.ownerId);
   }
 
   await prisma.document.delete({

@@ -11,15 +11,18 @@ import { getCanonicalRoleNames } from "../config/rbac";
  * Scope is always derived server-side.
  */
 
+/**
+ * Roles that have general cross-module institutional record scope. Specialist
+ * workspaces (Accounts, Admissions, Examination) are intentionally excluded:
+ * each may be institution-wide inside its own module but must not inherit
+ * generic access to student profiles, user records, notices or other modules.
+ */
 export const INSTITUTION_WIDE_ROLES = [
+  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "MANAGEMENT",
   "REGISTRAR",
-  "ACCOUNTS",
-  "ADMISSIONS",
-  "EXAMINATION",
-  "SUPER_ADMIN",
 ];
 
 export function hasAnyRole(actor: Pick<AuthenticatedUser, "roles">, roles: readonly string[]): boolean {
@@ -27,8 +30,104 @@ export function hasAnyRole(actor: Pick<AuthenticatedUser, "roles">, roles: reado
   return canonical.some((role) => roles.includes(role));
 }
 
+/**
+ * Role bindings may contain legacy secondary roles. A broad secondary role
+ * must not erase a narrower assigned workspace. Chairman is the explicit
+ * exception: institution-wide Chairman authority intentionally wins over a
+ * legacy Director binding. Otherwise campus/department/class/ownership roles
+ * take precedence over institution-wide operational roles.
+ */
+const SCOPED_ROLES = [
+  "DIRECTOR",
+  "DEAN",
+  "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+] as const;
+
 export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): boolean {
-  return hasAnyRole(actor, INSTITUTION_WIDE_ROLES);
+  const roles = getCanonicalRoleNames(actor.roles);
+  if (roles.includes("CHAIRMAN")) return true;
+  if (roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]))) {
+    return false;
+  }
+  return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role));
+}
+
+/**
+ * Module-specific institution-wide authority. This is deliberately separate
+ * from isInstitutionWide(), which is used by generic student/user/record
+ * scope guards and must not treat specialist role grants as global directory
+ * access. Chairman is the explicit institution-wide override.
+ */
+export function hasScopedWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  const roles = getCanonicalRoleNames(actor.roles);
+  return roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]));
+}
+
+/**
+ * The active workspace is derived from the same priority as the frontend.
+ * A permission from a secondary role cannot silently switch the request into
+ * a broader or different module. Keep this list aligned with frontend/authority.ts.
+ */
+const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
+  "CHAIRMAN",
+  "DIRECTOR",
+  "DEAN",
+  "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "MANAGEMENT",
+  "REGISTRAR",
+  "ACCOUNTS",
+  "HR",
+  "ADMISSIONS",
+  "EXAMINATION",
+  "LIBRARIAN",
+  "IT",
+  "CMS",
+  "CLUB_PRESIDENT",
+  "STAFF",
+] as const;
+
+export function getEffectiveWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): string {
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  return EFFECTIVE_WORKSPACE_ROLE_PRIORITY.find((role) => roles.has(role)) ?? "UNASSIGNED";
+}
+
+export function isInstitutionWideForRole(
+  actor: Pick<AuthenticatedUser, "roles">,
+  moduleRole: "ACCOUNTS" | "ADMISSIONS" | "EXAMINATION",
+): boolean {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const allowedByModule: Record<typeof moduleRole, readonly string[]> = {
+    // Institution Admin intentionally does not own Accounts/Fees.
+    ACCOUNTS: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
+    // Institution Admin may administer admissions, but this role must not
+    // grant generic finance or examination authority.
+    ADMISSIONS: ["SUPER_ADMIN", "CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
+    // Institution Admin intentionally does not own Exams/Examination.
+    EXAMINATION: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
+  };
+  return allowedByModule[moduleRole].includes(activeRole);
+}
+
+export function isInstitutionWideFinance(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "ACCOUNTS");
+}
+
+export function isInstitutionWideAdmissions(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "ADMISSIONS");
+}
+
+export function isInstitutionWideExamination(actor: Pick<AuthenticatedUser, "roles">): boolean {
+  return isInstitutionWideForRole(actor, "EXAMINATION");
 }
 
 /**
@@ -104,11 +203,14 @@ export async function assertCourseOfferingInScope(institutionId: string, actor: 
 
 
 export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
+  // Inactive departments are no longer part of an operational workspace.
+  // Keep the access rows for audit/history, but never grant live scope through
+  // a disabled or cross-institution department.
   const rows = await prisma.departmentAccess.findMany({
-    where: { userId, department: { institutionId } },
+    where: { userId, department: { institutionId, isActive: true } },
     select: { departmentId: true },
   });
-  return rows.map((row) => row.departmentId);
+  return Array.from(new Set(rows.map((row) => row.departmentId)));
 }
 
 /**
@@ -142,16 +244,15 @@ export async function getStudentWhereScope(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<Prisma.UserWhereInput> {
-  if (isDirectorScoped(actor)) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const departments = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return { studentEnrollments: { some: { institutionId, program: { departmentId: { in: departments } } } } };
   }
   if (actor.id && isInstitutionWide(actor)) return {};
 
-  const roles = getCanonicalRoleNames(actor.roles);
-
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const departments = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return {
@@ -164,7 +265,7 @@ export async function getStudentWhereScope(
     };
   }
 
-  if (roles.includes("FACULTY")) {
+  if (activeRole === "FACULTY") {
     const offerings = await prisma.courseOffering.findMany({
       where: { institutionId, facultyId: actor.id, isActive: true },
       select: { sectionId: true, semesterId: true },
@@ -180,12 +281,12 @@ export async function getStudentWhereScope(
     };
   }
 
-  if (roles.includes("STUDENT")) return { id: actor.id };
+  if (activeRole === "STUDENT") return { id: actor.id };
 
   // Placement Cell is not a generic institution-wide student directory.
   // Student access is limited to records that have an explicit placement
   // relationship: placement profile/snapshot or a placement application.
-  if (roles.includes("PLACEMENT")) {
+  if (activeRole === "PLACEMENT") {
     return {
       OR: [
         { placementProfile: { isNot: null } },
@@ -253,6 +354,55 @@ export async function assertHodCanReachUser(institutionId: string, actor: Authen
   }
 }
 
+/**
+ * Enforce record-level visibility for user-linked workflows (leave,
+ * user-account lifecycle, approval queues). A broad permission grants the
+ * action family, not visibility of every person's record.
+ */
+export async function assertCanViewUserRecord(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  targetUserId: string,
+): Promise<void> {
+  const target = await prisma.user.findFirst({
+    where: { id: targetUserId, institutionId },
+    select: {
+      id: true,
+      userRoles: { select: { role: { select: { name: true } } } },
+    },
+  });
+  if (!target) throw new AppError("User not found in this institution", 404);
+  if (actor.id === targetUserId) return;
+
+  const targetRoles = getCanonicalRoleNames(target.userRoles.map((binding) => binding.role.name));
+  if (getEffectiveWorkspaceRole({ roles: targetRoles }) === "STUDENT") {
+    await assertCanViewStudent(institutionId, actor, targetUserId);
+    return;
+  }
+
+  if (isInstitutionWide(actor)) return;
+
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  let allowedDepartmentIds: string[] = [];
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  } else if (activeRole === "DEAN" || activeRole === "HOD") {
+    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+  } else {
+    // Students, parents, placement staff, and faculty do not gain generic
+    // access to other employee/user records through a general read permission.
+    throw new AppError("This user is outside your authorized scope", 403);
+  }
+
+  if (allowedDepartmentIds.length === 0) {
+    throw new AppError("No department scope is assigned to this account", 403);
+  }
+  const targetDepartmentIds = await getStaffDepartmentIds(institutionId, targetUserId);
+  if (!targetDepartmentIds.some((id) => allowedDepartmentIds.includes(id))) {
+    throw new AppError("This user is outside your authorized scope", 403);
+  }
+}
+
 export async function assertCanViewStudent(institutionId: string, actor: AuthenticatedUser, studentId: string): Promise<void> {
   const student = await prisma.user.findFirst({
     where: { id: studentId, institutionId, userRoles: { some: { role: { name: "STUDENT" } } } },
@@ -260,7 +410,8 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
   if (actor.id === studentId) return;
-  if (isDirectorScoped(actor)) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const [allowedDepartments, studentDepartments] = await Promise.all([
       getDirectorDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -270,8 +421,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
   }
   if (isInstitutionWide(actor)) return;
 
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("PARENT")) {
+  if (activeRole === "PARENT") {
     const link = await prisma.parentStudentLink.findFirst({
       where: { institutionId, parentId: actor.id, studentId },
       select: { parentId: true },
@@ -279,7 +429,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (link) return;
   }
 
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const [managed, studentDepartments] = await Promise.all([
       getManagedDepartmentIds(institutionId, actor.id),
       getStudentDepartmentIds(institutionId, studentId),
@@ -287,7 +437,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (managed.length > 0 && studentDepartments.some((id) => managed.includes(id))) return;
   }
 
-  if (roles.includes("PLACEMENT")) {
+  if (activeRole === "PLACEMENT") {
     const eligible = await prisma.user.findFirst({
       where: {
         id: studentId,
@@ -303,7 +453,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
     if (eligible) return;
   }
 
-  if (roles.includes("FACULTY")) {
+  if (activeRole === "FACULTY") {
     const taught = await prisma.courseOffering.findFirst({
       where: {
         institutionId,

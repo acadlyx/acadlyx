@@ -44,27 +44,35 @@ export type DashboardId =
 
 const ROLE_ALIASES: Record<string, string> = {};
 
+/**
+ * Effective workspace priority matches backend scope enforcement:
+ * Chairman is the explicit institution-wide override; otherwise scoped
+ * academic/owner roles are resolved before secondary administrative grants.
+ * A secondary Institution Admin or specialist role must not switch a scoped
+ * account into a broader dashboard.
+ */
 const DASHBOARD_PRIORITY = [
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
   "CHAIRMAN",
-  "MANAGEMENT",
   "DIRECTOR",
   "DEAN",
-  "REGISTRAR",
   "HOD",
+  "FACULTY",
+  "STUDENT",
+  "PARENT",
+  "PLACEMENT",
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "MANAGEMENT",
+  "REGISTRAR",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
   "EXAMINATION",
   "LIBRARIAN",
-  "PLACEMENT",
   "IT",
   "CMS",
-  "FACULTY",
   "CLUB_PRESIDENT",
-  "STUDENT",
-  "PARENT",
+  "STAFF",
 ] as const;
 
 export function normalizeRole(
@@ -100,14 +108,7 @@ export function getPrimaryRole(
     );
 
   return (
-    DASHBOARD_PRIORITY.find(
-      (role) =>
-        canonical.includes(
-          role
-        )
-    ) ??
-    canonical[0] ??
-    null
+    DASHBOARD_PRIORITY.find((role) => canonical.includes(role)) ?? null
   );
 }
 
@@ -160,14 +161,10 @@ export function isDashboard(
 export function isSuperAdmin(
   user: AuthUser | null
 ): boolean {
-  return Boolean(
-    user?.roles.some(
-      (role) =>
-        normalizeRole(
-          role
-        ) === "SUPER_ADMIN"
-    )
-  );
+  // Use the same effective role selected for navigation and backend scope.
+  // A secondary Super Admin binding must never override a Student/Faculty/
+  // Director workspace for tenant-bound frontend decisions.
+  return Boolean(user && getPrimaryRole(user.roles) === "SUPER_ADMIN");
 }
 
 export function isSelf(

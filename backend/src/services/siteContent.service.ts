@@ -1,3 +1,4 @@
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
@@ -239,23 +240,13 @@ function mergeDefaults(
   );
 }
 
-function assertCanManageSiteContent(
-  actor: AuthenticatedUser,
-): void {
-  const isPlatformAdmin =
-    actor.roles.includes("SUPER_ADMIN");
+function assertCanManageSiteContent(actor: AuthenticatedUser): void {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const isPlatformAdmin = activeRole === "SUPER_ADMIN";
+  const isActiveCmsManager = activeRole === "CMS" && actor.permissions.includes("site.manage");
 
-  const hasCmsPermission =
-    actor.permissions.includes("site.manage");
-
-  if (
-    !isPlatformAdmin &&
-    !hasCmsPermission
-  ) {
-    throw new AppError(
-      "You are not allowed to manage website content",
-      403,
-    );
+  if (!isPlatformAdmin && !isActiveCmsManager) {
+    throw new AppError("Website content management requires the active CMS or Super Admin workspace",403);
   }
 }
 
@@ -301,7 +292,7 @@ export async function getSiteContent(
   assertCanManageSiteContent(actor);
 
   if (
-    !actor.roles.includes("SUPER_ADMIN") &&
+    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
     actor.institutionId !== institutionId
   ) {
     throw new AppError(
@@ -343,7 +334,7 @@ export async function updateSiteContent(
   assertCanManageSiteContent(actor);
 
   if (
-    !actor.roles.includes("SUPER_ADMIN") &&
+    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
     actor.institutionId !== institutionId
   ) {
     throw new AppError(

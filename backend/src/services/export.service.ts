@@ -1,6 +1,5 @@
 import * as XLSX from "xlsx";
 import { Prisma } from "@prisma/client";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { createCsv, createDocx, createPdf } from "./exportDocuments.service";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
@@ -9,8 +8,10 @@ import {
   getAuthorizedDepartmentIds,
   getDirectorCampusIds,
   isDirectorScoped,
+  isInstitutionWide,
+  isInstitutionWideFinance,
   getStudentWhereScope,
-  INSTITUTION_WIDE_ROLES,
+  getEffectiveWorkspaceRole,
 } from "./accessScope.service";
 
 export const EXPORT_TYPES = [
@@ -188,6 +189,10 @@ const DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES = new Set<ExportType>([
 ]);
 
 const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
+  // Examination has institution-wide authority within the examination domain,
+  // but not generic institution-wide access to student/user records.
+  exams: ["EXAMINATION"],
+  marks: ["EXAMINATION"],
   "library-books": ["LIBRARIAN"],
   "library-copies": ["LIBRARIAN"],
   "library-issues": ["LIBRARIAN"],
@@ -210,39 +215,66 @@ async function assertExportAccess(
   actor: AuthenticatedUser,
   type: ExportType,
 ): Promise<ExportActorScope> {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  // Scope-specific query branches consume only the active workspace role,
+  // never the union of secondary bindings.
+  const roles = new Set<string>([activeRole]);
   const permission = EXPORT_PERMISSION_BY_TYPE[type];
   const hasScopedFinanceExportPermission =
-    roles.has("DIRECTOR") &&
+    activeRole === "DIRECTOR" &&
     DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type) &&
     actor.permissions.includes("fees.reports.export");
   if (!permission || (!actor.permissions.includes(permission) && !hasScopedFinanceExportPermission)) {
     throw new AppError("You do not have permission to export this dataset", 403);
   }
-  const institutionWide = !isDirectorScoped(actor) && INSTITUTION_WIDE_ROLES.some((role) => roles.has(role));
+  // Institution Admin deliberately does not own Fees, Assignments or Exams.
+  // Do this before the generic institution-wide shortcut and before module
+  // role checks so secondary Accounts/Examination bindings cannot unlock them.
+  if (activeRole === "INSTITUTION_ADMIN" &&
+      (FINANCE_EXPORT_TYPES.has(type) || ["assignments","assignment-submissions","exams","marks"].includes(type))) {
+    throw new AppError("This export is not available in the Institution Admin workspace",403);
+  }
+
+  const institutionWide = isInstitutionWide(actor);
+  if (FINANCE_EXPORT_TYPES.has(type)) {
+    if (isInstitutionWideFinance(actor)) {
+      return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
+    }
+    if (!hasScopedFinanceExportPermission) {
+      throw new AppError("This finance export requires Accounts or an explicitly scoped Director permission",403);
+    }
+  }
   if (institutionWide) {
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
   const moduleRoles = MODULE_EXPORT_ROLES[type];
   if (moduleRoles) {
-    if (!moduleRoles.some((role) => roles.has(role))) {
-      throw new AppError("Export requires the corresponding module workspace role", 403);
+    if (!moduleRoles.includes(activeRole)) {
+      throw new AppError("Export requires the corresponding active module workspace",403);
     }
-    // These module exports have no reliable campus predicate. Never let a Director export them institution-wide.
-    if (isDirectorScoped(actor) && ["calendar-events", "institutional-events", "event-media"].includes(type)) {
-      throw new AppError("This export is not available until campus-scoped export data is available", 403);
+    // These module exports do not yet apply department/campus predicates.
+    // Only the active Placement workspace may export its own dataset here.
+    const scopedWorkspaceRoles = ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"];
+    const hasScopedWorkspace = scopedWorkspaceRoles.includes(activeRole);
+    const placementDataset = [
+      "placement-companies", "placement-drives", "placement-openings",
+      "placement-applications", "placement-offers",
+    ].includes(type);
+    const placementOnly = placementDataset && activeRole === "PLACEMENT";
+    if (!institutionWide && hasScopedWorkspace && !placementOnly) {
+      throw new AppError("This export does not yet support your assigned department/campus scope",403);
     }
     return { institutionWide: true, roles, departmentIds: [], campusIds: [], studentWhere: {} };
   }
-  const scopedAcademicRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY"].some((role) => roles.has(role));
+  const scopedAcademicRole = ["DIRECTOR", "DEAN", "HOD", "FACULTY"].includes(activeRole);
   if (!scopedAcademicRole) {
     throw new AppError("Export is not available for this role", 403);
   }
-  const directorScopedFinance = roles.has("DIRECTOR") && DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type);
+  const directorScopedFinance = activeRole === "DIRECTOR" && DIRECTOR_SCOPED_FINANCE_EXPORT_TYPES.has(type);
   if ((FINANCE_EXPORT_TYPES.has(type) && !directorScopedFinance) || type === "users") {
     throw new AppError("This export requires institution-wide finance or user-directory authority", 403);
   }
-  if (type === "campuses" && !roles.has("DIRECTOR")) {
+  if (type === "campuses" && activeRole !== "DIRECTOR") {
     throw new AppError("Campus export requires an assigned Director campus scope", 403);
   }
   if (!SCOPED_EXPORT_TYPES.has(type) && type !== "campuses" && !directorScopedFinance) {

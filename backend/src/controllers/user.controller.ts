@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
+import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 
 import * as userService from "../services/user.service";
 import * as userDeletionService from "../services/userDeletion.service";
@@ -35,20 +36,18 @@ function requireUser(req: Request) {
  * The route itself additionally uses users.read/users.create/users.update/
  * users.delete. This function protects the workspace-level boundary.
  */
+function hasInstitutionAdminWorkspace(user: NonNullable<Request["user"]>): boolean {
+  return getEffectiveWorkspaceRole(user) === "INSTITUTION_ADMIN";
+}
+
 function requireUserManagementRole(req: Request) {
   const user = requireUser(req);
-
-  const canManageUsers =
-    user.roles.includes("SUPER_ADMIN") ||
-    user.roles.includes("INSTITUTION_ADMIN");
+  const activeRole = getEffectiveWorkspaceRole(user);
+  const canManageUsers = activeRole === "SUPER_ADMIN" || hasInstitutionAdminWorkspace(user);
 
   if (!canManageUsers) {
-    throw new AppError(
-      "This account does not have user-management authority",
-      403,
-    );
+    throw new AppError("This account does not have user-management authority", 403);
   }
-
   return user;
 }
 
@@ -91,11 +90,9 @@ export const list = asyncHandler(
         ? undefined
         : req.query.isActive === "true";
 
-    const isSuperAdmin =
-      user.roles.includes("SUPER_ADMIN");
-
-    const isInstitutionAdmin =
-      user.roles.includes("INSTITUTION_ADMIN");
+    const activeRole = getEffectiveWorkspaceRole(user);
+    const isSuperAdmin = activeRole === "SUPER_ADMIN";
+    const isInstitutionAdmin = activeRole === "INSTITUTION_ADMIN";
 
     if (
       !isSuperAdmin &&
@@ -161,7 +158,7 @@ export const getById = asyncHandler(
       requireUserManagementRole(req);
 
     const isSuperAdmin =
-      user.roles.includes("SUPER_ADMIN");
+      getEffectiveWorkspaceRole(user) === "SUPER_ADMIN";
 
     const target =
       await userService.getUserById(

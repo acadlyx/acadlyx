@@ -5,16 +5,15 @@ import * as career from "../services/careerIntelligence.service";
 import { prisma } from "../lib/prisma";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
-import { assertCanViewStudent, getDirectorDepartmentIds } from "../services/accessScope.service";
+import { assertCanViewStudent, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 
 const user = (req: Request) => { if (!req.user) throw new AppError("Authentication required", 401); return req.user; };
-async function permittedDepartments(institutionId: string, userId: string, roles: string[]) {
-  // Chairman is institution-wide; Director is campus-scoped even if a legacy
-  // secondary institution-admin role remains on the same account.
-  if (roles.includes("CHAIRMAN")) return undefined;
-  if (roles.includes("DIRECTOR")) return getDirectorDepartmentIds(institutionId, userId);
-  if (roles.some(r => ["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"].includes(r))) return undefined;
-  return (await prisma.departmentAccess.findMany({ where: { userId, department: { institutionId } }, select: { departmentId: true } })).map(x => x.departmentId);
+async function permittedDepartments(institutionId: string, actor: ReturnType<typeof user>): Promise<string[] | undefined> {
+  // Share the canonical scope resolver with student, export, and workspace
+  // pipelines. Scoped roles (Dean/HOD/Director/Faculty) cannot be widened by
+  // a legacy secondary admin/management binding.
+  if (isInstitutionWide(actor)) return undefined;
+  return getAuthorizedDepartmentIds(institutionId, actor);
 }
 
 export const student = asyncHandler(async (req, res) => {
@@ -45,7 +44,7 @@ export const careerProfile = asyncHandler(async (req, res) => {
 });
 export const commandCenter = asyncHandler(async (req, res) => {
   const institutionId = requireInstitution(req); const actor = user(req);
-  const allowed = await permittedDepartments(institutionId, actor.id, actor.roles);
+  const allowed = await permittedDepartments(institutionId, actor);
   const requestedDepartment = typeof req.query.departmentId === "string" ? req.query.departmentId : undefined;
   if (requestedDepartment && allowed && !allowed.includes(requestedDepartment)) throw new AppError("Department not authorized", 403);
   const departmentId = requestedDepartment || (allowed?.length === 1 ? allowed[0] : undefined);

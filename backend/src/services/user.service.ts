@@ -14,11 +14,12 @@ import {
   UpdateUserInput,
 } from "../validators/user.validators";
 import { assertTenantQuota } from "./entitlement.service";
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 
 const SYSTEM_ROLE_SET = new Set<string>(SYSTEM_ROLE_NAMES);
 
 function isSuperAdmin(actor: AuthenticatedUser): boolean {
-  return actor.roles.includes("SUPER_ADMIN");
+  return getEffectiveWorkspaceRole(actor) === "SUPER_ADMIN";
 }
 
 /**
@@ -446,17 +447,15 @@ async function validateDepartmentIds(
   const ids = Array.from(new Set(departmentIds || []));
 
   if (departmentIds !== undefined && roleName === "HOD" && ids.length !== 1) {
-    throw new AppError(
-      "An HOD must be assigned to exactly one department",
-      400,
-    );
+    throw new AppError("An HOD must be assigned to exactly one department", 400);
   }
 
-  if (departmentIds !== undefined && roleName !== "HOD" && ids.length > 0) {
-    throw new AppError(
-      "Department access can only be assigned to HOD accounts",
-      400,
-    );
+  if (departmentIds !== undefined && roleName === "DEAN" && ids.length === 0) {
+    throw new AppError("A Dean must be assigned to at least one department", 400);
+  }
+
+  if (departmentIds !== undefined && !["HOD", "DEAN"].includes(roleName) && ids.length > 0) {
+    throw new AppError("Department access can only be assigned to Dean or HOD accounts", 400);
   }
 
   if (ids.length === 0) {
@@ -518,8 +517,16 @@ async function syncCampusAccess(tx: Prisma.TransactionClient, userId: string, in
     return;
   }
   if (campusIds === undefined) {
-    const count = await tx.campusAccess.count({ where: { userId, scope: "DIRECTOR", campus: { institutionId: institutionId || undefined } } });
-    if (!count) throw new AppError("A Director must have at least one campus assigned", 400);
+    const count = await tx.campusAccess.count({
+      where: {
+        userId,
+        scope: "DIRECTOR",
+        campus: { institutionId: institutionId || undefined, isActive: true },
+      },
+    });
+    if (!count) {
+      throw new AppError("A Director must have at least one active campus assigned", 400);
+    }
     return;
   }
   const ids = await validateCampusIds(campusIds, institutionId, roleName);
@@ -534,25 +541,32 @@ async function syncDepartmentAccess(
   roleName: string,
   departmentIds: string[] | undefined,
 ) {
-  if (roleName !== "HOD") {
-    await tx.departmentAccess.deleteMany({
-      where: { userId },
-    });
+  const hasDepartmentScope = roleName === "HOD" || roleName === "DEAN";
+  if (!hasDepartmentScope) {
+    await tx.departmentAccess.deleteMany({ where: { userId } });
     return;
   }
 
   if (departmentIds === undefined) {
-    const existing = await tx.departmentAccess.count({
-      where: { userId },
+    const existing = await tx.departmentAccess.findMany({
+      where: { userId, department: { institutionId: institutionId || undefined, isActive: true } },
+      select: { departmentId: true },
     });
 
-    if (existing === 0) {
-      throw new AppError(
-        "An HOD must have a department assigned",
-        400,
-      );
+    if (roleName === "DEAN" && existing.length === 0) {
+      throw new AppError("A Dean must have at least one active department assigned", 400);
+    }
+    if (roleName === "HOD" && existing.length !== 1) {
+      throw new AppError("An HOD must have exactly one active department assigned", 400);
     }
 
+    // Keep assignments intact when an editor changes profile fields without
+    // resubmitting scope, while ensuring a role transition cannot preserve an
+    // invalid HOD multi-department assignment.
+    await tx.departmentAccess.updateMany({
+      where: { userId, department: { institutionId: institutionId || undefined, isActive: true } },
+      data: { scope: roleName },
+    });
     return;
   }
 
@@ -571,7 +585,7 @@ async function syncDepartmentAccess(
       data: ids.map((departmentId) => ({
         userId,
         departmentId,
-        scope: "HOD",
+        scope: roleName,
       })),
       skipDuplicates: true,
     });
@@ -629,9 +643,9 @@ export async function setUserDepartmentAccess(
 
   const currentRole = existing.userRoles[0]?.role?.name;
 
-  if (currentRole !== "HOD") {
+  if (currentRole !== "HOD" && currentRole !== "DEAN") {
     throw new AppError(
-      "Department assignment is only available for HOD accounts",
+      "Department assignment is only available for Dean or HOD accounts",
       400,
     );
   }
@@ -829,10 +843,10 @@ export async function createUser(
   );
 
   if (input.role === "HOD" && (!input.departmentIds || input.departmentIds.length !== 1)) {
-    throw new AppError(
-      "An HOD account must be created with exactly one department assigned",
-      400,
-    );
+    throw new AppError("An HOD account must be created with exactly one department assigned", 400);
+  }
+  if (input.role === "DEAN" && (!input.departmentIds || input.departmentIds.length === 0)) {
+    throw new AppError("A Dean account must be created with at least one department assigned", 400);
   }
 
   await validateDepartmentIds(
@@ -1157,10 +1171,10 @@ export async function updateUser(
       );
 
     if (input.role === "HOD" && currentRole?.name !== "HOD" && (!input.departmentIds || input.departmentIds.length !== 1)) {
-      throw new AppError(
-        "Changing a user to HOD requires exactly one department assignment",
-        400,
-      );
+      throw new AppError("Changing a user to HOD requires exactly one department assignment", 400);
+    }
+    if (input.role === "DEAN" && currentRole?.name !== "DEAN" && (!input.departmentIds || input.departmentIds.length === 0)) {
+      throw new AppError("Changing a user to Dean requires at least one department assignment", 400);
     }
 
     await validateDepartmentIds(

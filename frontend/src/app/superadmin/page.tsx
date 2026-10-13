@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { getPrimaryRole } from "@/lib/authority";
 import {
   AuthRequiredError,
   authedFetch,
@@ -375,7 +376,7 @@ export default function SuperAdminPage() {
        */
       const currentUser = await getCurrentUser();
 
-      if (!currentUser.roles.includes("SUPER_ADMIN")) {
+      if (getPrimaryRole(currentUser.roles) !== "SUPER_ADMIN") {
         router.replace("/login");
         return;
       }

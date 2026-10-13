@@ -5,29 +5,36 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
-import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
+import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped, assertCourseOfferingInScope, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
 } from "../validators/attendanceSession.validators";
 
-const ADMIN_ROLES = ["SUPER_ADMIN", "INSTITUTION_ADMIN"];
-
 function isAdmin(user: AuthenticatedUser): boolean {
-  return user.roles.some((role) => ADMIN_ROLES.includes(role)) && !user.roles.includes("CHAIRMAN") && !isDirectorScoped(user);
+  // Scope-aware institutional workspace roles only; the active role remains
+  // the policy boundary even when permissions from secondary roles exist.
+  return ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(getEffectiveWorkspaceRole(user));
 }
 
-function assertCanManageOffering(
+async function assertCanManageOffering(
+  institutionId: string,
   user: AuthenticatedUser,
-  facultyId: string | null
-): void {
+  courseOfferingId: string,
+  facultyId: string | null,
+): Promise<void> {
   if (isAdmin(user)) return;
-  if (facultyId === user.id) return;
-
-  throw new AppError(
-    "You are not the assigned faculty for this course offering",
-    403
-  );
+  if (getEffectiveWorkspaceRole(user) === "FACULTY") {
+    if (facultyId !== user.id) {
+      throw new AppError("You are not the assigned faculty for this course offering", 403);
+    }
+    return;
+  }
+  if (["DIRECTOR", "DEAN", "HOD"].includes(getEffectiveWorkspaceRole(user))) {
+    await assertCourseOfferingInScope(institutionId, user, courseOfferingId);
+    return;
+  }
+  throw new AppError("This course offering is outside your attendance-management scope", 403);
 }
 
 async function loadCourseOfferingForInstitution(
@@ -106,7 +113,7 @@ export async function getOrCreateSession(
     input.courseOfferingId
   );
 
-  assertCanManageOffering(user, offering.facultyId);
+  await assertCanManageOffering(institutionId, user, offering.id, offering.facultyId);
 
   const existing = await prisma.attendanceSession.findFirst({
     where: {
@@ -149,7 +156,7 @@ export async function getSessionById(
     throw new AppError("Attendance session not found", 404);
   }
 
-  assertCanManageOffering(user, session.courseOffering.facultyId);
+  await assertCanManageOffering(institutionId, user, session.courseOfferingId, session.courseOffering.facultyId);
 
   return withRoster(institutionId, session);
 }
@@ -182,7 +189,7 @@ export async function upsertRecords(
     throw new AppError("Attendance session not found", 404);
   }
 
-  assertCanManageOffering(user, session.courseOffering.facultyId);
+  await assertCanManageOffering(institutionId, user, session.courseOfferingId, session.courseOffering.facultyId);
 
   /*
    * Finalised attendance is evidence. Once a session is locked the only
@@ -309,12 +316,12 @@ export async function listSessions(
     where.courseOffering = {
       semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } },
     };
-  } else if (user.roles.includes("HOD") || user.roles.includes("DEAN")) {
+  } else if (getEffectiveWorkspaceRole(user) === "HOD" || getEffectiveWorkspaceRole(user) === "DEAN") {
     const departmentIds = await getManagedDepartmentIds(institutionId, user.id);
     where.courseOffering = {
       course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
     };
-  } else if (user.roles.includes("FACULTY")) {
+  } else if (getEffectiveWorkspaceRole(user) === "FACULTY") {
     if (filters.facultyId && filters.facultyId !== user.id) {
       throw new AppError("Faculty may only view their own attendance sessions", 403);
     }

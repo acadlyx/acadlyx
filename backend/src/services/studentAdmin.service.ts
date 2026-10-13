@@ -3,11 +3,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
+import { getCanonicalRoleNames } from "../config/rbac";
 import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
-import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped } from "./accessScope.service";
+import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -372,6 +373,32 @@ async function ensureStudentRole(
 }
 
 
+async function getAcademicDepartmentScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+): Promise<string[] | null> {
+  if (isDirectorScoped(actor)) {
+    const ids = await getDirectorDepartmentIds(institutionId, actor.id);
+    if (!ids.length) throw new AppError("No campus scope is assigned to this Director", 403);
+    return ids;
+  }
+  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  if (roles.has("DEAN") || roles.has("HOD")) {
+    const ids = await getManagedDepartmentIds(institutionId, actor.id);
+    if (!ids.length) throw new AppError("No department scope is assigned to this account", 403);
+    return ids;
+  }
+  // Admissions is institution-wide only inside its own intake pipeline.
+  if (isInstitutionWide(actor) || isInstitutionWideAdmissions(actor)) return null;
+  throw new AppError("This account cannot manage authoritative academic placements", 403);
+}
+
+async function assertAcademicPlacementInActorScope(institutionId: string, actor: AuthenticatedUser, departmentId: string): Promise<void> {
+  const allowedDepartmentIds = await getAcademicDepartmentScope(institutionId, actor);
+  if (allowedDepartmentIds && !allowedDepartmentIds.includes(departmentId)) {
+    throw new AppError("The selected program is outside your assigned campus/department scope", 403);
+  }
+}
 async function assertStudentReadAccess(
   institutionId: string,
   userId: string,
@@ -403,14 +430,15 @@ function serializeStudent(student: any, actor?: AuthenticatedUser) {
         ? "MISSING"
         : classifyStudentEnrollmentState(student.profile, currentEnrollment);
 
-  const restrictedProfileRoles = new Set([
+  const restrictedProfileRoles = new Set<string>([
     "PLACEMENT",
     "LIBRARIAN",
     "ACCOUNTS",
     "EXAMINATION",
   ]);
-  const hasRestrictedProfileAccess =
-    actor?.roles.some((role) => restrictedProfileRoles.has(role.toUpperCase())) ?? false;
+  const hasRestrictedProfileAccess = actor
+    ? restrictedProfileRoles.has(getEffectiveWorkspaceRole(actor))
+    : false;
 
   const profile = hasRestrictedProfileAccess && student.profile
     ? {
@@ -529,28 +557,51 @@ export async function listStudents(
   const search = params.search?.trim();
   await assertStudentListContext(institutionId, actor, params);
   const scope = await getStudentWhereScope(institutionId, actor);
-  const directorDepartmentIds = isDirectorScoped(actor)
-    ? await getDirectorDepartmentIds(institutionId, actor.id)
-    : undefined;
-  const scopedStudentListInclude = directorDepartmentIds
+  const {
+    studentEnrollments: scopedEnrollments,
+    ...scopeWithoutEnrollment
+  } = scope;
+
+  const enrollmentPredicates: Prisma.StudentEnrollmentWhereInput[] = [];
+  const serverEnrollmentPredicate =
+    scopedEnrollments && "some" in scopedEnrollments
+      ? scopedEnrollments.some
+      : undefined;
+  if (serverEnrollmentPredicate) enrollmentPredicates.push(serverEnrollmentPredicate);
+
+  const hasRequestedAcademicFilter = Boolean(
+    params.departmentId || params.academicYearId || params.programId ||
+    params.semesterId || params.sectionId
+  );
+  if (hasRequestedAcademicFilter) {
+    enrollmentPredicates.push({
+      institutionId,
+      ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
+      ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
+      ...(params.programId ? { programId: params.programId } : {}),
+      ...(params.semesterId ? { semesterId: params.semesterId } : {}),
+      ...(params.sectionId ? { sectionId: params.sectionId } : {}),
+    });
+  }
+
+  // Scope and query filters are ANDed. A request filter is never allowed to
+  // replace the server-derived enrollment predicate.
+  const scopedStudentListInclude: Prisma.UserInclude = enrollmentPredicates.length
     ? {
         ...studentListInclude,
         studentEnrollments: {
           ...studentListInclude.studentEnrollments,
-          where: {
-            program: {
-              departmentId: {
-                in: directorDepartmentIds.length ? directorDepartmentIds : ["__NO_AUTHORIZED_SCOPE__"],
-              },
-            },
-          },
+          where: { AND: enrollmentPredicates },
         },
       }
     : studentListInclude;
 
   const where: Prisma.UserWhereInput = {
     institutionId,
-    ...scope,
+    ...scopeWithoutEnrollment,
+    ...(enrollmentPredicates.length
+      ? { studentEnrollments: { some: { AND: enrollmentPredicates } } }
+      : {}),
 
     userRoles: {
       some: {
@@ -602,19 +653,6 @@ export async function listStudents(
         }
       : {}),
 
-    ...(params.departmentId || params.academicYearId || params.programId || params.semesterId || params.sectionId
-      ? {
-          studentEnrollments: {
-            some: {
-              ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
-              ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
-              ...(params.programId ? { programId: params.programId } : {}),
-              ...(params.semesterId ? { semesterId: params.semesterId } : {}),
-              ...(params.sectionId ? { sectionId: params.sectionId } : {}),
-            },
-          },
-        }
-      : {}),
   };
 
   const [items, total] = await prisma.$transaction([
@@ -651,30 +689,44 @@ export async function getStudent(
   userId: string,
   actor?: AuthenticatedUser
 ) {
-  if (actor) await assertStudentReadAccess(institutionId, userId, actor);
-  if (actor && isDirectorScoped(actor)) {
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
-    const student = await prisma.user.findFirst({
-      where: { id: userId, institutionId },
-      include: {
+  if (!actor) return serializeStudent(await getStudentOrThrow(institutionId, userId));
+
+  await assertStudentReadAccess(institutionId, userId, actor);
+  const scope = await getStudentWhereScope(institutionId, actor);
+  const {
+    studentEnrollments: scopeEnrollments,
+    ...scopeWithoutEnrollments
+  } = scope;
+  const enrollmentScope =
+    scopeEnrollments && "some" in scopeEnrollments
+      ? scopeEnrollments.some
+      : undefined;
+
+  // Visibility of a student record does not imply visibility of every
+  // enrollment attached to that student. Keep the included academic history
+  // within the same scope used to authorize the student itself.
+  const include = enrollmentScope
+    ? {
         ...studentInclude,
         studentEnrollments: {
           ...studentInclude.studentEnrollments,
           where: {
-            institutionId,
-            program: {
-              departmentId: {
-                in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"],
-              },
-            },
+            AND: [enrollmentScope],
           },
         },
-      },
-    });
-    if (!student) throw new AppError("Student not found in the assigned scope", 404);
-    return serializeStudent(student, actor);
-  }
-  return serializeStudent(await getStudentOrThrow(institutionId, userId), actor);
+      }
+    : studentInclude;
+
+  const student = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      institutionId,
+      ...scopeWithoutEnrollments,
+    },
+    include,
+  });
+  if (!student) throw new AppError("Student not found in the authorized scope", 404);
+  return serializeStudent(student, actor);
 }
 
 export async function createStudent(
@@ -726,6 +778,7 @@ export async function createStudent(
       institutionId,
       input
     );
+  await assertAcademicPlacementInActorScope(institutionId, actor, placement.program.departmentId);
 
   if (placement.section) {
     if (
@@ -1103,9 +1156,7 @@ export async function updateStudent(
     },
   });
 
-  return serializeStudent(
-    updated
-  );
+  return serializeStudent(updated, actor);
 }
 
 export async function enrollStudent(
@@ -1118,25 +1169,7 @@ export async function enrollStudent(
   requireStudentProfile(student);
 
   const placement = await validateAcademicPlacement(institutionId, input);
-
-  const roles = actor.roles;
-  if (roles.includes("STUDENT") || roles.includes("PARENT") || roles.includes("FACULTY")) {
-    throw new AppError("This role cannot modify authoritative student enrollment", 403);
-  }
-
-  if (roles.includes("DEAN") || roles.includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (!managed.includes(placement.program.departmentId)) {
-      throw new AppError("The selected program is outside your department scope", 403);
-    }
-  } else if (isDirectorScoped(actor)) {
-    const allowed = await getDirectorDepartmentIds(institutionId, actor.id);
-    if (!allowed.includes(placement.program.departmentId)) {
-      throw new AppError("The selected program is outside your campus scope", 403);
-    }
-  } else if (!isInstitutionWide(actor)) {
-    throw new AppError("You are not authorized to manage student enrollment", 403);
-  }
+  await assertAcademicPlacementInActorScope(institutionId, actor, placement.program.departmentId);
 
   if (placement.section) {
     const enrolledCount =
@@ -1175,6 +1208,20 @@ export async function enrollStudent(
         },
       },
     });
+
+  // A fresh enrollment may target this caller’s assigned program. Updating an
+  // existing active enrollment from another department/campus is a movement,
+  // and must pass through the authorized student-movement workflow.
+  if (existing?.status === "ACTIVE") {
+    const existingProgram = await prisma.program.findFirst({
+      where: { id: existing.programId, institutionId },
+      select: { departmentId: true },
+    });
+    const activeScope = await getAcademicDepartmentScope(institutionId, actor);
+    if (activeScope && (!existingProgram || !activeScope.includes(existingProgram.departmentId))) {
+      throw new AppError("This student has an active enrollment outside your scope. Use the approved student-movement workflow.", 403);
+    }
+  }
 
   const enrollment =
     await prisma.studentEnrollment.upsert({
@@ -1275,15 +1322,20 @@ export async function listStudentEnrollments(
   actor: AuthenticatedUser
 ) {
   await assertStudentReadAccess(institutionId, userId, actor);
-  await getStudentOrThrow(
-    institutionId,
-    userId
-  );
+  await getStudentOrThrow(institutionId, userId);
+
+  const scope = await getStudentWhereScope(institutionId, actor);
+  const scopedEnrollments = scope.studentEnrollments;
+  const scopedEnrollmentWhere =
+    scopedEnrollments && "some" in scopedEnrollments
+      ? scopedEnrollments.some
+      : undefined;
 
   return prisma.studentEnrollment.findMany({
     where: {
       institutionId,
       userId,
+      ...(scopedEnrollmentWhere || {}),
     },
     orderBy: {
       enrolledAt: "desc",

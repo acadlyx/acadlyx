@@ -1,3 +1,5 @@
+import { getPrimaryRole } from "./authority";
+
 export type PermissionKey = string;
 
 const ROLE_ALIASES: Record<string, string> = {};
@@ -96,7 +98,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Events & Gallery",
     href: "/events-gallery",
     icon: "◫",
-    roles: ["MANAGEMENT","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
+    roles: ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
     permissions: ["events.read"],
     group: "Institution",
     activeMatch: "nested",
@@ -920,7 +922,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Fee Structures",
     href: "/accounts/fee-structures",
     icon: "▤",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGEMENT", "ACCOUNTS"],
+    roles: ["SUPER_ADMIN", "MANAGEMENT", "ACCOUNTS"],
     permissions: ["fees.structure.read"],
     group: "Fee Management",
   },
@@ -928,7 +930,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Fee Heads",
     href: "/accounts/fee-heads",
     icon: "▤",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "MANAGEMENT", "ACCOUNTS"],
+    roles: ["SUPER_ADMIN", "MANAGEMENT", "ACCOUNTS"],
     permissions: ["fees.structure.read"],
     group: "Fee Management",
   },
@@ -1747,7 +1749,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/dean", ["DEAN"]],
   ["/registrar", ["REGISTRAR"]],
   ["/hod", ["HOD"]],
-  ["/accounts", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]],
+
   ["/hr", ["HR"]],
 
 
@@ -1826,17 +1828,15 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   [
     "/students",
     [
+      "SUPER_ADMIN",
       "INSTITUTION_ADMIN",
       "CHAIRMAN",
+      "MANAGEMENT",
       "DIRECTOR",
       "DEAN",
       "REGISTRAR",
       "HOD",
       "FACULTY",
-      "ACCOUNTS",
-      "ADMISSIONS",
-      "EXAMINATION",
-      "LIBRARIAN",
       "PLACEMENT",
     ],
   ],
@@ -1885,7 +1885,10 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   [
     "/fees",
     [
+      "SUPER_ADMIN",
       "CHAIRMAN",
+      "MANAGEMENT",
+      "REGISTRAR",
       "DIRECTOR",
       "DEAN",
       "HOD",
@@ -2122,11 +2125,7 @@ export function getNavigationForRoles(
   permissions: string[] = [],
   tenantFeatures: string[] = [],
 ): NavigationItem[] {
-  const roleSet = new Set(
-    roles.map((role) =>
-      normalizeRoleName(role),
-    ),
-  );
+  const activeRole = getPrimaryRole(roles);
 
   const permissionSet = new Set(
     permissions,
@@ -2136,10 +2135,7 @@ export function getNavigationForRoles(
     const roleAllowed =
       !item.roles ||
       item.roles.length === 0 ||
-      item.roles.some((role) => {
-        const normalized = normalizeRoleName(role);
-        return normalized !== null && roleSet.has(normalized);
-      });
+      item.roles.some((role) => normalizeRoleName(role) === activeRole);
 
     const permissionAllowed =
       !item.permissions ||
@@ -2231,10 +2227,7 @@ export function canAccessRoute(
     ) || "/";
   const currentQuery = new URLSearchParams(rawQuery || "");
 
-  const normalizedRoles =
-    roles.map((role) =>
-      normalizeRoleName(role),
-    );
+  const activeRole = getPrimaryRole(roles);
 
   const matchingNamespace =
     NAMESPACE_OWNERS
@@ -2258,10 +2251,7 @@ export function canAccessRoute(
   const [, allowedRoles] =
     matchingNamespace;
 
-  const roleAllowed = allowedRoles.some((role) => {
-    const normalized = normalizeRoleName(role);
-    return normalized !== null && normalizedRoles.includes(normalized);
-  });
+  const roleAllowed = allowedRoles.some((role) => normalizeRoleName(role) === activeRole);
 
   if (!roleAllowed) {
     return false;
@@ -2300,10 +2290,7 @@ export function canAccessRoute(
 
   const relevantItem = matchingItems.find((item) =>
     !item.roles?.length ||
-    item.roles.some((role) => {
-      const normalized = normalizeRoleName(role);
-      return normalized !== null && normalizedRoles.includes(normalized);
-    }),
+    item.roles.some((role) => normalizeRoleName(role) === activeRole),
   );
 
   if (!relevantItem) {
@@ -2319,183 +2306,30 @@ export function canAccessRoute(
   );
 }
 
-export function workspaceHome(
-  roles: string[],
-): string {
-  const normalizedRoles = roles
-    .map((role) => normalizeRoleName(role))
-    .filter(
-      (role): role is NonNullable<ReturnType<typeof normalizeRoleName>> =>
-        role !== null,
-    );
-
-  if (
-    normalizedRoles.includes(
-      "SUPER_ADMIN",
-    )
-  ) {
-    return "/superadmin";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "INSTITUTION_ADMIN",
-    )
-  ) {
-    return "/admin";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "CHAIRMAN",
-    )
-  ) {
-    return "/chairman";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "DIRECTOR",
-    )
-  ) {
-    return "/director";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "DEAN",
-    )
-  ) {
-    return "/dean";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "REGISTRAR",
-    )
-  ) {
-    return "/registrar";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "HOD",
-    )
-  ) {
-    return "/hod";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "FACULTY",
-    )
-  ) {
-    return "/faculty";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "ACCOUNTS",
-    )
-  ) {
-    return "/accounts";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "HR",
-    )
-  ) {
-    return "/hr";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "ADMISSIONS",
-    )
-  ) {
-    return "/admissions";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "EXAMINATION",
-    )
-  ) {
-    return "/examination";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "LIBRARIAN",
-    )
-  ) {
-    return "/library";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "PLACEMENT",
-    )
-  ) {
-    return "/placements";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "IT",
-    )
-  ) {
-    return "/it";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "CMS",
-    )
-  ) {
-    return "/site-content";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "STUDENT",
-    )
-  ) {
-    return "/student";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "PARENT",
-    )
-  ) {
-    return "/parent";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "CLUB_PRESIDENT",
-    )
-  ) {
-    return "/club-president";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "MANAGEMENT",
-    )
-  ) {
-    return "/management";
-  }
-
-  if (
-    normalizedRoles.includes(
-      "STAFF",
-    )
-  ) {
-    return "/staff";
-  }
-
-  return "/";
+export function workspaceHome(roles: string[]): string {
+  const role = getPrimaryRole(roles);
+  const homeByRole: Record<string, string> = {
+    SUPER_ADMIN: "/superadmin",
+    INSTITUTION_ADMIN: "/admin",
+    CHAIRMAN: "/chairman",
+    MANAGEMENT: "/management",
+    DIRECTOR: "/director",
+    DEAN: "/dean",
+    REGISTRAR: "/registrar",
+    HOD: "/hod",
+    FACULTY: "/faculty",
+    ACCOUNTS: "/accounts",
+    HR: "/hr",
+    ADMISSIONS: "/admissions",
+    EXAMINATION: "/examination",
+    LIBRARIAN: "/library",
+    PLACEMENT: "/placements",
+    IT: "/it",
+    CMS: "/site-content",
+    STUDENT: "/student",
+    PARENT: "/parent",
+    CLUB_PRESIDENT: "/club-president",
+    STAFF: "/staff",
+  };
+  return role ? homeByRole[role] ?? "/" : "/";
 }
