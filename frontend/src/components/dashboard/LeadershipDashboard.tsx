@@ -401,9 +401,6 @@ export function LeadershipDashboard({
               {meta.title}
             </h1>
 
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              {meta.description}
-            </p>
           </div>
         </section>
 
@@ -460,10 +457,6 @@ export function LeadershipDashboard({
                 Available work
               </h2>
 
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Only modules belonging to this workspace and available to
-                your account are shown.
-              </p>
             </div>
 
             {actions.length > 0 ? (
@@ -481,9 +474,6 @@ export function LeadershipDashboard({
                           {action.label}
                         </h3>
 
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          {action.description}
-                        </p>
                       </div>
 
                       <span className="text-slate-400 transition group-hover:translate-x-1">
@@ -535,18 +525,6 @@ export function LeadershipDashboard({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-xs font-bold text-slate-800">
-            ACADLYX leadership workspace
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            This dashboard only exposes modules belonging to the current
-            leadership workspace. Record-level access and workflow
-            authority remain enforced by the destination module and
-            backend authorization.
-          </p>
-        </section>
       </div>
     </DashboardShell>
   );
