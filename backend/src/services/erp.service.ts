@@ -2578,7 +2578,6 @@ export async function listNotices(
   }
 
   const activeRole = getEffectiveWorkspaceRole(actor);
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const institutionWide = isInstitutionWide(actor);
   const now = new Date();
 
