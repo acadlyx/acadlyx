@@ -41,7 +41,7 @@ async function installAuthenticatedSession(page, role) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { institution: { name: "Browser Test Institution", logoUrl: null }, breadcrumbs: [] } }) });
       return;
     }
-    if (path.endsWith("/erp/me/workspace") && role === "DIRECTOR") {
+    if ((path.endsWith("/erp/me/summary") || path.endsWith("/erp/me/workspace")) && role === "DIRECTOR") {
       metricRequests += 1;
       if (metricRequests === 1) {
         await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ success: false, message: "Synthetic temporary outage" }) });
