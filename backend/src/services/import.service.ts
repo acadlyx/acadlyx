@@ -255,6 +255,7 @@ async function processImportRow(
         } else if (type === "students") {
           const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
           if (!admissionNumber) throw new AppError("admissionNumber (or rollNumber) is required for students", 400);
+          const normalizedStatus = normalizeStudentStatus(row.status);
 
           const existingProfile = await tx.studentProfile.findFirst({
             where: { institutionId, admissionNumber },
@@ -274,6 +275,7 @@ async function processImportRow(
           await assertImportDepartmentScope(institutionId, actor, program.departmentId, true);
           if (existingProfile) {
             const currentEnrollment = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: existingProfile.userId, status: "ACTIVE" }, include: { program: { select: { departmentId: true } } } });
+            if (currentEnrollment && currentEnrollment.programId !== program.id) throw new AppError("An active student enrollment cannot be reassigned through import. Use the approved student-movement workflow.", 409);
             if (currentEnrollment) await assertImportDepartmentScope(institutionId, actor, currentEnrollment.program.departmentId, true);
           }
           const yearName = text(row.academicyear);
@@ -296,7 +298,7 @@ async function processImportRow(
             );
           }
 
-          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: normalizeStudentStatus(row.status) } });
+          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: normalizedStatus }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: normalizedStatus } });
           await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } }, update: { programId: program.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, programId: program.id, academicYearId: year.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" } });
         } else if (type === "faculty") {
           await upsertUser(tx, institutionId, row, "FACULTY");
