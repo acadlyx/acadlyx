@@ -211,7 +211,6 @@ async function assertFeeInvoiceScope(
   actor: AuthenticatedUser,
   studentId: string,
 ): Promise<void> {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (isInstitutionWideFinance(actor)) {
     if (getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" && actor.institutionId !== institutionId) {
       throw new AppError("Fee data is outside your authorized institution scope", 403);
