@@ -254,21 +254,6 @@ export function RoleWorkspaceLanding({
           0,
       );
 
-  const quickStart = [
-    {
-      href: "/my-work",
-      label: "My Work",
-      description: "See every live task, approval, deadline and exception that needs your attention.",
-      icon: "✓",
-    },
-    ...available
-      .filter(
-        (item) =>
-          item.href !== meta.home &&
-          item.label !== "Account security",
-      ),
-  ].slice(0, 5);
-
   return (
     <DashboardShell
       title={meta.title}
@@ -284,97 +269,6 @@ export function RoleWorkspaceLanding({
             actionLabel="Return to workspace"
           />
         ) : null}
-
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="relative overflow-hidden bg-slate-950 px-6 py-8 text-white sm:px-8 lg:px-10 lg:py-10">
-            <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-sky-400/10 blur-3xl" />
-
-            <div className="relative max-w-3xl">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-300">
-                {meta.eyebrow}
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-                Welcome to your workspace
-              </h2>
-
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                This is your starting point.
-                Only work relevant to
-                your current responsibility
-                is shown here.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[1.2fr_.8fr]">
-            <div>
-              <div className="mb-4">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                  Start here
-                </p>
-
-                <h3 className="mt-1 text-lg font-black text-slate-900">
-                  What do you want to work on?
-                </h3>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {quickStart.map(
-                  (item) => (
-                    <Link
-                      key={`${item.href}:${item.label}`}
-                      href={item.href}
-                      className="group rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-base shadow-sm ring-1 ring-slate-200">
-                          <SvgIcon name={item.icon} className="h-5 w-5" />
-                        </span>
-
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-900">
-                            {item.label}
-                          </p>
-
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {item.description}
-                          </p>
-                        </div>
-
-                        <span className="ml-auto text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-700">
-                          →
-                        </span>
-                      </div>
-                    </Link>
-                  ),
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                Your workspace
-              </p>
-
-              <p className="mt-2 text-xl font-black text-slate-900">
-                {meta.label}
-              </p>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Your navigation is automatically
-                limited to the responsibilities
-                and permissions assigned to your
-                account.
-              </p>
-
-              <div className="mt-5 flex items-center gap-2 text-xs font-bold text-slate-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                {available.length} available tools
-              </div>
-            </div>
-          </div>
-        </section>
 
         {statEntries.length > 0 ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -414,10 +308,6 @@ export function RoleWorkspaceLanding({
               Everything assigned to this workspace
             </h3>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Use the categories below when
-              you need something specific.
-            </p>
           </div>
 
           <div className="space-y-6">
@@ -447,9 +337,6 @@ export function RoleWorkspaceLanding({
                               {item.label}
                             </span>
 
-                            <span className="mt-1 block text-xs leading-5 text-slate-500">
-                              {item.description}
-                            </span>
                           </span>
                         </Link>
                       ),
