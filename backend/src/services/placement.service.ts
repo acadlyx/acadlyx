@@ -189,7 +189,7 @@ export async function applyToOpportunity(
   opportunityId: string,
 ) {
   assertInstitution(actor, institutionId);
-  if (!activeWorkspace(actor) === "STUDENT" || !actor.permissions.includes("placements.apply")) {
+  if (activeWorkspace(actor) !== "STUDENT" || !actor.permissions.includes("placements.apply")) {
     throw new AppError("Student placement application authority is required.", 403);
   }
   await assertCanViewStudent(institutionId, actor, actor.id);
@@ -572,7 +572,7 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
 
 export async function applyToDrive(institutionId: string, actor: AuthenticatedUser, driveId: string) {
   assertInstitution(actor, institutionId);
-  if (!activeWorkspace(actor) === "STUDENT" || !actor.permissions.includes("placements.apply")) {
+  if (activeWorkspace(actor) !== "STUDENT" || !actor.permissions.includes("placements.apply")) {
     throw new AppError("Student placement application authority is required.", 403);
   }
 
@@ -699,7 +699,7 @@ export async function listPlacementOffers(institutionId: string, actor: Authenti
 
 export async function updatePlacementProfile(institutionId: string, actor: AuthenticatedUser, input: { portfolioUrl?: string|null; githubUrl?: string|null; linkedInUrl?: string|null; bio?: string|null }) {
   assertInstitution(actor, institutionId);
-  if (!activeWorkspace(actor) === "STUDENT") throw new AppError("Only students may edit their placement profile.", 403);
+  if (activeWorkspace(actor) !== "STUDENT") throw new AppError("Only students may edit their placement profile.", 403);
   const profile = await prisma.placementProfile.upsert({
     where: { studentId: actor.id },
     create: { institutionId, studentId: actor.id, portfolioUrl: input.portfolioUrl ?? null, githubUrl: input.githubUrl ?? null, linkedInUrl: input.linkedInUrl ?? null, bio: input.bio ?? null },
@@ -1000,7 +1000,7 @@ export async function listPlacementStudents(institutionId: string, actor: Authen
 
 async function assertPlacementStudentOwner(institutionId: string, actor: AuthenticatedUser, studentId: string) {
   assertInstitution(actor, institutionId);
-  if (!activeWorkspace(actor) === "STUDENT" || actor.id !== studentId) {
+  if (activeWorkspace(actor) !== "STUDENT" || actor.id !== studentId) {
     throw new AppError("Only the owning student may edit this placement profile data.", 403);
   }
 }
