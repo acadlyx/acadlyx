@@ -197,7 +197,11 @@ export async function payment(institutionId:string,a:AuthenticatedUser,id:string
   if(amount.gt(balance))throw new AppError("Payment exceeds outstanding balance",409);
   const p=await tx.feePayment.create({data:{institutionId,invoiceId:id,amount:Number(amount),reference,paidAt:input.paidAt?new Date(input.paidAt):new Date(),method,status:"SUCCESS",recordedById:a.id,userId:a.id,notes:input.notes||null,idempotencyKey}});
   const paid=new Prisma.Decimal(fresh.paidAmount).plus(amount),status=paid.gte(new Prisma.Decimal(fresh.amount).minus(fresh.refundedAmount))?"PAID":"PARTIALLY_PAID";
-  await tx.feeInvoice.update({where:{id},data:{paidAmount:Number(paid),status}});
+  const invoiceUpdated=await tx.feeInvoice.updateMany({
+   where:{id,...invoiceWhere(s)},
+   data:{paidAmount:Number(paid),status},
+  });
+  if(invoiceUpdated.count!==1)throw new AppError("Invoice is outside your financial scope",403);
   await tx.feeTransaction.create({data:{institutionId,studentId:fresh.studentId,invoiceId:id,paymentId:p.id,amount,type:"PAYMENT",reference,createdById:a.id}});
   const receipt=await tx.feeReceipt.create({data:{institutionId,paymentId:p.id,invoiceId:id,studentId:fresh.studentId,receiptNumber:await receiptNo(),issuedById:a.id}});
   await tx.feePayment.update({where:{id:p.id},data:{receiptNumber:receipt.receiptNumber}});
