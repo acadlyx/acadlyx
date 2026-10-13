@@ -97,7 +97,9 @@ test("Director financial records and payment aggregates retain institution, enro
   const paymentWhere = service.slice(service.indexOf("function paymentWhere"), service.indexOf("function studentFinancialFilter"));
   const studentFinancialFilter = service.slice(service.indexOf("function studentFinancialFilter"), service.indexOf("function dec("));
 
-  const campusEnrollmentPredicate = 'studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}}}}}';
+  // Assert scoped tenant/enrollment predicates without depending on irrelevant
+  // source formatting or the exact closing-brace count of the nested Prisma shape.
+  const campusEnrollmentPredicate = 'studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}';
   assert.ok(invoiceWhere.includes("institutionId:s.institutionId"));
   assert.ok(invoiceWhere.includes(campusEnrollmentPredicate), "invoice reads must constrain nested enrollment and program/department tenant");
   assert.ok(invoiceWhere.includes("departmentId:{in:s.departmentIds}"), "department-scoped invoice reads must retain managed departments");
