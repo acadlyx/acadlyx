@@ -1679,10 +1679,10 @@ async function assertNoticeDepartmentScope(
   actor: AuthenticatedUser,
   departmentId?: string | null,
 ): Promise<void> {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWide(actor)) return;
 
-  if (isDirectorScoped(actor)) {
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     const assigned = await getDirectorDepartmentIds(institutionId, actor.id);
     if (!departmentId || !assigned.includes(departmentId)) {
       throw new AppError("Director notice actions must target a department in the assigned campus scope", 403);
@@ -1690,7 +1690,7 @@ async function assertNoticeDepartmentScope(
     return;
   }
 
-  if (roles.has("DEAN") || roles.has("HOD")) {
+  if (activeRole === "DEAN" || activeRole === "HOD") {
     const assigned = await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentId || !assigned.includes(departmentId)) {
       throw new AppError("Dean/HOD notice actions must target an assigned department", 403);
@@ -1701,7 +1701,7 @@ async function assertNoticeDepartmentScope(
   // CMS can publish institution-wide notices in its own tenant workspace.
   // This is a module entitlement, not permission to browse other modules'
   // institution-wide records.
-  if (roles.has("CMS") && !hasScopedWorkspaceRole(actor)) return;
+  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) return;
 
   throw new AppError("Notice management is outside your authorized scope", 403);
 }
