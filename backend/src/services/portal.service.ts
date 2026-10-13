@@ -6,7 +6,6 @@ import { prisma } from "../lib/prisma";
 import {
   assertCanViewStudent,
   assertCanViewUserRecord,
-  getStudentWhereScope,
   isDirectorScoped,
   isInstitutionWide,
   getEffectiveWorkspaceRole,
@@ -906,7 +905,7 @@ export async function getParentChildren(
             where: {
               institutionId,
               status: "ACTIVE",
-              ...(enrollmentScope ? { AND: [enrollmentScope] } : {}),
+
             },
             orderBy: {
               enrolledAt: "desc",
