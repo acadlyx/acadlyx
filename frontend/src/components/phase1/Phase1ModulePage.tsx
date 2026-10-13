@@ -18,7 +18,6 @@ type ModuleKey =
 
 type ModuleConfig = {
   title: string;
-  description: string;
   action: string;
   columns: string[];
   rows: string[][];
@@ -30,8 +29,6 @@ type ModuleConfig = {
 const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   calendar: {
     title: "Academic Calendar",
-    description:
-      "Plan academic dates, holidays, examinations, and institutional events.",
     action: "Add event",
     formTitle: "Create academic event",
     formFields: ["Event title", "Event date", "Event category", "Description"],
@@ -49,8 +46,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   notices: {
     title: "Notice Board",
-    description:
-      "Publish targeted announcements for students, faculty, parents, and staff.",
     action: "Create notice",
     formTitle: "Create notice",
     formFields: ["Notice title", "Audience", "Publish date", "Notice content"],
@@ -73,8 +68,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   applications: {
     title: "Student Applications",
-    description:
-      "Review student requests, supporting documents, and approval progress.",
     action: "New application",
     formTitle: "Create application",
     formFields: ["Application type", "Applicant name", "Submission date", "Remarks"],
@@ -92,8 +85,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   forms: {
     title: "Forms & Documents",
-    description:
-      "Centralize institutional forms, submissions, and document checklists.",
     action: "Create form",
     formTitle: "Create form",
     formFields: ["Form title", "Form type", "Submission deadline", "Description"],
@@ -111,8 +102,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   profile: {
     title: "Student Profile",
-    description:
-      "View a unified academic, personal, attendance, and finance profile.",
     action: "Edit profile",
     formTitle: "Edit student profile",
     formFields: ["Student name", "Email address", "Phone number", "Department"],
@@ -130,8 +119,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   fees: {
     title: "Student Fees",
-    description:
-      "Track fee obligations, installments, concessions, and payment history.",
     action: "View payment options",
     formTitle: "Create fee record",
     formFields: ["Fee category", "Amount", "Due date", "Remarks"],
@@ -149,8 +136,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   receipts: {
     title: "Fee Payment & Receipts",
-    description:
-      "Review payment records and prepare receipts for future payment integration.",
     action: "Record payment",
     formTitle: "Record payment",
     formFields: ["Student name", "Payment amount", "Payment mode", "Transaction ID"],
@@ -168,8 +153,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   timetable: {
     title: "Timetable",
-    description:
-      "View weekly classes, rooms, faculty assignments, and schedule conflicts.",
     action: "Add class",
     formTitle: "Add timetable entry",
     formFields: ["Course name", "Day", "Time", "Room"],
@@ -187,8 +170,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   examinations: {
     title: "Examination Management",
-    description:
-      "Coordinate examination schedules, registrations, seating, and result publication.",
     action: "Create examination",
     formTitle: "Create examination",
     formFields: ["Examination name", "Start date", "End date", "Description"],
@@ -206,8 +187,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   results: {
     title: "Results & Gradebook",
-    description:
-      "Review marks, grades, academic performance, and result publication status.",
     action: "Enter marks",
     formTitle: "Enter course marks",
     formFields: ["Course name", "Student name", "Marks", "Grade"],
@@ -225,8 +204,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   notifications: {
     title: "Notifications Center",
-    description:
-      "Keep users informed about deadlines, approvals, payments, and academic updates.",
     action: "Create notification",
     formTitle: "Create notification",
     formFields: ["Notification title", "Audience", "Schedule", "Message"],
@@ -244,8 +221,6 @@ const moduleConfig: Record<ModuleKey, ModuleConfig> = {
   },
   registration: {
     title: "Course Registration",
-    description:
-      "Select courses, electives, and semester registrations before deadlines.",
     action: "Register course",
     formTitle: "Register course",
     formFields: ["Course name", "Course type", "Credits", "Semester"],
