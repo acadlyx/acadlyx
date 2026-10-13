@@ -2,14 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
 import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 type Scope={institutionId:string;studentIds?:string[];departmentIds?:string[];campusIds?:string[]};
 const has=(a:AuthenticatedUser,p:string)=>a.permissions.includes(p);
-const rs=(a:AuthenticatedUser)=>getCanonicalRoleNames(a.roles);
 
 async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  const activeRole=getEffectiveWorkspaceRole(a);
