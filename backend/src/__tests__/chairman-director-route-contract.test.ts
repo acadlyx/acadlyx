@@ -545,18 +545,7 @@ test("Director notices and admissions enforce assigned campus scope at the servi
   assert.ok(erp.includes('const isDirectorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor)'), "notice listing must resolve Director scope from the effective workspace");
   assert.ok(admissions.includes("getDirectorDepartmentIds"), "admissions must derive Director scope from CampusAccess");
   assert.ok(admissions.includes("assertProgramScope(institutionId, actor, existing.programId)"), "status mutations must be scoped to the application program");
-  assert.ok(admissions.includes("getEffectiveWorkspaceRole(actor) === \"DIRECTOR\""), "a secondary Director role must not override a different active workspace");
-  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\n      pagination"), "admission list API must receive the authenticated actor for scoping");
-  assert.ok(admissionRoutes.includes("service.getApplication(requireInstitution(req), requireAuthenticatedUser(req), req.params.id)"), "admission detail API must receive the authenticated actor for scoping");
-});
-
-  const erp = readFileSync(join(process.cwd(), "src/services/erp.service.ts"), "utf8");
-  const admissions = readFileSync(join(process.cwd(), "src/services/admission.service.ts"), "utf8");
-  const admissionRoutes = readFileSync(join(process.cwd(), "src/routes/admission.routes.ts"), "utf8");
-  assert.ok(erp.includes("assertDirectorNoticeDepartment"), "notice create/update/delete must validate Director department scope");
-  assert.ok(erp.includes("const isDirectorWorkspace = roles.includes(\"DIRECTOR\") && !roles.includes(\"CHAIRMAN\")"), "notice listing must resolve Director workspace scope");
-  assert.ok(admissions.includes("getDirectorDepartmentIds"), "admissions must derive Director scope from CampusAccess");
-  assert.ok(admissions.includes("assertProgramScope(institutionId, actor, existing.programId)"), "status mutations must be scoped to the application program");
-  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\n      pagination"), "admission list API must receive the authenticated actor for scoping");
+  assert.ok(admissions.includes('getEffectiveWorkspaceRole(actor) === "DIRECTOR"'), "a secondary Director role must not override a different active workspace");
+  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\\n      pagination"), "admission list API must receive the authenticated actor for scoping");
   assert.ok(admissionRoutes.includes("service.getApplication(requireInstitution(req), requireAuthenticatedUser(req), req.params.id)"), "admission detail API must receive the authenticated actor for scoping");
 });
