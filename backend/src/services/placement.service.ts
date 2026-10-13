@@ -944,7 +944,10 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
   if (!departmentIds) return visits;
   const allowed = new Set(departmentIds);
   return visits.filter((visit) => {
-    const departments = Array.isArray(visit.drive?.eligibleDepartments)
+    // A scoped academic workspace cannot infer access to an unassigned,
+    // institution-wide visit that has no drive/campus/department linkage.
+    if (!visit.drive) return false;
+    const departments = Array.isArray(visit.drive.eligibleDepartments)
       ? visit.drive.eligibleDepartments.filter((id): id is string => typeof id === "string")
       : [];
     return departments.length === 0 || departments.some((id) => allowed.has(id));
