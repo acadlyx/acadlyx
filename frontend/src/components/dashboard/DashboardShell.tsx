@@ -103,20 +103,27 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     return () => { alive = false; };
   }, [router, embeddedInWorkspaceShell]);
 
-  // Prefetch the first workspace payload alongside auth reconciliation.
-  // The API independently enforces the user's real role and tenant scope; the
-  // result is only rendered by the page after the shell has resolved the user.
+  // Prefetch only after identity/active workspace resolution. Starting this
+  // request from allowedRoles before /auth/me resolves can race the page-level
+  // request, consume its first failure, and render inconsistent retry state.
+  // The effective workspace role also prevents a route's allowedRoles from
+  // prefetching data for a secondary role the authenticated user does not own.
   useEffect(() => {
-    if (embeddedInWorkspaceShell) return;
-    const roleNames = (allowedRoles || []).map(normalizeRole);
-    if (roleNames.includes("INSTITUTION_ADMIN")) {
+    if (embeddedInWorkspaceShell || !routeAuthReady || !user || !workspaceRole) return;
+
+    if (workspaceRole === "INSTITUTION_ADMIN") {
       void getErpWorkspace().catch(() => undefined);
       return;
     }
-    if (roleNames.some((role) => ["CHAIRMAN", "DIRECTOR", "DEAN"].includes(role))) {
+
+    if (
+      workspaceRole === "CHAIRMAN" ||
+      workspaceRole === "DIRECTOR" ||
+      workspaceRole === "DEAN"
+    ) {
       void getErpWorkspaceSummary().catch(() => undefined);
     }
-  }, [embeddedInWorkspaceShell, allowedRolesKey]);
+  }, [embeddedInWorkspaceShell, routeAuthReady, user, workspaceRole]);
 
   useEffect(() => {
     if (embeddedInWorkspaceShell || workspaceRole !== "INSTITUTION_ADMIN") return;
