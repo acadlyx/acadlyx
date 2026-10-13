@@ -448,7 +448,7 @@ test("Admin create and edit forms expose role-appropriate persistent scope assig
   assert.ok(userService.includes("await syncDepartmentAccess("), "scope changes must pass through backend validation and transactional persistence");
 });
 
-test("Chairman can publish fee drafts directly with explicit permission and audit", () => {
+test("Chairman can publish fee drafts directly with active-role permission and audit", () => {
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const routes = readFileSync(join(process.cwd(), "src/routes/erp.routes.ts"), "utf8");
@@ -460,9 +460,10 @@ test("Chairman can publish fee drafts directly with explicit permission and audi
   assert.ok(chairman.includes('"fees.structure.publish"'));
   assert.ok(!director.includes('"fees.structure.publish"'), "direct publication must not be granted to Directors");
   assert.ok(service.includes('action: "fee-structure.publish-direct"'));
-  assert.ok(service.includes('actor.roles.includes("CHAIRMAN")'));
+  assert.ok(service.includes('getEffectiveWorkspaceRole(actor) !== "CHAIRMAN"'), "a secondary Chairman binding must not authorize direct publication");
+  assert.ok(service.includes('!actor.permissions.includes("fees.structure.publish")'), "direct publication also requires the explicit permission");
   assert.ok(routes.includes('"/fee-structures/:id/publish"'), "direct publication endpoint must be explicitly routed");
-  assert.ok(api.includes('export async function publishFeeStructure'));
+  assert.ok(api.includes("export async function publishFeeStructure"));
   assert.ok(finance.includes('can("fees.structure.publish")&&x.status==="DRAFT"'));
   assert.ok(finance.includes("chairmanDirectPublishOnly"), "Chairman finance actions must use the direct-publish workflow");
   assert.ok(finance.includes('!chairmanDirectPublishOnly&&can("fees.structure.manage")'), "Chairman must never fall back to a separate approval submission");
@@ -480,15 +481,17 @@ test("Chairman and Director have dedicated notice, notification and events route
   assert.ok(navigation.includes('href: "/director/events-gallery"'));
 });
 
-test("Leadership workspace scope follows the resolved workspace role, not a secondary Director role", () => {
+test("Leadership and fee structure scope follow the resolved workspace role, not secondary bindings", () => {
   const service = readFileSync(join(process.cwd(), "src/services/managementWorkspace.service.ts"), "utf8");
-  assert.ok(service.includes('const isDirector = getWorkspaceType(actor) === "DIRECTOR"'));
+  assert.ok(service.includes("return getEffectiveWorkspaceRole(actor)"), "leadership selection must use the central effective-role resolver");
+  assert.ok(service.includes('const isDirector = workspaceType === "DIRECTOR"'), "the workspace must branch on the resolved role");
   const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
-  assert.ok(feeService.includes('if (!actor.roles.includes("DIRECTOR") || actor.roles.includes("CHAIRMAN")) return;'));
+  assert.ok(feeService.includes("assertFeeStructureInActorScope"), "fee structure record access must use the common resource-scope guard");
+  assert.ok(feeService.includes("getAuthorizedDepartmentIds"), "fee structure scope must resolve campus/department assignments on the backend");
+  assert.ok(feeService.includes("getEffectiveWorkspaceRole(actor) !== \"CHAIRMAN\""), "secondary Chairman bindings must not bypass the direct-publication guard");
 });
 
-
-test("Chairman institution-wide role wins over a secondary Director role in every leadership data path", () => {
+test("Chairman institution-wide role wins over secondary Director bindings in leadership data paths", () => {
   const accessScope = readFileSync(join(process.cwd(), "src/services/accessScope.service.ts"), "utf8");
   const finance = readFileSync(join(process.cwd(), "src/services/finance.service.ts"), "utf8");
   const students = readFileSync(join(process.cwd(), "src/services/studentAdmin.service.ts"), "utf8");
@@ -499,17 +502,23 @@ test("Chairman institution-wide role wins over a secondary Director role in ever
   const exports = readFileSync(join(process.cwd(), "src/services/export.service.ts"), "utf8");
   const calendar = readFileSync(join(process.cwd(), "src/services/calendar.service.ts"), "utf8");
   const directorCalendar = readFileSync(join(frontend, "director/calendar/page.tsx"), "utf8");
+
   assert.ok(accessScope.includes('hasAnyRole(actor, ["DIRECTOR"]) && !hasAnyRole(actor, ["CHAIRMAN"])'), "Chairman must be the only role that overrides Director campus scope");
-  assert.ok(finance.includes("isDirectorScoped(a)"), "finance must use resolved Director scope");
-  assert.ok(students.includes("const directorDepartmentIds = isDirectorScoped(actor)"), "student lists must not be narrowed by secondary Director roles");
-  assert.ok(students.includes("if (actor && isDirectorScoped(actor))"), "student profiles must preserve campus scope when Director has a secondary admin role");
-  assert.ok(exams.includes("isDirectorScoped(actor)"), "examination queues and mutations must resolve Director scope consistently");
+  assert.ok(accessScope.includes("EFFECTIVE_WORKSPACE_ROLE_PRIORITY") && accessScope.includes("getEffectiveWorkspaceRole"), "cross-module scope must use the canonical workspace priority");
+  assert.ok(finance.includes("isDirectorScoped(a)") && finance.includes("getDirectorCampusIds(institutionId,a.id)"), "finance must use active Director campus scope");
+  assert.ok(students.includes("getStudentWhereScope(institutionId, actor)"), "student lists must derive scope through the shared resolver");
+  assert.ok(students.includes("const scopedStudentListInclude: Prisma.UserInclude"), "nested student enrollment output must be filtered by server scope");
+  assert.ok(students.includes("include: scopedStudentListInclude"), "the constrained relation include must be used by the student list");
+  assert.ok(students.includes("if (actor && isDirectorScoped(actor))") || students.includes("await assertStudentReadAccess(institutionId, userId, actor)"), "student profile reads must retain resource-level scope");
+  assert.ok(exams.includes("getEffectiveWorkspaceRole(actor)") && exams.includes('activeRole === "DIRECTOR"'), "examination reads must use the active role");
+  assert.ok(exams.includes("getDirectorDepartmentIds(institutionId, actor.id)"), "examination queues must derive departments from CampusAccess");
   assert.ok(attendance.includes("return isDirectorScoped(actor)"), "attendance reports must preserve role precedence");
   assert.ok(attendanceSessions.includes("if (isInstitutionWide(user) && !isDirectorScoped(user))"), "attendance session listing must not make Director institution-wide");
   assert.ok(attendanceSessions.includes('semester: { program: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } } }'), "attendance history must be filtered to assigned-campus departments");
-  assert.ok(intelligence.indexOf('if (roles.includes("CHAIRMAN"))') < intelligence.indexOf('if (roles.includes("DIRECTOR"))'), "Chairman gets institution-wide intelligence");
-  assert.ok(intelligence.indexOf('if (roles.includes("DIRECTOR"))') < intelligence.indexOf('["MANAGEMENT", "INSTITUTION_ADMIN", "SUPER_ADMIN"]'), "Director campus scope wins over secondary institution-admin roles");
-  assert.ok(exports.includes("const institutionWide = !isDirectorScoped(actor)"), "exports must not widen a Director because of a secondary admin role");
+  assert.ok(intelligence.includes("if (isInstitutionWide(actor)) return undefined;"), "only a resolved institution-wide role may use unscoped intelligence");
+  assert.ok(intelligence.includes("getAuthorizedDepartmentIds(institutionId, actor)"), "intelligence filters must use the canonical scope resolver");
+  assert.ok(exports.includes("const institutionWide = isInstitutionWide(actor)"), "exports must use the central role precedence");
+  assert.ok(exports.includes("isDirectorScoped(actor)"), "a Director export must retain campus scope despite secondary broad roles");
   assert.ok(calendar.includes("assertCalendarCampusScopeSupported(actor)"), "unscoped institution calendar APIs must reject Director access");
   assert.ok(directorCalendar.includes('href="/director/events-gallery"') && !directorCalendar.includes("DataExportActions"), "Director calendar must route to campus-scoped event management without an unscoped export button");
 });
@@ -529,6 +538,18 @@ test("Director Events & Gallery listing and mutations stay within assigned campu
 
 
 test("Director notices and admissions enforce assigned campus scope at the service boundary", () => {
+  const erp = readFileSync(join(process.cwd(), "src/services/erp.service.ts"), "utf8");
+  const admissions = readFileSync(join(process.cwd(), "src/services/admission.service.ts"), "utf8");
+  const admissionRoutes = readFileSync(join(process.cwd(), "src/routes/admission.routes.ts"), "utf8");
+  assert.ok(erp.includes("assertNoticeDepartmentScope"), "notice create/update/delete must validate the active workspace's department scope");
+  assert.ok(erp.includes('const isDirectorWorkspace = !institutionWide && activeRole === "DIRECTOR" && isDirectorScoped(actor)'), "notice listing must resolve Director scope from the effective workspace");
+  assert.ok(admissions.includes("getDirectorDepartmentIds"), "admissions must derive Director scope from CampusAccess");
+  assert.ok(admissions.includes("assertProgramScope(institutionId, actor, existing.programId)"), "status mutations must be scoped to the application program");
+  assert.ok(admissions.includes("getEffectiveWorkspaceRole(actor) === \"DIRECTOR\""), "a secondary Director role must not override a different active workspace");
+  assert.ok(admissionRoutes.includes("requireAuthenticatedUser(req),\n      pagination"), "admission list API must receive the authenticated actor for scoping");
+  assert.ok(admissionRoutes.includes("service.getApplication(requireInstitution(req), requireAuthenticatedUser(req), req.params.id)"), "admission detail API must receive the authenticated actor for scoping");
+});
+
   const erp = readFileSync(join(process.cwd(), "src/services/erp.service.ts"), "utf8");
   const admissions = readFileSync(join(process.cwd(), "src/services/admission.service.ts"), "utf8");
   const admissionRoutes = readFileSync(join(process.cwd(), "src/routes/admission.routes.ts"), "utf8");
