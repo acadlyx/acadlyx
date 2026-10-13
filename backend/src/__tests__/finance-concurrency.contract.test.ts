@@ -22,7 +22,12 @@ test("refund requests reserve refundable balance while holding invoice and payme
 
 test("refund processing claims an approved refund exactly once inside its transaction", () => {
   const process = source.slice(source.indexOf("export async function processRefund("), source.indexOf("export async function transactions("));
-  assert.match(process, /updateMany\(\{where:\{id,institutionId,status:"APPROVED"\},data:\{status:"PROCESSING"\}\}\)/);
+  // Claim the row only after both ledger rows are locked and scope is revalidated.
+  assert.match(process, /SELECT "id" FROM "fee_invoices"[^\n]*FOR UPDATE/);
+  assert.match(process, /SELECT "id" FROM "fee_payments"[^\n]*FOR UPDATE/);
+  assert.ok(process.lastIndexOf("FOR UPDATE") < process.indexOf("const visibleInvoice"));
+  assert.ok(process.indexOf("const visibleInvoice") < process.indexOf("const claimed"));
+  assert.match(process, /updateMany\(\{where:\{id,institutionId,status:"APPROVED",invoiceId:candidate\.invoiceId,paymentId:candidate\.paymentId\},data:\{status:"PROCESSING"\}\}\)/);
   assert.match(process, /if\(claimed.count!==1\)/);
   assert.match(process, /type:"REFUND",reference:id/);
 });
