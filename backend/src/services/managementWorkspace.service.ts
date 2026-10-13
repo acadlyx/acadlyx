@@ -4,7 +4,6 @@ import { AppError } from "../middleware/errorHandler";
 import {
   AuthenticatedUser,
 } from "../types/auth";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { getEffectiveWorkspaceRole } from "./accessScope.service";
 
 export function getWorkspaceType(actor: AuthenticatedUser): string {
