@@ -167,14 +167,10 @@ export function isDashboard(
 export function isSuperAdmin(
   user: AuthUser | null
 ): boolean {
-  return Boolean(
-    user?.roles.some(
-      (role) =>
-        normalizeRole(
-          role
-        ) === "SUPER_ADMIN"
-    )
-  );
+  // Use the same effective role selected for navigation and backend scope.
+  // A secondary Super Admin binding must never override a Student/Faculty/
+  // Director workspace for tenant-bound frontend decisions.
+  return Boolean(user && getPrimaryRole(user.roles) === "SUPER_ADMIN");
 }
 
 export function isSelf(
