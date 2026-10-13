@@ -7,7 +7,6 @@ import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRosterIds } from "../utils/academicRoster";
 import { EnterMarksInput } from "../validators/internalMark.validators";
 import { recordAuditLog } from "./audit.service";
-import { getCanonicalRoleNames } from "../config/rbac";
 import { getDirectorDepartmentIds, getManagedDepartmentIds, isInstitutionWideExamination, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 export async function enterMarks(institutionId: string, user: AuthenticatedUser, input: EnterMarksInput) {
