@@ -39,15 +39,6 @@ function assertRole(
   }
 }
 
-function hasAnyRole(
-  user: AuthenticatedUser,
-  roles: string[]
-): boolean {
-  const actorRoles = getCanonicalRoleNames(user.roles);
-  const allowedRoles = getCanonicalRoleNames(roles);
-  return actorRoles.some((role) => allowedRoles.includes(role));
-}
-
 async function assertDepartmentScope(
   institutionId: string,
   actor: AuthenticatedUser,
