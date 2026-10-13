@@ -72,6 +72,7 @@ const DASHBOARD_PRIORITY = [
   "IT",
   "CMS",
   "CLUB_PRESIDENT",
+  "STAFF",
 ] as const;
 
 export function normalizeRole(
@@ -107,14 +108,7 @@ export function getPrimaryRole(
     );
 
   return (
-    DASHBOARD_PRIORITY.find(
-      (role) =>
-        canonical.includes(
-          role
-        )
-    ) ??
-    canonical[0] ??
-    null
+    DASHBOARD_PRIORITY.find((role) => canonical.includes(role)) ?? null
   );
 }
 
