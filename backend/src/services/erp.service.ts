@@ -213,7 +213,7 @@ async function assertFeeInvoiceScope(
 ): Promise<void> {
   const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   if (isInstitutionWideFinance(actor)) {
-      if (!roles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
+    if (getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" && actor.institutionId !== institutionId) {
       throw new AppError("Fee data is outside your authorized institution scope", 403);
     }
     return;
@@ -227,8 +227,7 @@ async function assertStudentScope(
   studentId: string,
 ): Promise<void> {
   const effectiveRole = getEffectiveWorkspaceRole(actor);
-  const actorRoles = new Set<string>(getCanonicalRoleNames(actor.roles));
-  if (!actorRoles.has("SUPER_ADMIN") && actor.institutionId !== institutionId) {
+  if (effectiveRole !== "SUPER_ADMIN" && actor.institutionId !== institutionId) {
     throw new AppError("Student data is outside your authorized scope", 403);
   }
   if (actor.id === studentId) return;
