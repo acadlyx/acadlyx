@@ -51,11 +51,6 @@ export function DirectorDashboard() {
   return (
     <DashboardShell title="Director Workspace" subtitle="Campus operations, academic performance and authorized decisions" allowedRoles={["DIRECTOR"]}>
       <main className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="rounded-3xl bg-slate-900 p-7 text-white">
-          <p className="text-xs font-bold uppercase tracking-[.2em] text-sky-300">Campus leadership</p>
-          <h1 className="mt-2 text-3xl font-black">Director Command Center</h1>
-          <p className="mt-2 text-sm text-slate-300">Campus visibility for campuses explicitly assigned to your account. Use the left sidebar to navigate between dedicated campus pages.</p>
-        </section>
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
             <span>{scopeMissing ? "No campus is assigned to this Director account. Ask Institution Admin to open Admin → People → Edit user, assign one or more active campuses, and save. Metrics remain unavailable until that scope exists." : "Campus metrics are temporarily unavailable. No values are being reported as zero."}</span>
@@ -68,13 +63,9 @@ export function DirectorDashboard() {
             return <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
               <p className="mt-2 text-3xl font-black text-slate-950">{loading || value === undefined || !Number.isFinite(value) ? "—" : value.toLocaleString("en-IN")}</p>
-              <p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : value === undefined ? "Unavailable" : "Assigned-campus scope"}</p>
+              {(loading || value === undefined) && <p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : "Unavailable"}</p>}
             </article>;
           })}
-        </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="font-black text-slate-950">Workspace navigation</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Use the left sidebar to move between dedicated Director pages. All records and actions are constrained to your assigned-campus authority; this overview intentionally avoids duplicating the navigation menu.</p>
         </section>
       </main>
     </DashboardShell>
