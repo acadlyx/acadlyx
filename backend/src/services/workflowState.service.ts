@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
-import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { assertCanViewStudent, assertCanViewUserRecord, assertCourseOfferingInScope, assertProgramInScope, isInstitutionWideFinance, isInstitutionWideAdmissions, isInstitutionWideExamination, getEffectiveWorkspaceRole } from "./accessScope.service";
 import { assertLeaveDecisionAuthority } from "./workflowAuthority.service";
 
 export type WorkflowState =
