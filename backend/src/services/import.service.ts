@@ -274,7 +274,7 @@ async function processImportRow(
           await assertImportDepartmentScope(institutionId, actor, program.departmentId, true);
           if (existingProfile) {
             const currentEnrollment = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: existingProfile.userId, status: "ACTIVE" }, include: { program: { select: { departmentId: true } } } });
-            if (currentEnrollment) await assertImportDepartmentScope(institutionId, actor, currentEnrollment.program.departmentId);
+            if (currentEnrollment) await assertImportDepartmentScope(institutionId, actor, currentEnrollment.program.departmentId, true);
           }
           const yearName = text(row.academicyear);
           if (!yearName) throw new AppError("Academic year is required for student imports", 400);
