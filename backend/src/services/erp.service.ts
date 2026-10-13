@@ -1325,9 +1325,9 @@ export async function getMyWorkspace(
    * Specialists use focused KPI summaries at the workspace root. Detail
    * screens remain the source of truth and enforce their own permissions.
    */
-  const canonicalRoles = getCanonicalRoleNames(actor.roles);
+  const activeWorkspace = getEffectiveWorkspaceRole(actor);
 
-  if (canonicalRoles.includes("ACCOUNTS") && isInstitutionWideFinance(actor)) {
+  if (activeWorkspace === "ACCOUNTS" && isInstitutionWideFinance(actor)) {
     const [students, invoices, payments, invoiceTotals] =
       await Promise.all([
         prisma.user.count({
@@ -1360,7 +1360,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("HR") && !hasScopedWorkspaceRole(actor)) {
+  if (activeWorkspace === "HR" && !hasScopedWorkspaceRole(actor)) {
     const [employees, activeEmployees, pendingLeave] = await Promise.all([
       prisma.employeeProfile.count({ where: { institutionId } }),
       prisma.employeeProfile.count({
@@ -1381,7 +1381,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("ADMISSIONS") && isInstitutionWideAdmissions(actor)) {
+  if (activeWorkspace === "ADMISSIONS" && isInstitutionWideAdmissions(actor)) {
     const [applications, submitted, selected, enrolled] = await Promise.all([
       prisma.admissionApplication.count({
         where: { institutionId },
@@ -1408,7 +1408,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("EXAMINATION") && isInstitutionWideExamination(actor)) {
+  if (activeWorkspace === "EXAMINATION" && isInstitutionWideExamination(actor)) {
     const [exams, upcomingExams, results] = await Promise.all([
       prisma.exam.count({ where: { institutionId } }),
       prisma.exam.count({
@@ -1430,7 +1430,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("LIBRARIAN") && !hasScopedWorkspaceRole(actor)) {
+  if (activeWorkspace === "LIBRARIAN" && !hasScopedWorkspaceRole(actor)) {
     const [books, issued, overdue] = await Promise.all([
       prisma.libraryBook.count({
         where: { institutionId, isActive: true },
@@ -1457,7 +1457,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("PLACEMENT")) {
+  if (activeWorkspace === "PLACEMENT") {
     const [opportunities, applications] = await Promise.all([
       prisma.opportunity.count({
         where: { institutionId, isActive: true },
@@ -1476,7 +1476,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("IT") && !hasScopedWorkspaceRole(actor)) {
+  if (activeWorkspace === "IT" && !hasScopedWorkspaceRole(actor)) {
     const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const [users, activeUsers, recentAuditEvents] = await Promise.all([
       prisma.user.count({ where: { institutionId } }),
@@ -1499,7 +1499,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CMS") && !hasScopedWorkspaceRole(actor)) {
+  if (activeWorkspace === "CMS" && !hasScopedWorkspaceRole(actor)) {
     const [notices, notifications] = await Promise.all([
       prisma.notice.count({ where: { institutionId } }),
       prisma.notification.count({ where: { institutionId } }),
@@ -1514,7 +1514,7 @@ export async function getMyWorkspace(
     };
   }
 
-  if (canonicalRoles.includes("CLUB_PRESIDENT") && !hasScopedWorkspaceRole(actor)) {
+  if (activeWorkspace === "CLUB_PRESIDENT" && !hasScopedWorkspaceRole(actor)) {
     const notifications = await prisma.notification.count({
       where: { institutionId, userId: actor.id },
     });
