@@ -216,8 +216,10 @@ async function assertExportAccess(
   actor: AuthenticatedUser,
   type: ExportType,
 ): Promise<ExportActorScope> {
-  const roles = new Set<string>(getCanonicalRoleNames(actor.roles));
   const activeRole = getEffectiveWorkspaceRole(actor);
+  // Scope-specific query branches consume only the active workspace role,
+  // never the union of secondary bindings.
+  const roles = new Set<string>([activeRole]);
   const permission = EXPORT_PERMISSION_BY_TYPE[type];
   const hasScopedFinanceExportPermission =
     activeRole === "DIRECTOR" &&
