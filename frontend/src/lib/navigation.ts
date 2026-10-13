@@ -416,14 +416,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
-    label: "Operations oversight",
-    href: "/chairman/operations",
-    icon: "⚙",
-    roles: ["CHAIRMAN"],
-    permissions: ["operations.read"],
-    group: "Oversight",
-  },
-  {
     label: "Overview",
     href: "/director",
     activeMatch: "exact",
@@ -529,14 +521,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["DIRECTOR"],
     permissions: ["obe.read"],
     group: "Academic",
-  },
-  {
-    label: "Operations",
-    href: "/director/operations",
-    icon: "⚙",
-    roles: ["DIRECTOR"],
-    permissions: ["operations.read"],
-    group: "Institution",
   },
   {
     label: "Campus Collection",
