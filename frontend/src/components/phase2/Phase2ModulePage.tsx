@@ -16,7 +16,6 @@ export type Phase2Module =
 
 type ModuleConfig = {
   title: string;
-  description: string;
   action: string;
   columns: string[];
   rows: string[][];
@@ -27,8 +26,6 @@ type ModuleConfig = {
 const configs: Record<Phase2Module, ModuleConfig> = {
   admissions: {
     title: "Admission Management",
-    description:
-      "Manage admission enquiries, applications, document verification, and selection workflows.",
     action: "New admission",
     columns: ["Applicant", "Program", "Applied on", "Status"],
     rows: [
@@ -45,8 +42,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   enrollment: {
     title: "Enrollment Management",
-    description:
-      "Track student enrollment, registration status, and academic onboarding.",
     action: "New enrollment",
     columns: ["Student", "Enrollment ID", "Program", "Status"],
     rows: [
@@ -63,8 +58,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   promotion: {
     title: "Student Promotion & Transfer",
-    description:
-      "Process semester promotions, academic transfers, and student movement records.",
     action: "Create request",
     columns: ["Student", "Current level", "Requested action", "Status"],
     rows: [
@@ -81,8 +74,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   library: {
     title: "Library Management",
-    description:
-      "Manage books, issue records, returns, reservations, and library inventory.",
     action: "Add book",
     columns: ["Book title", "Author", "Available copies", "Status"],
     rows: [
@@ -99,8 +90,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   faculty: {
     title: "Faculty Management",
-    description:
-      "Maintain faculty profiles, departments, teaching assignments, and workload information.",
     action: "Add faculty",
     columns: ["Faculty member", "Department", "Designation", "Status"],
     rows: [
@@ -117,8 +106,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   hr: {
     title: "HR Management",
-    description:
-      "Manage employee records, departments, joining details, and employment information.",
     action: "Add employee",
     columns: ["Employee", "Department", "Joining date", "Status"],
     rows: [
@@ -135,8 +122,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   leave: {
     title: "Leave Management",
-    description:
-      "Review, approve, and track student, faculty, and employee leave requests.",
     action: "New leave request",
     columns: ["Applicant", "Leave type", "Duration", "Status"],
     rows: [
@@ -153,8 +138,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   reports: {
     title: "Reports Center",
-    description:
-      "Access institutional reports covering students, academics, finance, and operations.",
     action: "Generate report",
     columns: ["Report name", "Category", "Generated on", "Status"],
     rows: [
@@ -171,8 +154,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   users: {
     title: "User & Role Management",
-    description:
-      "Manage accounts, roles, permissions, and access to institutional modules.",
     action: "Add user",
     columns: ["User", "Email", "Role", "Status"],
     rows: [
@@ -189,8 +170,6 @@ const configs: Record<Phase2Module, ModuleConfig> = {
   },
   settings: {
     title: "Institution Settings",
-    description:
-      "Configure institution identity, academic structure, contact details, and platform preferences.",
     action: "Add setting",
     columns: ["Setting", "Category", "Current value", "Status"],
     rows: [
@@ -243,10 +222,6 @@ export default function Phase2ModulePage({
           <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             {config.title}
           </h1>
-
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-            {config.description}
-          </p>
         </div>
 
         <button
