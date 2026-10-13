@@ -158,7 +158,7 @@ export const getById = asyncHandler(
       requireUserManagementRole(req);
 
     const isSuperAdmin =
-      user.roles.includes("SUPER_ADMIN");
+      getEffectiveWorkspaceRole(user) === "SUPER_ADMIN";
 
     const target =
       await userService.getUserById(
