@@ -387,7 +387,7 @@ async function getHodDepartments(
   institutionId: string,
   actor: AuthenticatedUser
 ) {
-  if (!hasAnyRole(actor, ["HOD"])) return [];
+  if (getEffectiveWorkspaceRole(actor) !== "HOD") return [];
   const ids = await getManagedDepartmentIds(institutionId, actor.id);
   if (!ids.length) return [];
   return prisma.department.findMany({
@@ -2932,8 +2932,9 @@ export async function getExamDetails(
     await assertDepartmentScope(institutionId, actor, exam.courseOfferingId);
   }
 
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (
-    !hasAnyRole(actor, [
+    ![
       "INSTITUTION_ADMIN",
       "DIRECTOR",
       "CHAIRMAN",
@@ -2942,10 +2943,10 @@ export async function getExamDetails(
       "ACCOUNTS",
       "FACULTY",
       "EXAMINATION",
-    ])
+    ].includes(activeRole)
   ) {
     throw new AppError(
-      "Not authorized for this ERP operation",
+      "The active workspace cannot access this ERP examination operation",
       403
     );
   }
