@@ -229,8 +229,9 @@ async function processImportRow(
           if (!semesterNumber) throw new AppError("Semester number is required", 400);
           await tx.semester.upsert({ where: { programId_academicYearId_number: { programId: program.id, academicYearId: year.id, number: semesterNumber } }, update: { name: text(row.name) || `Semester ${semesterNumber}`, startDate: text(row.startdate) ? date(row.startdate) : null, endDate: text(row.enddate) ? date(row.enddate) : null, isActive: row.active === "" ? true : bool(row.active) }, create: { institutionId, programId: program.id, academicYearId: year.id, number: semesterNumber, name: text(row.name) || `Semester ${semesterNumber}`, startDate: text(row.startdate) ? date(row.startdate) : null, endDate: text(row.enddate) ? date(row.enddate) : null, isActive: row.active === "" ? true : bool(row.active) } });
         } else if (type === "course-offerings") {
-          const course = await tx.course.findFirst({ where: { institutionId, code: text(row.coursecode) } });
+          const course = await tx.course.findFirst({ where: { institutionId, code: text(row.coursecode) }, select: { id: true, departmentId: true } });
           if (!course) throw new AppError(`Course not found: ${text(row.coursecode)}`, 400);
+          await assertImportDepartmentScope(institutionId, actor, course.departmentId);
           const semester = await tx.semester.findFirst({ where: { institutionId, program: { code: text(row.programcode) }, academicYear: { name: text(row.academicyear) }, number: number(row.semesternumber) }, select: { id: true, program: { select: { departmentId: true } } } });
           if (!semester) throw new AppError("Semester not found for course offering", 400);
           await assertImportDepartmentScope(institutionId, actor, semester.program.departmentId);
@@ -306,10 +307,14 @@ async function processImportRow(
         } else if (type === "programs") {
           const department = await resolveDepartment(tx, institutionId, row);
           await assertImportDepartmentScope(institutionId, actor, department.id);
+          const existingProgram = await tx.program.findFirst({ where: { institutionId, code: text(row.code) }, select: { departmentId: true } });
+          if (existingProgram) await assertImportDepartmentScope(institutionId, actor, existingProgram.departmentId);
           await tx.program.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), departmentId: department.id, level: text(row.level) || "UG", durationYears: number(row.durationyears) || 4 }, create: { institutionId, code: text(row.code), name: text(row.name), departmentId: department.id, level: text(row.level) || "UG", durationYears: number(row.durationyears) || 4 } });
         } else if (type === "courses") {
           const department = await resolveDepartment(tx, institutionId, row);
           await assertImportDepartmentScope(institutionId, actor, department.id);
+          const existingCourse = await tx.course.findFirst({ where: { institutionId, code: text(row.code) }, select: { departmentId: true } });
+          if (existingCourse) await assertImportDepartmentScope(institutionId, actor, existingCourse.departmentId);
           await tx.course.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), departmentId: department.id, credits: number(row.credits) || 4, description: text(row.description) || null }, create: { institutionId, code: text(row.code), name: text(row.name), departmentId: department.id, credits: number(row.credits) || 4, description: text(row.description) || null } });
         } else if (type === "sections") {
           const program = await resolveProgram(tx, institutionId, row);
@@ -322,18 +327,23 @@ async function processImportRow(
           await tx.section.upsert({ where: { semesterId_name: { semesterId: semester.id, name: text(row.name) } }, update: { capacity: number(row.capacity) || null, isActive: row.active === "" ? true : bool(row.active) }, create: { institutionId, semesterId: semester.id, name: text(row.name), capacity: number(row.capacity) || null } });
         } else if (type === "exams") {
           const offering = await resolveOffering(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, offering.course.departmentId);
           await assertImportDepartmentScope(institutionId, actor, offering.section.semester.program.departmentId);
-          const title = text(row.title);
+                    const title = text(row.title);
           if (!title) throw new AppError("Exam title is required", 400);
           await tx.exam.create({ data: { institutionId, courseOfferingId: offering.id, title, examDate: date(row.examdate || row.date), maxMarks: number(row.maxmarks) || 100, createdById: actor.id } });
         } else if (type === "marks") {
           const student = await resolveStudent(tx, institutionId, row);
           const offering = await resolveOffering(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, offering.course.departmentId);
+          await assertImportDepartmentScope(institutionId, actor, offering.section.semester.program.departmentId);
           const component = text(row.component) || "Internal 1";
           await tx.internalMark.upsert({ where: { courseOfferingId_studentId_component: { courseOfferingId: offering.id, studentId: student.id, component } }, update: { marksObtained: number(row.marksobtained), maxMarks: number(row.maxmarks) || 100, enteredById: actor.id }, create: { institutionId, courseOfferingId: offering.id, studentId: student.id, component, marksObtained: number(row.marksobtained), maxMarks: number(row.maxmarks) || 100, enteredById: actor.id } });
         } else if (type === "attendance") {
           const student = await resolveStudent(tx, institutionId, row);
           const offering = await resolveOffering(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, offering.course.departmentId);
+          await assertImportDepartmentScope(institutionId, actor, offering.section.semester.program.departmentId);
           const sessionDate = date(row.date);
           const session = await tx.attendanceSession.upsert({ where: { courseOfferingId_sessionDate: { courseOfferingId: offering.id, sessionDate } }, update: {}, create: { institutionId, courseOfferingId: offering.id, facultyId: actor.id, sessionDate } });
           await tx.attendanceRecord.upsert({ where: { attendanceSessionId_studentId: { attendanceSessionId: session.id, studentId: student.id } }, update: { status: text(row.status).toUpperCase() || "ABSENT" }, create: { attendanceSessionId: session.id, studentId: student.id, status: text(row.status).toUpperCase() || "ABSENT" } });
@@ -375,6 +385,8 @@ async function processImportRow(
           await tx.notice.create({ data: { institutionId, title: text(row.title), body: text(row.body), audience: text(row.audience) || "ALL", publishedAt: text(row.publishedat) ? date(row.publishedat) : new Date(), expiresAt: text(row.expiresat) ? date(row.expiresat) : null, createdById: actor.id } });
         } else if (type === "timetable") {
           const offering = await resolveOffering(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, offering.course.departmentId);
+          await assertImportDepartmentScope(institutionId, actor, offering.section.semester.program.departmentId);
           await tx.timetableEntry.upsert({ where: { courseOfferingId_dayOfWeek_startTime: { courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime) } }, update: { endTime: text(row.endtime), room: text(row.room) || null }, create: { institutionId, courseOfferingId: offering.id, dayOfWeek: number(row.dayofweek), startTime: text(row.starttime), endTime: text(row.endtime), room: text(row.room) || null } });
         }
 }
