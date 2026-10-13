@@ -48,11 +48,6 @@ export function ChairmanDashboard() {
   return (
     <DashboardShell title="Chairman Command Center" subtitle="Executive oversight, institutional intelligence and strategic decisions" allowedRoles={["CHAIRMAN"]}>
       <main className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="rounded-3xl bg-slate-950 p-7 text-white">
-          <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-300">Executive oversight</p>
-          <h1 className="mt-2 text-3xl font-black">Institutional Command Center</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-300">Institution-wide executive visibility. Use the left sidebar to open each dedicated workspace; all financial and academic records remain subject to backend authorization.</p>
-        </section>
         {unavailable && (
           <section role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
             <span>Institutional metrics are temporarily unavailable. No values are being reported as zero.</span>
@@ -70,15 +65,10 @@ export function ChairmanDashboard() {
             return <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
               <p className="mt-2 text-3xl font-black text-slate-950">{display}</p>
-              <p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : value === undefined ? "Unavailable" : "Current authorized scope"}</p>
+              {(loading || value === undefined) && <p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : "Unavailable"}</p>}
             </article>;
           })}
         </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="font-black text-slate-950">Workspace navigation</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Use the left sidebar to move between dedicated Chairman pages. All records and actions are constrained to your institution-wide authority; this overview intentionally avoids duplicating the navigation menu.</p>
-        </section>
-
       </main>
     </DashboardShell>
   );
