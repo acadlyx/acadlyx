@@ -10,7 +10,7 @@ import { recordAuditLog } from "./audit.service";
 import { storeFile, deleteFile } from "./fileStorage.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
-import { getDirectorDepartmentIds, getManagedDepartmentIds, getStaffDepartmentIds, getEffectiveWorkspaceRole, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideExamination } from "./accessScope.service";
+import { getDirectorDepartmentIds, getManagedDepartmentIds, getStaffDepartmentIds, getEffectiveWorkspaceRole, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideExamination, isInstitutionWideAdmissions } from "./accessScope.service";
 
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
 export type ImportType = typeof IMPORT_TYPES[number];
@@ -103,9 +103,9 @@ function assertImportPermission(actor: AuthenticatedUser, type: ImportType) {
   }
 }
 
-async function assertImportDepartmentScope(institutionId: string, actor: AuthenticatedUser, departmentId: string) {
+async function assertImportDepartmentScope(institutionId: string, actor: AuthenticatedUser, departmentId: string, allowAdmissionsStudentCreation = false) {
   const activeRole = getEffectiveWorkspaceRole(actor);
-  if (isInstitutionWide(actor) || (activeRole === "EXAMINATION" && isInstitutionWideExamination(actor))) return;
+  if (isInstitutionWide(actor) || (activeRole === "EXAMINATION" && isInstitutionWideExamination(actor)) || (allowAdmissionsStudentCreation && activeRole === "ADMISSIONS" && isInstitutionWideAdmissions(actor))) return;
   let allowedDepartmentIds: string[] = [];
   if (activeRole === "DIRECTOR") allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   else if (activeRole === "DEAN" || activeRole === "HOD") allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
@@ -271,7 +271,7 @@ async function processImportRow(
 
           const user = await upsertUser(tx, institutionId, row, "STUDENT");
           const program = await resolveProgram(tx, institutionId, row);
-          await assertImportDepartmentScope(institutionId, actor, program.departmentId);
+          await assertImportDepartmentScope(institutionId, actor, program.departmentId, true);
           if (existingProfile) {
             const currentEnrollment = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: existingProfile.userId, status: "ACTIVE" }, include: { program: { select: { departmentId: true } } } });
             if (currentEnrollment) await assertImportDepartmentScope(institutionId, actor, currentEnrollment.program.departmentId);
