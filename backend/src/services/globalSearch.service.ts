@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthenticatedUser } from "../types/auth";
-import { getCanonicalRoleNames } from "../config/rbac";
 import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
@@ -26,7 +25,6 @@ export async function globalSearch(
   if (q.length < 2) return [];
   const like = `%${q}%`;
   const out: GlobalSearchResult[] = [];
-  const roles: string[] = getCanonicalRoleNames(actor.roles);
   const institutionWide = isInstitutionWide(actor);
   const activeRole = getEffectiveWorkspaceRole(actor);
   const canPeople = actor.permissions.includes("users.read") || actor.permissions.includes("students.read") || actor.permissions.includes("faculty.read");
