@@ -10,6 +10,7 @@ import { recordAuditLog } from "./audit.service";
 import { storeFile, deleteFile } from "./fileStorage.service";
 import { enqueueJob } from "./backgroundJob.service";
 import { JOB_TYPES } from "../jobs/types";
+import { getDirectorDepartmentIds, getManagedDepartmentIds, getStaffDepartmentIds, getEffectiveWorkspaceRole, isInstitutionWide, isInstitutionWideFinance, isInstitutionWideExamination } from "./accessScope.service";
 
 export const IMPORT_TYPES = ["users", "students", "faculty", "campuses", "departments", "programs", "academic-years", "semesters", "sections", "courses", "course-offerings", "exams", "marks", "attendance", "fees", "fee-payments", "fee-structures", "notices", "timetable", "parent-links"] as const;
 export type ImportType = typeof IMPORT_TYPES[number];
@@ -79,17 +80,39 @@ export function preview(buffer: Buffer, type: ImportType) {
   return { ...parsed, type, sample: parsed.rows.slice(0, 10) };
 }
 
-function assertImportPermission(
-  actor: AuthenticatedUser,
-  type: ImportType
-) {
+function assertImportPermission(actor: AuthenticatedUser, type: ImportType) {
   const permission = IMPORT_PERMISSION_BY_TYPE[type];
-
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (!permission || !actor.permissions.includes(permission)) {
-    throw new AppError(
-      "You are not authorized to import this data type",
-      403
-    );
+    throw new AppError("You are not authorized to import this data type", 403);
+  }
+  // Permissions from secondary role bindings must not turn the active
+  // workspace into a global import authority.
+  if (activeRole === "INSTITUTION_ADMIN" && ["fees", "fee-payments", "fee-structures", "exams", "marks"].includes(type)) {
+    throw new AppError("This import is not available in the Institution Admin workspace", 403);
+  }
+  if (["fees", "fee-payments", "fee-structures"].includes(type) && !isInstitutionWideFinance(actor)) {
+    throw new AppError("Financial imports require institution-wide finance authority", 403);
+  }
+  if (["exams", "marks"].includes(type) && !isInstitutionWideExamination(actor) && !["DIRECTOR", "DEAN", "HOD", "FACULTY"].includes(activeRole)) {
+    throw new AppError("Exam and marks imports require examination authority or an assigned academic scope", 403);
+  }
+  const requiresInstitutionScope = ["users", "faculty", "campuses", "departments", "academic-years", "notices"].includes(type);
+  if (requiresInstitutionScope && !isInstitutionWide(actor) && !(type === "notices" && activeRole === "CMS")) {
+    throw new AppError("This import type does not support department/campus-scoped writes", 403);
+  }
+}
+
+async function assertImportDepartmentScope(institutionId: string, actor: AuthenticatedUser, departmentId: string) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) || (activeRole === "EXAMINATION" && isInstitutionWideExamination(actor))) return;
+  let allowedDepartmentIds: string[] = [];
+  if (activeRole === "DIRECTOR") allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  else if (activeRole === "DEAN" || activeRole === "HOD") allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+  else if (activeRole === "FACULTY") allowedDepartmentIds = await getStaffDepartmentIds(institutionId, actor.id);
+  else throw new AppError("This import target is outside the active workspace scope", 403);
+  if (!allowedDepartmentIds.length || !allowedDepartmentIds.includes(departmentId)) {
+    throw new AppError("This import target is outside your assigned campus/department scope", 403);
   }
 }
 
@@ -163,9 +186,15 @@ async function resolveStudent(tx: Prisma.TransactionClient, institutionId: strin
 
 async function resolveOffering(tx: Prisma.TransactionClient, institutionId: string, row: Row) {
   const code = text(row.coursecode);
-  const section = text(row.section);
-  const offering = await tx.courseOffering.findFirst({ where: { institutionId, course: { code }, ...(section ? { section: { name: section } } : {}) }, include: { course: true, section: true } });
-  if (!offering) throw new AppError(`Course offering not found: ${code}/${section}`, 400);
+  const sectionName = text(row.section);
+  const offering = await tx.courseOffering.findFirst({
+    where: { institutionId, course: { code }, ...(sectionName ? { section: { name: sectionName } } : {}) },
+    include: {
+      course: true,
+      section: { include: { semester: { include: { program: { select: { departmentId: true } } } } } },
+    },
+  });
+  if (!offering) throw new AppError(`Course offering not found: ${code}/${sectionName}`, 400);
   return offering;
 }
 
@@ -193,6 +222,7 @@ async function processImportRow(
           await tx.academicYear.upsert({ where: { institutionId_name: { institutionId, name } }, update: { startDate: date(row.startdate), endDate: date(row.enddate), isCurrent: bool(row.iscurrent) }, create: { institutionId, name, startDate: date(row.startdate), endDate: date(row.enddate), isCurrent: bool(row.iscurrent) } });
         } else if (type === "semesters") {
           const program = await resolveProgram(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, program.departmentId);
           const year = await tx.academicYear.findFirst({ where: { institutionId, name: text(row.academicyear) } });
           if (!year) throw new AppError(`Academic year not found: ${text(row.academicyear)}`, 400);
           const semesterNumber = number(row.number || row.semesternumber);
@@ -201,8 +231,9 @@ async function processImportRow(
         } else if (type === "course-offerings") {
           const course = await tx.course.findFirst({ where: { institutionId, code: text(row.coursecode) } });
           if (!course) throw new AppError(`Course not found: ${text(row.coursecode)}`, 400);
-          const semester = await tx.semester.findFirst({ where: { institutionId, program: { code: text(row.programcode) }, academicYear: { name: text(row.academicyear) }, number: number(row.semesternumber) } });
+          const semester = await tx.semester.findFirst({ where: { institutionId, program: { code: text(row.programcode) }, academicYear: { name: text(row.academicyear) }, number: number(row.semesternumber) }, select: { id: true, program: { select: { departmentId: true } } } });
           if (!semester) throw new AppError("Semester not found for course offering", 400);
+          await assertImportDepartmentScope(institutionId, actor, semester.program.departmentId);
           const section = await tx.section.findFirst({ where: { institutionId, semesterId: semester.id, name: text(row.section) } });
           if (!section) throw new AppError(`Section not found: ${text(row.section)}`, 400);
           let facultyId: string | null = null;
@@ -216,6 +247,9 @@ async function processImportRow(
           const parent = await tx.user.findFirst({ where: { institutionId, email: text(row.parentemail).toLowerCase(), userRoles: { some: { role: { name: "PARENT" } } } } });
           const student = await tx.user.findFirst({ where: { institutionId, email: text(row.studentemail).toLowerCase(), userRoles: { some: { role: { name: "STUDENT" } } } } });
           if (!parent || !student) throw new AppError("Parent and student emails must belong to this institution", 400);
+          const studentEnrollment = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: student.id, status: "ACTIVE" }, include: { program: { select: { departmentId: true } } } });
+          if (!studentEnrollment) throw new AppError("Student must have an active enrollment before a parent link can be imported", 400);
+          await assertImportDepartmentScope(institutionId, actor, studentEnrollment.program.departmentId);
           await tx.parentStudentLink.upsert({ where: { parentId_studentId: { parentId: parent.id, studentId: student.id } }, update: { relationship: text(row.relationship) || null }, create: { institutionId, parentId: parent.id, studentId: student.id, relationship: text(row.relationship) || null } });
         } else if (type === "students") {
           const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
@@ -236,6 +270,11 @@ async function processImportRow(
 
           const user = await upsertUser(tx, institutionId, row, "STUDENT");
           const program = await resolveProgram(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, program.departmentId);
+          if (existingProfile) {
+            const currentEnrollment = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: existingProfile.userId, status: "ACTIVE" }, include: { program: { select: { departmentId: true } } } });
+            if (currentEnrollment) await assertImportDepartmentScope(institutionId, actor, currentEnrollment.program.departmentId);
+          }
           const yearName = text(row.academicyear);
           if (!yearName) throw new AppError("Academic year is required for student imports", 400);
           const year = await tx.academicYear.findFirst({ where: { institutionId, name: yearName } });
@@ -266,12 +305,15 @@ async function processImportRow(
           await tx.department.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), campusId, isActive: row.active === "" ? true : bool(row.active) }, create: { institutionId, code: text(row.code), name: text(row.name), campusId, isActive: row.active === "" ? true : bool(row.active) } });
         } else if (type === "programs") {
           const department = await resolveDepartment(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, department.id);
           await tx.program.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), departmentId: department.id, level: text(row.level) || "UG", durationYears: number(row.durationyears) || 4 }, create: { institutionId, code: text(row.code), name: text(row.name), departmentId: department.id, level: text(row.level) || "UG", durationYears: number(row.durationyears) || 4 } });
         } else if (type === "courses") {
           const department = await resolveDepartment(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, department.id);
           await tx.course.upsert({ where: { institutionId_code: { institutionId, code: text(row.code) } }, update: { name: text(row.name), departmentId: department.id, credits: number(row.credits) || 4, description: text(row.description) || null }, create: { institutionId, code: text(row.code), name: text(row.name), departmentId: department.id, credits: number(row.credits) || 4, description: text(row.description) || null } });
         } else if (type === "sections") {
           const program = await resolveProgram(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, program.departmentId);
           const yearName = text(row.academicyear);
           const year = await tx.academicYear.findFirst({ where: { institutionId, name: yearName } });
           if (!year) throw new AppError(`Academic year not found: ${yearName}`, 400);
@@ -280,6 +322,7 @@ async function processImportRow(
           await tx.section.upsert({ where: { semesterId_name: { semesterId: semester.id, name: text(row.name) } }, update: { capacity: number(row.capacity) || null, isActive: row.active === "" ? true : bool(row.active) }, create: { institutionId, semesterId: semester.id, name: text(row.name), capacity: number(row.capacity) || null } });
         } else if (type === "exams") {
           const offering = await resolveOffering(tx, institutionId, row);
+          await assertImportDepartmentScope(institutionId, actor, offering.section.semester.program.departmentId);
           const title = text(row.title);
           if (!title) throw new AppError("Exam title is required", 400);
           await tx.exam.create({ data: { institutionId, courseOfferingId: offering.id, title, examDate: date(row.examdate || row.date), maxMarks: number(row.maxmarks) || 100, createdById: actor.id } });
