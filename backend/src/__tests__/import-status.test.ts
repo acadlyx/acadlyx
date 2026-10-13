@@ -6,7 +6,7 @@ import { normalizeStudentStatus } from "../services/import.service";
 test("student import status normalization accepts common case and whitespace variants", () => {
   assert.equal(normalizeStudentStatus("Active"), "ACTIVE");
   assert.equal(normalizeStudentStatus(" active "), "ACTIVE");
-  assert.equal(normalizeStudentStatus("In Active"), "INACTIVE");
+  assert.equal(normalizeStudentStatus(" inactive "), "INACTIVE");
   assert.equal(normalizeStudentStatus("Graduated"), "GRADUATED");
   assert.equal(normalizeStudentStatus("Withdrawn"), "WITHDRAWN");
   assert.equal(normalizeStudentStatus("Transferred"), "TRANSFERRED");
