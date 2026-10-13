@@ -98,7 +98,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Events & Gallery",
     href: "/events-gallery",
     icon: "◫",
-    roles: ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
+    roles: ["MANAGEMENT","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
     permissions: ["events.read"],
     group: "Institution",
     activeMatch: "nested",
