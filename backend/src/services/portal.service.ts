@@ -18,7 +18,7 @@ type PortalActor = {
   id: string;
   roles: string[];
   permissions?: string[];
-  institutionId?: string;
+  institutionId?: string | null;
 };
 
 function isScopedPortalManager(actor: PortalActor): boolean {
