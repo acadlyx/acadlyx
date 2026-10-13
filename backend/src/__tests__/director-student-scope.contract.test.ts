@@ -13,7 +13,7 @@ import test from "node:test";
 test("Director student scope is derived from CampusAccess before any broad-role shortcut", () => {
   const source = readFileSync(join(process.cwd(), "src/services/erp.service.ts"), "utf8");
   const scopeStart = source.indexOf("async function assertStudentScope(");
-  const nextFunction = source.indexOf("\\nasync function ", scopeStart + 10);
+  const nextFunction = source.indexOf("\nasync function ", scopeStart + 10);
   assert.notEqual(scopeStart, -1, "assertStudentScope must exist");
   assert.notEqual(nextFunction, -1, "assertStudentScope must have a clear function boundary");
   const scope = source.slice(scopeStart, nextFunction);
@@ -25,5 +25,5 @@ test("Director student scope is derived from CampusAccess before any broad-role 
   assert.ok(scope.includes("getDirectorDepartmentIds(institutionId, actor.id)"), "department scope must derive from assigned campuses");
   assert.ok(scope.includes('status: "ACTIVE"'), "only active enrollment grants the student relationship");
   assert.ok(scope.includes("program: { departmentId: { in: departmentIds } }"), "student enrollment must belong to an authorized department");
-  assert.doesNotMatch(scope, /hasAnyRole\\(actor, MANAGEMENT_ROLES\\)/, "a union of broad management roles must not bypass resource scope");
+  assert.doesNotMatch(scope, /hasAnyRole\(actor, MANAGEMENT_ROLES\)/, "a union of broad management roles must not bypass resource scope");
 });
