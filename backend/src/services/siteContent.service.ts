@@ -334,7 +334,7 @@ export async function updateSiteContent(
   assertCanManageSiteContent(actor);
 
   if (
-    !actor.roles.includes("SUPER_ADMIN") &&
+    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
     actor.institutionId !== institutionId
   ) {
     throw new AppError(
