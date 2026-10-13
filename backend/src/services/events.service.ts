@@ -5,7 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
 import { deleteFile } from "./fileStorage.service";
-import { getDirectorDepartmentIds } from "./accessScope.service";
+import { getDirectorDepartmentIds, getEffectiveWorkspaceRole } from "./accessScope.service";
 import { logger } from "../utils/logger";
 import type { CreateEventInput, UpdateEventInput, CategoryInput, MediaInput } from "../validators/events.validators";
 
@@ -25,7 +25,7 @@ function assertSameInstitution(actor: AuthenticatedUser, institutionId: string) 
 }
 
 function isDirectorScope(actor: AuthenticatedUser): boolean {
-  return actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  return getEffectiveWorkspaceRole(actor) === "DIRECTOR";
 }
 
 async function assertDirectorDepartment(institutionId: string, actor: AuthenticatedUser, departmentId?: string | null): Promise<void> {
