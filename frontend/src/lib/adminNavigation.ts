@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/auth";
+import { tenantFeatureForPath } from "@/lib/navigation";
 
 export type AdminNavItem = {
   label: string;
@@ -266,6 +267,11 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 ];
 
+function isTenantFeatureEnabled(user: AuthUser | null, href: string): boolean {
+  const feature = tenantFeatureForPath(href);
+  if (!feature) return true;
+  return Array.isArray(user?.tenantFeatures) && user.tenantFeatures.includes(feature);
+}
 export function hasAny(
   user: AuthUser | null,
   permissions: string[],
@@ -294,6 +300,8 @@ export function canSee(
     return false;
   }
 
+  if (!isTenantFeatureEnabled(user, item.href)) return false;
+
   return Boolean(
     hasAny(user, item.read) ||
       hasAny(
@@ -314,10 +322,13 @@ export function canSee(
 export function getAdminNavigation(
   user: AuthUser | null,
 ): AdminNavItem[] {
-  return INSTITUTION_ADMIN_NAV.filter(
-    (item) =>
-      canSee(user, item),
-  );
+  const visible = INSTITUTION_ADMIN_NAV.filter((item) => canSee(user, item));
+  const unique = new Map<string, AdminNavItem>();
+  for (const item of visible) {
+    const destination = item.href.replace(/\/+$/, "") || "/";
+    if (!unique.has(destination)) unique.set(destination, item);
+  }
+  return Array.from(unique.values());
 }
 
 export function findAdminNavItem(
@@ -363,9 +374,7 @@ export function canAccessAdminPath(
 
   return Boolean(
     item &&
-      canSee(
-        user,
-        item,
-      ),
+      isTenantFeatureEnabled(user, item.href) &&
+      canSee(user, item),
   );
 }

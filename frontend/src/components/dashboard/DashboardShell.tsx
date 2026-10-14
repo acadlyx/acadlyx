@@ -178,10 +178,18 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     }
     const role = workspaceRole;
     if (!role) return [];
-    return navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
+    const roleItems = navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
       const href = roleOwnedHref(role, item.href);
       return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace", activeMatch: item.activeMatch, activeQuery: item.activeQuery };
     });
+    // Role-specific route rewrites happen after canonical navigation deduplication.
+    // Deduplicate final destinations too, so one page can never get duplicate buttons.
+    const uniqueDestinations = new Map<string, typeof roleItems[number]>();
+    for (const item of roleItems) {
+      const destination = item.href.replace(/\/+$/, "") || "/";
+      if (!uniqueDestinations.has(destination)) uniqueDestinations.set(destination, item);
+    }
+    return Array.from(uniqueDestinations.values());
   }, [adminDepartments, user, workspaceRole]);
 
   if (!user) {

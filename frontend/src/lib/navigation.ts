@@ -10,7 +10,23 @@ function normalizeRoleName(role: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
-  [/^\/admin\/events-gallery(\/|$)|^\/events-gallery(\/|$)/, "cms"],
+  [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments)(\/|$)/, "fees"],
+  [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student)\/students(\/|$)|^\/students(\/|$)/, "students"],
+  [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
+  [/^\/(chairman|director|dean|registrar|admissions)\/(admissions|applications)(\/|$)|^\/applications(\/|$)|^\/admissions(\/|$)/, "admissions"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/examinations?(\/|$)/, "exams"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/results?(\/|$)/, "results"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/attendance(\/|$)/, "attendance"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/timetable(\/|$)/, "timetable"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/assignments?(\/|$)/, "assignments"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/obe(\/|$)/, "obe"],
+  [/^\/(student|faculty|hod|librarian)\/library(\/|$)|^\/library(\/|$)/, "library"],
+  [/^\/(chairman|director|dean|hod|faculty|student|parent|placement|placements)\/placements?(\/|$)|^\/placements?(\/|$)/, "placements"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent)\/certificates?(\/|$)|^\/certificates?(\/|$)/, "certificates"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student)\/course-registration(\/|$)|^\/course-registration(\/|$)/, "registration"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
+  [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
+  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
@@ -21,7 +37,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/((student)\/)?library(\/|$)/, "library"],
   [/^\/((student)\/)?placements?(\/|$)/, "placements"],
   [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
-  [/^\/(hr|employees|leave-management)(\/|$)/, "hr"],
+  [/^\/(hr|employees|leave-management)(\/|$)|^\/(faculty|hod|director|dean|registrar)\/leave(\/|$)/, "hr"],
   [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
   [/^\/lms(\/|$)/, "lms"],
   [/^\/course-registration(\/|$)|^\/student\/course-registration(\/|$)/, "registration"],
@@ -30,11 +46,29 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/students(\/|$)/, "students"],
   [/^\/faculty(\/|$)/, "faculty"],
   [/^\/admin\/(students|departments|programs|academic|courses|sections|semesters|student-setup)(\/|$)/, "academics"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent|accounts|hr|admissions|examination|library|placements|it|management|staff)\/notices?(\/|$)|^\/notices?(\/|$)/, "notices"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent|accounts|hr|admissions|examination|library|placements|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
+  [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent)\/calendar(\/|$)|^\/calendar(\/|$)/, "calendar"],
+  [/^\/admin\/imports(\/|$)|^\/imports(\/|$)|^\/exports(\/|$)/, "import_export"],
+  [/^\/documents(\/|$)|^\/forms(\/|$)/, "documents"],
+  [/^\/operations(\/|$)|^\/(chairman|director|dean|hod|management|it)\/operations(\/|$)/, "operations"],
+  [/^\/analytics(\/|$)/, "analytics"],
+  [/^\/promotions?(\/|$)|^\/student-promotion(\/|$)/, "promotions"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/library(\/|$)|^\/library(\/|$)/, "library"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/calendar(\/|$)|^\/calendar(\/|$)/, "calendar"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notices?(\/|$)|^\/notices?(\/|$)/, "notices"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
 ];
 
+export function tenantFeatureForPath(pathname: string): string | null {
+  const normalizedPath = pathname.split("?")[0].replace(/\\/+$/, "") || "/";
+  return TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1] ?? null;
+}
+
 function tenantFeatureForNavigation(item: NavigationItem): string | null {
-  const match = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(item.href.split("?")[0]));
-  return match?.[1] ?? null;
+  return tenantFeatureForPath(item.href);
 }
 
 
@@ -2128,7 +2162,7 @@ export function getNavigationForRoles(
 
     const feature = tenantFeatureForNavigation(item);
     const featureAllowed =
-      !feature || tenantFeatures.length === 0 || tenantFeatures.includes(feature);
+      !feature || tenantFeatures.includes(feature);
 
     return roleAllowed && permissionAllowed && featureAllowed;
   });
@@ -2213,6 +2247,12 @@ export function canAccessRoute(
 
   const activeRole = getPrimaryRole(roles);
 
+  const permissionSet = new Set(permissions);
+  // Tenant entitlement checks run before namespace checks so role-owned routes
+  // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
+  const tenantFeature = tenantFeatureForPath(normalizedPath);
+  if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
+
   const matchingNamespace =
     NAMESPACE_OWNERS
       .filter(
@@ -2240,10 +2280,6 @@ export function canAccessRoute(
   if (!roleAllowed) {
     return false;
   }
-
-  const permissionSet = new Set(permissions);
-  const tenantFeature = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1];
-  if (tenantFeature && tenantFeatures.length > 0 && !tenantFeatures.includes(tenantFeature)) return false;
 
   // Permission-gated module namespaces are denied unless the authenticated
   // user actually has the module's read capability. Role ownership alone is
