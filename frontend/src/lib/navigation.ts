@@ -62,9 +62,13 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
 ];
 
+export function tenantFeatureForPath(pathname: string): string | null {
+  const normalizedPath = pathname.split("?")[0].replace(/\\/+$/, "") || "/";
+  return TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1] ?? null;
+}
+
 function tenantFeatureForNavigation(item: NavigationItem): string | null {
-  const match = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(item.href.split("?")[0]));
-  return match?.[1] ?? null;
+  return tenantFeatureForPath(item.href);
 }
 
 
@@ -2246,7 +2250,7 @@ export function canAccessRoute(
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
-  const tenantFeature = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1];
+  const tenantFeature = tenantFeatureForPath(normalizedPath);
   if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
 
   const matchingNamespace =
