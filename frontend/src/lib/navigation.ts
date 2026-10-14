@@ -10,6 +10,21 @@ function normalizeRoleName(role: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
+  [/^\/(chairman|director|dean|hod|registrar)\/(fees|payments)(\/|$)/, "fees"],
+  [/^\/(chairman|director|dean|hod|registrar)\/students(\/|$)/, "students"],
+  [/^\/(chairman|director|dean|hod|registrar)\/faculty(\/|$)/, "faculty"],
+  [/^\/(chairman|director|dean|hod|registrar)\/admissions(\/|$)|^\/(chairman|director|dean|registrar)\/applications(\/|$)/, "admissions"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/(attendance|timetable|assignments|examinations?|results|obe|library|placements|certificates|course-registration)(\/|$)/, "academics"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/examinations?(\/|$)/, "exams"],
+  [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/results?(\/|$)/, "results"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/attendance(\/|$)/, "attendance"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/timetable(\/|$)/, "timetable"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/assignments?(\/|$)/, "assignments"],
+  [/^\/(chairman|director|dean|hod|faculty|student)\/obe(\/|$)/, "obe"],
+  [/^\/(student|faculty|hod|librarian)\/library(\/|$)|^\/library(\/|$)/, "library"],
+  [/^\/(director|student|placement)\/placements?(\/|$)|^\/placements(\/|$)/, "placements"],
+  [/^\/(chairman|director|dean|registrar)\/reports(\/|$)/, "reports"],
+  [/^\/(chairman|director|dean|hod|management)\/intelligence(\/|$)/, "intelligence"],
   [/^\/admin\/events-gallery(\/|$)|^\/events-gallery(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
