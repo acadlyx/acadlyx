@@ -18,6 +18,22 @@ function walk(dir) {
 }
 
 const failures = [];
+
+// Entitlement/navigation invariants: these are source-contract checks, not a substitute
+// for authenticated browser and backend authorization tests.
+const navigationFile = path.join(root, "lib", "navigation.ts");
+const shellFile = path.join(root, "components", "dashboard", "DashboardShell.tsx");
+const navigationSource = fs.readFileSync(navigationFile, "utf8");
+const shellSource = fs.readFileSync(shellFile, "utf8");
+if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
+  failures.push("src/lib/navigation.ts: empty tenant feature list must not imply every module is enabled");
+}
+if (!navigationSource.includes("!feature || tenantFeatures.includes(feature)") || !navigationSource.includes("if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;")) {
+  failures.push("src/lib/navigation.ts: navigation and direct-route guards must fail closed for disabled tenant features");
+}
+if (!shellSource.includes("uniqueDestinations") || !shellSource.includes("uniqueDestinations.has(destination)")) {
+  failures.push("src/components/dashboard/DashboardShell.tsx: final role-overridden destinations must be deduplicated");
+}
 for (const file of walk(root)) {
   const text = fs.readFileSync(file, "utf8");
   const lines = text.split("\n");
