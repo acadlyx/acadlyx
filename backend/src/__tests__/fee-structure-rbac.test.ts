@@ -79,7 +79,8 @@ test("fee structure activation uses pending approval except for explicit Chairma
   assert.match(create, /const status: FeeStructureStatus = "DRAFT"/);
   assert.match(submit, /"status" = 'PENDING_APPROVAL'/);
   assert.match(submit, /"status" = 'DRAFT'/);
-  assert.match(publish, /actor\.roles\.includes\("CHAIRMAN"\)/);
+  assert.match(publish, /getEffectiveWorkspaceRole\(actor\) !== "CHAIRMAN"/);
+  assert.match(publish, /!actor\.permissions\.includes\("fees\.structure\.publish"\)/);
   assert.match(publish, /"status" = 'ACTIVE'/);
   assert.match(publish, /"status" = 'DRAFT'/);
   assert.match(publish, /fee-structure\.publish-direct/);

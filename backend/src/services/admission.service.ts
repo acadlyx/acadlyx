@@ -11,7 +11,7 @@ import {
 import { recordAuditLog } from "./audit.service";
 import { createStudent } from "./studentAdmin.service";
 import { assertAdmissionWorkflowAuthority } from "./workflowAuthority.service";
-import { getDirectorDepartmentIds } from "./accessScope.service";
+import { getDirectorDepartmentIds, getEffectiveWorkspaceRole } from "./accessScope.service";
 
 const TRANSITIONS: Record<string, string[]> = {
   SUBMITTED: ["UNDER_REVIEW", "DOCUMENTS_PENDING", "REJECTED", "WITHDRAWN"],
@@ -24,7 +24,7 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 function isDirectorScope(actor: AuthenticatedUser): boolean {
-  return actor.roles.includes("DIRECTOR") && !actor.roles.includes("CHAIRMAN");
+  return getEffectiveWorkspaceRole(actor) === "DIRECTOR";
 }
 
 async function getActorProgramIds(institutionId: string, actor: AuthenticatedUser): Promise<string[] | null> {

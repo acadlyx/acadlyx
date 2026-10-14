@@ -3334,11 +3334,21 @@ export async function listExamIncidents(
   pagination: PaginationParams,
   filters: { status?: string; examScheduleId?: string }
 ) {
+  const workspace = assertExamReadWorkspace(actor);
+  // Incident queues are operational review data, not a generic student portal.
+  // Reject owner-only and unsupported workspaces even if they have a secondary
+  // incident/examination permission.
+  if (!["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION", "DIRECTOR", "DEAN", "HOD", "FACULTY"].includes(workspace)) {
+    throw new AppError("Incident review is not available in the active workspace", 403);
+  }
+
   const conditions: Prisma.Sql[] = [
     Prisma.sql`i."institutionId" = ${institutionId}`,
   ];
-  if (isDirectorScoped(actor)) {
-    const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (["DIRECTOR", "DEAN", "HOD"].includes(workspace)) {
+    const departmentIds = workspace === "DIRECTOR"
+      ? await getDirectorDepartmentIds(institutionId, actor.id)
+      : await getManagedDepartmentIds(institutionId, actor.id);
     if (!departmentIds.length) return { items: [], total: 0 };
     conditions.push(Prisma.sql`EXISTS (
       SELECT 1 FROM "exam_schedules" scoped_schedule
@@ -3351,7 +3361,16 @@ export async function listExamIncidents(
         AND scoped_schedule."institutionId" = i."institutionId"
         AND scoped_program."departmentId" IN (${Prisma.join(departmentIds)})
     )`);
+  } else if (workspace === "FACULTY") {
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "exam_schedules" scoped_schedule
+      JOIN "course_offerings" scoped_offering ON scoped_offering."id" = scoped_schedule."courseOfferingId"
+      WHERE scoped_schedule."id" = i."examScheduleId"
+        AND scoped_schedule."institutionId" = i."institutionId"
+        AND scoped_offering."facultyId" = ${actor.id}
+    )`);
   }
+
   if (filters.status) conditions.push(Prisma.sql`i."status" = ${filters.status}`);
   if (filters.examScheduleId) {
     conditions.push(Prisma.sql`i."examScheduleId" = ${filters.examScheduleId}`);

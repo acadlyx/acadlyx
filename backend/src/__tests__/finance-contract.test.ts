@@ -60,33 +60,54 @@ test("billing concession creation persists both legacy and canonical type/reques
   assert.match(source, /input\.amount \?\? 0/);
 });
 
-test("Director finance scope uses the canonical explicit CampusAccess helper", () => {
+test("Director finance scope uses effective workspace and explicit CampusAccess", () => {
   const service = read("src/services/finance.service.ts");
   const sharedScope = read("src/services/accessScope.service.ts");
-  assert.match(service, /import \{ getDirectorCampusIds, isDirectorScoped \} from "\.\/accessScope\.service";/);
-  assert.match(service, /if\(isDirectorScoped\(a\)\) return \{institutionId,campusIds:await getDirectorCampusIds\(institutionId,a\.id\)\};/);
-  assert.doesNotMatch(service, /if\(r\.includes\("DIRECTOR"\)\)[^\n]*departmentAccess\.findMany/);
-  const institutionRoleScope = service.indexOf('if(r.some(role=>["SUPER_ADMIN","ACCOUNTS","MANAGEMENT","REGISTRAR","EXAMINATION_CELL"].includes(role)))');
-  assert.ok(institutionRoleScope >= 0, "Institution-wide finance scope must be role-based");
-  const chairmanScope = service.indexOf('if(r.includes("CHAIRMAN"))');
-  assert.ok(chairmanScope >= 0 && chairmanScope < service.indexOf("if(isDirectorScoped(a))"), "Chairman institution-wide scope must win over secondary Director role");
-  assert.ok(service.indexOf("if(isDirectorScoped(a))") < institutionRoleScope, "Director campus scope must precede other institution-wide roles");
-  assert.ok(service.indexOf("if(isDirectorScoped(a))") < service.indexOf('if(r.includes("HOD")||r.includes("DEAN"))'), "Director campus scope must precede department-scoped roles");
-  assert.doesNotMatch(service, /has\(a,"fees\.manage"\)\|\|has\(a,"fees\.reports\.export"\)/, "A broad permission alone must not expand data scope");
+  const scopeStart = service.indexOf("async function scope(");
+  const scopeEnd = service.indexOf("function invoiceWhere", scopeStart);
+  assert.ok(scopeStart >= 0 && scopeEnd > scopeStart);
+  const scope = service.slice(scopeStart, scopeEnd);
+
+  assert.match(service, /import \{[^}]*getDirectorCampusIds[^}]*getManagedDepartmentIds[^}]*isInstitutionWideFinance[^}]*getEffectiveWorkspaceRole[^}]*\} from "\.\/accessScope\.service"/s);
+  assert.match(scope, /const activeRole=getEffectiveWorkspaceRole\(a\)/);
+  assert.match(scope, /if\(activeRole==="CHAIRMAN"\) return \{institutionId\}/);
+  assert.match(scope, /if\(activeRole==="DIRECTOR"&&isDirectorScoped\(a\)\)/);
+  assert.match(scope, /getDirectorCampusIds\(institutionId,a\.id\)/);
+  assert.match(scope, /if\(activeRole==="DEAN"\|\|activeRole==="HOD"\)/);
+  assert.match(scope, /getManagedDepartmentIds\(institutionId,a\.id\)/);
+  assert.match(scope, /if\(isInstitutionWideFinance\(a\)\) return \{institutionId\}/);
+
+  const chairmanScope = scope.indexOf('if(activeRole==="CHAIRMAN")');
+  const directorScope = scope.indexOf('if(activeRole==="DIRECTOR"&&isDirectorScoped(a))');
+  const departmentScope = scope.indexOf('if(activeRole==="DEAN"||activeRole==="HOD")');
+  const financeScope = scope.indexOf("if(isInstitutionWideFinance(a))");
+  assert.ok(chairmanScope >= 0 && chairmanScope < directorScope, "Chairman is the explicit institution-wide override");
+  assert.ok(directorScope < departmentScope && departmentScope < financeScope, "scoped roles are resolved before the finance-wide workspace");
+  assert.doesNotMatch(scope, /roles?\.includes\("DIRECTOR"\).*departmentAccess\.findMany/);
+  assert.doesNotMatch(scope, /has\(a,"fees\.manage"\)\|\|has\(a,"fees\.reports\.export"\)/, "permissions alone must not expand financial scope");
+
   assert.match(sharedScope, /export async function getDirectorCampusIds\(institutionId: string, userId: string\): Promise<string\[]>/);
   assert.match(sharedScope, /campus: \{ institutionId, isActive: true \}/);
+  assert.match(sharedScope, /export function getEffectiveWorkspaceRole\(/);
 });
 
-test("Director financial records and payment aggregates retain institution and campus predicates", () => {
+test("Director financial records and payment aggregates retain institution, enrollment, and campus predicates", () => {
   const service = read("src/services/finance.service.ts");
   const invoiceWhere = service.slice(service.indexOf("function invoiceWhere"), service.indexOf("function paymentWhere"));
   const paymentWhere = service.slice(service.indexOf("function paymentWhere"), service.indexOf("function studentFinancialFilter"));
   const studentFinancialFilter = service.slice(service.indexOf("function studentFinancialFilter"), service.indexOf("function dec("));
-  assert.ok(invoiceWhere.includes('if(s.campusIds)return{institutionId:s.institutionId,student:{studentEnrollments:{some:{status:"ACTIVE",program:{department:{campusId:{in:s.campusIds}}}}}}};'));
+
+  // Assert scoped tenant/enrollment predicates without depending on irrelevant
+  // source formatting or the exact closing-brace count of the nested Prisma shape.
+  const campusEnrollmentPredicate = 'studentEnrollments:{some:{institutionId:s.institutionId,status:"ACTIVE",program:{institutionId:s.institutionId,department:{institutionId:s.institutionId,campusId:{in:s.campusIds}';
+  assert.ok(invoiceWhere.includes("institutionId:s.institutionId"));
+  assert.ok(invoiceWhere.includes(campusEnrollmentPredicate), "invoice reads must constrain nested enrollment and program/department tenant");
+  assert.ok(invoiceWhere.includes("departmentId:{in:s.departmentIds}"), "department-scoped invoice reads must retain managed departments");
   assert.ok(paymentWhere.includes("institutionId:s.institutionId"));
   assert.ok(paymentWhere.includes("s.campusIds"));
+  assert.ok(paymentWhere.includes(campusEnrollmentPredicate), "payment reads must retain the same campus predicate");
   assert.ok(studentFinancialFilter.includes("s.campusIds"));
-  assert.ok(studentFinancialFilter.includes("campusId:{in:s.campusIds}"));
+  assert.ok(studentFinancialFilter.includes(campusEnrollmentPredicate), "financial aggregates must retain the same campus predicate");
 });
 
 test("refund decisions use an atomic state transition claim before financial posting", () => {
