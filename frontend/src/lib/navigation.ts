@@ -10,7 +10,7 @@ function normalizeRoleName(role: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
-  [/^\/(chairman|director|dean|hod|registrar)\/(fees|payments)(\/|$)/, "fees"],
+  [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments)(\/|$)/, "fees"],
   [/^\/(chairman|director|dean|hod|registrar)\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar)\/faculty(\/|$)/, "faculty"],
   [/^\/(chairman|director|dean|hod|registrar)\/admissions(\/|$)|^\/(chairman|director|dean|registrar)\/applications(\/|$)/, "admissions"],
@@ -26,7 +26,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(registrar|hod|dean|director|student)\/course-registration(\/|$)|^\/course-registration(\/|$)/, "registration"],
   [/^\/(chairman|director|dean|registrar)\/reports(\/|$)/, "reports"],
   [/^\/(chairman|director|dean|hod|management)\/intelligence(\/|$)/, "intelligence"],
-  [/^\/admin\/events-gallery(\/|$)|^\/events-gallery(\/|$)/, "cms"],
+  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
@@ -37,7 +37,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/((student)\/)?library(\/|$)/, "library"],
   [/^\/((student)\/)?placements?(\/|$)/, "placements"],
   [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
-  [/^\/(hr|employees|leave-management)(\/|$)/, "hr"],
+  [/^\/(hr|employees|leave-management)(\/|$)|^\/(faculty|hod|director|dean|registrar)\/leave(\/|$)/, "hr"],
   [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
   [/^\/lms(\/|$)/, "lms"],
   [/^\/course-registration(\/|$)|^\/student\/course-registration(\/|$)/, "registration"],
