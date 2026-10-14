@@ -30,6 +30,16 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/students(\/|$)/, "students"],
   [/^\/faculty(\/|$)/, "faculty"],
   [/^\/admin\/(students|departments|programs|academic|courses|sections|semesters|student-setup)(\/|$)/, "academics"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent|accounts|hr|admissions|examination|library|placements|it|management|staff)\/notices?(\/|$)|^\/notices?(\/|$)/, "notices"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent|accounts|hr|admissions|examination|library|placements|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
+  [/^\/(chairman|director|dean|hod|management)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
+  [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent)\/calendar(\/|$)|^\/calendar(\/|$)/, "calendar"],
+  [/^\/admin\/imports(\/|$)|^\/imports(\/|$)|^\/exports(\/|$)/, "import_export"],
+  [/^\/documents(\/|$)|^\/forms(\/|$)/, "documents"],
+  [/^\/operations(\/|$)|^\/(chairman|director|dean|hod|management|it)\/operations(\/|$)/, "operations"],
+  [/^\/analytics(\/|$)/, "analytics"],
+  [/^\/promotions?(\/|$)|^\/student-promotion(\/|$)/, "promotions"],
 ];
 
 function tenantFeatureForNavigation(item: NavigationItem): string | null {
