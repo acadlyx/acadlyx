@@ -2243,6 +2243,12 @@ export function canAccessRoute(
 
   const activeRole = getPrimaryRole(roles);
 
+  const permissionSet = new Set(permissions);
+  // Tenant entitlement checks run before namespace checks so role-owned routes
+  // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
+  const tenantFeature = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1];
+  if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
+
   const matchingNamespace =
     NAMESPACE_OWNERS
       .filter(
@@ -2270,10 +2276,6 @@ export function canAccessRoute(
   if (!roleAllowed) {
     return false;
   }
-
-  const permissionSet = new Set(permissions);
-  const tenantFeature = TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1];
-  if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
 
   // Permission-gated module namespaces are denied unless the authenticated
   // user actually has the module's read capability. Role ownership alone is
