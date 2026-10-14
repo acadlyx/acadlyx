@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ExportFormat, ExportOptions, ExportType, exportData, printExport } from "@/lib/dataTransferApi";
 
 export interface DataExportActionsProps {
-  type: ExportType;
+  type: ExportType | ExportType[];
   filters?: Record<string, string>;
   currentPage?: { page: number; pageSize: number };
   selectedIds?: string[];
@@ -18,6 +18,8 @@ export default function DataExportActions({
   selectedIds,
   compact = false,
 }: DataExportActionsProps) {
+  const types = Array.isArray(type) ? type : [type];
+  const [activeType, setActiveType] = useState<ExportType>(types[0]);
   const [selection, setSelection] = useState<"all-filtered" | "current-page" | "selected">("all-filtered");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -34,8 +36,8 @@ export default function DataExportActions({
     setMessage("");
     try {
       const requestOptions = options();
-      if (format === "print") await printExport(type, requestOptions);
-      else await exportData(type, format, requestOptions);
+      if (format === "print") await printExport(activeType, requestOptions);
+      else await exportData(activeType, format, requestOptions);
       setMessage(format === "print" ? "Print view opened." : "Export downloaded.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Export failed.");
@@ -47,6 +49,14 @@ export default function DataExportActions({
   return (
     <section className={compact ? "flex flex-wrap items-center gap-2" : "rounded-2xl border border-slate-200 bg-white p-3"}>
       <div className="flex flex-wrap items-center gap-2">
+        {types.length > 1 && (
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+            Dataset
+            <select aria-label="Export dataset" value={activeType} onChange={(event) => setActiveType(event.target.value as ExportType)} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs font-semibold text-slate-800">
+              {types.map((item) => <option key={item} value={item}>{item.replace(/^placement-/, "").replace(/-/g, " ")}</option>)}
+            </select>
+          </label>
+        )}
         <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
           Export scope
           <select
