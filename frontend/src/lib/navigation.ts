@@ -63,7 +63,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
 ];
 
 export function tenantFeatureForPath(pathname: string): string | null {
-  const normalizedPath = pathname.split("?")[0].replace(/\\/+$/, "") || "/";
+  const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
   return TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1] ?? null;
 }
 
