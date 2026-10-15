@@ -72,6 +72,19 @@ const resumeCreate = z.object({ url: z.string().url(), fileName: z.string().max(
 const skillUpdate = z.object({ proficiency: z.number().int().min(0).max(100), evidence: z.string().max(2000).nullable().optional() });
 const testCreate = z.object({ driveId: z.string().uuid(), title: z.string().trim().min(2).max(200), mode: z.string().max(40).optional(), scheduledAt: z.string().datetime(), durationMinutes: z.number().int().positive().max(1440).optional(), maxScore: z.number().positive().optional(), testLink: z.string().url().optional(), instructions: z.string().max(5000).optional(), studentIds: z.array(z.string().uuid()).max(10000).optional(), targeting: placementCohortTargeting.optional() });
 const testParticipantUpdate = z.object({ attendanceStatus: z.string().trim().min(2).max(40).optional(), resultStatus: z.string().trim().min(2).max(40).optional(), score: z.number().nonnegative().nullable().optional(), feedback: z.string().max(5000).nullable().optional() });
+const interviewUpdate = z.object({
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().nullable().optional(),
+  venue: z.string().max(300).nullable().optional(),
+  onlineLink: z.string().url().nullable().optional(),
+  status: z.enum(["SCHEDULED", "CANCELLED"]).optional(),
+});
+const testUpdate = z.object({
+  scheduledAt: z.string().datetime().optional(),
+  testLink: z.string().url().nullable().optional(),
+  instructions: z.string().max(5000).nullable().optional(),
+  status: z.enum(["SCHEDULED", "CANCELLED"]).optional(),
+});
 const visitUpdate = z.object({
   startsAt: z.string().datetime().optional(),
   endsAt: z.string().datetime().nullable().optional(),
@@ -262,6 +275,11 @@ router.post("/interviews", authorize("placements.manage"), asyncHandler(async (r
   const item=await placement.createPlacementInterview(requireInstitution(req),requireAuthenticatedUser(req),interviewCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
+router.patch("/interviews/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.updatePlacementInterview(requireInstitution(req), requireAuthenticatedUser(req), id, interviewUpdate.parse(req.body));
+  res.json({ success: true, data: item });
+}));
 router.post("/interviews/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
   const item=await placement.addPlacementInterviewParticipant(requireInstitution(req),requireAuthenticatedUser(req),id,interviewParticipant.parse(req.body).studentId);
@@ -334,6 +352,11 @@ router.get("/tests", authorize("placements.read"), asyncHandler(async (req,res) 
 router.post("/tests", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item = await placement.createPlacementTest(requireInstitution(req), requireAuthenticatedUser(req), testCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
+}));
+router.patch("/tests/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.updatePlacementTest(requireInstitution(req), requireAuthenticatedUser(req), id, testUpdate.parse(req.body));
+  res.json({ success: true, data: item });
 }));
 router.post("/tests/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const { id } = idParams.parse(req.params);
