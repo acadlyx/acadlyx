@@ -1902,6 +1902,7 @@ export async function createPlacementTest(
     select: { studentId: true },
   });
   const participantIds = [...new Set([...uniqueStudentIds, ...stageCandidates.map((candidate) => candidate.studentId)])];
+  const initialStatus = input.status ?? "SCHEDULED";
   const row = await prisma.$transaction(async (tx) => {
     const created = await tx.placementTest.create({
       data: {
@@ -1909,7 +1910,7 @@ export async function createPlacementTest(
         driveId: input.driveId,
         title: input.title.trim(),
         mode: input.mode?.trim() || "ONLINE",
-        status: input.status ?? "SCHEDULED",
+        status: initialStatus,
         scheduledAt: new Date(input.scheduledAt),
         durationMinutes: input.durationMinutes,
         maxScore: input.maxScore,
@@ -1922,18 +1923,16 @@ export async function createPlacementTest(
         data: participantIds.map((studentId) => ({ testId: created.id, studentId })),
         skipDuplicates: true,
       });
+      if (initialStatus === "SCHEDULED") {
+        await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+          eventType: "test",
+          eventId: created.id,
+          version: "created",
+          recipientIds: participantIds,
+        });
+      }
     }
     return created;
-  });
-  if ((input.status ?? "SCHEDULED") === "SCHEDULED") await notifyPlacementAudience({
-    institutionId,
-    recipientIds: participantIds,
-    eventType: "test",
-    eventId: row.id,
-    version: "created",
-    title: "Placement assessment scheduled",
-    body: `${input.title.trim()} is scheduled for ${new Date(input.scheduledAt).toLocaleString()}.`,
-    actionUrl: "/student/placements",
   });
   await recordAuditLog({
     institutionId,
