@@ -2068,3 +2068,341 @@ export async function updatePlacementTest(
   await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.test.cancelled" : "placements.test.updated", entityType: "PlacementTest", entityId: id, metadata: { status: updated.status, scheduledAt: updated.scheduledAt.toISOString() } });
   return updated;
 }
+
+
+/** Private placement schedule projection for the authenticated student.
+ * These events intentionally stay in the placement domain because the
+ * institution-wide CalendarEvent model has no student ownership relation. */
+export async function getMyPlacementCalendar(institutionId: string, actor: AuthenticatedUser) {
+  assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
+  if (activeWorkspace(actor) !== "STUDENT") {
+    throw new AppError("This calendar endpoint is for the authenticated student.", 403);
+  }
+  await assertCanViewStudent(institutionId, actor, actor.id);
+
+  const [applications, drives, interviews, tests, visits, offers] = await Promise.all([
+    prisma.application.findMany({
+      where: { institutionId, studentId: actor.id },
+      select: { id: true, placementDriveId: true, opportunityId: true, status: true },
+      take: 500,
+    }),
+    prisma.placementDrive.findMany({
+      where: {
+        institutionId,
+        status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED"] },
+        driveDate: { not: null },
+      },
+      select: {
+        id: true, title: true, status: true, driveDate: true, applicationDeadline: true,
+        venue: true, onlineLink: true, campusId: true,
+        eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true,
+        cgpaRequirement: true, maxBacklogs: true, requiredSkills: true, academicRequirements: true,
+        opportunityId: true,
+        company: { select: { name: true } },
+      },
+      orderBy: { driveDate: "asc" },
+      take: 100,
+    }),
+    prisma.placementInterview.findMany({
+      where: {
+        institutionId,
+        participants: { some: { studentId: actor.id } },
+        status: { in: ["SCHEDULED", "CANCELLED"] },
+      },
+      select: {
+        id: true, roundType: true, roundNumber: true, startsAt: true, endsAt: true,
+        venue: true, onlineLink: true, status: true,
+        drive: { select: { id: true, title: true, company: { select: { name: true } } } },
+      },
+      orderBy: { startsAt: "asc" },
+      take: 100,
+    }),
+    prisma.placementTest.findMany({
+      where: {
+        institutionId,
+        participants: { some: { studentId: actor.id } },
+        status: { in: ["SCHEDULED", "CANCELLED"] },
+      },
+      select: {
+        id: true, title: true, scheduledAt: true, durationMinutes: true, testLink: true,
+        instructions: true, status: true,
+        drive: { select: { id: true, title: true, company: { select: { name: true } } } },
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 100,
+    }),
+    prisma.placementVisit.findMany({
+      where: {
+        institutionId,
+        status: { in: ["PUBLISHED", "CANCELLED"] },
+        participatingStudentIds: { array_contains: [actor.id] },
+      },
+      select: {
+        id: true, type: true, startsAt: true, endsAt: true, venue: true, purpose: true, status: true,
+        company: { select: { name: true } },
+      },
+      orderBy: { startsAt: "asc" },
+      take: 100,
+    }),
+    prisma.placementOffer.findMany({
+      where: { institutionId, studentId: actor.id, joiningDate: { not: null }, status: { notIn: ["REJECTED", "WITHDRAWN"] } },
+      select: {
+        id: true, role: true, joiningDate: true, joiningStatus: true, status: true,
+        company: { select: { name: true } },
+      },
+      orderBy: { joiningDate: "asc" },
+      take: 100,
+    }),
+  ]);
+
+  const applicationDriveIds = new Set(applications.map((item) => item.placementDriveId).filter((id): id is string => Boolean(id)));
+  const applicationOpportunityIds = new Set(applications.map((item) => item.opportunityId));
+  const calendar: Array<{
+    id: string; type: string; title: string; company: string; startsAt: string;
+    endsAt: string | null; status: string; venue: string; actionUrl: string;
+  }> = [];
+
+  for (const drive of drives) {
+    const hasApplied = applicationDriveIds.has(drive.id) || Boolean(drive.opportunityId && applicationOpportunityIds.has(drive.opportunityId));
+    if (!hasApplied && !["PUBLISHED", "APPLICATION_OPEN"].includes(drive.status)) continue;
+    if (!hasApplied) {
+      const eligibility = await checkDriveEligibility(institutionId, actor, drive.id);
+      const reasons = eligibility.reasons.filter((reason) =>
+        reason !== "Applications are not open for this drive." &&
+        reason !== "You have already applied to this drive."
+      );
+      if (reasons.length) continue;
+    }
+    calendar.push({
+      id: `drive:${drive.id}`,
+      type: "DRIVE",
+      title: drive.title,
+      company: drive.company.name,
+      startsAt: drive.driveDate!.toISOString(),
+      endsAt: null,
+      status: drive.status,
+      venue: drive.venue || drive.onlineLink || "",
+      actionUrl: "/student/placements",
+    });
+    if (drive.applicationDeadline && drive.status === "APPLICATION_OPEN") {
+      calendar.push({
+        id: `drive-deadline:${drive.id}`,
+        type: "DEADLINE",
+        title: `${drive.title} registration deadline`,
+        company: drive.company.name,
+        startsAt: drive.applicationDeadline.toISOString(),
+        endsAt: null,
+        status: drive.status,
+        venue: "",
+        actionUrl: "/student/placements",
+      });
+    }
+  }
+
+  for (const item of interviews) {
+    calendar.push({
+      id: `interview:${item.id}`, type: "INTERVIEW",
+      title: `${item.roundType} interview · Round ${item.roundNumber} · ${item.drive.title}`,
+      company: item.drive.company.name, startsAt: item.startsAt.toISOString(),
+      endsAt: item.endsAt?.toISOString() ?? null, status: item.status,
+      venue: item.venue || item.onlineLink || "", actionUrl: "/student/placements",
+    });
+  }
+  for (const item of tests) {
+    calendar.push({
+      id: `test:${item.id}`, type: "ASSESSMENT",
+      title: item.title, company: item.drive.company.name,
+      startsAt: item.scheduledAt.toISOString(),
+      endsAt: item.durationMinutes ? new Date(item.scheduledAt.getTime() + item.durationMinutes * 60_000).toISOString() : null,
+      status: item.status, venue: item.testLink || "",
+      actionUrl: "/student/placements",
+    });
+  }
+  for (const item of visits) {
+    calendar.push({
+      id: `visit:${item.id}`, type: "PLACEMENT_ACTIVITY",
+      title: item.type, company: item.company.name, startsAt: item.startsAt.toISOString(),
+      endsAt: item.endsAt?.toISOString() ?? null, status: item.status,
+      venue: item.venue || "", actionUrl: "/student/placements",
+    });
+  }
+  for (const item of offers) {
+    if (!item.joiningDate) continue;
+    calendar.push({
+      id: `joining:${item.id}`, type: "JOINING",
+      title: `Joining · ${item.role}`, company: item.company.name,
+      startsAt: item.joiningDate.toISOString(), endsAt: null,
+      status: item.joiningStatus, venue: "", actionUrl: "/student/placements",
+    });
+  }
+  return calendar.sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+}
+
+export async function deletePlacementVisit(institutionId: string, actor: AuthenticatedUser, id: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementVisit.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, type: true },
+  });
+  if (!existing) throw new AppError("Placement activity not found.", 404);
+  if (existing.status !== "DRAFT") {
+    throw new AppError("Only unused draft activities may be permanently deleted. Published or historical activities must be cancelled instead.", 409);
+  }
+  await prisma.$transaction(async (tx) => {
+    const removed = await tx.placementVisit.deleteMany({ where: { id, institutionId, status: "DRAFT" } });
+    if (removed.count !== 1) throw new AppError("The activity changed before it could be deleted. Refresh and try again.", 409);
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.visit.deleted",
+    entityType: "PlacementVisit", entityId: id, metadata: { previousStatus: existing.status, type: existing.type },
+  });
+  return { id, deleted: true };
+}
+
+export async function deletePlacementDrive(institutionId: string, actor: AuthenticatedUser, id: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const drive = await prisma.placementDrive.findFirst({
+    where: { id, institutionId },
+    select: { id: true, title: true, status: true, opportunityId: true, campusId: true },
+  });
+  if (!drive) throw new AppError("Placement drive not found.", 404);
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!drive.campusId || !campusIds.includes(drive.campusId)) throw new AppError("Placement drive not found in the director's authorised campus scope.", 404);
+  }
+  if (drive.status !== "DRAFT") {
+    throw new AppError("Only unused draft drives may be permanently deleted. Published drives and recruitment history must be closed or retained.", 409);
+  }
+  const [applications, interviews, tests, visits] = await Promise.all([
+    prisma.application.count({ where: { institutionId, OR: [
+      { placementDriveId: id },
+      ...(drive.opportunityId ? [{ opportunityId: drive.opportunityId }] : []),
+    ] } }),
+    prisma.placementInterview.count({ where: { institutionId, driveId: id } }),
+    prisma.placementTest.count({ where: { institutionId, driveId: id } }),
+    prisma.placementVisit.count({ where: { institutionId, driveId: id } }),
+  ]);
+  if (applications || interviews || tests || visits) {
+    throw new AppError("This draft has dependent recruitment records and cannot be deleted. Cancel/archive it to preserve history.", 409);
+  }
+  await prisma.$transaction(async (tx) => {
+    const removed = await tx.placementDrive.deleteMany({ where: { id, institutionId, status: "DRAFT" } });
+    if (removed.count !== 1) throw new AppError("The drive changed before it could be deleted. Refresh and try again.", 409);
+    if (drive.opportunityId) {
+      await tx.opportunity.deleteMany({ where: { id: drive.opportunityId, institutionId } });
+    }
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.drive.deleted",
+    entityType: "PlacementDrive", entityId: id, metadata: { title: drive.title, previousStatus: drive.status },
+  });
+  return { id, deleted: true };
+}
+
+async function placementEventDriveId(institutionId: string, payload: unknown): Promise<string | null> {
+  const data = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+  const direct = typeof data.driveId === "string" ? data.driveId : null;
+  if (direct) return direct;
+  const applicationId = typeof data.applicationId === "string" ? data.applicationId : null;
+  if (applicationId) {
+    const app = await prisma.application.findFirst({
+      where: { id: applicationId, institutionId },
+      select: { placementDriveId: true, opportunityId: true },
+    });
+    if (app?.placementDriveId) return app.placementDriveId;
+    if (app?.opportunityId) {
+      const drive = await prisma.placementDrive.findFirst({
+        where: { institutionId, opportunityId: app.opportunityId },
+        select: { id: true },
+      });
+      if (drive) return drive.id;
+    }
+  }
+  const offerId = typeof data.offerId === "string" ? data.offerId : null;
+  if (offerId) {
+    const offer = await prisma.placementOffer.findFirst({
+      where: { id: offerId, institutionId },
+      select: { applicationId: true },
+    });
+    if (offer?.applicationId) return placementEventDriveId(institutionId, { applicationId: offer.applicationId });
+  }
+  return null;
+}
+
+async function assertPlacementFailureScope(institutionId: string, actor: AuthenticatedUser, payload: unknown) {
+  const workspace = activeWorkspace(actor);
+  if (workspace === "DIRECTOR" || ["DEAN", "HOD", "FACULTY"].includes(workspace)) {
+    const driveId = await placementEventDriveId(institutionId, payload);
+    // Do not expose unlinked institution-wide events to a campus/department
+    // operator when the data model cannot prove that the event is in scope.
+    if (!driveId) throw new AppError("This automation event has no verifiable campus/department scope.", 403);
+    const drive = await prisma.placementDrive.findFirst({
+      where: { id: driveId, institutionId },
+      select: { id: true, campusId: true, eligibleDepartments: true },
+    });
+    if (!drive) throw new AppError("Placement event not found in your authorised scope.", 404);
+    if (workspace === "DIRECTOR") {
+      const campuses = await getDirectorCampusIds(institutionId, actor.id);
+      if (!drive.campusId || !campuses.includes(drive.campusId)) throw new AppError("Placement event not found in your authorised campus scope.", 404);
+    } else {
+      const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+      const targeted = Array.isArray(drive.eligibleDepartments)
+        ? drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+        : [];
+      if (!targeted.length || !targeted.some((value) => departments.includes(value))) {
+        throw new AppError("Placement event not found in your authorised department scope.", 404);
+      }
+    }
+  }
+}
+
+export async function listPlacementAutomationFailures(institutionId: string, actor: AuthenticatedUser) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const events = await prisma.domainEventOutbox.findMany({
+    where: {
+      institutionId, processedAt: null, attempts: { gt: 0 },
+      name: { startsWith: "placement." },
+    },
+    select: { id: true, name: true, attempts: true, lastError: true, createdAt: true, payload: true },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+  const visible = [];
+  for (const event of events) {
+    try {
+      await assertPlacementFailureScope(institutionId, actor, event.payload);
+      visible.push({
+        id: event.id, name: event.name, attempts: event.attempts,
+        lastError: event.lastError, createdAt: event.createdAt,
+      });
+    } catch (error) {
+      if (!(error instanceof AppError) || error.statusCode !== 403 && error.statusCode !== 404) throw error;
+    }
+  }
+  return visible;
+}
+
+export async function retryPlacementAutomationFailure(institutionId: string, actor: AuthenticatedUser, id: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const event = await prisma.domainEventOutbox.findFirst({
+    where: { id, institutionId, processedAt: null, attempts: { gt: 0 }, name: { startsWith: "placement." } },
+    select: { id: true, payload: true },
+  });
+  if (!event) throw new AppError("Retryable placement automation event not found.", 404);
+  await assertPlacementFailureScope(institutionId, actor, event.payload);
+  const result = await prisma.domainEventOutbox.updateMany({
+    where: { id, institutionId, processedAt: null, attempts: { gt: 0 }, name: { startsWith: "placement." } },
+    data: { attempts: 0, lastError: null },
+  });
+  if (result.count !== 1) throw new AppError("The event is already processed or being retried. Refresh and try again.", 409);
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.automation.retried",
+    entityType: "DomainEventOutbox", entityId: id, metadata: { name: "placement event" },
+  });
+  return { id, queuedForRetry: true };
+}
