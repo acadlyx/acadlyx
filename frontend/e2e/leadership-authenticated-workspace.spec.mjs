@@ -26,7 +26,7 @@ async function installAuthenticatedSession(page, role) {
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
     permissions,
-    tenantFeatures: ["fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms", "students", "faculty", "timetable", "results"],
+    tenantFeatures: ["fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms", "students", "faculty", "timetable", "results", "reports"],
   };
 
   await page.route("**/api/v1/**", async (route) => {
