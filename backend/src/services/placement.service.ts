@@ -1408,12 +1408,6 @@ export async function updatePlacementVisit(
       body: `${existing.type} has a new scheduled time: ${updated.startsAt.toLocaleString()}.`,
       actionUrl: "/student/placements",
     });
-  } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
-    await notifyPlacementAudience({
-      institutionId, recipientIds, eventType: "visit", eventId: id,
-      version: "published", title: "New placement activity published",
-      body: `${existing.type} is now published.`, actionUrl: "/student/placements",
-    });
   }
   await recordAuditLog({ institutionId, userId: actor.id, action: `placements.visit.${input.status?.toLowerCase() ?? "updated"}`, entityType: "PlacementVisit", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
   return updated;
