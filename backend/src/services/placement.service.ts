@@ -1074,6 +1074,16 @@ export async function createPlacementInterview(
       skipDuplicates: true,
     });
   }
+  await notifyPlacementAudience({
+    institutionId,
+    recipientIds: interviewCandidates.map((candidate) => candidate.studentId),
+    eventType: "interview",
+    eventId: interview.id,
+    version: "created",
+    title: "Placement interview scheduled",
+    body: `${input.roundType.trim()} round is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.created", entityType: "PlacementInterview", entityId: interview.id, metadata: { driveId: input.driveId, roundNumber: input.roundNumber } });
   return interview;
 }
