@@ -178,6 +178,25 @@ export default function PlacementDrivesPage() {
     }
   }
 
+  async function cancelDrive(drive: Drive) {
+    if (["DRAFT", "CLOSED", "CANCELLED"].includes(drive.status)) return;
+    if (!window.confirm("Cancel this placement drive? Students who were eligible or applied will receive an in-app update, and recruitment history will be preserved.")) return;
+    setTransitioning(drive.id);
+    setError("");
+    try {
+      await authedFetch("/placements/drives/" + drive.id + "/status", {
+        method: "POST",
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to cancel this placement drive.");
+    } finally {
+      setTransitioning(null);
+    }
+  }
+
   async function deleteDraft(drive: Drive) {
     if (drive.status !== "DRAFT") return;
     if (!window.confirm("Permanently delete this unused draft drive? Published or related recruitment records are never destructively deleted.")) return;
@@ -320,6 +339,7 @@ export default function PlacementDrivesPage() {
                 <button type="button" onClick={() => router.push("/placements/drives/" + drive.id + "/eligibility")} className="min-h-10 rounded-xl border px-4 py-2 text-sm font-bold">Review student eligibility</button>
                 {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : drive.status === "DRAFT" ? "Publish drive" : "Advance to " + next.replaceAll("_", " ")}</button>}
                 {drive.status === "DRAFT" && <button type="button" onClick={() => void deleteDraft(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-700 disabled:opacity-50">{transitioning === drive.id ? "Working…" : "Delete draft"}</button>}
+                {!["DRAFT", "CLOSED", "CANCELLED"].includes(drive.status) && <button type="button" onClick={() => void cancelDrive(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-700 disabled:opacity-50">{transitioning === drive.id ? "Cancelling…" : "Cancel drive"}</button>}
               </div>
             </article>;
           })}
