@@ -197,7 +197,7 @@ export default function PlacementTeamWorkspace() {
     return time >= now && time <= now + 14 * 24 * 60 * 60 * 1000 && !["CANCELLED", "CANCELED"].includes(item.status.toUpperCase());
   });
   const draftCount = drives.filter((drive) => drive.status === "DRAFT").length;
-  const responsePending = applications.filter((app) => ["OFFERED", "ACCEPTED"].includes(app.status)).length;
+  const responsePending = applications.filter((app) => app.status === "OFFERED").length;
   const statusActions: Record<string, Array<{ status: string; label: string }>> = {
     APPLICATION_SUBMITTED: [{ status: "SHORTLISTED", label: "Shortlist" }, { status: "REJECTED", label: "Reject" }],
     SHORTLISTED: [{ status: "TEST", label: "Move to test" }, { status: "INTERVIEW", label: "Move to interview" }, { status: "REJECTED", label: "Reject" }],
