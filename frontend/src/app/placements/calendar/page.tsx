@@ -88,7 +88,7 @@ export default function PlacementCalendarPage() {
           startsAt: item.startsAt || item.startAt || "", status: item.status || "UNKNOWN",
           venue: item.venue || item.onlineLink || "", href: "/placements/visits",
         })),
-      ].filter((item) => item.id && item.startsAt && !["CANCELLED", "CANCELED"].includes(item.status.toUpperCase()));
+      ].filter((item) => item.id && item.startsAt);
       setEvents(mapped.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()));
     } catch (cause) {
       if (cause instanceof AuthRequiredError) { router.replace("/login"); return; }
@@ -103,7 +103,8 @@ export default function PlacementCalendarPage() {
     const query = search.trim().toLowerCase();
     return events.filter((event) => {
       const time = new Date(event.startsAt).getTime();
-      const matchesTime = status === "ALL" || (status === "UPCOMING" ? time >= now : time < now);
+      const cancelled = ["CANCELLED", "CANCELED"].includes(event.status.toUpperCase());
+      const matchesTime = status === "ALL" || (status === "UPCOMING" ? !cancelled && time >= now : time < now);
       const matchesKind = kind === "ALL" || event.kind === kind;
       const matchesSearch = !query || [event.title, event.organization, event.venue, event.status].some((v) => v.toLowerCase().includes(query));
       return Number.isFinite(time) && matchesTime && matchesKind && matchesSearch;
