@@ -69,6 +69,7 @@ test(
           name: "placement.application.created",
           payload: { applicationId: application.id },
           occurredAt: new Date(),
+          createdAt: new Date("2000-01-01T00:00:00.000Z"),
         },
         select: { id: true },
       });
@@ -76,7 +77,7 @@ test(
 
       // This executes the real PostgreSQL outbox consumer and registered
       // placement notification handler; no mocked API response is involved.
-      await drainDomainEventOutbox(100);
+      await drainDomainEventOutbox(1);
 
       const persistedEvent = await prisma.domainEventOutbox.findUnique({
         where: { id: event.id },
