@@ -7,7 +7,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Company = { id: string; name: string };
-type Opening = { id: string; role: string; employmentType: string | null; location: string | null; totalCtc: number | null; currency: string; deadline: string | null; company: Company; drives: Array<{ id: string; title: string; status: string }> };
+type Opening = { id: string; role: string; description?: string | null; employmentType: string | null; location: string | null; totalCtc: number | null; currency: string; deadline: string | null; company: Company; drives: Array<{ id: string; title: string; status: string }> };
 
 export default function PlacementOpeningsPage() {
   const router = useRouter();
@@ -106,7 +106,29 @@ export default function PlacementOpeningsPage() {
             <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setEmploymentType("ALL"); setLocation("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button></div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">{visible.length} opening(s) match filters.</p><DataExportActions type="placement-openings" filters={filters} compact /></div>
-          <div className="grid gap-4 md:grid-cols-2">{visible.map(o => <article key={o.id} className="rounded-2xl border bg-white p-5"><h2 className="font-black">{o.role}</h2><p className="text-sm text-slate-600">{o.company.name} · {o.employmentType || "Employment type not set"}{o.location ? " · " + o.location : ""}</p><p className="mt-3 text-sm font-bold">{o.totalCtc == null ? "Package not set" : o.currency + " " + Number(o.totalCtc).toLocaleString("en-IN")}</p><p className="mt-2 text-xs text-slate-500">{o.deadline ? "Deadline " + new Date(o.deadline).toLocaleString("en-IN") : "No deadline set"} · {o.drives.length} linked drive(s)</p></article>)}</div>
+          <div className="grid gap-4 md:grid-cols-2">{visible.map(o => <article key={o.id} className="rounded-2xl border bg-white p-5"><h2 className="font-black">{o.role}</h2><p className="text-sm text-slate-600">{o.company.name} · {o.employmentType || "Employment type not set"}{o.location ? " · " + o.location : ""}</p><p className="mt-3 text-sm font-bold">{o.totalCtc == null ? "Package not set" : o.currency + " " + Number(o.totalCtc).toLocaleString("en-IN")}</p><p className="mt-2 text-xs text-slate-500">{o.deadline ? "Deadline " + new Date(o.deadline).toLocaleString("en-IN") : "No deadline set"} · {o.drives.length} linked drive(s)</p>
+            <details className="mt-3 rounded-xl border p-3"><summary className="cursor-pointer text-sm font-bold text-emerald-800">Edit opening</summary>
+              <form className="mt-3 grid gap-3" onSubmit={async (event) => {
+                event.preventDefault(); const f = new FormData(event.currentTarget); setBusy(true); setError("");
+                try { await authedFetch("/placements/openings/" + o.id, { method: "PATCH", body: JSON.stringify({
+                  companyId: f.get("companyId"), role: f.get("role"), description: f.get("description") || "",
+                  employmentType: f.get("employmentType") || "", location: f.get("location") || "",
+                  totalCtc: f.get("ctc") === "" ? null : Number(f.get("ctc")),
+                  deadline: f.get("deadline") ? new Date(String(f.get("deadline"))).toISOString() : null,
+                }) }); await load(); }
+                catch (cause) { if (cause instanceof AuthRequiredError) router.replace("/login"); else setError(cause instanceof HttpRequestError ? cause.message : "Unable to save opening changes."); }
+                finally { setBusy(false); }
+              }}>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Company<select name="companyId" defaultValue={o.company.id} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal">{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Role title<input name="role" required defaultValue={o.role} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Employment type<input name="employmentType" defaultValue={o.employmentType ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Location<input name="location" defaultValue={o.location ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Total CTC<input name="ctc" type="number" min="0" step="0.01" defaultValue={o.totalCtc ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Deadline<input name="deadline" type="datetime-local" defaultValue={o.deadline ? new Date(new Date(o.deadline).getTime()-new Date(o.deadline).getTimezoneOffset()*60000).toISOString().slice(0,16) : ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold">Description<textarea name="description" rows={3} defaultValue={o.description ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                <button disabled={busy} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">{busy ? "Saving…" : "Save opening"}</button>
+              </form>
+            </details></article>)}</div>
           {!visible.length && <div className="rounded-2xl border border-dashed bg-white p-10 text-center text-sm text-slate-600">No openings match the current filters.</div>}
         </section>
       </div>
