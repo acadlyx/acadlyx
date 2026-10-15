@@ -225,6 +225,18 @@ router.post("/drives", authorize("placements.manage"), asyncHandler(async (req,r
   const item=await placement.createPlacementDrive(requireInstitution(req),requireAuthenticatedUser(req),driveCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
+router.patch("/drives/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = driveCreate.partial().extend({
+    openingId: z.string().uuid().nullable().optional(), campusId: z.string().uuid().nullable().optional(),
+    applicationDeadline: z.string().datetime().nullable().optional(), driveDate: z.string().datetime().nullable().optional(),
+    venue: z.string().max(300).nullable().optional(), onlineLink: z.string().url().nullable().optional(),
+    cgpaRequirement: z.number().min(0).max(10).nullable().optional(), maxBacklogs: z.number().int().min(0).max(100).nullable().optional(),
+    vacancies: z.number().int().min(1).max(100000).nullable().optional(),
+  }).parse(req.body);
+  const item = await placement.updatePlacementDrive(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
+}));
 router.post("/drives/:id/status", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
   const item=await placement.transitionPlacementDrive(requireInstitution(req),requireAuthenticatedUser(req),id,statusBody.parse(req.body).status);
