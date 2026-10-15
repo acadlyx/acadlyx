@@ -323,7 +323,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     statusRows,
     offers,
     acceptedOffers,
-    joinedOffers,
+    joinedOfferStudents,
     packageStats,
     companies,
     eligibleStudents,
@@ -334,13 +334,19 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
     prisma.placementOffer.count({ where: offerWhere }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "ACCEPTED" } }),
-    prisma.placementOffer.count({ where: { ...offerWhere, status: "JOINED" } }),
+    prisma.placementOffer.groupBy({
+      by: ["studentId"],
+      where: { ...offerWhere, status: "JOINED" },
+    }),
     prisma.placementOffer.aggregate({ where: offerWhere, _avg: { totalCtc: true }, _max: { totalCtc: true }, _min: { totalCtc: true } }),
     prisma.placementCompany.count({ where: scopedCompanyWhere }),
     prisma.user.count({ where: { institutionId, ...studentBaseWhere } }),
   ]);
 
   const status = Object.fromEntries(statusRows.map((row) => [row.status, row._count._all]));
+  // Placement rate counts distinct students, not offers: one student may receive
+  // multiple offers but must contribute only once to the placed-student total.
+  const joinedOffers = joinedOfferStudents.length;
   const placedStudents = joinedOffers;
   return {
     drives, openDrives, companies, applications, offers, acceptedOffers, joinedOffers, placedStudents,
