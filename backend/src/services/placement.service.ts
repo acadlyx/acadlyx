@@ -699,6 +699,83 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   return drive;
 }
 
+
+export async function updatePlacementDrive(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  companyId?: string; title?: string; openingId?: string | null; campusId?: string | null;
+  applicationDeadline?: string | null; driveDate?: string | null; venue?: string | null; onlineLink?: string | null;
+  cgpaRequirement?: number | null; maxBacklogs?: number | null; vacancies?: number | null;
+  eligiblePrograms?: string[]; eligibleDepartments?: string[]; eligibleBatches?: string[];
+  eligibleSemesters?: string[]; requiredSkills?: string[]; academicRequirements?: Record<string, unknown>;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const current = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
+  if (!current) throw new AppError("Placement drive not found.", 404);
+  const companyId = input.companyId ?? current.companyId;
+  const company = await prisma.placementCompany.findFirst({ where: { id: companyId, institutionId }, select: { id: true, name: true } });
+  if (!company) throw new AppError("Company must belong to this institution.", 422);
+  const openingId = input.openingId === undefined ? current.openingId : input.openingId;
+  if (openingId && !(await prisma.placementOpening.findFirst({ where: { id: openingId, institutionId, companyId }, select: { id: true } }))) {
+    throw new AppError("Opening must belong to the selected company and institution.", 422);
+  }
+  const campusId = input.campusId === undefined ? current.campusId : input.campusId;
+  if (campusId && !(await prisma.campus.findFirst({ where: { id: campusId, institutionId, isActive: true }, select: { id: true } }))) {
+    throw new AppError("Campus must belong to this institution and be active.", 422);
+  }
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const assigned = await getDirectorCampusIds(institutionId, actor.id);
+    if (!campusId || !assigned.includes(campusId)) throw new AppError("Directors may edit drives only for an assigned campus.", 403);
+  }
+  if ([["eligiblePrograms", input.eligiblePrograms, "program"], ["eligibleDepartments", input.eligibleDepartments, "department"], ["eligibleBatches", input.eligibleBatches, "batch"], ["eligibleSemesters", input.eligibleSemesters, "semester"], ["requiredSkills", input.requiredSkills, "skill"]].some(([field, values]) => values !== undefined && !Array.isArray(values))) {
+    throw new AppError("Invalid placement eligibility criteria.", 422);
+  }
+  const checks = [
+    { values: input.eligiblePrograms, find: () => prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleDepartments, find: () => prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleBatches, find: () => prisma.batch.findMany({ where: { institutionId, id: { in: input.eligibleBatches ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleSemesters, find: () => prisma.semester.findMany({ where: { institutionId, id: { in: input.eligibleSemesters ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.requiredSkills, find: () => prisma.skill.findMany({ where: { institutionId, id: { in: input.requiredSkills ?? [] }, isActive: true }, select: { id: true } }) },
+  ];
+  for (const check of checks) {
+    if (check.values !== undefined && check.values.length) {
+      const found = await check.find();
+      if (found.length !== check.values.length) throw new AppError("Eligibility criteria must reference active records in this institution.", 422);
+    }
+  }
+  const previousRules = current.academicRequirements && typeof current.academicRequirements === "object" && !Array.isArray(current.academicRequirements)
+    ? current.academicRequirements as Record<string, unknown> : {};
+  const rules = input.academicRequirements === undefined ? undefined : { ...previousRules, ...input.academicRequirements };
+  const updated = await prisma.$transaction(async (tx) => {
+    const drive = await tx.placementDrive.update({
+      where: { id },
+      data: {
+        companyId: input.companyId,
+        title: input.title?.trim(),
+        openingId: input.openingId === undefined ? undefined : openingId,
+        campusId: input.campusId === undefined ? undefined : campusId,
+        applicationDeadline: input.applicationDeadline === undefined ? undefined : input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+        driveDate: input.driveDate === undefined ? undefined : input.driveDate ? new Date(input.driveDate) : null,
+        venue: input.venue,
+        onlineLink: input.onlineLink,
+        cgpaRequirement: input.cgpaRequirement,
+        maxBacklogs: input.maxBacklogs,
+        vacancies: input.vacancies,
+        eligiblePrograms: input.eligiblePrograms as Prisma.InputJsonValue | undefined,
+        eligibleDepartments: input.eligibleDepartments as Prisma.InputJsonValue | undefined,
+        eligibleBatches: input.eligibleBatches as Prisma.InputJsonValue | undefined,
+        eligibleSemesters: input.eligibleSemesters as Prisma.InputJsonValue | undefined,
+        requiredSkills: input.requiredSkills as Prisma.InputJsonValue | undefined,
+        academicRequirements: rules as Prisma.InputJsonValue | undefined,
+      },
+      include: { company: true, opening: true, opportunity: true },
+    });
+    if (drive.opportunityId) await tx.opportunity.updateMany({ where: { id: drive.opportunityId, institutionId }, data: { title: drive.title, organization: company.name, deadline: drive.applicationDeadline } });
+    return drive;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.updated", entityType: "PlacementDrive", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
+}
+
 const DRIVE_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["PUBLISHED"],
   PUBLISHED: ["APPLICATION_OPEN", "CLOSED"],
