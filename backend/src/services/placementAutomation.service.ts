@@ -299,7 +299,7 @@ async function handlePlacementEvent(event: DomainEvent) {
     if (!offerId) return;
     const offer = await prisma.placementOffer.findFirst({
       where: { id: offerId, institutionId },
-      select: { id: true, studentId: true, status: true, role: true, joiningDate: true, company: { select: { name: true } } },
+      select: { id: true, studentId: true, status: true, role: true, joiningDate: true, responseDeadline: true, updatedAt: true, company: { select: { name: true } } },
     });
     if (!offer) return;
     const isCreated = event.name === "placement.offer.created";
@@ -310,13 +310,13 @@ async function handlePlacementEvent(event: DomainEvent) {
       dedupePrefix: isCreated
         ? `placement:offer:${offer.id}:issued`
         : isUpdated
-          ? `placement:offer:${offer.id}:revised:${offer.joiningDate?.toISOString() ?? "no-joining-date"}`
+          ? `placement:offer:${offer.id}:revised:${stringField(payload, "version") ?? offer.updatedAt.toISOString()}`
           : `placement:offer:${offer.id}:status:${offer.status.toLowerCase()}`,
       title: isCreated ? "You received a placement offer" : isUpdated ? "Placement offer revised" : "Placement offer status updated",
       body: isCreated
-        ? `${offer.company.name} has issued you an offer for ${offer.role}. Review it in ACADLYX.`
+        ? `${offer.company.name} has issued you an offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${offer.responseDeadline.toLocaleString()}.` : ""} Review it in ACADLYX.`
         : isUpdated
-          ? `${offer.company.name} revised your offer for ${offer.role}.`
+          ? `${offer.company.name} revised your offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${offer.responseDeadline.toLocaleString()}.` : ""}${offer.joiningDate ? ` Expected joining: ${offer.joiningDate.toLocaleDateString()}.` : ""}`
           : `Your offer from ${offer.company.name} is now ${offer.status.replaceAll("_", " ").toLowerCase()}.`,
       actionUrl: "/student/placements",
     });
