@@ -94,6 +94,24 @@ async function notifyPlacementAudience(input: {
   });
 }
 
+async function enqueuePlacementEvent(
+  tx: Prisma.TransactionClient,
+  institutionId: string,
+  actorId: string,
+  name: string,
+  payload: Record<string, unknown>,
+) {
+  await tx.domainEventOutbox.create({
+    data: {
+      institutionId,
+      actorId,
+      name,
+      payload: payload as Prisma.InputJsonValue,
+      occurredAt: new Date(),
+    },
+  });
+}
+
 const PLACEMENT_MANAGER_WORKSPACES = new Set([
   "SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR",
   "DIRECTOR","DEAN","HOD","PLACEMENT",
@@ -347,18 +365,27 @@ export async function transitionApplication(
 
   // Compare-and-set the current status so concurrent reviewers cannot overwrite
   // a newer decision after both read the same previous state.
-  const changed = await prisma.application.updateMany({
-    where: { id, institutionId, status: application.status },
-    data: { status: next },
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.application.updateMany({
+      where: { id, institutionId, status: application.status },
+      data: { status: next },
+    });
+    if (changed.count !== 1) {
+      throw new AppError("This application was updated by another user. Refresh and review the latest status.", 409);
+    }
+    const row = await tx.application.findFirst({
+      where: { id, institutionId },
+      include: { opportunity: { select: { id: true, title: true, organization: true } } },
+    });
+    if (!row) throw new AppError("Placement application not found.", 404);
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.application.status_changed", {
+      applicationId: id,
+      from: application.status,
+      to: next,
+      driveId: application.placementDriveId,
+    });
+    return row;
   });
-  if (changed.count !== 1) {
-    throw new AppError("This application was updated by another user. Refresh and review the latest status.", 409);
-  }
-  const updated = await prisma.application.findFirst({
-    where: { id, institutionId },
-    include: { opportunity: { select: { id: true, title: true, organization: true } } },
-  });
-  if (!updated) throw new AppError("Placement application not found.", 404);
   // Keep candidate schedules in sync with the recruitment pipeline. A student
   // moved into TEST or INTERVIEW is automatically attached to already-scheduled
   // events for that drive; event creation also backfills candidates already at
@@ -818,30 +845,34 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
   if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
     const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
     const driveDepartmentIds = Array.isArray(drive.eligibleDepartments)
-      ? drive.eligibleDepartments.filter((id): id is string => typeof id === "string")
+      ? drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
       : [];
-    if (!driveDepartmentIds.length || !driveDepartmentIds.some((id) => allowedDepartmentIds.includes(id))) {
+    if (!driveDepartmentIds.length || !driveDepartmentIds.some((departmentId) => allowedDepartmentIds.includes(departmentId))) {
       throw new AppError("Placement drive not found in the authorised department scope.", 404);
     }
   }
   const next = status.toUpperCase();
   if (!DRIVE_TRANSITIONS[drive.status]?.includes(next)) throw new AppError(`Invalid placement drive transition: ${drive.status} -> ${next}`, 409);
-  // Use a compare-and-set update to prevent concurrent staff actions from
-  // applying a transition based on a stale drive status.
-  const changed = await prisma.placementDrive.updateMany({
-    where: { id, institutionId, status: drive.status },
-    data: { status: next },
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementDrive.updateMany({
+      where: { id, institutionId, status: drive.status },
+      data: { status: next },
+    });
+    if (changed.count !== 1) {
+      throw new AppError("This drive was updated by another user. Refresh before changing its status.", 409);
+    }
+    const row = await tx.placementDrive.findFirst({ where: { id, institutionId } });
+    if (!row) throw new AppError("Placement drive not found.", 404);
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.drive.status_changed", {
+      driveId: id,
+      from: drive.status,
+      to: next,
+    });
+    return row;
   });
-  if (changed.count !== 1) {
-    throw new AppError("This drive was updated by another user. Refresh before changing its status.", 409);
-  }
-  const updated = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
-  if (!updated) throw new AppError("Placement drive not found.", 404);
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.status_changed", entityType: "PlacementDrive", entityId: id, metadata: { from: drive.status, to: next } });
   return updated;
-}
-
-export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
+}export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
   assertInstitution(actor, institutionId);
   let target = activeWorkspace(actor) === "STUDENT" ? actor.id : studentId;
   if (activeWorkspace(actor) === "PARENT" && !target) {
@@ -1128,41 +1159,135 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
 }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
-  const application = await prisma.application.findFirst({ where: { id: input.applicationId, institutionId }, include: { student: { select: { id: true } }, opportunity: { select: { organization: true } } } });
+  const application = await prisma.application.findFirst({
+    where: { id: input.applicationId, institutionId },
+    include: { student: { select: { id: true } }, opportunity: { select: { organization: true } } },
+  });
   if (!application) throw new AppError("Application not found.", 404);
   await assertCanViewStudent(institutionId, actor, application.student.id);
-  if (!["INTERVIEW","OFFERED","ACCEPTED"].includes(application.status)) throw new AppError("Application is not in an offerable state.", 409);
-  const company = await prisma.placementCompany.findFirst({ where: { institutionId, name: application.opportunity.organization }, select: { id: true } });
+  // Interview scheduling is not a selection decision. Offers can only be issued
+  // after an authorised reviewer has moved the application to SELECTED.
+  if (application.status !== "SELECTED") {
+    throw new AppError("Only a selected candidate can receive an offer. Mark the application SELECTED first.", 409);
+  }
+  const company = await prisma.placementCompany.findFirst({
+    where: { institutionId, name: application.opportunity.organization },
+    select: { id: true, name: true },
+  });
   if (!company) throw new AppError("Create the canonical company record before issuing an offer.", 409);
-  const offer = await prisma.placementOffer.create({ data: {
-    institutionId, studentId: application.student.id, companyId: company.id, applicationId: application.id, role: input.role.trim(),
-    offerDate: new Date(input.offerDate), joiningDate: input.joiningDate ? new Date(input.joiningDate) : null, totalCtc: input.totalCtc,
-    fixedCtc: input.fixedCtc, variableCtc: input.variableCtc, bonus: input.bonus, currency: input.currency || "INR", offerDocumentUrl: input.offerDocumentUrl || null,
-  }});
-  await prisma.application.update({ where: { id: application.id }, data: { status: "OFFERED" } });
-  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.created", entityType: "PlacementOffer", entityId: offer.id, metadata: { applicationId: application.id, studentId: application.student.id }});
-  return offer;
-}
 
-export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
+  const offer = await prisma.$transaction(async (tx) => {
+    const existingOffer = await tx.placementOffer.findFirst({
+      where: { institutionId, applicationId: application.id },
+      select: { id: true },
+    });
+    if (existingOffer) throw new AppError("An offer already exists for this application. Revise the existing offer instead.", 409);
+
+    const moved = await tx.application.updateMany({
+      where: { id: application.id, institutionId, status: "SELECTED" },
+      data: { status: "OFFERED" },
+    });
+    if (moved.count !== 1) {
+      throw new AppError("The application changed while the offer was being issued. Refresh and try again.", 409);
+    }
+    const created = await tx.placementOffer.create({
+      data: {
+        institutionId,
+        studentId: application.student.id,
+        companyId: company.id,
+        applicationId: application.id,
+        role: input.role.trim(),
+        offerDate: new Date(input.offerDate),
+        joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
+        totalCtc: input.totalCtc,
+        fixedCtc: input.fixedCtc,
+        variableCtc: input.variableCtc,
+        bonus: input.bonus,
+        currency: input.currency || "INR",
+        offerDocumentUrl: input.offerDocumentUrl || null,
+      },
+    });
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.offer.created", {
+      offerId: created.id,
+      applicationId: application.id,
+      studentId: application.student.id,
+      driveId: application.placementDriveId,
+    });
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.application.status_changed", {
+      applicationId: application.id,
+      from: "SELECTED",
+      to: "OFFERED",
+      driveId: application.placementDriveId,
+    });
+    return created;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.created", entityType: "PlacementOffer", entityId: offer.id, metadata: { applicationId: application.id, studentId: application.student.id } });
+  return offer;
+}export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   const offer = await prisma.placementOffer.findFirst({ where: { id: offerId, institutionId } });
   if (!offer) throw new AppError("Placement offer not found.", 404);
-  const next=status.toUpperCase();
-  const allowed: Record<string,string[]>={OFFERED:["ACCEPTED","REJECTED"],ACCEPTED:["JOINING_PENDING","JOINED"],JOINING_PENDING:["JOINED"],REJECTED:[],JOINED:[]};
+  const next = status.toUpperCase();
+  const allowed: Record<string, string[]> = {
+    OFFERED: ["ACCEPTED", "REJECTED", "WITHDRAWN"],
+    ACCEPTED: ["JOINING_PENDING", "JOINED", "WITHDRAWN"],
+    JOINING_PENDING: ["JOINED", "WITHDRAWN"],
+    REJECTED: [],
+    JOINED: [],
+    WITHDRAWN: [],
+  };
   if (activeWorkspace(actor) === "STUDENT") {
-    if (offer.studentId !== actor.id) throw new AppError("This offer is outside your scope.",403);
-    if (!["ACCEPTED","REJECTED"].includes(next) || offer.status !== "OFFERED") throw new AppError("Invalid student offer transition.",409);
+    if (offer.studentId !== actor.id) throw new AppError("This offer is outside your scope.", 403);
+    if (!["ACCEPTED", "REJECTED"].includes(next) || offer.status !== "OFFERED") {
+      throw new AppError("Invalid student offer transition.", 409);
+    }
   } else {
-    if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.",403);
-    if (!allowed[offer.status]?.includes(next)) throw new AppError(`Invalid offer transition: ${offer.status} -> ${next}`,409);
+    if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+    if (!allowed[offer.status]?.includes(next)) throw new AppError(`Invalid offer transition: ${offer.status} -> ${next}`, 409);
   }
-  const updated=await prisma.placementOffer.update({ where:{id:offerId}, data:{status:next, acceptanceAt:next==="ACCEPTED"?new Date():offer.acceptanceAt, joiningStatus:next==="JOINING_PENDING"?"PENDING":offer.joiningStatus} });
-  await recordAuditLog({institutionId,userId:actor.id,action:"placements.offer.status_changed",entityType:"PlacementOffer",entityId:offerId,metadata:{from:offer.status,to:next}});
-  return updated;
-}
 
-export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementOffer.updateMany({
+      where: { id: offerId, institutionId, status: offer.status },
+      data: {
+        status: next,
+        acceptanceAt: next === "ACCEPTED" ? new Date() : offer.acceptanceAt,
+        joiningStatus: next === "JOINING_PENDING" ? "PENDING" : offer.joiningStatus,
+      },
+    });
+    if (changed.count !== 1) throw new AppError("The offer was updated by another user. Refresh and try again.", 409);
+
+    // Keep the application pipeline consistent with the student's actual offer decision.
+    if (offer.applicationId && ["ACCEPTED", "REJECTED", "WITHDRAWN", "JOINED"].includes(next)) {
+      const application = await tx.application.findFirst({
+        where: { id: offer.applicationId, institutionId },
+        select: { id: true, status: true },
+      });
+      const targetStatus = next === "JOINED" ? "JOINED" : next;
+      if (application && application.status !== targetStatus) {
+        const valid = APPLICATION_TRANSITIONS[application.status]?.includes(targetStatus);
+        if (valid) {
+          await tx.application.updateMany({
+            where: { id: application.id, institutionId, status: application.status },
+            data: { status: targetStatus },
+          });
+        }
+      }
+    }
+    const row = await tx.placementOffer.findFirst({ where: { id: offerId, institutionId } });
+    if (!row) throw new AppError("Placement offer not found.", 404);
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.offer.status_changed", {
+      offerId,
+      from: offer.status,
+      to: next,
+      studentId: offer.studentId,
+    });
+    return row;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.status_changed", entityType: "PlacementOffer", entityId: offerId, metadata: { from: offer.status, to: next } });
+  return updated;
+}export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const offer=await prisma.placementOffer.findFirst({where:{id:offerId,institutionId},select:{id:true,studentId:true,joiningDate:true}});
