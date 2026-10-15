@@ -2511,6 +2511,8 @@ export async function previewPlacementCohortAudience(
   actor: AuthenticatedUser,
   targeting?: PlacementCohortTargeting,
   explicitStudentIds: string[] = [],
+  driveId?: string,
+  applicationStatuses: string[] = [],
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -2523,47 +2525,73 @@ export async function previewPlacementCohortAudience(
     ),
   );
   const explicitIds = [...new Set(explicitStudentIds)];
-  if (!hasCohortFilters && explicitIds.length === 0) {
-    throw new AppError("Select at least one cohort criterion or individual student before previewing the audience.", 422);
+  if (!hasCohortFilters && explicitIds.length === 0 && !(driveId && applicationStatuses.length)) {
+    throw new AppError("Select a cohort criterion, individual student, or recruitment stage before previewing the audience.", 422);
   }
-  const cohortIds = hasCohortFilters ? await resolvePlacementCohortAudience(institutionId, targeting) : [];
-  const allIds = [...new Set([...cohortIds, ...explicitIds])];
-  if (!allIds.length) return { matchingCount: 0, sample: [], truncated: false };
 
-  const enrolledStudents = await prisma.user.findMany({
-    where: {
-      institutionId, id: { in: allIds },
-      userRoles: { some: { role: { name: "STUDENT" } } },
-      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
-    },
-    select: { id: true },
-    take: 10000,
-  });
-  if (enrolledStudents.length !== allIds.length) {
-    throw new AppError("The audience includes a non-student or a student outside this institution.", 422);
+  const cohortIds = hasCohortFilters ? await resolvePlacementCohortAudience(institutionId, targeting) : [];
+  let applicationStudentIds: string[] = [];
+  if (driveId && applicationStatuses.length) {
+    const drive = await prisma.placementDrive.findFirst({
+      where: { id: driveId, institutionId },
+      select: { id: true, campusId: true, eligibleDepartments: true },
+    });
+    if (!drive) throw new AppError("Placement drive not found in this institution.", 404);
+    if (activeWorkspace(actor) === "DIRECTOR") {
+      const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+      if (!drive.campusId || !campusIds.includes(drive.campusId)) {
+        throw new AppError("Placement drive is outside the director's authorised campus scope.", 403);
+      }
+    }
+    if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+      const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+      const targeted = Array.isArray(drive.eligibleDepartments)
+        ? drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+        : [];
+      if (!targeted.length || !targeted.some((id) => departments.includes(id))) {
+        throw new AppError("Placement drive is outside the authorised department scope.", 403);
+      }
+    }
+    const applications = await prisma.application.findMany({
+      where: { institutionId, placementDriveId: drive.id, status: { in: applicationStatuses } },
+      select: { studentId: true },
+      orderBy: { studentId: "asc" },
+      take: 10000,
+    });
+    applicationStudentIds = applications.map((application) => application.studentId);
   }
-  await Promise.all(allIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
-  const sample = await prisma.user.findMany({
-    where: {
-      institutionId, id: { in: allIds },
-      userRoles: { some: { role: { name: "STUDENT" } } },
-      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
-    },
+
+  const allIds = [...new Set([...cohortIds, ...explicitIds, ...applicationStudentIds])];
+  if (!allIds.length) return { matchingCount: 0, sample: [], truncated: false };
+  const studentRows = await prisma.user.findMany({
+    where: { institutionId, id: { in: allIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
     select: { id: true, firstName: true, lastName: true },
     orderBy: { id: "asc" },
-    take: 10,
+    take: 10000,
   });
+  if (studentRows.length !== allIds.length) {
+    throw new AppError("The audience includes a non-student or a student outside this institution.", 422);
+  }
+  if (explicitIds.length) {
+    const activelyEnrolledExplicit = await prisma.user.findMany({
+      where: {
+        institutionId, id: { in: explicitIds },
+        studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+      },
+      select: { id: true },
+    });
+    if (activelyEnrolledExplicit.length !== explicitIds.length) {
+      throw new AppError("Individually selected students must have an active enrollment.", 422);
+    }
+  }
+  await Promise.all(allIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   return {
     matchingCount: allIds.length,
-    sample,
+    sample: studentRows.slice(0, 10),
     truncated: allIds.length >= 10000,
   };
 }
 
-
-/** Private placement schedule projection for the authenticated student.
- * These events intentionally stay in the placement domain because the
- * institution-wide CalendarEvent model has no student ownership relation. */
 export async function getMyPlacementCalendar(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
