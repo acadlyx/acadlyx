@@ -146,6 +146,8 @@ export interface ErpNotification {
   title: string;
   body: string;
   readAt: string | null;
+  actionUrl: string | null;
+  priority?: string;
   createdAt: string;
 }
 
