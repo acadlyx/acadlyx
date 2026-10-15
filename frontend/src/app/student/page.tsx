@@ -96,6 +96,8 @@ function StudentDashboardContent({ data, workflow }: { data: StudentDashboardDat
       </div>
     </section>
 
+    <StudentPlacementSchedule />
+
     {workflow ? <div className="grid gap-4 lg:grid-cols-2">
       <Link href="/student/enrollment" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Academic Enrollment</p>
