@@ -525,7 +525,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
         eligibleBatches: input.eligibleBatches ?? undefined,
         eligibleSemesters: input.eligibleSemesters ?? undefined,
         requiredSkills: input.requiredSkills ?? undefined,
-        academicRequirements: input.academicRequirements ? input.academicRequirements as Prisma.InputJsonValue : undefined,
+        academicRequirements: input.academicRequirements ? input.academicRequirements as unknown as Prisma.InputJsonValue : undefined,
       },
       include: { company: true, opening: true, opportunity: true },
     });
