@@ -1262,10 +1262,11 @@ export async function listPlacementCriteriaOptions(institutionId: string, actor:
     select: { id: true, name: true, departmentId: true }, orderBy: { name: "asc" },
   });
   const programIds = programs.map((item) => item.id);
-  const [batches, semesters, skills] = await Promise.all([
+  const [batches, semesters, academicYears, skills] = await Promise.all([
     prisma.batch.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" } }),
     prisma.semester.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }] }),
+    prisma.academicYear.findMany({ where: { institutionId }, select: { id: true, name: true }, orderBy: { name: "desc" } }),
     prisma.skill.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  return { campuses, departments, programs, batches, semesters, skills };
+  return { campuses, departments, programs, batches, semesters, academicYears, skills };
 }
