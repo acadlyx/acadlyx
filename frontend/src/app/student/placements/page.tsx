@@ -10,6 +10,7 @@ type Opportunity = { id: string; title: string; organization: string; descriptio
 type Application = { id: string; status: string; appliedAt: string; opportunity: { id: string; title: string; organization: string; deadline: string | null } };
 type Offer = { id: string; status: string; role: string; totalCtc: number | null; currency: string; joiningDate: string | null; company: { name: string } };
 type Test = { id: string; title: string; mode: string; scheduledAt: string; drive: { title: string; company: { name: string } }; participants: Array<{ attendanceStatus: string; resultStatus: string; score: number | null }> };
+type Interview = { id: string; roundNumber: number; roundType: string; startsAt: string; endsAt: string | null; venue: string | null; onlineLink: string | null; status: string; drive: { title: string; company: { name: string } } };
 type Profile = { profile: { placementStatus: string; bio: string | null; portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null } | null; skills: unknown[]; certifications: unknown[]; projects: unknown[]; resumes: unknown[] };
 
 export default function StudentPlacementsPage() {
@@ -20,6 +21,7 @@ export default function StudentPlacementsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -28,13 +30,14 @@ export default function StudentPlacementsPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, d, a, o, opportunitiesResponse, testsResponse] = await Promise.all([
+      const [p, d, a, o, opportunitiesResponse, testsResponse, interviewsResponse] = await Promise.all([
         authedFetch<{ data: Profile }>("/placements/profile"),
         authedFetch<{ data: Drive[] }>("/placements/drives"),
         authedFetch<{ data: Application[] }>("/placements/applications"),
         authedFetch<{ data: Offer[] }>("/placements/offers"),
         authedFetch<{ data: Opportunity[] }>("/placements/opportunities?activeOnly=true"),
         authedFetch<{ data: Test[] }>("/placements/tests"),
+        authedFetch<{ data: Interview[] }>("/placements/interviews"),
       ]);
       setProfile(p.data);
       setDrives(d.data || []);
@@ -42,6 +45,7 @@ export default function StudentPlacementsPage() {
       setOffers(o.data || []);
       setOpportunities(opportunitiesResponse.data || []);
       setTests(testsResponse.data || []);
+      setInterviews(interviewsResponse.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) {
         router.replace("/login");
@@ -171,6 +175,18 @@ export default function StudentPlacementsPage() {
           </div>
         </section>
 
+        <section className="rounded-3xl border bg-white p-6">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-slate-950">My scheduled interviews</h2><span className="text-xs font-bold text-slate-500">{interviews.length} scheduled</span></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {interviews.map((interview) => <article key={interview.id} className="rounded-2xl border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-black text-slate-950">{interview.roundType} · Round {interview.roundNumber}</p><p className="text-sm text-slate-600">{interview.drive.company.name} · {interview.drive.title}</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-800">{interview.status}</span></div>
+              <p className="mt-3 text-xs text-slate-500">{new Date(interview.startsAt).toLocaleString("en-IN")}{interview.endsAt ? " – " + new Date(interview.endsAt).toLocaleTimeString("en-IN") : ""}</p>
+              {interview.venue && <p className="mt-1 text-sm text-slate-600">Venue: {interview.venue}</p>}
+              {interview.onlineLink && <a href={interview.onlineLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Join interview</a>}
+            </article>)}
+            {!loading && interviews.length === 0 && <p className="py-6 text-center text-sm text-slate-500 md:col-span-2">No interviews assigned to you yet.</p>}
+          </div>
+        </section>
         <section className="rounded-3xl border bg-white p-6">
           <h2 className="text-xl font-black text-slate-950">My applications</h2>
           <div className="mt-4 space-y-3">
