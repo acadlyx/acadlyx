@@ -2915,6 +2915,26 @@ async function placementEventDriveId(institutionId: string, payload: unknown): P
       if (drive) return drive.id;
     }
   }
+  const eventType = typeof data.eventType === "string" ? data.eventType : null;
+  const eventId = typeof data.eventId === "string" ? data.eventId : null;
+  if (eventType && eventId) {
+    if (eventType === "interview") {
+      const interview = await prisma.placementInterview.findFirst({
+        where: { id: eventId, institutionId }, select: { driveId: true },
+      });
+      if (interview?.driveId) return interview.driveId;
+    } else if (eventType === "test") {
+      const test = await prisma.placementTest.findFirst({
+        where: { id: eventId, institutionId }, select: { driveId: true },
+      });
+      if (test?.driveId) return test.driveId;
+    } else if (eventType === "visit") {
+      const visit = await prisma.placementVisit.findFirst({
+        where: { id: eventId, institutionId }, select: { driveId: true },
+      });
+      if (visit?.driveId) return visit.driveId;
+    }
+  }
   const offerId = typeof data.offerId === "string" ? data.offerId : null;
   if (offerId) {
     const offer = await prisma.placementOffer.findFirst({
@@ -2930,9 +2950,17 @@ async function assertPlacementFailureScope(institutionId: string, actor: Authent
   const workspace = activeWorkspace(actor);
   if (workspace === "DIRECTOR" || ["DEAN", "HOD", "FACULTY"].includes(workspace)) {
     const driveId = await placementEventDriveId(institutionId, payload);
-    // Do not expose unlinked institution-wide events to a campus/department
-    // operator when the data model cannot prove that the event is in scope.
-    if (!driveId) throw new AppError("This automation event has no verifiable campus/department scope.", 403);
+    if (!driveId) {
+      const data = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+      const recipients = Array.isArray(data.recipientIds)
+        ? [...new Set(data.recipientIds.filter((value): value is string => typeof value === "string"))]
+        : [];
+      // Some company activities are institution-targeted without a linked drive.
+      // Their recipient list is the available scope proof; validate every student.
+      if (!recipients.length) throw new AppError("This automation event has no verifiable campus/department scope.", 403);
+      await Promise.all(recipients.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+      return;
+    }
     const drive = await prisma.placementDrive.findFirst({
       where: { id: driveId, institutionId },
       select: { id: true, campusId: true, eligibleDepartments: true },
