@@ -156,6 +156,53 @@ async function enqueuePlacementEvent(
   });
 }
 
+async function advanceApplicationsForScheduledRound(
+  tx: Prisma.TransactionClient,
+  institutionId: string,
+  actorId: string,
+  driveId: string,
+  opportunityId: string | null,
+  studentIds: string[],
+  targetStatus: "TEST" | "INTERVIEW",
+) {
+  if (!studentIds.length) return;
+  const allowedFrom = targetStatus === "TEST" ? ["SHORTLISTED"] : ["SHORTLISTED", "TEST"];
+  const applications = await tx.application.findMany({
+    where: {
+      institutionId,
+      studentId: { in: [...new Set(studentIds)] },
+      OR: [
+        { placementDriveId: driveId },
+        ...(opportunityId ? [{ opportunityId }] : []),
+      ],
+      status: { in: allowedFrom },
+    },
+    select: { id: true, status: true },
+    orderBy: { id: "asc" },
+    take: 10000,
+  });
+  for (const application of applications) {
+    if (!APPLICATION_TRANSITIONS[application.status]?.includes(targetStatus)) continue;
+    const changed = await tx.application.updateMany({
+      where: { id: application.id, institutionId, status: application.status },
+      data: { status: targetStatus },
+    });
+    if (changed.count !== 1) {
+      throw new AppError("A candidate application changed while the recruitment round was being scheduled. Refresh the pipeline and retry.", 409);
+    }
+    // The assigned round itself produces the student-facing schedule notice.
+    // Keep the stage transition in the outbox for auditability without sending
+    // a second notification for the same scheduling action.
+    await enqueuePlacementEvent(tx, institutionId, actorId, "placement.application.status_changed", {
+      applicationId: application.id,
+      driveId,
+      from: application.status,
+      to: targetStatus,
+      trigger: "scheduled_round",
+    });
+  }
+}
+
 const PLACEMENT_MANAGER_WORKSPACES = new Set([
   "SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR",
   "DIRECTOR","DEAN","HOD","PLACEMENT",
@@ -1755,6 +1802,9 @@ export async function createPlacementInterview(
         skipDuplicates: true,
       });
       if (initialStatus === "SCHEDULED") {
+        await advanceApplicationsForScheduledRound(
+          tx, institutionId, actor.id, drive.id, drive.opportunityId, requestedStudentIds, "INTERVIEW",
+        );
         await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
           eventType: "interview",
           eventId: created.id,
@@ -2456,6 +2506,9 @@ export async function createPlacementTest(
         skipDuplicates: true,
       });
       if (initialStatus === "SCHEDULED") {
+        await advanceApplicationsForScheduledRound(
+          tx, institutionId, actor.id, drive.id, drive.opportunityId, participantIds, "TEST",
+        );
         await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
           eventType: "test",
           eventId: created.id,
