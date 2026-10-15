@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-type Visit = { id: string; type: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
+type Visit = { id: string; type: string; status: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
 type Company = { id: string; name: string };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number; program?: { name: string } };
@@ -56,6 +56,20 @@ export default function PlacementVisitsPage() {
   }, [router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function updateVisit(id: string, payload: { startsAt?: string; status?: "PUBLISHED" | "CANCELLED" }) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/visits/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to update placement activity.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,6 +174,16 @@ export default function PlacementVisitsPage() {
             {visit.endsAt && <p className="mt-2 text-xs text-slate-500">Ends {new Date(visit.endsAt).toLocaleString("en-IN")}</p>}
             {visit.venue && <p className="mt-3 text-sm">Venue: {visit.venue}</p>}
             {visit.purpose && <p className="mt-1 text-sm text-slate-600">{visit.purpose}</p>}
+            <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
+              <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("startsAt"); if (typeof value === "string" && value) void updateVisit(visit.id, { startsAt: new Date(value).toISOString() }); }}>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule
+                  <input name="startsAt" type="datetime-local" required defaultValue={new Date(visit.startsAt).toISOString().slice(0, 16)} disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
+                </label>
+                <button type="submit" disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
+              </form>
+              <span className="text-xs font-bold text-slate-500">Status: {visit.status}</span>
+              {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this placement activity and notify its targeted students?")) void updateVisit(visit.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel activity</button>}
+            </div>
           </article>)}
           {!loading && items.length === 0 && <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2">No company visits or presentations recorded.</div>}
         </section>
