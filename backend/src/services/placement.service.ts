@@ -461,7 +461,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   companyId: string; title: string; openingId?: string; campusId?: string; applicationDeadline?: string; driveDate?: string;
   venue?: string; onlineLink?: string; cgpaRequirement?: number; maxBacklogs?: number; vacancies?: number;
   eligiblePrograms?: string[]; eligibleDepartments?: string[]; eligibleBatches?: string[]; eligibleSemesters?: string[]; requiredSkills?: string[];
-  academicRequirements?: Prisma.InputJsonValue;
+  academicRequirements?: Record<string, unknown>;
 }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -525,7 +525,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
         eligibleBatches: input.eligibleBatches ?? undefined,
         eligibleSemesters: input.eligibleSemesters ?? undefined,
         requiredSkills: input.requiredSkills ?? undefined,
-        academicRequirements: input.academicRequirements ?? undefined,
+        academicRequirements: input.academicRequirements ? input.academicRequirements as Prisma.InputJsonValue : undefined,
       },
       include: { company: true, opening: true, opportunity: true },
     });
@@ -1239,12 +1239,26 @@ export async function listPlacementCriteriaOptions(institutionId: string, actor:
   if (!isPlacementManager(actor) || !actor.permissions.includes("placements.read")) {
     throw new AppError("Placement criteria access is not permitted.", 403);
   }
-  const [campuses, departments, programs, batches, semesters, skills] = await Promise.all([
-    prisma.campus.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.department.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, campusId: true }, orderBy: { name: "asc" } }),
-    prisma.program.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, departmentId: true }, orderBy: { name: "asc" } }),
-    prisma.batch.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" } }),
-    prisma.semester.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }] }),
+  const directorScope = activeWorkspace(actor) === "DIRECTOR";
+  const assignedCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
+  if (directorScope && !assignedCampusIds.length) throw new AppError("No campus scope is assigned to this director.", 403);
+  const campuses = await prisma.campus.findMany({
+    where: { institutionId, isActive: true, ...(directorScope ? { id: { in: assignedCampusIds } } : {}) },
+    select: { id: true, name: true }, orderBy: { name: "asc" },
+  });
+  const departments = await prisma.department.findMany({
+    where: { institutionId, isActive: true, ...(directorScope ? { campusId: { in: assignedCampusIds } } : {}) },
+    select: { id: true, name: true, campusId: true }, orderBy: { name: "asc" },
+  });
+  const departmentIds = departments.map((item) => item.id);
+  const programs = await prisma.program.findMany({
+    where: { institutionId, isActive: true, ...(directorScope ? { departmentId: { in: departmentIds } } : {}) },
+    select: { id: true, name: true, departmentId: true }, orderBy: { name: "asc" },
+  });
+  const programIds = programs.map((item) => item.id);
+  const [batches, semesters, skills] = await Promise.all([
+    prisma.batch.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" } }),
+    prisma.semester.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }] }),
     prisma.skill.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   return { campuses, departments, programs, batches, semesters, skills };
