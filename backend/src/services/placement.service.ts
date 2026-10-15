@@ -2330,7 +2330,7 @@ export async function createPlacementTest(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const drive = await prisma.placementDrive.findFirst({
     where: { id: input.driveId, institutionId },
-    select: { id: true, status: true, campusId: true, eligibleDepartments: true },
+    select: { id: true, status: true, campusId: true, eligibleDepartments: true, opportunityId: true },
   });
   if (!drive) throw new AppError("Placement drive not found.", 404);
   if (!["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"].includes(drive.status)) {
@@ -2352,38 +2352,58 @@ export async function createPlacementTest(
     }
   }
 
-  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
-  if (cohortStudentIds.length) {
-    await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
-  }
-  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0) {
-    throw new AppError("The selected placement cohort contains no active students.", 422);
-  }
+  const driveApplications = await prisma.application.findMany({
+    where: {
+      institutionId,
+      OR: [
+        { placementDriveId: drive.id },
+        ...(drive.opportunityId ? [{ opportunityId: drive.opportunityId }] : []),
+      ],
+      status: { in: ["SHORTLISTED", "TEST"] },
+    },
+    select: { studentId: true },
+    orderBy: { studentId: "asc" },
+    take: 10000,
+  });
+  const driveCandidateIds = new Set(driveApplications.map((application) => application.studentId));
+  const cohortTargetIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
   const explicitStudentIds = input.studentIds ?? [];
   if (new Set(explicitStudentIds).size !== explicitStudentIds.length) {
     throw new AppError("The explicitly selected assessment audience contains duplicate student IDs.", 422);
   }
-  const uniqueStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds])];
-  if (uniqueStudentIds.length) {
-    await Promise.all(uniqueStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
-    const targets = await prisma.user.findMany({
+  if (explicitStudentIds.length) {
+    const eligibleExplicit = await prisma.user.findMany({
       where: {
-        id: { in: uniqueStudentIds }, institutionId,
+        institutionId, id: { in: explicitStudentIds },
         userRoles: { some: { role: { name: "STUDENT" } } },
         studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
       },
       select: { id: true },
     });
-    if (targets.length !== uniqueStudentIds.length) {
-      throw new AppError("Every assessment target must be an actively enrolled institution student within your authorised scope.", 422);
+    if (eligibleExplicit.length !== explicitStudentIds.length) {
+      throw new AppError("Every explicitly selected assessment candidate must be an actively enrolled student in this institution.", 422);
+    }
+    if (explicitStudentIds.some((studentId) => !driveCandidateIds.has(studentId))) {
+      throw new AppError("Every explicitly selected assessment candidate must have a shortlisted/test-stage application for this drive.", 422);
     }
   }
-
-  const stageCandidates = await prisma.application.findMany({
-    where: { institutionId, placementDriveId: input.driveId, status: "TEST" },
-    select: { studentId: true },
-  });
-  const participantIds = [...new Set([...uniqueStudentIds, ...stageCandidates.map((candidate) => candidate.studentId)])];
+  const cohortStudentIds = cohortTargetIds.filter((studentId) => driveCandidateIds.has(studentId));
+  const hasCohortFilters = Boolean(
+    input.targeting && (
+      input.targeting.campusIds?.length || input.targeting.programIds?.length ||
+      input.targeting.departmentIds?.length || input.targeting.batchIds?.length ||
+      input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length ||
+      input.targeting.sectionIds?.length
+    ),
+  );
+  if (hasCohortFilters && cohortTargetIds.length === 0 && explicitStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
+  if (hasCohortFilters && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
+    throw new AppError("No shortlisted or test-stage applicants for this drive match the selected cohort.", 422);
+  }
+  const targetedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds])];
+  const participantIds = targetedStudentIds.length ? targetedStudentIds : [...driveCandidateIds];
   if (participantIds.length) {
     const studentAccounts = await prisma.user.findMany({
       where: {
@@ -2396,6 +2416,7 @@ export async function createPlacementTest(
       throw new AppError("Every assessment participant must have a Student account in this institution.", 422);
     }
   }
+  await Promise.all(participantIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   const initialStatus = input.status ?? "SCHEDULED";
   const scheduledStart = new Date(input.scheduledAt);
   const durationMinutes = input.durationMinutes && input.durationMinutes > 0 ? input.durationMinutes : 60;
