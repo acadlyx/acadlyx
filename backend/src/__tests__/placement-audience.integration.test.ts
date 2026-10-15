@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { prisma } from "../lib/prisma";
-import { createPlacementVisit, listPlacementVisits } from "../services/placement.service";
+import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits } from "../services/placement.service";
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
   skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
