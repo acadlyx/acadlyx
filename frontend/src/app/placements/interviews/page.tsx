@@ -62,8 +62,8 @@ export default function PlacementInterviewsPage() {
       if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
       if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
       if (placementCriteriaResult.status === "fulfilled") {
-        setSemesters(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.semesters || [] : []);
-        setSections(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.sections || [] : []);
+        setSemesters(placementCriteriaResult.value.data.semesters || []);
+        setSections(placementCriteriaResult.value.data.sections || []);
       }
 
     } catch (e) {
