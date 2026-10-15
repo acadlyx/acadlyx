@@ -232,6 +232,20 @@ router.get("/criteria-options", authorize("placements.read"), asyncHandler(async
   res.json({ success: true, data });
 }));
 
+router.get("/my-calendar", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data = await placement.getMyPlacementCalendar(requireInstitution(req), requireAuthenticatedUser(req));
+  res.json({ success: true, data });
+}));
+router.get("/automation/failures", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const data = await placement.listPlacementAutomationFailures(requireInstitution(req), requireAuthenticatedUser(req));
+  res.json({ success: true, data });
+}));
+router.post("/automation/failures/:id/retry", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const data = await placement.retryPlacementAutomationFailure(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data });
+}));
+
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:positiveQueryInt(req.query.page,1,1000000),pageSize:positiveQueryInt(req.query.pageSize,50,100)});
@@ -257,6 +271,11 @@ router.post("/drives/:id/status", authorize("placements.manage"), asyncHandler(a
   const {id}=idParams.parse(req.params);
   const item=await placement.transitionPlacementDrive(requireInstitution(req),requireAuthenticatedUser(req),id,statusBody.parse(req.body).status);
   res.json({success:true,data:item});
+}));
+router.delete("/drives/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementDrive(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data: item });
 }));
 router.get("/drives/:id/eligibility", authorize("placements.read"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
@@ -330,6 +349,11 @@ router.post("/visits", authorize("placements.manage"), asyncHandler(async (req,r
 router.patch("/visits/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const { id } = idParams.parse(req.params);
   const item = await placement.updatePlacementVisit(requireInstitution(req), requireAuthenticatedUser(req), id, visitUpdate.parse(req.body));
+  res.json({ success: true, data: item });
+}));
+router.delete("/visits/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementVisit(requireInstitution(req), requireAuthenticatedUser(req), id);
   res.json({ success: true, data: item });
 }));
 
