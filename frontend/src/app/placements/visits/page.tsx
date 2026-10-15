@@ -95,6 +95,22 @@ export default function PlacementVisitsPage() {
     }
   }
 
+  async function deleteDraft(visit: Visit) {
+    if (visit.status !== "DRAFT") return;
+    if (!window.confirm("Permanently delete this unused draft activity? Published activities are cancelled so student and audit history is preserved.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/visits/${visit.id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to delete this draft activity.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -220,6 +236,7 @@ export default function PlacementVisitsPage() {
               </form>
               <span className="text-xs font-bold text-slate-500">Status: {visit.status}</span>
               {visit.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateVisit(visit.id, { status: "PUBLISHED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish activity</button>}
+              {visit.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void deleteDraft(visit)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete draft</button>}
               {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this placement activity and notify its targeted students?")) void updateVisit(visit.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel activity</button>}
             </div>
           </article>)}
