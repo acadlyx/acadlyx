@@ -6,6 +6,7 @@ export default function Page() {
       role="PLACEMENT"
       title="Placement Students"
       subtitle="Placement student population within authorised scope"
+      detailBasePath="/placements/students"
     />
   );
 }

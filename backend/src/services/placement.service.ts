@@ -268,11 +268,20 @@ export async function transitionApplication(
     throw new AppError(`Invalid placement application transition: ${application.status} -> ${next}`, 409);
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
+  // Compare-and-set the current status so concurrent reviewers cannot overwrite
+  // a newer decision after both read the same previous state.
+  const changed = await prisma.application.updateMany({
+    where: { id, institutionId, status: application.status },
     data: { status: next },
+  });
+  if (changed.count !== 1) {
+    throw new AppError("This application was updated by another user. Refresh and review the latest status.", 409);
+  }
+  const updated = await prisma.application.findFirst({
+    where: { id, institutionId },
     include: { opportunity: { select: { id: true, title: true, organization: true } } },
   });
+  if (!updated) throw new AppError("Placement application not found.", 404);
   await recordAuditLog({
     institutionId,
     userId: actor.id,
@@ -314,7 +323,7 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     statusRows,
     offers,
     acceptedOffers,
-    joinedOffers,
+    joinedOfferStudents,
     packageStats,
     companies,
     eligibleStudents,
@@ -325,13 +334,19 @@ export async function placementMetrics(institutionId: string, actor: Authenticat
     prisma.application.groupBy({ by: ["status"], where: applicationWhere, _count: { _all: true } }),
     prisma.placementOffer.count({ where: offerWhere }),
     prisma.placementOffer.count({ where: { ...offerWhere, status: "ACCEPTED" } }),
-    prisma.placementOffer.count({ where: { ...offerWhere, status: "JOINED" } }),
+    prisma.placementOffer.groupBy({
+      by: ["studentId"],
+      where: { ...offerWhere, status: "JOINED" },
+    }),
     prisma.placementOffer.aggregate({ where: offerWhere, _avg: { totalCtc: true }, _max: { totalCtc: true }, _min: { totalCtc: true } }),
     prisma.placementCompany.count({ where: scopedCompanyWhere }),
     prisma.user.count({ where: { institutionId, ...studentBaseWhere } }),
   ]);
 
   const status = Object.fromEntries(statusRows.map((row) => [row.status, row._count._all]));
+  // Placement rate counts distinct students, not offers: one student may receive
+  // multiple offers but must contribute only once to the placed-student total.
+  const joinedOffers = joinedOfferStudents.length;
   const placedStudents = joinedOffers;
   return {
     drives, openDrives, companies, applications, offers, acceptedOffers, joinedOffers, placedStudents,
@@ -513,7 +528,17 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
   if (!drive) throw new AppError("Placement drive not found.", 404);
   const next = status.toUpperCase();
   if (!DRIVE_TRANSITIONS[drive.status]?.includes(next)) throw new AppError(`Invalid placement drive transition: ${drive.status} -> ${next}`, 409);
-  const updated = await prisma.placementDrive.update({ where: { id }, data: { status: next } });
+  // Use a compare-and-set update to prevent concurrent staff actions from
+  // applying a transition based on a stale drive status.
+  const changed = await prisma.placementDrive.updateMany({
+    where: { id, institutionId, status: drive.status },
+    data: { status: next },
+  });
+  if (changed.count !== 1) {
+    throw new AppError("This drive was updated by another user. Refresh before changing its status.", 409);
+  }
+  const updated = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
+  if (!updated) throw new AppError("Placement drive not found.", 404);
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.status_changed", entityType: "PlacementDrive", entityId: id, metadata: { from: drive.status, to: next } });
   return updated;
 }
@@ -673,7 +698,7 @@ export async function placementProfile(institutionId: string, actor: Authenticat
   await assertCanViewStudent(institutionId, actor, target);
   const [profile, enrollment, skills, certifications, projects, resumes] = await Promise.all([
     prisma.placementProfile.findUnique({ where: { studentId: target } }),
-    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, include: { program: { include: { department: true } }, batch: true, semester: true } }),
+    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, include: { program: { include: { department: true } }, batch: true, semester: true, academicYear: true, section: true } }),
     prisma.studentSkill.findMany({ where: { institutionId, studentId: target }, include: { skill: true }, orderBy: { updatedAt: "desc" } }),
     prisma.placementCertification.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
     prisma.placementProject.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
