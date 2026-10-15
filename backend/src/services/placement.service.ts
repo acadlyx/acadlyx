@@ -1044,24 +1044,46 @@ export async function createPlacementVisit(
 }
 
 
-export async function listPlacementStudents(institutionId: string, actor: AuthenticatedUser, options: { search?: string; page?: number; pageSize?: number } = {}) {
+export async function listPlacementStudents(institutionId: string, actor: AuthenticatedUser, options: { search?: string; page?: number; pageSize?: number; campusId?: string; departmentId?: string; programId?: string; batchId?: string; semesterId?: string; academicYearId?: string } = {}) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const studentWhere = await getPlacementStudentScope(institutionId, actor);
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize ?? 50));
-  const where: Prisma.UserWhereInput = {
-    institutionId,
-    ...studentWhere,
-    userRoles: { some: { role: { name: "STUDENT" } } },
-    ...(options.search ? { OR: [
+  const filters: Prisma.UserWhereInput[] = [
+    studentWhere,
+    { userRoles: { some: { role: { name: "STUDENT" } } } },
+  ];
+  if (options.search) {
+    filters.push({ OR: [
       { firstName: { contains: options.search, mode: "insensitive" } },
       { lastName: { contains: options.search, mode: "insensitive" } },
       { email: { contains: options.search, mode: "insensitive" } },
       { idNumber: { contains: options.search, mode: "insensitive" } },
-    ] } : {}),
-  };
+    ] });
+  }
+  if (options.campusId || options.departmentId || options.programId || options.batchId || options.semesterId || options.academicYearId) {
+    filters.push({
+      studentEnrollments: {
+        some: {
+          institutionId,
+          status: "ACTIVE",
+          ...(options.programId ? { programId: options.programId } : {}),
+          ...(options.batchId ? { batchId: options.batchId } : {}),
+          ...(options.semesterId ? { semesterId: options.semesterId } : {}),
+          ...(options.academicYearId ? { academicYearId: options.academicYearId } : {}),
+          ...(options.departmentId || options.campusId ? {
+            program: {
+              ...(options.departmentId ? { departmentId: options.departmentId } : {}),
+              ...(options.campusId ? { department: { campusId: options.campusId } } : {}),
+            },
+          } : {}),
+        },
+      },
+    });
+  }
+  const where: Prisma.UserWhereInput = { institutionId, AND: filters };
   return prisma.user.findMany({
     where,
     select: {
