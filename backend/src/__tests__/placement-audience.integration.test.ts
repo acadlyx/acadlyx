@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { prisma } from "../lib/prisma";
-import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits, updatePlacementVisit } from "../services/placement.service";
+import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits, updatePlacementTest, updatePlacementVisit } from "../services/placement.service";
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
   skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
@@ -121,11 +121,15 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     const created = await createPlacementTest(institution.id, staffActor, {
       driveId: drive.id,
       title: "Aptitude assessment",
+      status: "DRAFT",
       scheduledAt: "2030-03-01T10:00:00.000Z",
       durationMinutes: 45,
       instructions: "Join five minutes early",
       studentIds: [intendedStudent.id],
     });
+    assert.equal((await listPlacementTests(institution.id, intendedActor)).length, 0, "draft assessment must not be visible to students");
+    assert.equal(await prisma.notification.count({ where: { institutionId: institution.id, userId: intendedStudent.id, dedupeKey: { startsWith: `placement:test:${created.id}:` } } }), 0, "draft assessment must not notify students");
+    await updatePlacementTest(institution.id, staffActor, created.id, { status: "SCHEDULED" });
     const [intended, other] = await Promise.all([
       listPlacementTests(institution.id, intendedActor),
       listPlacementTests(institution.id, otherActor),
@@ -135,6 +139,7 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     assert.equal(intended[0].participants[0]?.resultStatus, "PENDING");
     assert.equal(intended[0].instructions, "Join five minutes early");
     assert.equal(other.length, 0);
+    assert.equal(await prisma.notification.count({ where: { institutionId: institution.id, userId: intendedStudent.id, dedupeKey: { startsWith: `placement:test:${created.id}:published:` } } }), 1, "publishing assessment notifies assigned student exactly once");
   } finally {
     await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
