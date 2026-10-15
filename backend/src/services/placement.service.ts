@@ -59,27 +59,28 @@ export async function listOpportunities(
 ) {
   assertInstitution(actor, institutionId);
   const now = new Date();
+  const filters: Prisma.OpportunityWhereInput[] = [
+    { institutionId },
+    ...(options.activeOnly !== false ? [{ isActive: true }] : []),
+  ];
+  if (options.search) {
+    filters.push({
+      OR: [
+        { title: { contains: options.search, mode: "insensitive" } },
+        { organization: { contains: options.search, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (activeWorkspace(actor) === "STUDENT") {
+    filters.push(
+      { OR: [{ deadline: null }, { deadline: { gte: now } }] },
+      // Drives are rendered with their own eligibility and application state.
+      // Keep their linked opportunity out of the generic opportunities list.
+      { placementDrive: { is: null } },
+    );
+  }
   return prisma.opportunity.findMany({
-    where: {
-      institutionId,
-      ...(options.activeOnly !== false ? { isActive: true } : {}),
-      ...(options.search
-        ? {
-            OR: [
-              { title: { contains: options.search, mode: "insensitive" } },
-              { organization: { contains: options.search, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-      ...(activeWorkspace(actor) === "STUDENT"
-        ? {
-            OR: [
-              { deadline: null },
-              { deadline: { gte: now } },
-            ],
-          }
-        : {}),
-    },
+    where: { AND: filters },
     include: { targetRole: { select: { id: true, name: true } } },
     orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
     take: 200,
