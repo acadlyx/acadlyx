@@ -35,6 +35,30 @@ export default function NotificationsPage() {
 
   useEffect(() => { void load(1); }, []);
 
+  function internalNotificationDestination(actionUrl: string | null | undefined): string | null {
+    if (!actionUrl || !actionUrl.startsWith("/") || actionUrl.startsWith("//")) return null;
+    return actionUrl;
+  }
+
+  async function openNotification(notification: ErpNotification) {
+    const destination = internalNotificationDestination(notification.actionUrl);
+    setBusy(notification.id);
+    setError("");
+    try {
+      if (!notification.readAt) {
+        await markNotificationRead(notification.id, true);
+        setUnread((count) => Math.max(0, count - 1));
+        setItems((current) => current.map((item) =>
+          item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item
+        ));
+      }
+      if (destination) router.push(destination);
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof Error ? cause.message : "Unable to open notification.");
+    } finally { setBusy(""); }
+  }
+
   async function read(id: string) {
     setBusy(id);
     setError("");
@@ -97,6 +121,7 @@ export default function NotificationsPage() {
                   <div>
                     <h2 className="font-black">{notification.title}</h2>
                     <p className="mt-1 text-sm leading-6 text-slate-600">{notification.body}</p>
+                    {internalNotificationDestination(notification.actionUrl) && <button type="button" onClick={() => void openNotification(notification)} disabled={!!busy} className="mt-3 inline-flex rounded-lg border px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">{busy === notification.id ? "Opening…" : "Open details"}</button>}
                   </div>
                   {!notification.readAt && <span aria-label="Unread" className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-950" />}
                 </div>
