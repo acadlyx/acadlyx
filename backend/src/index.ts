@@ -6,6 +6,7 @@ import { cleanupExpiredDeletedUsers } from "./services/userLifecycle.service";
 import { drainDomainEventOutbox } from "./services/domainEvent.service";
 import { prisma } from "./lib/prisma";
 import "./services/lmsNotification.service";
+import "./services/placementAutomation.service";
 
 assertAuthEnv();
 
