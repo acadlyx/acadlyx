@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Participant = { student: { firstName: string; lastName: string }; attendanceStatus: string; resultStatus: string };
 type Interview = { id: string; roundNumber: number; roundType: string; startsAt: string; status: string; drive: { title: string; company: { name: string } }; participants: Participant[] };
@@ -22,6 +23,10 @@ export default function PlacementInterviewsPage() {
   const [batches, setBatches] = useState<ScopeOption[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = useCallback(async () => {
     setError("");
@@ -51,6 +56,25 @@ export default function PlacementInterviewsPage() {
   }, [router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const exportFilters = useMemo(() => ({
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
+  }), [search, statusFilter, dateFrom, dateTo]);
+
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesSearch = !q || [item.drive.title, item.drive.company.name, item.roundType, item.status].some(v => v.toLowerCase().includes(q));
+      const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
+      const time = new Date(item.startsAt).getTime();
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
+      return matchesSearch && matchesStatus && (from === null || time >= from) && (to === null || time <= to);
+    });
+  }, [items, search, statusFilter, dateFrom, dateTo]);
 
   async function updateInterview(id: string, payload: { startsAt?: string; status?: "CANCELLED" }) {
     setBusy(true);
@@ -146,7 +170,16 @@ export default function PlacementInterviewsPage() {
           </label>
           <button disabled={busy} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Scheduling…" : "Schedule interview round"}</button>
         </form>
-        {items.map(i => <article key={i.id} className="rounded-2xl border bg-white p-5">
+        <section className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-4">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">Search interviews<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Drive, company, round…" className="rounded-xl border px-3 py-3 font-normal" /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All statuses</option>{[...new Set(items.map(x => x.status))].sort().map(x => <option key={x}>{x}</option>)}</select></label>
+          <div className="flex items-end"><DataExportActions type="placement-interviews" filters={exportFilters} compact /></div>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Scheduled from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Scheduled to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+          <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button><span className="ml-3 text-sm text-slate-600">{visibleItems.length} interview(s)</span></div>
+        </section>
+        <section className="space-y-3">
+        {visibleItems.map(i => <article key={i.id} className="rounded-2xl border bg-white p-5">
           <div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-black">{i.drive.title} · Round {i.roundNumber}</h2><p className="text-sm text-slate-600">{i.drive.company.name} · {i.roundType}</p></div><span className="text-xs font-black">{i.status}</span></div>
           <p className="mt-2 text-xs text-slate-500">{new Date(i.startsAt).toLocaleString("en-IN")}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{i.participants.map((p, index) => <div key={p.student.firstName + p.student.lastName + index} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-bold">{p.student.firstName} {p.student.lastName}</p><p className="text-xs text-slate-500">{p.attendanceStatus} · {p.resultStatus}</p></div>)}</div>
@@ -158,7 +191,8 @@ export default function PlacementInterviewsPage() {
             {i.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this interview and notify assigned students?")) void updateInterview(i.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel interview</button>}
           </div>
         </article>)}
-        {!items.length && <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500">No interviews scheduled.</div>}
+        {!visibleItems.length && <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500">No interviews match the current filters.</div>}
+        </section>
         <button type="button" onClick={() => void load()} disabled={busy} className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">Refresh interviews</button>
       </div>
     </DashboardShell>
