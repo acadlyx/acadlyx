@@ -14,17 +14,23 @@ type Student = {
   profile?: { admissionNumber?: string | null } | null;
 };
 type Envelope = { success: boolean; data: Student[] };
+type FilterOption = { id: string; name: string };
+type CriteriaOptions = { campuses: FilterOption[]; departments: FilterOption[]; programs: FilterOption[]; batches: FilterOption[]; semesters: FilterOption[] };
 
 export function RoleScopedStudents({
   role,
   title,
   subtitle,
   detailBasePath = "/students",
+  apiBasePath = "/students",
+  placementFilters = false,
 }: {
   role: string;
   title: string;
   subtitle: string;
   detailBasePath?: string;
+  apiBasePath?: string;
+  placementFilters?: boolean;
 }) {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
@@ -33,6 +39,8 @@ export function RoleScopedStudents({
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [criteria, setCriteria] = useState<CriteriaOptions | null>(null);
+  const [filters, setFilters] = useState({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "" });
   const pageSize = 25;
 
   const load = useCallback(async () => {
@@ -41,7 +49,8 @@ export function RoleScopedStudents({
     try {
       const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (search) query.set("search", search);
-      const response = await authedFetch<Envelope>(`/students?${query.toString()}`);
+      for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+      const response = await authedFetch<Envelope>(apiBasePath + "?" + query.toString());
       setStudents(response.data ?? []);
     } catch (reason) {
       if (reason instanceof AuthRequiredError) {
@@ -54,9 +63,19 @@ export function RoleScopedStudents({
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, router]);
+  }, [apiBasePath, page, pageSize, search, filters, router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!placementFilters) return;
+    authedFetch<{ data: CriteriaOptions }>("/placements/criteria-options")
+      .then((response) => setCriteria(response.data))
+      .catch((reason) => {
+        if (reason instanceof AuthRequiredError) router.replace("/login");
+        else setError(reason instanceof HttpRequestError ? reason.message : "Unable to load academic filters.");
+      });
+  }, [placementFilters, router]);
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,7 +96,18 @@ export function RoleScopedStudents({
           <label htmlFor="student-search" className="sr-only">Search students</label>
           <input id="student-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by student name, admission number or email" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm" />
           <button type="submit" className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">Search</button>
-          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
+          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setFilters({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "" }); setPage(1); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
+          {placementFilters && <div className="grid w-full gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+            {([
+              ["campusId", "Campus", criteria?.campuses ?? []],
+              ["departmentId", "Department", criteria?.departments ?? []],
+              ["programId", "Programme", criteria?.programs ?? []],
+              ["batchId", "Admission batch", criteria?.batches ?? []],
+              ["semesterId", "Semester", criteria?.semesters ?? []],
+            ] as Array<[keyof typeof filters, string, FilterOption[]]>).map(([key, label, options]) => <label key={key} className="flex flex-col gap-1 text-xs font-bold text-slate-600">{label}
+              <select value={filters[key]} onChange={(event) => { setFilters((current) => ({ ...current, [key]: event.target.value })); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal"><option value="">All {label.toLowerCase()}s</option>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+            </label>)}
+          </div>}
         </form>
 
         {error ? (
