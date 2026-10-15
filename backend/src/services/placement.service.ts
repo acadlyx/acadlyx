@@ -758,6 +758,16 @@ export async function updatePlacementDrive(institutionId: string, actor: Authent
     const assigned = await getDirectorCampusIds(institutionId, actor.id);
     if (!campusId || !assigned.includes(campusId)) throw new AppError("Directors may edit drives only for an assigned campus.", 403);
   }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const currentDepartments = Array.isArray(current.eligibleDepartments)
+      ? current.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    const requestedDepartments = input.eligibleDepartments === undefined ? currentDepartments : input.eligibleDepartments;
+    if (!requestedDepartments.length || requestedDepartments.some((departmentId) => !allowedDepartmentIds.includes(departmentId))) {
+      throw new AppError("Academic workspaces may edit drives only for explicitly assigned departments.", 403);
+    }
+  }
   const checks = [
     { values: input.eligiblePrograms, find: () => prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms ?? [] }, isActive: true }, select: { id: true } }) },
     { values: input.eligibleDepartments, find: () => prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments ?? [] }, isActive: true }, select: { id: true } }) },
@@ -799,6 +809,19 @@ export async function updatePlacementDrive(institutionId: string, actor: Authent
       include: { company: true, opening: true, opportunity: true },
     });
     if (drive.opportunityId) await tx.opportunity.updateMany({ where: { id: drive.opportunityId, institutionId }, data: { title: drive.title, organization: company.name, deadline: drive.applicationDeadline } });
+    const notificationRelevantFields = [
+      "companyId", "title", "openingId", "campusId", "applicationDeadline", "driveDate",
+      "venue", "onlineLink", "cgpaRequirement", "maxBacklogs", "vacancies",
+      "eligiblePrograms", "eligibleDepartments", "eligibleBatches", "eligibleSemesters",
+      "requiredSkills", "academicRequirements",
+    ];
+    if (drive.status !== "DRAFT" && Object.keys(input).some((field) => notificationRelevantFields.includes(field))) {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.drive.updated", {
+        driveId: drive.id,
+        version: drive.updatedAt.toISOString(),
+        fields: Object.keys(input),
+      });
+    }
     return drive;
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.updated", entityType: "PlacementDrive", entityId: id, metadata: { fields: Object.keys(input) } });
@@ -807,15 +830,16 @@ export async function updatePlacementDrive(institutionId: string, actor: Authent
 
 const DRIVE_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["PUBLISHED"],
-  PUBLISHED: ["APPLICATION_OPEN", "CLOSED"],
-  APPLICATION_OPEN: ["APPLICATION_CLOSED", "CLOSED"],
-  APPLICATION_CLOSED: ["SHORTLISTING", "CLOSED"],
-  SHORTLISTING: ["TEST", "INTERVIEW", "CLOSED"],
-  TEST: ["INTERVIEW", "OFFERED", "CLOSED"],
-  INTERVIEW: ["OFFERED", "CLOSED"],
-  OFFERED: ["ACCEPTED", "CLOSED"],
-  ACCEPTED: ["JOINED", "CLOSED"],
+  PUBLISHED: ["APPLICATION_OPEN", "CLOSED", "CANCELLED"],
+  APPLICATION_OPEN: ["APPLICATION_CLOSED", "CLOSED", "CANCELLED"],
+  APPLICATION_CLOSED: ["SHORTLISTING", "CLOSED", "CANCELLED"],
+  SHORTLISTING: ["TEST", "INTERVIEW", "CLOSED", "CANCELLED"],
+  TEST: ["INTERVIEW", "OFFERED", "CLOSED", "CANCELLED"],
+  INTERVIEW: ["OFFERED", "CLOSED", "CANCELLED"],
+  OFFERED: ["ACCEPTED", "CLOSED", "CANCELLED"],
+  ACCEPTED: ["JOINED", "CLOSED", "CANCELLED"],
   JOINED: ["CLOSED"],
+  CANCELLED: [],
   CLOSED: [],
 };
 
