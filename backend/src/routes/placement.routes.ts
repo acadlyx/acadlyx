@@ -175,7 +175,7 @@ router.post("/companies/:id/contacts", authorize("placements.manage"), asyncHand
 }));
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
-  const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search:undefined});
+  const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:typeof req.query.page==="string"?Number(req.query.page):undefined,pageSize:typeof req.query.pageSize==="string"?Number(req.query.pageSize):undefined});
   res.json({success:true,data});
 }));
 router.post("/drives", authorize("placements.manage"), asyncHandler(async (req,res) => {
