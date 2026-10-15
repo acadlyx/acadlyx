@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 /**
  * Client-side compatibility redirect keeps the active browser session intact.
@@ -9,9 +8,10 @@ import { useRouter } from "next/navigation";
  * ACADLYX's access token is held in sessionStorage rather than an HTTP cookie.
  */
 export default function DirectorOperationsRedirect() {
-  const router = useRouter();
   useEffect(() => {
-    router.replace("/director");
-  }, [router]);
+    // A full client-side navigation avoids racing the legacy route's auth guard;
+    // sessionStorage tokens survive this same-origin navigation.
+    window.location.replace("/director");
+  }, []);
   return <main aria-live="polite" className="p-6">Opening Director workspace…</main>;
 }
