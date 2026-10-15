@@ -1070,6 +1070,24 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
   const workspace = activeWorkspace(actor);
+  // Student-facing visits are restricted to the explicit audience recorded by
+  // authorised placement staff. Do not expose recruiter notes or other students'
+  // records through this projection.
+  if (workspace === "STUDENT") {
+    return prisma.placementVisit.findMany({
+      where: {
+        institutionId,
+        participatingStudentIds: { array_contains: [actor.id] },
+      },
+      select: {
+        id: true, type: true, startsAt: true, endsAt: true, venue: true, purpose: true,
+        company: { select: { id: true, name: true, logoUrl: true } },
+        drive: { select: { id: true, title: true, status: true } },
+      },
+      orderBy: { startsAt: "asc" },
+      take: 100,
+    });
+  }
   if (!["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","DIRECTOR","DEAN","HOD","PLACEMENT"].includes(workspace)) {
     return [];
   }
@@ -1114,8 +1132,47 @@ export async function createPlacementVisit(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const company = await prisma.placementCompany.findFirst({ where: { id: input.companyId, institutionId }, select: { id: true } });
   if (!company) throw new AppError("Company not found in this institution.", 404);
-  if (input.driveId && !(await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId, companyId: input.companyId }, select: { id: true } }))) {
+  const linkedDrive = input.driveId
+    ? await prisma.placementDrive.findFirst({
+        where: { id: input.driveId, institutionId, companyId: input.companyId },
+        select: { id: true, campusId: true, eligibleDepartments: true },
+      })
+    : null;
+  if (input.driveId && !linkedDrive) {
     throw new AppError("Drive does not belong to the selected company.", 422);
+  }
+  if (linkedDrive && activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!linkedDrive.campusId || !campusIds.includes(linkedDrive.campusId)) {
+      throw new AppError("The linked drive is outside the director's authorised campus scope.", 403);
+    }
+  }
+  if (linkedDrive && ["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targetedDepartments = Array.isArray(linkedDrive.eligibleDepartments)
+      ? linkedDrive.eligibleDepartments.filter((id): id is string => typeof id === "string")
+      : [];
+    if (!targetedDepartments.length || !targetedDepartments.some((id) => departmentIds.includes(id))) {
+      throw new AppError("The linked drive is outside the authorised department scope.", 403);
+    }
+  }
+  if (input.participatingStudentIds?.length) {
+    const uniqueStudentIds = [...new Set(input.participatingStudentIds)];
+    if (uniqueStudentIds.length !== input.participatingStudentIds.length) {
+      throw new AppError("The target audience contains duplicate student IDs.", 422);
+    }
+    await Promise.all(uniqueStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+    const targetStudents = await prisma.user.findMany({
+      where: {
+        id: { in: uniqueStudentIds },
+        institutionId,
+        userRoles: { some: { role: { name: "STUDENT" } } },
+      },
+      select: { id: true },
+    });
+    if (targetStudents.length !== uniqueStudentIds.length) {
+      throw new AppError("Every target must be an institution student within your authorised scope.", 422);
+    }
   }
   const visit = await prisma.placementVisit.create({
     data: {
