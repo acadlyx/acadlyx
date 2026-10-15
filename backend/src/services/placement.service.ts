@@ -872,7 +872,9 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.status_changed", entityType: "PlacementDrive", entityId: id, metadata: { from: drive.status, to: next } });
   return updated;
-}export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
+}
+
+export async function checkDriveEligibility(institutionId: string, actor: AuthenticatedUser, driveId: string, studentId?: string) {
   assertInstitution(actor, institutionId);
   let target = activeWorkspace(actor) === "STUDENT" ? actor.id : studentId;
   if (activeWorkspace(actor) === "PARENT" && !target) {
@@ -1223,7 +1225,9 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.created", entityType: "PlacementOffer", entityId: offer.id, metadata: { applicationId: application.id, studentId: application.student.id } });
   return offer;
-}export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
+}
+
+export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   const offer = await prisma.placementOffer.findFirst({ where: { id: offerId, institutionId } });
@@ -1287,7 +1291,9 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.offer.status_changed", entityType: "PlacementOffer", entityId: offerId, metadata: { from: offer.status, to: next } });
   return updated;
-}export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
+}
+
+export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const offer=await prisma.placementOffer.findFirst({where:{id:offerId,institutionId},select:{id:true,studentId:true,joiningDate:true}});
