@@ -1,8 +1,7 @@
-const STATIC_CACHE = "acadlyx-shell-v1";
-const RUNTIME_CACHE = "acadlyx-runtime-v1";
+const STATIC_CACHE = "acadlyx-shell-v2";
+const RUNTIME_CACHE = "acadlyx-runtime-v2";
 
 const APP_SHELL = [
-  "/",
   "/branding/acadlyx-logo.png",
 ];
 
@@ -51,25 +50,7 @@ self.addEventListener("fetch", (event) => {
   // HTTP. Let the browser handle them unless offline.
   if (url.pathname.startsWith("/_next/static/")) return;
 
-  // Navigation: network first, cached document as an instant offline fallback.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches
-            .open(RUNTIME_CACHE)
-            .then((cache) => cache.put(request, copy))
-            .catch(() => undefined);
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          return cached || caches.match("/");
-        })
-    );
-    return;
-  }
+  // Do not cache navigation documents: protected dashboards must not restore stale HTML across deployments or sessions.
 
   // Static same-origin assets: cache first with background refresh.
   if (
