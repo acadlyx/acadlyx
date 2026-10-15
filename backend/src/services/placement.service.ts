@@ -2654,7 +2654,7 @@ export async function getMyPlacementCalendar(institutionId: string, actor: Authe
     prisma.placementDrive.findMany({
       where: {
         institutionId,
-        status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED"] },
+        status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "CANCELLED"] },
         driveDate: { not: null },
       },
       select: {
