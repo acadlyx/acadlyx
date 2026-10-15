@@ -6,7 +6,7 @@ import { cleanupExpiredDeletedUsers } from "./services/userLifecycle.service";
 import { drainDomainEventOutbox } from "./services/domainEvent.service";
 import { prisma } from "./lib/prisma";
 import "./services/lmsNotification.service";
-import "./services/placementAutomation.service";
+import { processPlacementDeadlineReminders } from "./services/placementAutomation.service";
 
 assertAuthEnv();
 
@@ -25,6 +25,9 @@ const server = app.listen(env.port, () => {
   });
   void cleanupExpiredDeletedUsers().catch((error) => logger.error("Initial deleted-user cleanup failed", { error }));
   void drainDomainEventOutbox(50).catch((error) => logger.error("Initial domain-event outbox drain failed", { error }));
+  void processPlacementDeadlineReminders().catch((error) =>
+    logger.error("Initial placement offer deadline reminder processing failed", { error })
+  );
 
   const lifecycleCleanup = setInterval(() => {
     void cleanupExpiredDeletedUsers().catch((error) => logger.error("Scheduled deleted-user cleanup failed", { error }));
@@ -37,6 +40,13 @@ const server = app.listen(env.port, () => {
     );
   }, 5_000);
   outboxDrain.unref();
+
+  const placementDeadlineReminders = setInterval(() => {
+    void processPlacementDeadlineReminders().catch((error) =>
+      logger.error("Scheduled placement offer deadline reminder processing failed", { error })
+    );
+  }, 60_000);
+  placementDeadlineReminders.unref();
 
   if (process.env.RBAC_SYNC_ON_BOOT !== "false" && env.databaseUrl) {
     syncAllTenantAccess()
