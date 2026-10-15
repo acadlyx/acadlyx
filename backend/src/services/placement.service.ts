@@ -434,6 +434,12 @@ export async function listPlacementDrives(institutionId: string, actor: Authenti
     skip: (page - 1) * pageSize,
     take: pageSize,
   });
+  if (activeWorkspace(actor) === "STUDENT") {
+    return Promise.all(rows.map(async (row) => ({
+      ...row,
+      eligibility: await checkDriveEligibility(institutionId, actor, row.id),
+    })));
+  }
   if (!scopedDepartmentIds) return rows;
   if (!scopedDepartmentIds.length) return [];
   const allowed = new Set(scopedDepartmentIds);
@@ -455,6 +461,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   companyId: string; title: string; openingId?: string; campusId?: string; applicationDeadline?: string; driveDate?: string;
   venue?: string; onlineLink?: string; cgpaRequirement?: number; maxBacklogs?: number; vacancies?: number;
   eligiblePrograms?: string[]; eligibleDepartments?: string[]; eligibleBatches?: string[]; eligibleSemesters?: string[]; requiredSkills?: string[];
+  academicRequirements?: Prisma.InputJsonValue;
 }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -494,6 +501,7 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
         eligibleBatches: input.eligibleBatches ?? undefined,
         eligibleSemesters: input.eligibleSemesters ?? undefined,
         requiredSkills: input.requiredSkills ?? undefined,
+        academicRequirements: input.academicRequirements ?? undefined,
       },
       include: { company: true, opening: true, opportunity: true },
     });
@@ -1176,4 +1184,22 @@ export async function updatePlacementTestParticipant(institutionId: string, acto
   const updated = await prisma.placementTestParticipant.update({ where: { testId_studentId: { testId, studentId } }, data: input });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.test.participant_updated", entityType: "PlacementTestParticipant", entityId: testId + ":" + studentId, metadata: input });
   return updated;
+}
+
+
+export async function listPlacementCriteriaOptions(institutionId: string, actor: AuthenticatedUser) {
+  assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
+  if (!isPlacementManager(actor) || !actor.permissions.includes("placements.read")) {
+    throw new AppError("Placement criteria access is not permitted.", 403);
+  }
+  const [campuses, departments, programs, batches, semesters, skills] = await Promise.all([
+    prisma.campus.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, campusId: true }, orderBy: { name: "asc" } }),
+    prisma.program.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, departmentId: true }, orderBy: { name: "asc" } }),
+    prisma.batch.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" } }),
+    prisma.semester.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }] }),
+    prisma.skill.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+  return { campuses, departments, programs, batches, semesters, skills };
 }
