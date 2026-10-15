@@ -106,6 +106,7 @@ const testUpdate = z.object({
   status: z.enum(["DRAFT", "SCHEDULED", "CANCELLED"]).optional(),
 });
 const visitUpdate = z.object({
+  type: z.string().trim().min(2).max(80).optional(),
   startsAt: z.string().datetime().optional(),
   endsAt: z.string().datetime().nullable().optional(),
   venue: z.string().max(300).nullable().optional(),
