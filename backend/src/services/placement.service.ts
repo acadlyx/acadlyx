@@ -558,6 +558,12 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const drive = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
   if (!drive) throw new AppError("Placement drive not found.", 404);
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const assignedCampusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!drive.campusId || !assignedCampusIds.includes(drive.campusId)) {
+      throw new AppError("Placement drive not found in the director's authorised campus scope.", 404);
+    }
+  }
   const next = status.toUpperCase();
   if (!DRIVE_TRANSITIONS[drive.status]?.includes(next)) throw new AppError(`Invalid placement drive transition: ${drive.status} -> ${next}`, 409);
   // Use a compare-and-set update to prevent concurrent staff actions from
