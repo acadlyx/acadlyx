@@ -13,6 +13,7 @@ import { RecommendationCard } from "@/components/dashboard/RecommendationCard";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
+import { StudentPlacementSchedule } from "@/components/dashboard/StudentPlacementSchedule";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
 import { getMyEnrollmentWorkflow, type MyEnrollmentWorkflow } from "@/lib/enrollmentRequestApi";
@@ -95,6 +96,8 @@ function StudentDashboardContent({ data, workflow }: { data: StudentDashboardDat
         </div>
       </div>
     </section>
+
+    <StudentPlacementSchedule />
 
     {workflow ? <div className="grid gap-4 lg:grid-cols-2">
       <Link href="/student/enrollment" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200">

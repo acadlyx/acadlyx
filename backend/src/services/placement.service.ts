@@ -283,6 +283,61 @@ export async function transitionApplication(
     include: { opportunity: { select: { id: true, title: true, organization: true } } },
   });
   if (!updated) throw new AppError("Placement application not found.", 404);
+  // Keep candidate schedules in sync with the recruitment pipeline. A student
+  // moved into TEST or INTERVIEW is automatically attached to already-scheduled
+  // events for that drive; event creation also backfills candidates already at
+  // that stage. The unique participant keys make these operations idempotent.
+  if (next === "TEST" || next === "INTERVIEW") {
+    let driveId = application.placementDriveId;
+    if (!driveId) {
+      const linkedDrive = await prisma.placementDrive.findFirst({
+        where: { institutionId, opportunityId: application.opportunityId },
+        select: { id: true },
+      });
+      driveId = linkedDrive?.id ?? null;
+    }
+    if (!driveId) {
+      const legacyOpportunity = await prisma.opportunity.findFirst({
+        where: { id: application.opportunityId, institutionId },
+        select: { title: true },
+      });
+      const legacyDriveId = legacyOpportunity?.title.startsWith("Drive:")
+        ? legacyOpportunity.title.slice("Drive:".length)
+        : "";
+      if (legacyDriveId) {
+        const legacyDrive = await prisma.placementDrive.findFirst({
+          where: { id: legacyDriveId, institutionId },
+          select: { id: true },
+        });
+        driveId = legacyDrive?.id ?? null;
+      }
+    }
+    if (driveId && next === "TEST") {
+      const scheduledTests = await prisma.placementTest.findMany({
+        where: { institutionId, driveId, status: "SCHEDULED" },
+        select: { id: true },
+      });
+      if (scheduledTests.length) {
+        await prisma.placementTestParticipant.createMany({
+          data: scheduledTests.map((test) => ({ testId: test.id, studentId: application.studentId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    if (driveId && next === "INTERVIEW") {
+      const scheduledInterviews = await prisma.placementInterview.findMany({
+        where: { institutionId, driveId, status: "SCHEDULED" },
+        select: { id: true },
+      });
+      if (scheduledInterviews.length) {
+        await prisma.placementInterviewParticipant.createMany({
+          data: scheduledInterviews.map((interview) => ({ interviewId: interview.id, studentId: application.studentId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  }
+
   await recordAuditLog({
     institutionId,
     userId: actor.id,
@@ -957,6 +1012,16 @@ export async function createPlacementInterview(
       interviewer: input.interviewer?.trim() || null,
     },
   });
+  const interviewCandidates = await prisma.application.findMany({
+    where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
+    select: { studentId: true },
+  });
+  if (interviewCandidates.length) {
+    await prisma.placementInterviewParticipant.createMany({
+      data: interviewCandidates.map((candidate) => ({ interviewId: interview.id, studentId: candidate.studentId })),
+      skipDuplicates: true,
+    });
+  }
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.created", entityType: "PlacementInterview", entityId: interview.id, metadata: { driveId: input.driveId, roundNumber: input.roundNumber } });
   return interview;
 }
@@ -972,7 +1037,11 @@ export async function addPlacementInterviewParticipant(
   await assertCanViewStudent(institutionId, actor, studentId);
   const interview = await prisma.placementInterview.findFirst({ where: { id: interviewId, institutionId }, select: { id: true } });
   if (!interview) throw new AppError("Placement interview not found.", 404);
-  const participant = await prisma.placementInterviewParticipant.create({ data: { interviewId, studentId } });
+  const participant = await prisma.placementInterviewParticipant.upsert({
+    where: { interviewId_studentId: { interviewId, studentId } },
+    create: { interviewId, studentId },
+    update: {},
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.participant_added", entityType: "PlacementInterviewParticipant", entityId: interviewId + ":" + studentId, metadata: { interviewId, studentId } });
   return participant;
 }
@@ -1229,6 +1298,16 @@ export async function createPlacementTest(institutionId: string, actor: Authenti
   const drive = await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId }, select: { id: true } });
   if (!drive) throw new AppError("Placement drive not found.", 404);
   const row = await prisma.placementTest.create({ data: { institutionId, driveId: input.driveId, title: input.title.trim(), mode: input.mode?.trim() || "ONLINE", scheduledAt: new Date(input.scheduledAt), durationMinutes: input.durationMinutes, maxScore: input.maxScore, testLink: input.testLink?.trim() || null, instructions: input.instructions?.trim() || null } });
+  const testCandidates = await prisma.application.findMany({
+    where: { institutionId, placementDriveId: input.driveId, status: "TEST" },
+    select: { studentId: true },
+  });
+  if (testCandidates.length) {
+    await prisma.placementTestParticipant.createMany({
+      data: testCandidates.map((candidate) => ({ testId: row.id, studentId: candidate.studentId })),
+      skipDuplicates: true,
+    });
+  }
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.test.created", entityType: "PlacementTest", entityId: row.id, metadata: { driveId: input.driveId } });
   return row;
 }
