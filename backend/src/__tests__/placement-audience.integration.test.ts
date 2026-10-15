@@ -71,3 +71,67 @@ test("placement visit is visible only to its explicitly targeted student and omi
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
+
+test("scheduled assessment is persisted for its explicit candidates and invisible to other students", {
+  skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
+}, async () => {
+  const suffix = randomUUID();
+  const institution = await prisma.institution.create({
+    data: { name: `Placement assessment ${suffix}`, slug: `placement-test-${suffix}` },
+  });
+  try {
+    const [staff, intendedStudent, otherStudent] = await Promise.all([
+      prisma.user.create({ data: { institutionId: institution.id, email: `assessor-${suffix}@test.invalid`, idNumber: `PA-${suffix}`, passwordHash: "integration-test-only", firstName: "Assessment", lastName: "Staff" } }),
+      prisma.user.create({ data: { institutionId: institution.id, email: `candidate-a-${suffix}@test.invalid`, idNumber: `CA-${suffix}`, passwordHash: "integration-test-only", firstName: "Candidate", lastName: "One" } }),
+      prisma.user.create({ data: { institutionId: institution.id, email: `candidate-b-${suffix}@test.invalid`, idNumber: `CB-${suffix}`, passwordHash: "integration-test-only", firstName: "Candidate", lastName: "Two" } }),
+    ]);
+    const [placementRole, studentRole] = await Promise.all([
+      prisma.role.create({ data: { institutionId: institution.id, name: "PLACEMENT", isSystem: true } }),
+      prisma.role.create({ data: { institutionId: institution.id, name: "STUDENT", isSystem: true } }),
+    ]);
+    await Promise.all([
+      prisma.userRole.create({ data: { userId: staff.id, roleId: placementRole.id } }),
+      prisma.userRole.create({ data: { userId: intendedStudent.id, roleId: studentRole.id } }),
+      prisma.userRole.create({ data: { userId: otherStudent.id, roleId: studentRole.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: intendedStudent.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: otherStudent.id } }),
+    ]);
+    const company = await prisma.placementCompany.create({
+      data: { institutionId: institution.id, name: `Assessment company ${suffix}`, createdById: staff.id },
+    });
+    const drive = await prisma.placementDrive.create({
+      data: { institutionId: institution.id, companyId: company.id, title: "Targeted recruitment drive" },
+    });
+    const staffActor = {
+      id: staff.id, institutionId: institution.id, email: staff.email,
+      roles: ["PLACEMENT"], permissions: ["placements.manage", "placements.read"],
+    };
+    const intendedActor = {
+      id: intendedStudent.id, institutionId: institution.id, email: intendedStudent.email,
+      roles: ["STUDENT"], permissions: ["placements.read", "placements.apply"],
+    };
+    const otherActor = {
+      id: otherStudent.id, institutionId: institution.id, email: otherStudent.email,
+      roles: ["STUDENT"], permissions: ["placements.read", "placements.apply"],
+    };
+    const created = await createPlacementTest(institution.id, staffActor, {
+      driveId: drive.id,
+      title: "Aptitude assessment",
+      scheduledAt: "2030-03-01T10:00:00.000Z",
+      durationMinutes: 45,
+      instructions: "Join five minutes early",
+      studentIds: [intendedStudent.id],
+    });
+    const [intended, other] = await Promise.all([
+      listPlacementTests(institution.id, intendedActor),
+      listPlacementTests(institution.id, otherActor),
+    ]);
+    assert.equal(intended.length, 1);
+    assert.equal(intended[0].id, created.id);
+    assert.equal(intended[0].participants[0]?.resultStatus, "PENDING");
+    assert.equal(intended[0].instructions, "Join five minutes early");
+    assert.equal(other.length, 0);
+  } finally {
+    await prisma.institution.delete({ where: { id: institution.id } });
+  }
+});
