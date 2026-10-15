@@ -1446,12 +1446,43 @@ export async function addPlacementInterviewParticipant(
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   await assertCanViewStudent(institutionId, actor, studentId);
-  const interview = await prisma.placementInterview.findFirst({ where: { id: interviewId, institutionId }, select: { id: true } });
+  const interview = await prisma.placementInterview.findFirst({
+    where: { id: interviewId, institutionId },
+    select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
+  });
   if (!interview) throw new AppError("Placement interview not found.", 404);
-  const participant = await prisma.placementInterviewParticipant.upsert({
-    where: { interviewId_studentId: { interviewId, studentId } },
-    create: { interviewId, studentId },
-    update: {},
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campuses = await getDirectorCampusIds(institutionId, actor.id);
+    if (!interview.drive.campusId || !campuses.includes(interview.drive.campusId)) {
+      throw new AppError("Placement interview not found in the director's authorised campus scope.", 404);
+    }
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(interview.drive.eligibleDepartments)
+      ? interview.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((value) => departments.includes(value))) {
+      throw new AppError("Placement interview not found in the authorised department scope.", 404);
+    }
+  }
+
+  const participant = await prisma.$transaction(async (tx) => {
+    const existing = await tx.placementInterviewParticipant.findUnique({
+      where: { interviewId_studentId: { interviewId, studentId } },
+      select: { interviewId: true },
+    });
+    const row = await tx.placementInterviewParticipant.upsert({
+      where: { interviewId_studentId: { interviewId, studentId } },
+      create: { interviewId, studentId },
+      update: {},
+    });
+    if (!existing && interview.status === "SCHEDULED") {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "interview", eventId: interviewId, version: "assigned", recipientIds: [studentId],
+      });
+    }
+    return row;
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.participant_added", entityType: "PlacementInterviewParticipant", entityId: interviewId + ":" + studentId, metadata: { interviewId, studentId } });
   return participant;
@@ -2002,13 +2033,45 @@ export async function addPlacementTestParticipant(institutionId: string, actor: 
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   await assertCanViewStudent(institutionId, actor, studentId);
-  const test = await prisma.placementTest.findFirst({ where: { id: testId, institutionId }, select: { id: true } });
-  if (!test) throw new AppError("Placement test not found.", 404);
-  return prisma.placementTestParticipant.upsert({
-    where: { testId_studentId: { testId, studentId } },
-    create: { testId, studentId },
-    update: {},
+  const test = await prisma.placementTest.findFirst({
+    where: { id: testId, institutionId },
+    select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
   });
+  if (!test) throw new AppError("Placement test not found.", 404);
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campuses = await getDirectorCampusIds(institutionId, actor.id);
+    if (!test.drive.campusId || !campuses.includes(test.drive.campusId)) {
+      throw new AppError("Placement assessment not found in the director's authorised campus scope.", 404);
+    }
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(test.drive.eligibleDepartments)
+      ? test.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((value) => departments.includes(value))) {
+      throw new AppError("Placement assessment not found in the authorised department scope.", 404);
+    }
+  }
+  const participant = await prisma.$transaction(async (tx) => {
+    const existing = await tx.placementTestParticipant.findUnique({
+      where: { testId_studentId: { testId, studentId } },
+      select: { testId: true },
+    });
+    const row = await tx.placementTestParticipant.upsert({
+      where: { testId_studentId: { testId, studentId } },
+      create: { testId, studentId },
+      update: {},
+    });
+    if (!existing && test.status === "SCHEDULED") {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "test", eventId: testId, version: "assigned", recipientIds: [studentId],
+      });
+    }
+    return row;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.test.participant_added", entityType: "PlacementTestParticipant", entityId: testId + ":" + studentId, metadata: { testId, studentId } });
+  return participant;
 }
 
 export async function updatePlacementTestParticipant(institutionId: string, actor: AuthenticatedUser, testId: string, studentId: string, input: { attendanceStatus?: string; resultStatus?: string; score?: number | null; feedback?: string | null }) {
