@@ -35,6 +35,7 @@ const driveCreate = z.object({
   cgpaRequirement: z.number().min(0).max(10).optional(), maxBacklogs: z.number().int().min(0).max(100).optional(), vacancies: z.number().int().min(1).max(100000).optional(),
   eligiblePrograms: z.array(z.string().uuid()).optional(), eligibleDepartments: z.array(z.string().uuid()).optional(), eligibleBatches: z.array(z.string().uuid()).optional(),
   eligibleSemesters: z.array(z.string().uuid()).optional(), requiredSkills: z.array(z.string().uuid()).optional(),
+  academicRequirements: z.record(z.string(), z.unknown()).optional(),
 });
 const statusBody = z.object({ status: z.string().trim().min(3).max(32) });
 const contactCreate = z.object({ name: z.string().trim().min(2).max(160), designation: z.string().max(160).optional(), email: z.string().email().optional(), phone: z.string().max(40).optional(), isPrimary: z.boolean().optional(), notes: z.string().max(2000).optional() });
@@ -55,7 +56,7 @@ const interviewParticipantUpdate = z.object({
   resultStatus: z.string().trim().min(2).max(40).optional(),
   feedback: z.string().max(5000).nullable().optional(),
 });
-const studentListQuery = z.object({ search: z.string().trim().max(120).optional(), page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).optional() });
+const studentListQuery = z.object({ search: z.string().trim().max(120).optional(), page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).optional(), campusId: z.string().uuid().optional(), departmentId: z.string().uuid().optional(), programId: z.string().uuid().optional(), batchId: z.string().uuid().optional(), semesterId: z.string().uuid().optional(), academicYearId: z.string().uuid().optional() });
 const certificationCreate = z.object({ name: z.string().trim().min(2).max(200), issuer: z.string().max(200).optional(), issuedAt: z.string().datetime().optional(), credentialUrl: z.string().url().optional() });
 const projectCreate = z.object({ title: z.string().trim().min(2).max(200), description: z.string().max(5000).optional(), technologies: z.array(z.string().trim().min(1).max(80)).max(50).optional(), projectUrl: z.string().url().optional() });
 const resumeCreate = z.object({ url: z.string().url(), fileName: z.string().max(255).optional() });
@@ -178,6 +179,11 @@ router.post("/companies/:id/contacts", authorize("placements.manage"), asyncHand
   const item=await placement.createPlacementCompanyContact(requireInstitution(req),requireAuthenticatedUser(req),id,contactCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
+router.get("/criteria-options", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data = await placement.listPlacementCriteriaOptions(requireInstitution(req), requireAuthenticatedUser(req));
+  res.json({ success: true, data });
+}));
+
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:positiveQueryInt(req.query.page,1,1000000),pageSize:positiveQueryInt(req.query.pageSize,50,100)});

@@ -7,6 +7,8 @@ export default function Page() {
       title="Placement Students"
       subtitle="Placement student population within authorised scope"
       detailBasePath="/placements/students"
+      apiBasePath="/placements/students"
+      placementFilters
     />
   );
 }
