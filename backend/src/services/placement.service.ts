@@ -268,11 +268,20 @@ export async function transitionApplication(
     throw new AppError(`Invalid placement application transition: ${application.status} -> ${next}`, 409);
   }
 
-  const updated = await prisma.application.update({
-    where: { id },
+  // Compare-and-set the current status so concurrent reviewers cannot overwrite
+  // a newer decision after both read the same previous state.
+  const changed = await prisma.application.updateMany({
+    where: { id, institutionId, status: application.status },
     data: { status: next },
+  });
+  if (changed.count !== 1) {
+    throw new AppError("This application was updated by another user. Refresh and review the latest status.", 409);
+  }
+  const updated = await prisma.application.findFirst({
+    where: { id, institutionId },
     include: { opportunity: { select: { id: true, title: true, organization: true } } },
   });
+  if (!updated) throw new AppError("Placement application not found.", 404);
   await recordAuditLog({
     institutionId,
     userId: actor.id,
@@ -513,7 +522,17 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
   if (!drive) throw new AppError("Placement drive not found.", 404);
   const next = status.toUpperCase();
   if (!DRIVE_TRANSITIONS[drive.status]?.includes(next)) throw new AppError(`Invalid placement drive transition: ${drive.status} -> ${next}`, 409);
-  const updated = await prisma.placementDrive.update({ where: { id }, data: { status: next } });
+  // Use a compare-and-set update to prevent concurrent staff actions from
+  // applying a transition based on a stale drive status.
+  const changed = await prisma.placementDrive.updateMany({
+    where: { id, institutionId, status: drive.status },
+    data: { status: next },
+  });
+  if (changed.count !== 1) {
+    throw new AppError("This drive was updated by another user. Refresh before changing its status.", 409);
+  }
+  const updated = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
+  if (!updated) throw new AppError("Placement drive not found.", 404);
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.status_changed", entityType: "PlacementDrive", entityId: id, metadata: { from: drive.status, to: next } });
   return updated;
 }
