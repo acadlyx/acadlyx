@@ -6,7 +6,8 @@ import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Drive = { id: string; title: string; status: string; applicationDeadline: string | null; company: { id: string; name: string; logoUrl: string | null }; eligibility?: { eligible: boolean; reasons: string[] } };
-type Application = { id: string; status: string; appliedAt: string; opportunity: { title: string; organization: string; deadline: string | null } };
+type Opportunity = { id: string; title: string; organization: string; description: string | null; deadline: string | null; isActive: boolean; targetRole?: { id: string; name: string } | null };
+type Application = { id: string; status: string; appliedAt: string; opportunity: { id: string; title: string; organization: string; deadline: string | null } };
 type Offer = { id: string; status: string; role: string; totalCtc: number | null; currency: string; joiningDate: string | null; company: { name: string } };
 type Test = { id: string; title: string; mode: string; scheduledAt: string; drive: { title: string; company: { name: string } }; participants: Array<{ attendanceStatus: string; resultStatus: string; score: number | null }> };
 type Profile = { profile: { placementStatus: string; bio: string | null; portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null } | null; skills: unknown[]; certifications: unknown[]; projects: unknown[]; resumes: unknown[] };
@@ -15,6 +16,7 @@ export default function StudentPlacementsPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [drives, setDrives] = useState<Drive[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
@@ -26,17 +28,19 @@ export default function StudentPlacementsPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, d, a, o, testsResponse] = await Promise.all([
+      const [p, d, a, o, opportunitiesResponse, testsResponse] = await Promise.all([
         authedFetch<{ data: Profile }>("/placements/profile"),
         authedFetch<{ data: Drive[] }>("/placements/drives"),
         authedFetch<{ data: Application[] }>("/placements/applications"),
         authedFetch<{ data: Offer[] }>("/placements/offers"),
+        authedFetch<{ data: Opportunity[] }>("/placements/opportunities?activeOnly=true"),
         authedFetch<{ data: Test[] }>("/placements/tests"),
       ]);
       setProfile(p.data);
       setDrives(d.data || []);
       setApplications(a.data || []);
       setOffers(o.data || []);
+      setOpportunities(opportunitiesResponse.data || []);
       setTests(testsResponse.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) {
@@ -60,6 +64,20 @@ export default function StudentPlacementsPage() {
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to apply to this drive.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function applyToOpportunity(id: string) {
+    setBusy("opportunity:" + id);
+    setError("");
+    try {
+      await authedFetch("/placements/opportunities/" + id + "/apply", { method: "POST" });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to apply to this opportunity.");
     } finally {
       setBusy(null);
     }
@@ -105,6 +123,23 @@ export default function StudentPlacementsPage() {
           </div>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">Maintain skills, certifications, projects, resume and approved professional links. Academic enrollment and eligibility remain authoritative institutional records.</p><a href="/student/placements/profile" className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-black text-white">Manage my placement profile</a>
           <div className="mt-5 flex flex-wrap gap-2">{[["Skills", profile?.skills.length], ["Certifications", profile?.certifications.length], ["Projects", profile?.projects.length], ["Resumes", profile?.resumes.length]].map(([a, b]) => <span key={String(a)} className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">{a}: {String(b ?? 0)}</span>)}</div>
+        </section>
+
+        <section className="rounded-3xl border bg-white p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-black text-slate-950">Career opportunities</h2><span className="text-xs font-bold text-slate-500">{opportunities.length} available</span></div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {opportunities.map((opportunity) => {
+              const existing = applications.find((application) => application.opportunity.id === opportunity.id);
+              return <article key={opportunity.id} className="rounded-2xl border p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-slate-950">{opportunity.title}</h3><p className="text-sm font-semibold text-slate-600">{opportunity.organization}</p></div>{opportunity.targetRole && <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800">{opportunity.targetRole.name}</span>}</div>
+                {opportunity.description && <p className="mt-3 text-sm leading-6 text-slate-600">{opportunity.description}</p>}
+                {opportunity.deadline && <p className="mt-3 text-xs text-slate-500">Apply by {new Date(opportunity.deadline).toLocaleString("en-IN")}</p>}
+                {existing && <p className="mt-3 text-xs font-bold text-emerald-700">Application status: {existing.status.replaceAll("_", " ")}</p>}
+                <button type="button" onClick={() => void applyToOpportunity(opportunity.id)} disabled={Boolean(existing) || busy === "opportunity:" + opportunity.id} className="mt-4 min-h-11 w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{busy === "opportunity:" + opportunity.id ? "Applying…" : existing ? "Already applied" : "Apply to opportunity"}</button>
+              </article>;
+            })}
+            {!loading && opportunities.length === 0 && <p className="py-6 text-sm text-slate-500 lg:col-span-2">No standalone career opportunities are currently available.</p>}
+          </div>
         </section>
 
         <section className="rounded-3xl border bg-white p-6">
