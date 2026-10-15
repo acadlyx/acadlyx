@@ -197,10 +197,26 @@ router.post("/openings", authorize("placements.manage"), asyncHandler(async (req
   const item=await placement.createPlacementOpening(requireInstitution(req),requireAuthenticatedUser(req),openingCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
+router.patch("/openings/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = openingCreate.partial().extend({ deadline: z.string().datetime().nullable().optional() }).parse(req.body);
+  const item = await placement.updatePlacementOpening(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
+}));
 router.get("/companies", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementCompanies(requireInstitution(req),actor,typeof req.query.search==="string"?req.query.search:undefined);
   res.json({success:true,data});
+}));
+router.patch("/companies/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = companyCreate.partial().extend({
+    logoUrl: z.string().url().nullable().optional(), website: z.string().url().nullable().optional(),
+    industry: z.string().max(120).nullable().optional(), companyType: z.string().max(120).nullable().optional(),
+    description: z.string().max(5000).nullable().optional(), headquarters: z.string().max(200).nullable().optional(),
+  }).parse(req.body);
+  const item = await placement.updatePlacementCompany(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
 }));
 router.post("/companies", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementCompany(requireInstitution(req),requireAuthenticatedUser(req),companyCreate.parse(req.body));
@@ -224,6 +240,18 @@ router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res)
 router.post("/drives", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementDrive(requireInstitution(req),requireAuthenticatedUser(req),driveCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
+}));
+router.patch("/drives/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = driveCreate.partial().extend({
+    openingId: z.string().uuid().nullable().optional(), campusId: z.string().uuid().nullable().optional(),
+    applicationDeadline: z.string().datetime().nullable().optional(), driveDate: z.string().datetime().nullable().optional(),
+    venue: z.string().max(300).nullable().optional(), onlineLink: z.string().url().nullable().optional(),
+    cgpaRequirement: z.number().min(0).max(10).nullable().optional(), maxBacklogs: z.number().int().min(0).max(100).nullable().optional(),
+    vacancies: z.number().int().min(1).max(100000).nullable().optional(),
+  }).parse(req.body);
+  const item = await placement.updatePlacementDrive(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
 }));
 router.post("/drives/:id/status", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);

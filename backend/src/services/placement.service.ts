@@ -565,6 +565,23 @@ export async function createPlacementCompany(institutionId: string, actor: Authe
   return company;
 }
 
+
+export async function updatePlacementCompany(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  name?: string; logoUrl?: string | null; industry?: string | null; companyType?: string | null;
+  website?: string | null; description?: string | null; headquarters?: string | null;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  if (!(await prisma.placementCompany.findFirst({ where: { id, institutionId }, select: { id: true } }))) throw new AppError("Company not found in this institution.", 404);
+  if (input.name !== undefined && input.name.trim().length < 2) throw new AppError("Company name must contain at least two characters.", 400);
+  const updated = await prisma.placementCompany.update({ where: { id }, data: {
+    name: input.name?.trim(), logoUrl: input.logoUrl, industry: input.industry, companyType: input.companyType,
+    website: input.website, description: input.description, headquarters: input.headquarters,
+  }});
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.company.updated", entityType: "PlacementCompany", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
+}
+
 export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string; page?: number; pageSize?: number } = {}) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
@@ -699,6 +716,80 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   return drive;
 }
 
+
+export async function updatePlacementDrive(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  companyId?: string; title?: string; openingId?: string | null; campusId?: string | null;
+  applicationDeadline?: string | null; driveDate?: string | null; venue?: string | null; onlineLink?: string | null;
+  cgpaRequirement?: number | null; maxBacklogs?: number | null; vacancies?: number | null;
+  eligiblePrograms?: string[]; eligibleDepartments?: string[]; eligibleBatches?: string[];
+  eligibleSemesters?: string[]; requiredSkills?: string[]; academicRequirements?: Record<string, unknown>;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const current = await prisma.placementDrive.findFirst({ where: { id, institutionId } });
+  if (!current) throw new AppError("Placement drive not found.", 404);
+  const companyId = input.companyId ?? current.companyId;
+  const company = await prisma.placementCompany.findFirst({ where: { id: companyId, institutionId }, select: { id: true, name: true } });
+  if (!company) throw new AppError("Company must belong to this institution.", 422);
+  const openingId = input.openingId === undefined ? current.openingId : input.openingId;
+  if (openingId && !(await prisma.placementOpening.findFirst({ where: { id: openingId, institutionId, companyId }, select: { id: true } }))) {
+    throw new AppError("Opening must belong to the selected company and institution.", 422);
+  }
+  const campusId = input.campusId === undefined ? current.campusId : input.campusId;
+  if (campusId && !(await prisma.campus.findFirst({ where: { id: campusId, institutionId, isActive: true }, select: { id: true } }))) {
+    throw new AppError("Campus must belong to this institution and be active.", 422);
+  }
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const assigned = await getDirectorCampusIds(institutionId, actor.id);
+    if (!campusId || !assigned.includes(campusId)) throw new AppError("Directors may edit drives only for an assigned campus.", 403);
+  }
+  const checks = [
+    { values: input.eligiblePrograms, find: () => prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleDepartments, find: () => prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleBatches, find: () => prisma.batch.findMany({ where: { institutionId, id: { in: input.eligibleBatches ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.eligibleSemesters, find: () => prisma.semester.findMany({ where: { institutionId, id: { in: input.eligibleSemesters ?? [] }, isActive: true }, select: { id: true } }) },
+    { values: input.requiredSkills, find: () => prisma.skill.findMany({ where: { institutionId, id: { in: input.requiredSkills ?? [] }, isActive: true }, select: { id: true } }) },
+  ];
+  for (const check of checks) {
+    if (check.values !== undefined && check.values.length) {
+      const found = await check.find();
+      if (found.length !== check.values.length) throw new AppError("Eligibility criteria must reference active records in this institution.", 422);
+    }
+  }
+  const previousRules = current.academicRequirements && typeof current.academicRequirements === "object" && !Array.isArray(current.academicRequirements)
+    ? current.academicRequirements as Record<string, unknown> : {};
+  const rules = input.academicRequirements === undefined ? undefined : { ...previousRules, ...input.academicRequirements };
+  const updated = await prisma.$transaction(async (tx) => {
+    const drive = await tx.placementDrive.update({
+      where: { id },
+      data: {
+        companyId: input.companyId,
+        title: input.title?.trim(),
+        openingId: input.openingId === undefined ? undefined : openingId,
+        campusId: input.campusId === undefined ? undefined : campusId,
+        applicationDeadline: input.applicationDeadline === undefined ? undefined : input.applicationDeadline ? new Date(input.applicationDeadline) : null,
+        driveDate: input.driveDate === undefined ? undefined : input.driveDate ? new Date(input.driveDate) : null,
+        venue: input.venue,
+        onlineLink: input.onlineLink,
+        cgpaRequirement: input.cgpaRequirement,
+        maxBacklogs: input.maxBacklogs,
+        vacancies: input.vacancies,
+        eligiblePrograms: input.eligiblePrograms as Prisma.InputJsonValue | undefined,
+        eligibleDepartments: input.eligibleDepartments as Prisma.InputJsonValue | undefined,
+        eligibleBatches: input.eligibleBatches as Prisma.InputJsonValue | undefined,
+        eligibleSemesters: input.eligibleSemesters as Prisma.InputJsonValue | undefined,
+        requiredSkills: input.requiredSkills as Prisma.InputJsonValue | undefined,
+        academicRequirements: rules as Prisma.InputJsonValue | undefined,
+      },
+      include: { company: true, opening: true, opportunity: true },
+    });
+    if (drive.opportunityId) await tx.opportunity.updateMany({ where: { id: drive.opportunityId, institutionId }, data: { title: drive.title, organization: company.name, deadline: drive.applicationDeadline } });
+    return drive;
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.drive.updated", entityType: "PlacementDrive", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
+}
+
 const DRIVE_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["PUBLISHED"],
   PUBLISHED: ["APPLICATION_OPEN", "CLOSED"],
@@ -803,7 +894,20 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
     if (missingSkills.length) reasons.push("Required placement skills are missing from the student profile.");
   }
 
-  return { eligible: reasons.length === 0, reasons, studentId: target };
+  const allowIneligibleStudents = academicRules.allowIneligibleStudents === true;
+  const nonOverrideableReasons = reasons.filter((reason) =>
+    reason.startsWith("This drive is restricted") ||
+    reason.startsWith("You have already applied") ||
+    reason.startsWith("Applications are not open") ||
+    reason.startsWith("The application deadline has passed")
+  );
+  const effectiveReasons = allowIneligibleStudents ? nonOverrideableReasons : reasons;
+  return {
+    eligible: effectiveReasons.length === 0,
+    reasons,
+    studentId: target,
+    overrideApplied: allowIneligibleStudents && reasons.length > nonOverrideableReasons.length,
+  };
 }
 
 export async function applyToDrive(institutionId: string, actor: AuthenticatedUser, driveId: string) {
@@ -989,6 +1093,34 @@ export async function createPlacementOpening(institutionId: string, actor: Authe
   }, include: { company: true }});
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.opening.created", entityType: "PlacementOpening", entityId: opening.id, metadata: { companyId: input.companyId, role: input.role }});
   return opening;
+}
+
+
+export async function updatePlacementOpening(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  companyId?: string; role?: string; description?: string; employmentType?: string; location?: string;
+  totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; stipend?: number;
+  currency?: string; packagePeriod?: string; requiredSkills?: string[]; eligibility?: Record<string, unknown>;
+  hiringBatchIds?: string[]; deadline?: string | null; applicationProcess?: string;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const current = await prisma.placementOpening.findFirst({ where: { id, institutionId }, select: { id: true, companyId: true } });
+  if (!current) throw new AppError("Placement opening not found.", 404);
+  const companyId = input.companyId ?? current.companyId;
+  if (!(await prisma.placementCompany.findFirst({ where: { id: companyId, institutionId }, select: { id: true } }))) throw new AppError("Company must belong to this institution.", 422);
+  const updated = await prisma.placementOpening.update({
+    where: { id },
+    data: {
+      companyId, role: input.role?.trim(), description: input.description, employmentType: input.employmentType, location: input.location,
+      totalCtc: input.totalCtc, fixedCtc: input.fixedCtc, variableCtc: input.variableCtc, bonus: input.bonus, stipend: input.stipend,
+      currency: input.currency, packagePeriod: input.packagePeriod, requiredSkills: input.requiredSkills as Prisma.InputJsonValue | undefined,
+      eligibility: input.eligibility as Prisma.InputJsonValue | undefined, hiringBatchIds: input.hiringBatchIds as Prisma.InputJsonValue | undefined,
+      deadline: input.deadline === undefined ? undefined : input.deadline ? new Date(input.deadline) : null, applicationProcess: input.applicationProcess,
+    },
+    include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.opening.updated", entityType: "PlacementOpening", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
 }
 
 export async function createPlacementOffer(institutionId: string, actor: AuthenticatedUser, input: {

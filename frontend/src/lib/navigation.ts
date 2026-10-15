@@ -2376,6 +2376,13 @@ export function canAccessRoute(
     .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
   if (requiredPermission && !permissionSet.has(requiredPermission)) return false;
 
+  // Placement pages are a single role-owned workspace. Deep routes such as
+  // calendar, applications, interviews and offers must not be denied merely
+  // because each operational page is not duplicated in the sidebar registry.
+  if (normalizedPath.startsWith("/placements/")) {
+    return activeRole === "PLACEMENT" && permissionSet.has("placements.read");
+  }
+
   const matchingItems = ROLE_NAVIGATION
     .filter((item) => {
       const [itemPath, itemQuery] = item.href.split("?");
