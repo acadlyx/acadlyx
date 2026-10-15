@@ -1366,7 +1366,7 @@ export async function updatePlacementVisit(
     ? existing.participatingStudentIds.filter((value): value is string => typeof value === "string")
     : [];
   const eventStatus = input.status ?? existing.status;
-  if (eventStatus === "CANCELLED") {
+  if (eventStatus === "CANCELLED" && existing.status === "PUBLISHED") {
     await notifyPlacementAudience({
       institutionId, recipientIds, eventType: "visit", eventId: id,
       version: "cancelled", title: "Placement activity cancelled",
@@ -1737,6 +1737,7 @@ export async function updatePlacementInterview(
   });
   if (!existing) throw new AppError("Placement interview not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled interviews cannot be changed.", 409);
+  if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled interview cannot be returned to draft.", 409);
   const updated = await prisma.placementInterview.update({
     where: { id },
     data: {
@@ -1748,7 +1749,7 @@ export async function updatePlacementInterview(
     },
   });
   const recipients = existing.participants.map((participant) => participant.studentId);
-  if (input.status === "CANCELLED") {
+  if (input.status === "CANCELLED" && existing.status === "SCHEDULED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "cancelled", title: "Placement interview cancelled", body: `${existing.roundType} interview round has been cancelled.`, actionUrl: "/student/placements" });
   } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "published", title: "Placement interview published", body: `${existing.roundType} interview round is scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
@@ -1773,6 +1774,7 @@ export async function updatePlacementTest(
   });
   if (!existing) throw new AppError("Placement assessment not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled assessments cannot be changed.", 409);
+  if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled assessment cannot be returned to draft.", 409);
   const updated = await prisma.placementTest.update({
     where: { id },
     data: {
@@ -1783,7 +1785,7 @@ export async function updatePlacementTest(
     },
   });
   const recipients = existing.participants.map((participant) => participant.studentId);
-  if (input.status === "CANCELLED") {
+  if (input.status === "CANCELLED" && existing.status === "SCHEDULED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "cancelled", title: "Placement assessment cancelled", body: `${existing.title} has been cancelled.`, actionUrl: "/student/placements" });
   } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "published", title: "Placement assessment published", body: `${existing.title} is scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
