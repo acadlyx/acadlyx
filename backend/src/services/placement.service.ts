@@ -18,6 +18,82 @@ const APPLICATION_TRANSITIONS: Record<string, string[]> = {
   WITHDRAWN: [],
 };
 
+type PlacementCohortTargeting = {
+  campusIds?: string[];
+  programIds?: string[];
+  departmentIds?: string[];
+  batchIds?: string[];
+  graduatingYears?: number[];
+};
+
+/** Resolve a cohort against active, institution-scoped enrollments. Graduation
+ * year is the Batch.completionYear maintained by the institution, not inferred
+ * from a user's current semester or from client-supplied student records. */
+async function resolvePlacementCohortAudience(institutionId: string, targeting?: PlacementCohortTargeting) {
+  if (!targeting) return [];
+  const hasFilters = Boolean(
+    targeting.campusIds?.length || targeting.programIds?.length ||
+    targeting.departmentIds?.length || targeting.batchIds?.length ||
+    targeting.graduatingYears?.length,
+  );
+  if (!hasFilters) return [];
+  const users = await prisma.user.findMany({
+    where: {
+      institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: {
+        some: {
+          institutionId,
+          status: "ACTIVE",
+          ...(targeting.batchIds?.length ? { batchId: { in: targeting.batchIds } } : {}),
+          ...(targeting.graduatingYears?.length ? { batch: { completionYear: { in: targeting.graduatingYears } } } : {}),
+          program: {
+            ...(targeting.programIds?.length ? { id: { in: targeting.programIds } } : {}),
+            department: {
+              ...(targeting.departmentIds?.length ? { id: { in: targeting.departmentIds } } : {}),
+              ...(targeting.campusIds?.length ? { campusId: { in: targeting.campusIds } } : {}),
+            },
+          },
+        },
+      },
+    },
+    select: { id: true },
+    take: 10000,
+  });
+  return users.map((user) => user.id);
+}
+
+/**
+ * Deliver placement event notifications idempotently. The unique dedupeKey is
+ * enforced by PostgreSQL, so retries and concurrent requests cannot create
+ * duplicate notifications for the same event/version/recipient.
+ */
+async function notifyPlacementAudience(input: {
+  institutionId: string;
+  recipientIds: string[];
+  eventType: "visit" | "test" | "interview";
+  eventId: string;
+  version: string;
+  title: string;
+  body: string;
+  actionUrl: string;
+}) {
+  const recipientIds = [...new Set(input.recipientIds.filter(Boolean))];
+  if (!recipientIds.length) return;
+  await prisma.notification.createMany({
+    data: recipientIds.map((userId) => ({
+      institutionId: input.institutionId,
+      userId,
+      title: input.title,
+      body: input.body,
+      actionUrl: input.actionUrl,
+      priority: "NORMAL",
+      dedupeKey: `placement:${input.eventType}:${input.eventId}:${input.version}:${userId}`,
+    })),
+    skipDuplicates: true,
+  });
+}
+
 const PLACEMENT_MANAGER_WORKSPACES = new Set([
   "SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR",
   "DIRECTOR","DEAN","HOD","PLACEMENT",
@@ -979,6 +1055,7 @@ export async function listPlacementInterviews(
       ...(options.driveId ? { driveId: options.driveId } : {}),
       ...(directorScope ? { drive: { campusId: { in: directorCampusIds } } } : {}),
       ...(workspace === "STUDENT" ? {
+        status: { not: "CANCELLED" },
         participants: { some: { studentId: actor.id } },
         drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } },
       } : {}),
@@ -1002,7 +1079,7 @@ export async function listPlacementInterviews(
 export async function createPlacementInterview(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string },
+  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1020,6 +1097,17 @@ export async function createPlacementInterview(
     const targeted = Array.isArray(drive.eligibleDepartments) ? drive.eligibleDepartments.filter((id): id is string => typeof id === "string") : [];
     if (!targeted.length || !targeted.some((id) => departmentIds.includes(id))) throw new AppError("The linked drive is outside the authorised department scope.", 403);
   }
+  const interviewCandidates = await prisma.application.findMany({
+    where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
+    select: { studentId: true },
+  });
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  const explicitStudentIds = input.studentIds ?? [];
+  const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
+  await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
   const interview = await prisma.placementInterview.create({
     data: {
       institutionId,
@@ -1033,16 +1121,22 @@ export async function createPlacementInterview(
       interviewer: input.interviewer?.trim() || null,
     },
   });
-  const interviewCandidates = await prisma.application.findMany({
-    where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
-    select: { studentId: true },
-  });
-  if (interviewCandidates.length) {
+  if (requestedStudentIds.length) {
     await prisma.placementInterviewParticipant.createMany({
-      data: interviewCandidates.map((candidate) => ({ interviewId: interview.id, studentId: candidate.studentId })),
+      data: requestedStudentIds.map((studentId) => ({ interviewId: interview.id, studentId })),
       skipDuplicates: true,
     });
   }
+  await notifyPlacementAudience({
+    institutionId,
+    recipientIds: requestedStudentIds,
+    eventType: "interview",
+    eventId: interview.id,
+    version: "created",
+    title: "Placement interview scheduled",
+    body: `${input.roundType.trim()} round is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.created", entityType: "PlacementInterview", entityId: interview.id, metadata: { driveId: input.driveId, roundNumber: input.roundNumber } });
   return interview;
 }
@@ -1098,6 +1192,7 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
     return prisma.placementVisit.findMany({
       where: {
         institutionId,
+        status: "PUBLISHED",
         participatingStudentIds: { array_contains: [actor.id] },
         OR: [
           { driveId: null },
@@ -1151,7 +1246,7 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
 export async function createPlacementVisit(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; notes?: string; followUp?: string },
+  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting; status?: "DRAFT" | "PUBLISHED"; notes?: string; followUp?: string },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1199,6 +1294,14 @@ export async function createPlacementVisit(
       throw new AppError("Every target must be an institution student within your authorised scope.", 422);
     }
   }
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  const targetStudentIds = [...new Set([...(input.participatingStudentIds ?? []), ...cohortStudentIds])];
+  if (cohortStudentIds.length) {
+    await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  }
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
   const visit = await prisma.placementVisit.create({
     data: {
       institutionId,
@@ -1210,13 +1313,80 @@ export async function createPlacementVisit(
       venue: input.venue?.trim() || null,
       purpose: input.purpose?.trim() || null,
       representatives: input.representatives as Prisma.InputJsonValue | undefined,
-      participatingStudentIds: input.participatingStudentIds ?? undefined,
+      participatingStudentIds: targetStudentIds.length ? targetStudentIds : undefined,
       notes: input.notes?.trim() || null,
       followUp: input.followUp?.trim() || null,
     },
   });
+  if ((input.status ?? "PUBLISHED") === "PUBLISHED") await notifyPlacementAudience({
+    institutionId,
+    recipientIds: targetStudentIds,
+    eventType: "visit",
+    eventId: visit.id,
+    version: "created",
+    title: "Placement activity scheduled",
+    body: `${input.type.trim()} is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.visit.created", entityType: "PlacementVisit", entityId: visit.id, metadata: { companyId: input.companyId, type: input.type } });
   return visit;
+}
+
+
+export async function updatePlacementVisit(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED" },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementVisit.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, startsAt: true, participatingStudentIds: true, company: { select: { name: true } }, type: true },
+  });
+  if (!existing) throw new AppError("Placement activity not found.", 404);
+  if (existing.status === "CANCELLED") throw new AppError("Cancelled placement activities cannot be changed.", 409);
+  if (input.status === "DRAFT" && existing.status === "PUBLISHED") {
+    throw new AppError("A published activity cannot be returned to draft.", 409);
+  }
+  const updated = await prisma.placementVisit.update({
+    where: { id },
+    data: {
+      ...(input.startsAt ? { startsAt: new Date(input.startsAt) } : {}),
+      ...(input.endsAt !== undefined ? { endsAt: input.endsAt ? new Date(input.endsAt) : null } : {}),
+      ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
+      ...(input.purpose !== undefined ? { purpose: input.purpose?.trim() || null } : {}),
+      ...(input.status ? { status: input.status } : {}),
+    },
+  });
+  const recipientIds = Array.isArray(existing.participatingStudentIds)
+    ? existing.participatingStudentIds.filter((value): value is string => typeof value === "string")
+    : [];
+  const eventStatus = input.status ?? existing.status;
+  if (eventStatus === "CANCELLED") {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: "cancelled", title: "Placement activity cancelled",
+      body: `${existing.type} has been cancelled.`, actionUrl: "/student/placements",
+    });
+  } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED" && input.startsAt) {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: `rescheduled:${updated.startsAt.toISOString()}`,
+      title: "Placement activity rescheduled",
+      body: `${existing.type} has a new scheduled time: ${updated.startsAt.toLocaleString()}.`,
+      actionUrl: "/student/placements",
+    });
+  } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: "published", title: "New placement activity published",
+      body: `${existing.type} is now published.`, actionUrl: "/student/placements",
+    });
+  }
+  await recordAuditLog({ institutionId, userId: actor.id, action: `placements.visit.${input.status?.toLowerCase() ?? "updated"}`, entityType: "PlacementVisit", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
+  return updated;
 }
 
 
@@ -1368,6 +1538,7 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
       ...(options.driveId ? { driveId: options.driveId } : {}),
       ...(directorScope ? { drive: { campusId: { in: directorCampusIds } } } : {}),
       ...(workspace === "STUDENT" ? {
+        status: { not: "CANCELLED" },
         participants: { some: { studentId: actor.id } },
         drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } },
       } : {}),
@@ -1385,7 +1556,7 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
 export async function createPlacementTest(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; studentIds?: string[] },
+  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
@@ -1414,11 +1585,18 @@ export async function createPlacementTest(
     }
   }
 
-  const requestedStudentIds = input.studentIds ?? [];
-  const uniqueStudentIds = [...new Set(requestedStudentIds)];
-  if (uniqueStudentIds.length !== requestedStudentIds.length) {
-    throw new AppError("The assessment audience contains duplicate student IDs.", 422);
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  if (cohortStudentIds.length) {
+    await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   }
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
+  const explicitStudentIds = input.studentIds ?? [];
+  if (new Set(explicitStudentIds).size !== explicitStudentIds.length) {
+    throw new AppError("The explicitly selected assessment audience contains duplicate student IDs.", 422);
+  }
+  const uniqueStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds])];
   if (uniqueStudentIds.length) {
     await Promise.all(uniqueStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
     const targets = await prisma.user.findMany({
@@ -1456,6 +1634,16 @@ export async function createPlacementTest(
       });
     }
     return created;
+  });
+  await notifyPlacementAudience({
+    institutionId,
+    recipientIds: participantIds,
+    eventType: "test",
+    eventId: row.id,
+    version: "created",
+    title: "Placement assessment scheduled",
+    body: `${input.title.trim()} is scheduled for ${new Date(input.scheduledAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
   });
   await recordAuditLog({
     institutionId,
@@ -1523,4 +1711,72 @@ export async function listPlacementCriteriaOptions(institutionId: string, actor:
     prisma.skill.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   return { campuses, departments, programs, batches, semesters, academicYears, skills };
+}
+
+
+export async function updatePlacementInterview(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; onlineLink?: string | null; status?: "SCHEDULED" | "CANCELLED" },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementInterview.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, startsAt: true, participants: { select: { studentId: true } }, roundType: true },
+  });
+  if (!existing) throw new AppError("Placement interview not found.", 404);
+  if (existing.status === "CANCELLED") throw new AppError("Cancelled interviews cannot be changed.", 409);
+  const updated = await prisma.placementInterview.update({
+    where: { id },
+    data: {
+      ...(input.startsAt ? { startsAt: new Date(input.startsAt) } : {}),
+      ...(input.endsAt !== undefined ? { endsAt: input.endsAt ? new Date(input.endsAt) : null } : {}),
+      ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
+      ...(input.onlineLink !== undefined ? { onlineLink: input.onlineLink?.trim() || null } : {}),
+      ...(input.status ? { status: input.status } : {}),
+    },
+  });
+  const recipients = existing.participants.map((participant) => participant.studentId);
+  if (input.status === "CANCELLED") {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "cancelled", title: "Placement interview cancelled", body: `${existing.roundType} interview round has been cancelled.`, actionUrl: "/student/placements" });
+  } else if (input.startsAt) {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: `rescheduled:${updated.startsAt.toISOString()}`, title: "Placement interview rescheduled", body: `${existing.roundType} interview is now scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  }
+  await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.interview.cancelled" : "placements.interview.updated", entityType: "PlacementInterview", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
+  return updated;
+}
+
+export async function updatePlacementTest(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: { scheduledAt?: string; testLink?: string | null; instructions?: string | null; status?: "SCHEDULED" | "CANCELLED" },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementTest.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, scheduledAt: true, title: true, participants: { select: { studentId: true } } },
+  });
+  if (!existing) throw new AppError("Placement assessment not found.", 404);
+  if (existing.status === "CANCELLED") throw new AppError("Cancelled assessments cannot be changed.", 409);
+  const updated = await prisma.placementTest.update({
+    where: { id },
+    data: {
+      ...(input.scheduledAt ? { scheduledAt: new Date(input.scheduledAt) } : {}),
+      ...(input.testLink !== undefined ? { testLink: input.testLink?.trim() || null } : {}),
+      ...(input.instructions !== undefined ? { instructions: input.instructions?.trim() || null } : {}),
+      ...(input.status ? { status: input.status } : {}),
+    },
+  });
+  const recipients = existing.participants.map((participant) => participant.studentId);
+  if (input.status === "CANCELLED") {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "cancelled", title: "Placement assessment cancelled", body: `${existing.title} has been cancelled.`, actionUrl: "/student/placements" });
+  } else if (input.scheduledAt) {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: `rescheduled:${updated.scheduledAt.toISOString()}`, title: "Placement assessment rescheduled", body: `${existing.title} is now scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  }
+  await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.test.cancelled" : "placements.test.updated", entityType: "PlacementTest", entityId: id, metadata: { status: updated.status, scheduledAt: updated.scheduledAt.toISOString() } });
+  return updated;
 }

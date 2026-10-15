@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { prisma } from "../lib/prisma";
-import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits } from "../services/placement.service";
+import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits, updatePlacementVisit } from "../services/placement.service";
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
   skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
@@ -138,6 +138,71 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
   } finally {
     await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.institution.delete({ where: { id: institution.id } });
+  }
+});
+
+
+test("cohort targeting, idempotent notifications, rescheduling and cancellation stay synchronized", {
+  skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
+}, async () => {
+  const suffix = randomUUID();
+  const institution = await prisma.institution.create({
+    data: { name: `Placement cohort ${suffix}`, slug: `placement-cohort-${suffix}` },
+  });
+  try {
+    const [staff, cohortStudent, otherStudent] = await Promise.all([
+      prisma.user.create({ data: { institutionId: institution.id, email: `cohort-staff-${suffix}@test.invalid`, idNumber: `CS-${suffix}`, passwordHash: "integration-test-only", firstName: "Cohort", lastName: "Staff" } }),
+      prisma.user.create({ data: { institutionId: institution.id, email: `cohort-target-${suffix}@test.invalid`, idNumber: `CT-${suffix}`, passwordHash: "integration-test-only", firstName: "Cohort", lastName: "Target" } }),
+      prisma.user.create({ data: { institutionId: institution.id, email: `cohort-other-${suffix}@test.invalid`, idNumber: `CO-${suffix}`, passwordHash: "integration-test-only", firstName: "Other", lastName: "Student" } }),
+    ]);
+    const [placementRole, studentRole] = await Promise.all([
+      prisma.role.create({ data: { institutionId: institution.id, name: "PLACEMENT", isSystem: true } }),
+      prisma.role.create({ data: { institutionId: institution.id, name: "STUDENT", isSystem: true } }),
+    ]);
+    await Promise.all([
+      prisma.userRole.create({ data: { userId: staff.id, roleId: placementRole.id } }),
+      prisma.userRole.create({ data: { userId: cohortStudent.id, roleId: studentRole.id } }),
+      prisma.userRole.create({ data: { userId: otherStudent.id, roleId: studentRole.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: cohortStudent.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: otherStudent.id } }),
+    ]);
+    const campus = await prisma.campus.create({ data: { institutionId: institution.id, name: "North Campus", code: `NC-${suffix.slice(0, 8)}` } });
+    const department = await prisma.department.create({ data: { institutionId: institution.id, campusId: campus.id, name: "Computer Science", code: `CSE-${suffix.slice(0, 8)}` } });
+    const program = await prisma.program.create({ data: { institutionId: institution.id, departmentId: department.id, name: "B.Tech Computer Science", code: `BTCS-${suffix.slice(0, 8)}`, level: "UG", durationYears: 4 } });
+    const academicYear = await prisma.academicYear.create({ data: { institutionId: institution.id, name: `2026-2027-${suffix.slice(0, 4)}`, startDate: new Date("2026-04-01T00:00:00.000Z"), endDate: new Date("2027-03-31T00:00:00.000Z") } });
+    const batch = await prisma.batch.create({ data: { institutionId: institution.id, programId: program.id, name: "2023-2027", code: `BATCH-${suffix.slice(0, 8)}`, admissionYear: 2023, completionYear: 2027 } });
+    await prisma.studentEnrollment.create({ data: { institutionId: institution.id, userId: cohortStudent.id, programId: program.id, academicYearId: academicYear.id, batchId: batch.id, status: "ACTIVE" } });
+    const company = await prisma.placementCompany.create({ data: { institutionId: institution.id, name: `Cohort company ${suffix}`, createdById: staff.id } });
+    const staffActor = { id: staff.id, institutionId: institution.id, email: staff.email, roles: ["PLACEMENT"], permissions: ["placements.manage", "placements.read"] };
+    const cohortActor = { id: cohortStudent.id, institutionId: institution.id, email: cohortStudent.email, roles: ["STUDENT"], permissions: ["placements.read", "placements.apply"] };
+    const otherActor = { id: otherStudent.id, institutionId: institution.id, email: otherStudent.email, roles: ["STUDENT"], permissions: ["placements.read", "placements.apply"] };
+
+    const event = await createPlacementVisit(institution.id, staffActor, {
+      companyId: company.id,
+      type: "Cohort orientation",
+      startsAt: "2030-04-01T10:00:00.000Z",
+      targeting: { campusIds: [campus.id], departmentIds: [department.id], programIds: [program.id], batchIds: [batch.id], graduatingYears: [2027] },
+    });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 1);
+    assert.equal((await listPlacementVisits(institution.id, otherActor)).length, 0);
+    const createdNotification = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:created:` } } });
+    assert.equal(createdNotification.length, 1, "creation notification must be delivered once");
+
+    await updatePlacementVisit(institution.id, staffActor, event.id, { startsAt: "2030-04-02T10:00:00.000Z" });
+    await updatePlacementVisit(institution.id, staffActor, event.id, { startsAt: "2030-04-02T10:00:00.000Z" });
+    const rescheduled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:rescheduled:` } } });
+    assert.equal(rescheduled.length, 1, "retrying the same reschedule must not duplicate notifications");
+    await updatePlacementVisit(institution.id, staffActor, event.id, { status: "CANCELLED" });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
+    const cancelled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:cancelled:` } } });
+    assert.equal(cancelled.length, 1, "cancellation notification must be delivered once");
+  } finally {
+    await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementInterview.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });

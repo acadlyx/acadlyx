@@ -12,6 +12,7 @@ type Test = {
   participants?: Array<{ studentId: string; attendanceStatus: string; resultStatus: string; score: number | null }>;
 };
 type Drive = { id: string; title: string; status: string; company: { name: string } };
+type ScopeOption = { id: string; name: string; code?: string; completionYear?: number };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null; studentEnrollments?: Array<{ program?: { name?: string }; batch?: { name?: string } }> };
 
 export default function PlacementTestsPage() {
@@ -19,6 +20,10 @@ export default function PlacementTestsPage() {
   const [items, setItems] = useState<Test[]>([]);
   const [drives, setDrives] = useState<Drive[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [campuses, setCampuses] = useState<ScopeOption[]>([]);
+  const [departments, setDepartments] = useState<ScopeOption[]>([]);
+  const [programs, setPrograms] = useState<ScopeOption[]>([]);
+  const [batches, setBatches] = useState<ScopeOption[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -35,6 +40,16 @@ export default function PlacementTestsPage() {
       setItems(testsResponse.data || []);
       setDrives(drivesResponse.data || []);
       setStudents(studentsResponse.data || []);
+      const [campusResult, departmentResult, programResult, batchResult] = await Promise.allSettled([
+        authedFetch<{ data: ScopeOption[] }>("/campuses"),
+        authedFetch<{ data: ScopeOption[] }>("/departments"),
+        authedFetch<{ data: ScopeOption[] }>("/programs"),
+        authedFetch<{ data: ScopeOption[] }>("/batches"),
+      ]);
+      if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
+      if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
+      if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
+      if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load placement assessments.");
@@ -44,6 +59,20 @@ export default function PlacementTestsPage() {
   }, [router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "CANCELLED" }) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/tests/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to update assessment.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,6 +91,13 @@ export default function PlacementTestsPage() {
       testLink: String(form.get("testLink") || "").trim() || undefined,
       instructions: String(form.get("instructions") || "").trim() || undefined,
       studentIds: form.getAll("studentIds").filter((value): value is string => typeof value === "string"),
+      targeting: {
+        campusIds: form.getAll("campusIds").filter((value): value is string => typeof value === "string"),
+        departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
+        programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
+        batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+        graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
+      },
     };
     try {
       await authedFetch("/placements/tests", { method: "POST", body: JSON.stringify(payload) });
@@ -113,11 +149,32 @@ export default function PlacementTestsPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Instructions
             <textarea name="instructions" rows={3} maxLength={5000} placeholder="Reporting instructions, allowed materials, and completion guidance" className="rounded-xl border px-3 py-3" />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Target students
-            <select name="studentIds" multiple size={6} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">
+          <fieldset className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 md:col-span-2">
+            <legend className="px-2 text-sm font-black text-slate-800">Cohort targeting</legend>
+            <p className="text-xs font-normal text-slate-600">Cohorts use active student enrollments. Graduation year is the configured batch completion year. Existing candidates at the Test stage are still included.</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Campus
+                <select name="campusIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{campuses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Department
+                <select name="departmentIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Programme
+                <select name="programIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{programs.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Batch
+                <select name="batchIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{batches.map((item) => <option key={item.id} value={item.id}>{item.name}{item.completionYear ? ` · graduates ${item.completionYear}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Graduating year(s)
+                <input name="graduatingYears" inputMode="numeric" placeholder="2027, 2028" className="rounded-xl border bg-white px-3 py-3 font-normal" />
+              </label>
+            </div>
+          </fieldset>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Also target individual students (optional)
+            <select name="studentIds" multiple size={5} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">
               {students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}{student.idNumber ? ` · ${student.idNumber}` : ""}</option>)}
             </select>
-            <span className="text-xs font-normal text-slate-500">Select the intended candidates. Candidates already moved to the Test stage for this drive are also assigned automatically.</span>
+            <span className="text-xs font-normal text-slate-500">Candidates already moved to the Test stage for this drive are assigned automatically.</span>
           </label>
           <button disabled={busy || loading || drives.length === 0} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Scheduling…" : "Schedule assessment"}</button>
         </form>
@@ -129,6 +186,15 @@ export default function PlacementTestsPage() {
             {item.instructions && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{item.instructions}</p>}
             {item.testLink && <a href={item.testLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-bold text-emerald-700 underline">Open assessment link</a>}
             <p className="mt-3 text-xs font-semibold text-slate-500">{item.participants?.length ?? 0} candidate(s) assigned</p>
+            <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
+              <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("scheduledAt"); if (typeof value === "string" && value) void updateTest(item.id, { scheduledAt: new Date(value).toISOString() }); }}>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule
+                  <input name="scheduledAt" type="datetime-local" required defaultValue={new Date(item.scheduledAt).toISOString().slice(0, 16)} disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
+                </label>
+                <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
+              </form>
+              {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
+            </div>
           </article>)}
           {!loading && items.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2 lg:col-span-3">No placement assessments have been scheduled yet.</p>}
         </section>
