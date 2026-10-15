@@ -1573,6 +1573,9 @@ export async function createPlacementInterview(
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
   const initialStatus = input.status ?? "SCHEDULED";
+  if (initialStatus === "SCHEDULED" && requestedStudentIds.length === 0) {
+    throw new AppError("Schedule only after selecting a candidate list or cohort. Save a draft while configuring the audience.", 422);
+  }
   const interview = await prisma.$transaction(async (tx) => {
     const created = await tx.placementInterview.create({
       data: {
@@ -1793,14 +1796,27 @@ export async function createPlacementVisit(
     }
   }
   const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
-  const targetStudentIds = [...new Set([...(input.participatingStudentIds ?? []), ...cohortStudentIds])];
+  let targetStudentIds = [...new Set([...(input.participatingStudentIds ?? []), ...cohortStudentIds])];
+  if (!targetStudentIds.length && input.driveId) {
+    const applicants = await prisma.application.findMany({
+      where: { institutionId, placementDriveId: input.driveId, status: { notIn: ["REJECTED", "WITHDRAWN"] } },
+      select: { studentId: true },
+      orderBy: { studentId: "asc" },
+      take: 10000,
+    });
+    targetStudentIds = [...new Set(applicants.map((application) => application.studentId))];
+    await Promise.all(targetStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  }
+  const initialStatus = input.status ?? "PUBLISHED";
+  if (initialStatus === "PUBLISHED" && targetStudentIds.length === 0) {
+    throw new AppError("Published activities must target a cohort, explicit students, or candidates for the linked drive.", 422);
+  }
   if (cohortStudentIds.length) {
     await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   }
   if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
-  const initialStatus = input.status ?? "PUBLISHED";
   const visit = await prisma.$transaction(async (tx) => {
     const created = await tx.placementVisit.create({
       data: {
@@ -2158,6 +2174,9 @@ export async function createPlacementTest(
   });
   const participantIds = [...new Set([...uniqueStudentIds, ...stageCandidates.map((candidate) => candidate.studentId)])];
   const initialStatus = input.status ?? "SCHEDULED";
+  if (initialStatus === "SCHEDULED" && participantIds.length === 0) {
+    throw new AppError("Schedule only after selecting a candidate list or cohort. Save a draft while configuring the audience.", 422);
+  }
   const row = await prisma.$transaction(async (tx) => {
     const created = await tx.placementTest.create({
       data: {
