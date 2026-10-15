@@ -1393,35 +1393,37 @@ export async function createPlacementInterview(
   if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
-  const interview = await prisma.placementInterview.create({
-    data: {
-      institutionId,
-      driveId: input.driveId,
-      roundNumber: input.roundNumber,
-      roundType: input.roundType.trim(),
-      status: input.status ?? "SCHEDULED",
-      startsAt: new Date(input.startsAt),
-      endsAt: input.endsAt ? new Date(input.endsAt) : null,
-      venue: input.venue?.trim() || null,
-      onlineLink: input.onlineLink?.trim() || null,
-      interviewer: input.interviewer?.trim() || null,
-    },
-  });
-  if (requestedStudentIds.length) {
-    await prisma.placementInterviewParticipant.createMany({
-      data: requestedStudentIds.map((studentId) => ({ interviewId: interview.id, studentId })),
-      skipDuplicates: true,
+  const initialStatus = input.status ?? "SCHEDULED";
+  const interview = await prisma.$transaction(async (tx) => {
+    const created = await tx.placementInterview.create({
+      data: {
+        institutionId,
+        driveId: input.driveId,
+        roundNumber: input.roundNumber,
+        roundType: input.roundType.trim(),
+        status: initialStatus,
+        startsAt: new Date(input.startsAt),
+        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+        venue: input.venue?.trim() || null,
+        onlineLink: input.onlineLink?.trim() || null,
+        interviewer: input.interviewer?.trim() || null,
+      },
     });
-  }
-  if ((input.status ?? "SCHEDULED") === "SCHEDULED") await notifyPlacementAudience({
-    institutionId,
-    recipientIds: requestedStudentIds,
-    eventType: "interview",
-    eventId: interview.id,
-    version: "created",
-    title: "Placement interview scheduled",
-    body: `${input.roundType.trim()} round is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
-    actionUrl: "/student/placements",
+    if (requestedStudentIds.length) {
+      await tx.placementInterviewParticipant.createMany({
+        data: requestedStudentIds.map((studentId) => ({ interviewId: created.id, studentId })),
+        skipDuplicates: true,
+      });
+      if (initialStatus === "SCHEDULED") {
+        await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+          eventType: "interview",
+          eventId: created.id,
+          version: "created",
+          recipientIds: requestedStudentIds,
+        });
+      }
+    }
+    return created;
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.created", entityType: "PlacementInterview", entityId: interview.id, metadata: { driveId: input.driveId, roundNumber: input.roundNumber } });
   return interview;
