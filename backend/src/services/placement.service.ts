@@ -1128,7 +1128,7 @@ export async function createPlacementInterview(
       skipDuplicates: true,
     });
   }
-  await notifyPlacementAudience({
+  if ((input.status ?? "SCHEDULED") === "SCHEDULED") await notifyPlacementAudience({
     institutionId,
     recipientIds: requestedStudentIds,
     eventType: "interview",
@@ -1371,6 +1371,12 @@ export async function updatePlacementVisit(
       institutionId, recipientIds, eventType: "visit", eventId: id,
       version: "cancelled", title: "Placement activity cancelled",
       body: `${existing.type} has been cancelled.`, actionUrl: "/student/placements",
+    });
+  } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: "published", title: "Placement activity published",
+      body: `${existing.type} is scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements",
     });
   } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED" && input.startsAt) {
     await notifyPlacementAudience({
@@ -1622,6 +1628,7 @@ export async function createPlacementTest(
         driveId: input.driveId,
         title: input.title.trim(),
         mode: input.mode?.trim() || "ONLINE",
+        status: input.status ?? "SCHEDULED",
         scheduledAt: new Date(input.scheduledAt),
         durationMinutes: input.durationMinutes,
         maxScore: input.maxScore,
@@ -1637,7 +1644,7 @@ export async function createPlacementTest(
     }
     return created;
   });
-  await notifyPlacementAudience({
+  if ((input.status ?? "SCHEDULED") === "SCHEDULED") await notifyPlacementAudience({
     institutionId,
     recipientIds: participantIds,
     eventType: "test",
@@ -1720,7 +1727,7 @@ export async function updatePlacementInterview(
   institutionId: string,
   actor: AuthenticatedUser,
   id: string,
-  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; onlineLink?: string | null; status?: "SCHEDULED" | "CANCELLED" },
+  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; onlineLink?: string | null; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1743,7 +1750,9 @@ export async function updatePlacementInterview(
   const recipients = existing.participants.map((participant) => participant.studentId);
   if (input.status === "CANCELLED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "cancelled", title: "Placement interview cancelled", body: `${existing.roundType} interview round has been cancelled.`, actionUrl: "/student/placements" });
-  } else if (input.startsAt) {
+  } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "published", title: "Placement interview published", body: `${existing.roundType} interview round is scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  } else if (existing.status === "SCHEDULED" && input.startsAt) {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: `rescheduled:${updated.startsAt.toISOString()}`, title: "Placement interview rescheduled", body: `${existing.roundType} interview is now scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
   }
   await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.interview.cancelled" : "placements.interview.updated", entityType: "PlacementInterview", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
@@ -1754,7 +1763,7 @@ export async function updatePlacementTest(
   institutionId: string,
   actor: AuthenticatedUser,
   id: string,
-  input: { scheduledAt?: string; testLink?: string | null; instructions?: string | null; status?: "SCHEDULED" | "CANCELLED" },
+  input: { scheduledAt?: string; testLink?: string | null; instructions?: string | null; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1776,7 +1785,9 @@ export async function updatePlacementTest(
   const recipients = existing.participants.map((participant) => participant.studentId);
   if (input.status === "CANCELLED") {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "cancelled", title: "Placement assessment cancelled", body: `${existing.title} has been cancelled.`, actionUrl: "/student/placements" });
-  } else if (input.scheduledAt) {
+  } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
+    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "published", title: "Placement assessment published", body: `${existing.title} is scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  } else if (existing.status === "SCHEDULED" && input.scheduledAt) {
     await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: `rescheduled:${updated.scheduledAt.toISOString()}`, title: "Placement assessment rescheduled", body: `${existing.title} is now scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
   }
   await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.test.cancelled" : "placements.test.updated", entityType: "PlacementTest", entityId: id, metadata: { status: updated.status, scheduledAt: updated.scheduledAt.toISOString() } });
