@@ -8,6 +8,11 @@ function stringField(payload: JsonObject, key: string): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function formatUtcDateTime(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  return `${value.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
@@ -203,14 +208,14 @@ async function handlePlacementEvent(event: DomainEvent) {
       body: cancelled
         ? `${eventTitle} from ${companyName} has been cancelled.`
         : published
-          ? `${eventTitle} from ${companyName} has been published for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`
+          ? `${eventTitle} from ${companyName} has been published for ${formatUtcDateTime(startsAt) ?? "the scheduled time"}.`
           : rescheduled
-            ? `${eventTitle} from ${companyName} has a new scheduled time: ${startsAt?.toLocaleString() ?? "see ACADLYX for details"}.`
+            ? `${eventTitle} from ${companyName} has a new scheduled time: ${formatUtcDateTime(startsAt) ?? "see ACADLYX for details"}.`
             : updated
-              ? `${eventTitle} from ${companyName} was updated. Current scheduled time: ${startsAt?.toLocaleString() ?? "see ACADLYX for details"}.`
+              ? `${eventTitle} from ${companyName} was updated. Current scheduled time: ${formatUtcDateTime(startsAt) ?? "see ACADLYX for details"}.`
               : assigned
-                ? `${eventTitle} from ${companyName} has been assigned to you for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`
-                : `${eventTitle} from ${companyName} is scheduled for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`,
+                ? `${eventTitle} from ${companyName} has been assigned to you for ${formatUtcDateTime(startsAt) ?? "the scheduled time"}.`
+                : `${eventTitle} from ${companyName} is scheduled for ${formatUtcDateTime(startsAt) ?? "the scheduled time"}.`,
       actionUrl: "/student/placements",
     });
     return;
@@ -235,7 +240,7 @@ async function handlePlacementEvent(event: DomainEvent) {
         title: nextStatus === "PUBLISHED" ? "New placement drive published" : "Placement registration is open",
         body: nextStatus === "PUBLISHED"
           ? `${drive.company.name}: ${drive.title} is published. Review your eligibility and details.`
-          : `${drive.company.name}: registration is open for ${drive.title}${drive.applicationDeadline ? ` until ${drive.applicationDeadline.toLocaleString()}` : ""}.`,
+          : `${drive.company.name}: registration is open for ${drive.title}${drive.applicationDeadline ? ` until ${formatUtcDateTime(drive.applicationDeadline)}` : ""}.`,
         actionUrl: "/student/placements",
       });
     } else if (["CLOSED", "APPLICATION_CLOSED", "CANCELLED"].includes(nextStatus)) {
@@ -306,7 +311,7 @@ async function handlePlacementEvent(event: DomainEvent) {
       recipientIds: recipients,
       dedupePrefix: `placement:drive:${driveId}:updated:${version}`,
       title: "Placement drive details updated",
-      body: `${drive.company.name}: ${drive.title} has updated recruitment details.${drive.applicationDeadline ? ` Registration deadline: ${drive.applicationDeadline.toLocaleString()}.` : ""}${drive.driveDate ? ` Drive date: ${drive.driveDate.toLocaleString()}.` : ""} Review the current details in ACADLYX.`,
+      body: `${drive.company.name}: ${drive.title} has updated recruitment details.${drive.applicationDeadline ? ` Registration deadline: ${formatUtcDateTime(drive.applicationDeadline)}.` : ""}${drive.driveDate ? ` Drive date: ${formatUtcDateTime(drive.driveDate)}.` : ""} Review the current details in ACADLYX.`,
       actionUrl: "/student/placements",
     });
     return;
@@ -374,9 +379,9 @@ async function handlePlacementEvent(event: DomainEvent) {
           : `placement:offer:${offer.id}:status:${offer.status.toLowerCase()}`,
       title: isCreated ? "You received a placement offer" : isUpdated ? "Placement offer revised" : "Placement offer status updated",
       body: isCreated
-        ? `${offer.company.name} has issued you an offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${offer.responseDeadline.toLocaleString()}.` : ""} Review it in ACADLYX.`
+        ? `${offer.company.name} has issued you an offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${formatUtcDateTime(offer.responseDeadline)}.` : ""} Review it in ACADLYX.`
         : isUpdated
-          ? `${offer.company.name} revised your offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${offer.responseDeadline.toLocaleString()}.` : ""}${offer.joiningDate ? ` Expected joining: ${offer.joiningDate.toLocaleDateString()}.` : ""}`
+          ? `${offer.company.name} revised your offer for ${offer.role}.${offer.responseDeadline ? ` Respond by ${formatUtcDateTime(offer.responseDeadline)}.` : ""}${offer.joiningDate ? ` Expected joining: ${formatUtcDateTime(offer.joiningDate)}.` : ""}`
           : `Your offer from ${offer.company.name} is now ${offer.status.replaceAll("_", " ").toLowerCase()}.`,
       actionUrl: "/student/placements",
     });
