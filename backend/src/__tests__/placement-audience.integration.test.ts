@@ -27,6 +27,8 @@ test("placement visit is visible only to its explicitly targeted student and omi
       prisma.userRole.create({ data: { userId: staff.id, roleId: placementRole.id } }),
       prisma.userRole.create({ data: { userId: intendedStudent.id, roleId: studentRole.id } }),
       prisma.userRole.create({ data: { userId: otherStudent.id, roleId: studentRole.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: intendedStudent.id } }),
+      prisma.placementProfile.create({ data: { institutionId: institution.id, studentId: otherStudent.id } }),
     ]);
     const company = await prisma.placementCompany.create({
       data: { institutionId: institution.id, name: `Audience company ${suffix}`, createdById: staff.id },
