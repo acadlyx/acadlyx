@@ -1370,7 +1370,7 @@ export async function updatePlacementVisit(
       version: "cancelled", title: "Placement activity cancelled",
       body: `${existing.type} has been cancelled.`, actionUrl: "/student/placements",
     });
-  } else if (eventStatus === "PUBLISHED" && input.startsAt) {
+  } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED" && input.startsAt) {
     await notifyPlacementAudience({
       institutionId, recipientIds, eventType: "visit", eventId: id,
       version: `rescheduled:${updated.startsAt.toISOString()}`,
