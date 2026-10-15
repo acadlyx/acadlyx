@@ -1498,6 +1498,16 @@ export async function createPlacementTest(
     }
     return created;
   });
+  await notifyPlacementAudience({
+    institutionId,
+    recipientIds: participantIds,
+    eventType: "test",
+    eventId: row.id,
+    version: "created",
+    title: "Placement assessment scheduled",
+    body: `${input.title.trim()} is scheduled for ${new Date(input.scheduledAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
+  });
   await recordAuditLog({
     institutionId,
     userId: actor.id,
