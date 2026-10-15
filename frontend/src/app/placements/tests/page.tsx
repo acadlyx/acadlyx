@@ -98,6 +98,18 @@ export default function PlacementTestsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
+  async function deleteDraft(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch("/placements/tests/" + id, { method: "DELETE" });
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to delete this unused draft.");
+    } finally { setBusy(false); }
+  }
+
   async function updateTest(id: string, payload: { scheduledAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
@@ -290,6 +302,7 @@ export default function PlacementTestsPage() {
                 </label>
                 <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
+              {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Permanently delete this unused assessment draft? Drafts with candidate assignments must be retained.")) void deleteDraft(item.id); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete draft</button>}
               {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateTest(item.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish assessment</button>}
               {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
             </div>
