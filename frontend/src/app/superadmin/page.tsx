@@ -296,6 +296,8 @@ export default function SuperAdminPage() {
 
   const [showInstitutionModal, setShowInstitutionModal] =
     useState(false);
+  const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+  const [institutionLogoFile, setInstitutionLogoFile] = useState<File | null>(null);
 
   const [showUserModal, setShowUserModal] = useState(false);
 
@@ -452,6 +454,26 @@ export default function SuperAdminPage() {
     authedFetch<UsersResponse>("/users?page=1&pageSize=100").then((response) => setUsers(response.data)).catch((reason: Error) => setError(reason.message || "Users could not be loaded."));
   }, [activeSection, users.length]);
 
+  function openCreateInstitution() {
+    setEditingInstitution(null);
+    setInstitutionLogoFile(null);
+    setInstitutionForm({ ...emptyInstitutionForm });
+    setShowInstitutionModal(true);
+  }
+
+  function openEditInstitution(institution: Institution) {
+    setEditingInstitution(institution);
+    setInstitutionLogoFile(null);
+    setInstitutionForm({
+      ...emptyInstitutionForm,
+      name: institution.name,
+      slug: institution.slug,
+      primaryColor: institution.primaryColor || "#0f172a",
+      secondaryColor: institution.secondaryColor || "#64748b",
+    });
+    setShowInstitutionModal(true);
+  }
+
   async function handleCreateInstitution(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -462,40 +484,65 @@ export default function SuperAdminPage() {
     setMessage(null);
 
     try {
-      await authedFetch("/institutions", {
-        method: "POST",
-        body: JSON.stringify({
-          name: institutionForm.name.trim(),
-          slug: institutionForm.slug.trim(),
-          primaryColor:
-            institutionForm.primaryColor.trim(),
-          secondaryColor:
-            institutionForm.secondaryColor.trim(),
-          admin: {
-            firstName:
-              institutionForm.adminFirstName.trim(),
-            lastName:
-              institutionForm.adminLastName.trim(),
-            email:
-              institutionForm.adminEmail.trim(),
-            phone:
-              institutionForm.adminPhone.trim() ||
-              undefined,
-            password:
-              institutionForm.adminPassword,
+      const editing = Boolean(editingInstitution);
+      const payload = {
+        name: institutionForm.name.trim(),
+        slug: institutionForm.slug.trim(),
+        primaryColor: institutionForm.primaryColor.trim(),
+        secondaryColor: institutionForm.secondaryColor.trim(),
+      };
+      let savedInstitution: Institution;
+
+      if (editingInstitution) {
+        const response = await authedFetch<{ success: true; data: Institution }>(
+          `/institutions/${editingInstitution.id}`,
+          { method: "PATCH", body: JSON.stringify(payload) },
+        );
+        savedInstitution = response.data;
+      } else {
+        const response = await authedFetch<{ success: true; data: Institution }>(
+          "/institutions",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...payload,
+              admin: {
+                idNumber: institutionForm.adminIdNumber.trim() || undefined,
+                firstName: institutionForm.adminFirstName.trim(),
+                lastName: institutionForm.adminLastName.trim(),
+                email: institutionForm.adminEmail.trim(),
+                phone: institutionForm.adminPhone.trim() || undefined,
+                password: institutionForm.adminPassword,
+              },
+            }),
           },
-        }),
-      });
+        );
+        savedInstitution = response.data;
+      }
+
+      let logoWarning = "";
+      if (institutionLogoFile) {
+        const formData = new FormData();
+        formData.append("file", institutionLogoFile);
+        try {
+          await authedFetch(`/institutions/${savedInstitution.id}/logo`, {
+            method: "POST",
+            body: formData,
+          });
+        } catch (logoError) {
+          logoWarning = ` Details were saved, but the logo upload failed: ${logoError instanceof Error ? logoError.message : "Please try uploading the logo again."}`;
+        }
+      }
 
       setShowInstitutionModal(false);
-      setInstitutionForm({
-        ...emptyInstitutionForm,
-      });
-
+      setEditingInstitution(null);
+      setInstitutionLogoFile(null);
+      setInstitutionForm({ ...emptyInstitutionForm });
       setMessage(
-        "Institution created successfully with its Institution Admin."
+        (editing
+          ? `${savedInstitution.name} was updated successfully.`
+          : `${savedInstitution.name} was created successfully with its Institution Admin.`) + logoWarning
       );
-
       await loadAll();
     } catch (err) {
       if (err instanceof AuthRequiredError) {
@@ -507,7 +554,9 @@ export default function SuperAdminPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to create institution."
+          : editingInstitution
+            ? "Unable to update institution."
+            : "Unable to create institution."
       );
     } finally {
       setSaving(false);
@@ -801,9 +850,7 @@ export default function SuperAdminPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setShowInstitutionModal(true)
-                }
+                onClick={openCreateInstitution}
                 className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 New institution
@@ -1047,6 +1094,14 @@ export default function SuperAdminPage() {
                               <div className="flex justify-end gap-2">
                                 <button
                                   type="button"
+                                  onClick={() => openEditInstitution(institution)}
+                                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
                                   onClick={() =>
                                     void openEntitlements(
                                       institution
@@ -1223,10 +1278,12 @@ export default function SuperAdminPage() {
 
         {showInstitutionModal && (
           <Modal
-            title="Create institution"
-            onClose={() =>
-              setShowInstitutionModal(false)
-            }
+            title={editingInstitution ? "Edit institution" : "Create institution"}
+            onClose={() => {
+              setShowInstitutionModal(false);
+              setEditingInstitution(null);
+              setInstitutionLogoFile(null);
+            }}
           >
             <form
               onSubmit={handleCreateInstitution}
@@ -1316,6 +1373,27 @@ export default function SuperAdminPage() {
                 </label>
               </div>
 
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">Institution logo</p>
+                  <p className="mt-1 text-xs text-slate-500">PNG, JPEG or WebP, up to 2 MB. The logo appears in the institution’s dashboard branding.</p>
+                </div>
+                {editingInstitution?.logoUrl && !institutionLogoFile ? (
+                  <div className="flex items-center gap-3">
+                    <img src={editingInstitution.logoUrl} alt={`${editingInstitution.name} logo`} className="h-14 w-14 rounded-xl border border-slate-200 bg-white object-contain p-1" />
+                    <span className="text-xs text-slate-600">Current logo</span>
+                  </div>
+                ) : null}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(event) => setInstitutionLogoFile(event.target.files?.[0] || null)}
+                  className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700"
+                />
+                {institutionLogoFile ? <p className="text-xs font-medium text-slate-600">Selected: {institutionLogoFile.name}</p> : null}
+              </div>
+
+              {!editingInstitution && (
               <div className="border-t border-slate-100 pt-4">
                 <p className="text-sm font-semibold text-slate-950">
                   Initial Institution Admin
@@ -1420,12 +1498,16 @@ export default function SuperAdminPage() {
                 </div>
               </div>
 
+              )}
+
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowInstitutionModal(false)
-                  }
+                  onClick={() => {
+                    setShowInstitutionModal(false);
+                    setEditingInstitution(null);
+                    setInstitutionLogoFile(null);
+                  }}
                   className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
                 >
                   Cancel
@@ -1437,8 +1519,8 @@ export default function SuperAdminPage() {
                   className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
                   {saving
-                    ? "Creating…"
-                    : "Create institution"}
+                    ? (editingInstitution ? "Saving…" : "Creating…")
+                    : (editingInstitution ? "Save changes" : "Create institution")}
                 </button>
               </div>
             </form>
