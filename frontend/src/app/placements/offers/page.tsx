@@ -7,7 +7,13 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Application = { id: string; status: string; student: { id: string; firstName: string; lastName: string }; opportunity: { title: string; organization: string } };
-type Offer = { id: string; status: string; joiningStatus?: string | null; role: string; totalCtc: number | null; currency: string; offerDate: string; joiningDate: string | null; company: { name: string }; student?: { firstName: string; lastName: string } };
+type Offer = { id: string; status: string; joiningStatus?: string | null; role: string; totalCtc: number | null; fixedCtc?: number | null; variableCtc?: number | null; bonus?: number | null; currency: string; offerDate: string; responseDeadline: string | null; joiningDate: string | null; offerDocumentUrl?: string | null; notes?: string | null; company: { name: string }; student?: { firstName: string; lastName: string } };
+
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 export default function PlacementOffersPage() {
   const router = useRouter();
@@ -21,6 +27,7 @@ export default function PlacementOffersPage() {
   const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -74,6 +81,7 @@ export default function PlacementOffersPage() {
       await authedFetch("/placements/offers", { method: "POST", body: JSON.stringify({
         applicationId: f.get("applicationId"), role: f.get("role"),
         offerDate: new Date(String(f.get("offerDate"))).toISOString(),
+        responseDeadline: f.get("responseDeadline") ? new Date(String(f.get("responseDeadline"))).toISOString() : undefined,
         joiningDate: f.get("joiningDate") ? new Date(String(f.get("joiningDate"))).toISOString() : undefined,
         totalCtc: f.get("totalCtc") ? Number(f.get("totalCtc")) : undefined,
         fixedCtc: f.get("fixedCtc") ? Number(f.get("fixedCtc")) : undefined,
@@ -85,6 +93,30 @@ export default function PlacementOffersPage() {
     } catch (cause) {
       if (cause instanceof AuthRequiredError) router.replace("/login");
       else setError(cause instanceof HttpRequestError ? cause.message : "Unable to create offer.");
+    } finally { setBusy(null); }
+  }
+
+  async function reviseOffer(event: FormEvent<HTMLFormElement>, offer: Offer) {
+    event.preventDefault();
+    const f = new FormData(event.currentTarget);
+    setBusy(offer.id);
+    setError("");
+    try {
+      await authedFetch("/placements/offers/" + offer.id, { method: "PATCH", body: JSON.stringify({
+        role: String(f.get("role") || "").trim(),
+        offerDate: new Date(String(f.get("offerDate"))).toISOString(),
+        responseDeadline: f.get("responseDeadline") ? new Date(String(f.get("responseDeadline"))).toISOString() : null,
+        joiningDate: f.get("joiningDate") ? new Date(String(f.get("joiningDate"))).toISOString() : null,
+        totalCtc: f.get("totalCtc") === "" ? null : Number(f.get("totalCtc")),
+        fixedCtc: f.get("fixedCtc") === "" ? null : Number(f.get("fixedCtc")),
+        variableCtc: f.get("variableCtc") === "" ? null : Number(f.get("variableCtc")),
+        bonus: f.get("bonus") === "" ? null : Number(f.get("bonus")),
+      }) });
+      setEditingOfferId(null);
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to revise offer.");
     } finally { setBusy(null); }
   }
 
@@ -127,6 +159,7 @@ export default function PlacementOffersPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Selected candidate<select name="applicationId" required className="rounded-xl border bg-white px-4 py-3"><option value="">Select selected candidate</option>{apps.filter(a => a.status === "SELECTED").map(a => <option key={a.id} value={a.id}>{a.student.firstName} {a.student.lastName} · {a.opportunity.organization}</option>)}</select><span className="text-xs font-normal text-slate-500">Only explicitly selected candidates are offerable. Interview scheduling alone never issues an offer.</span></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Offered role<input name="role" required minLength={2} maxLength={200} className="rounded-xl border px-4 py-3" placeholder="Job title" /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Offer date<input name="offerDate" type="datetime-local" required className="rounded-xl border px-4 py-3" /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Student response deadline<input name="responseDeadline" type="datetime-local" className="rounded-xl border px-4 py-3" /><span className="text-xs font-normal text-slate-500">An in-app reminder is scheduled for the final 24 hours and final hour.</span></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Expected joining date<input name="joiningDate" type="datetime-local" className="rounded-xl border px-4 py-3" /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Total CTC (INR)<input name="totalCtc" type="number" min="0" step="0.01" className="rounded-xl border px-4 py-3" /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Fixed CTC (INR)<input name="fixedCtc" type="number" min="0" step="0.01" className="rounded-xl border px-4 py-3" /></label>
@@ -149,7 +182,19 @@ export default function PlacementOffersPage() {
             {visibleOffers.map(o => <article key={o.id} className="space-y-3 rounded-2xl border bg-white p-5">
               <div className="flex justify-between gap-3"><div><h2 className="font-black">{o.company.name}</h2><p className="text-sm text-slate-600">{o.role}{o.student ? " · " + o.student.firstName + " " + o.student.lastName : ""}</p></div><span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black">{o.status.replaceAll("_", " ")}</span></div>
               <p className="text-sm font-bold">{o.totalCtc == null ? "Package not set" : o.currency + " " + Number(o.totalCtc).toLocaleString("en-IN")}</p>
-              <p className="text-xs text-slate-500">Offered {new Date(o.offerDate).toLocaleDateString("en-IN")}{o.joiningDate ? " · Expected joining " + new Date(o.joiningDate).toLocaleDateString("en-IN") : ""}</p>
+              <p className="text-xs text-slate-500">Offered {new Date(o.offerDate).toLocaleDateString("en-IN")}{o.responseDeadline ? " · Respond by " + new Date(o.responseDeadline).toLocaleString("en-IN") : ""}{o.joiningDate ? " · Expected joining " + new Date(o.joiningDate).toLocaleDateString("en-IN") : ""}</p>
+              {o.status === "OFFERED" && <button type="button" disabled={busy !== null} onClick={() => setEditingOfferId(editingOfferId === o.id ? null : o.id)} className="rounded-xl border px-3 py-2 text-sm font-bold disabled:opacity-50">{editingOfferId === o.id ? "Close revision" : "Revise offer"}</button>}
+              {editingOfferId === o.id && o.status === "OFFERED" && <form onSubmit={(event) => void reviseOffer(event, o)} className="grid gap-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600 sm:col-span-2">Role<input name="role" required minLength={2} maxLength={200} defaultValue={o.role} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Offer date<input name="offerDate" type="datetime-local" required defaultValue={toDateTimeLocal(o.offerDate)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Response deadline<input name="responseDeadline" type="datetime-local" defaultValue={toDateTimeLocal(o.responseDeadline)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Joining date<input name="joiningDate" type="datetime-local" defaultValue={toDateTimeLocal(o.joiningDate)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Total CTC<input name="totalCtc" type="number" min="0" step="0.01" defaultValue={o.totalCtc ?? ""} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Fixed CTC<input name="fixedCtc" type="number" min="0" step="0.01" defaultValue={o.fixedCtc ?? ""} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Variable CTC<input name="variableCtc" type="number" min="0" step="0.01" defaultValue={o.variableCtc ?? ""} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Bonus<input name="bonus" type="number" min="0" step="0.01" defaultValue={o.bonus ?? ""} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <button type="submit" disabled={busy !== null} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{busy === o.id ? "Saving revision…" : "Save offer revision"}</button>
+              </form>}
               {o.status === "ACCEPTED" && <button type="button" disabled={busy !== null} onClick={() => void changeStatus(o, "JOINING_PENDING")} className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">Mark joining pending</button>}
               {["ACCEPTED", "JOINING_PENDING"].includes(o.status) && <form onSubmit={e => void verifyJoining(e, o)} className="grid gap-2 rounded-xl bg-slate-50 p-3">
                 <p className="text-sm font-black">Verify joining</p>
