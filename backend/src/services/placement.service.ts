@@ -1078,7 +1078,7 @@ export async function listPlacementInterviews(
 export async function createPlacementInterview(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string },
+  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1113,15 +1113,22 @@ export async function createPlacementInterview(
     where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
     select: { studentId: true },
   });
-  if (interviewCandidates.length) {
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  const explicitStudentIds = input.studentIds ?? [];
+  const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
+  await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
+  if (requestedStudentIds.length) {
     await prisma.placementInterviewParticipant.createMany({
-      data: interviewCandidates.map((candidate) => ({ interviewId: interview.id, studentId: candidate.studentId })),
+      data: requestedStudentIds.map((studentId) => ({ interviewId: interview.id, studentId })),
       skipDuplicates: true,
     });
   }
   await notifyPlacementAudience({
     institutionId,
-    recipientIds: interviewCandidates.map((candidate) => candidate.studentId),
+    recipientIds: requestedStudentIds,
     eventType: "interview",
     eventId: interview.id,
     version: "created",
