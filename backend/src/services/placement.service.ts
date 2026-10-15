@@ -391,25 +391,47 @@ export async function transitionApplication(
     if (driveId && next === "TEST") {
       const scheduledTests = await prisma.placementTest.findMany({
         where: { institutionId, driveId, status: "SCHEDULED" },
-        select: { id: true },
+        select: { id: true, title: true, scheduledAt: true },
       });
       if (scheduledTests.length) {
+        const existingParticipants = await prisma.placementTestParticipant.findMany({
+          where: { testId: { in: scheduledTests.map((test) => test.id) }, studentId: application.studentId },
+          select: { testId: true },
+        });
+        const alreadyAssigned = new Set(existingParticipants.map((participant) => participant.testId));
         await prisma.placementTestParticipant.createMany({
           data: scheduledTests.map((test) => ({ testId: test.id, studentId: application.studentId })),
           skipDuplicates: true,
         });
+        await Promise.all(scheduledTests.filter((test) => !alreadyAssigned.has(test.id)).map((test) => notifyPlacementAudience({
+          institutionId, recipientIds: [application.studentId], eventType: "test", eventId: test.id,
+          version: "assigned", title: "Placement assessment assigned",
+          body: `${test.title} is scheduled for ${test.scheduledAt.toLocaleString()}.`,
+          actionUrl: "/student/placements",
+        })));
       }
     }
     if (driveId && next === "INTERVIEW") {
       const scheduledInterviews = await prisma.placementInterview.findMany({
         where: { institutionId, driveId, status: "SCHEDULED" },
-        select: { id: true },
+        select: { id: true, roundType: true, startsAt: true },
       });
       if (scheduledInterviews.length) {
+        const existingParticipants = await prisma.placementInterviewParticipant.findMany({
+          where: { interviewId: { in: scheduledInterviews.map((interview) => interview.id) }, studentId: application.studentId },
+          select: { interviewId: true },
+        });
+        const alreadyAssigned = new Set(existingParticipants.map((participant) => participant.interviewId));
         await prisma.placementInterviewParticipant.createMany({
           data: scheduledInterviews.map((interview) => ({ interviewId: interview.id, studentId: application.studentId })),
           skipDuplicates: true,
         });
+        await Promise.all(scheduledInterviews.filter((interview) => !alreadyAssigned.has(interview.id)).map((interview) => notifyPlacementAudience({
+          institutionId, recipientIds: [application.studentId], eventType: "interview", eventId: interview.id,
+          version: "assigned", title: "Placement interview assigned",
+          body: `${interview.roundType} interview is scheduled for ${interview.startsAt.toLocaleString()}.`,
+          actionUrl: "/student/placements",
+        })));
       }
     }
   }
