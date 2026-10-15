@@ -2317,32 +2317,54 @@ export async function listPlacementCriteriaOptions(institutionId: string, actor:
   if (!isPlacementManager(actor) || !actor.permissions.includes("placements.read")) {
     throw new AppError("Placement criteria access is not permitted.", 403);
   }
-  const directorScope = activeWorkspace(actor) === "DIRECTOR";
+
+  const workspace = activeWorkspace(actor);
+  const directorScope = workspace === "DIRECTOR";
+  const departmentScope = ["DEAN", "HOD", "FACULTY"].includes(workspace);
   const assignedCampusIds = directorScope ? await getDirectorCampusIds(institutionId, actor.id) : [];
   if (directorScope && !assignedCampusIds.length) throw new AppError("No campus scope is assigned to this director.", 403);
+  const assignedDepartmentIds = departmentScope ? await getAuthorizedDepartmentIds(institutionId, actor) : [];
+
   const campuses = await prisma.campus.findMany({
     where: { institutionId, isActive: true, ...(directorScope ? { id: { in: assignedCampusIds } } : {}) },
     select: { id: true, name: true }, orderBy: { name: "asc" },
   });
   const departments = await prisma.department.findMany({
-    where: { institutionId, isActive: true, ...(directorScope ? { campusId: { in: assignedCampusIds } } : {}) },
+    where: {
+      institutionId, isActive: true,
+      ...(directorScope ? { campusId: { in: assignedCampusIds } } : {}),
+      ...(departmentScope ? { id: { in: assignedDepartmentIds } } : {}),
+    },
     select: { id: true, name: true, campusId: true }, orderBy: { name: "asc" },
   });
   const departmentIds = departments.map((item) => item.id);
   const programs = await prisma.program.findMany({
-    where: { institutionId, isActive: true, ...(directorScope ? { departmentId: { in: departmentIds } } : {}) },
+    where: { institutionId, isActive: true, ...(directorScope || departmentScope ? { departmentId: { in: departmentIds } } : {}) },
     select: { id: true, name: true, departmentId: true }, orderBy: { name: "asc" },
   });
   const programIds = programs.map((item) => item.id);
   const [batches, semesters, academicYears, skills] = await Promise.all([
-    prisma.batch.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" } }),
-    prisma.semester.findMany({ where: { institutionId, isActive: true, ...(directorScope ? { programId: { in: programIds } } : {}) }, select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }] }),
+    prisma.batch.findMany({
+      where: { institutionId, isActive: true, ...(directorScope || departmentScope ? { programId: { in: programIds } } : {}) },
+      select: { id: true, name: true, programId: true, admissionYear: true, completionYear: true }, orderBy: { admissionYear: "desc" },
+    }),
+    prisma.semester.findMany({
+      where: { institutionId, isActive: true, ...(directorScope || departmentScope ? { programId: { in: programIds } } : {}) },
+      select: { id: true, name: true, programId: true, academicYearId: true, number: true }, orderBy: [{ number: "asc" }, { name: "asc" }],
+    }),
     prisma.academicYear.findMany({ where: { institutionId }, select: { id: true, name: true }, orderBy: { name: "desc" } }),
     prisma.skill.findMany({ where: { institutionId, isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
-  return { campuses, departments, programs, batches, semesters, academicYears, skills };
+  const semesterIds = semesters.map((item) => item.id);
+  const sections = await prisma.section.findMany({
+    where: {
+      institutionId, isActive: true,
+      ...(directorScope || departmentScope ? { semesterId: { in: semesterIds } } : {}),
+    },
+    select: { id: true, name: true, semesterId: true }, orderBy: [{ semesterId: "asc" }, { name: "asc" }],
+  });
+  return { campuses, departments, programs, batches, semesters, sections, academicYears, skills };
 }
-
 
 export async function updatePlacementInterview(
   institutionId: string,
