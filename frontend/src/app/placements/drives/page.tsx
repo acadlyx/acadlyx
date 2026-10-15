@@ -31,6 +31,9 @@ type Drive = {
   eligibleSemesters?: string[];
   cgpaRequirement?: number | null;
   maxBacklogs?: number | null;
+  venue?: string | null;
+  requiredSkills?: string[];
+  academicRequirements?: any;
   vacancies?: number | null;
 };
 
