@@ -64,9 +64,10 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    const reconcile = cached
-      ? getCurrentUser({ force: true })
-      : getCurrentUser();
+    // The root ProtectedRouteBoundary has already reconciled the identity
+    // for this route. Reuse the tab-local auth cache here instead of forcing
+    // a second /auth/me request every time the dashboard shell mounts.
+    const reconcile = getCurrentUser();
 
     // Workspace context is independent of /auth/me. Start both requests at
     // the same time so the shell doesn't add a serial network/database trip
@@ -103,39 +104,45 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     return () => { alive = false; };
   }, [router, embeddedInWorkspaceShell]);
 
-  // Prefetch only after identity/active workspace resolution. Starting this
-  // request from allowedRoles before /auth/me resolves can race the page-level
-  // request, consume its first failure, and render inconsistent retry state.
-  // The effective workspace role also prevents a route's allowedRoles from
-  // prefetching data for a secondary role the authenticated user does not own.
+  // Warm shared workspace data after the first paint, not in the critical
+  // login-to-dashboard path. The visible page can start its own data requests
+  // immediately; workspaceGet/erpApi deduplication can reuse any shared work.
   useEffect(() => {
     if (embeddedInWorkspaceShell || !routeAuthReady || !user || !workspaceRole) return;
 
-    if (workspaceRole === "INSTITUTION_ADMIN") {
-      void getErpWorkspace().catch(() => undefined);
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      if (workspaceRole === "INSTITUTION_ADMIN") {
+        void getErpWorkspace().catch(() => undefined);
+        return;
+      }
 
-    if (
-      workspaceRole === "CHAIRMAN" ||
-      workspaceRole === "DIRECTOR" ||
-      workspaceRole === "DEAN"
-    ) {
-      void getErpWorkspaceSummary().catch(() => undefined);
-    }
+      if (
+        workspaceRole === "CHAIRMAN" ||
+        workspaceRole === "DIRECTOR" ||
+        workspaceRole === "DEAN"
+      ) {
+        void getErpWorkspaceSummary().catch(() => undefined);
+      }
+    }, 700);
+
+    return () => window.clearTimeout(timer);
   }, [embeddedInWorkspaceShell, routeAuthReady, user, workspaceRole]);
 
   useEffect(() => {
     if (embeddedInWorkspaceShell || workspaceRole !== "INSTITUTION_ADMIN") return;
     let alive = true;
-    workspaceGet<{ data?: Array<{ id: string; name: string; code?: string }> }>("/departments?page=1&pageSize=100&isActive=true")
-      .then((response) => {
-        if (alive) setAdminDepartments(response?.data || []);
-      })
-      .catch(() => {
-        if (alive) setAdminDepartments([]);
-      });
-    return () => { alive = false; };
+    // Department shortcuts are secondary navigation, so don't compete with
+    // authentication and the first dashboard content request.
+    const timer = window.setTimeout(() => {
+      workspaceGet<{ data?: Array<{ id: string; name: string; code?: string }> }>("/departments?page=1&pageSize=100&isActive=true")
+        .then((response) => {
+          if (alive) setAdminDepartments(response?.data || []);
+        })
+        .catch(() => {
+          if (alive) setAdminDepartments([]);
+        });
+    }, 700);
+    return () => { alive = false; window.clearTimeout(timer); };
   }, [embeddedInWorkspaceShell, workspaceRole]);
 
   useEffect(() => {
