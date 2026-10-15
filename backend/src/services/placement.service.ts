@@ -68,6 +68,76 @@ async function resolvePlacementCohortAudience(institutionId: string, targeting?:
   return users.map((user) => user.id);
 }
 
+async function assertNoPlacementScheduleConflicts(
+  tx: Prisma.TransactionClient,
+  institutionId: string,
+  studentIds: string[],
+  startsAt: Date,
+  endsAt: Date,
+  ignore?: { interviewId?: string; testId?: string },
+) {
+  const ids = [...new Set(studentIds.filter(Boolean))];
+  if (!ids.length) return;
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+    throw new AppError("The scheduled end time must be after the start time.", 422);
+  }
+  const fallbackStart = new Date(startsAt.getTime() - 24 * 60 * 60 * 1000);
+  const nullEndStart = new Date(startsAt.getTime() - 60 * 60 * 1000);
+  const [interviews, tests] = await Promise.all([
+    tx.placementInterview.findMany({
+      where: {
+        institutionId,
+        status: "SCHEDULED",
+        ...(ignore?.interviewId ? { id: { not: ignore.interviewId } } : {}),
+        startsAt: { lt: endsAt },
+        OR: [
+          { endsAt: { gt: startsAt } },
+          { endsAt: null, startsAt: { gt: nullEndStart } },
+        ],
+        participants: { some: { studentId: { in: ids } } },
+      },
+      select: {
+        id: true, roundType: true, startsAt: true, endsAt: true,
+        drive: { select: { title: true, company: { select: { name: true } } } },
+        participants: { where: { studentId: { in: ids } }, select: { studentId: true } },
+      },
+      take: 100,
+    }),
+    tx.placementTest.findMany({
+      where: {
+        institutionId,
+        status: "SCHEDULED",
+        ...(ignore?.testId ? { id: { not: ignore.testId } } : {}),
+        scheduledAt: { gte: fallbackStart, lt: endsAt },
+        participants: { some: { studentId: { in: ids } } },
+      },
+      select: {
+        id: true, title: true, scheduledAt: true, durationMinutes: true,
+        drive: { select: { company: { select: { name: true } } } },
+        participants: { where: { studentId: { in: ids } }, select: { studentId: true } },
+      },
+      take: 100,
+    }),
+  ]);
+
+  const overlappingTests = tests.filter((item) => {
+    const durationMinutes = item.durationMinutes && item.durationMinutes > 0 ? item.durationMinutes : 60;
+    const existingEnd = item.scheduledAt.getTime() + durationMinutes * 60_000;
+    return item.scheduledAt < endsAt && existingEnd > startsAt;
+  });
+  if (interviews.length || overlappingTests.length) {
+    const labels = [
+      ...interviews.slice(0, 3).map((item) => `${item.drive.company.name} · ${item.drive.title} · ${item.roundType} interview`),
+      ...overlappingTests.slice(0, 3).map((item) => `${item.drive.company.name} · ${item.title} assessment`),
+    ];
+    const omitted = interviews.length + overlappingTests.length - labels.length;
+    throw new AppError(
+      `Schedule conflict detected for one or more selected candidates: ${labels.join("; ")}${omitted > 0 ? `; and ${omitted} additional conflict(s)` : ""}. Change the time or refine the candidate cohort.`,
+      409,
+    );
+  }
+}
+
 async function enqueuePlacementEvent(
   tx: Prisma.TransactionClient,
   institutionId: string,
