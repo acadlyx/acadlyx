@@ -47,7 +47,7 @@ export default function PlacementReportsPage() {
         <section className="space-y-3">
           <h2 className="text-lg font-black text-slate-950">Placement data exports</h2>
           <p className="text-sm text-slate-600">Export canonical placement datasets using server-side authorization and institution scope. The metrics above remain live summary values; the exporter provides the detailed records.</p>
-          <DataExportActions type={["placement-companies", "placement-drives", "placement-openings", "placement-applications", "placement-offers"]} />
+          <DataExportActions type={["placement-companies", "placement-drives", "placement-openings", "placement-applications", "placement-offers", "placement-visits", "placement-tests", "placement-interviews"]} />
         </section>
       </div>
     </DashboardShell>
