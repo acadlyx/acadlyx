@@ -218,7 +218,7 @@ test("Chairman and Director examination operations are separate full-lifecycle w
     assert.ok(source.includes("Dismiss incident"));
   }
   assert.ok(chairmanOperations.includes('redirect("/chairman")'), "legacy Chairman operations URL redirects to its workspace");
-  assert.ok(directorOperations.includes('redirect("/director")'), "legacy Director operations URL redirects to its workspace");
+  assert.ok(directorOperations.includes('redirect("/director")') || (directorOperations.includes('router.replace("/director")') && directorOperations.includes("useEffect")), "legacy Director operations URL redirects to its workspace without losing the browser session");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/chairman/examinations/operations"'), "Chairman exam operations remain reachable from the sidebar");
   assert.ok(navigation.includes('href: "/director/examinations/operations"'), "Director exam operations remain reachable from the sidebar");
