@@ -273,9 +273,15 @@ export async function applyToOpportunity(
   }
 
   try {
-    const application = await prisma.application.create({
-      data: { institutionId, studentId: actor.id, opportunityId },
-      include: { opportunity: { select: { id: true, title: true, organization: true } } },
+    const application = await prisma.$transaction(async (tx) => {
+      const created = await tx.application.create({
+        data: { institutionId, studentId: actor.id, opportunityId },
+        include: { opportunity: { select: { id: true, title: true, organization: true } } },
+      });
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.application.created", {
+        applicationId: created.id,
+      });
+      return created;
     });
     await recordAuditLog({
       institutionId,
@@ -982,19 +988,25 @@ export async function applyToDrive(institutionId: string, actor: AuthenticatedUs
   }
 
   try {
-    const application = await prisma.application.create({
-    
-      data: {
-        institutionId,
-        studentId: actor.id,
-        opportunityId,
-        placementDriveId: drive.id,
-        placementOpeningId: drive.openingId,
-        status: "APPLICATION_SUBMITTED",
-      },
-      include: {
-        opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
-      },
+    const application = await prisma.$transaction(async (tx) => {
+      const created = await tx.application.create({
+        data: {
+          institutionId,
+          studentId: actor.id,
+          opportunityId,
+          placementDriveId: drive.id,
+          placementOpeningId: drive.openingId,
+          status: "APPLICATION_SUBMITTED",
+        },
+        include: {
+          opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
+        },
+      });
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.application.created", {
+        applicationId: created.id,
+        driveId: drive.id,
+      });
+      return created;
     });
     await recordAuditLog({
       institutionId,
