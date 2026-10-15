@@ -426,16 +426,20 @@ export async function transitionApplication(
           select: { testId: true },
         });
         const alreadyAssigned = new Set(existingParticipants.map((participant) => participant.testId));
-        await prisma.placementTestParticipant.createMany({
-          data: scheduledTests.map((test) => ({ testId: test.id, studentId: application.studentId })),
-          skipDuplicates: true,
-        });
-        await Promise.all(scheduledTests.filter((test) => !alreadyAssigned.has(test.id)).map((test) => notifyPlacementAudience({
-          institutionId, recipientIds: [application.studentId], eventType: "test", eventId: test.id,
-          version: "assigned", title: "Placement assessment assigned",
-          body: `${test.title} is scheduled for ${test.scheduledAt.toLocaleString()}.`,
-          actionUrl: "/student/placements",
-        })));
+        const toAssign = scheduledTests.filter((test) => !alreadyAssigned.has(test.id));
+        if (toAssign.length) {
+          await prisma.$transaction(async (tx) => {
+            await tx.placementTestParticipant.createMany({
+              data: toAssign.map((test) => ({ testId: test.id, studentId: application.studentId })),
+              skipDuplicates: true,
+            });
+            for (const test of toAssign) {
+              await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+                eventType: "test", eventId: test.id, version: "assigned", recipientIds: [application.studentId],
+              });
+            }
+          });
+        }
       }
     }
     if (driveId && next === "INTERVIEW") {
@@ -449,16 +453,20 @@ export async function transitionApplication(
           select: { interviewId: true },
         });
         const alreadyAssigned = new Set(existingParticipants.map((participant) => participant.interviewId));
-        await prisma.placementInterviewParticipant.createMany({
-          data: scheduledInterviews.map((interview) => ({ interviewId: interview.id, studentId: application.studentId })),
-          skipDuplicates: true,
-        });
-        await Promise.all(scheduledInterviews.filter((interview) => !alreadyAssigned.has(interview.id)).map((interview) => notifyPlacementAudience({
-          institutionId, recipientIds: [application.studentId], eventType: "interview", eventId: interview.id,
-          version: "assigned", title: "Placement interview assigned",
-          body: `${interview.roundType} interview is scheduled for ${interview.startsAt.toLocaleString()}.`,
-          actionUrl: "/student/placements",
-        })));
+        const toAssign = scheduledInterviews.filter((interview) => !alreadyAssigned.has(interview.id));
+        if (toAssign.length) {
+          await prisma.$transaction(async (tx) => {
+            await tx.placementInterviewParticipant.createMany({
+              data: toAssign.map((interview) => ({ interviewId: interview.id, studentId: application.studentId })),
+              skipDuplicates: true,
+            });
+            for (const interview of toAssign) {
+              await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+                eventType: "interview", eventId: interview.id, version: "assigned", recipientIds: [application.studentId],
+              });
+            }
+          });
+        }
       }
     }
   }
