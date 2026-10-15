@@ -1377,33 +1377,128 @@ export async function transitionPlacementOffer(institutionId: string, actor: Aut
   return updated;
 }
 
-export async function verifyPlacementJoining(institutionId: string, actor: AuthenticatedUser, offerId: string, input: { actualJoiningDate?: string; status: "VERIFIED"|"REJECTED"; proofUrl?: string; notes?: string }) {
+export async function verifyPlacementJoining(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  offerId: string,
+  input: { actualJoiningDate?: string; status: "VERIFIED" | "REJECTED"; proofUrl?: string; notes?: string },
+) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
-  const offer=await prisma.placementOffer.findFirst({where:{id:offerId,institutionId},select:{id:true,studentId:true,joiningDate:true}});
-  if(!offer) throw new AppError("Placement offer not found.",404);
-  const existingVerification = await prisma.placementJoiningVerification.findUnique({ where: { offerId }, select: { status: true } });
-  const verification=await prisma.placementJoiningVerification.upsert({
-    where:{offerId},
-    create:{institutionId,offerId,studentId:offer.studentId,expectedJoiningDate:offer.joiningDate,actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):null,status:input.status,proofUrl:input.proofUrl||null,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes||null},
-    update:{actualJoiningDate:input.actualJoiningDate?new Date(input.actualJoiningDate):undefined,status:input.status,proofUrl:input.proofUrl,verifiedById:actor.id,verifiedAt:new Date(),notes:input.notes},
+  const offer = await prisma.placementOffer.findFirst({
+    where: { id: offerId, institutionId },
+    select: {
+      id: true, studentId: true, companyId: true, joiningDate: true, applicationId: true,
+      status: true, joiningStatus: true, updatedAt: true,
+    },
   });
-  if(input.status==="VERIFIED") {
-    await prisma.placementOffer.update({where:{id:offerId},data:{status:"JOINED",joiningStatus:"VERIFIED",joiningVerifiedAt:new Date(),joiningVerifiedById:actor.id}});
-    const joinedOffer = await prisma.placementOffer.findUnique({ where: { id: offerId }, select: { companyId: true, totalCtc: true } });
-    if (joinedOffer && existingVerification?.status !== "VERIFIED") {
-      const aggregate = await prisma.placementOffer.aggregate({ where: { institutionId, companyId: joinedOffer.companyId, status: "JOINED" }, _avg: { totalCtc: true }, _max: { totalCtc: true } });
-      await prisma.placementCompanyHistory.upsert({
-        where: { institutionId_companyId: { institutionId, companyId: joinedOffer.companyId } },
-        create: { institutionId, companyId: joinedOffer.companyId, hiredCount: 1, averagePackage: aggregate._avg.totalCtc, highestPackage: aggregate._max.totalCtc, lastInteractionAt: new Date() },
-        update: { hiredCount: { increment: 1 }, averagePackage: aggregate._avg.totalCtc, highestPackage: aggregate._max.totalCtc, lastInteractionAt: new Date() },
+  if (!offer) throw new AppError("Placement offer not found.", 404);
+  await assertCanViewStudent(institutionId, actor, offer.studentId);
+  const actualJoiningDate = input.actualJoiningDate ? new Date(input.actualJoiningDate) : null;
+  if (actualJoiningDate && Number.isNaN(actualJoiningDate.getTime())) {
+    throw new AppError("The actual joining date is invalid.", 422);
+  }
+  if (input.status === "VERIFIED" && !["ACCEPTED", "JOINING_PENDING", "JOINED"].includes(offer.status)) {
+    throw new AppError("Only an accepted offer can have its joining verified.", 409);
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const previousVerification = await tx.placementJoiningVerification.findUnique({
+      where: { offerId }, select: { id: true, status: true },
+    });
+    if (previousVerification?.status === "VERIFIED" && input.status === "REJECTED") {
+      throw new AppError("A verified joining cannot be silently reversed. Preserve the verification and use the institution's correction process.", 409);
+    }
+    const verification = await tx.placementJoiningVerification.upsert({
+      where: { offerId },
+      create: {
+        institutionId, offerId, studentId: offer.studentId,
+        expectedJoiningDate: offer.joiningDate,
+        actualJoiningDate,
+        status: input.status,
+        proofUrl: input.proofUrl || null,
+        verifiedById: actor.id,
+        verifiedAt: new Date(),
+        notes: input.notes || null,
+      },
+      update: {
+        expectedJoiningDate: offer.joiningDate,
+        actualJoiningDate: actualJoiningDate === null ? undefined : actualJoiningDate,
+        status: input.status,
+        proofUrl: input.proofUrl === undefined ? undefined : input.proofUrl || null,
+        verifiedById: actor.id,
+        verifiedAt: new Date(),
+        notes: input.notes === undefined ? undefined : input.notes || null,
+      },
+    });
+
+    let joinedStatusChanged = false;
+    if (input.status === "VERIFIED" && offer.status !== "JOINED") {
+      const changed = await tx.placementOffer.updateMany({
+        where: { id: offerId, institutionId, status: offer.status, updatedAt: offer.updatedAt },
+        data: {
+          status: "JOINED",
+          joiningStatus: "VERIFIED",
+          joiningVerifiedAt: new Date(),
+          joiningVerifiedById: actor.id,
+        },
+      });
+      if (changed.count !== 1) {
+        throw new AppError("The offer changed while joining was being verified. Refresh and try again.", 409);
+      }
+      joinedStatusChanged = true;
+      if (offer.applicationId) {
+        const application = await tx.application.findFirst({
+          where: { id: offer.applicationId, institutionId },
+          select: { id: true, status: true },
+        });
+        if (application && APPLICATION_TRANSITIONS[application.status]?.includes("JOINED")) {
+          await tx.application.updateMany({
+            where: { id: application.id, institutionId, status: application.status },
+            data: { status: "JOINED" },
+          });
+        }
+      }
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.offer.status_changed", {
+        offerId, from: offer.status, to: "JOINED", studentId: offer.studentId,
+      });
+    } else if (input.status === "VERIFIED" && offer.status === "JOINED" && offer.joiningStatus !== "VERIFIED") {
+      const changed = await tx.placementOffer.updateMany({
+        where: { id: offerId, institutionId, status: "JOINED", updatedAt: offer.updatedAt },
+        data: { joiningStatus: "VERIFIED", joiningVerifiedAt: new Date(), joiningVerifiedById: actor.id },
+      });
+      if (changed.count !== 1) throw new AppError("The offer changed while joining was being verified. Refresh and try again.", 409);
+      joinedStatusChanged = true;
+    }
+
+    if (input.status === "VERIFIED" && previousVerification?.status !== "VERIFIED" && offer.status !== "JOINED") {
+      const aggregate = await tx.placementOffer.aggregate({
+        where: { institutionId, companyId: offer.companyId, status: "JOINED" },
+        _avg: { totalCtc: true }, _max: { totalCtc: true },
+      });
+      await tx.placementCompanyHistory.upsert({
+        where: { institutionId_companyId: { institutionId, companyId: offer.companyId } },
+        create: {
+          institutionId, companyId: offer.companyId, hiredCount: 1,
+          averagePackage: aggregate._avg.totalCtc, highestPackage: aggregate._max.totalCtc,
+          lastInteractionAt: new Date(),
+        },
+        update: {
+          hiredCount: { increment: 1 }, averagePackage: aggregate._avg.totalCtc,
+          highestPackage: aggregate._max.totalCtc, lastInteractionAt: new Date(),
+        },
       });
     }
-  }
-  await recordAuditLog({institutionId,userId:actor.id,action:"placements.joining.verified",entityType:"PlacementJoiningVerification",entityId:verification.id,metadata:{offerId,status:input.status}});
-  return verification;
-}
+    return { verification, joinedStatusChanged };
+  });
 
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.joining.verified",
+    entityType: "PlacementJoiningVerification", entityId: result.verification.id,
+    metadata: { offerId, status: input.status },
+  });
+  return result.verification;
+}
 
 export async function listPlacementInterviews(
   institutionId: string,
