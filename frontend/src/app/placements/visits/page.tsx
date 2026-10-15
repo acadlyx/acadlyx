@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Visit = { id: string; type: string; status: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
 type Company = { id: string; name: string };
@@ -22,6 +23,10 @@ export default function PlacementVisitsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +61,25 @@ export default function PlacementVisitsPage() {
   }, [router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const exportFilters = useMemo(() => ({
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
+  }), [search, statusFilter, dateFrom, dateTo]);
+
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesSearch = !q || [item.type, item.company.name, item.purpose || "", item.venue || "", item.status].some(v => v.toLowerCase().includes(q));
+      const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
+      const time = new Date(item.startsAt).getTime();
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
+      return matchesSearch && matchesStatus && (from === null || time >= from) && (to === null || time <= to);
+    });
+  }, [items, search, statusFilter, dateFrom, dateTo]);
 
   async function updateVisit(id: string, payload: { startsAt?: string; status?: "PUBLISHED" | "CANCELLED" }) {
     setBusy(true);
@@ -172,8 +196,17 @@ export default function PlacementVisitsPage() {
           </label>
           <button disabled={busy || loading || companies.length === 0} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Creating…" : "Create targeted event"}</button>
         </form>
-        <section className="grid gap-4 md:grid-cols-2">
-          {items.map((visit) => <article key={visit.id} className="rounded-2xl border bg-white p-5">
+        <section className="space-y-3">
+          <div className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-4">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">Search activities<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Activity, company, venue…" className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All statuses</option>{[...new Set(items.map(x => x.status))].sort().map(x => <option key={x}>{x}</option>)}</select></label>
+            <div className="flex items-end"><DataExportActions type="placement-visits" filters={exportFilters} compact /></div>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Starts from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Starts to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button><span className="ml-3 text-sm text-slate-600">{visibleItems.length} event(s)</span></div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+          {visibleItems.map((visit) => <article key={visit.id} className="rounded-2xl border bg-white p-5">
             <div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-black text-slate-950">{visit.company.name}</h2><p className="text-sm text-slate-600">{visit.type}{visit.drive ? ` · ${visit.drive.title}` : ""}</p></div><time className="text-xs font-bold text-slate-500">{new Date(visit.startsAt).toLocaleString("en-IN")}</time></div>
             {visit.endsAt && <p className="mt-2 text-xs text-slate-500">Ends {new Date(visit.endsAt).toLocaleString("en-IN")}</p>}
             {visit.venue && <p className="mt-3 text-sm">Venue: {visit.venue}</p>}
@@ -190,7 +223,8 @@ export default function PlacementVisitsPage() {
               {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this placement activity and notify its targeted students?")) void updateVisit(visit.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel activity</button>}
             </div>
           </article>)}
-          {!loading && items.length === 0 && <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2">No company visits or presentations recorded.</div>}
+          {!loading && visibleItems.length === 0 && <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2">No activities match the current filters.</div>}
+          </div>
         </section>
         <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">{loading ? "Refreshing…" : "Refresh events"}</button>
       </div>
