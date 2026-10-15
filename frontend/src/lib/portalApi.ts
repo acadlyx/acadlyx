@@ -159,6 +159,9 @@ export interface PortalNotification {
   title: string;
   body: string;
   readAt: string | null;
+  dismissedAt?: string | null;
+  actionUrl: string | null;
+  priority?: string;
   createdAt: string;
 }
 
