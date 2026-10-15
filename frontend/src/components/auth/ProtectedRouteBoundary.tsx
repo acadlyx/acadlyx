@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
   AuthRequiredError,
@@ -56,9 +56,8 @@ export function ProtectedRouteBoundary({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const route = searchParams.toString() ? pathname + "?" + searchParams.toString() : pathname;
+  const route = pathname;
   const [state, setState] = useState<AuthState>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [validatedPath, setValidatedPath] = useState<string | null>(null);
@@ -146,17 +145,24 @@ export function ProtectedRouteBoundary({
    */
   if (
     state === "checking" ||
-    validatedPath !== pathname
+    validatedPath !== pathname ||
+    state === "unauthenticated" ||
+    state === "unauthorized"
   ) {
-    return null;
-  }
-
-  if (state === "unauthenticated") {
-    return null;
-  }
-
-  if (state === "unauthorized") {
-    return null;
+    return (
+      <div role="status" aria-live="polite" className="min-h-[45vh] p-6 sm:p-8">
+        <div className="mx-auto max-w-7xl space-y-5">
+          <div className="h-8 w-56 animate-pulse rounded-xl bg-slate-200" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-28 animate-pulse rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+          <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+          <p className="text-sm font-medium text-slate-500">Checking your secure workspace…</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
