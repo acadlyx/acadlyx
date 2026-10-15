@@ -2743,6 +2743,7 @@ export async function previewPlacementCohortAudience(
   explicitStudentIds: string[] = [],
   driveId?: string,
   applicationStatuses: string[] = [],
+  candidateOnly = false,
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -2764,7 +2765,7 @@ export async function previewPlacementCohortAudience(
   if (driveId && applicationStatuses.length) {
     const drive = await prisma.placementDrive.findFirst({
       where: { id: driveId, institutionId },
-      select: { id: true, campusId: true, eligibleDepartments: true },
+      select: { id: true, campusId: true, eligibleDepartments: true, opportunityId: true },
     });
     if (!drive) throw new AppError("Placement drive not found in this institution.", 404);
     if (activeWorkspace(actor) === "DIRECTOR") {
@@ -2783,15 +2784,38 @@ export async function previewPlacementCohortAudience(
       }
     }
     const applications = await prisma.application.findMany({
-      where: { institutionId, placementDriveId: drive.id, status: { in: applicationStatuses } },
+      where: {
+        institutionId,
+        OR: [
+          { placementDriveId: drive.id },
+          ...(drive.opportunityId ? [{ opportunityId: drive.opportunityId }] : []),
+        ],
+        status: { in: applicationStatuses },
+      },
       select: { studentId: true },
       orderBy: { studentId: "asc" },
       take: 10000,
     });
-    applicationStudentIds = applications.map((application) => application.studentId);
+    applicationStudentIds = [...new Set(applications.map((application) => application.studentId))];
   }
 
-  const allIds = [...new Set([...cohortIds, ...explicitIds, ...applicationStudentIds])];
+  const targetedIds = [...new Set([...cohortIds, ...explicitIds])];
+  const applicationSet = new Set(applicationStudentIds);
+  let allIds: string[];
+  if (candidateOnly) {
+    if (!driveId || applicationStatuses.length === 0) {
+      throw new AppError("Drive and candidate stage filters are required for a candidate-only preview.", 422);
+    }
+    allIds = targetedIds.length
+      ? targetedIds.filter((studentId) => applicationSet.has(studentId))
+      : applicationStudentIds;
+  } else {
+    // A linked activity uses a cohort or individual audience when one was
+    // configured; only an otherwise-unscoped drive activity defaults to its
+    // actual applicants.
+    allIds = targetedIds.length ? targetedIds : applicationStudentIds;
+  }
+  allIds = [...new Set(allIds)];
   if (!allIds.length) return { matchingCount: 0, sample: [], truncated: false };
   const studentRows = await prisma.user.findMany({
     where: { institutionId, id: { in: allIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
