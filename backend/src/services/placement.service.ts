@@ -2736,7 +2736,7 @@ export async function getMyPlacementCalendar(institutionId: string, actor: Authe
 
   for (const drive of drives) {
     const hasApplied = applicationDriveIds.has(drive.id) || Boolean(drive.opportunityId && applicationOpportunityIds.has(drive.opportunityId));
-    if (!hasApplied && !["PUBLISHED", "APPLICATION_OPEN"].includes(drive.status)) continue;
+    if (!hasApplied && !["PUBLISHED", "APPLICATION_OPEN", "CANCELLED"].includes(drive.status)) continue;
     if (!hasApplied) {
       const eligibility = await checkDriveEligibility(institutionId, actor, drive.id);
       const reasons = eligibility.reasons.filter((reason) =>
