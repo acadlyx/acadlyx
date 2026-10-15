@@ -692,7 +692,7 @@ export async function placementProfile(institutionId: string, actor: Authenticat
   await assertCanViewStudent(institutionId, actor, target);
   const [profile, enrollment, skills, certifications, projects, resumes] = await Promise.all([
     prisma.placementProfile.findUnique({ where: { studentId: target } }),
-    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, include: { program: { include: { department: true } }, batch: true, semester: true } }),
+    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, include: { program: { include: { department: true } }, batch: true, semester: true, academicYear: true, section: true } }),
     prisma.studentSkill.findMany({ where: { institutionId, studentId: target }, include: { skill: true }, orderBy: { updatedAt: "desc" } }),
     prisma.placementCertification.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
     prisma.placementProject.findMany({ where: { institutionId, studentId: target }, orderBy: { createdAt: "desc" } }),
