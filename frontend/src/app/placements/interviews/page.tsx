@@ -11,6 +11,12 @@ type Interview = { id: string; roundNumber: number; roundType: string; startsAt:
 type Drive = { id: string; title: string; status: string; company: { name: string } };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
+type AudiencePreview = { matchingCount: number; sample: Array<{ id: string; firstName: string; lastName: string }>; truncated: boolean };
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 export default function PlacementInterviewsPage() {
   const router = useRouter();
@@ -21,6 +27,10 @@ export default function PlacementInterviewsPage() {
   const [departments, setDepartments] = useState<ScopeOption[]>([]);
   const [programs, setPrograms] = useState<ScopeOption[]>([]);
   const [batches, setBatches] = useState<ScopeOption[]>([]);
+  const [semesters, setSemesters] = useState<ScopeOption[]>([]);
+  const [sections, setSections] = useState<ScopeOption[]>([]);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
+  const [previewingAudience, setPreviewingAudience] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -39,16 +49,20 @@ export default function PlacementInterviewsPage() {
       setItems(interviews.data || []);
       setDrives(driveList.data || []);
       setStudents(studentList.data || []);
-      const [c, d, p, b] = await Promise.allSettled([
+      const [c, d, p, b, semesterResult, sectionResult] = await Promise.allSettled([
         authedFetch<{ data: ScopeOption[] }>("/campuses"),
         authedFetch<{ data: ScopeOption[] }>("/departments"),
         authedFetch<{ data: ScopeOption[] }>("/programs"),
         authedFetch<{ data: ScopeOption[] }>("/batches"),
+        authedFetch<{ data: ScopeOption[] }>("/semesters"),
+        authedFetch<{ data: ScopeOption[] }>("/sections"),
       ]);
       if (c.status === "fulfilled") setCampuses(c.value.data || []);
       if (d.status === "fulfilled") setDepartments(d.value.data || []);
       if (p.status === "fulfilled") setPrograms(p.value.data || []);
       if (b.status === "fulfilled") setBatches(b.value.data || []);
+      if (semesterResult.status === "fulfilled") setSemesters(semesterResult.value.data || []);
+      if (sectionResult.status === "fulfilled") setSections(sectionResult.value.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load interviews.");
@@ -88,10 +102,43 @@ export default function PlacementInterviewsPage() {
     } finally { setBusy(false); }
   }
 
+  async function previewAudience(formElement: HTMLFormElement | null) {
+    if (!formElement) return;
+    const form = new FormData(formElement);
+    const targeting = {
+      campusIds: form.getAll("campusIds").filter((value): value is string => typeof value === "string"),
+      departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
+      programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
+      batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+      semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+      sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
+      graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
+    };
+    const studentIds = form.getAll("studentIds").filter((value): value is string => typeof value === "string");
+    setPreviewingAudience(true);
+    setAudiencePreview(null);
+    setError("");
+    try {
+      const response = await authedFetch<{ data: AudiencePreview }>("/placements/audience/preview", {
+        method: "POST",
+        body: JSON.stringify({ targeting, studentIds, driveId: form.get("driveId"), applicationStatuses: ["INTERVIEW"] }),
+      });
+      setAudiencePreview(response.data);
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to preview interview candidates.");
+    } finally { setPreviewingAudience(false); }
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const schedulingStatus = String(form.get("status") || "SCHEDULED");
+    if (schedulingStatus === "SCHEDULED" && (!audiencePreview || audiencePreview.matchingCount === 0)) {
+      setError("Preview at least one intended candidate before scheduling this interview round.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -113,6 +160,8 @@ export default function PlacementInterviewsPage() {
             departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
             programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
             batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+            semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+            sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
             graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
           },
         }),
@@ -129,7 +178,7 @@ export default function PlacementInterviewsPage() {
     <DashboardShell title="Placement Interviews" subtitle="Schedule interview rounds, target institutional cohorts, manage timing and track student outcomes." allowedRoles={["PLACEMENT"]}>
       <div className="mx-auto max-w-6xl space-y-6">
         {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-        <form onSubmit={create} className="grid gap-3 rounded-3xl border bg-white p-6 md:grid-cols-2">
+        <form onSubmit={create} onChange={() => setAudiencePreview(null)} className="grid gap-3 rounded-3xl border bg-white p-6 md:grid-cols-2">
           <h2 className="text-lg font-black text-slate-950 md:col-span-2">Schedule interview round</h2>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Placement drive
             <select name="driveId" required className="rounded-xl border px-4 py-3"><option value="">Select drive</option>{drives.filter(d => !["DRAFT", "CANCELLED", "CLOSED"].includes(d.status)).map(d => <option key={d.id} value={d.id}>{d.title} · {d.company.name}</option>)}</select>
@@ -166,12 +215,19 @@ export default function PlacementInterviewsPage() {
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Department<select name="departmentIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{departments.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Programme<select name="programIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{programs.map(x => <option key={x.id} value={x.id}>{x.name}{x.code ? ` · ${x.code}` : ""}</option>)}</select></label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Batch<select name="batchIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{batches.map(x => <option key={x.id} value={x.id}>{x.name}{x.completionYear ? ` · graduates ${x.completionYear}` : ""}</option>)}</select></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Semester<select name="semesterIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{semesters.map(x => <option key={x.id} value={x.id}>{x.name}{x.code ? ` · ${x.code}` : ""}</option>)}</select></label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Section<select name="sectionIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{sections.map(x => <option key={x.id} value={x.id}>{x.name}{x.code ? ` · ${x.code}` : ""}</option>)}</select></label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Graduating year(s)<input name="graduatingYears" inputMode="numeric" placeholder="2027, 2028" className="rounded-xl border bg-white px-3 py-3 font-normal" /></label>
             </div>
           </fieldset>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Also target individual students (optional)
             <select name="studentIds" multiple size={4} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{students.map(s => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}{s.idNumber ? ` · ${s.idNumber}` : ""}</option>)}</select>
           </label>
+          <div className="flex flex-wrap items-center gap-3 md:col-span-2">
+            <button type="button" disabled={busy || previewingAudience} onClick={(event) => void previewAudience(event.currentTarget.form)} className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{previewingAudience ? "Counting candidates…" : "Preview candidates"}</button>
+            {audiencePreview && <span className="text-sm font-bold text-slate-800">{audiencePreview.matchingCount.toLocaleString("en-IN")} candidate(s){audiencePreview.truncated ? " · preview capped at 10,000" : ""}</span>}
+          </div>
+          {audiencePreview && <p className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-700 md:col-span-2">Sample: {audiencePreview.sample.map((student) => student.firstName + " " + student.lastName).join(", ") || "No matching candidates"}{audiencePreview.matchingCount > audiencePreview.sample.length ? "…" : ""}</p>}
           <button disabled={busy} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Scheduling…" : "Schedule interview round"}</button>
         </form>
         <section className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-4">
@@ -189,7 +245,7 @@ export default function PlacementInterviewsPage() {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{i.participants.map((p, index) => <div key={p.student.firstName + p.student.lastName + index} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-bold">{p.student.firstName} {p.student.lastName}</p><p className="text-xs text-slate-500">{p.attendanceStatus} · {p.resultStatus}</p></div>)}</div>
           <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
             <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); const value = new FormData(e.currentTarget).get("startsAt"); if (typeof value === "string" && value) void updateInterview(i.id, { startsAt: new Date(value).toISOString() }); }}>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule<input name="startsAt" type="datetime-local" required defaultValue={new Date(i.startsAt).toISOString().slice(0, 16)} disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" /></label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule<input name="startsAt" type="datetime-local" required defaultValue={toDateTimeLocal(i.startsAt)} disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" /></label>
               <button type="submit" disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
             </form>
             {i.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateInterview(i.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish interview</button>}
