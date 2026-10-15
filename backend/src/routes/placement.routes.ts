@@ -197,6 +197,12 @@ router.post("/openings", authorize("placements.manage"), asyncHandler(async (req
   const item=await placement.createPlacementOpening(requireInstitution(req),requireAuthenticatedUser(req),openingCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
 }));
+router.patch("/openings/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = openingCreate.partial().extend({ deadline: z.string().datetime().nullable().optional() }).parse(req.body);
+  const item = await placement.updatePlacementOpening(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
+}));
 router.get("/companies", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementCompanies(requireInstitution(req),actor,typeof req.query.search==="string"?req.query.search:undefined);
