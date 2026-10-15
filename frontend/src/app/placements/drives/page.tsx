@@ -245,7 +245,10 @@ export default function PlacementDrivesPage() {
               </div>
               <p className="mt-3 text-xs text-slate-500">{drive.applicationDeadline ? "Deadline " + new Date(drive.applicationDeadline).toLocaleString("en-IN") : "No deadline set"}{drive.driveDate ? " · Drive " + new Date(drive.driveDate).toLocaleString("en-IN") : ""}</p>
               {(drive.eligiblePrograms?.length || drive.eligibleDepartments?.length || drive.eligibleBatches?.length || drive.eligibleSemesters?.length) ? <p className="mt-2 text-xs text-slate-600">Academic cohort restrictions are configured for this drive.</p> : <p className="mt-2 text-xs text-slate-500">No programme, department, batch or semester restriction.</p>}
-              {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="mt-4 min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : "Advance to " + next.replaceAll("_", " ")}</button>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => router.push("/placements/drives/" + drive.id + "/eligibility")} className="min-h-10 rounded-xl border px-4 py-2 text-sm font-bold">Review student eligibility</button>
+                {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : "Advance to " + next.replaceAll("_", " ")}</button>}
+              </div>
             </article>;
           })}
           {!visibleDrives.length && <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No drives match the current filters.</p>}
