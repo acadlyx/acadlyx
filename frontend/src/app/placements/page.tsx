@@ -31,6 +31,7 @@ export default function PlacementTeamWorkspace(){
     ["/placements/visits","Company Visits","Campus visits, recruiter meetings and pre-placement talks"],
     ["/placements/calendar","Placement Calendar","Unified dates for drives, interviews, assessments and company visits"],
     ["/placements/students","Placement Students","Readiness, eligibility and placement status for authorized students"],
+    ["/placements/applications","Applications Pipeline","Search applicants, manage stage transitions and export filtered records"],
     ["/placements/interviews","Interviews","Rounds, schedules, attendance and outcomes"],
     ["/placements/tests","Tests & Assessments","Company tests, attendance and assessment results"],
     ["/placements/offers","Offers & Joining","Offer acceptance, joining dates and verification"],
