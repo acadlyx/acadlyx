@@ -2098,32 +2098,72 @@ export async function updatePlacementTest(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const existing = await prisma.placementTest.findFirst({
     where: { id, institutionId },
-    select: { id: true, status: true, scheduledAt: true, title: true, participants: { select: { studentId: true } } },
+    select: {
+      id: true, status: true, scheduledAt: true, title: true, testLink: true, instructions: true,
+      participants: { select: { studentId: true } },
+      drive: { select: { campusId: true, eligibleDepartments: true } },
+    },
   });
   if (!existing) throw new AppError("Placement assessment not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled assessments cannot be changed.", 409);
   if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled assessment cannot be returned to draft.", 409);
-  const updated = await prisma.placementTest.update({
-    where: { id },
-    data: {
-      ...(input.scheduledAt ? { scheduledAt: new Date(input.scheduledAt) } : {}),
-      ...(input.testLink !== undefined ? { testLink: input.testLink?.trim() || null } : {}),
-      ...(input.instructions !== undefined ? { instructions: input.instructions?.trim() || null } : {}),
-      ...(input.status ? { status: input.status } : {}),
-    },
-  });
-  const recipients = existing.participants.map((participant) => participant.studentId);
-  if (input.status === "CANCELLED" && existing.status === "SCHEDULED") {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "cancelled", title: "Placement assessment cancelled", body: `${existing.title} has been cancelled.`, actionUrl: "/student/placements" });
-  } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: "published", title: "Placement assessment published", body: `${existing.title} is scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
-  } else if (existing.status === "SCHEDULED" && input.scheduledAt) {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "test", eventId: id, version: `rescheduled:${updated.scheduledAt.toISOString()}`, title: "Placement assessment rescheduled", body: `${existing.title} is now scheduled for ${updated.scheduledAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!existing.drive.campusId || !campusIds.includes(existing.drive.campusId)) {
+      throw new AppError("Placement assessment not found in the director's authorised campus scope.", 404);
+    }
   }
-  await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.test.cancelled" : "placements.test.updated", entityType: "PlacementTest", entityId: id, metadata: { status: updated.status, scheduledAt: updated.scheduledAt.toISOString() } });
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(existing.drive.eligibleDepartments)
+      ? existing.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((departmentId) => departmentIds.includes(departmentId))) {
+      throw new AppError("Placement assessment not found in the authorised department scope.", 404);
+    }
+  }
+  const nextScheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : existing.scheduledAt;
+  if (Number.isNaN(nextScheduledAt.getTime())) throw new AppError("Assessment time is invalid.", 422);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementTest.updateMany({
+      where: { id, institutionId, status: existing.status, scheduledAt: existing.scheduledAt },
+      data: {
+        ...(input.scheduledAt ? { scheduledAt: nextScheduledAt } : {}),
+        ...(input.testLink !== undefined ? { testLink: input.testLink?.trim() || null } : {}),
+        ...(input.instructions !== undefined ? { instructions: input.instructions?.trim() || null } : {}),
+        ...(input.status ? { status: input.status } : {}),
+      },
+    });
+    if (changed.count !== 1) throw new AppError("This assessment was updated by another user. Refresh and try again.", 409);
+    const row = await tx.placementTest.findFirst({ where: { id, institutionId } });
+    if (!row) throw new AppError("Placement assessment not found.", 404);
+    const recipientIds = existing.participants.map((participant) => participant.studentId);
+    let version: string | null = null;
+    if (existing.status === "SCHEDULED" && input.status === "CANCELLED") {
+      version = "cancelled";
+    } else if (existing.status === "DRAFT" && row.status === "SCHEDULED") {
+      version = "published";
+    } else if (existing.status === "SCHEDULED" && row.status === "SCHEDULED") {
+      const moved = nextScheduledAt.getTime() !== existing.scheduledAt.getTime();
+      const detailsChanged = moved || input.testLink !== undefined || input.instructions !== undefined;
+      if (detailsChanged) version = moved ? `rescheduled:${row.scheduledAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
+    }
+    if (version && recipientIds.length) {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "test", eventId: id, version, recipientIds,
+      });
+    }
+    return row;
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id,
+    action: input.status === "CANCELLED" ? "placements.test.cancelled" : "placements.test.updated",
+    entityType: "PlacementTest", entityId: id,
+    metadata: { status: updated.status, scheduledAt: updated.scheduledAt.toISOString() },
+  });
   return updated;
 }
-
 
 /** Private placement schedule projection for the authenticated student.
  * These events intentionally stay in the placement domain because the
