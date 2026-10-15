@@ -83,7 +83,8 @@ test(
         where: { id: event.id },
         select: { processedAt: true, attempts: true, lastError: true },
       });
-      assert.ok(persistedEvent?.processedAt, persistedEvent?.lastError ?? "Placement event was not marked processed.");
+      assert.ok(persistedEvent, "Placement outbox row disappeared.");
+      assert.ok(persistedEvent.processedAt, persistedEvent.lastError ?? "Placement event was not marked processed.");
       assert.equal(persistedEvent.attempts, 1);
 
       const dedupeKey = `placement:application:${application.id}:submitted:${student.id}`;
@@ -97,12 +98,24 @@ test(
       assert.equal(notifications[0].actionUrl, "/student/placements");
       assert.equal(notifications[0].readAt, null);
 
-      // Re-draining a processed event must not re-run its side effects.
-      await drainDomainEventOutbox(100);
-      const afterRetry = await prisma.notification.count({
+      // Re-queue the same persisted event to model retry after notification
+      // insertion but before an outbox acknowledgement. The unique dedupe key
+      // must keep the persistent in-app notification count at one.
+      await prisma.domainEventOutbox.update({
+        where: { id: event.id },
+        data: { processedAt: null, attempts: 0, lastError: null, nextAttemptAt: null },
+      });
+      await drainDomainEventOutbox(1);
+      const afterReplay = await prisma.notification.count({
         where: { institutionId: institution.id, userId: student.id, dedupeKey },
       });
-      assert.equal(afterRetry, 1);
+      const replayedEvent = await prisma.domainEventOutbox.findUnique({
+        where: { id: event.id },
+        select: { processedAt: true, attempts: true, lastError: true },
+      });
+      assert.equal(afterReplay, 1);
+      assert.ok(replayedEvent?.processedAt, replayedEvent?.lastError ?? "Replayed event was not acknowledged.");
+      assert.equal(replayedEvent.attempts, 1);
     } finally {
       if (eventId) {
         await prisma.domainEventOutbox.deleteMany({ where: { id: eventId } });
