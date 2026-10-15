@@ -76,7 +76,7 @@ export default function PlacementInterviewsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
-  async function updateInterview(id: string, payload: { startsAt?: string; status?: "CANCELLED" }) {
+  async function updateInterview(id: string, payload: { startsAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
     try {
@@ -101,6 +101,7 @@ export default function PlacementInterviewsPage() {
           driveId: form.get("driveId"),
           roundNumber: Number(form.get("roundNumber")),
           roundType: String(form.get("roundType") || "").trim(),
+          status: String(form.get("status") || "SCHEDULED"),
           startsAt: new Date(String(form.get("startsAt"))).toISOString(),
           endsAt: form.get("endsAt") ? new Date(String(form.get("endsAt"))).toISOString() : undefined,
           venue: String(form.get("venue") || "").trim() || undefined,
@@ -141,6 +142,9 @@ export default function PlacementInterviewsPage() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Start date and time
             <input name="startsAt" type="datetime-local" required className="rounded-xl border px-4 py-3" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Publication
+            <select name="status" className="rounded-xl border bg-white px-4 py-3"><option value="SCHEDULED">Schedule and notify assigned students</option><option value="DRAFT">Save as draft without notifying students</option></select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">End date and time
             <input name="endsAt" type="datetime-local" className="rounded-xl border px-4 py-3" />
@@ -188,6 +192,7 @@ export default function PlacementInterviewsPage() {
               <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule<input name="startsAt" type="datetime-local" required defaultValue={new Date(i.startsAt).toISOString().slice(0, 16)} disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" /></label>
               <button type="submit" disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
             </form>
+            {i.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateInterview(i.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish interview</button>}
             {i.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this interview and notify assigned students?")) void updateInterview(i.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel interview</button>}
           </div>
         </article>)}
