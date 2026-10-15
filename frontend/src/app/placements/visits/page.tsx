@@ -10,6 +10,7 @@ type Visit = { id: string; type: string; status: string; startsAt: string; endsA
 type Company = { id: string; name: string };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number; program?: { name: string } };
+type AudiencePreview = { matchingCount: number; sample: Array<{ id: string; firstName: string; lastName: string }>; truncated: boolean };
 
 export default function PlacementVisitsPage() {
   const router = useRouter();
@@ -20,6 +21,10 @@ export default function PlacementVisitsPage() {
   const [departments, setDepartments] = useState<ScopeOption[]>([]);
   const [programs, setPrograms] = useState<ScopeOption[]>([]);
   const [batches, setBatches] = useState<ScopeOption[]>([]);
+  const [semesters, setSemesters] = useState<ScopeOption[]>([]);
+  const [sections, setSections] = useState<ScopeOption[]>([]);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
+  const [previewingAudience, setPreviewingAudience] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -42,16 +47,20 @@ export default function PlacementVisitsPage() {
       setStudents(studentsResponse.data || []);
       // Scope dictionaries are optional for older institutional configurations;
       // their failure must not prevent staff from using explicit targeting.
-      const [campusResult, departmentResult, programResult, batchResult] = await Promise.allSettled([
+      const [campusResult, departmentResult, programResult, batchResult, semesterResult, sectionResult] = await Promise.allSettled([
         authedFetch<{ data: ScopeOption[] }>("/campuses"),
         authedFetch<{ data: ScopeOption[] }>("/departments"),
         authedFetch<{ data: ScopeOption[] }>("/programs"),
         authedFetch<{ data: ScopeOption[] }>("/batches"),
+        authedFetch<{ data: ScopeOption[] }>("/semesters"),
+        authedFetch<{ data: ScopeOption[] }>("/sections"),
       ]);
       if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
       if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
       if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
       if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
+      if (semesterResult.status === "fulfilled") setSemesters(semesterResult.value.data || []);
+      if (sectionResult.status === "fulfilled") setSections(sectionResult.value.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load company visits.");
@@ -111,10 +120,44 @@ export default function PlacementVisitsPage() {
     }
   }
 
+  async function previewAudience(formElement: HTMLFormElement | null) {
+    if (!formElement) return;
+    const form = new FormData(formElement);
+    const targeting = {
+      campusIds: form.getAll("campusIds").filter((value): value is string => typeof value === "string"),
+      departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
+      programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
+      batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+      semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+      sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
+      graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
+    };
+    const studentIds = form.getAll("studentIds").filter((value): value is string => typeof value === "string");
+    setPreviewingAudience(true);
+    setAudiencePreview(null);
+    setError("");
+    try {
+      const response = await authedFetch<{ data: AudiencePreview }>("/placements/audience/preview", {
+        method: "POST", body: JSON.stringify({ targeting, studentIds }),
+      });
+      setAudiencePreview(response.data);
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to preview this placement audience.");
+    } finally {
+      setPreviewingAudience(false);
+    }
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const publicationStatus = String(form.get("status") || "PUBLISHED");
+    if (publicationStatus === "PUBLISHED" && (!audiencePreview || audiencePreview.matchingCount === 0)) {
+      setError("Preview an audience with at least one matching student before publishing this activity.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -136,6 +179,8 @@ export default function PlacementVisitsPage() {
             departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
             programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
             batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+            semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+            sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
             graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
           },
         }),
@@ -154,7 +199,7 @@ export default function PlacementVisitsPage() {
     <DashboardShell title="Company Visits & Presentations" subtitle="Schedule pre-placement talks, recruiter meetings, campus visits and targeted student events." allowedRoles={["PLACEMENT"]}>
       <div className="mx-auto max-w-7xl space-y-6">
         {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-        <form onSubmit={create} className="grid gap-4 rounded-3xl border bg-white p-6 md:grid-cols-2">
+        <form onSubmit={create} onChange={() => setAudiencePreview(null)} className="grid gap-4 rounded-3xl border bg-white p-6 md:grid-cols-2">
           <h2 className="text-lg font-black text-slate-950 md:col-span-2">Create a placement event</h2>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Company
             <select name="companyId" required className="rounded-xl border bg-white px-3 py-3"><option value="">Select company</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
@@ -193,11 +238,27 @@ export default function PlacementVisitsPage() {
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Batch
                 <select name="batchIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{batches.map((item) => <option key={item.id} value={item.id}>{item.name}{item.completionYear ? ` · graduates ${item.completionYear}` : ""}</option>)}</select>
               </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Semester
+                <select name="semesterIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Section
+                <select name="sectionIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{sections.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Graduating year(s)
                 <input name="graduatingYears" inputMode="numeric" placeholder="2027, 2028" className="rounded-xl border bg-white px-3 py-3 font-normal" />
               </label>
             </div>
           </fieldset>
+          <div className="flex flex-wrap items-center gap-3 md:col-span-2">
+            <button type="button" disabled={busy || previewingAudience} onClick={(event) => void previewAudience(event.currentTarget.form)} className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{previewingAudience ? "Counting audience…" : "Preview audience"}</button>
+            {audiencePreview && <span className="text-sm font-bold text-slate-800">{audiencePreview.matchingCount.toLocaleString("en-IN")} matching student(s){audiencePreview.truncated ? " · preview capped at 10,000" : ""}</span>}
+          </div>
+          {audiencePreview && <div className="rounded-xl border bg-slate-50 p-3 text-sm md:col-span-2">
+            <p className="font-bold text-slate-900">Audience preview</p>
+            <p className="mt-1 text-xs text-slate-600">Cohort filters and individual selections are combined. Published activities keep existing recipients in history when the audience is expanded.</p>
+            {audiencePreview.sample.length > 0 && <p className="mt-2 text-xs text-slate-700">Sample: {audiencePreview.sample.map((student) => student.firstName + " " + student.lastName).join(", ")}{audiencePreview.matchingCount > audiencePreview.sample.length ? "…" : ""}</p>}
+            {audiencePreview.matchingCount === 0 && <p className="mt-2 text-xs font-semibold text-amber-800">No students match these criteria. Choose a cohort or students before publishing.</p>}
+          </div>}
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Also target individual students (optional)
             <select name="studentIds" multiple size={5} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">
               {students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}{student.idNumber ? ` · ${student.idNumber}` : ""}</option>)}
