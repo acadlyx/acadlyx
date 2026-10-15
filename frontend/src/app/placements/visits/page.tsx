@@ -6,7 +6,13 @@ import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 
-type Visit = { id: string; type: string; status: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
+type Visit = { id: string; type: string; status: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; participatingStudentIds?: string[] | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
+
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 type Company = { id: string; name: string };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number; program?: { name: string } };
@@ -30,6 +36,8 @@ export default function PlacementVisitsPage() {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [editingAudienceVisitId, setEditingAudienceVisitId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -90,7 +98,7 @@ export default function PlacementVisitsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
-  async function updateVisit(id: string, payload: { startsAt?: string; status?: "PUBLISHED" | "CANCELLED" }) {
+  async function updateVisit(id: string, payload: { type?: string; startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED"; participatingStudentIds?: string[]; targeting?: { campusIds?: string[]; departmentIds?: string[]; programIds?: string[]; batchIds?: string[]; semesterIds?: string[]; sectionIds?: string[]; graduatingYears?: number[] } }) {
     setBusy(true);
     setError("");
     try {
@@ -102,6 +110,53 @@ export default function PlacementVisitsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveDetails(event: FormEvent<HTMLFormElement>, visit: Visit) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const startsAt = String(form.get("startsAt") || "");
+    const endsAt = String(form.get("endsAt") || "");
+    if (!startsAt) { setError("An activity start time is required."); return; }
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/visits/${visit.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          type: String(form.get("type") || "").trim(),
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+          venue: String(form.get("venue") || "").trim() || null,
+          purpose: String(form.get("purpose") || "").trim() || null,
+        }),
+      });
+      setEditingVisitId(null);
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to save activity changes.");
+    } finally { setBusy(false); }
+  }
+
+  async function saveAudience(event: FormEvent<HTMLFormElement>, visit: Visit) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const studentIds = form.getAll("studentIds").filter((value): value is string => typeof value === "string");
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/visits/${visit.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ participatingStudentIds: studentIds }),
+      });
+      setEditingAudienceVisitId(null);
+      setAudiencePreview(null);
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to update the activity audience.");
+    } finally { setBusy(false); }
   }
 
   async function deleteDraft(visit: Visit) {
@@ -288,14 +343,29 @@ export default function PlacementVisitsPage() {
             {visit.endsAt && <p className="mt-2 text-xs text-slate-500">Ends {new Date(visit.endsAt).toLocaleString("en-IN")}</p>}
             {visit.venue && <p className="mt-3 text-sm">Venue: {visit.venue}</p>}
             {visit.purpose && <p className="mt-1 text-sm text-slate-600">{visit.purpose}</p>}
+              {editingVisitId === visit.id && visit.status !== "CANCELLED" && <form onSubmit={(event) => void saveDetails(event, visit)} className="mt-4 grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Activity title/type<input name="type" required minLength={2} maxLength={80} defaultValue={visit.type} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Start<input name="startsAt" type="datetime-local" required defaultValue={toDateTimeLocal(visit.startsAt)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">End<input name="endsAt" type="datetime-local" defaultValue={toDateTimeLocal(visit.endsAt)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Venue / meeting details<input name="venue" maxLength={300} defaultValue={visit.venue || ""} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600 sm:col-span-2">Purpose / student instructions<textarea name="purpose" maxLength={1000} defaultValue={visit.purpose || ""} rows={2} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal" /></label>
+                <button type="submit" disabled={busy} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50 sm:col-span-2">{busy ? "Saving…" : "Save activity changes"}</button>
+              </form>}
+              {editingAudienceVisitId === visit.id && visit.status !== "CANCELLED" && <form onSubmit={(event) => void saveAudience(event, visit)} className="mt-3 grid gap-2 rounded-xl border bg-slate-50 p-4">
+                <p className="text-xs text-slate-600">{visit.status === "DRAFT" ? "For drafts, this replaces the current saved student audience." : "Published audience changes only add students; existing recipients are preserved for history and schedule updates."}</p>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Student audience<select name="studentIds" multiple size={5} defaultValue={visit.participatingStudentIds || []} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal">{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}{student.idNumber ? ` · ${student.idNumber}` : ""}</option>)}</select></label>
+                <button type="submit" disabled={busy} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save audience"}</button>
+              </form>}
             <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
               <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("startsAt"); if (typeof value === "string" && value) void updateVisit(visit.id, { startsAt: new Date(value).toISOString() }); }}>
                 <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule
-                  <input name="startsAt" type="datetime-local" required defaultValue={new Date(visit.startsAt).toISOString().slice(0, 16)} disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
+                  <input name="startsAt" type="datetime-local" required defaultValue={toDateTimeLocal(visit.startsAt)} disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
                 </label>
                 <button type="submit" disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
               <span className="text-xs font-bold text-slate-500">Status: {visit.status}</span>
+              {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => setEditingVisitId(editingVisitId === visit.id ? null : visit.id)} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">{editingVisitId === visit.id ? "Close details editor" : "Edit details"}</button>}
+              {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => setEditingAudienceVisitId(editingAudienceVisitId === visit.id ? null : visit.id)} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">{editingAudienceVisitId === visit.id ? "Close audience editor" : "Edit audience"}</button>}
               {visit.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateVisit(visit.id, { status: "PUBLISHED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish activity</button>}
               {visit.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void deleteDraft(visit)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete draft</button>}
               {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this placement activity and notify its targeted students?")) void updateVisit(visit.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel activity</button>}
