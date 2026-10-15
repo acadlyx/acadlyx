@@ -62,6 +62,10 @@ const placementCohortTargeting = z.object({
   sectionIds: z.array(z.string().uuid()).max(500).optional(),
   graduatingYears: z.array(z.number().int().min(2000).max(2200)).max(30).optional(),
 });
+const audiencePreview = z.object({
+  targeting: placementCohortTargeting.optional(),
+  studentIds: z.array(z.string().uuid()).max(10000).optional(),
+});
 const interviewCreate = z.object({
   driveId: z.string().uuid(),
   roundNumber: z.number().int().min(1).max(50),
@@ -249,6 +253,13 @@ router.get("/criteria-options", authorize("placements.read"), asyncHandler(async
   res.json({ success: true, data });
 }));
 
+router.post("/audience/preview", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const body = audiencePreview.parse(req.body);
+  const data = await placement.previewPlacementCohortAudience(
+    requireInstitution(req), requireAuthenticatedUser(req), body.targeting, body.studentIds,
+  );
+  res.json({ success: true, data });
+}));
 router.get("/my-calendar", authorize("placements.read"), asyncHandler(async (req,res) => {
   const data = await placement.getMyPlacementCalendar(requireInstitution(req), requireAuthenticatedUser(req));
   res.json({ success: true, data });
