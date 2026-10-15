@@ -134,6 +134,82 @@ async function handlePlacementEvent(event: DomainEvent) {
   const payload = event.payload as JsonObject;
   const institutionId = event.institutionId;
 
+  if (event.name === "placement.schedule.changed") {
+    const eventType = stringField(payload, "eventType");
+    const eventId = stringField(payload, "eventId");
+    const version = stringField(payload, "version");
+    const requestedRecipients = stringArray(payload.recipientIds);
+    if (!eventType || !eventId || !version || !["interview", "test", "visit"].includes(eventType)) return;
+
+    let label = "Placement activity";
+    let companyName = "your placement team";
+    let startsAt: Date | null = null;
+    let eventTitle = "Placement activity";
+    if (eventType === "interview") {
+      const item = await prisma.placementInterview.findFirst({
+        where: { id: eventId, institutionId },
+        select: { roundType: true, roundNumber: true, startsAt: true, drive: { select: { title: true, company: { select: { name: true } } } } },
+      });
+      if (!item) return;
+      label = "Placement interview";
+      companyName = item.drive.company.name;
+      eventTitle = `${item.roundType} interview · ${item.drive.title} · Round ${item.roundNumber}`;
+      startsAt = item.startsAt;
+    } else if (eventType === "test") {
+      const item = await prisma.placementTest.findFirst({
+        where: { id: eventId, institutionId },
+        select: { title: true, scheduledAt: true, drive: { select: { title: true, company: { select: { name: true } } } } },
+      });
+      if (!item) return;
+      label = "Placement assessment";
+      companyName = item.drive.company.name;
+      eventTitle = item.title || item.drive.title;
+      startsAt = item.scheduledAt;
+    } else {
+      const item = await prisma.placementVisit.findFirst({
+        where: { id: eventId, institutionId },
+        select: { type: true, startsAt: true, company: { select: { name: true } } },
+      });
+      if (!item) return;
+      label = "Placement activity";
+      companyName = item.company.name;
+      eventTitle = item.type;
+      startsAt = item.startsAt;
+    }
+
+    const verifiedRecipients = requestedRecipients.length
+      ? await prisma.user.findMany({
+          where: {
+            institutionId,
+            id: { in: [...new Set(requestedRecipients)] },
+            userRoles: { some: { role: { name: "STUDENT" } } },
+          },
+          select: { id: true },
+          take: 10000,
+        })
+      : [];
+    const recipientIds = verifiedRecipients.map((item) => item.id);
+    const cancelled = version === "cancelled";
+    const published = version === "published";
+    const rescheduled = version.startsWith("rescheduled:");
+    const verb = cancelled ? "cancelled" : published ? "published" : rescheduled ? "rescheduled" : "scheduled";
+    await notifyRecipients({
+      institutionId,
+      recipientIds,
+      dedupePrefix: `placement:${eventType}:${eventId}:${version}`,
+      title: `${label} ${verb}`,
+      body: cancelled
+        ? `${eventTitle} from ${companyName} has been cancelled.`
+        : published
+          ? `${eventTitle} from ${companyName} has been published for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`
+          : rescheduled
+            ? `${eventTitle} from ${companyName} has a new scheduled time: ${startsAt?.toLocaleString() ?? "see ACADLYX for details"}.`
+            : `${eventTitle} from ${companyName} is scheduled for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`,
+      actionUrl: "/student/placements",
+    });
+    return;
+  }
+
   if (event.name === "placement.drive.status_changed") {
     const driveId = stringField(payload, "driveId");
     const nextStatus = stringField(payload, "to");
