@@ -450,8 +450,8 @@ const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
   "placement-companies": ["name", "industry", "companyType", "relationshipStatus", "headquarters"],
   "placement-drives": ["title", "company", "status", "venue"],
   "placement-openings": ["role", "description", "employmentType", "location"],
-  "placement-applications": ["studentEmail", "admissionNumber", "company", "role", "status"],
-  "placement-offers": ["studentEmail", "admissionNumber", "company", "role", "status"],
+  "placement-applications": ["studentEmail", "studentName", "admissionNumber", "company", "role", "status"],
+  "placement-offers": ["studentEmail", "studentName", "admissionNumber", "company", "role", "status"],
 };
 
 const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
