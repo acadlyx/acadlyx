@@ -235,7 +235,7 @@ async function handlePlacementEvent(event: DomainEvent) {
           : `${drive.company.name}: registration is open for ${drive.title}${drive.applicationDeadline ? ` until ${drive.applicationDeadline.toLocaleString()}` : ""}.`,
         actionUrl: "/student/placements",
       });
-    } else if (["CLOSED", "APPLICATION_CLOSED"].includes(nextStatus)) {
+    } else if (["CLOSED", "APPLICATION_CLOSED", "CANCELLED"].includes(nextStatus)) {
       const applications = await prisma.application.findMany({
         where: { institutionId, placementDriveId: driveId },
         select: { studentId: true },
@@ -244,8 +244,12 @@ async function handlePlacementEvent(event: DomainEvent) {
         institutionId,
         recipientIds: applications.map((application) => application.studentId),
         dedupePrefix: `placement:drive:${driveId}:${nextStatus.toLowerCase()}`,
-        title: "Placement drive updated",
-        body: nextStatus === "CLOSED" ? "This placement drive has been closed." : "Registration for this placement drive has closed.",
+        title: nextStatus === "CANCELLED" ? "Placement drive cancelled" : "Placement drive updated",
+        body: nextStatus === "CANCELLED"
+          ? "This placement drive has been cancelled. Review your placement dashboard for updated recruitment information."
+          : nextStatus === "CLOSED"
+            ? "This placement drive has been closed."
+            : "Registration for this placement drive has closed.",
         actionUrl: "/student/placements",
       });
     }
