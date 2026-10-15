@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 /**
- * Client-side compatibility redirect keeps the active browser session intact.
- * A server redirect can bounce authenticated users to the public root because
- * ACADLYX's access token is held in sessionStorage rather than an HTTP cookie.
+ * Compatibility route for old Director bookmarks. Use the app router so the
+ * existing client session remains mounted and auth state is not reset by a
+ * full-document navigation.
  */
 export default function DirectorOperationsRedirect() {
+  const router = useRouter();
   useEffect(() => {
-    // A full client-side navigation avoids racing the legacy route's auth guard;
-    // sessionStorage tokens survive this same-origin navigation.
-    window.location.replace("/director");
-  }, []);
+    router.replace("/director");
+  }, [router]);
   return <main aria-live="polite" className="p-6">Opening Director workspace…</main>;
 }
