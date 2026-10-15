@@ -1055,7 +1055,7 @@ export async function listPlacementInterviews(
       ...(options.driveId ? { driveId: options.driveId } : {}),
       ...(directorScope ? { drive: { campusId: { in: directorCampusIds } } } : {}),
       ...(workspace === "STUDENT" ? {
-        status: { not: "CANCELLED" },
+        status: { notIn: ["CANCELLED", "DRAFT"] },
         participants: { some: { studentId: actor.id } },
         drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } },
       } : {}),
