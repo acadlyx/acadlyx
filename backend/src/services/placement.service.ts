@@ -456,6 +456,9 @@ export async function transitionApplication(
   if (!application) throw new AppError("Placement application not found.", 404);
   await assertCanViewStudent(institutionId, actor, application.studentId);
   const next = status.trim().toUpperCase();
+  if (["OFFERED", "ACCEPTED", "JOINED"].includes(next)) {
+    throw new AppError("Offer and joining states must be changed through the offer workflow so the authoritative offer record stays consistent.", 409);
+  }
   if (!APPLICATION_TRANSITIONS[application.status]?.includes(next)) {
     throw new AppError(`Invalid placement application transition: ${application.status} -> ${next}`, 409);
   }
@@ -597,9 +600,8 @@ export async function bulkTransitionApplications(
     throw new AppError("Choose between 1 and 100 applications for a bulk update.", 422);
   }
   const next = status.trim().toUpperCase();
-  if (!APPLICATION_TRANSITIONS[ "APPLICATION_SUBMITTED" ]?.includes(next) &&
-      !["SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "OFFERED", "ACCEPTED", "REJECTED", "WITHDRAWN", "JOINED"].includes(next)) {
-    throw new AppError("Unsupported bulk application stage.", 422);
+  if (!["SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "REJECTED", "WITHDRAWN"].includes(next)) {
+    throw new AppError("Bulk updates support shortlist, assessment, interview, selection, rejection, and withdrawal only. Offer and joining states must use the offer workflow.", 422);
   }
   const updated: Array<{ id: string; status: string }> = [];
   const failed: Array<{ id: string; message: string }> = [];
