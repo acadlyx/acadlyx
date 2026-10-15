@@ -323,6 +323,69 @@ async function handlePlacementEvent(event: DomainEvent) {
   }
 }
 
+/**
+ * Emit in-app offer response reminders from the running backend process.
+ * The anti-join against the notification table means each run selects only
+ * offers whose current reminder key has not already been delivered. A bounded
+ * batch avoids depending on browser activity and remains safe across replicas.
+ */
+export async function processPlacementDeadlineReminders(now = new Date()) {
+  const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+  const due = await prisma.$queryRaw<Array<{
+    id: string;
+    institutionId: string;
+    studentId: string;
+    responseDeadline: Date;
+    role: string;
+    companyName: string;
+  }>>`
+    SELECT
+      o."id",
+      o."institutionId",
+      o."studentId",
+      o."responseDeadline",
+      o."role",
+      c."name" AS "companyName"
+    FROM "placement_offers" o
+    INNER JOIN "placement_companies" c
+      ON c."id" = o."companyId"
+     AND c."institutionId" = o."institutionId"
+    LEFT JOIN "notifications" n
+      ON n."institutionId" = o."institutionId"
+     AND n."userId" = o."studentId"
+     AND n."dedupeKey" = (
+       'placement:offer:' || o."id" || ':' ||
+       CASE WHEN o."responseDeadline" <= ${nextHour}
+         THEN 'deadline-1h' ELSE 'deadline-24h' END ||
+       ':' || o."studentId"
+     )
+    WHERE o."status" = 'OFFERED'
+      AND o."responseDeadline" > ${now}
+      AND o."responseDeadline" <= ${next24Hours}
+      AND n."id" IS NULL
+    ORDER BY o."responseDeadline" ASC, o."id" ASC
+    LIMIT 500
+  `;
+
+  if (!due.length) return { scanned: 0, created: 0 };
+  const notifications = due.map((offer) => {
+    const urgent = offer.responseDeadline.getTime() <= nextHour.getTime();
+    const deadline = offer.responseDeadline.toISOString().replace("T", " ").replace("Z", " UTC");
+    return {
+      institutionId: offer.institutionId,
+      userId: offer.studentId,
+      title: urgent ? "Placement offer deadline in 1 hour" : "Placement offer response due within 24 hours",
+      body: `${offer.companyName} is awaiting your response to the offer for ${offer.role}. Respond by ${deadline}.`,
+      actionUrl: "/student/placements",
+      priority: urgent ? "HIGH" : "NORMAL",
+      dedupeKey: `placement:offer:${offer.id}:${urgent ? "deadline-1h" : "deadline-24h"}:${offer.studentId}`,
+    };
+  });
+  const created = await prisma.notification.createMany({ data: notifications, skipDuplicates: true });
+  return { scanned: due.length, created: created.count };
+}
+
 subscribeDomainEvent("*", async (event) => {
   await handlePlacementEvent(event);
 });
