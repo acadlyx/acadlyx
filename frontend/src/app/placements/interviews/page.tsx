@@ -90,6 +90,18 @@ export default function PlacementInterviewsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
+  async function deleteDraft(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch("/placements/interviews/" + id, { method: "DELETE" });
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to delete this unused draft.");
+    } finally { setBusy(false); }
+  }
+
   async function updateInterview(id: string, payload: { startsAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
@@ -248,6 +260,7 @@ export default function PlacementInterviewsPage() {
               <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule<input name="startsAt" type="datetime-local" required defaultValue={toDateTimeLocal(i.startsAt)} disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" /></label>
               <button type="submit" disabled={busy || i.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
             </form>
+            {i.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Permanently delete this unused interview draft? Drafts with candidate assignments must be retained.")) void deleteDraft(i.id); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete draft</button>}
             {i.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateInterview(i.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish interview</button>}
             {i.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this interview and notify assigned students?")) void updateInterview(i.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel interview</button>}
           </div>
