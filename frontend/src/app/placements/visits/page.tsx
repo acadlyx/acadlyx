@@ -8,12 +8,17 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 type Visit = { id: string; type: string; startsAt: string; endsAt: string | null; venue: string | null; purpose: string | null; company: { id: string; name: string }; drive: { id: string; title: string; status: string } | null };
 type Company = { id: string; name: string };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
+type ScopeOption = { id: string; name: string; code?: string; completionYear?: number; program?: { name: string } };
 
 export default function PlacementVisitsPage() {
   const router = useRouter();
   const [items, setItems] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [campuses, setCampuses] = useState<ScopeOption[]>([]);
+  const [departments, setDepartments] = useState<ScopeOption[]>([]);
+  const [programs, setPrograms] = useState<ScopeOption[]>([]);
+  const [batches, setBatches] = useState<ScopeOption[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,6 +35,18 @@ export default function PlacementVisitsPage() {
       setItems(visitsResponse.data || []);
       setCompanies(companiesResponse.data || []);
       setStudents(studentsResponse.data || []);
+      // Scope dictionaries are optional for older institutional configurations;
+      // their failure must not prevent staff from using explicit targeting.
+      const [campusResult, departmentResult, programResult, batchResult] = await Promise.allSettled([
+        authedFetch<{ data: ScopeOption[] }>("/campuses"),
+        authedFetch<{ data: ScopeOption[] }>("/departments"),
+        authedFetch<{ data: ScopeOption[] }>("/programs"),
+        authedFetch<{ data: ScopeOption[] }>("/batches"),
+      ]);
+      if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
+      if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
+      if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
+      if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load company visits.");
@@ -59,6 +76,13 @@ export default function PlacementVisitsPage() {
           notes: String(form.get("notes") || "").trim() || undefined,
           followUp: String(form.get("followUp") || "").trim() || undefined,
           participatingStudentIds: form.getAll("studentIds").filter((value): value is string => typeof value === "string"),
+          targeting: {
+            campusIds: form.getAll("campusIds").filter((value): value is string => typeof value === "string"),
+            departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
+            programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
+            batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+            graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
+          },
         }),
       });
       formElement.reset();
@@ -95,11 +119,32 @@ export default function PlacementVisitsPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Purpose
             <input name="purpose" maxLength={1000} placeholder="What students should expect" className="rounded-xl border px-3 py-3" />
           </label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Target students
-            <select name="studentIds" multiple size={7} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">
+          <fieldset className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 md:col-span-2">
+            <legend className="px-2 text-sm font-black text-slate-800">Cohort targeting</legend>
+            <p className="text-xs font-normal text-slate-600">Select one or more institutional cohorts. A student is included when their active enrollment matches the selected filters; graduating year uses the institution's batch completion year. Cohort and individually selected students are combined.</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Campus
+                <select name="campusIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{campuses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Department
+                <select name="departmentIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{departments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Programme
+                <select name="programIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{programs.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Batch
+                <select name="batchIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{batches.map((item) => <option key={item.id} value={item.id}>{item.name}{item.completionYear ? ` · graduates ${item.completionYear}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Graduating year(s)
+                <input name="graduatingYears" inputMode="numeric" placeholder="2027, 2028" className="rounded-xl border bg-white px-3 py-3 font-normal" />
+              </label>
+            </div>
+          </fieldset>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Also target individual students (optional)
+            <select name="studentIds" multiple size={5} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">
               {students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}{student.idNumber ? ` · ${student.idNumber}` : ""}</option>)}
             </select>
-            <span className="text-xs font-normal text-slate-500">Only selected students will see this event in their student placement schedule. Choices are limited to student records visible to your authorised placement scope; the backend revalidates every selection.</span>
+            <span className="text-xs font-normal text-slate-500">Student choices are limited to records visible to your authorised placement scope; the backend revalidates every selection.</span>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Private staff notes
             <textarea name="notes" rows={2} maxLength={5000} className="rounded-xl border px-3 py-3" />
