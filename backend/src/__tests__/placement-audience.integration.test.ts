@@ -68,6 +68,10 @@ test("placement visit is visible only to its explicitly targeted student and omi
     assert.equal(Object.hasOwn(intended[0], "notes"), false, "private staff notes must not be returned");
     assert.equal(other.length, 0, "students outside the explicit audience must not see the activity");
   } finally {
+    await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
@@ -132,6 +136,10 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     assert.equal(intended[0].instructions, "Join five minutes early");
     assert.equal(other.length, 0);
   } finally {
+    await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
