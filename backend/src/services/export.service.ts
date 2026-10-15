@@ -977,7 +977,7 @@ export async function exportData(
 
   if (type === "placement-applications") {
     const data = await collectInBatches((skip, take) => prisma.application.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, opportunity: true, placementDrive: { include: { company: true } }, placementOpening: { include: { company: true } } }, orderBy: { appliedAt: "desc" } }));
-    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, opportunityTitle: x.opportunity.title, company: x.placementDrive?.company.name ?? x.placementOpening?.company.name ?? null, role: x.placementOpening?.role ?? null, status: x.status, appliedAt: clean(x.appliedAt) });
+    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, opportunityTitle: x.opportunity.title, company: x.placementDrive?.company.name ?? x.placementOpening?.company.name ?? x.opportunity.organization ?? null, role: x.placementOpening?.role ?? null, status: x.status, appliedAt: clean(x.appliedAt) });
   }
 
   if (type === "placement-offers") {
