@@ -55,20 +55,23 @@ export default function PlacementTestsPage() {
       setItems(testsResponse.data || []);
       setDrives(drivesResponse.data || []);
       setStudents(studentsResponse.data || []);
-      const [campusResult, departmentResult, programResult, batchResult, semesterResult, sectionResult] = await Promise.allSettled([
+      const criteriaResult = await Promise.allSettled([
         authedFetch<{ data: ScopeOption[] }>("/campuses"),
         authedFetch<{ data: ScopeOption[] }>("/departments"),
         authedFetch<{ data: ScopeOption[] }>("/programs"),
         authedFetch<{ data: ScopeOption[] }>("/batches"),
-        authedFetch<{ data: ScopeOption[] }>("/semesters"),
-        authedFetch<{ data: ScopeOption[] }>("/sections"),
+        authedFetch<{ data: { semesters: ScopeOption[]; sections: ScopeOption[] } }>("/placements/criteria-options"),
       ]);
+      const [campusResult, departmentResult, programResult, batchResult, placementCriteriaResult] = criteriaResult;
       if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
       if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
       if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
       if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
-      if (semesterResult.status === "fulfilled") setSemesters(semesterResult.value.data || []);
-      if (sectionResult.status === "fulfilled") setSections(sectionResult.value.data || []);
+      if (placementCriteriaResult.status === "fulfilled") {
+        setSemesters(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.semesters || [] : []);
+        setSections(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.sections || [] : []);
+      }
+
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load placement assessments.");
