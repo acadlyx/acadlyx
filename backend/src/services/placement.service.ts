@@ -322,7 +322,7 @@ export async function listApplications(
     },
     include: {
       opportunity: { select: { id: true, title: true, organization: true, deadline: true } },
-      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      student: { select: { id: true, firstName: true, lastName: true, email: true, profile: { select: { admissionNumber: true } } } },
     },
     orderBy: { appliedAt: "desc" },
     take: 200,
@@ -904,7 +904,7 @@ export async function listPlacementOffers(institutionId: string, actor: Authenti
   const studentWhere = target ? { id: target } : await getPlacementStudentScope(institutionId, actor);
   return prisma.placementOffer.findMany({
     where: { institutionId, student: studentWhere },
-    include: { company: { select: { id: true, name: true, logoUrl: true } } },
+    include: { company: { select: { id: true, name: true, logoUrl: true } }, student: { select: { firstName: true, lastName: true } } },
     orderBy: { offerDate: "desc" },
     take: 100,
   });
