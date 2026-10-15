@@ -13,6 +13,7 @@ import { RecommendationCard } from "@/components/dashboard/RecommendationCard";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { riskTone, StatusBadge } from "@/components/dashboard/StatusBadge";
+import { StudentPlacementSchedule } from "@/components/dashboard/StudentPlacementSchedule";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
 import { getMyDashboard } from "@/lib/studentApi";
 import { getMyEnrollmentWorkflow, type MyEnrollmentWorkflow } from "@/lib/enrollmentRequestApi";
