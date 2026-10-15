@@ -1683,10 +1683,18 @@ export async function createPlacementInterview(
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
   const initialStatus = input.status ?? "SCHEDULED";
+  const scheduledStart = new Date(input.startsAt);
+  const scheduledEnd = input.endsAt ? new Date(input.endsAt) : new Date(scheduledStart.getTime() + 60 * 60_000);
+  if (Number.isNaN(scheduledStart.getTime()) || Number.isNaN(scheduledEnd.getTime()) || scheduledEnd <= scheduledStart) {
+    throw new AppError("Interview end time must be after its start time.", 422);
+  }
   if (initialStatus === "SCHEDULED" && requestedStudentIds.length === 0) {
     throw new AppError("Schedule only after selecting a candidate list or cohort. Save a draft while configuring the audience.", 422);
   }
   const interview = await prisma.$transaction(async (tx) => {
+    if (initialStatus === "SCHEDULED") {
+      await assertNoPlacementScheduleConflicts(tx, institutionId, requestedStudentIds, scheduledStart, scheduledEnd);
+    }
     const created = await tx.placementInterview.create({
       data: {
         institutionId,
@@ -2337,10 +2345,17 @@ export async function createPlacementTest(
   });
   const participantIds = [...new Set([...uniqueStudentIds, ...stageCandidates.map((candidate) => candidate.studentId)])];
   const initialStatus = input.status ?? "SCHEDULED";
+  const scheduledStart = new Date(input.scheduledAt);
+  const durationMinutes = input.durationMinutes && input.durationMinutes > 0 ? input.durationMinutes : 60;
+  const scheduledEnd = new Date(scheduledStart.getTime() + durationMinutes * 60_000);
+  if (Number.isNaN(scheduledStart.getTime())) throw new AppError("Assessment time is invalid.", 422);
   if (initialStatus === "SCHEDULED" && participantIds.length === 0) {
     throw new AppError("Schedule only after selecting a candidate list or cohort. Save a draft while configuring the audience.", 422);
   }
   const row = await prisma.$transaction(async (tx) => {
+    if (initialStatus === "SCHEDULED") {
+      await assertNoPlacementScheduleConflicts(tx, institutionId, participantIds, scheduledStart, scheduledEnd);
+    }
     const created = await tx.placementTest.create({
       data: {
         institutionId,
@@ -2549,6 +2564,17 @@ export async function updatePlacementInterview(
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    const targetStatus = input.status ?? existing.status;
+    const scheduleChanged = existing.status !== "SCHEDULED" ||
+      nextStartsAt.getTime() !== existing.startsAt.getTime() ||
+      (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
+    if (targetStatus === "SCHEDULED" && scheduleChanged) {
+      const conflictEnd = nextEndsAt ?? new Date(nextStartsAt.getTime() + 60 * 60_000);
+      await assertNoPlacementScheduleConflicts(
+        tx, institutionId, existing.participants.map((participant) => participant.studentId),
+        nextStartsAt, conflictEnd, { interviewId: id },
+      );
+    }
     const changed = await tx.placementInterview.updateMany({
       where: { id, institutionId, status: existing.status, startsAt: existing.startsAt, updatedAt: existing.updatedAt },
       data: {
@@ -2634,6 +2660,17 @@ export async function updatePlacementTest(
   if (Number.isNaN(nextScheduledAt.getTime())) throw new AppError("Assessment time is invalid.", 422);
 
   const updated = await prisma.$transaction(async (tx) => {
+    const targetStatus = input.status ?? existing.status;
+    const scheduleChanged = existing.status !== "SCHEDULED" ||
+      nextScheduledAt.getTime() !== existing.scheduledAt.getTime();
+    if (targetStatus === "SCHEDULED" && scheduleChanged) {
+      const conflictDuration = existing.durationMinutes && existing.durationMinutes > 0 ? existing.durationMinutes : 60;
+      const conflictEnd = new Date(nextScheduledAt.getTime() + conflictDuration * 60_000);
+      await assertNoPlacementScheduleConflicts(
+        tx, institutionId, existing.participants.map((participant) => participant.studentId),
+        nextScheduledAt, conflictEnd, { testId: id },
+      );
+    }
     const changed = await tx.placementTest.updateMany({
       where: { id, institutionId, status: existing.status, scheduledAt: existing.scheduledAt, updatedAt: existing.updatedAt },
       data: {
