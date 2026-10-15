@@ -14,6 +14,7 @@ function toDateTimeLocal(value?: string | null) {
   return Number.isNaN(date.getTime()) ? "" : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 type Company = { id: string; name: string };
+type Drive = { id: string; title: string; status: string; company: { id: string; name: string } };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number; program?: { name: string } };
 type AudiencePreview = { matchingCount: number; sample: Array<{ id: string; firstName: string; lastName: string }>; truncated: boolean };
@@ -22,6 +23,7 @@ export default function PlacementVisitsPage() {
   const router = useRouter();
   const [items, setItems] = useState<Visit[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [drives, setDrives] = useState<Drive[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [campuses, setCampuses] = useState<ScopeOption[]>([]);
   const [departments, setDepartments] = useState<ScopeOption[]>([]);
@@ -45,14 +47,16 @@ export default function PlacementVisitsPage() {
     setLoading(true);
     setError("");
     try {
-      const [visitsResponse, companiesResponse, studentsResponse] = await Promise.all([
+      const [visitsResponse, companiesResponse, studentsResponse, drivesResponse] = await Promise.all([
         authedFetch<{ data: Visit[] }>("/placements/visits"),
         authedFetch<{ data: Company[] }>("/placements/companies"),
         authedFetch<{ data: Student[] }>("/placements/students?page=1&pageSize=100"),
+        authedFetch<{ data: Drive[] }>("/placements/drives?page=1&pageSize=100"),
       ]);
       setItems(visitsResponse.data || []);
       setCompanies(companiesResponse.data || []);
       setStudents(studentsResponse.data || []);
+      setDrives((drivesResponse.data || []).filter((drive) => !["CANCELLED", "CLOSED"].includes(drive.status)));
       // Scope dictionaries are optional for older institutional configurations;
       // their failure must not prevent staff from using explicit targeting.
       const [campusResult, departmentResult, programResult, batchResult, semesterResult, sectionResult] = await Promise.allSettled([
@@ -193,7 +197,12 @@ export default function PlacementVisitsPage() {
     setError("");
     try {
       const response = await authedFetch<{ data: AudiencePreview }>("/placements/audience/preview", {
-        method: "POST", body: JSON.stringify({ targeting, studentIds }),
+        method: "POST", body: JSON.stringify({
+          targeting,
+          studentIds,
+          driveId: form.get("driveId") || undefined,
+          applicationStatuses: ["APPLICATION_SUBMITTED", "SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "OFFERED", "ACCEPTED", "JOINED"],
+        }),
       });
       setAudiencePreview(response.data);
     } catch (cause) {
@@ -220,6 +229,7 @@ export default function PlacementVisitsPage() {
         method: "POST",
         body: JSON.stringify({
           companyId: form.get("companyId"),
+          driveId: form.get("driveId") || undefined,
           type: String(form.get("type") || "").trim(),
           startsAt: new Date(String(form.get("startsAt"))).toISOString(),
           endsAt: form.get("endsAt") ? new Date(String(form.get("endsAt"))).toISOString() : undefined,
@@ -261,6 +271,10 @@ export default function PlacementVisitsPage() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Activity type
             <input name="type" required minLength={2} maxLength={80} placeholder="Pre-placement talk / orientation / recruiter meeting" className="rounded-xl border px-3 py-3" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Related placement drive (optional)
+            <select name="driveId" className="rounded-xl border bg-white px-3 py-3"><option value="">No linked drive · use cohort/student targeting</option>{drives.filter((drive) => !["DRAFT", "CANCELLED", "CLOSED"].includes(drive.status)).map((drive) => <option key={drive.id} value={drive.id}>{drive.title} · {drive.company.name} · {drive.status}</option>)}</select>
+            <span className="text-xs font-normal text-slate-500">When linked, the activity is restricted to that drive's student scope and may target its active applicants.</span>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Start date and time
             <input name="startsAt" type="datetime-local" required className="rounded-xl border px-3 py-3" />
