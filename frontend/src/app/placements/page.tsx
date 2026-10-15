@@ -30,14 +30,6 @@ async function listData<T>(path: string): Promise<T[]> {
   return Array.isArray(response.data) ? response.data : [];
 }
 
-function arrayFrom(value: unknown): Array<Record<string, unknown>> {
-  if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
-  if (value && typeof value === "object" && "data" in value) {
-    const data = (value as { data?: unknown }).data;
-    return Array.isArray(data) ? data as Array<Record<string, unknown>> : [];
-  }
-  return [];
-}
 
 export default function PlacementTeamWorkspace() {
   const router = useRouter();
