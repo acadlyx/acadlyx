@@ -1256,6 +1256,16 @@ export async function createPlacementVisit(
       followUp: input.followUp?.trim() || null,
     },
   });
+  await notifyPlacementAudience({
+    institutionId,
+    recipientIds: input.participatingStudentIds ?? [],
+    eventType: "visit",
+    eventId: visit.id,
+    version: "created",
+    title: "Placement activity scheduled",
+    body: `${input.type.trim()} is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
+    actionUrl: "/student/placements",
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.visit.created", entityType: "PlacementVisit", entityId: visit.id, metadata: { companyId: input.companyId, type: input.type } });
   return visit;
 }
