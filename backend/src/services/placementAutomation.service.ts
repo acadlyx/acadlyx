@@ -55,7 +55,7 @@ async function eligibleStudentIds(institutionId: string, driveId: string, status
       opportunityId: true,
     },
   });
-  if (!drive || !["PUBLISHED", "APPLICATION_OPEN"].includes(status)) return [];
+  if (!drive || !["PUBLISHED", "APPLICATION_OPEN", "CLOSED", "CANCELLED"].includes(status)) return [];
 
   const programIds = stringArray(drive.eligiblePrograms);
   const departmentIds = stringArray(drive.eligibleDepartments);
@@ -236,23 +236,74 @@ async function handlePlacementEvent(event: DomainEvent) {
         actionUrl: "/student/placements",
       });
     } else if (["CLOSED", "APPLICATION_CLOSED", "CANCELLED"].includes(nextStatus)) {
+      const drive = await prisma.placementDrive.findFirst({
+        where: { id: driveId, institutionId },
+        select: { opportunityId: true },
+      });
       const applications = await prisma.application.findMany({
-        where: { institutionId, placementDriveId: driveId },
+        where: {
+          institutionId,
+          OR: [
+            { placementDriveId: driveId },
+            ...(drive?.opportunityId ? [{ opportunityId: drive.opportunityId }] : []),
+          ],
+        },
         select: { studentId: true },
       });
+      const eligible = ["CLOSED", "CANCELLED"].includes(nextStatus)
+        ? await eligibleStudentIds(institutionId, driveId, nextStatus)
+        : [];
+      const recipients = [...new Set([...applications.map((application) => application.studentId), ...eligible])];
       await notifyRecipients({
         institutionId,
-        recipientIds: applications.map((application) => application.studentId),
+        recipientIds: recipients,
         dedupePrefix: `placement:drive:${driveId}:${nextStatus.toLowerCase()}`,
         title: nextStatus === "CANCELLED" ? "Placement drive cancelled" : "Placement drive updated",
         body: nextStatus === "CANCELLED"
-          ? "This placement drive has been cancelled. Review your placement dashboard for updated recruitment information."
+          ? "This placement drive has been cancelled. Review your placement dashboard for other opportunities."
           : nextStatus === "CLOSED"
             ? "This placement drive has been closed."
             : "Registration for this placement drive has closed.",
         actionUrl: "/student/placements",
       });
     }
+    return;
+  }
+
+  if (event.name === "placement.drive.updated") {
+    const driveId = stringField(payload, "driveId");
+    const version = stringField(payload, "version");
+    if (!driveId || !version) return;
+    const drive = await prisma.placementDrive.findFirst({
+      where: { id: driveId, institutionId },
+      select: {
+        id: true, title: true, status: true, applicationDeadline: true, driveDate: true,
+        opportunityId: true, company: { select: { name: true } },
+      },
+    });
+    if (!drive || !["PUBLISHED", "APPLICATION_OPEN"].includes(drive.status)) return;
+    const [eligible, applications] = await Promise.all([
+      eligibleStudentIds(institutionId, driveId, drive.status),
+      prisma.application.findMany({
+        where: {
+          institutionId,
+          OR: [
+            { placementDriveId: driveId },
+            ...(drive.opportunityId ? [{ opportunityId: drive.opportunityId }] : []),
+          ],
+        },
+        select: { studentId: true },
+      }),
+    ]);
+    const recipients = [...new Set([...eligible, ...applications.map((application) => application.studentId)])];
+    await notifyRecipients({
+      institutionId,
+      recipientIds: recipients,
+      dedupePrefix: `placement:drive:${driveId}:updated:${version}`,
+      title: "Placement drive details updated",
+      body: `${drive.company.name}: ${drive.title} has updated recruitment details.${drive.applicationDeadline ? ` Registration deadline: ${drive.applicationDeadline.toLocaleString()}.` : ""}${drive.driveDate ? ` Drive date: ${drive.driveDate.toLocaleString()}.` : ""} Review the current details in ACADLYX.`,
+      actionUrl: "/student/placements",
+    });
     return;
   }
 
