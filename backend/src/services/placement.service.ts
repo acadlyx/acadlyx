@@ -880,7 +880,20 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
     if (missingSkills.length) reasons.push("Required placement skills are missing from the student profile.");
   }
 
-  return { eligible: reasons.length === 0, reasons, studentId: target };
+  const allowIneligibleStudents = academicRules.allowIneligibleStudents === true;
+  const nonOverrideableReasons = reasons.filter((reason) =>
+    reason.startsWith("This drive is restricted") ||
+    reason.startsWith("You have already applied") ||
+    reason.startsWith("Applications are not open") ||
+    reason.startsWith("The application deadline has passed")
+  );
+  const effectiveReasons = allowIneligibleStudents ? nonOverrideableReasons : reasons;
+  return {
+    eligible: effectiveReasons.length === 0,
+    reasons,
+    studentId: target,
+    overrideApplied: allowIneligibleStudents && reasons.length > nonOverrideableReasons.length,
+  };
 }
 
 export async function applyToDrive(institutionId: string, actor: AuthenticatedUser, driveId: string) {
