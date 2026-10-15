@@ -1855,7 +1855,7 @@ export async function updatePlacementVisit(
   institutionId: string,
   actor: AuthenticatedUser,
   id: string,
-  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED"; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting },
+  input: { type?: string; startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED"; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1941,6 +1941,7 @@ export async function updatePlacementVisit(
     const changed = await tx.placementVisit.updateMany({
       where: { id, institutionId, status: existing.status, startsAt: existing.startsAt },
       data: {
+        ...(input.type !== undefined ? { type: input.type.trim() } : {}),
         ...(input.startsAt ? { startsAt: nextStartsAt } : {}),
         ...(input.endsAt !== undefined ? { endsAt: nextEndsAt } : {}),
         ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
@@ -1962,7 +1963,7 @@ export async function updatePlacementVisit(
     } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED") {
       const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
         (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
-      const detailsChanged = moved || input.venue !== undefined || input.purpose !== undefined;
+      const detailsChanged = moved || input.type !== undefined || input.venue !== undefined || input.purpose !== undefined;
       const audienceExpanded = recipients.some((studentId) => !previousRecipients.includes(studentId));
       if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
       else if (audienceExpanded) version = "assigned";
@@ -1980,7 +1981,7 @@ export async function updatePlacementVisit(
     institutionId, userId: actor.id,
     action: input.status === "CANCELLED" ? "placements.visit.cancelled" : "placements.visit.updated",
     entityType: "PlacementVisit", entityId: id,
-    metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() },
+    metadata: { status: updated.status, type: updated.type, startsAt: updated.startsAt.toISOString() },
   });
   return updated;
 }
