@@ -532,7 +532,9 @@ function applyExportOptions(rows: Row[], type: ExportType, options: ExportReques
       } else {
         const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
         if (!actualKey) return false;
-        if (key === "roles") {
+        if (expected === "__NULL__") {
+          if (row[actualKey] !== null && row[actualKey] !== undefined && row[actualKey] !== "") return false;
+        } else if (key === "roles") {
           const actualRoles = String(row[actualKey] ?? "").split(",").map((role) => role.trim().toLocaleUpperCase());
           const requestedRoles = expected.split("|").map((role) => role.trim().toLocaleUpperCase()).filter(Boolean);
           if (!requestedRoles.some((role) => actualRoles.includes(role))) return false;
