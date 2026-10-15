@@ -281,9 +281,11 @@ async function handlePlacementEvent(event: DomainEvent) {
         opportunityId: true, company: { select: { name: true } },
       },
     });
-    if (!drive || !["PUBLISHED", "APPLICATION_OPEN"].includes(drive.status)) return;
+    if (!drive || ["DRAFT", "CLOSED", "CANCELLED"].includes(drive.status)) return;
     const [eligible, applications] = await Promise.all([
-      eligibleStudentIds(institutionId, driveId, drive.status),
+      ["PUBLISHED", "APPLICATION_OPEN"].includes(drive.status)
+        ? eligibleStudentIds(institutionId, driveId, drive.status)
+        : Promise.resolve([] as string[]),
       prisma.application.findMany({
         where: {
           institutionId,
