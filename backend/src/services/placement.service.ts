@@ -1081,6 +1081,34 @@ export async function createPlacementOpening(institutionId: string, actor: Authe
   return opening;
 }
 
+
+export async function updatePlacementOpening(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  companyId?: string; role?: string; description?: string; employmentType?: string; location?: string;
+  totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; stipend?: number;
+  currency?: string; packagePeriod?: string; requiredSkills?: string[]; eligibility?: Record<string, unknown>;
+  hiringBatchIds?: string[]; deadline?: string | null; applicationProcess?: string;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const current = await prisma.placementOpening.findFirst({ where: { id, institutionId }, select: { id: true, companyId: true } });
+  if (!current) throw new AppError("Placement opening not found.", 404);
+  const companyId = input.companyId ?? current.companyId;
+  if (!(await prisma.placementCompany.findFirst({ where: { id: companyId, institutionId }, select: { id: true } }))) throw new AppError("Company must belong to this institution.", 422);
+  const updated = await prisma.placementOpening.update({
+    where: { id },
+    data: {
+      companyId, role: input.role?.trim(), description: input.description, employmentType: input.employmentType, location: input.location,
+      totalCtc: input.totalCtc, fixedCtc: input.fixedCtc, variableCtc: input.variableCtc, bonus: input.bonus, stipend: input.stipend,
+      currency: input.currency, packagePeriod: input.packagePeriod, requiredSkills: input.requiredSkills as Prisma.InputJsonValue | undefined,
+      eligibility: input.eligibility as Prisma.InputJsonValue | undefined, hiringBatchIds: input.hiringBatchIds as Prisma.InputJsonValue | undefined,
+      deadline: input.deadline === undefined ? undefined : input.deadline ? new Date(input.deadline) : null, applicationProcess: input.applicationProcess,
+    },
+    include: { company: { select: { id: true, name: true } }, drives: { select: { id: true, title: true, status: true } } },
+  });
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.opening.updated", entityType: "PlacementOpening", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
+}
+
 export async function createPlacementOffer(institutionId: string, actor: AuthenticatedUser, input: {
   applicationId: string; role: string; offerDate: string; joiningDate?: string; totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; currency?: string; offerDocumentUrl?: string;
 }) {
