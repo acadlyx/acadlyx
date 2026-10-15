@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
-type Drive = { id: string; title: string; status: string; applicationDeadline: string | null; company: { id: string; name: string; logoUrl: string | null } };
+type Drive = { id: string; title: string; status: string; applicationDeadline: string | null; company: { id: string; name: string; logoUrl: string | null }; eligibility?: { eligible: boolean; reasons: string[] } };
 type Application = { id: string; status: string; appliedAt: string; opportunity: { title: string; organization: string; deadline: string | null } };
 type Offer = { id: string; status: string; role: string; totalCtc: number | null; currency: string; joiningDate: string | null; company: { name: string } };
 type Test = { id: string; title: string; mode: string; scheduledAt: string; drive: { title: string; company: { name: string } }; participants: Array<{ attendanceStatus: string; resultStatus: string; score: number | null }> };
@@ -114,7 +114,9 @@ export default function StudentPlacementsPage() {
               <article key={drive.id} className="rounded-2xl border p-5">
                 <div className="flex justify-between gap-4"><div><p className="text-lg font-black text-slate-950">{drive.title}</p><p className="text-sm font-semibold text-slate-600">{drive.company.name}</p></div><span className="h-fit rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700">{drive.status}</span></div>
                 {drive.applicationDeadline && <p className="mt-3 text-xs text-slate-500">Apply by {new Date(drive.applicationDeadline).toLocaleString("en-IN")}</p>}
-                <button onClick={() => void apply(drive.id)} disabled={busy === drive.id || drive.status !== "APPLICATION_OPEN"} className="mt-4 min-h-11 w-full rounded-xl bg-slate-950 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{busy === drive.id ? "Applying…" : drive.status === "APPLICATION_OPEN" ? "Apply to drive" : "Applications unavailable"}</button>
+                {drive.eligibility && !drive.eligibility.eligible && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-black text-amber-900">Eligibility requirements not met</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-800">{drive.eligibility.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
+                {drive.eligibility?.eligible && <p className="mt-3 text-xs font-semibold text-emerald-700">You meet the recorded eligibility criteria.</p>}
+                <button onClick={() => void apply(drive.id)} disabled={busy === drive.id || drive.status !== "APPLICATION_OPEN" || drive.eligibility?.eligible === false} className="mt-4 min-h-11 w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{busy === drive.id ? "Applying…" : drive.status !== "APPLICATION_OPEN" ? "Applications unavailable" : drive.eligibility?.eligible === false ? "Not eligible for this drive" : "Apply to drive"}</button>
               </article>
             ))}
             {!loading && drives.length === 0 && <p className="py-8 text-center text-sm text-slate-500 lg:col-span-2">No published placement drives are currently available.</p>}
