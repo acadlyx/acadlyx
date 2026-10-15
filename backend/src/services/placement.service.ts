@@ -23,6 +23,8 @@ type PlacementCohortTargeting = {
   programIds?: string[];
   departmentIds?: string[];
   batchIds?: string[];
+  semesterIds?: string[];
+  sectionIds?: string[];
   graduatingYears?: number[];
 };
 
@@ -34,6 +36,7 @@ async function resolvePlacementCohortAudience(institutionId: string, targeting?:
   const hasFilters = Boolean(
     targeting.campusIds?.length || targeting.programIds?.length ||
     targeting.departmentIds?.length || targeting.batchIds?.length ||
+    targeting.semesterIds?.length || targeting.sectionIds?.length ||
     targeting.graduatingYears?.length,
   );
   if (!hasFilters) return [];
@@ -46,6 +49,8 @@ async function resolvePlacementCohortAudience(institutionId: string, targeting?:
           institutionId,
           status: "ACTIVE",
           ...(targeting.batchIds?.length ? { batchId: { in: targeting.batchIds } } : {}),
+          ...(targeting.semesterIds?.length ? { semesterId: { in: targeting.semesterIds } } : {}),
+          ...(targeting.sectionIds?.length ? { sectionId: { in: targeting.sectionIds } } : {}),
           ...(targeting.graduatingYears?.length ? { batch: { completionYear: { in: targeting.graduatingYears } } } : {}),
           program: {
             ...(targeting.programIds?.length ? { id: { in: targeting.programIds } } : {}),
@@ -1367,7 +1372,7 @@ export async function createPlacementInterview(
   const explicitStudentIds = input.studentIds ?? [];
   const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
   await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
-  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
   const initialStatus = input.status ?? "SCHEDULED";
@@ -1595,7 +1600,7 @@ export async function createPlacementVisit(
   if (cohortStudentIds.length) {
     await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   }
-  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
   const initialStatus = input.status ?? "PUBLISHED";
@@ -1931,7 +1936,7 @@ export async function createPlacementTest(
   if (cohortStudentIds.length) {
     await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   }
-  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
   const explicitStudentIds = input.studentIds ?? [];
