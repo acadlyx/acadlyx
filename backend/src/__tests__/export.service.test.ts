@@ -72,3 +72,14 @@ test("invoice balance does not subtract refunded amounts twice after paidAmount 
   assert.equal(computeExportInvoiceBalance(100, 120), 0);
   assert.equal(computeExportInvoiceBalance(100, Number.NaN), 100);
 });
+
+
+test("placement activity schedule exports support every advertised document format", () => {
+  for (const type of ["placement-visits", "placement-tests", "placement-interviews"] as const) {
+    const rows = [{ id: "activity-1", title: "Recruiter session", status: "SCHEDULED", startsAt: "2030-04-01T10:00:00.000Z" }];
+    for (const format of ["xlsx", "csv", "docx", "pdf", "json"] as const) {
+      const file = makeFile(rows, type, format);
+      assert.ok(file.buffer.length > 0, `${type} ${format} export should be non-empty`);
+    }
+  }
+});

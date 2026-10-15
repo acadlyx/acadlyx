@@ -60,6 +60,9 @@ export const EXPORT_TYPES = [
   "placement-openings",
   "placement-applications",
   "placement-offers",
+  "placement-visits",
+  "placement-tests",
+  "placement-interviews",
   
   
   
@@ -150,6 +153,9 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, string> = {
   "placement-openings": "placements.read",
   "placement-applications": "placements.read",
   "placement-offers": "placements.read",
+  "placement-visits": "placements.read",
+  "placement-tests": "placements.read",
+  "placement-interviews": "placements.read",
 };
 
 export interface ExportRequestOptions {
@@ -208,6 +214,9 @@ const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "placement-openings": ["PLACEMENT"],
   "placement-applications": ["PLACEMENT"],
   "placement-offers": ["PLACEMENT"],
+  "placement-visits": ["PLACEMENT"],
+  "placement-tests": ["PLACEMENT"],
+  "placement-interviews": ["PLACEMENT"],
 };
 
 async function assertExportAccess(
@@ -258,7 +267,7 @@ async function assertExportAccess(
     const hasScopedWorkspace = scopedWorkspaceRoles.includes(activeRole);
     const placementDataset = [
       "placement-companies", "placement-drives", "placement-openings",
-      "placement-applications", "placement-offers",
+      "placement-applications", "placement-offers", "placement-visits", "placement-tests", "placement-interviews",
     ].includes(type);
     const placementOnly = placementDataset && activeRole === "PLACEMENT";
     if (!institutionWide && hasScopedWorkspace && !placementOnly) {
@@ -431,6 +440,9 @@ const EXPORT_FILTER_FIELDS: Record<ExportType, readonly string[]> = {
   "placement-openings": ["search", "role", "employmentType", "location", "dateFrom", "dateTo"],
   "placement-applications": ["search", "status", "company", "admissionNumber", "dateFrom", "dateTo"],
   "placement-offers": ["search", "status", "company", "joiningStatus", "dateFrom", "dateTo"],
+  "placement-visits": ["search", "status", "company", "dateFrom", "dateTo"],
+  "placement-tests": ["search", "status", "company", "dateFrom", "dateTo"],
+  "placement-interviews": ["search", "status", "company", "dateFrom", "dateTo"],
 };
 
 const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
@@ -450,8 +462,11 @@ const EXPORT_SEARCH_FIELDS: Partial<Record<ExportType, readonly string[]>> = {
   "placement-companies": ["name", "industry", "companyType", "relationshipStatus", "headquarters"],
   "placement-drives": ["title", "company", "status", "venue"],
   "placement-openings": ["role", "description", "employmentType", "location"],
-  "placement-applications": ["studentEmail", "admissionNumber", "company", "role", "status"],
-  "placement-offers": ["studentEmail", "admissionNumber", "company", "role", "status"],
+  "placement-applications": ["studentEmail", "studentName", "admissionNumber", "company", "role", "status"],
+  "placement-offers": ["studentEmail", "studentName", "admissionNumber", "company", "role", "status"],
+  "placement-visits": ["title", "type", "company", "status", "venue", "purpose"],
+  "placement-tests": ["title", "company", "status", "mode", "venue"],
+  "placement-interviews": ["title", "roundType", "company", "status", "venue", "interviewer"],
 };
 
 const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
@@ -491,6 +506,9 @@ const EXPORT_DATE_FIELD: Partial<Record<ExportType, string>> = {
   "placement-openings": "deadline",
   "placement-applications": "appliedAt",
   "placement-offers": "offerDate",
+  "placement-visits": "startsAt",
+  "placement-tests": "scheduledAt",
+  "placement-interviews": "startsAt",
 };
 
 function applyExportOptions(rows: Row[], type: ExportType, options: ExportRequestOptions): Row[] {
@@ -532,7 +550,9 @@ function applyExportOptions(rows: Row[], type: ExportType, options: ExportReques
       } else {
         const actualKey = Object.keys(row).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
         if (!actualKey) return false;
-        if (key === "roles") {
+        if (expected === "__NULL__") {
+          if (row[actualKey] !== null && row[actualKey] !== undefined && row[actualKey] !== "") return false;
+        } else if (key === "roles") {
           const actualRoles = String(row[actualKey] ?? "").split(",").map((role) => role.trim().toLocaleUpperCase());
           const requestedRoles = expected.split("|").map((role) => role.trim().toLocaleUpperCase()).filter(Boolean);
           if (!requestedRoles.some((role) => actualRoles.includes(role))) return false;
@@ -957,12 +977,27 @@ export async function exportData(
 
   if (type === "placement-applications") {
     const data = await collectInBatches((skip, take) => prisma.application.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, opportunity: true, placementDrive: { include: { company: true } }, placementOpening: { include: { company: true } } }, orderBy: { appliedAt: "desc" } }));
-    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, opportunityTitle: x.opportunity.title, company: x.placementDrive?.company.name ?? x.placementOpening?.company.name ?? null, role: x.placementOpening?.role ?? null, status: x.status, appliedAt: clean(x.appliedAt) });
+    for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, opportunityTitle: x.opportunity.title, company: x.placementDrive?.company.name ?? x.placementOpening?.company.name ?? x.opportunity.organization ?? null, role: x.placementOpening?.role ?? null, status: x.status, appliedAt: clean(x.appliedAt) });
   }
 
   if (type === "placement-offers") {
     const data = await collectInBatches((skip, take) => prisma.placementOffer.findMany({ skip, take, where: { institutionId }, include: { student: { include: { profile: true } }, company: true }, orderBy: { offerDate: "desc" } }));
     for (const x of data) rows.push({ id: x.id, studentId: x.studentId, studentEmail: x.student.email, studentName: (x.student.firstName + " " + x.student.lastName).trim(), admissionNumber: x.student.profile?.admissionNumber ?? null, company: x.company.name, role: x.role, status: x.status, totalCtc: x.totalCtc === null ? null : Number(x.totalCtc), fixedCtc: x.fixedCtc === null ? null : Number(x.fixedCtc), variableCtc: x.variableCtc === null ? null : Number(x.variableCtc), currency: x.currency, offerDate: clean(x.offerDate), acceptanceAt: clean(x.acceptanceAt), joiningDate: clean(x.joiningDate), joiningStatus: x.joiningStatus, joiningVerifiedAt: clean(x.joiningVerifiedAt) });
+  }
+
+  if (type === "placement-visits") {
+    const data = await collectInBatches((skip, take) => prisma.placementVisit.findMany({ skip, take, where: { institutionId }, include: { company: { select: { name: true } }, drive: { select: { title: true } } }, orderBy: { startsAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.type, type: x.type, company: x.company.name, drive: x.drive?.title ?? null, status: x.status, startsAt: clean(x.startsAt), endsAt: clean(x.endsAt), venue: x.venue, purpose: x.purpose });
+  }
+
+  if (type === "placement-tests") {
+    const data = await collectInBatches((skip, take) => prisma.placementTest.findMany({ skip, take, where: { institutionId }, include: { drive: { include: { company: { select: { name: true } } } }, _count: { select: { participants: true } } }, orderBy: { scheduledAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.title, company: x.drive.company.name, drive: x.drive.title, status: x.status, mode: x.mode, scheduledAt: clean(x.scheduledAt), durationMinutes: x.durationMinutes, maxScore: x.maxScore, participantCount: x._count.participants });
+  }
+
+  if (type === "placement-interviews") {
+    const data = await collectInBatches((skip, take) => prisma.placementInterview.findMany({ skip, take, where: { institutionId }, include: { drive: { include: { company: { select: { name: true } } } }, _count: { select: { participants: true } } }, orderBy: { startsAt: "desc" } }));
+    for (const x of data) rows.push({ id: x.id, title: x.drive.title + " · Round " + x.roundNumber, roundType: x.roundType, roundNumber: x.roundNumber, company: x.drive.company.name, drive: x.drive.title, status: x.status, startsAt: clean(x.startsAt), endsAt: clean(x.endsAt), venue: x.venue, interviewer: x.interviewer, participantCount: x._count.participants });
   }
   if (type === "notices") {
     const data = await collectInBatches((skip, take) => prisma.notice.findMany({ skip, take, where: { institutionId, ...(scope.institutionWide ? {} : { OR: [{ departmentId: null }, { departmentId: scopedDepartmentFilter }] }) }, orderBy: { publishedAt: "desc" }  }));

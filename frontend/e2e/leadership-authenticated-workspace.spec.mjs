@@ -41,6 +41,14 @@ async function installAuthenticatedSession(page, role) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { institution: { name: "Browser Test Institution", logoUrl: null }, breadcrumbs: [] } }) });
       return;
     }
+    if (path.endsWith("/placements/criteria-options")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { campuses: [], departments: [], programs: [], batches: [], semesters: [], skills: [] } }) });
+      return;
+    }
+    if (path.endsWith("/placements/metrics")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { companies: 0, drives: 0, openDrives: 0, applications: 0, offers: 0, acceptedOffers: 0, joinedOffers: 0, placementRate: 0, offerAcceptanceRate: 0, joiningRate: 0, averagePackage: 0, highestPackage: 0 } }) });
+      return;
+    }
     if ((path.endsWith("/erp/me/summary") || path.endsWith("/erp/me/workspace")) && role === "DIRECTOR") {
       metricRequests += 1;
       if (metricRequests === 1) {
@@ -85,4 +93,24 @@ test("authenticated Chairman workspace keeps institution-wide navigation role-ow
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/chairman/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/chairman/students");
   await expect(page.locator('a[href="/chairman/fees"]')).toHaveCount(1);
+});
+
+
+test("placement workspace routes load with scoped authenticated session", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await installAuthenticatedSession(page, "PLACEMENT");
+
+  for (const [path, heading] of [
+    ["/placements/calendar", "Placement Calendar"],
+    ["/placements/applications", "Placement Applications"],
+    ["/placements/offers", "Placement Offers"],
+    ["/placements/drives", "Placement Drives"],
+    ["/placements/openings", "Job Openings"],
+    ["/placements/reports", "Placement Intelligence"],
+  ]) {
+    await page.goto(baseURL + path, { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  }
+  expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);
 });

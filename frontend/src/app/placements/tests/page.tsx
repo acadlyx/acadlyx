@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { PlacementTeamShell } from "@/components/placement/PlacementTeamShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Test = {
   id: string; title: string; mode: string; scheduledAt: string; durationMinutes: number | null;
@@ -27,6 +28,10 @@ export default function PlacementTestsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +65,26 @@ export default function PlacementTestsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "CANCELLED" }) {
+  const exportFilters = useMemo(() => ({
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
+  }), [search, statusFilter, dateFrom, dateTo]);
+
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesSearch = !q || [item.title, item.drive.title, item.drive.company.name, item.mode, item.status].some(v => v.toLowerCase().includes(q));
+      const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
+      const time = new Date(item.scheduledAt).getTime();
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
+      return matchesSearch && matchesStatus && (from === null || time >= from) && (to === null || time <= to);
+    });
+  }, [items, search, statusFilter, dateFrom, dateTo]);
+
+  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
     try {
@@ -85,6 +109,7 @@ export default function PlacementTestsPage() {
       driveId: String(form.get("driveId") || ""),
       title: String(form.get("title") || "").trim(),
       mode: String(form.get("mode") || "ONLINE"),
+      status: String(form.get("status") || "SCHEDULED"),
       scheduledAt: new Date(localDate).toISOString(),
       durationMinutes: form.get("durationMinutes") ? Number(form.get("durationMinutes")) : undefined,
       maxScore: form.get("maxScore") ? Number(form.get("maxScore")) : undefined,
@@ -137,6 +162,9 @@ export default function PlacementTestsPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Date and time
             <input name="scheduledAt" type="datetime-local" required className="rounded-xl border px-3 py-3" />
           </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Publication
+            <select name="status" className="rounded-xl border bg-white px-3 py-3"><option value="SCHEDULED">Schedule and notify assigned students</option><option value="DRAFT">Save as draft without notifying students</option></select>
+          </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Duration (minutes)
             <input name="durationMinutes" type="number" min="1" max="1440" className="rounded-xl border px-3 py-3" />
           </label>
@@ -178,8 +206,17 @@ export default function PlacementTestsPage() {
           </label>
           <button disabled={busy || loading || drives.length === 0} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Scheduling…" : "Schedule assessment"}</button>
         </form>
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => <article key={item.id} className="rounded-2xl border bg-white p-5">
+        <section className="space-y-3">
+          <div className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-4">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">Search assessments<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Assessment, company, drive…" className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All statuses</option>{[...new Set(items.map(x => x.status))].sort().map(x => <option key={x}>{x}</option>)}</select></label>
+            <div className="flex items-end"><DataExportActions type="placement-tests" filters={exportFilters} compact /></div>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Scheduled from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Scheduled to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button><span className="ml-3 text-sm text-slate-600">{visibleItems.length} assessment(s)</span></div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {visibleItems.map((item) => <article key={item.id} className="rounded-2xl border bg-white p-5">
             <div className="flex justify-between gap-3"><h2 className="font-black text-slate-950">{item.title}</h2><span className="text-xs font-black">{item.status}</span></div>
             <p className="mt-2 text-sm text-slate-600">{item.drive.company.name} · {item.drive.title}</p>
             <p className="mt-2 text-xs text-slate-500">{new Date(item.scheduledAt).toLocaleString("en-IN")} · {item.mode}{item.durationMinutes ? ` · ${item.durationMinutes} min` : ""}</p>
@@ -193,10 +230,12 @@ export default function PlacementTestsPage() {
                 </label>
                 <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
+              {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateTest(item.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish assessment</button>}
               {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
             </div>
           </article>)}
-          {!loading && items.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2 lg:col-span-3">No placement assessments have been scheduled yet.</p>}
+          {!loading && visibleItems.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2 lg:col-span-3">No assessments match the current filters.</p>}
+          </div>
         </section>
         <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">{loading ? "Refreshing…" : "Refresh assessments"}</button>
       </div>

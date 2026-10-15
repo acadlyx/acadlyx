@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { prisma } from "../lib/prisma";
-import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits, updatePlacementVisit } from "../services/placement.service";
+import { createPlacementTest, createPlacementVisit, listPlacementTests, listPlacementVisits, updatePlacementTest, updatePlacementVisit } from "../services/placement.service";
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
   skip: process.env.RUN_POSTGRES_INTEGRATION !== "1" || !process.env.DATABASE_URL,
@@ -121,11 +121,15 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     const created = await createPlacementTest(institution.id, staffActor, {
       driveId: drive.id,
       title: "Aptitude assessment",
+      status: "DRAFT",
       scheduledAt: "2030-03-01T10:00:00.000Z",
       durationMinutes: 45,
       instructions: "Join five minutes early",
       studentIds: [intendedStudent.id],
     });
+    assert.equal((await listPlacementTests(institution.id, intendedActor)).length, 0, "draft assessment must not be visible to students");
+    assert.equal(await prisma.notification.count({ where: { institutionId: institution.id, userId: intendedStudent.id, dedupeKey: { startsWith: `placement:test:${created.id}:` } } }), 0, "draft assessment must not notify students");
+    await updatePlacementTest(institution.id, staffActor, created.id, { status: "SCHEDULED" });
     const [intended, other] = await Promise.all([
       listPlacementTests(institution.id, intendedActor),
       listPlacementTests(institution.id, otherActor),
@@ -135,6 +139,7 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     assert.equal(intended[0].participants[0]?.resultStatus, "PENDING");
     assert.equal(intended[0].instructions, "Join five minutes early");
     assert.equal(other.length, 0);
+    assert.equal(await prisma.notification.count({ where: { institutionId: institution.id, userId: intendedStudent.id, dedupeKey: { startsWith: `placement:test:${created.id}:published:` } } }), 1, "publishing assessment notifies assigned student exactly once");
   } finally {
     await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
@@ -199,6 +204,23 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
     const cancelled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:cancelled:` } } });
     assert.equal(cancelled.length, 1, "cancellation notification must be delivered once");
+
+    const draft = await createPlacementVisit(institution.id, staffActor, {
+      companyId: company.id,
+      type: "Draft cohort briefing",
+      startsAt: "2030-04-03T10:00:00.000Z",
+      status: "DRAFT",
+      targeting: { batchIds: [batch.id] },
+    });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "draft visits must not be visible to students");
+    const draftCreatedNotifications = await prisma.notification.count({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:` } } });
+    assert.equal(draftCreatedNotifications, 0, "draft creation must not notify students");
+    await updatePlacementVisit(institution.id, staffActor, draft.id, { status: "PUBLISHED" });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 1, "publishing a draft makes it visible to the intended audience");
+    const published = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:published:` } } });
+    assert.equal(published.length, 1, "publication notification must be delivered once");
+    await updatePlacementVisit(institution.id, staffActor, draft.id, { status: "CANCELLED" });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancellation removes the published activity from student schedules");
   } finally {
     await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });

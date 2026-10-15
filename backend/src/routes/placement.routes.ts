@@ -56,6 +56,7 @@ const interviewCreate = z.object({
   venue: z.string().max(300).optional(),
   onlineLink: z.string().url().optional(),
   interviewer: z.string().max(200).optional(),
+  status: z.enum(["DRAFT", "SCHEDULED"]).optional(),
   studentIds: z.array(z.string().uuid()).max(10000).optional(),
   targeting: placementCohortTargeting.optional(),
 });
@@ -70,20 +71,20 @@ const certificationCreate = z.object({ name: z.string().trim().min(2).max(200), 
 const projectCreate = z.object({ title: z.string().trim().min(2).max(200), description: z.string().max(5000).optional(), technologies: z.array(z.string().trim().min(1).max(80)).max(50).optional(), projectUrl: z.string().url().optional() });
 const resumeCreate = z.object({ url: z.string().url(), fileName: z.string().max(255).optional() });
 const skillUpdate = z.object({ proficiency: z.number().int().min(0).max(100), evidence: z.string().max(2000).nullable().optional() });
-const testCreate = z.object({ driveId: z.string().uuid(), title: z.string().trim().min(2).max(200), mode: z.string().max(40).optional(), scheduledAt: z.string().datetime(), durationMinutes: z.number().int().positive().max(1440).optional(), maxScore: z.number().positive().optional(), testLink: z.string().url().optional(), instructions: z.string().max(5000).optional(), studentIds: z.array(z.string().uuid()).max(10000).optional(), targeting: placementCohortTargeting.optional() });
+const testCreate = z.object({ driveId: z.string().uuid(), title: z.string().trim().min(2).max(200), mode: z.string().max(40).optional(), scheduledAt: z.string().datetime(), durationMinutes: z.number().int().positive().max(1440).optional(), maxScore: z.number().positive().optional(), testLink: z.string().url().optional(), instructions: z.string().max(5000).optional(), status: z.enum(["DRAFT", "SCHEDULED"]).optional(), studentIds: z.array(z.string().uuid()).max(10000).optional(), targeting: placementCohortTargeting.optional() });
 const testParticipantUpdate = z.object({ attendanceStatus: z.string().trim().min(2).max(40).optional(), resultStatus: z.string().trim().min(2).max(40).optional(), score: z.number().nonnegative().nullable().optional(), feedback: z.string().max(5000).nullable().optional() });
 const interviewUpdate = z.object({
   startsAt: z.string().datetime().optional(),
   endsAt: z.string().datetime().nullable().optional(),
   venue: z.string().max(300).nullable().optional(),
   onlineLink: z.string().url().nullable().optional(),
-  status: z.enum(["SCHEDULED", "CANCELLED"]).optional(),
+  status: z.enum(["DRAFT", "SCHEDULED", "CANCELLED"]).optional(),
 });
 const testUpdate = z.object({
   scheduledAt: z.string().datetime().optional(),
   testLink: z.string().url().nullable().optional(),
   instructions: z.string().max(5000).nullable().optional(),
-  status: z.enum(["SCHEDULED", "CANCELLED"]).optional(),
+  status: z.enum(["DRAFT", "SCHEDULED", "CANCELLED"]).optional(),
 });
 const visitUpdate = z.object({
   startsAt: z.string().datetime().optional(),

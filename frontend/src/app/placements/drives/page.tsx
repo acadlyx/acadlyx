@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Option = { id: string; name: string };
 type Company = Option;
@@ -65,6 +66,12 @@ export default function PlacementDrivesPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [transitioning, setTransitioning] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [companyFilter, setCompanyFilter] = useState("ALL");
+  const [campusFilter, setCampusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   async function load() {
     setError("");
@@ -123,6 +130,30 @@ export default function PlacementDrivesPage() {
       setBusy(false);
     }
   }
+
+  const exportFilters = useMemo(() => ({
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(companyFilter !== "ALL" ? { company: companies.find(c => c.id === companyFilter)?.name || companyFilter } : {}),
+    ...(campusFilter !== "ALL" ? { campusId: campusFilter === "INSTITUTION" ? "__NULL__" : campusFilter } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
+  }), [search, statusFilter, companyFilter, campusFilter, dateFrom, dateTo, companies]);
+
+  const visibleDrives = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return drives.filter((drive) => {
+      const matchesSearch = !query || [drive.title, drive.company.name, drive.opening?.role || "", drive.status].some(v => v.toLowerCase().includes(query));
+      const matchesStatus = statusFilter === "ALL" || drive.status === statusFilter;
+      const matchesCompany = companyFilter === "ALL" || drive.company.id === companyFilter;
+      const matchesCampus = campusFilter === "ALL" || (drive.campusId || "ALL") === campusFilter;
+      const date = drive.driveDate ? new Date(drive.driveDate).getTime() : null;
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59").getTime() : null;
+      const matchesDate = (from === null || (date !== null && date >= from)) && (to === null || (date !== null && date <= to));
+      return matchesSearch && matchesStatus && matchesCompany && matchesCampus && matchesDate;
+    });
+  }, [drives, search, statusFilter, companyFilter, campusFilter, dateFrom, dateTo]);
 
   async function transition(drive: Drive) {
     const next = NEXT_STATUS[drive.status];
@@ -195,7 +226,17 @@ export default function PlacementDrivesPage() {
 
         <section className="space-y-3">
           <div><h2 className="text-xl font-black text-slate-950">Recruitment pipeline</h2><p className="text-sm text-slate-600">Advance each drive through the allowed server-side status transitions.</p></div>
-          {drives.map((drive) => {
+          <div className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-3">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Search drives<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Drive, role, company…" className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Lifecycle status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All statuses</option>{[...new Set(drives.map(d => d.status))].sort().map(s => <option key={s}>{s}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Company<select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All companies</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Campus<select value={campusFilter} onChange={e => setCampusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All campuses</option><option value="INSTITUTION">Institution-wide</option>{criteria?.campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Drive date from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Drive date to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <div className="flex flex-wrap items-end gap-2 lg:col-span-3"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setCompanyFilter("ALL"); setCampusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-2 text-sm font-bold">Clear filters</button><DataExportActions type="placement-drives" filters={exportFilters} compact /></div>
+          </div>
+          <p className="text-sm text-slate-600">{visibleDrives.length} drive(s) match the current filters.</p>
+          {visibleDrives.map((drive) => {
             const next = NEXT_STATUS[drive.status];
             return <article key={drive.id} className="rounded-2xl border bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -204,10 +245,13 @@ export default function PlacementDrivesPage() {
               </div>
               <p className="mt-3 text-xs text-slate-500">{drive.applicationDeadline ? "Deadline " + new Date(drive.applicationDeadline).toLocaleString("en-IN") : "No deadline set"}{drive.driveDate ? " · Drive " + new Date(drive.driveDate).toLocaleString("en-IN") : ""}</p>
               {(drive.eligiblePrograms?.length || drive.eligibleDepartments?.length || drive.eligibleBatches?.length || drive.eligibleSemesters?.length) ? <p className="mt-2 text-xs text-slate-600">Academic cohort restrictions are configured for this drive.</p> : <p className="mt-2 text-xs text-slate-500">No programme, department, batch or semester restriction.</p>}
-              {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="mt-4 min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : "Advance to " + next.replaceAll("_", " ")}</button>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => router.push("/placements/drives/" + drive.id + "/eligibility")} className="min-h-10 rounded-xl border px-4 py-2 text-sm font-bold">Review student eligibility</button>
+                {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : "Advance to " + next.replaceAll("_", " ")}</button>}
+              </div>
             </article>;
           })}
-          {!drives.length && <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No drives are available yet. Create a drive to start the recruitment workflow.</p>}
+          {!visibleDrives.length && <p className="rounded-xl border bg-white p-6 text-sm text-slate-600">No drives match the current filters.</p>}
         </section>
       </div>
     </DashboardShell>

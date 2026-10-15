@@ -62,6 +62,9 @@ const EXPORT_PERMISSION_BY_TYPE: Record<ExportType, PermissionKey> = {
   "placement-openings": "placements.read",
   "placement-applications": "placements.read",
   "placement-offers": "placements.read",
+  "placement-visits": "placements.read",
+  "placement-tests": "placements.read",
+  "placement-interviews": "placements.read",
 };
 
 function authorizeExportType(
