@@ -1788,6 +1788,7 @@ export async function createPlacementVisit(
         id: { in: uniqueStudentIds },
         institutionId,
         userRoles: { some: { role: { name: "STUDENT" } } },
+        studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
       },
       select: { id: true },
     });
@@ -2532,6 +2533,7 @@ export async function previewPlacementCohortAudience(
     where: {
       institutionId, id: { in: allIds },
       userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
     },
     select: { id: true },
     take: 10000,
@@ -2541,7 +2543,11 @@ export async function previewPlacementCohortAudience(
   }
   await Promise.all(allIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   const sample = await prisma.user.findMany({
-    where: { institutionId, id: { in: allIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
+    where: {
+      institutionId, id: { in: allIds },
+      userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+    },
     select: { id: true, firstName: true, lastName: true },
     orderBy: { id: "asc" },
     take: 10,
