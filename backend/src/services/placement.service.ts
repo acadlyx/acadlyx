@@ -743,9 +743,6 @@ export async function updatePlacementDrive(institutionId: string, actor: Authent
     const assigned = await getDirectorCampusIds(institutionId, actor.id);
     if (!campusId || !assigned.includes(campusId)) throw new AppError("Directors may edit drives only for an assigned campus.", 403);
   }
-  if ([["eligiblePrograms", input.eligiblePrograms, "program"], ["eligibleDepartments", input.eligibleDepartments, "department"], ["eligibleBatches", input.eligibleBatches, "batch"], ["eligibleSemesters", input.eligibleSemesters, "semester"], ["requiredSkills", input.requiredSkills, "skill"]].some(([field, values]) => values !== undefined && !Array.isArray(values))) {
-    throw new AppError("Invalid placement eligibility criteria.", 422);
-  }
   const checks = [
     { values: input.eligiblePrograms, find: () => prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms ?? [] }, isActive: true }, select: { id: true } }) },
     { values: input.eligibleDepartments, find: () => prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments ?? [] }, isActive: true }, select: { id: true } }) },
