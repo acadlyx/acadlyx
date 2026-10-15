@@ -565,6 +565,23 @@ export async function createPlacementCompany(institutionId: string, actor: Authe
   return company;
 }
 
+
+export async function updatePlacementCompany(institutionId: string, actor: AuthenticatedUser, id: string, input: {
+  name?: string; logoUrl?: string | null; industry?: string | null; companyType?: string | null;
+  website?: string | null; description?: string | null; headquarters?: string | null;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  if (!(await prisma.placementCompany.findFirst({ where: { id, institutionId }, select: { id: true } }))) throw new AppError("Company not found in this institution.", 404);
+  if (input.name !== undefined && input.name.trim().length < 2) throw new AppError("Company name must contain at least two characters.", 400);
+  const updated = await prisma.placementCompany.update({ where: { id }, data: {
+    name: input.name?.trim(), logoUrl: input.logoUrl, industry: input.industry, companyType: input.companyType,
+    website: input.website, description: input.description, headquarters: input.headquarters,
+  }});
+  await recordAuditLog({ institutionId, userId: actor.id, action: "placements.company.updated", entityType: "PlacementCompany", entityId: id, metadata: { fields: Object.keys(input) } });
+  return updated;
+}
+
 export async function listPlacementDrives(institutionId: string, actor: AuthenticatedUser, options: { status?: string; search?: string; page?: number; pageSize?: number } = {}) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
