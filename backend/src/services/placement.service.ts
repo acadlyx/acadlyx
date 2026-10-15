@@ -1097,6 +1097,17 @@ export async function createPlacementInterview(
     const targeted = Array.isArray(drive.eligibleDepartments) ? drive.eligibleDepartments.filter((id): id is string => typeof id === "string") : [];
     if (!targeted.length || !targeted.some((id) => departmentIds.includes(id))) throw new AppError("The linked drive is outside the authorised department scope.", 403);
   }
+  const interviewCandidates = await prisma.application.findMany({
+    where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
+    select: { studentId: true },
+  });
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  const explicitStudentIds = input.studentIds ?? [];
+  const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
+  await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
   const interview = await prisma.placementInterview.create({
     data: {
       institutionId,
@@ -1110,17 +1121,6 @@ export async function createPlacementInterview(
       interviewer: input.interviewer?.trim() || null,
     },
   });
-  const interviewCandidates = await prisma.application.findMany({
-    where: { institutionId, placementDriveId: input.driveId, status: "INTERVIEW" },
-    select: { studentId: true },
-  });
-  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
-  const explicitStudentIds = input.studentIds ?? [];
-  const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
-  await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
-  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
-    throw new AppError("The selected placement cohort contains no active students.", 422);
-  }
   if (requestedStudentIds.length) {
     await prisma.placementInterviewParticipant.createMany({
       data: requestedStudentIds.map((studentId) => ({ interviewId: interview.id, studentId })),
