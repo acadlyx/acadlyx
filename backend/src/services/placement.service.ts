@@ -470,6 +470,30 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
   if (input.openingId && !(await prisma.placementOpening.findFirst({ where: { id: input.openingId, institutionId, companyId: input.companyId }, select: { id: true } }))) {
     throw new AppError("Opening does not belong to the selected company.", 422);
   }
+  if (input.campusId) {
+    const campus = await prisma.campus.findFirst({ where: { id: input.campusId, institutionId, isActive: true }, select: { id: true } });
+    if (!campus) throw new AppError("Campus must belong to this institution and be active.", 422);
+  }
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const assignedCampusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!input.campusId || !assignedCampusIds.includes(input.campusId)) {
+      throw new AppError("Directors may create drives only for an assigned campus.", 403);
+    }
+  }
+  const [programs, departments, batches, semesters, skills] = await Promise.all([
+    input.eligiblePrograms?.length ? prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms }, isActive: true }, select: { id: true } }) : [],
+    input.eligibleDepartments?.length ? prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments }, isActive: true }, select: { id: true } }) : [],
+    input.eligibleBatches?.length ? prisma.batch.findMany({ where: { institutionId, id: { in: input.eligibleBatches }, isActive: true }, select: { id: true } }) : [],
+    input.eligibleSemesters?.length ? prisma.semester.findMany({ where: { institutionId, id: { in: input.eligibleSemesters }, isActive: true }, select: { id: true } }) : [],
+    input.requiredSkills?.length ? prisma.skill.findMany({ where: { institutionId, id: { in: input.requiredSkills }, isActive: true }, select: { id: true } }) : [],
+  ]);
+  if (programs.length !== (input.eligiblePrograms?.length ?? 0)
+    || departments.length !== (input.eligibleDepartments?.length ?? 0)
+    || batches.length !== (input.eligibleBatches?.length ?? 0)
+    || semesters.length !== (input.eligibleSemesters?.length ?? 0)
+    || skills.length !== (input.requiredSkills?.length ?? 0)) {
+    throw new AppError("Eligibility criteria must reference active records in this institution.", 422);
+  }
   const drive = await prisma.$transaction(async (tx) => {
     const opportunity = await tx.opportunity.create({
       data: {
