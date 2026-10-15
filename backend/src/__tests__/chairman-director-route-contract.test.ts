@@ -117,7 +117,6 @@ test("Chairman and Director intelligence routes are separate and role-scoped", (
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/director/intelligence"'), "Director intelligence remains reachable from the scoped sidebar");
   assert.ok(!directorDashboard.includes('["Campus intelligence", "/director/intelligence"]'), "Director dashboard should not duplicate sidebar destinations");
-  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/director/intelligence"'), "Director intelligence must be reachable from the sidebar");
 });
 
