@@ -364,6 +364,11 @@ router.patch("/interviews/:id", authorize("placements.manage"), asyncHandler(asy
   const item = await placement.updatePlacementInterview(requireInstitution(req), requireAuthenticatedUser(req), id, interviewUpdate.parse(req.body));
   res.json({ success: true, data: item });
 }));
+router.delete("/interviews/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementInterview(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data: item });
+}));
 router.post("/interviews/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
   const item=await placement.addPlacementInterviewParticipant(requireInstitution(req),requireAuthenticatedUser(req),id,interviewParticipant.parse(req.body).studentId);
@@ -445,6 +450,11 @@ router.post("/tests", authorize("placements.manage"), asyncHandler(async (req,re
 router.patch("/tests/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const { id } = idParams.parse(req.params);
   const item = await placement.updatePlacementTest(requireInstitution(req), requireAuthenticatedUser(req), id, testUpdate.parse(req.body));
+  res.json({ success: true, data: item });
+}));
+router.delete("/tests/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementTest(requireInstitution(req), requireAuthenticatedUser(req), id);
   res.json({ success: true, data: item });
 }));
 router.post("/tests/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
