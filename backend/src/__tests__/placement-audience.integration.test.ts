@@ -100,7 +100,7 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
       data: { institutionId: institution.id, name: `Assessment company ${suffix}`, createdById: staff.id },
     });
     const drive = await prisma.placementDrive.create({
-      data: { institutionId: institution.id, companyId: company.id, title: "Targeted recruitment drive" },
+      data: { institutionId: institution.id, companyId: company.id, title: "Targeted recruitment drive", status: "TEST" },
     });
     const staffActor = {
       id: staff.id, institutionId: institution.id, email: staff.email,
