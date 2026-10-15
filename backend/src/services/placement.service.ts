@@ -2821,6 +2821,81 @@ export async function deletePlacementDrive(institutionId: string, actor: Authent
   return { id, deleted: true };
 }
 
+export async function deletePlacementInterview(institutionId: string, actor: AuthenticatedUser, id: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const interview = await prisma.placementInterview.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, driveId: true, roundType: true, participants: { select: { studentId: true } }, drive: { select: { campusId: true, eligibleDepartments: true } } },
+  });
+  if (!interview) throw new AppError("Placement interview not found.", 404);
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campuses = await getDirectorCampusIds(institutionId, actor.id);
+    if (!interview.drive.campusId || !campuses.includes(interview.drive.campusId)) {
+      throw new AppError("Placement interview not found in the director's authorised campus scope.", 404);
+    }
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(interview.drive.eligibleDepartments)
+      ? interview.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((departmentId) => departments.includes(departmentId))) {
+      throw new AppError("Placement interview not found in the authorised department scope.", 404);
+    }
+  }
+  if (interview.status !== "DRAFT" || interview.participants.length > 0) {
+    throw new AppError("Only unused draft interviews with no candidate assignments may be permanently deleted. Cancel the interview to preserve its recruitment history.", 409);
+  }
+  await prisma.$transaction(async (tx) => {
+    const removed = await tx.placementInterview.deleteMany({ where: { id, institutionId, status: "DRAFT" } });
+    if (removed.count !== 1) throw new AppError("The interview changed before it could be deleted. Refresh and try again.", 409);
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.interview.deleted",
+    entityType: "PlacementInterview", entityId: id, metadata: { previousStatus: interview.status, roundType: interview.roundType, driveId: interview.driveId },
+  });
+  return { id, deleted: true };
+}
+
+export async function deletePlacementTest(institutionId: string, actor: AuthenticatedUser, id: string) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const test = await prisma.placementTest.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, driveId: true, title: true, participants: { select: { studentId: true } }, drive: { select: { campusId: true, eligibleDepartments: true } } },
+  });
+  if (!test) throw new AppError("Placement assessment not found.", 404);
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campuses = await getDirectorCampusIds(institutionId, actor.id);
+    if (!test.drive.campusId || !campuses.includes(test.drive.campusId)) {
+      throw new AppError("Placement assessment not found in the director's authorised campus scope.", 404);
+    }
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departments = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(test.drive.eligibleDepartments)
+      ? test.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((departmentId) => departments.includes(departmentId))) {
+      throw new AppError("Placement assessment not found in the authorised department scope.", 404);
+    }
+  }
+  if (test.status !== "DRAFT" || test.participants.length > 0) {
+    throw new AppError("Only unused draft assessments with no candidate assignments may be permanently deleted. Cancel the assessment to preserve its recruitment history.", 409);
+  }
+  await prisma.$transaction(async (tx) => {
+    const removed = await tx.placementTest.deleteMany({ where: { id, institutionId, status: "DRAFT" } });
+    if (removed.count !== 1) throw new AppError("The assessment changed before it could be deleted. Refresh and try again.", 409);
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.test.deleted",
+    entityType: "PlacementTest", entityId: id, metadata: { previousStatus: test.status, title: test.title, driveId: test.driveId },
+  });
+  return { id, deleted: true };
+}
+
+
 async function placementEventDriveId(institutionId: string, payload: unknown): Promise<string | null> {
   const data = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
   const direct = typeof data.driveId === "string" ? data.driveId : null;
