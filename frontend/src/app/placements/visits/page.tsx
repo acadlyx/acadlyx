@@ -277,7 +277,7 @@ export default function PlacementVisitsPage() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Related placement drive (optional)
             <select name="driveId" className="rounded-xl border bg-white px-3 py-3"><option value="">No linked drive · use cohort/student targeting</option>{drives.filter((drive) => !["DRAFT", "CANCELLED", "CLOSED"].includes(drive.status)).map((drive) => <option key={drive.id} value={drive.id}>{drive.title} · {drive.company.name} · {drive.status}</option>)}</select>
-            <span className="text-xs font-normal text-slate-500">When linked, the activity is restricted to that drive's student scope and may target its active applicants.</span>
+            <span className="text-xs font-normal text-slate-500">When linked, the activity is restricted to that drive&apos;s student scope and may target its active applicants.</span>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Start date and time
             <input name="startsAt" type="datetime-local" required className="rounded-xl border px-3 py-3" />
