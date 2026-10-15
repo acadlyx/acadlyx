@@ -340,6 +340,7 @@ async function handlePlacementEvent(event: DomainEvent) {
   }
 
   if (event.name === "placement.application.status_changed") {
+    if (stringField(payload, "trigger") === "scheduled_round") return;
     const applicationId = stringField(payload, "applicationId");
     const nextStatus = stringField(payload, "to");
     if (!applicationId || !nextStatus || nextStatus === "OFFERED") return;
