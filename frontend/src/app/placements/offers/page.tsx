@@ -44,8 +44,8 @@ export default function PlacementOffersPage() {
     ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
     ...(joiningStatusFilter !== "ALL" ? { joiningStatus: joiningStatusFilter } : {}),
     ...(companyFilter !== "ALL" ? { company: companyFilter } : {}),
-    ...(dateFrom ? { dateFrom } : {}),
-    ...(dateTo ? { dateTo } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
   }), [search, statusFilter, joiningStatusFilter, companyFilter, dateFrom, dateTo]);
 
   const visibleOffers = useMemo(() => {
