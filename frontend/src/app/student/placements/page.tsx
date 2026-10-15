@@ -12,6 +12,7 @@ type Offer = { id: string; status: string; role: string; totalCtc: number | null
 type Test = { id: string; title: string; mode: string; scheduledAt: string; drive: { title: string; company: { name: string } }; participants: Array<{ attendanceStatus: string; resultStatus: string; score: number | null }> };
 type Interview = { id: string; roundNumber: number; roundType: string; startsAt: string; endsAt: string | null; venue: string | null; onlineLink: string | null; status: string; drive: { title: string; company: { name: string } } };
 type Profile = { profile: { placementStatus: string; bio: string | null; portfolioUrl: string | null; githubUrl: string | null; linkedInUrl: string | null } | null; skills: unknown[]; certifications: unknown[]; projects: unknown[]; resumes: unknown[] };
+type StudentCalendarItem = { id: string; type: string; title: string; company: string; startsAt: string; endsAt: string | null; status: string; venue: string; actionUrl: string };
 
 export default function StudentPlacementsPage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function StudentPlacementsPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [calendarItems, setCalendarItems] = useState<StudentCalendarItem[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function StudentPlacementsPage() {
     setLoading(true);
     setError("");
     try {
-      const [p, d, a, o, opportunitiesResponse, testsResponse, interviewsResponse] = await Promise.all([
+      const [p, d, a, o, opportunitiesResponse, testsResponse, interviewsResponse, calendarResponse] = await Promise.all([
         authedFetch<{ data: Profile }>("/placements/profile"),
         authedFetch<{ data: Drive[] }>("/placements/drives"),
         authedFetch<{ data: Application[] }>("/placements/applications"),
@@ -38,6 +40,7 @@ export default function StudentPlacementsPage() {
         authedFetch<{ data: Opportunity[] }>("/placements/opportunities?activeOnly=true"),
         authedFetch<{ data: Test[] }>("/placements/tests"),
         authedFetch<{ data: Interview[] }>("/placements/interviews"),
+        authedFetch<{ data: StudentCalendarItem[] }>("/placements/my-calendar"),
       ]);
       setProfile(p.data);
       setDrives(d.data || []);
@@ -46,6 +49,7 @@ export default function StudentPlacementsPage() {
       setOpportunities(opportunitiesResponse.data || []);
       setTests(testsResponse.data || []);
       setInterviews(interviewsResponse.data || []);
+      setCalendarItems(calendarResponse.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) {
         router.replace("/login");
@@ -159,6 +163,25 @@ export default function StudentPlacementsPage() {
               </article>
             ))}
             {!loading && drives.length === 0 && <p className="py-8 text-center text-sm text-slate-500 lg:col-span-2">No published placement drives are currently available.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border bg-white p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-xl font-black text-slate-950">My placement calendar</h2><p className="mt-1 text-sm text-slate-600">Personal schedule synchronised from your published drives, assigned rounds, activities and joining information.</p></div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{calendarItems.length} event(s)</span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {calendarItems.map((item) => <article key={item.id} className={"rounded-2xl border p-4 " + (item.status === "CANCELLED" ? "border-red-200 bg-red-50/40" : "bg-white")}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><h3 className="font-black text-slate-950">{item.title}</h3><p className="mt-1 text-sm text-slate-600">{item.company} · {item.type.replaceAll("_", " ")}</p></div>
+                <span className={"rounded-full px-3 py-1 text-xs font-black " + (item.status === "CANCELLED" ? "bg-red-100 text-red-800" : "bg-emerald-50 text-emerald-800")}>{item.status.replaceAll("_", " ")}</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-slate-800">{new Date(item.startsAt).toLocaleString("en-IN")}{item.endsAt ? " – " + new Date(item.endsAt).toLocaleString("en-IN") : ""}</p>
+              {item.venue && <p className="mt-1 text-sm text-slate-600">Venue / link: {item.venue}</p>}
+              <a href={item.actionUrl || "/student/placements"} className="mt-3 inline-flex rounded-lg border px-3 py-2 text-xs font-bold text-slate-800">Open placement details</a>
+            </article>)}
+            {!loading && calendarItems.length === 0 && <p className="py-6 text-center text-sm text-slate-500">Your placement calendar is clear. New assigned events appear here automatically.</p>}
           </div>
         </section>
 
