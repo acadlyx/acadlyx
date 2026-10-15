@@ -66,7 +66,7 @@ const audiencePreview = z.object({
   targeting: placementCohortTargeting.optional(),
   studentIds: z.array(z.string().uuid()).max(10000).optional(),
   driveId: z.string().uuid().optional(),
-  applicationStatuses: z.array(z.enum(["TEST", "INTERVIEW"])).max(2).optional(),
+  applicationStatuses: z.array(z.enum(["APPLICATION_SUBMITTED", "SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "OFFERED", "ACCEPTED", "JOINED"])).max(8).optional(),
 });
 const interviewCreate = z.object({
   driveId: z.string().uuid(),
