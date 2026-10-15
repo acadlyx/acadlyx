@@ -87,6 +87,7 @@ export default function PlacementVisitsPage() {
           endsAt: form.get("endsAt") ? new Date(String(form.get("endsAt"))).toISOString() : undefined,
           venue: String(form.get("venue") || "").trim() || undefined,
           purpose: String(form.get("purpose") || "").trim() || undefined,
+          status: String(form.get("status") || "PUBLISHED"),
           notes: String(form.get("notes") || "").trim() || undefined,
           followUp: String(form.get("followUp") || "").trim() || undefined,
           participatingStudentIds: form.getAll("studentIds").filter((value): value is string => typeof value === "string"),
@@ -132,6 +133,9 @@ export default function PlacementVisitsPage() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Purpose
             <input name="purpose" maxLength={1000} placeholder="What students should expect" className="rounded-xl border px-3 py-3" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Publication
+            <select name="status" className="rounded-xl border bg-white px-3 py-3"><option value="PUBLISHED">Publish immediately</option><option value="DRAFT">Save as draft</option></select>
           </label>
           <fieldset className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 md:col-span-2">
             <legend className="px-2 text-sm font-black text-slate-800">Cohort targeting</legend>
@@ -182,6 +186,7 @@ export default function PlacementVisitsPage() {
                 <button type="submit" disabled={busy || visit.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
               <span className="text-xs font-bold text-slate-500">Status: {visit.status}</span>
+              {visit.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateVisit(visit.id, { status: "PUBLISHED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish activity</button>}
               {visit.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this placement activity and notify its targeted students?")) void updateVisit(visit.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel activity</button>}
             </div>
           </article>)}
