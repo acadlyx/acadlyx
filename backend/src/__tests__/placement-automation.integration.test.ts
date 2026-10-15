@@ -120,7 +120,8 @@ test(
       if (eventId) {
         await prisma.domainEventOutbox.deleteMany({ where: { id: eventId } });
       }
-      await prisma.institution.delete({ where: { id: institution.id } });
+      await prisma.domainEventOutbox.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.institution.delete({ where: { id: institution.id } });
     }
   },
 );
