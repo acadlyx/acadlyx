@@ -84,7 +84,7 @@ const testUpdate = z.object({
   scheduledAt: z.string().datetime().optional(),
   testLink: z.string().url().nullable().optional(),
   instructions: z.string().max(5000).nullable().optional(),
-  status: z.enum(["SCHEDULED", "CANCELLED"]).optional(),
+  status: z.enum(["DRAFT", "SCHEDULED", "CANCELLED"]).optional(),
 });
 const visitUpdate = z.object({
   startsAt: z.string().datetime().optional(),
