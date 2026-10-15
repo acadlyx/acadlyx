@@ -15,39 +15,21 @@ test("Director scope is not applied when the actor also has institution-wide Cha
   assert.equal(isDirectorScoped({ roles: ["DIRECTOR", "INSTITUTION_ADMIN"] }), true);
 });
 
-test("Chairman operations is an independent workspace page", () => {
+test("Chairman legacy operations route redirects to the Chairman workspace", () => {
   const page = readFileSync(join(frontend, "chairman/operations/page.tsx"), "utf8");
+  assert.ok(page.includes('redirect("/chairman")'), "legacy operations URL must redirect to the role-specific dashboard");
   assert.ok(!page.includes('from "@/app/operations/page"'), "Chairman must not alias the generic operations page");
-  assert.ok(page.includes('allowedRoles={["CHAIRMAN"]}'), "Chairman route must retain its role boundary");
-  for (const route of [
-    "/chairman/intelligence",
-    "/chairman/fees/structures",
-    "/chairman/fees",
-    "/chairman/examinations",
-    "/chairman/students",
-    "/chairman/placements",
-    "/chairman/reports",
-  ]) {
-    assert.ok(page.includes(`href: "${route}"`), `expected dedicated Chairman destination: ${route}`);
+  for (const route of ["/chairman/intelligence", "/chairman/fees/structures", "/chairman/fees", "/chairman/examinations", "/chairman/students", "/chairman/placements", "/chairman/reports"]) {
     assert.ok(existsSync(join(frontend, route.slice(1), "page.tsx")), `destination route must exist: ${route}`);
   }
 });
 
-test("Director operations remains inside Director-specific routes", () => {
+test("Director legacy operations route redirects to the Director workspace", () => {
   const page = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
-  assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "Director route must retain its role boundary");
-  assert.ok(!page.includes('href: "/students"'), "Director operations must not navigate to unscoped global students");
-  assert.ok(!page.includes('href: "/admissions"'), "Director operations must not navigate to unscoped global admissions");
-  for (const route of [
-    "/director/students",
-    "/director/examinations",
-    "/director/obe",
-    "/director/fees",
-    "/director/fee-approvals",
-    "/director/placements",
-    "/director/reports",
-  ]) {
-    assert.ok(page.includes(`href: "${route}"`), `expected dedicated Director destination: ${route}`);
+  assert.ok(page.includes('redirect("/director")'), "legacy operations URL must redirect to the role-specific dashboard");
+  assert.ok(!page.includes('href: "/students"'), "legacy route must not expose unscoped global students");
+  assert.ok(!page.includes('href: "/admissions"'), "legacy route must not expose unscoped global admissions");
+  for (const route of ["/director/students", "/director/examinations", "/director/obe", "/director/fees", "/director/fee-approvals", "/director/placements", "/director/reports"]) {
     assert.ok(existsSync(join(frontend, route.slice(1), "page.tsx")), `destination route must exist: ${route}`);
   }
 });
@@ -100,7 +82,8 @@ test("Director fee approvals have a dedicated page and backend program/semester 
 
   assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
   assert.ok(page.includes("assigned campus scope"), "page must explain the campus boundary");
-  assert.ok(operations.includes('href: "/director/fee-approvals"'), "Director may retain campus fee approval workflow");
+  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
+  assert.ok(navigation.includes('href: "/director/fee-approvals"'), "Director may retain campus fee approval workflow in the sidebar");
   assert.ok(!dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "Director dashboard should not duplicate approval workflow shortcuts");
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.read"'));
   assert.ok(rbac.slice(rbac.indexOf("DIRECTOR:"), rbac.indexOf("DEAN:")).includes('"fees.structure.approve"'));
@@ -131,7 +114,8 @@ test("Chairman and Director intelligence routes are separate and role-scoped", (
   assert.ok(director.includes('allowedRoles={["DIRECTOR"]}'));
   assert.ok(!chairman.includes('from "@/app/intelligence/page"'), "Chairman must not alias the generic intelligence page");
   assert.ok(!director.includes('from "@/app/intelligence/page"'), "Director must not alias the generic intelligence page");
-  assert.ok(directorOps.includes('href: "/director/intelligence"'));
+  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
+  assert.ok(navigation.includes('href: "/director/intelligence"'), "Director intelligence remains reachable from the scoped sidebar");
   assert.ok(!directorDashboard.includes('["Campus intelligence", "/director/intelligence"]'), "Director dashboard should not duplicate sidebar destinations");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/director/intelligence"'), "Director intelligence must be reachable from the sidebar");
@@ -233,8 +217,11 @@ test("Chairman and Director examination operations are separate full-lifecycle w
     assert.ok(source.includes("Uphold incident"));
     assert.ok(source.includes("Dismiss incident"));
   }
-  assert.ok(chairmanOperations.includes('href: "/chairman/examinations/operations"'));
-  assert.ok(directorOperations.includes('href: "/director/examinations/operations"'));
+  assert.ok(chairmanOperations.includes('redirect("/chairman")'), "legacy Chairman operations URL redirects to its workspace");
+  assert.ok(directorOperations.includes('redirect("/director")'), "legacy Director operations URL redirects to its workspace");
+  const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
+  assert.ok(navigation.includes('href: "/chairman/examinations/operations"'), "Chairman exam operations remain reachable from the sidebar");
+  assert.ok(navigation.includes('href: "/director/examinations/operations"'), "Director exam operations remain reachable from the sidebar");
 });
 
 test("Director export and attendance reporting enforce campus-derived department filters", () => {
@@ -336,8 +323,8 @@ test("Student list and profile queries combine requested filters with server-der
   assert.ok(list.includes("studentEnrollments: { some: { AND: enrollmentPredicates } }"), "the list itself must not be widened by query filters");
   assert.ok(list.includes("include: scopedStudentListInclude"));
   assert.ok(profile.includes("await assertStudentReadAccess(institutionId, userId, actor)"), "profile reads must authorize the target student");
-  assert.ok(profile.includes("getStudentWhereScope(institutionId, actor)"), "profile nested enrollment history must use the same resolved scope");
-  assert.ok(profile.includes("where: { AND: [enrollmentScope] }"), "profile must hide enrollment history outside the allowed scope");
+  assert.ok(profile.includes("await getStudentWhereScope(institutionId, actor)"), "profile nested enrollment history must use the same resolved scope");
+  assert.ok(profile.includes("AND: [enrollmentScope]"), "profile must hide enrollment history outside the allowed scope");
 });
 
 test("Chairman receives approval-only examination permissions without Examination Cell management", () => {
