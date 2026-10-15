@@ -1433,6 +1433,8 @@ model PlacementVisit {
   driveId String?
   drive PlacementDrive? @relation(fields:[driveId], references:[id], onDelete:SetNull)
   type String
+  /// DRAFT | PUBLISHED | CANCELLED. Published is the compatibility default.
+  status String @default("PUBLISHED")
   startsAt DateTime
   endsAt DateTime?
   venue String?
