@@ -15,7 +15,7 @@ type Student = {
 };
 type Envelope = { success: boolean; data: Student[] };
 type FilterOption = { id: string; name: string };
-type CriteriaOptions = { campuses: FilterOption[]; departments: FilterOption[]; programs: FilterOption[]; batches: FilterOption[]; semesters: FilterOption[] };
+type CriteriaOptions = { campuses: FilterOption[]; departments: FilterOption[]; programs: FilterOption[]; batches: FilterOption[]; semesters: FilterOption[]; academicYears: FilterOption[] };
 
 export function RoleScopedStudents({
   role,
@@ -40,7 +40,7 @@ export function RoleScopedStudents({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [criteria, setCriteria] = useState<CriteriaOptions | null>(null);
-  const [filters, setFilters] = useState({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "" });
+  const [filters, setFilters] = useState({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "", academicYearId: "" });
   const pageSize = 25;
 
   const load = useCallback(async () => {
@@ -96,14 +96,15 @@ export function RoleScopedStudents({
           <label htmlFor="student-search" className="sr-only">Search students</label>
           <input id="student-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by student name, admission number or email" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm" />
           <button type="submit" className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">Search</button>
-          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setFilters({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "" }); setPage(1); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
-          {placementFilters && <div className="grid w-full gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setFilters({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "", academicYearId: "" }); setPage(1); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
+          {placementFilters && <div className="grid w-full gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
             {([
               ["campusId", "Campus", criteria?.campuses ?? []],
               ["departmentId", "Department", criteria?.departments ?? []],
               ["programId", "Programme", criteria?.programs ?? []],
               ["batchId", "Admission batch", criteria?.batches ?? []],
               ["semesterId", "Semester", criteria?.semesters ?? []],
+              ["academicYearId", "Academic year / session", criteria?.academicYears ?? []],
             ] as Array<[keyof typeof filters, string, FilterOption[]]>).map(([key, label, options]) => <label key={key} className="flex flex-col gap-1 text-xs font-bold text-slate-600">{label}
               <select value={filters[key]} onChange={(event) => { setFilters((current) => ({ ...current, [key]: event.target.value })); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal"><option value="">All {label.toLowerCase()}s</option>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
             </label>)}
