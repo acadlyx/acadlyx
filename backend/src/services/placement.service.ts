@@ -2504,6 +2504,56 @@ export async function updatePlacementTest(
   return updated;
 }
 
+export async function previewPlacementCohortAudience(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  targeting?: PlacementCohortTargeting,
+  explicitStudentIds: string[] = [],
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const hasCohortFilters = Boolean(
+    targeting && (
+      targeting.campusIds?.length || targeting.programIds?.length ||
+      targeting.departmentIds?.length || targeting.batchIds?.length ||
+      targeting.semesterIds?.length || targeting.sectionIds?.length ||
+      targeting.graduatingYears?.length
+    ),
+  );
+  const explicitIds = [...new Set(explicitStudentIds)];
+  if (!hasCohortFilters && explicitIds.length === 0) {
+    throw new AppError("Select at least one cohort criterion or individual student before previewing the audience.", 422);
+  }
+  const cohortIds = hasCohortFilters ? await resolvePlacementCohortAudience(institutionId, targeting) : [];
+  const allIds = [...new Set([...cohortIds, ...explicitIds])];
+  if (!allIds.length) return { matchingCount: 0, sample: [], truncated: false };
+
+  const enrolledStudents = await prisma.user.findMany({
+    where: {
+      institutionId, id: { in: allIds },
+      userRoles: { some: { role: { name: "STUDENT" } } },
+    },
+    select: { id: true },
+    take: 10000,
+  });
+  if (enrolledStudents.length !== allIds.length) {
+    throw new AppError("The audience includes a non-student or a student outside this institution.", 422);
+  }
+  await Promise.all(allIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  const sample = await prisma.user.findMany({
+    where: { institutionId, id: { in: allIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: { id: "asc" },
+    take: 10,
+  });
+  return {
+    matchingCount: allIds.length,
+    sample,
+    truncated: allIds.length >= 10000,
+  };
+}
+
+
 /** Private placement schedule projection for the authenticated student.
  * These events intentionally stay in the placement domain because the
  * institution-wide CalendarEvent model has no student ownership relation. */
