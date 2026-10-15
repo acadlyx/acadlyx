@@ -47,6 +47,9 @@ export default function PlacementTeamWorkspace() {
   const [companyFilter, setCompanyFilter] = useState("ALL");
   const [driveStatusFilter, setDriveStatusFilter] = useState("ALL");
   const [applicationStatusFilter, setApplicationStatusFilter] = useState("ALL");
+  const [selectedApplicationIds, setSelectedApplicationIds] = useState<string[]>([]);
+  const [bulkTargetStatus, setBulkTargetStatus] = useState("SHORTLISTED");
+  const [bulkSummary, setBulkSummary] = useState("");
   const [eventFilter, setEventFilter] = useState("UPCOMING");
 
   const load = useCallback(async () => {
@@ -169,6 +172,39 @@ export default function PlacementTeamWorkspace() {
     }
   }
 
+  async function bulkTransition() {
+    const ids = [...new Set(selectedApplicationIds)].slice(0, 100);
+    if (!ids.length) {
+      setError("Select at least one candidate application first.");
+      return;
+    }
+    setBusy("bulk");
+    setError("");
+    setBulkSummary("");
+    try {
+      const response = await authedFetch<{ data: {
+        requested: number;
+        updated: Array<{ id: string; status: string }>;
+        failed: Array<{ id: string; message: string }>;
+      } }>("/placements/applications/bulk-status", {
+        method: "POST",
+        body: JSON.stringify({ ids, status: bulkTargetStatus }),
+      });
+      const result = response.data;
+      setSelectedApplicationIds(result.failed.map((item) => item.id));
+      setBulkSummary(
+        `Bulk update: ${result.updated.length}/${result.requested} updated to ${bulkTargetStatus.replaceAll("_", " ")}; ${result.failed.length} failed.` +
+        (result.failed.length ? " " + result.failed.slice(0, 3).map((item) => item.message).join(" · ") : "")
+      );
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to bulk update applications.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function retryFailure(failure: AutomationFailure) {
     setBusy("retry:" + failure.id);
     setError("");
@@ -265,9 +301,22 @@ export default function PlacementTeamWorkspace() {
             <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-slate-600">Application stage
               <select value={applicationStatusFilter} onChange={(event) => setApplicationStatusFilter(event.target.value)} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal"><option value="ALL">All stages</option>{[...new Set(applications.map((application) => application.status))].sort().map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
             </label>
+            <div className="mt-3 grid gap-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <label className="flex flex-col gap-1 text-xs font-bold text-slate-700">Bulk target stage
+                <select value={bulkTargetStatus} onChange={(event) => setBulkTargetStatus(event.target.value)} className="rounded-lg border bg-white px-3 py-2 text-sm font-normal">
+                  {["SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "REJECTED", "WITHDRAWN"].map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+                </select>
+                <span className="font-normal text-slate-500">Each application is validated independently. Invalid transitions and out-of-scope candidates are reported without hiding successful updates.</span>
+              </label>
+              <button type="button" onClick={() => void bulkTransition()} disabled={busy !== null || selectedApplicationIds.length === 0} className="self-start rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy === "bulk" ? "Updating…" : `Update ${selectedApplicationIds.length} selected`}</button>
+              {bulkSummary && <p role="status" className="text-xs font-semibold text-slate-700 sm:col-span-2">{bulkSummary}</p>}
+            </div>
             <div className="mt-4 space-y-3">
               {visibleApplications.slice(0, 8).map((application) => <div key={application.id} className="rounded-xl border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="font-bold text-slate-950">{application.student ? application.student.firstName + " " + application.student.lastName : "Candidate"}</p><p className="text-sm text-slate-600">{application.opportunity.title} · {application.opportunity.organization}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold">{application.status.replaceAll("_", " ")}</span></div>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <label className="flex items-start gap-2"><input type="checkbox" checked={selectedApplicationIds.includes(application.id)} onChange={(event) => setSelectedApplicationIds((current) => event.target.checked ? (current.includes(application.id) ? current : [...current, application.id].slice(-100)) : current.filter((id) => id !== application.id))} aria-label={`Select ${application.student ? application.student.firstName + " " + application.student.lastName : "candidate"} application`} className="mt-1" /><span className="min-w-0"><span className="block font-bold text-slate-950">{application.student ? application.student.firstName + " " + application.student.lastName : "Candidate"}</span><span className="block text-sm text-slate-600">{application.opportunity.title} · {application.opportunity.organization}</span></span></label>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold">{application.status.replaceAll("_", " ")}</span>
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(statusActions[application.status] || []).map((action) => <button type="button" key={action.status} disabled={busy === application.id + action.status} onClick={() => void transition(application.id, action.status)} className={"rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 " + (action.status === "REJECTED" ? "border-red-200 text-red-700" : "text-slate-800")}>{busy === application.id + action.status ? "Updating…" : action.label}</button>)}
                   {["SELECTED", "OFFERED", "ACCEPTED"].includes(application.status) && <button type="button" onClick={() => router.push("/placements/offers")} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">Manage offer / joining</button>}
