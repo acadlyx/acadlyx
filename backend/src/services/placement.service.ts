@@ -590,15 +590,18 @@ export async function checkDriveEligibility(institutionId: string, actor: Authen
   }
   if (!target) throw new AppError("Student scope is required.", 400);
   await assertCanViewStudent(institutionId, actor, target);
-  const [drive, enrollment, academic] = await Promise.all([
-    prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, status: true, applicationDeadline: true, cgpaRequirement: true, maxBacklogs: true, eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true, requiredSkills: true, academicRequirements: true } }),
-    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, select: { programId: true, batchId: true, semesterId: true, program: { select: { departmentId: true } } } }),
+  const [drive, enrollment, academic, existingApplication] = await Promise.all([
+    prisma.placementDrive.findFirst({ where: { id: driveId, institutionId }, select: { id: true, campusId: true, status: true, applicationDeadline: true, cgpaRequirement: true, maxBacklogs: true, eligiblePrograms: true, eligibleDepartments: true, eligibleBatches: true, eligibleSemesters: true, requiredSkills: true, academicRequirements: true } }),
+    prisma.studentEnrollment.findFirst({ where: { institutionId, userId: target, status: "ACTIVE" }, orderBy: { enrolledAt: "desc" }, select: { programId: true, batchId: true, semesterId: true, program: { select: { departmentId: true, department: { select: { campusId: true } } } } } }),
     prisma.placementAcademicSnapshot.findFirst({ where: { institutionId, studentId: target } }),
+    prisma.application.findFirst({ where: { institutionId, studentId: target, placementDriveId: driveId }, select: { id: true } }),
   ]);
   if (!drive) throw new AppError("Placement drive not found.", 404);
   if (!enrollment) return { eligible: false, reasons: ["No active academic enrollment found."] };
   const reasons: string[] = [];
   const list = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  if (drive.campusId && enrollment.program.department.campusId !== drive.campusId) reasons.push("This drive is restricted to a different campus.");
+  if (existingApplication) reasons.push("You have already applied to this drive.");
   if (drive.status !== "APPLICATION_OPEN") reasons.push("Applications are not open for this drive.");
   if (drive.applicationDeadline && drive.applicationDeadline.getTime() < Date.now()) reasons.push("The application deadline has passed.");
   if (list(drive.eligiblePrograms).length && !list(drive.eligiblePrograms).includes(enrollment.programId)) reasons.push("Program is not eligible.");
