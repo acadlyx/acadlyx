@@ -75,7 +75,6 @@ test("Chairman legacy fee-approval route redirects to the direct publication wor
 
 test("Director fee approvals have a dedicated page and backend program/semester scope enforcement", () => {
   const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
-  const operations = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
   const dashboard = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
   const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
@@ -108,7 +107,6 @@ test("Director fee approvals have a dedicated page and backend program/semester 
 test("Chairman and Director intelligence routes are separate and role-scoped", () => {
   const chairman = readFileSync(join(frontend, "chairman/intelligence/page.tsx"), "utf8");
   const director = readFileSync(join(frontend, "director/intelligence/page.tsx"), "utf8");
-  const directorOps = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
   const directorDashboard = readFileSync(join(process.cwd(), "../frontend/src/components/dashboard/DirectorDashboard.tsx"), "utf8");
   assert.ok(chairman.includes('allowedRoles={["CHAIRMAN"]}'));
   assert.ok(director.includes('allowedRoles={["DIRECTOR"]}'));
