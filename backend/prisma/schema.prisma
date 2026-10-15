@@ -2058,6 +2058,9 @@ model Notification {
   dismissedAt   DateTime?
   actionUrl     String?
   priority      String      @default("NORMAL")
+  /// Stable caller-supplied key used to make event notifications idempotent.
+  /// Null preserves compatibility with notifications created by older flows.
+  dedupeKey     String?     @unique
   createdAt     DateTime    @default(now())
 
   @@index([institutionId, userId, readAt])
