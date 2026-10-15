@@ -480,6 +480,12 @@ export async function createPlacementDrive(institutionId: string, actor: Authent
       throw new AppError("Directors may create drives only for an assigned campus.", 403);
     }
   }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    if (!input.eligibleDepartments?.length || input.eligibleDepartments.some((id) => !allowedDepartmentIds.includes(id))) {
+      throw new AppError("Academic workspaces may create drives only for explicitly assigned departments.", 403);
+    }
+  }
   const [programs, departments, batches, semesters, skills] = await Promise.all([
     input.eligiblePrograms?.length ? prisma.program.findMany({ where: { institutionId, id: { in: input.eligiblePrograms }, isActive: true }, select: { id: true } }) : [],
     input.eligibleDepartments?.length ? prisma.department.findMany({ where: { institutionId, id: { in: input.eligibleDepartments }, isActive: true }, select: { id: true } }) : [],
@@ -562,6 +568,15 @@ export async function transitionPlacementDrive(institutionId: string, actor: Aut
     const assignedCampusIds = await getDirectorCampusIds(institutionId, actor.id);
     if (!drive.campusId || !assignedCampusIds.includes(drive.campusId)) {
       throw new AppError("Placement drive not found in the director's authorised campus scope.", 404);
+    }
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const driveDepartmentIds = Array.isArray(drive.eligibleDepartments)
+      ? drive.eligibleDepartments.filter((id): id is string => typeof id === "string")
+      : [];
+    if (!driveDepartmentIds.length || !driveDepartmentIds.some((id) => allowedDepartmentIds.includes(id))) {
+      throw new AppError("Placement drive not found in the authorised department scope.", 404);
     }
   }
   const next = status.toUpperCase();
