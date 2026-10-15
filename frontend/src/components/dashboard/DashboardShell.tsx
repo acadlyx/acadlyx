@@ -50,7 +50,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   // A cached user is useful for instant rendering, but must never be the
   // final authorization decision. Permissions/entitlements can change after
   // RBAC sync, so route guards wait for one fresh /auth/me reconciliation.
-  const [routeAuthReady, setRouteAuthReady] = useState(!cachedUser);
+  const [routeAuthReady, setRouteAuthReady] = useState(Boolean(cachedUser));
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
   const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
@@ -65,7 +65,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     if (cached) setUser(cached);
 
     const reconcile = cached
-      ? getCurrentUser({ force: true })
+      ? getCurrentUser({ background: true })
       : getCurrentUser();
 
     // Workspace context is independent of /auth/me. Start both requests at
