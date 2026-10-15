@@ -15,7 +15,7 @@ export default function PlacementOpeningsPage() {
   const [items, setItems] = useState<Opening[]>([]);
   const [search, setSearch] = useState("");
   const [employmentType, setEmploymentType] = useState("ALL");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState("");
@@ -42,8 +42,8 @@ export default function PlacementOpeningsPage() {
     ...(search.trim() ? { search: search.trim() } : {}),
     ...(employmentType !== "ALL" ? { employmentType } : {}),
     ...(location.trim() ? { location: location.trim() } : {}),
-    ...(dateFrom ? { dateFrom } : {}),
-    ...(dateTo ? { dateTo } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
   }), [search, employmentType, location, dateFrom, dateTo]);
 
   const visible = useMemo(() => {
@@ -51,10 +51,10 @@ export default function PlacementOpeningsPage() {
     return items.filter((opening) => {
       const matchesSearch = !q || [opening.role, opening.company.name, opening.employmentType || "", opening.location || ""].some(v => v.toLowerCase().includes(q));
       const matchesType = employmentType === "ALL" || opening.employmentType?.toLowerCase() === employmentType.toLowerCase();
-      const matchesLocation = !location.trim() || (opening.location || "").toLowerCase().includes(location.trim().toLowerCase());
+      const matchesLocation = location === "ALL" || (opening.location || "") === location;
       const deadline = opening.deadline ? new Date(opening.deadline).getTime() : null;
       const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
-      const to = dateTo ? new Date(dateTo + "T23:59:59").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59.999").getTime() : null;
       const matchesDates = (from === null || (deadline !== null && deadline >= from)) && (to === null || (deadline !== null && deadline <= to));
       return matchesSearch && matchesType && matchesLocation && matchesDates;
     });
@@ -102,8 +102,8 @@ export default function PlacementOpeningsPage() {
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Employment<select value={employmentType} onChange={e => setEmploymentType(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All types</option>{[...new Set(items.map(x => x.employmentType).filter((x): x is string => Boolean(x)))].sort().map(x => <option key={x}>{x}</option>)}</select></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Deadline from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Deadline to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
-            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">Location contains<input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Noida / Remote" className="rounded-xl border px-3 py-3 font-normal" /></label>
-            <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setEmploymentType("ALL"); setLocation(""); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button></div>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">Location<select value={location} onChange={e => setLocation(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All locations</option>{[...new Set(items.map(x => x.location).filter((x): x is string => Boolean(x)))].sort().map(x => <option key={x}>{x}</option>)}</select></label>
+            <div className="flex items-end"><button type="button" onClick={() => { setSearch(""); setEmploymentType("ALL"); setLocation("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-3 text-sm font-bold">Clear filters</button></div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">{visible.length} opening(s) match filters.</p><DataExportActions type="placement-openings" filters={filters} compact /></div>
           <div className="grid gap-4 md:grid-cols-2">{visible.map(o => <article key={o.id} className="rounded-2xl border bg-white p-5"><h2 className="font-black">{o.role}</h2><p className="text-sm text-slate-600">{o.company.name} · {o.employmentType || "Employment type not set"}{o.location ? " · " + o.location : ""}</p><p className="mt-3 text-sm font-bold">{o.totalCtc == null ? "Package not set" : o.currency + " " + Number(o.totalCtc).toLocaleString("en-IN")}</p><p className="mt-2 text-xs text-slate-500">{o.deadline ? "Deadline " + new Date(o.deadline).toLocaleString("en-IN") : "No deadline set"} · {o.drives.length} linked drive(s)</p></article>)}</div>
