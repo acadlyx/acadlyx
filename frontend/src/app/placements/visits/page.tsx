@@ -135,7 +135,7 @@ export default function PlacementVisitsPage() {
           </label>
           <fieldset className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 md:col-span-2">
             <legend className="px-2 text-sm font-black text-slate-800">Cohort targeting</legend>
-            <p className="text-xs font-normal text-slate-600">Select one or more institutional cohorts. A student is included when their active enrollment matches the selected filters; graduating year uses the institution's batch completion year. Cohort and individually selected students are combined.</p>
+            <p className="text-xs font-normal text-slate-600">Select one or more institutional cohorts. A student is included when their active enrollment matches the selected filters; graduating year uses the institution&apos;s batch completion year. Cohort and individually selected students are combined.</p>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Campus
                 <select name="campusIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{campuses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
