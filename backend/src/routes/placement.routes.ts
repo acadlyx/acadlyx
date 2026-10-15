@@ -208,6 +208,16 @@ router.get("/companies", authorize("placements.read"), asyncHandler(async (req,r
   const data=await placement.listPlacementCompanies(requireInstitution(req),actor,typeof req.query.search==="string"?req.query.search:undefined);
   res.json({success:true,data});
 }));
+router.patch("/companies/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const body = companyCreate.partial().extend({
+    logoUrl: z.string().url().nullable().optional(), website: z.string().url().nullable().optional(),
+    industry: z.string().max(120).nullable().optional(), companyType: z.string().max(120).nullable().optional(),
+    description: z.string().max(5000).nullable().optional(), headquarters: z.string().max(200).nullable().optional(),
+  }).parse(req.body);
+  const item = await placement.updatePlacementCompany(requireInstitution(req), requireAuthenticatedUser(req), id, body);
+  res.json({ success: true, data: item });
+}));
 router.post("/companies", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementCompany(requireInstitution(req),requireAuthenticatedUser(req),companyCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
