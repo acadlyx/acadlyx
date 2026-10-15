@@ -103,6 +103,7 @@ test("placement visit is visible only to its explicitly targeted student and omi
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.domainEventOutbox.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
@@ -195,6 +196,7 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.domainEventOutbox.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
@@ -282,6 +284,7 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     await prisma.placementInterview.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementDrive.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementCompany.deleteMany({ where: { institutionId: institution.id } });
+    await prisma.domainEventOutbox.deleteMany({ where: { institutionId: institution.id } });
     await prisma.institution.delete({ where: { id: institution.id } });
   }
 });
