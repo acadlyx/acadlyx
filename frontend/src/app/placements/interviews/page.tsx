@@ -49,20 +49,23 @@ export default function PlacementInterviewsPage() {
       setItems(interviews.data || []);
       setDrives(driveList.data || []);
       setStudents(studentList.data || []);
-      const [c, d, p, b, semesterResult, sectionResult] = await Promise.allSettled([
+      const criteriaResult = await Promise.allSettled([
         authedFetch<{ data: ScopeOption[] }>("/campuses"),
         authedFetch<{ data: ScopeOption[] }>("/departments"),
         authedFetch<{ data: ScopeOption[] }>("/programs"),
         authedFetch<{ data: ScopeOption[] }>("/batches"),
-        authedFetch<{ data: ScopeOption[] }>("/semesters"),
-        authedFetch<{ data: ScopeOption[] }>("/sections"),
+        authedFetch<{ data: { semesters: ScopeOption[]; sections: ScopeOption[] } }>("/placements/criteria-options"),
       ]);
-      if (c.status === "fulfilled") setCampuses(c.value.data || []);
-      if (d.status === "fulfilled") setDepartments(d.value.data || []);
-      if (p.status === "fulfilled") setPrograms(p.value.data || []);
-      if (b.status === "fulfilled") setBatches(b.value.data || []);
-      if (semesterResult.status === "fulfilled") setSemesters(semesterResult.value.data || []);
-      if (sectionResult.status === "fulfilled") setSections(sectionResult.value.data || []);
+      const [campusResult, departmentResult, programResult, batchResult, placementCriteriaResult] = criteriaResult;
+      if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
+      if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
+      if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
+      if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
+      if (placementCriteriaResult.status === "fulfilled") {
+        setSemesters(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.semesters || [] : []);
+        setSections(placementCriteriaResult.value[4].status === "fulfilled" ? placementCriteriaResult.value[4].value.data.sections || [] : []);
+      }
+
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load interviews.");
