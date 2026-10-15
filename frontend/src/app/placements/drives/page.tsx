@@ -134,11 +134,11 @@ export default function PlacementDrivesPage() {
   const exportFilters = useMemo(() => ({
     ...(search.trim() ? { search: search.trim() } : {}),
     ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-    ...(companyFilter !== "ALL" ? { company: companyFilter } : {}),
-    ...(campusFilter !== "ALL" ? { campusId: campusFilter } : {}),
-    ...(dateFrom ? { dateFrom } : {}),
-    ...(dateTo ? { dateTo } : {}),
-  }), [search, statusFilter, companyFilter, campusFilter, dateFrom, dateTo]);
+    ...(companyFilter !== "ALL" ? { company: companies.find(c => c.id === companyFilter)?.name || companyFilter } : {}),
+    ...(campusFilter !== "ALL" ? { campusId: campusFilter === "INSTITUTION" ? "__NULL__" : campusFilter } : {}),
+    ...(dateFrom ? { dateFrom: new Date(dateFrom + "T00:00:00").toISOString() } : {}),
+    ...(dateTo ? { dateTo: new Date(dateTo + "T23:59:59.999").toISOString() } : {}),
+  }), [search, statusFilter, companyFilter, campusFilter, dateFrom, dateTo, companies]);
 
   const visibleDrives = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -233,7 +233,7 @@ export default function PlacementDrivesPage() {
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Campus<select value={campusFilter} onChange={e => setCampusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All campuses</option><option value="INSTITUTION">Institution-wide</option>{criteria?.campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Drive date from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Drive date to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
-            <div className="flex flex-wrap items-end gap-2 lg:col-span-3"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setCompanyFilter("ALL"); setCampusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-2 text-sm font-bold">Clear filters</button><DataExportActions type="placement-drives" filters={{...exportFilters, ...(campusFilter === "INSTITUTION" ? { campusId: "null" } : {})}} compact /></div>
+            <div className="flex flex-wrap items-end gap-2 lg:col-span-3"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setCompanyFilter("ALL"); setCampusFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-2 text-sm font-bold">Clear filters</button><DataExportActions type="placement-drives" filters={exportFilters} compact /></div>
           </div>
           <p className="text-sm text-slate-600">{visibleDrives.length} drive(s) match the current filters.</p>
           {visibleDrives.map((drive) => {
