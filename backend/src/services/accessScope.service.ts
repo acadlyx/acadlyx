@@ -446,6 +446,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
           { placementProfile: { isNot: null } },
           { placementAcademicSnapshot: { isNot: null } },
           { placementApplicationsOwned: { some: { institutionId } } },
+          { studentEnrollments: { some: { institutionId, status: "ACTIVE" } } },
         ],
       },
       select: { id: true },
