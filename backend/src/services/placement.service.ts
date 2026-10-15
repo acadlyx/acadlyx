@@ -1151,10 +1151,18 @@ export async function updatePlacementOpening(institutionId: string, actor: Authe
 }
 
 export async function createPlacementOffer(institutionId: string, actor: AuthenticatedUser, input: {
-  applicationId: string; role: string; offerDate: string; joiningDate?: string; totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; currency?: string; offerDocumentUrl?: string;
+  applicationId: string; role: string; offerDate: string; responseDeadline?: string; joiningDate?: string; totalCtc?: number; fixedCtc?: number; variableCtc?: number; bonus?: number; currency?: string; offerDocumentUrl?: string;
 }) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const parsedOfferDate = new Date(input.offerDate);
+  const parsedResponseDeadline = input.responseDeadline ? new Date(input.responseDeadline) : null;
+  const parsedJoiningDate = input.joiningDate ? new Date(input.joiningDate) : null;
+  if (Number.isNaN(parsedOfferDate.getTime()) ||
+      (parsedResponseDeadline && (Number.isNaN(parsedResponseDeadline.getTime()) || parsedResponseDeadline < parsedOfferDate)) ||
+      (parsedJoiningDate && (Number.isNaN(parsedJoiningDate.getTime()) || parsedJoiningDate < parsedOfferDate))) {
+    throw new AppError("Offer date, response deadline, and joining date must be valid; deadlines and joining cannot precede the offer date.", 422);
+  }
   const application = await prisma.application.findFirst({
     where: { id: input.applicationId, institutionId },
     include: { student: { select: { id: true } }, opportunity: { select: { organization: true } } },
@@ -1193,8 +1201,9 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
         companyId: company.id,
         applicationId: application.id,
         role: input.role.trim(),
-        offerDate: new Date(input.offerDate),
-        joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
+        offerDate: parsedOfferDate,
+        responseDeadline: parsedResponseDeadline,
+        joiningDate: parsedJoiningDate,
         totalCtc: input.totalCtc,
         fixedCtc: input.fixedCtc,
         variableCtc: input.variableCtc,
@@ -1239,6 +1248,9 @@ export async function transitionPlacementOffer(institutionId: string, actor: Aut
     if (offer.studentId !== actor.id) throw new AppError("This offer is outside your scope.", 403);
     if (!["ACCEPTED", "REJECTED"].includes(next) || offer.status !== "OFFERED") {
       throw new AppError("Invalid student offer transition.", 409);
+    }
+    if (offer.responseDeadline && Date.now() > offer.responseDeadline.getTime()) {
+      throw new AppError("The offer response deadline has passed. Contact your Placement Cell for assistance.", 409);
     }
   } else {
     if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -2593,7 +2605,7 @@ export async function retryPlacementAutomationFailure(institutionId: string, act
   await assertPlacementFailureScope(institutionId, actor, event.payload);
   const result = await prisma.domainEventOutbox.updateMany({
     where: { id, institutionId, processedAt: null, attempts: { gt: 0 }, name: { startsWith: "placement." } },
-    data: { attempts: 0, lastError: null },
+    data: { attempts: 0, lastError: null, nextAttemptAt: null },
   });
   if (result.count !== 1) throw new AppError("The event is already processed or being retried. Refresh and try again.", 409);
   await recordAuditLog({
