@@ -61,7 +61,32 @@ export default function StudentPlacementsPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  async function refreshCalendar() {
+    try {
+      const response = await authedFetch<{ data: StudentCalendarItem[] }>("/placements/my-calendar");
+      setCalendarItems(response.data || []);
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else if (cause instanceof HttpRequestError) setError(cause.message);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshCalendar();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshCalendar();
+    }, 60_000);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.clearInterval(refreshInterval);
+    };
+  }, []);
 
   async function apply(id: string) {
     setBusy(id);
@@ -168,8 +193,8 @@ export default function StudentPlacementsPage() {
 
         <section className="rounded-3xl border bg-white p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="text-xl font-black text-slate-950">My placement calendar</h2><p className="mt-1 text-sm text-slate-600">Personal schedule synchronised from your published drives, assigned rounds, activities and joining information.</p></div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{calendarItems.length} event(s)</span>
+            <div><h2 className="text-xl font-black text-slate-950">My placement calendar</h2><p className="mt-1 text-sm text-slate-600">Personal schedule synchronised from your published drives, assigned rounds, activities and joining information. Refreshes when you return to this tab and periodically while it is open.</p></div>
+            <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{calendarItems.length} event(s)</span><button type="button" onClick={() => void refreshCalendar()} disabled={loading} className="rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50">Refresh calendar</button></div>
           </div>
           <div className="mt-4 space-y-3">
             {calendarItems.map((item) => <article key={item.id} className={"rounded-2xl border p-4 " + (item.status === "CANCELLED" ? "border-red-200 bg-red-50/40" : "bg-white")}>
