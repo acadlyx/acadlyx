@@ -60,7 +60,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   await installAuthenticatedSession(page, "DIRECTOR");
 
   await page.goto(baseURL + "/director", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Director Command Center" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "Campus metrics are" })).toContainText("temporarily unavailable");
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/director/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/director/students");
@@ -69,21 +69,19 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   await expect(page.getByText("42")).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "Campus metrics are" })).toHaveCount(0);
 
-  await page.locator('a[href="/director/operations"]').first().click();
-  await expect(page).toHaveURL(/\/director\/operations$/);
-  await page.reload({ waitUntil: "networkidle" });
-  await expect(page).toHaveURL(/\/director\/operations$/);
-  await page.goBack();
+  // The legacy Operations URL must redirect to the role-specific workspace;
+  // the removed Operations page must not return as a duplicate destination.
+  await page.goto(baseURL + "/director/operations", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/director$/);
-  await page.goForward();
-  await expect(page).toHaveURL(/\/director\/operations$/);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/director$/);
   expect(pageErrors, "no unhandled browser exceptions").toEqual([]);
 });
 
 test("authenticated Chairman workspace keeps institution-wide navigation role-owned", async ({ page }) => {
   await installAuthenticatedSession(page, "CHAIRMAN");
   await page.goto(baseURL + "/chairman", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: /Institutional Command Center/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chairman", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/chairman/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/chairman/students");
   await expect(page.locator('a[href="/chairman/fees"]')).toHaveCount(1);

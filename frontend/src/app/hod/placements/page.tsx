@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect,useState } from "react";
-import { apiFetch,ApiRequestError } from "@/lib/api";
+import { authedFetch, AuthRequiredError, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 
 type Metrics=Record<string,string|number|null|undefined>;
@@ -11,7 +11,7 @@ type Offer={id:string;status:string;role:string;totalCtc:number|null;company:{na
 
 export default function HodPlacementsPage(){
  const[m,setM]=useState<Metrics|null>(null),[students,setStudents]=useState<Student[]>([]),[drives,setDrives]=useState<Drive[]>([]),[offers,setOffers]=useState<Offer[]>([]),[error,setError]=useState(""),[loading,setLoading]=useState(true);
- useEffect(()=>{void Promise.all([apiFetch<{data:Metrics}>("/placements/metrics"),apiFetch<{data:Student[]}>("/placements/students?pageSize=50"),apiFetch<{data:Drive[]}>("/placements/drives?pageSize=50"),apiFetch<{data:Offer[]}>("/placements/offers")]).then(([a,b,c,d])=>{setM(a.data);setStudents(b.data||[]);setDrives(c.data||[]);setOffers(d.data||[])}).catch(e=>setError(e instanceof ApiRequestError?e.message:"Unable to load department placement workspace.")).finally(()=>setLoading(false));},[]);
+ useEffect(()=>{void Promise.all([authedFetch<{data:Metrics}>("/placements/metrics"),authedFetch<{data:Student[]}>("/placements/students?pageSize=50"),authedFetch<{data:Drive[]}>("/placements/drives?pageSize=50"),authedFetch<{data:Offer[]}>("/placements/offers")]).then(([a,b,c,d])=>{setM(a.data);setStudents(b.data||[]);setDrives(c.data||[]);setOffers(d.data||[])}).catch(e=>setError(e instanceof AuthRequiredError ? "Your session has expired. Please sign in again." : e instanceof HttpRequestError ? e.message : "Unable to load department placement workspace.")).finally(()=>setLoading(false));},[]);
  return <DashboardShell title="Department Placement Workspace" subtitle="Department students, eligible drives, applications, offers and joining outcomes" allowedRoles={["HOD"]}>
  <div className="mx-auto max-w-7xl space-y-6">{error&&<div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{[["Eligible students",m?.eligibleStudents],["Placed",m?.placedStudents],["Unplaced",m?.unplacedStudents],["Placement rate",m?.placementRate!=null?String(m.placementRate)+"%":"—"],["Active drives",m?.openDrives]].map(([a,b])=><article key={String(a)} className="rounded-2xl border bg-white p-5"><p className="text-xs font-black uppercase tracking-wide text-slate-500">{a}</p><p className="mt-2 text-2xl font-black text-slate-950">{loading?"—":String(b??0)}</p></article>)}</section>
