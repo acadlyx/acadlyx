@@ -60,6 +60,20 @@ export default function PlacementTestsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "CANCELLED" }) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch(`/placements/tests/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      await load();
+    } catch (e) {
+      if (e instanceof AuthRequiredError) router.replace("/login");
+      else setError(e instanceof HttpRequestError ? e.message : "Unable to update assessment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -172,6 +186,15 @@ export default function PlacementTestsPage() {
             {item.instructions && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{item.instructions}</p>}
             {item.testLink && <a href={item.testLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm font-bold text-emerald-700 underline">Open assessment link</a>}
             <p className="mt-3 text-xs font-semibold text-slate-500">{item.participants?.length ?? 0} candidate(s) assigned</p>
+            <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
+              <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("scheduledAt"); if (typeof value === "string" && value) void updateTest(item.id, { scheduledAt: new Date(value).toISOString() }); }}>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule
+                  <input name="scheduledAt" type="datetime-local" required defaultValue={new Date(item.scheduledAt).toISOString().slice(0, 16)} disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
+                </label>
+                <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
+              </form>
+              {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
+            </div>
           </article>)}
           {!loading && items.length === 0 && <p className="rounded-2xl border border-dashed p-10 text-center text-sm text-slate-500 md:col-span-2 lg:col-span-3">No placement assessments have been scheduled yet.</p>}
         </section>
