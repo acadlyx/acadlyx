@@ -1489,7 +1489,7 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
 export async function createPlacementTest(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; studentIds?: string[] },
+  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
@@ -1518,7 +1518,14 @@ export async function createPlacementTest(
     }
   }
 
-  const requestedStudentIds = input.studentIds ?? [];
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  if (cohortStudentIds.length) {
+    await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  }
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
+  const requestedStudentIds = [...(input.studentIds ?? []), ...cohortStudentIds];
   const uniqueStudentIds = [...new Set(requestedStudentIds)];
   if (uniqueStudentIds.length !== requestedStudentIds.length) {
     throw new AppError("The assessment audience contains duplicate student IDs.", 422);
