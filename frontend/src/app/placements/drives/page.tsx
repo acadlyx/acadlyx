@@ -116,7 +116,8 @@ export default function PlacementDrivesPage() {
       requiredSkills: form.getAll("requiredSkills").filter((v): v is string => typeof v === "string"),
       academicRequirements: {
         ...(academicStatus ? { academicStatus } : {}),
-        ...(form.get("graduationEligible") === "on" ? { graduationEligible: true } : {}),\n        ...(form.get("allowIneligibleStudents") === "on" ? { allowIneligibleStudents: true } : {}),
+        ...(form.get("graduationEligible") === "on" ? { graduationEligible: true } : {}),
+        ...(form.get("allowIneligibleStudents") === "on" ? { allowIneligibleStudents: true } : {}),
       },
     };
     try {
