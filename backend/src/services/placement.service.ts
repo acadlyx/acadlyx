@@ -1590,32 +1590,34 @@ export async function createPlacementVisit(
   if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
     throw new AppError("The selected placement cohort contains no active students.", 422);
   }
-  const visit = await prisma.placementVisit.create({
-    data: {
-      institutionId,
-      companyId: input.companyId,
-      driveId: input.driveId || null,
-      type: input.type.trim(),
-      status: input.status ?? "PUBLISHED",
-      startsAt: new Date(input.startsAt),
-      endsAt: input.endsAt ? new Date(input.endsAt) : null,
-      venue: input.venue?.trim() || null,
-      purpose: input.purpose?.trim() || null,
-      representatives: input.representatives as Prisma.InputJsonValue | undefined,
-      participatingStudentIds: targetStudentIds.length ? targetStudentIds : undefined,
-      notes: input.notes?.trim() || null,
-      followUp: input.followUp?.trim() || null,
-    },
-  });
-  if ((input.status ?? "PUBLISHED") === "PUBLISHED") await notifyPlacementAudience({
-    institutionId,
-    recipientIds: targetStudentIds,
-    eventType: "visit",
-    eventId: visit.id,
-    version: "created",
-    title: "Placement activity scheduled",
-    body: `${input.type.trim()} is scheduled for ${new Date(input.startsAt).toLocaleString()}.`,
-    actionUrl: "/student/placements",
+  const initialStatus = input.status ?? "PUBLISHED";
+  const visit = await prisma.$transaction(async (tx) => {
+    const created = await tx.placementVisit.create({
+      data: {
+        institutionId,
+        companyId: input.companyId,
+        driveId: input.driveId || null,
+        type: input.type.trim(),
+        status: initialStatus,
+        startsAt: new Date(input.startsAt),
+        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+        venue: input.venue?.trim() || null,
+        purpose: input.purpose?.trim() || null,
+        representatives: input.representatives as Prisma.InputJsonValue | undefined,
+        participatingStudentIds: targetStudentIds.length ? targetStudentIds : undefined,
+        notes: input.notes?.trim() || null,
+        followUp: input.followUp?.trim() || null,
+      },
+    });
+    if (initialStatus === "PUBLISHED" && targetStudentIds.length) {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "visit",
+        eventId: created.id,
+        version: "created",
+        recipientIds: targetStudentIds,
+      });
+    }
+    return created;
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.visit.created", entityType: "PlacementVisit", entityId: visit.id, metadata: { companyId: input.companyId, type: input.type } });
   return visit;
