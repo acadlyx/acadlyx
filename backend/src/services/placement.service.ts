@@ -1237,7 +1237,7 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
 export async function createPlacementVisit(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; notes?: string; followUp?: string },
+  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting; notes?: string; followUp?: string },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1285,6 +1285,14 @@ export async function createPlacementVisit(
       throw new AppError("Every target must be an institution student within your authorised scope.", 422);
     }
   }
+  const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
+  const targetStudentIds = [...new Set([...(input.participatingStudentIds ?? []), ...cohortStudentIds])];
+  if (cohortStudentIds.length) {
+    await Promise.all(cohortStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  }
+  if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length) && cohortStudentIds.length === 0) {
+    throw new AppError("The selected placement cohort contains no active students.", 422);
+  }
   const visit = await prisma.placementVisit.create({
     data: {
       institutionId,
@@ -1296,14 +1304,14 @@ export async function createPlacementVisit(
       venue: input.venue?.trim() || null,
       purpose: input.purpose?.trim() || null,
       representatives: input.representatives as Prisma.InputJsonValue | undefined,
-      participatingStudentIds: input.participatingStudentIds ?? undefined,
+      participatingStudentIds: targetStudentIds.length ? targetStudentIds : undefined,
       notes: input.notes?.trim() || null,
       followUp: input.followUp?.trim() || null,
     },
   });
   await notifyPlacementAudience({
     institutionId,
-    recipientIds: input.participatingStudentIds ?? [],
+    recipientIds: targetStudentIds,
     eventType: "visit",
     eventId: visit.id,
     version: "created",
