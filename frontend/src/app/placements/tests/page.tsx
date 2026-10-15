@@ -146,7 +146,7 @@ export default function PlacementTestsPage() {
     try {
       const response = await authedFetch<{ data: AudiencePreview }>("/placements/audience/preview", {
         method: "POST",
-        body: JSON.stringify({ targeting, studentIds, driveId: form.get("driveId"), applicationStatuses: ["TEST"] }),
+        body: JSON.stringify({ targeting, studentIds, driveId: form.get("driveId"), applicationStatuses: ["SHORTLISTED", "TEST"], candidateOnly: true }),
       });
       setAudiencePreview(response.data);
     } catch (cause) {
