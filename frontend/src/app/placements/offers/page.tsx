@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import DataExportActions from "@/components/dashboard/DataExportActions";
 
 type Application = { id: string; status: string; student: { id: string; firstName: string; lastName: string }; opportunity: { title: string; organization: string } };
-type Offer = { id: string; status: string; role: string; totalCtc: number | null; currency: string; offerDate: string; joiningDate: string | null; company: { name: string }; student?: { firstName: string; lastName: string } };
+type Offer = { id: string; status: string; joiningStatus?: string | null; role: string; totalCtc: number | null; currency: string; offerDate: string; joiningDate: string | null; company: { name: string }; student?: { firstName: string; lastName: string } };
 
 export default function PlacementOffersPage() {
   const router = useRouter();
@@ -14,6 +15,10 @@ export default function PlacementOffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [joiningStatusFilter, setJoiningStatusFilter] = useState("ALL");
+  const [companyFilter, setCompanyFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -34,14 +39,30 @@ export default function PlacementOffersPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const exportFilters = useMemo(() => ({
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    ...(joiningStatusFilter !== "ALL" ? { joiningStatus: joiningStatusFilter } : {}),
+    ...(companyFilter !== "ALL" ? { company: companyFilter } : {}),
+    ...(dateFrom ? { dateFrom } : {}),
+    ...(dateTo ? { dateTo } : {}),
+  }), [search, statusFilter, joiningStatusFilter, companyFilter, dateFrom, dateTo]);
+
   const visibleOffers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return offers.filter((o) => {
       const person = o.student ? o.student.firstName + " " + o.student.lastName : "";
       const matchesText = !q || [o.company.name, o.role, person, o.status].some((v) => v.toLowerCase().includes(q));
-      return matchesText && (statusFilter === "ALL" || o.status === statusFilter);
+      const matchesStatus = statusFilter === "ALL" || o.status === statusFilter;
+      const matchesJoining = joiningStatusFilter === "ALL" || (o.joiningStatus || "NOT_SET") === joiningStatusFilter;
+      const matchesCompany = companyFilter === "ALL" || o.company.name === companyFilter;
+      const date = new Date(o.offerDate).getTime();
+      const from = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
+      const to = dateTo ? new Date(dateTo + "T23:59:59").getTime() : null;
+      const matchesDate = (from === null || date >= from) && (to === null || date <= to);
+      return matchesText && matchesStatus && matchesJoining && matchesCompany && matchesDate;
     });
-  }, [offers, search, statusFilter]);
+  }, [offers, search, statusFilter, joiningStatusFilter, companyFilter, dateFrom, dateTo]);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -114,9 +135,14 @@ export default function PlacementOffersPage() {
           <button disabled={busy !== null} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy === "create" ? "Creating offer…" : "Create offer"}</button>
         </form>
         <section className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <div className="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2 lg:grid-cols-3">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Search offers<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Student, company, role…" className="rounded-xl border px-3 py-3 font-normal" /></label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Offer status<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All statuses</option>{[...new Set(offers.map(o => o.status))].sort().map(s => <option key={s} value={s}>{s.replaceAll("_", " ")}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Joining status<select value={joiningStatusFilter} onChange={e => setJoiningStatusFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All joining statuses</option>{[...new Set(offers.map(o => o.joiningStatus || "NOT_SET"))].sort().map(s => <option key={s} value={s}>{s.replaceAll("_", " ")}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Company<select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} className="rounded-xl border bg-white px-3 py-3"><option value="ALL">All companies</option>{[...new Set(offers.map(o => o.company.name))].sort().map(s => <option key={s}>{s}</option>)}</select></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Offer date from<input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Offer date to<input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} className="rounded-xl border px-3 py-3 font-normal" /></label>
+            <div className="flex flex-wrap items-end gap-2 lg:col-span-3"><button type="button" onClick={() => { setSearch(""); setStatusFilter("ALL"); setJoiningStatusFilter("ALL"); setCompanyFilter("ALL"); setDateFrom(""); setDateTo(""); }} className="rounded-xl border px-4 py-2 text-sm font-bold">Clear filters</button><DataExportActions type="placement-offers" filters={exportFilters} compact /></div>
           </div>
           <p className="text-sm text-slate-600">{visibleOffers.length} offer(s) match the current filters.</p>
           <div className="grid gap-4 md:grid-cols-2">
