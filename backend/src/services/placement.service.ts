@@ -1872,10 +1872,24 @@ export async function addPlacementInterviewParticipant(
   if (!targetStudent) throw new AppError("Candidate must be an actively enrolled student in this institution.", 422);
   const interview = await prisma.placementInterview.findFirst({
     where: { id: interviewId, institutionId },
-    select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
+    select: { id: true, status: true, driveId: true, drive: { select: { campusId: true, eligibleDepartments: true, opportunityId: true } } },
   });
   if (!interview) throw new AppError("Placement interview not found.", 404);
   if (interview.status === "CANCELLED") throw new AppError("Cancelled interviews cannot receive new candidate assignments.", 409);
+  const candidateApplication = await prisma.application.findFirst({
+    where: {
+      institutionId, studentId,
+      OR: [
+        { placementDriveId: interview.driveId },
+        ...(interview.drive.opportunityId ? [{ opportunityId: interview.drive.opportunityId }] : []),
+      ],
+      status: { in: ["SHORTLISTED", "TEST", "INTERVIEW"] },
+    },
+    select: { id: true },
+  });
+  if (!candidateApplication) {
+    throw new AppError("Only a shortlisted, test-stage, or interview-stage applicant for this drive can be assigned to its interview.", 422);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campuses = await getDirectorCampusIds(institutionId, actor.id);
     if (!interview.drive.campusId || !campuses.includes(interview.drive.campusId)) {
@@ -2144,7 +2158,11 @@ export async function updatePlacementVisit(
   }
   if (requestedIds.length) {
     const students = await prisma.user.findMany({
-      where: { institutionId, id: { in: requestedIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
+      where: {
+        institutionId, id: { in: requestedIds },
+        userRoles: { some: { role: { name: "STUDENT" } } },
+        studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+      },
       select: { id: true },
     });
     if (students.length !== new Set(requestedIds).size) {
@@ -2578,10 +2596,24 @@ export async function addPlacementTestParticipant(institutionId: string, actor: 
   if (!targetStudent) throw new AppError("Candidate must be an actively enrolled student in this institution.", 422);
   const test = await prisma.placementTest.findFirst({
     where: { id: testId, institutionId },
-    select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
+    select: { id: true, status: true, driveId: true, drive: { select: { campusId: true, eligibleDepartments: true, opportunityId: true } } },
   });
   if (!test) throw new AppError("Placement test not found.", 404);
   if (test.status === "CANCELLED") throw new AppError("Cancelled assessments cannot receive new candidate assignments.", 409);
+  const candidateApplication = await prisma.application.findFirst({
+    where: {
+      institutionId, studentId,
+      OR: [
+        { placementDriveId: test.driveId },
+        ...(test.drive.opportunityId ? [{ opportunityId: test.drive.opportunityId }] : []),
+      ],
+      status: { in: ["SHORTLISTED", "TEST"] },
+    },
+    select: { id: true },
+  });
+  if (!candidateApplication) {
+    throw new AppError("Only a shortlisted or test-stage applicant for this drive can be assigned to its assessment.", 422);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campuses = await getDirectorCampusIds(institutionId, actor.id);
     if (!test.drive.campusId || !campuses.includes(test.drive.campusId)) {
