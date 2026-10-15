@@ -1634,52 +1634,95 @@ export async function updatePlacementVisit(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const existing = await prisma.placementVisit.findFirst({
     where: { id, institutionId },
-    select: { id: true, status: true, startsAt: true, participatingStudentIds: true, company: { select: { name: true } }, type: true },
+    select: {
+      id: true, status: true, startsAt: true, endsAt: true, venue: true, purpose: true,
+      participatingStudentIds: true, company: { select: { name: true } }, type: true,
+      drive: { select: { id: true, campusId: true, eligibleDepartments: true } },
+    },
   });
   if (!existing) throw new AppError("Placement activity not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled placement activities cannot be changed.", 409);
   if (input.status === "DRAFT" && existing.status === "PUBLISHED") {
     throw new AppError("A published activity cannot be returned to draft.", 409);
   }
-  const updated = await prisma.placementVisit.update({
-    where: { id },
-    data: {
-      ...(input.startsAt ? { startsAt: new Date(input.startsAt) } : {}),
-      ...(input.endsAt !== undefined ? { endsAt: input.endsAt ? new Date(input.endsAt) : null } : {}),
-      ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
-      ...(input.purpose !== undefined ? { purpose: input.purpose?.trim() || null } : {}),
-      ...(input.status ? { status: input.status } : {}),
-    },
-  });
-  const recipientIds = Array.isArray(existing.participatingStudentIds)
+
+  const recipients = Array.isArray(existing.participatingStudentIds)
     ? existing.participatingStudentIds.filter((value): value is string => typeof value === "string")
     : [];
-  const eventStatus = input.status ?? existing.status;
-  if (eventStatus === "CANCELLED" && existing.status === "PUBLISHED") {
-    await notifyPlacementAudience({
-      institutionId, recipientIds, eventType: "visit", eventId: id,
-      version: "cancelled", title: "Placement activity cancelled",
-      body: `${existing.type} has been cancelled.`, actionUrl: "/student/placements",
-    });
-  } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
-    await notifyPlacementAudience({
-      institutionId, recipientIds, eventType: "visit", eventId: id,
-      version: "published", title: "Placement activity published",
-      body: `${existing.type} is scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements",
-    });
-  } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED" && input.startsAt) {
-    await notifyPlacementAudience({
-      institutionId, recipientIds, eventType: "visit", eventId: id,
-      version: `rescheduled:${updated.startsAt.toISOString()}`,
-      title: "Placement activity rescheduled",
-      body: `${existing.type} has a new scheduled time: ${updated.startsAt.toLocaleString()}.`,
-      actionUrl: "/student/placements",
-    });
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (existing.drive?.campusId) {
+      if (!campusIds.includes(existing.drive.campusId)) {
+        throw new AppError("Placement activity not found in the director's authorised campus scope.", 404);
+      }
+    } else {
+      if (!recipients.length) throw new AppError("This activity has no verifiable campus assignment.", 404);
+      await Promise.all(recipients.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+    }
   }
-  await recordAuditLog({ institutionId, userId: actor.id, action: `placements.visit.${input.status?.toLowerCase() ?? "updated"}`, entityType: "PlacementVisit", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(existing.drive?.eligibleDepartments)
+      ? existing.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (targeted.length) {
+      if (!targeted.some((departmentId) => departmentIds.includes(departmentId))) {
+        throw new AppError("Placement activity not found in the authorised department scope.", 404);
+      }
+    } else {
+      if (!recipients.length) throw new AppError("This activity has no verifiable department assignment.", 404);
+      await Promise.all(recipients.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+    }
+  }
+
+  const nextStartsAt = input.startsAt ? new Date(input.startsAt) : existing.startsAt;
+  const nextEndsAt = input.endsAt === undefined ? existing.endsAt : input.endsAt ? new Date(input.endsAt) : null;
+  if (Number.isNaN(nextStartsAt.getTime()) || (nextEndsAt && (Number.isNaN(nextEndsAt.getTime()) || nextEndsAt < nextStartsAt))) {
+    throw new AppError("Activity end time must not be before its start time.", 422);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementVisit.updateMany({
+      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt },
+      data: {
+        ...(input.startsAt ? { startsAt: nextStartsAt } : {}),
+        ...(input.endsAt !== undefined ? { endsAt: nextEndsAt } : {}),
+        ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
+        ...(input.purpose !== undefined ? { purpose: input.purpose?.trim() || null } : {}),
+        ...(input.status ? { status: input.status } : {}),
+      },
+    });
+    if (changed.count !== 1) throw new AppError("This placement activity was updated by another user. Refresh and try again.", 409);
+    const row = await tx.placementVisit.findFirst({ where: { id, institutionId } });
+    if (!row) throw new AppError("Placement activity not found.", 404);
+
+    const eventStatus = input.status ?? existing.status;
+    let version: string | null = null;
+    if (eventStatus === "CANCELLED" && existing.status === "PUBLISHED") {
+      version = "cancelled";
+    } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
+      version = "published";
+    } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED") {
+      const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
+        (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
+      const detailsChanged = moved || input.venue !== undefined || input.purpose !== undefined;
+      if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
+    }
+    if (version && recipients.length) {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "visit", eventId: id, version, recipientIds: recipients,
+      });
+    }
+    return row;
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id,
+    action: input.status === "CANCELLED" ? "placements.visit.cancelled" : "placements.visit.updated",
+    entityType: "PlacementVisit", entityId: id,
+    metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() },
+  });
   return updated;
 }
-
 
 export async function listPlacementStudents(institutionId: string, actor: AuthenticatedUser, options: { search?: string; page?: number; pageSize?: number; campusId?: string; departmentId?: string; programId?: string; batchId?: string; semesterId?: string; academicYearId?: string } = {}) {
   assertInstitution(actor, institutionId);
