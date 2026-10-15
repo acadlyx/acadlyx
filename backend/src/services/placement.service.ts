@@ -1079,7 +1079,7 @@ export async function listPlacementInterviews(
 export async function createPlacementInterview(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
+  input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string; status?: "DRAFT" | "SCHEDULED"; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1114,6 +1114,7 @@ export async function createPlacementInterview(
       driveId: input.driveId,
       roundNumber: input.roundNumber,
       roundType: input.roundType.trim(),
+      status: input.status ?? "SCHEDULED",
       startsAt: new Date(input.startsAt),
       endsAt: input.endsAt ? new Date(input.endsAt) : null,
       venue: input.venue?.trim() || null,
@@ -1308,6 +1309,7 @@ export async function createPlacementVisit(
       companyId: input.companyId,
       driveId: input.driveId || null,
       type: input.type.trim(),
+      status: input.status ?? "PUBLISHED",
       startsAt: new Date(input.startsAt),
       endsAt: input.endsAt ? new Date(input.endsAt) : null,
       venue: input.venue?.trim() || null,
@@ -1556,7 +1558,7 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
 export async function createPlacementTest(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; studentIds?: string[]; targeting?: PlacementCohortTargeting },
+  input: { driveId: string; title: string; mode?: string; scheduledAt: string; durationMinutes?: number; maxScore?: number; testLink?: string; instructions?: string; status?: "DRAFT" | "SCHEDULED"; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
