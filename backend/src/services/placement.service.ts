@@ -2717,9 +2717,13 @@ export async function getMyPlacementCalendar(institutionId: string, actor: Authe
       take: 100,
     }),
     prisma.placementOffer.findMany({
-      where: { institutionId, studentId: actor.id, joiningDate: { not: null }, status: { notIn: ["REJECTED", "WITHDRAWN"] } },
+      where: {
+        institutionId, studentId: actor.id,
+        status: { notIn: ["REJECTED", "WITHDRAWN"] },
+        OR: [{ joiningDate: { not: null } }, { responseDeadline: { not: null } }],
+      },
       select: {
-        id: true, role: true, joiningDate: true, joiningStatus: true, status: true,
+        id: true, role: true, responseDeadline: true, joiningDate: true, joiningStatus: true, status: true,
         company: { select: { name: true } },
       },
       orderBy: { joiningDate: "asc" },
@@ -2799,13 +2803,22 @@ export async function getMyPlacementCalendar(institutionId: string, actor: Authe
     });
   }
   for (const item of offers) {
-    if (!item.joiningDate) continue;
-    calendar.push({
-      id: `joining:${item.id}`, type: "JOINING",
-      title: `Joining · ${item.role}`, company: item.company.name,
-      startsAt: item.joiningDate.toISOString(), endsAt: null,
-      status: item.joiningStatus, venue: "", actionUrl: "/student/placements",
-    });
+    if (item.responseDeadline && item.status === "OFFERED") {
+      calendar.push({
+        id: `offer-deadline:${item.id}`, type: "OFFER_DEADLINE",
+        title: `Offer response deadline · ${item.role}`, company: item.company.name,
+        startsAt: item.responseDeadline.toISOString(), endsAt: null,
+        status: item.status, venue: "", actionUrl: "/student/placements",
+      });
+    }
+    if (item.joiningDate) {
+      calendar.push({
+        id: `joining:${item.id}`, type: "JOINING",
+        title: `Joining · ${item.role}`, company: item.company.name,
+        startsAt: item.joiningDate.toISOString(), endsAt: null,
+        status: item.joiningStatus || item.status, venue: "", actionUrl: "/student/placements",
+      });
+    }
   }
   return calendar.sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
 }
