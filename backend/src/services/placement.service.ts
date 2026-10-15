@@ -1885,7 +1885,7 @@ export async function updatePlacementVisit(
   const existing = await prisma.placementVisit.findFirst({
     where: { id, institutionId },
     select: {
-      id: true, status: true, startsAt: true, endsAt: true, venue: true, purpose: true,
+      id: true, status: true, startsAt: true, endsAt: true, venue: true, purpose: true, updatedAt: true,
       participatingStudentIds: true, company: { select: { name: true } }, type: true,
       drive: { select: { id: true, campusId: true, eligibleDepartments: true } },
     },
@@ -1962,7 +1962,7 @@ export async function updatePlacementVisit(
 
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.placementVisit.updateMany({
-      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt },
+      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt, updatedAt: existing.updatedAt },
       data: {
         ...(input.type !== undefined ? { type: input.type.trim() } : {}),
         ...(input.startsAt ? { startsAt: nextStartsAt } : {}),
@@ -1986,7 +1986,10 @@ export async function updatePlacementVisit(
     } else if (existing.status === "PUBLISHED" && eventStatus === "PUBLISHED") {
       const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
         (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
-      const detailsChanged = moved || input.type !== undefined || input.venue !== undefined || input.purpose !== undefined;
+      const nextType = input.type === undefined ? existing.type : input.type.trim();
+      const nextVenue = input.venue === undefined ? existing.venue : input.venue?.trim() || null;
+      const nextPurpose = input.purpose === undefined ? existing.purpose : input.purpose?.trim() || null;
+      const detailsChanged = moved || nextType !== existing.type || nextVenue !== existing.venue || nextPurpose !== existing.purpose;
       const audienceExpanded = recipients.some((studentId) => !previousRecipients.includes(studentId));
       if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
       else if (audienceExpanded) version = "assigned";
@@ -2401,7 +2404,7 @@ export async function updatePlacementInterview(
   const existing = await prisma.placementInterview.findFirst({
     where: { id, institutionId },
     select: {
-      id: true, status: true, startsAt: true, endsAt: true, venue: true, onlineLink: true,
+      id: true, status: true, startsAt: true, endsAt: true, venue: true, onlineLink: true, updatedAt: true,
       participants: { select: { studentId: true } }, roundType: true, roundNumber: true,
       drive: { select: { campusId: true, eligibleDepartments: true } },
     },
@@ -2433,7 +2436,7 @@ export async function updatePlacementInterview(
 
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.placementInterview.updateMany({
-      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt },
+      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt, updatedAt: existing.updatedAt },
       data: {
         ...(input.startsAt ? { startsAt: nextStartsAt } : {}),
         ...(input.endsAt !== undefined ? { endsAt: nextEndsAt } : {}),
@@ -2455,7 +2458,9 @@ export async function updatePlacementInterview(
     } else if (existing.status === "SCHEDULED" && row.status === "SCHEDULED") {
       const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
         (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
-      const detailsChanged = moved || input.venue !== undefined || input.onlineLink !== undefined;
+      const nextVenue = input.venue === undefined ? existing.venue : input.venue?.trim() || null;
+      const nextOnlineLink = input.onlineLink === undefined ? existing.onlineLink : input.onlineLink?.trim() || null;
+      const detailsChanged = moved || nextVenue !== existing.venue || nextOnlineLink !== existing.onlineLink;
       if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
     }
     if (version && recipientIds.length) {
@@ -2485,7 +2490,7 @@ export async function updatePlacementTest(
   const existing = await prisma.placementTest.findFirst({
     where: { id, institutionId },
     select: {
-      id: true, status: true, scheduledAt: true, title: true, testLink: true, instructions: true,
+      id: true, status: true, scheduledAt: true, title: true, testLink: true, instructions: true, updatedAt: true,
       participants: { select: { studentId: true } },
       drive: { select: { campusId: true, eligibleDepartments: true } },
     },
@@ -2513,7 +2518,7 @@ export async function updatePlacementTest(
 
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.placementTest.updateMany({
-      where: { id, institutionId, status: existing.status, scheduledAt: existing.scheduledAt },
+      where: { id, institutionId, status: existing.status, scheduledAt: existing.scheduledAt, updatedAt: existing.updatedAt },
       data: {
         ...(input.scheduledAt ? { scheduledAt: nextScheduledAt } : {}),
         ...(input.testLink !== undefined ? { testLink: input.testLink?.trim() || null } : {}),
@@ -2532,7 +2537,9 @@ export async function updatePlacementTest(
       version = "published";
     } else if (existing.status === "SCHEDULED" && row.status === "SCHEDULED") {
       const moved = nextScheduledAt.getTime() !== existing.scheduledAt.getTime();
-      const detailsChanged = moved || input.testLink !== undefined || input.instructions !== undefined;
+      const nextTestLink = input.testLink === undefined ? existing.testLink : input.testLink?.trim() || null;
+      const nextInstructions = input.instructions === undefined ? existing.instructions : input.instructions?.trim() || null;
+      const detailsChanged = moved || nextTestLink !== existing.testLink || nextInstructions !== existing.instructions;
       if (detailsChanged) version = moved ? `rescheduled:${row.scheduledAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
     }
     if (version && recipientIds.length) {
