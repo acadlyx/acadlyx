@@ -192,7 +192,8 @@ async function handlePlacementEvent(event: DomainEvent) {
     const cancelled = version === "cancelled";
     const published = version === "published";
     const rescheduled = version.startsWith("rescheduled:");
-    const verb = cancelled ? "cancelled" : published ? "published" : rescheduled ? "rescheduled" : "scheduled";
+    const updated = version.startsWith("updated:");
+    const verb = cancelled ? "cancelled" : published ? "published" : rescheduled ? "rescheduled" : updated ? "updated" : "scheduled";
     await notifyRecipients({
       institutionId,
       recipientIds,
@@ -204,7 +205,9 @@ async function handlePlacementEvent(event: DomainEvent) {
           ? `${eventTitle} from ${companyName} has been published for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`
           : rescheduled
             ? `${eventTitle} from ${companyName} has a new scheduled time: ${startsAt?.toLocaleString() ?? "see ACADLYX for details"}.`
-            : `${eventTitle} from ${companyName} is scheduled for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`,
+            : updated
+              ? `${eventTitle} from ${companyName} was updated. Current scheduled time: ${startsAt?.toLocaleString() ?? "see ACADLYX for details"}.`
+              : `${eventTitle} from ${companyName} is scheduled for ${startsAt?.toLocaleString() ?? "the scheduled time"}.`,
       actionUrl: "/student/placements",
     });
     return;
