@@ -106,6 +106,8 @@ const visitUpdate = z.object({
   endsAt: z.string().datetime().nullable().optional(),
   venue: z.string().max(300).nullable().optional(),
   purpose: z.string().max(1000).nullable().optional(),
+  participatingStudentIds: z.array(z.string().uuid()).max(10000).optional(),
+  targeting: placementCohortTargeting.optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]).optional(),
 });
 const visitCreate = z.object({
