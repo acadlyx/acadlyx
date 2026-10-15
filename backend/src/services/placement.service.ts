@@ -579,6 +579,60 @@ export async function transitionApplication(
   return updated;
 }
 
+
+export async function bulkTransitionApplications(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  ids: string[],
+  status: string,
+) {
+  assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const uniqueIds = [...new Set(ids.filter((id) => typeof id === "string" && id.trim()))];
+  if (uniqueIds.length !== ids.length) {
+    throw new AppError("Bulk application IDs must be non-empty and unique.", 422);
+  }
+  if (uniqueIds.length < 1 || uniqueIds.length > 100) {
+    throw new AppError("Choose between 1 and 100 applications for a bulk update.", 422);
+  }
+  const next = status.trim().toUpperCase();
+  if (!APPLICATION_TRANSITIONS[ "APPLICATION_SUBMITTED" ]?.includes(next) &&
+      !["SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "OFFERED", "ACCEPTED", "REJECTED", "WITHDRAWN", "JOINED"].includes(next)) {
+    throw new AppError("Unsupported bulk application stage.", 422);
+  }
+  const updated: Array<{ id: string; status: string }> = [];
+  const failed: Array<{ id: string; message: string }> = [];
+  // Process sequentially with per-record compare-and-set transactions. This
+  // keeps database concurrency bounded and deliberately returns partial
+  // results rather than rolling back unrelated, valid decisions.
+  for (const id of uniqueIds) {
+    try {
+      const item = await transitionApplication(institutionId, actor, id, next);
+      updated.push({ id: item.id, status: item.status });
+    } catch (error) {
+      failed.push({
+        id,
+        message: error instanceof Error ? error.message : "Application update failed.",
+      });
+    }
+  }
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "placements.applications.bulk_status_changed",
+    entityType: "PlacementApplicationBatch",
+    entityId: uniqueIds.join(",").slice(0, 200),
+    metadata: {
+      requested: uniqueIds.length,
+      updated: updated.length,
+      failed: failed.length,
+      targetStatus: next,
+    },
+  });
+  return { requested: uniqueIds.length, updated, failed };
+}
+
 export async function placementMetrics(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
