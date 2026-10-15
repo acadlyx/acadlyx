@@ -973,7 +973,10 @@ export async function listPlacementInterviews(
     where: {
       institutionId,
       ...(options.driveId ? { driveId: options.driveId } : {}),
-      ...(activeWorkspace(actor) === "STUDENT" ? { participants: { some: { studentId: actor.id } } } : {}),
+      ...(activeWorkspace(actor) === "STUDENT" ? {
+        participants: { some: { studentId: actor.id } },
+        drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } },
+      } : {}),
       ...(options.studentId ? { participants: { some: { studentId: options.studentId } } } : {}),
       ...(!["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","DIRECTOR","REGISTRAR","DEAN","PLACEMENT","STUDENT"].includes(activeWorkspace(actor))
         ? { participants: { some: { student: studentWhere } } }
@@ -997,8 +1000,20 @@ export async function createPlacementInterview(
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
-  const drive = await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId }, select: { id: true } });
+  const drive = await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId }, select: { id: true, status: true, campusId: true, eligibleDepartments: true } });
   if (!drive) throw new AppError("Placement drive not found.", 404);
+  if (!["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"].includes(drive.status)) {
+    throw new AppError("Publish the placement drive before scheduling interviews.", 409);
+  }
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!drive.campusId || !campusIds.includes(drive.campusId)) throw new AppError("The linked drive is outside the director's authorised campus scope.", 403);
+  }
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(drive.eligibleDepartments) ? drive.eligibleDepartments.filter((id): id is string => typeof id === "string") : [];
+    if (!targeted.length || !targeted.some((id) => departmentIds.includes(id))) throw new AppError("The linked drive is outside the authorised department scope.", 403);
+  }
   const interview = await prisma.placementInterview.create({
     data: {
       institutionId,
@@ -1078,6 +1093,10 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
       where: {
         institutionId,
         participatingStudentIds: { array_contains: [actor.id] },
+        OR: [
+          { driveId: null },
+          { drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } } },
+        ],
       },
       select: {
         id: true, type: true, startsAt: true, endsAt: true, venue: true, purpose: true,
@@ -1337,7 +1356,10 @@ export async function listPlacementTests(institutionId: string, actor: Authentic
     where: {
       institutionId,
       ...(options.driveId ? { driveId: options.driveId } : {}),
-      ...(activeWorkspace(actor) === "STUDENT" ? { participants: { some: { studentId: actor.id } } } : {}),
+      ...(activeWorkspace(actor) === "STUDENT" ? {
+        participants: { some: { studentId: actor.id } },
+        drive: { status: { in: ["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"] } },
+      } : {}),
       ...(!["SUPER_ADMIN","INSTITUTION_ADMIN","CHAIRMAN","MANAGEMENT","REGISTRAR","PLACEMENT"].includes(activeWorkspace(actor)) ? { participants: { some: { student: studentWhere } } } : {}),
     },
     include: {
@@ -1359,9 +1381,12 @@ export async function createPlacementTest(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const drive = await prisma.placementDrive.findFirst({
     where: { id: input.driveId, institutionId },
-    select: { id: true, campusId: true, eligibleDepartments: true },
+    select: { id: true, status: true, campusId: true, eligibleDepartments: true },
   });
   if (!drive) throw new AppError("Placement drive not found.", 404);
+  if (!["PUBLISHED", "APPLICATION_OPEN", "APPLICATION_CLOSED", "SHORTLISTING", "TEST", "INTERVIEW", "OFFERED", "ACCEPTED", "JOINED"].includes(drive.status)) {
+    throw new AppError("Publish the placement drive before scheduling assessments.", 409);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campusIds = await getDirectorCampusIds(institutionId, actor.id);
     if (!drive.campusId || !campusIds.includes(drive.campusId)) {
