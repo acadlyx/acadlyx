@@ -1037,7 +1037,11 @@ export async function addPlacementInterviewParticipant(
   await assertCanViewStudent(institutionId, actor, studentId);
   const interview = await prisma.placementInterview.findFirst({ where: { id: interviewId, institutionId }, select: { id: true } });
   if (!interview) throw new AppError("Placement interview not found.", 404);
-  const participant = await prisma.placementInterviewParticipant.create({ data: { interviewId, studentId } });
+  const participant = await prisma.placementInterviewParticipant.upsert({
+    where: { interviewId_studentId: { interviewId, studentId } },
+    create: { interviewId, studentId },
+    update: {},
+  });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.interview.participant_added", entityType: "PlacementInterviewParticipant", entityId: interviewId + ":" + studentId, metadata: { interviewId, studentId } });
   return participant;
 }
