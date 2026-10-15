@@ -25,6 +25,10 @@ const opportunityCreate = z.object({
 });
 const opportunityUpdate = opportunityCreate.partial().extend({ isActive: z.boolean().optional() });
 const transitionBody = z.object({ status: z.string().trim().min(3).max(32) });
+const bulkApplicationTransitionBody = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  status: z.string().trim().min(3).max(32),
+});
 const companyCreate = z.object({ name: z.string().trim().min(2).max(200), logoUrl: z.string().url().optional(), industry: z.string().max(120).optional(), companyType: z.string().max(120).optional(), website: z.string().url().optional(), description: z.string().max(5000).optional(), headquarters: z.string().max(200).optional() });
 const joiningVerification = z.object({ actualJoiningDate:z.string().datetime().optional(), status:z.enum(["VERIFIED","REJECTED"]), proofUrl:z.string().url().optional(), notes:z.string().max(3000).optional() });
 const offerCreate = z.object({ applicationId:z.string().uuid(), role:z.string().trim().min(2).max(200), offerDate:z.string().datetime(), responseDeadline:z.string().datetime().optional(), joiningDate:z.string().datetime().optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), offerDocumentUrl:z.string().url().optional() });
@@ -201,6 +205,18 @@ router.post(
     const { status } = transitionBody.parse(req.body);
     const item = await placement.transitionApplication(requireInstitution(req), requireAuthenticatedUser(req), id, status);
     res.json({ success: true, data: item });
+  }),
+);
+
+router.post(
+  "/applications/bulk-status",
+  authorize("placements.manage"),
+  asyncHandler(async (req, res) => {
+    const body = bulkApplicationTransitionBody.parse(req.body);
+    const result = await placement.bulkTransitionApplications(
+      requireInstitution(req), requireAuthenticatedUser(req), body.ids, body.status,
+    );
+    res.json({ success: true, data: result });
   }),
 );
 
