@@ -26,7 +26,10 @@ test("Chairman legacy operations route redirects to the Chairman workspace", () 
 
 test("Director legacy operations route redirects to the Director workspace", () => {
   const page = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
-  assert.ok(page.includes('redirect("/director")'), "legacy operations URL must redirect to the role-specific dashboard");
+  assert.ok(
+    page.includes('redirect("/director")') || (page.includes('router.replace("/director")') && page.includes('useEffect')),
+    "legacy operations URL must redirect to the role-specific dashboard while preserving the sessionStorage-backed browser session",
+  );
   assert.ok(!page.includes('href: "/students"'), "legacy route must not expose unscoped global students");
   assert.ok(!page.includes('href: "/admissions"'), "legacy route must not expose unscoped global admissions");
   for (const route of ["/director/students", "/director/examinations", "/director/obe", "/director/fees", "/director/fee-approvals", "/director/placements", "/director/reports"]) {
