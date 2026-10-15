@@ -1191,6 +1191,7 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
     return prisma.placementVisit.findMany({
       where: {
         institutionId,
+        status: "PUBLISHED",
         participatingStudentIds: { array_contains: [actor.id] },
         OR: [
           { driveId: null },
@@ -1244,7 +1245,7 @@ export async function listPlacementVisits(institutionId: string, actor: Authenti
 export async function createPlacementVisit(
   institutionId: string,
   actor: AuthenticatedUser,
-  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting; notes?: string; followUp?: string },
+  input: { companyId: string; driveId?: string; type: string; startsAt: string; endsAt?: string; venue?: string; purpose?: string; representatives?: unknown; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting; status?: "DRAFT" | "PUBLISHED"; notes?: string; followUp?: string },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1316,7 +1317,7 @@ export async function createPlacementVisit(
       followUp: input.followUp?.trim() || null,
     },
   });
-  await notifyPlacementAudience({
+  if ((input.status ?? "PUBLISHED") === "PUBLISHED") await notifyPlacementAudience({
     institutionId,
     recipientIds: targetStudentIds,
     eventType: "visit",
@@ -1328,6 +1329,63 @@ export async function createPlacementVisit(
   });
   await recordAuditLog({ institutionId, userId: actor.id, action: "placements.visit.created", entityType: "PlacementVisit", entityId: visit.id, metadata: { companyId: input.companyId, type: input.type } });
   return visit;
+}
+
+
+export async function updatePlacementVisit(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  id: string,
+  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED" },
+) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementVisit.findFirst({
+    where: { id, institutionId },
+    select: { id: true, status: true, startsAt: true, participatingStudentIds: true, company: { select: { name: true } }, type: true },
+  });
+  if (!existing) throw new AppError("Placement activity not found.", 404);
+  if (existing.status === "CANCELLED") throw new AppError("Cancelled placement activities cannot be changed.", 409);
+  if (input.status === "DRAFT" && existing.status === "PUBLISHED") {
+    throw new AppError("A published activity cannot be returned to draft.", 409);
+  }
+  const updated = await prisma.placementVisit.update({
+    where: { id },
+    data: {
+      ...(input.startsAt ? { startsAt: new Date(input.startsAt) } : {}),
+      ...(input.endsAt !== undefined ? { endsAt: input.endsAt ? new Date(input.endsAt) : null } : {}),
+      ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
+      ...(input.purpose !== undefined ? { purpose: input.purpose?.trim() || null } : {}),
+      ...(input.status ? { status: input.status } : {}),
+    },
+  });
+  const recipientIds = Array.isArray(existing.participatingStudentIds)
+    ? existing.participatingStudentIds.filter((value): value is string => typeof value === "string")
+    : [];
+  const eventStatus = input.status ?? existing.status;
+  if (eventStatus === "CANCELLED") {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: "cancelled", title: "Placement activity cancelled",
+      body: `${existing.type} has been cancelled.`, actionUrl: "/student/placements",
+    });
+  } else if (eventStatus === "PUBLISHED" && input.startsAt) {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: `rescheduled:${updated.startsAt.toISOString()}`,
+      title: "Placement activity rescheduled",
+      body: `${existing.type} has a new scheduled time: ${updated.startsAt.toLocaleString()}.`,
+      actionUrl: "/student/placements",
+    });
+  } else if (existing.status === "DRAFT" && eventStatus === "PUBLISHED") {
+    await notifyPlacementAudience({
+      institutionId, recipientIds, eventType: "visit", eventId: id,
+      version: "published", title: "New placement activity published",
+      body: `${existing.type} is now published.`, actionUrl: "/student/placements",
+    });
+  }
+  await recordAuditLog({ institutionId, userId: actor.id, action: `placements.visit.${input.status?.toLowerCase() ?? "updated"}`, entityType: "PlacementVisit", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
+  return updated;
 }
 
 
