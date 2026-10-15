@@ -1924,7 +1924,7 @@ export async function createPlacementVisit(
   const linkedDrive = input.driveId
     ? await prisma.placementDrive.findFirst({
         where: { id: input.driveId, institutionId, companyId: input.companyId },
-        select: { id: true, campusId: true, eligibleDepartments: true },
+        select: { id: true, campusId: true, eligibleDepartments: true, opportunityId: true },
       })
     : null;
   if (input.driveId && !linkedDrive) {
@@ -1968,7 +1968,14 @@ export async function createPlacementVisit(
   let targetStudentIds = [...new Set([...(input.participatingStudentIds ?? []), ...cohortStudentIds])];
   if (!targetStudentIds.length && input.driveId) {
     const applicants = await prisma.application.findMany({
-      where: { institutionId, placementDriveId: input.driveId, status: { notIn: ["REJECTED", "WITHDRAWN"] } },
+      where: {
+        institutionId,
+        OR: [
+          { placementDriveId: input.driveId },
+          ...(linkedDrive?.opportunityId ? [{ opportunityId: linkedDrive.opportunityId }] : []),
+        ],
+        status: { notIn: ["REJECTED", "WITHDRAWN"] },
+      },
       select: { studentId: true },
       orderBy: { studentId: "asc" },
       take: 10000,
