@@ -2665,7 +2665,7 @@ export async function updatePlacementInterview(
     select: {
       id: true, status: true, startsAt: true, endsAt: true, venue: true, onlineLink: true, updatedAt: true,
       participants: { select: { studentId: true } }, roundType: true, roundNumber: true,
-      drive: { select: { campusId: true, eligibleDepartments: true } },
+      drive: { select: { campusId: true, eligibleDepartments: true, opportunityId: true } },
     },
   });
   if (!existing) throw new AppError("Placement interview not found.", 404);
@@ -2723,6 +2723,12 @@ export async function updatePlacementInterview(
     if (!row) throw new AppError("Placement interview not found.", 404);
 
     const recipientIds = existing.participants.map((participant) => participant.studentId);
+    if (existing.status === "DRAFT" && row.status === "SCHEDULED") {
+      await advanceApplicationsForScheduledRound(
+        tx, institutionId, actor.id, row.driveId, existing.drive.opportunityId,
+        recipientIds, "INTERVIEW",
+      );
+    }
     let version: string | null = null;
     if (existing.status === "SCHEDULED" && input.status === "CANCELLED") {
       version = "cancelled";
@@ -2763,9 +2769,9 @@ export async function updatePlacementTest(
   const existing = await prisma.placementTest.findFirst({
     where: { id, institutionId },
     select: {
-      id: true, status: true, scheduledAt: true, title: true, testLink: true, instructions: true, updatedAt: true,
+      id: true, status: true, scheduledAt: true, title: true, testLink: true, instructions: true, durationMinutes: true, updatedAt: true,
       participants: { select: { studentId: true } },
-      drive: { select: { campusId: true, eligibleDepartments: true } },
+      drive: { select: { campusId: true, eligibleDepartments: true, opportunityId: true } },
     },
   });
   if (!existing) throw new AppError("Placement assessment not found.", 404);
@@ -2817,6 +2823,12 @@ export async function updatePlacementTest(
     const row = await tx.placementTest.findFirst({ where: { id, institutionId } });
     if (!row) throw new AppError("Placement assessment not found.", 404);
     const recipientIds = existing.participants.map((participant) => participant.studentId);
+    if (existing.status === "DRAFT" && row.status === "SCHEDULED") {
+      await advanceApplicationsForScheduledRound(
+        tx, institutionId, actor.id, row.driveId, existing.drive.opportunityId,
+        recipientIds, "TEST",
+      );
+    }
     let version: string | null = null;
     if (existing.status === "SCHEDULED" && input.status === "CANCELLED") {
       version = "cancelled";
