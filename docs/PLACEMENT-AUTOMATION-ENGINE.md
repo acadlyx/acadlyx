@@ -30,7 +30,7 @@ Drive and round deletes are intentionally conservative. Only unused drafts witho
 
 ## Scheduled reminders and deployment
 
-Offer response deadlines are checked by `processPlacementDeadlineReminders`, invoked during API startup and then every 60 seconds by the existing API process. The database reminder query is bounded and deduplicated; multiple API replicas cannot insert duplicate reminder notifications because the notification key is unique. No additional worker service is required for these reminders. The existing domain-event outbox drain must remain enabled in the deployed API/worker process.
+Offer response deadlines are checked by `processPlacementDeadlineReminders`, invoked during API startup and then every 60 seconds by the existing API process. The database reminder query is bounded and deduplicated; multiple API replicas cannot insert duplicate reminder notifications because the notification key is unique. No additional worker service is required for these reminders. The domain-event outbox consumer and minute-based reminder scheduler run in the API process (`backend/src/index.ts`). The separate background-job worker (`backend/src/worker.ts`) does not consume this outbox, so keep the API process running; do not assume the general background-job worker alone will deliver placement events.
 
 The migration `20261015235900_placement_automation_reliability` adds outbox retry timestamps/indexing and the offer response-deadline field. The normal Prisma migration deployment step must apply it before new API code is started. In-app notifications are the baseline. This change does **not** claim email, SMS, push or WhatsApp delivery.
 
@@ -38,6 +38,7 @@ The migration `20261015235900_placement_automation_reliability` adds outbox retr
 
 - `GET /api/v1/placements/automation/failures`: lists unprocessed Placement events that have failed at least once, filtered to the caller's scope.
 - `POST /api/v1/placements/automation/failures/:id/retry`: requeues a failed event by resetting its bounded-attempt/backoff state; the original event and stable notification keys are retained.
+- `POST /api/v1/placements/applications/bulk-status`: processes up to 100 application stage changes with per-record authorization/state validation and returns successes and failures separately. Offer and joining statuses are deliberately excluded from this shortcut.
 - `DELETE /api/v1/placements/drives/:id`, `DELETE /api/v1/placements/visits/:id`, `DELETE /api/v1/placements/interviews/:id`, `DELETE /api/v1/placements/tests/:id`: safe draft-only deletion with audit logging.
 - `PATCH /api/v1/placements/offers/:id`: audited offer revision while a student response is pending.
 
