@@ -116,7 +116,7 @@ export default function PlacementDrivesPage() {
       requiredSkills: form.getAll("requiredSkills").filter((v): v is string => typeof v === "string"),
       academicRequirements: {
         ...(academicStatus ? { academicStatus } : {}),
-        ...(form.get("graduationEligible") === "on" ? { graduationEligible: true } : {}),
+        ...(form.get("graduationEligible") === "on" ? { graduationEligible: true } : {}),\n        ...(form.get("allowIneligibleStudents") === "on" ? { allowIneligibleStudents: true } : {}),
       },
     };
     try {
@@ -220,6 +220,12 @@ export default function PlacementDrivesPage() {
           <label className="flex items-center gap-3 rounded-xl border p-3 text-sm font-semibold text-slate-700">
             <input type="checkbox" name="graduationEligible" /> Must be confirmed eligible to graduate
           </label>
+          <label className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950 md:col-span-2">
+            <input type="checkbox" name="allowIneligibleStudents" className="mt-1" />
+            <span>Allow all otherwise-ineligible students to apply
+              <span className="mt-1 block text-xs font-normal leading-5">Temporary override for incomplete CGPA, backlog or other eligibility data. Active enrollment, institution/campus security, duplicate prevention, application status and deadline are still enforced.</span>
+            </span>
+          </label>
           <p className="text-xs leading-5 text-slate-500 md:col-span-2">Eligibility is checked by the backend against the student’s active enrollment, authoritative academic snapshot and placement skills. Missing CGPA/backlog evidence does not silently qualify a student.</p>
           <button disabled={busy} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Creating…" : "Create draft drive"}</button>
         </form>
@@ -245,6 +251,51 @@ export default function PlacementDrivesPage() {
               </div>
               <p className="mt-3 text-xs text-slate-500">{drive.applicationDeadline ? "Deadline " + new Date(drive.applicationDeadline).toLocaleString("en-IN") : "No deadline set"}{drive.driveDate ? " · Drive " + new Date(drive.driveDate).toLocaleString("en-IN") : ""}</p>
               {(drive.eligiblePrograms?.length || drive.eligibleDepartments?.length || drive.eligibleBatches?.length || drive.eligibleSemesters?.length) ? <p className="mt-2 text-xs text-slate-600">Academic cohort restrictions are configured for this drive.</p> : <p className="mt-2 text-xs text-slate-500">No programme, department, batch or semester restriction.</p>}
+              <details className="mt-4 rounded-xl border p-3">
+                <summary className="cursor-pointer text-sm font-bold text-emerald-800">Edit drive details and eligibility</summary>
+                <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={async (event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  const academicRequirements = { ...(drive.academicRequirements && typeof drive.academicRequirements === "object" ? drive.academicRequirements : {}), allowIneligibleStudents: form.get("allowIneligibleStudents") === "on" };
+                  const payload = {
+                    title: String(form.get("title") || "").trim(),
+                    applicationDeadline: form.get("deadline") ? new Date(String(form.get("deadline"))).toISOString() : null,
+                    driveDate: form.get("driveDate") ? new Date(String(form.get("driveDate"))).toISOString() : null,
+                    venue: String(form.get("venue") || "").trim() || null,
+                    cgpaRequirement: form.get("cgpa") === "" ? null : Number(form.get("cgpa")),
+                    maxBacklogs: form.get("backlogs") === "" ? null : Number(form.get("backlogs")),
+                    vacancies: form.get("vacancies") === "" ? null : Number(form.get("vacancies")),
+                    eligiblePrograms: form.getAll("eligiblePrograms").filter((v): v is string => typeof v === "string"),
+                    eligibleDepartments: form.getAll("eligibleDepartments").filter((v): v is string => typeof v === "string"),
+                    eligibleBatches: form.getAll("eligibleBatches").filter((v): v is string => typeof v === "string"),
+                    eligibleSemesters: form.getAll("eligibleSemesters").filter((v): v is string => typeof v === "string"),
+                    requiredSkills: form.getAll("requiredSkills").filter((v): v is string => typeof v === "string"),
+                    academicRequirements,
+                  };
+                  setTransitioning(drive.id); setError("");
+                  try { await authedFetch("/placements/drives/" + drive.id, { method: "PATCH", body: JSON.stringify(payload) }); await load(); }
+                  catch (e) { if (e instanceof AuthRequiredError) router.replace("/login"); else setError(e instanceof HttpRequestError ? e.message : "Unable to save drive changes."); }
+                  finally { setTransitioning(null); }
+                }}>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Drive title<input name="title" required defaultValue={drive.title} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Venue<input name="venue" defaultValue={""} placeholder="Venue / online note" className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Application deadline<input name="deadline" type="datetime-local" defaultValue={drive.applicationDeadline ? new Date(new Date(drive.applicationDeadline).getTime()-new Date(drive.applicationDeadline).getTimezoneOffset()*60000).toISOString().slice(0,16) : ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Drive date<input name="driveDate" type="datetime-local" defaultValue={drive.driveDate ? new Date(new Date(drive.driveDate).getTime()-new Date(drive.driveDate).getTimezoneOffset()*60000).toISOString().slice(0,16) : ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Minimum CGPA<input name="cgpa" type="number" min="0" max="10" step="0.01" defaultValue={drive.cgpaRequirement ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Maximum backlogs<input name="backlogs" type="number" min="0" max="100" defaultValue={drive.maxBacklogs ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Vacancies<input name="vacancies" type="number" min="1" max="100000" defaultValue={drive.vacancies ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex items-center gap-2 rounded-lg border p-3 text-xs font-semibold md:col-span-2"><input type="checkbox" name="allowIneligibleStudents" defaultChecked={Boolean(drive.academicRequirements && typeof drive.academicRequirements === "object" && (drive.academicRequirements as Record<string, unknown>).allowIneligibleStudents === true)} /> Allow otherwise-ineligible students to apply (academic-data override)</label>
+                  {criteria && <>
+                    <MultiSelect label="Eligible programmes (empty = all)" name="eligiblePrograms" options={criteria.programs} />
+                    <MultiSelect label="Eligible departments (empty = all)" name="eligibleDepartments" options={criteria.departments} />
+                    <MultiSelect label="Eligible batches (empty = all)" name="eligibleBatches" options={criteria.batches.map(b => ({ id: b.id, name: b.name + " (" + b.admissionYear + "–" + b.completionYear + ")" }))} />
+                    <MultiSelect label="Eligible semesters (empty = all)" name="eligibleSemesters" options={criteria.semesters.map(s => ({ id: s.id, name: s.name }))} />
+                    <MultiSelect label="Required skills (empty = none)" name="requiredSkills" options={criteria.skills} />
+                  </>}
+                  <p className="text-xs text-slate-500 md:col-span-2">Choose the complete intended cohort; empty selections remove that restriction.</p>
+                  <button disabled={transitioning === drive.id} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 md:col-span-2">{transitioning === drive.id ? "Saving…" : "Save drive changes"}</button>
+                </form>
+              </details>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={() => router.push("/placements/drives/" + drive.id + "/eligibility")} className="min-h-10 rounded-xl border px-4 py-2 text-sm font-bold">Review student eligibility</button>
                 {next && <button type="button" onClick={() => void transition(drive)} disabled={transitioning === drive.id} className="min-h-10 rounded-xl border border-emerald-700 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{transitioning === drive.id ? "Updating…" : "Advance to " + next.replaceAll("_", " ")}</button>}
