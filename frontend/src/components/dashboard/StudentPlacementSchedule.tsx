@@ -24,6 +24,16 @@ type ScheduledInterview = {
   status: string;
   drive: { id: string; title: string; company: { id: string; name: string } };
 };
+type ScheduledVisit = {
+  id: string;
+  type: string;
+  startsAt: string;
+  endsAt: string | null;
+  venue: string | null;
+  purpose: string | null;
+  company: { id: string; name: string };
+  drive: { id: string; title: string; status: string } | null;
+};
 type ScheduledAssessment = {
   id: string;
   title: string;
@@ -47,19 +57,21 @@ export function StudentPlacementSchedule() {
   const [drives, setDrives] = useState<ScheduledDrive[]>([]);
   const [interviews, setInterviews] = useState<ScheduledInterview[]>([]);
   const [assessments, setAssessments] = useState<ScheduledAssessment[]>([]);
+  const [visits, setVisits] = useState<ScheduledVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [driveResult, interviewResult, assessmentResult] = await Promise.allSettled([
+    const [driveResult, interviewResult, assessmentResult, visitResult] = await Promise.allSettled([
       authedFetch<{ data: ScheduledDrive[] }>("/placements/drives"),
       authedFetch<{ data: ScheduledInterview[] }>("/placements/interviews"),
       authedFetch<{ data: ScheduledAssessment[] }>("/placements/tests"),
+      authedFetch<{ data: ScheduledVisit[] }>("/placements/visits"),
     ]);
 
-    const authError = [driveResult, interviewResult, assessmentResult].find(
+    const authError = [driveResult, interviewResult, assessmentResult, visitResult].find(
       (result) => result.status === "rejected" && result.reason instanceof AuthRequiredError,
     );
     if (authError) {
@@ -71,12 +83,13 @@ export function StudentPlacementSchedule() {
     if (driveResult.status === "fulfilled") setDrives(driveResult.value.data || []);
     if (interviewResult.status === "fulfilled") setInterviews(interviewResult.value.data || []);
     if (assessmentResult.status === "fulfilled") setAssessments(assessmentResult.value.data || []);
+    if (visitResult.status === "fulfilled") setVisits(visitResult.value.data || []);
 
-    if ([driveResult, interviewResult, assessmentResult].every((result) => result.status === "rejected")) {
+    if ([driveResult, interviewResult, assessmentResult, visitResult].every((result) => result.status === "rejected")) {
       const failed = [driveResult, interviewResult, assessmentResult].find((result) => result.status === "rejected");
       const reason = failed && failed.status === "rejected" ? failed.reason : null;
       setError(reason instanceof HttpRequestError ? reason.message : "Placement schedules could not be loaded. Please retry.");
-    } else if ([driveResult, interviewResult, assessmentResult].some((result) => result.status === "rejected")) {
+    } else if ([driveResult, interviewResult, assessmentResult, visitResult].some((result) => result.status === "rejected")) {
       setError("Some placement schedules could not be refreshed. Use Refresh to try again.");
     }
     setLoading(false);
@@ -84,7 +97,7 @@ export function StudentPlacementSchedule() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const hasItems = drives.length > 0 || interviews.length > 0 || assessments.length > 0;
+  const hasItems = drives.length > 0 || interviews.length > 0 || assessments.length > 0 || visits.length > 0;
 
   return (
     <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-5 shadow-sm sm:p-6">
@@ -102,7 +115,7 @@ export function StudentPlacementSchedule() {
 
       {error && <p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between gap-2"><h3 className="font-black text-slate-900">Placement drives</h3><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800">{drives.length}</span></div>
           <div className="mt-3 space-y-3">
@@ -138,6 +151,18 @@ export function StudentPlacementSchedule() {
               {assessment.testLink && <a className="mt-2 inline-flex text-xs font-bold text-violet-700 underline" href={assessment.testLink} target="_blank" rel="noreferrer">Open assessment</a>}
             </article>)}
             {!loading && assessments.length === 0 && <p className="border-t border-slate-100 pt-3 text-sm text-slate-500">No assessments assigned to you yet.</p>}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-2"><h3 className="font-black text-slate-900">Presentations & events</h3><span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-800">{visits.length}</span></div>
+          <div className="mt-3 space-y-3">
+            {visits.slice(0, 4).map((visit) => <article key={visit.id} className="border-t border-slate-100 pt-3">
+              <p className="font-bold text-slate-900">{visit.type}</p><p className="text-sm text-slate-600">{visit.company.name}{visit.drive ? ` — ${visit.drive.title}` : ""}</p>
+              <p className="mt-1 text-xs text-slate-500">{when(visit.startsAt)}{visit.endsAt ? ` – ${when(visit.endsAt)}` : ""}</p>
+              {visit.venue && <p className="mt-1 text-xs text-slate-600">Venue: {visit.venue}</p>}
+              {visit.purpose && <p className="mt-1 text-xs text-slate-600">{visit.purpose}</p>}
+            </article>)}
+            {!loading && visits.length === 0 && <p className="border-t border-slate-100 pt-3 text-sm text-slate-500">No presentations or placement events assigned to you.</p>}
           </div>
         </div>
       </div>
