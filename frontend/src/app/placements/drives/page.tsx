@@ -46,11 +46,11 @@ const NEXT_STATUS: Record<string, string> = {
   ACCEPTED: "JOINED",
 };
 
-function MultiSelect({ label, name, options }: { label: string; name: string; options: Option[] }) {
+function MultiSelect({ label, name, options, selected = [] }: { label: string; name: string; options: Option[]; selected?: string[] }) {
   return (
     <label className="flex min-w-0 flex-col gap-1 text-sm font-semibold text-slate-700">
       {label}
-      <select name={name} multiple className="min-h-28 rounded-xl border bg-white px-3 py-2 text-sm font-normal" size={4}>
+      <select name={name} multiple defaultValue={selected} className="min-h-28 rounded-xl border bg-white px-3 py-2 text-sm font-normal" size={4}>
         {options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
       </select>
       <span className="text-xs font-normal text-slate-500">Leave unselected to include all.</span>
@@ -278,7 +278,7 @@ export default function PlacementDrivesPage() {
                   finally { setTransitioning(null); }
                 }}>
                   <label className="flex flex-col gap-1 text-xs font-semibold">Drive title<input name="title" required defaultValue={drive.title} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
-                  <label className="flex flex-col gap-1 text-xs font-semibold">Venue<input name="venue" defaultValue={""} placeholder="Venue / online note" className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold">Venue<input name="venue" defaultValue={drive.venue ?? ""} placeholder="Venue / online note" className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
                   <label className="flex flex-col gap-1 text-xs font-semibold">Application deadline<input name="deadline" type="datetime-local" defaultValue={drive.applicationDeadline ? new Date(new Date(drive.applicationDeadline).getTime()-new Date(drive.applicationDeadline).getTimezoneOffset()*60000).toISOString().slice(0,16) : ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
                   <label className="flex flex-col gap-1 text-xs font-semibold">Drive date<input name="driveDate" type="datetime-local" defaultValue={drive.driveDate ? new Date(new Date(drive.driveDate).getTime()-new Date(drive.driveDate).getTimezoneOffset()*60000).toISOString().slice(0,16) : ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
                   <label className="flex flex-col gap-1 text-xs font-semibold">Minimum CGPA<input name="cgpa" type="number" min="0" max="10" step="0.01" defaultValue={drive.cgpaRequirement ?? ""} className="rounded-lg border px-3 py-2 text-sm font-normal" /></label>
