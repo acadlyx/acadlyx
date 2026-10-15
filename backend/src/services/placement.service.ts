@@ -1230,6 +1230,84 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
   return offer;
 }
 
+export async function updatePlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, input: {
+  role?: string;
+  offerDate?: string;
+  responseDeadline?: string | null;
+  joiningDate?: string | null;
+  totalCtc?: number | null;
+  fixedCtc?: number | null;
+  variableCtc?: number | null;
+  bonus?: number | null;
+  currency?: string;
+  offerDocumentUrl?: string | null;
+  notes?: string | null;
+}) {
+  assertInstitution(actor, institutionId);
+  if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
+  const existing = await prisma.placementOffer.findFirst({
+    where: { id: offerId, institutionId },
+    select: {
+      id: true, studentId: true, status: true, updatedAt: true, offerDate: true,
+      responseDeadline: true, joiningDate: true,
+      application: { select: { placementDriveId: true, opportunityId: true } },
+    },
+  });
+  if (!existing) throw new AppError("Placement offer not found.", 404);
+  await assertCanViewStudent(institutionId, actor, existing.studentId);
+  if (existing.status !== "OFFERED") {
+    throw new AppError("Only an offer awaiting the student's response can be revised. Preserve accepted or declined offer history.", 409);
+  }
+
+  const offerDate = input.offerDate === undefined ? existing.offerDate : new Date(input.offerDate);
+  const responseDeadline = input.responseDeadline === undefined
+    ? existing.responseDeadline
+    : input.responseDeadline ? new Date(input.responseDeadline) : null;
+  const joiningDate = input.joiningDate === undefined
+    ? existing.joiningDate
+    : input.joiningDate ? new Date(input.joiningDate) : null;
+  if (Number.isNaN(offerDate.getTime()) ||
+      (responseDeadline && (Number.isNaN(responseDeadline.getTime()) || responseDeadline < offerDate)) ||
+      (joiningDate && (Number.isNaN(joiningDate.getTime()) || joiningDate < offerDate))) {
+    throw new AppError("Offer date, response deadline, and joining date must be valid; deadlines and joining cannot precede the offer date.", 422);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementOffer.updateMany({
+      where: { id: offerId, institutionId, status: "OFFERED", updatedAt: existing.updatedAt },
+      data: {
+        ...(input.role !== undefined ? { role: input.role.trim() } : {}),
+        ...(input.offerDate !== undefined ? { offerDate } : {}),
+        ...(input.responseDeadline !== undefined ? { responseDeadline } : {}),
+        ...(input.joiningDate !== undefined ? { joiningDate } : {}),
+        ...(input.totalCtc !== undefined ? { totalCtc: input.totalCtc } : {}),
+        ...(input.fixedCtc !== undefined ? { fixedCtc: input.fixedCtc } : {}),
+        ...(input.variableCtc !== undefined ? { variableCtc: input.variableCtc } : {}),
+        ...(input.bonus !== undefined ? { bonus: input.bonus } : {}),
+        ...(input.currency !== undefined ? { currency: input.currency.toUpperCase() } : {}),
+        ...(input.offerDocumentUrl !== undefined ? { offerDocumentUrl: input.offerDocumentUrl } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      },
+    });
+    if (changed.count !== 1) throw new AppError("The offer changed while you were editing it. Refresh and try again.", 409);
+    const row = await tx.placementOffer.findFirst({ where: { id: offerId, institutionId } });
+    if (!row) throw new AppError("Placement offer not found.", 404);
+    await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.offer.updated", {
+      offerId,
+      version: row.updatedAt.toISOString(),
+      studentId: row.studentId,
+    });
+    return row;
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id, action: "placements.offer.updated",
+    entityType: "PlacementOffer", entityId: offerId,
+    metadata: { applicationId: existing.application ? "linked" : "unlinked", fields: Object.keys(input) },
+  });
+  return updated;
+}
+
+
 export async function transitionPlacementOffer(institutionId: string, actor: AuthenticatedUser, offerId: string, status: string) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
