@@ -45,6 +45,8 @@ const placementCohortTargeting = z.object({
   programIds: z.array(z.string().uuid()).max(100).optional(),
   departmentIds: z.array(z.string().uuid()).max(100).optional(),
   batchIds: z.array(z.string().uuid()).max(100).optional(),
+  semesterIds: z.array(z.string().uuid()).max(100).optional(),
+  sectionIds: z.array(z.string().uuid()).max(500).optional(),
   graduatingYears: z.array(z.number().int().min(2000).max(2200)).max(30).optional(),
 });
 const interviewCreate = z.object({
