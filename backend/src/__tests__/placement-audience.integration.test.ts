@@ -199,6 +199,23 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
     const cancelled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:cancelled:` } } });
     assert.equal(cancelled.length, 1, "cancellation notification must be delivered once");
+
+    const draft = await createPlacementVisit(institution.id, staffActor, {
+      companyId: company.id,
+      type: "Draft cohort briefing",
+      startsAt: "2030-04-03T10:00:00.000Z",
+      status: "DRAFT",
+      targeting: { batchIds: [batch.id] },
+    });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "draft visits must not be visible to students");
+    const draftCreatedNotifications = await prisma.notification.count({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:` } } });
+    assert.equal(draftCreatedNotifications, 0, "draft creation must not notify students");
+    await updatePlacementVisit(institution.id, staffActor, draft.id, { status: "PUBLISHED" });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 1, "publishing a draft makes it visible to the intended audience");
+    const published = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:published:` } } });
+    assert.equal(published.length, 1, "publication notification must be delivered once");
+    await updatePlacementVisit(institution.id, staffActor, draft.id, { status: "CANCELLED" });
+    assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancellation removes the published activity from student schedules");
   } finally {
     await prisma.placementVisit.deleteMany({ where: { institutionId: institution.id } });
     await prisma.placementTest.deleteMany({ where: { institutionId: institution.id } });
