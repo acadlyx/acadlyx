@@ -123,7 +123,7 @@ async function assertNoPlacementScheduleConflicts(
   const overlappingTests = tests.filter((item) => {
     const durationMinutes = item.durationMinutes && item.durationMinutes > 0 ? item.durationMinutes : 60;
     const existingEnd = item.scheduledAt.getTime() + durationMinutes * 60_000;
-    return item.scheduledAt < endsAt && existingEnd > startsAt;
+    return item.scheduledAt.getTime() < endsAt.getTime() && existingEnd > startsAt.getTime();
   });
   if (interviews.length || overlappingTests.length) {
     const labels = [
