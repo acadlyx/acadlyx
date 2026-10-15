@@ -252,6 +252,28 @@ async function handlePlacementEvent(event: DomainEvent) {
     return;
   }
 
+  if (event.name === "placement.application.created") {
+    const applicationId = stringField(payload, "applicationId");
+    if (!applicationId) return;
+    const application = await prisma.application.findFirst({
+      where: { id: applicationId, institutionId },
+      select: {
+        id: true, studentId: true, status: true,
+        opportunity: { select: { title: true, organization: true } },
+      },
+    });
+    if (!application) return;
+    await notifyRecipients({
+      institutionId,
+      recipientIds: [application.studentId],
+      dedupePrefix: `placement:application:${application.id}:submitted`,
+      title: "Placement application submitted",
+      body: `Your application for ${application.opportunity.title} at ${application.opportunity.organization} has been recorded.`,
+      actionUrl: "/student/placements",
+    });
+    return;
+  }
+
   if (event.name === "placement.application.status_changed") {
     const applicationId = stringField(payload, "applicationId");
     const nextStatus = stringField(payload, "to");
