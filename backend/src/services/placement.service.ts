@@ -1569,6 +1569,7 @@ export async function createPlacementInterview(
   input: { driveId: string; roundNumber: number; roundType: string; startsAt: string; endsAt?: string; venue?: string; onlineLink?: string; interviewer?: string; status?: "DRAFT" | "SCHEDULED"; studentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
+  await assertPlacementEntitlement(institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const drive = await prisma.placementDrive.findFirst({ where: { id: input.driveId, institutionId }, select: { id: true, status: true, campusId: true, eligibleDepartments: true } });
   if (!drive) throw new AppError("Placement drive not found.", 404);
@@ -1590,6 +1591,22 @@ export async function createPlacementInterview(
   });
   const cohortStudentIds = await resolvePlacementCohortAudience(institutionId, input.targeting);
   const explicitStudentIds = input.studentIds ?? [];
+  if (new Set(explicitStudentIds).size !== explicitStudentIds.length) {
+    throw new AppError("The explicitly selected interview audience contains duplicate student IDs.", 422);
+  }
+  if (explicitStudentIds.length) {
+    const eligibleExplicit = await prisma.user.findMany({
+      where: {
+        institutionId, id: { in: explicitStudentIds },
+        userRoles: { some: { role: { name: "STUDENT" } } },
+        studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+      },
+      select: { id: true },
+    });
+    if (eligibleExplicit.length !== explicitStudentIds.length) {
+      throw new AppError("Every explicitly selected interview candidate must be an actively enrolled student in this institution.", 422);
+    }
+  }
   const requestedStudentIds = [...new Set([...explicitStudentIds, ...cohortStudentIds, ...interviewCandidates.map((candidate) => candidate.studentId)])];
   await Promise.all(requestedStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
   if (input.targeting && (input.targeting.campusIds?.length || input.targeting.programIds?.length || input.targeting.departmentIds?.length || input.targeting.batchIds?.length || input.targeting.graduatingYears?.length || input.targeting.semesterIds?.length || input.targeting.sectionIds?.length) && cohortStudentIds.length === 0 && explicitStudentIds.length === 0) {
@@ -1643,11 +1660,21 @@ export async function addPlacementInterviewParticipant(
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   await assertCanViewStudent(institutionId, actor, studentId);
+  const targetStudent = await prisma.user.findFirst({
+    where: {
+      id: studentId, institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+    },
+    select: { id: true },
+  });
+  if (!targetStudent) throw new AppError("Candidate must be an actively enrolled student in this institution.", 422);
   const interview = await prisma.placementInterview.findFirst({
     where: { id: interviewId, institutionId },
     select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
   });
   if (!interview) throw new AppError("Placement interview not found.", 404);
+  if (interview.status === "CANCELLED") throw new AppError("Cancelled interviews cannot receive new candidate assignments.", 409);
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campuses = await getDirectorCampusIds(institutionId, actor.id);
     if (!interview.drive.campusId || !campuses.includes(interview.drive.campusId)) {
@@ -2222,11 +2249,15 @@ export async function createPlacementTest(
   if (uniqueStudentIds.length) {
     await Promise.all(uniqueStudentIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
     const targets = await prisma.user.findMany({
-      where: { id: { in: uniqueStudentIds }, institutionId, userRoles: { some: { role: { name: "STUDENT" } } } },
+      where: {
+        id: { in: uniqueStudentIds }, institutionId,
+        userRoles: { some: { role: { name: "STUDENT" } } },
+        studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+      },
       select: { id: true },
     });
     if (targets.length !== uniqueStudentIds.length) {
-      throw new AppError("Every assessment target must be an institution student within your authorised scope.", 422);
+      throw new AppError("Every assessment target must be an actively enrolled institution student within your authorised scope.", 422);
     }
   }
 
@@ -2285,11 +2316,21 @@ export async function addPlacementTestParticipant(institutionId: string, actor: 
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   await assertCanViewStudent(institutionId, actor, studentId);
+  const targetStudent = await prisma.user.findFirst({
+    where: {
+      id: studentId, institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: { some: { institutionId, status: "ACTIVE" } },
+    },
+    select: { id: true },
+  });
+  if (!targetStudent) throw new AppError("Candidate must be an actively enrolled student in this institution.", 422);
   const test = await prisma.placementTest.findFirst({
     where: { id: testId, institutionId },
     select: { id: true, status: true, drive: { select: { campusId: true, eligibleDepartments: true } } },
   });
   if (!test) throw new AppError("Placement test not found.", 404);
+  if (test.status === "CANCELLED") throw new AppError("Cancelled assessments cannot receive new candidate assignments.", 409);
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campuses = await getDirectorCampusIds(institutionId, actor.id);
     if (!test.drive.campusId || !campuses.includes(test.drive.campusId)) {
@@ -2412,6 +2453,9 @@ export async function updatePlacementInterview(
   if (!existing) throw new AppError("Placement interview not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled interviews cannot be changed.", 409);
   if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled interview cannot be returned to draft.", 409);
+  if (existing.status === "DRAFT" && input.status === "SCHEDULED" && existing.participants.length === 0) {
+    throw new AppError("Assign at least one authorised candidate before publishing this interview.", 422);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campusIds = await getDirectorCampusIds(institutionId, actor.id);
     if (!existing.drive.campusId || !campusIds.includes(existing.drive.campusId)) {
@@ -2498,6 +2542,9 @@ export async function updatePlacementTest(
   if (!existing) throw new AppError("Placement assessment not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled assessments cannot be changed.", 409);
   if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled assessment cannot be returned to draft.", 409);
+  if (existing.status === "DRAFT" && input.status === "SCHEDULED" && existing.participants.length === 0) {
+    throw new AppError("Assign at least one authorised candidate before publishing this assessment.", 422);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campusIds = await getDirectorCampusIds(institutionId, actor.id);
     if (!existing.drive.campusId || !campusIds.includes(existing.drive.campusId)) {
