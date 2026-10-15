@@ -27,7 +27,7 @@ test("Chairman legacy operations route redirects to the Chairman workspace", () 
 test("Director legacy operations route redirects to the Director workspace", () => {
   const page = readFileSync(join(frontend, "director/operations/page.tsx"), "utf8");
   assert.ok(
-    page.includes('redirect("/director")') || (page.includes('router.replace("/director")') && page.includes('useEffect')),
+    page.includes('redirect("/director")') || (page.includes('router.replace("/director")') && page.includes('useEffect') || page.includes('window.location.replace("/director")') && page.includes('useEffect')),
     "legacy operations URL must redirect to the role-specific dashboard while preserving the sessionStorage-backed browser session",
   );
   assert.ok(!page.includes('href: "/students"'), "legacy route must not expose unscoped global students");
@@ -218,7 +218,7 @@ test("Chairman and Director examination operations are separate full-lifecycle w
     assert.ok(source.includes("Dismiss incident"));
   }
   assert.ok(chairmanOperations.includes('redirect("/chairman")'), "legacy Chairman operations URL redirects to its workspace");
-  assert.ok(directorOperations.includes('redirect("/director")') || (directorOperations.includes('router.replace("/director")') && directorOperations.includes("useEffect")), "legacy Director operations URL redirects to its workspace without losing the browser session");
+  assert.ok(directorOperations.includes('redirect("/director")') || (directorOperations.includes('router.replace("/director")') && directorOperations.includes("useEffect") || directorOperations.includes('window.location.replace("/director")') && directorOperations.includes("useEffect")), "legacy Director operations URL redirects to its workspace without losing the browser session");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/chairman/examinations/operations"'), "Chairman exam operations remain reachable from the sidebar");
   assert.ok(navigation.includes('href: "/director/examinations/operations"'), "Director exam operations remain reachable from the sidebar");
