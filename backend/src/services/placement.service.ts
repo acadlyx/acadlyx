@@ -1249,8 +1249,7 @@ export async function updatePlacementOffer(institutionId: string, actor: Authent
     where: { id: offerId, institutionId },
     select: {
       id: true, studentId: true, status: true, updatedAt: true, offerDate: true,
-      responseDeadline: true, joiningDate: true,
-      application: { select: { placementDriveId: true, opportunityId: true } },
+      responseDeadline: true, joiningDate: true, applicationId: true,
     },
   });
   if (!existing) throw new AppError("Placement offer not found.", 404);
@@ -1302,7 +1301,7 @@ export async function updatePlacementOffer(institutionId: string, actor: Authent
   await recordAuditLog({
     institutionId, userId: actor.id, action: "placements.offer.updated",
     entityType: "PlacementOffer", entityId: offerId,
-    metadata: { applicationId: existing.application ? "linked" : "unlinked", fields: Object.keys(input) },
+    metadata: { applicationId: existing.applicationId ? "linked" : "unlinked", fields: Object.keys(input) },
   });
   return updated;
 }
