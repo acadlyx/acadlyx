@@ -2014,30 +2014,77 @@ export async function updatePlacementInterview(
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
   const existing = await prisma.placementInterview.findFirst({
     where: { id, institutionId },
-    select: { id: true, status: true, startsAt: true, participants: { select: { studentId: true } }, roundType: true },
+    select: {
+      id: true, status: true, startsAt: true, endsAt: true, venue: true, onlineLink: true,
+      participants: { select: { studentId: true } }, roundType: true, roundNumber: true,
+      drive: { select: { campusId: true, eligibleDepartments: true } },
+    },
   });
   if (!existing) throw new AppError("Placement interview not found.", 404);
   if (existing.status === "CANCELLED") throw new AppError("Cancelled interviews cannot be changed.", 409);
   if (existing.status === "SCHEDULED" && input.status === "DRAFT") throw new AppError("A scheduled interview cannot be returned to draft.", 409);
-  const updated = await prisma.placementInterview.update({
-    where: { id },
-    data: {
-      ...(input.startsAt ? { startsAt: new Date(input.startsAt) } : {}),
-      ...(input.endsAt !== undefined ? { endsAt: input.endsAt ? new Date(input.endsAt) : null } : {}),
-      ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
-      ...(input.onlineLink !== undefined ? { onlineLink: input.onlineLink?.trim() || null } : {}),
-      ...(input.status ? { status: input.status } : {}),
-    },
-  });
-  const recipients = existing.participants.map((participant) => participant.studentId);
-  if (input.status === "CANCELLED" && existing.status === "SCHEDULED") {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "cancelled", title: "Placement interview cancelled", body: `${existing.roundType} interview round has been cancelled.`, actionUrl: "/student/placements" });
-  } else if (existing.status === "DRAFT" && updated.status === "SCHEDULED") {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: "published", title: "Placement interview published", body: `${existing.roundType} interview round is scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
-  } else if (existing.status === "SCHEDULED" && input.startsAt) {
-    await notifyPlacementAudience({ institutionId, recipientIds: recipients, eventType: "interview", eventId: id, version: `rescheduled:${updated.startsAt.toISOString()}`, title: "Placement interview rescheduled", body: `${existing.roundType} interview is now scheduled for ${updated.startsAt.toLocaleString()}.`, actionUrl: "/student/placements" });
+  if (activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!existing.drive.campusId || !campusIds.includes(existing.drive.campusId)) {
+      throw new AppError("Placement interview not found in the director's authorised campus scope.", 404);
+    }
   }
-  await recordAuditLog({ institutionId, userId: actor.id, action: input.status === "CANCELLED" ? "placements.interview.cancelled" : "placements.interview.updated", entityType: "PlacementInterview", entityId: id, metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() } });
+  if (["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targeted = Array.isArray(existing.drive.eligibleDepartments)
+      ? existing.drive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targeted.length || !targeted.some((departmentId) => departmentIds.includes(departmentId))) {
+      throw new AppError("Placement interview not found in the authorised department scope.", 404);
+    }
+  }
+
+  const nextStartsAt = input.startsAt ? new Date(input.startsAt) : existing.startsAt;
+  const nextEndsAt = input.endsAt === undefined ? existing.endsAt : input.endsAt ? new Date(input.endsAt) : null;
+  if (Number.isNaN(nextStartsAt.getTime()) || (nextEndsAt && (Number.isNaN(nextEndsAt.getTime()) || nextEndsAt < nextStartsAt))) {
+    throw new AppError("Interview end time must not be before its start time.", 422);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.placementInterview.updateMany({
+      where: { id, institutionId, status: existing.status, startsAt: existing.startsAt },
+      data: {
+        ...(input.startsAt ? { startsAt: nextStartsAt } : {}),
+        ...(input.endsAt !== undefined ? { endsAt: nextEndsAt } : {}),
+        ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
+        ...(input.onlineLink !== undefined ? { onlineLink: input.onlineLink?.trim() || null } : {}),
+        ...(input.status ? { status: input.status } : {}),
+      },
+    });
+    if (changed.count !== 1) throw new AppError("This interview was updated by another user. Refresh and try again.", 409);
+    const row = await tx.placementInterview.findFirst({ where: { id, institutionId } });
+    if (!row) throw new AppError("Placement interview not found.", 404);
+
+    const recipientIds = existing.participants.map((participant) => participant.studentId);
+    let version: string | null = null;
+    if (existing.status === "SCHEDULED" && input.status === "CANCELLED") {
+      version = "cancelled";
+    } else if (existing.status === "DRAFT" && row.status === "SCHEDULED") {
+      version = "published";
+    } else if (existing.status === "SCHEDULED" && row.status === "SCHEDULED") {
+      const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
+        (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
+      const detailsChanged = moved || input.venue !== undefined || input.onlineLink !== undefined;
+      if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
+    }
+    if (version && recipientIds.length) {
+      await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
+        eventType: "interview", eventId: id, version, recipientIds,
+      });
+    }
+    return row;
+  });
+  await recordAuditLog({
+    institutionId, userId: actor.id,
+    action: input.status === "CANCELLED" ? "placements.interview.cancelled" : "placements.interview.updated",
+    entityType: "PlacementInterview", entityId: id,
+    metadata: { status: updated.status, startsAt: updated.startsAt.toISOString() },
+  });
   return updated;
 }
 
