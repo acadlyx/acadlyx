@@ -8,7 +8,7 @@ export const DATA_TYPES = [
 ] as const;
 
 export type DataType = typeof DATA_TYPES[number];
-export type ExportType = DataType | "paid-fees" | "outstanding-dues" | "fee-heads" | "fee-receipts" | "fee-transactions" | "fee-refunds" | "fee-concessions" | "fee-audit" | "assignments" | "assignment-submissions" | "library-books" | "library-copies" | "library-issues" | "library-fines" | "admission-applications" | "employees" | "leave-requests" | "calendar-events" | "institutional-events" | "event-media" | "placement-companies" | "placement-drives" | "placement-openings" | "placement-applications" | "placement-offers";
+export type ExportType = DataType | "paid-fees" | "outstanding-dues" | "fee-heads" | "fee-receipts" | "fee-transactions" | "fee-refunds" | "fee-concessions" | "fee-audit" | "assignments" | "assignment-submissions" | "library-books" | "library-copies" | "library-issues" | "library-fines" | "admission-applications" | "employees" | "leave-requests" | "calendar-events" | "institutional-events" | "event-media" | "placement-companies" | "placement-drives" | "placement-openings" | "placement-applications" | "placement-offers" | "placement-visits" | "placement-tests" | "placement-interviews";
 export type ExportFormat = "xlsx" | "csv" | "docx" | "pdf" | "json";
 export interface ExportOptions {
   selection?: "all-filtered" | "current-page" | "selected";
