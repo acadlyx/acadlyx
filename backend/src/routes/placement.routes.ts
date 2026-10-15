@@ -65,6 +65,8 @@ const placementCohortTargeting = z.object({
 const audiencePreview = z.object({
   targeting: placementCohortTargeting.optional(),
   studentIds: z.array(z.string().uuid()).max(10000).optional(),
+  driveId: z.string().uuid().optional(),
+  applicationStatuses: z.array(z.enum(["TEST", "INTERVIEW"])).max(2).optional(),
 });
 const interviewCreate = z.object({
   driveId: z.string().uuid(),
@@ -257,7 +259,7 @@ router.get("/criteria-options", authorize("placements.read"), asyncHandler(async
 router.post("/audience/preview", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const body = audiencePreview.parse(req.body);
   const data = await placement.previewPlacementCohortAudience(
-    requireInstitution(req), requireAuthenticatedUser(req), body.targeting, body.studentIds,
+    requireInstitution(req), requireAuthenticatedUser(req), body.targeting, body.studentIds, body.driveId, body.applicationStatuses,
   );
   res.json({ success: true, data });
 }));
