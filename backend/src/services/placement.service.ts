@@ -1854,7 +1854,7 @@ export async function updatePlacementVisit(
   institutionId: string,
   actor: AuthenticatedUser,
   id: string,
-  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED" },
+  input: { startsAt?: string; endsAt?: string | null; venue?: string | null; purpose?: string | null; status?: "DRAFT" | "PUBLISHED" | "CANCELLED"; participatingStudentIds?: string[]; targeting?: PlacementCohortTargeting },
 ) {
   assertInstitution(actor, institutionId);
   if (!isPlacementManager(actor)) throw new AppError("Placement management authority is required.", 403);
@@ -1872,9 +1872,38 @@ export async function updatePlacementVisit(
     throw new AppError("A published activity cannot be returned to draft.", 409);
   }
 
-  const recipients = Array.isArray(existing.participatingStudentIds)
+  const previousRecipients = Array.isArray(existing.participatingStudentIds)
     ? existing.participatingStudentIds.filter((value): value is string => typeof value === "string")
     : [];
+  const audienceProvided = input.participatingStudentIds !== undefined || input.targeting !== undefined;
+  const cohortStudentIds = input.targeting
+    ? await resolvePlacementCohortAudience(institutionId, input.targeting)
+    : [];
+  const requestedIds = [...(input.participatingStudentIds ?? []), ...cohortStudentIds];
+  if (new Set(requestedIds).size !== requestedIds.length) {
+    throw new AppError("The activity audience contains duplicate student IDs.", 422);
+  }
+  if (requestedIds.length) {
+    const students = await prisma.user.findMany({
+      where: { institutionId, id: { in: requestedIds }, userRoles: { some: { role: { name: "STUDENT" } } } },
+      select: { id: true },
+    });
+    if (students.length !== new Set(requestedIds).size) {
+      throw new AppError("Every activity target must be an enrolled institution student.", 422);
+    }
+    await Promise.all(requestedIds.map((studentId) => assertCanViewStudent(institutionId, actor, studentId)));
+  }
+  // Before publication, edits may replace the draft audience. Published
+  // activities are append-only for targeting so prior participants remain in
+  // the audit/history trail and keep receiving schedule corrections.
+  const recipients = audienceProvided
+    ? existing.status === "DRAFT"
+      ? [...new Set(requestedIds)]
+      : [...new Set([...previousRecipients, ...requestedIds])]
+    : previousRecipients;
+  if ((input.status ?? existing.status) === "PUBLISHED" && recipients.length === 0) {
+    throw new AppError("Published activities must target a cohort, explicit students, or candidates for the linked drive.", 422);
+  }
   if (activeWorkspace(actor) === "DIRECTOR") {
     const campusIds = await getDirectorCampusIds(institutionId, actor.id);
     if (existing.drive?.campusId) {
@@ -1915,6 +1944,7 @@ export async function updatePlacementVisit(
         ...(input.endsAt !== undefined ? { endsAt: nextEndsAt } : {}),
         ...(input.venue !== undefined ? { venue: input.venue?.trim() || null } : {}),
         ...(input.purpose !== undefined ? { purpose: input.purpose?.trim() || null } : {}),
+        ...(audienceProvided ? { participatingStudentIds: recipients as Prisma.InputJsonValue } : {}),
         ...(input.status ? { status: input.status } : {}),
       },
     });
@@ -1932,11 +1962,15 @@ export async function updatePlacementVisit(
       const moved = nextStartsAt.getTime() !== existing.startsAt.getTime() ||
         (nextEndsAt?.getTime() ?? null) !== (existing.endsAt?.getTime() ?? null);
       const detailsChanged = moved || input.venue !== undefined || input.purpose !== undefined;
+      const audienceExpanded = recipients.some((studentId) => !previousRecipients.includes(studentId));
       if (detailsChanged) version = moved ? `rescheduled:${row.startsAt.toISOString()}` : `updated:${row.updatedAt.toISOString()}`;
+      else if (audienceExpanded) version = "assigned";
     }
-    if (version && recipients.length) {
+    const addedRecipients = recipients.filter((studentId) => !previousRecipients.includes(studentId));
+    const eventRecipients = version === "assigned" ? addedRecipients : recipients;
+    if (version && eventRecipients.length) {
       await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.schedule.changed", {
-        eventType: "visit", eventId: id, version, recipientIds: recipients,
+        eventType: "visit", eventId: id, version, recipientIds: eventRecipients, driveId: existing.drive?.id,
       });
     }
     return row;
