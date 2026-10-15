@@ -1315,7 +1315,40 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
   if (application.status !== "SELECTED") {
     throw new AppError("Only a selected candidate can receive an offer. Mark the application SELECTED first.", 409);
   }
-  const company = await prisma.placementCompany.findFirst({
+  let linkedDrive = application.placementDriveId
+    ? await prisma.placementDrive.findFirst({
+        where: { id: application.placementDriveId, institutionId },
+        select: {
+          id: true, campusId: true, eligibleDepartments: true, opportunityId: true,
+          company: { select: { id: true, name: true } },
+        },
+      })
+    : null;
+  if (!linkedDrive && application.opportunityId) {
+    linkedDrive = await prisma.placementDrive.findFirst({
+      where: { institutionId, opportunityId: application.opportunityId },
+      select: {
+        id: true, campusId: true, eligibleDepartments: true, opportunityId: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+  }
+  if (linkedDrive && activeWorkspace(actor) === "DIRECTOR") {
+    const campusIds = await getDirectorCampusIds(institutionId, actor.id);
+    if (!linkedDrive.campusId || !campusIds.includes(linkedDrive.campusId)) {
+      throw new AppError("The offer's placement drive is outside the director's authorised campus scope.", 404);
+    }
+  }
+  if (linkedDrive && ["DEAN", "HOD", "FACULTY"].includes(activeWorkspace(actor))) {
+    const departmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+    const targetedDepartments = Array.isArray(linkedDrive.eligibleDepartments)
+      ? linkedDrive.eligibleDepartments.filter((value): value is string => typeof value === "string")
+      : [];
+    if (!targetedDepartments.length || !targetedDepartments.some((value) => departmentIds.includes(value))) {
+      throw new AppError("The offer's placement drive is outside the authorised department scope.", 404);
+    }
+  }
+  const company = linkedDrive?.company ?? await prisma.placementCompany.findFirst({
     where: { institutionId, name: application.opportunity.organization },
     select: { id: true, name: true },
   });
@@ -1357,13 +1390,13 @@ export async function createPlacementOffer(institutionId: string, actor: Authent
       offerId: created.id,
       applicationId: application.id,
       studentId: application.student.id,
-      driveId: application.placementDriveId,
+      driveId: linkedDrive?.id ?? application.placementDriveId,
     });
     await enqueuePlacementEvent(tx, institutionId, actor.id, "placement.application.status_changed", {
       applicationId: application.id,
       from: "SELECTED",
       to: "OFFERED",
-      driveId: application.placementDriveId,
+      driveId: linkedDrive?.id ?? application.placementDriveId,
     });
     return created;
   });
