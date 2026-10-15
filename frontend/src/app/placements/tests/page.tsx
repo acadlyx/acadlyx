@@ -84,7 +84,7 @@ export default function PlacementTestsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
-  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "CANCELLED" }) {
+  async function updateTest(id: string, payload: { scheduledAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
     try {
@@ -109,6 +109,7 @@ export default function PlacementTestsPage() {
       driveId: String(form.get("driveId") || ""),
       title: String(form.get("title") || "").trim(),
       mode: String(form.get("mode") || "ONLINE"),
+      status: String(form.get("status") || "SCHEDULED"),
       scheduledAt: new Date(localDate).toISOString(),
       durationMinutes: form.get("durationMinutes") ? Number(form.get("durationMinutes")) : undefined,
       maxScore: form.get("maxScore") ? Number(form.get("maxScore")) : undefined,
@@ -160,6 +161,9 @@ export default function PlacementTestsPage() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Date and time
             <input name="scheduledAt" type="datetime-local" required className="rounded-xl border px-3 py-3" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Publication
+            <select name="status" className="rounded-xl border bg-white px-3 py-3"><option value="SCHEDULED">Schedule and notify assigned students</option><option value="DRAFT">Save as draft without notifying students</option></select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Duration (minutes)
             <input name="durationMinutes" type="number" min="1" max="1440" className="rounded-xl border px-3 py-3" />
@@ -226,6 +230,7 @@ export default function PlacementTestsPage() {
                 </label>
                 <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
+              {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateTest(item.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish assessment</button>}
               {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
             </div>
           </article>)}
