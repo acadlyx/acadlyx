@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   AuthRequiredError,
@@ -56,8 +56,20 @@ export function ProtectedRouteBoundary({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const route = pathname;
+  // Only query parameters that participate in ROLE_NAVIGATION change the
+  // route authorization contract. Search, pagination and filter parameters
+  // must not blank the dashboard or trigger another identity check.
+  const authorizationQueryKeys =
+    pathname === "/superadmin" ? ["section"] :
+    pathname === "/hod" || pathname === "/library" ? ["tab"] : [];
+  const routeQuery = new URLSearchParams();
+  for (const key of authorizationQueryKeys) {
+    const value = searchParams.get(key);
+    if (value) routeQuery.set(key, value);
+  }
+  const route = routeQuery.size ? pathname + "?" + routeQuery.toString() : pathname;
   const [state, setState] = useState<AuthState>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [validatedPath, setValidatedPath] = useState<string | null>(null);
