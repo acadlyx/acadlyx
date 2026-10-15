@@ -72,6 +72,13 @@ const resumeCreate = z.object({ url: z.string().url(), fileName: z.string().max(
 const skillUpdate = z.object({ proficiency: z.number().int().min(0).max(100), evidence: z.string().max(2000).nullable().optional() });
 const testCreate = z.object({ driveId: z.string().uuid(), title: z.string().trim().min(2).max(200), mode: z.string().max(40).optional(), scheduledAt: z.string().datetime(), durationMinutes: z.number().int().positive().max(1440).optional(), maxScore: z.number().positive().optional(), testLink: z.string().url().optional(), instructions: z.string().max(5000).optional(), studentIds: z.array(z.string().uuid()).max(10000).optional(), targeting: placementCohortTargeting.optional() });
 const testParticipantUpdate = z.object({ attendanceStatus: z.string().trim().min(2).max(40).optional(), resultStatus: z.string().trim().min(2).max(40).optional(), score: z.number().nonnegative().nullable().optional(), feedback: z.string().max(5000).nullable().optional() });
+const visitUpdate = z.object({
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().nullable().optional(),
+  venue: z.string().max(300).nullable().optional(),
+  purpose: z.string().max(1000).nullable().optional(),
+  status: z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]).optional(),
+});
 const visitCreate = z.object({
   companyId: z.string().uuid(),
   driveId: z.string().uuid().optional(),
@@ -83,6 +90,7 @@ const visitCreate = z.object({
   representatives: z.unknown().optional(),
   participatingStudentIds: z.array(z.string().uuid()).max(10000).optional(),
   targeting: placementCohortTargeting.optional(),
+  status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
   notes: z.string().max(5000).optional(),
   followUp: z.string().max(5000).optional(),
 });
@@ -271,6 +279,11 @@ router.get("/visits", authorize("placements.read"), asyncHandler(async (req,res)
 router.post("/visits", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementVisit(requireInstitution(req),requireAuthenticatedUser(req),visitCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
+}));
+router.patch("/visits/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.updatePlacementVisit(requireInstitution(req), requireAuthenticatedUser(req), id, visitUpdate.parse(req.body));
+  res.json({ success: true, data: item });
 }));
 
 router.get("/students", authorize("placements.read"), asyncHandler(async (req,res) => {
