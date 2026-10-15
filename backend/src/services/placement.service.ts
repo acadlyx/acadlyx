@@ -18,6 +18,51 @@ const APPLICATION_TRANSITIONS: Record<string, string[]> = {
   WITHDRAWN: [],
 };
 
+type PlacementCohortTargeting = {
+  campusIds?: string[];
+  programIds?: string[];
+  departmentIds?: string[];
+  batchIds?: string[];
+  graduatingYears?: number[];
+};
+
+/** Resolve a cohort against active, institution-scoped enrollments. Graduation
+ * year is the Batch.completionYear maintained by the institution, not inferred
+ * from a user's current semester or from client-supplied student records. */
+async function resolvePlacementCohortAudience(institutionId: string, targeting?: PlacementCohortTargeting) {
+  if (!targeting) return [];
+  const hasFilters = Boolean(
+    targeting.campusIds?.length || targeting.programIds?.length ||
+    targeting.departmentIds?.length || targeting.batchIds?.length ||
+    targeting.graduatingYears?.length,
+  );
+  if (!hasFilters) return [];
+  const users = await prisma.user.findMany({
+    where: {
+      institutionId,
+      userRoles: { some: { role: { name: "STUDENT" } } },
+      studentEnrollments: {
+        some: {
+          institutionId,
+          status: "ACTIVE",
+          ...(targeting.batchIds?.length ? { batchId: { in: targeting.batchIds } } : {}),
+          ...(targeting.graduatingYears?.length ? { batch: { completionYear: { in: targeting.graduatingYears } } } : {}),
+          program: {
+            ...(targeting.programIds?.length ? { id: { in: targeting.programIds } } : {}),
+            department: {
+              ...(targeting.departmentIds?.length ? { id: { in: targeting.departmentIds } } : {}),
+              ...(targeting.campusIds?.length ? { campusId: { in: targeting.campusIds } } : {}),
+            },
+          },
+        },
+      },
+    },
+    select: { id: true },
+    take: 10000,
+  });
+  return users.map((user) => user.id);
+}
+
 /**
  * Deliver placement event notifications idempotently. The unique dedupeKey is
  * enforced by PostgreSQL, so retries and concurrent requests cannot create
