@@ -63,37 +63,6 @@ async function resolvePlacementCohortAudience(institutionId: string, targeting?:
   return users.map((user) => user.id);
 }
 
-/**
- * Deliver placement event notifications idempotently. The unique dedupeKey is
- * enforced by PostgreSQL, so retries and concurrent requests cannot create
- * duplicate notifications for the same event/version/recipient.
- */
-async function notifyPlacementAudience(input: {
-  institutionId: string;
-  recipientIds: string[];
-  eventType: "visit" | "test" | "interview";
-  eventId: string;
-  version: string;
-  title: string;
-  body: string;
-  actionUrl: string;
-}) {
-  const recipientIds = [...new Set(input.recipientIds.filter(Boolean))];
-  if (!recipientIds.length) return;
-  await prisma.notification.createMany({
-    data: recipientIds.map((userId) => ({
-      institutionId: input.institutionId,
-      userId,
-      title: input.title,
-      body: input.body,
-      actionUrl: input.actionUrl,
-      priority: "NORMAL",
-      dedupeKey: `placement:${input.eventType}:${input.eventId}:${input.version}:${userId}`,
-    })),
-    skipDuplicates: true,
-  });
-}
-
 async function enqueuePlacementEvent(
   tx: Prisma.TransactionClient,
   institutionId: string,
