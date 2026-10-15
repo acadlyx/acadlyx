@@ -11,6 +11,11 @@ const router = Router();
 router.use(authenticate, requireFeature("placements"));
 
 const idParams = z.object({ id: z.string().uuid() });
+const positiveQueryInt = (value: unknown, fallback: number, maximum: number): number => {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 1 ? Math.min(parsed, maximum) : fallback;
+};
 const opportunityCreate = z.object({
   title: z.string().trim().min(2).max(200),
   organization: z.string().trim().min(2).max(200),
@@ -175,7 +180,7 @@ router.post("/companies/:id/contacts", authorize("placements.manage"), asyncHand
 }));
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
-  const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:typeof req.query.page==="string"?Number(req.query.page):undefined,pageSize:typeof req.query.pageSize==="string"?Number(req.query.pageSize):undefined});
+  const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:positiveQueryInt(req.query.page,1,1000000),pageSize:positiveQueryInt(req.query.pageSize,50,100)});
   res.json({success:true,data});
 }));
 router.post("/drives", authorize("placements.manage"), asyncHandler(async (req,res) => {
