@@ -48,7 +48,7 @@ export const MODULES: MobileModule[] = [
   { id: "notices", title: "Notices", category: "Communication", description: "Institutional notices. Authoring is not yet implemented.", endpoint: "/erp/notices", requiredAnyPermissions: ["notices.read"] },
   { id: "notifications", title: "Notifications", category: "Communication", description: "Notifications and read status.", endpoint: "/portal/notifications", requiredAnyPermissions: ["notifications.read"] },
   { id: "documents", title: "My Documents", category: "Communication", description: "Documents visible to the signed-in user.", endpoint: "/portal/documents/me", requiredAnyPermissions: ["documents.read"] },
-  { id: "library", title: "Library", category: "Campus Life", description: "Library catalogue; circulation workflows remain in progress.", endpoint: "/library/books", requiredAnyPermissions: ["library.read"] },
+  { id: "library", title: "Library", category: "Campus Life", description: "Book catalogue, reservations, circulation, inventory maintenance and fines.", endpoint: "/library/books", requiredAnyPermissions: ["library.read", "library.borrow", "library.manage"] },
   { id: "events", title: "Events", category: "Campus Life", description: "Institutional events within your authorized scope.", endpoint: "/events", requiredAnyPermissions: ["events.read"] },
   { id: "certificates", title: "Certificates", category: "Administration", description: "Certificate records within your authorized scope.", endpoint: "/certificates", requiredAnyPermissions: ["certificates.read"] },
   { id: "operations", title: "Operations", category: "Administration", description: "Operations records within your authorized scope.", endpoint: "/operations/summary", requiredAnyPermissions: ["operations.read"] },
