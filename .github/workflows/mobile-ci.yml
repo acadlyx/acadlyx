@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Align Expo-managed native package versions
+        run: npx expo install --fix
+
       - name: Verify Expo dependency compatibility
         run: npx expo install --check
 
