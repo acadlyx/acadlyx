@@ -45,10 +45,10 @@ export function HRScreen(){
    if(employeeCode.trim().length<1||employeeCode.trim().length>50)throw new Error("Employee code must contain 1–50 characters.");
    if(designation.trim().length<2||designation.trim().length>150)throw new Error("Designation must contain 2–150 characters.");
    if(!validDate(joiningDate))throw new Error("Joining date must use YYYY-MM-DD.");
-   const common={employeeCode:employeeCode.trim().toUpperCase(),departmentId:selectedDepartmentId,designation:designation.trim(),employmentType:type,joiningDate:new Date(joiningDate+"T12:00:00").toISOString(),qualification:qualification.trim()||undefined,address:address.trim()||undefined,emergencyContactName:emergencyName.trim()||undefined,emergencyContactPhone:emergencyPhone.trim()||undefined};
-   if(editing)return apiRequest<Employee>("/hr/employees/"+encodeURIComponent(editing.id),{method:"PATCH",body:JSON.stringify({...common,status:employeeStatus})});
+   const common={employeeCode:employeeCode.trim().toUpperCase(),designation:designation.trim(),employmentType:type,joiningDate:new Date(joiningDate+"T12:00:00").toISOString(),qualification:qualification.trim()||undefined,address:address.trim()||undefined,emergencyContactName:emergencyName.trim()||undefined,emergencyContactPhone:emergencyPhone.trim()||undefined};
+   if(editing)return apiRequest<Employee>("/hr/employees/"+encodeURIComponent(editing.id),{method:"PATCH",body:JSON.stringify({...common,departmentId:selectedDepartmentId,status:employeeStatus})});
    if(!selectedUserId)throw new Error("Choose an eligible institution user.");
-   return apiRequest<Employee>("/hr/employees",{method:"POST",body:JSON.stringify({...common,userId:selectedUserId})});
+   return apiRequest<Employee>("/hr/employees",{method:"POST",body:JSON.stringify({...common,...(selectedDepartmentId?{departmentId:selectedDepartmentId}:{}),userId:selectedUserId})});
   },
   onSuccess:async()=>{await invalidate();clearForm();}
  });
