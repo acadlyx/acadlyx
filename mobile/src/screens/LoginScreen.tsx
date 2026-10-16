@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { colors, radius, spacing } from "../ui/theme";
@@ -34,8 +34,7 @@ export function LoginScreen() {
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandMark}><Text style={styles.brandLetter}>A</Text></View>
-        <Text style={styles.brand}>ACADLYX</Text>
+        <Image source={require("../../assets/acadlyx-logo.png")} style={styles.brandLogo} resizeMode="contain" accessibilityLabel="ACADLYX logo" />
         <Text style={styles.subtitle}>Education ERP & Institutional Intelligence</Text>
         <View style={styles.panel}>
           <Text style={styles.heading}>{challenge ? "Verify your identity" : "Welcome back"}</Text>
@@ -64,9 +63,7 @@ export function LoginScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   content: { flexGrow: 1, justifyContent: "center", padding: spacing.xl, paddingTop: 44, paddingBottom: 26 },
-  brandMark: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, alignSelf: "center", marginBottom: 12 },
-  brandLetter: { color: colors.white, fontSize: 30, fontWeight: "900" },
-  brand: { fontSize: 28, letterSpacing: 2.5, fontWeight: "900", color: colors.text, textAlign: "center" },
+  brandLogo: { width: 180, height: 100, alignSelf: "center", marginBottom: 6 },
   subtitle: { marginTop: 7, marginBottom: 28, textAlign: "center", color: colors.textMuted, fontSize: 13 },
   panel: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, borderRadius: radius.lg },
   heading: { fontSize: 24, fontWeight: "800", color: colors.text },
