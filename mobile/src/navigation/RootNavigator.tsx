@@ -17,11 +17,12 @@ import { LibraryScreen } from "../screens/LibraryScreen";
 import { CalendarScreen } from "../screens/CalendarScreen";
 import { AttendanceScreen } from "../screens/AttendanceScreen";
 import { LeaveScreen } from "../screens/LeaveScreen";
+import { ParentScreen } from "../screens/ParentScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined };
+export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined };
 export type TabParamList = { Home: undefined; Modules: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -77,6 +78,7 @@ export function RootNavigator() {
           <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: "Calendar" }} />
           <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: "Attendance" }} />
           <Stack.Screen name="Leave" component={LeaveScreen} options={{ title: "Leave management" }} />
+          <Stack.Screen name="Parent" component={ParentScreen} options={{ title: "Parent portal" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
