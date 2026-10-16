@@ -15,13 +15,16 @@ Native Android and iOS workspace built with Expo, React Native and TypeScript. I
 
 - Existing login and MFA API contracts, secure token storage, refresh-on-401 and sign-out.
 - Live /my-work home screen and permission-filtered module directory.
-- Generic read-only API collection/detail views for the current catalog.
-- Notification list and backend mark-all-as-read action.
+- Generic read-only API collection/detail views for the wider catalog.
+- Dedicated assignment lifecycle surfaces: create draft, publish/unpublish, student submission, reviewer grading and explicit reopen.
+- Dedicated notices create/edit/delete and timetable create/edit/delete screens using existing server validators and scope/conflict enforcement.
+- Notification list, individual read and mark-all-as-read actions.
 - Account role/permission summary and password-change flow.
+- Exact original ACADLYX logo used on the sign-in screen; native app icon and splash assets are still pending.
 
 This is not full feature parity. Module-specific writes, approval transitions, context switching, push notifications, deep links, file workflows, imports/exports and conflict-safe offline support remain incomplete. See docs/mobile/MOBILE_FEATURE_PARITY.md and docs/mobile/MOBILE_KNOWN_LIMITATIONS.md.
 
-The original image assets are not embedded in this source increment. The A monogram is typographic styling, not an alternative ACADLYX logo. Replace it with the exact repository brand asset before release.
+The exact original ACADLYX logo has been copied from `frontend/public/branding/acadlyx-logo.png` to `mobile/assets/acadlyx-logo.png` and is displayed on the sign-in screen. Dedicated icon/splash crops and store artwork remain pending.
 
 ## Build
 
