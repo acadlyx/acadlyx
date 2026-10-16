@@ -36,7 +36,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/hr` | Employee read surface | PARTIAL; employee lifecycle, attendance and supported payroll workflows remain |
 | `/leave` | Read surface mapped to `/leave/requests/mine` | PARTIAL; apply/cancel/approve/reject and balance/leave-type administration are missing |
 | `/portal` | Notifications list, individual mark-read, mark-all-read, document list mapping | PARTIAL; push registration/delivery, preferences, authorized deep links, document lifecycle and notification create/bulk actions remain |
-| `/library` | Generic book catalogue surface | PARTIAL; circulation, renew/return, damaged inventory, reservations, fees/fines and waiver lifecycle remain |
+| `/library` | Dedicated catalogue/search, available-only filter, self-reservations, my loans, staff circulation, renew/return conditions, fines, and book create/edit; borrower/book are selected from API results rather than raw IDs | PARTIAL; copy-level inventory management, reservation cancel/queue, issue lookup when `/students` is denied, fine waiver approvals, richer policy screens and device/API test evidence remain |
 | `/calendar` | Read surface mapped to `/calendar/events` | PARTIAL; event creation/edit/delete and richer calendar UX remain |
 | `/registrations` | Generic read-only registration surface | PARTIAL; individual/bulk submit, decision, drop and offering update workflows remain |
 | `/enrollment-requests` | Generic read-only request surface | PARTIAL; individual/bulk decision workflow is missing |
@@ -74,6 +74,6 @@ The backend RBAC catalog has 20 role identifiers: `SUPER_ADMIN`, `INSTITUTION_AD
 
 ## Completion evidence
 
-The implemented source currently includes sign-in/MFA, native tabs, My Work, permission-filtered module discovery, generic read-only detail rendering, dedicated assignment/notices/timetable workflows, notifications read actions, account roles and password change. The exact original logo is used on sign-in. Student self-service routes are mapped but not smoke-tested.
+The implemented source currently includes sign-in/MFA, native tabs, My Work, permission-filtered module discovery, generic read-only detail rendering, dedicated assignment/notices/timetable/library workflows, notifications read actions, account roles and password change. The exact original logo is used on sign-in. Student self-service routes are mapped but not smoke-tested.
 
 A screen/route is not evidence of complete feature parity. Each feature needs a dedicated API contract, validation, permission and scope checks, loading/empty/error/success states, idempotent mutations where relevant, query invalidation and automated tests against an isolated institution. TypeScript, native builds, live integration tests, scope-isolation tests and web/mobile data-consistency tests have **not** been run in this environment. No 100% parity claim is made.
