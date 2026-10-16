@@ -29,7 +29,7 @@ export const MODULES: MobileModule[] = [
   { id: "sections", title: "Sections", category: "People & Structure", description: "Section records within your authorized scope.", endpoint: "/sections", requiredAnyPermissions: ["sections.read"] },
   { id: "courses", title: "Courses", category: "Academics", description: "Course catalogue within your authorized scope.", endpoint: "/courses", requiredAnyPermissions: ["courses.read"] },
   { id: "course-offerings", title: "Course Offerings", category: "Academics", description: "Teaching offerings within your authorized scope.", endpoint: "/course-offerings", requiredAnyPermissions: ["course-offerings.read"] },
-  { id: "attendance", title: "Attendance", category: "Academics", description: "Attendance sessions; write and approval workflows remain in progress.", endpoint: "/attendance-sessions", requiredAnyPermissions: ["attendance.read"] },
+  { id: "attendance", title: "Attendance", category: "Academics", description: "Attendance sessions; write and approval workflows remain in progress.", endpoint: "/attendance-sessions", requiredAnyPermissions: ["attendance.read", "attendance.mark"] },
   { id: "assignments", title: "Assignments", category: "Learning", description: "Assignment list and details.", endpoint: "/assignments", requiredAnyPermissions: ["assignments.read"] },
   { id: "internal-marks", title: "Internal Marks", category: "Examinations", description: "Internal mark records within your authorized scope.", endpoint: "/internal-marks", requiredAnyPermissions: ["marks.read"] },
   { id: "examinations", title: "Examinations", category: "Examinations", description: "Examination sessions and records.", endpoint: "/examinations/sessions", requiredAnyPermissions: ["exams.read"] },
