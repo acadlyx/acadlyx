@@ -62,6 +62,7 @@ test("library and calendar native screens reference existing API workflows", () 
   const library = read("src/screens/LibraryScreen.tsx");
   const calendar = read("src/screens/CalendarScreen.tsx");
   const attendance = read("src/screens/AttendanceScreen.tsx");
+  const leave = read("src/screens/LeaveScreen.tsx");
   for (const route of ["/library/books", "/library/reservations", "/library/loans", "/library/fines", "/return", "/renew"]) assert.ok(library.includes(route), "Missing library route fragment: " + route);
   assert.ok(library.includes("library.manage"));
   assert.ok(calendar.includes("/calendar/events"));
@@ -70,6 +71,10 @@ test("library and calendar native screens reference existing API workflows", () 
   assert.ok(attendance.includes("attendance.mark"));
   assert.ok(attendance.includes("JSON.stringify({ records, submit })"));
   assert.ok(attendance.includes("session.isLocked"));
+  assert.ok(leave.includes("/leave/requests/mine"));
+  assert.ok(leave.includes("/leave/requests/approvals"));
+  assert.ok(leave.includes("/leave/requests/") && leave.includes("/decision"));
+  assert.ok(leave.includes("leave.apply") && leave.includes("leave.approve"));
 });
 
 test("original logo is bundled and displayed on sign-in", () => {
