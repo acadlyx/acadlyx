@@ -35,7 +35,7 @@ export const MODULES: MobileModule[] = [
   { id: "examinations", title: "Examinations", category: "Examinations", description: "Examination sessions and records.", endpoint: "/examinations/sessions", requiredAnyPermissions: ["exams.read"] },
   { id: "grades", title: "Grade Scale", category: "Examinations", description: "Configured grade scale.", endpoint: "/grades/scale", requiredAnyPermissions: ["marks.read"] },
   { id: "timetable", title: "Timetable", category: "Academics", description: "Timetable entries within your authorized scope.", endpoint: "/erp/timetable", requiredAnyPermissions: ["timetable.read"] },
-  { id: "calendar", title: "Calendar", category: "Campus Life", description: "Calendar events within your authorized scope.", endpoint: "/calendar/events", requiredAnyPermissions: ["calendar.read"] },
+  { id: "calendar", title: "Calendar", category: "Campus Life", description: "Institution calendar with event creation, editing, filtering and deletion when authorized.", endpoint: "/calendar/events", requiredAnyPermissions: ["calendar.read", "calendar.manage"] },
   { id: "registrations", title: "Registrations", category: "Academics", description: "Registration records and status.", endpoint: "/registrations", requiredAnyPermissions: ["registration.read"] },
   { id: "enrollment-requests", title: "Enrollment Requests", category: "Academics", description: "Enrollment requests within your authorized scope.", endpoint: "/enrollment-requests", requiredAnyPermissions: ["enrollment.read"] },
   { id: "admissions", title: "Admissions", category: "Administration", description: "Admission applications and records.", endpoint: "/admissions", requiredAnyPermissions: ["admissions.read"] },
