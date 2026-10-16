@@ -38,7 +38,7 @@ export const MODULES: MobileModule[] = [
   { id: "calendar", title: "Calendar", category: "Campus Life", description: "Institution calendar with event creation, editing, filtering and deletion when authorized.", endpoint: "/calendar/events", requiredAnyPermissions: ["calendar.read", "calendar.manage"] },
   { id: "registrations", title: "Registrations", category: "Academics", description: "Registration records and status.", endpoint: "/registrations", requiredAnyPermissions: ["registration.read"] },
   { id: "enrollment-requests", title: "Enrollment Requests", category: "Academics", description: "Enrollment requests within your authorized scope.", endpoint: "/enrollment-requests", requiredAnyPermissions: ["enrollment.read"] },
-  { id: "admissions", title: "Admissions", category: "Administration", description: "Admission applications and records.", endpoint: "/admissions", requiredAnyPermissions: ["admissions.read"] },
+  { id: "admissions", title: "Admissions", category: "Administration", description: "Manage applications, validated status transitions and authorized student enrollment.", endpoint: "/admissions", requiredAnyPermissions: ["admissions.read", "admissions.manage"] },
   { id: "placements", title: "Placements", category: "Career & HR", description: "Placement opportunities; application and offer workflows remain in progress.", endpoint: "/placements/opportunities", requiredAnyPermissions: ["placements.read"] },
   { id: "hr", title: "Human Resources", category: "Career & HR", description: "Employee records within your authorized scope.", endpoint: "/hr/employees", requiredAnyPermissions: ["hr.read"] },
   { id: "leave", title: "Leave", category: "Career & HR", description: "Apply for leave, review balances, decide authorized requests and manage leave types.", endpoint: "/leave/requests/mine", requiredAnyPermissions: ["leave.apply", "leave.approve", "leave.read", "leave.manage"] },
@@ -56,7 +56,7 @@ export const MODULES: MobileModule[] = [
   { id: "lms", title: "Learning Management", category: "Learning", description: "Learning-management records within your authorized scope.", endpoint: "/lms/catalog", requiredAnyPermissions: ["lms.read"] },
   { id: "intelligence", title: "Institutional Intelligence", category: "Reports & Governance", description: "Intelligence data within your authorized scope.", endpoint: "/intelligence/command-center", requiredAnyPermissions: ["intelligence.read"] },
   { id: "reports", title: "Finance Command Center", category: "Reports & Governance", description: "Finance command-center summary.", endpoint: "/finance/command-center", requiredAnyPermissions: ["fees.read", "fees.collection.read"] },
-  { id: "parent-children", title: "My Children", category: "Parent Portal", description: "Children linked to the authenticated parent account.", endpoint: "/parent/children", allowedRoles: ["PARENT"] },
+  { id: "parent-children", title: "My Children", category: "Parent Portal", description: "Children linked to the authenticated parent account.", endpoint: "/parent/children", requiredAnyPermissions: ["parent-portal.read"], allowedRoles: ["PARENT"] },
   { id: "institutions", title: "Institutions", category: "Platform", description: "Institution records, subject to platform and institution permissions.", endpoint: "/institutions", requiredAnyPermissions: ["institutions.manage"] }
 ];
 
