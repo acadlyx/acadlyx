@@ -24,6 +24,9 @@ mobile/
       LoginScreen.tsx
       ModuleScreen.tsx
       ModulesScreen.tsx
+      AssignmentsScreen.tsx
+      NoticesScreen.tsx
+      TimetableScreen.tsx
       NotificationsScreen.tsx
       ProfileScreen.tsx
     ui/theme.ts
@@ -56,8 +59,8 @@ Context selection is not implemented. Therefore multi-workspace users must not c
 
 ## Current UI
 
-The mobile design tokens use deep green actions, warm neutral surfaces, readable typography and native navigation. The screen uses a typographic A monogram, which is not the official logo. The actual repository brand asset must be added to icons and splash assets before release.
+The mobile design tokens use deep green actions, warm neutral surfaces, readable typography and native navigation. The original logo from `frontend/public/branding/acadlyx-logo.png` is included at `mobile/assets/acadlyx-logo.png` and used on sign-in. Dedicated square app-icon, adaptive-icon artwork, splash screen and store artwork still need to be generated from approved brand assets.
 
 ## Architectural gaps
 
-The foundation has not been compiled or run on a device in this environment. Module-specific typed response contracts, context switching, dedicated role dashboards, workflow forms, file operations, notifications-to-record deep links, offline policy and integration/E2E tests remain. Full feature parity is not claimed.
+The foundation has not been compiled or run on a device in this environment. Dedicated assignment, notice and timetable workflows have been added from inspected backend contracts, but require compile, device and isolated API verification. Module-specific contracts, context switching, dedicated role dashboards, remaining workflow forms, file operations, push/deep links, offline policy and integration/E2E tests remain. Full feature parity is not claimed.
