@@ -45,6 +45,7 @@ test("dedicated assignment, notice and timetable screens call the existing APIs"
   const assignments = read("src/screens/AssignmentsScreen.tsx");
   const notices = read("src/screens/NoticesScreen.tsx");
   const timetable = read("src/screens/TimetableScreen.tsx");
+  const library = read("src/screens/LibraryScreen.tsx");
   assert.match(assignments, /\/assignments\/.*\/submit/);
   assert.match(assignments, /\/submissions\/.*\/reopen/);
   assert.match(assignments, /assignments\.create/);
@@ -53,6 +54,10 @@ test("dedicated assignment, notice and timetable screens call the existing APIs"
   assert.match(timetable, /\/erp\/timetable/);
   assert.match(timetable, /timetable\.manage/);
   assert.match(timetable, /course-offerings/);
+  assert.match(library, /\/library\/reservations/);
+  assert.match(library, /\/library\/loans\/.*\/return/);
+  assert.match(library, /\/library\/loans\/.*\/renew/);
+  assert.match(library, /library\.manage/);
 });
 
 test("actual repository logo is bundled and displayed on native sign-in", () => {
