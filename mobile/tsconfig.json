@@ -5,7 +5,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "react-native"
     ]
   },
   "include": [
