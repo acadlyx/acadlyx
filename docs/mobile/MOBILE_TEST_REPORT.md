@@ -7,8 +7,8 @@ The native source files, workspace configuration and test source were saved to b
 | Check | Result | Evidence / limitation |
 |---|---|---|
 | Repository route/role discovery | SOURCE REVIEWED | Read backend/src/app.ts, backend/src/config/rbac.ts, auth, portal, student, assignment, finance and related route files from base commit 2dc568ec4416a295028cf64eaa7ee659b9258d89. |
-| Native app source written | SOURCE ADDED | Expo shell, API/auth, navigator, home, module directory/detail, notifications, profile, catalog and configuration files are on the feature branch. |
-| Structural contract test source | ADDED, NOT RUN | mobile/scripts/mobile-contract.test.mjs |
+| Native app source written | SOURCE ADDED | Expo shell, API/auth, original logo, My Work, module directory/detail, notifications/profile, dedicated assignments/notices/timetable screens, catalog and configuration are on the feature branch. |
+| Structural contract test source | ADDED, NOT RUN | Seven Node tests in mobile/scripts/mobile-contract.test.mjs cover catalog keys, token storage, app configuration, permission filtering, implemented workflows, bundled logo and required docs. |
 | npm dependency install / lockfile | NOT RUN / NOT CREATED | This environment could access the connected GitHub API but could not clone the repo into a local checkout for build tooling. |
 | TypeScript typecheck | NOT RUN | No local dependency installation or checkout. |
 | Expo Doctor | NOT RUN | Requires dependency installation. |
@@ -49,3 +49,7 @@ If SDK package auto-fix changes package versions, commit the generated package-l
 - Imports/exports, binary preview, upload/download interruption, audit and push/deep links after those capabilities are added.
 
 Structural source tests do not prove API integration, build success, role isolation or end-to-end workflow behavior. Promote a feature to COMPLETE only after the relevant test actually runs and its evidence is recorded here.
+
+## Pull-request CI configuration
+
+`.github/workflows/mobile-ci.yml` was added. It is configured to install dependencies, check Expo versions, run TypeScript and structural tests, run Expo Doctor, and export Android/iOS JavaScript bundles for pull requests to the protected baseline. The workflow has not yet been verified as passing, and these exports are not signed native builds or device tests.
