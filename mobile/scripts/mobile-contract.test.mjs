@@ -61,10 +61,15 @@ test("notices and timetable include scoped API actions and permission gates", ()
 test("library and calendar native screens reference existing API workflows", () => {
   const library = read("src/screens/LibraryScreen.tsx");
   const calendar = read("src/screens/CalendarScreen.tsx");
+  const attendance = read("src/screens/AttendanceScreen.tsx");
   for (const route of ["/library/books", "/library/reservations", "/library/loans", "/library/fines", "/return", "/renew"]) assert.ok(library.includes(route), "Missing library route fragment: " + route);
   assert.ok(library.includes("library.manage"));
   assert.ok(calendar.includes("/calendar/events"));
   assert.ok(calendar.includes("calendar.manage"));
+  assert.ok(attendance.includes("/attendance-sessions"));
+  assert.ok(attendance.includes("attendance.mark"));
+  assert.ok(attendance.includes("submit: true"));
+  assert.ok(attendance.includes("session.isLocked"));
 });
 
 test("original logo is bundled and displayed on sign-in", () => {
