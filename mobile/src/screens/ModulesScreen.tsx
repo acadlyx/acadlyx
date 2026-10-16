@@ -22,7 +22,7 @@ export function ModulesScreen() {
 
   const renderModule = ({ item }: { item: MobileModule }) => (
     <Pressable accessibilityRole="button" accessibilityLabel={"Open " + item.title}
-      onPress={() => navigation.navigate("Module", { moduleId: item.id })}
+      onPress={() => item.id === "assignments" ? navigation.navigate("Assignments") : navigation.navigate("Module", { moduleId: item.id })}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}>
       <View style={styles.cardHeader}><Text style={styles.title}>{item.title}</Text><Text style={styles.arrow}>›</Text></View>
       <Text style={styles.category}>{item.category}</Text>
