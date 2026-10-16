@@ -65,14 +65,14 @@ test("actual repository logo is bundled and displayed on native sign-in", () => 
 
 test("required parity and release documentation exists and states limits candidly", () => {
   const names = [
-    "../../docs/mobile/MOBILE_ARCHITECTURE.md",
-    "../../docs/mobile/MOBILE_FEATURE_PARITY.md",
-    "../../docs/mobile/MOBILE_ROLE_PERMISSION_MATRIX.md",
-    "../../docs/mobile/MOBILE_API_INTEGRATION.md",
-    "../../docs/mobile/MOBILE_TEST_REPORT.md",
-    "../../docs/mobile/MOBILE_BUILD_AND_RELEASE.md",
-    "../../docs/mobile/MOBILE_KNOWN_LIMITATIONS.md"
+    "../docs/mobile/MOBILE_ARCHITECTURE.md",
+    "../docs/mobile/MOBILE_FEATURE_PARITY.md",
+    "../docs/mobile/MOBILE_ROLE_PERMISSION_MATRIX.md",
+    "../docs/mobile/MOBILE_API_INTEGRATION.md",
+    "../docs/mobile/MOBILE_TEST_REPORT.md",
+    "../docs/mobile/MOBILE_BUILD_AND_RELEASE.md",
+    "../docs/mobile/MOBILE_KNOWN_LIMITATIONS.md"
   ];
   for (const name of names) assert.ok(readFileSync(resolve(root, name), "utf8").length > 500, "Missing/short doc: " + name);
-  assert.match(read("../../docs/mobile/MOBILE_FEATURE_PARITY.md"), /100% parity claim is not made/i);
+  assert.match(read("../docs/mobile/MOBILE_FEATURE_PARITY.md"), /100% parity claim is not made/i);
 });
