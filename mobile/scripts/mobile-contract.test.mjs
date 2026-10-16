@@ -68,7 +68,7 @@ test("library and calendar native screens reference existing API workflows", () 
   assert.ok(calendar.includes("calendar.manage"));
   assert.ok(attendance.includes("/attendance-sessions"));
   assert.ok(attendance.includes("attendance.mark"));
-  assert.ok(attendance.includes("submit: true"));
+  assert.ok(attendance.includes("JSON.stringify({ records, submit })"));
   assert.ok(attendance.includes("session.isLocked"));
 });
 
