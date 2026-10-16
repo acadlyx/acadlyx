@@ -20,16 +20,17 @@ import { LeaveScreen } from "../screens/LeaveScreen";
 import { ParentScreen } from "../screens/ParentScreen";
 import { HRScreen } from "../screens/HRScreen";
 import { AdmissionsScreen } from "../screens/AdmissionsScreen";
+import { StudentPortalScreen } from "../screens/StudentPortalScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined };
+export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"ASSIGNMENTS"|"TIMETABLE" } };
 export type TabParamList = { Home: undefined; Modules: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
-function MainTabs() {
+function HomeTab() {\n  const { user } = useAuth();\n  return user?.roles.includes("STUDENT") ? <StudentPortalScreen /> : <HomeScreen />;\n}\n\nfunction MainTabs() {
   return (
     <Tabs.Navigator screenOptions={{
       headerStyle: { backgroundColor: colors.surface },
@@ -39,7 +40,7 @@ function MainTabs() {
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textMuted
     }}>
-      <Tabs.Screen name="Home" component={HomeScreen} options={{ title: "ACADLYX", tabBarLabel: "Home", tabBarIcon: () => <Text>⌂</Text> }} />
+      <Tabs.Screen name="Home" component={HomeTab} options={{ title: "ACADLYX", tabBarLabel: "Home", tabBarIcon: () => <Text>⌂</Text> }} />
       <Tabs.Screen name="Modules" component={ModulesScreen} options={{ title: "Modules", tabBarIcon: () => <Text>▦</Text> }} />
       <Tabs.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications", tabBarIcon: () => <Text>♢</Text> }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: "My Account", tabBarIcon: () => <Text>◉</Text> }} />
@@ -82,7 +83,7 @@ export function RootNavigator() {
           <Stack.Screen name="Leave" component={LeaveScreen} options={{ title: "Leave management" }} />
           <Stack.Screen name="Parent" component={ParentScreen} options={{ title: "Parent portal" }} />
           <Stack.Screen name="HR" component={HRScreen} options={{ title: "Human resources" }} />
-          <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />
+          <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />\n          <Stack.Screen name="StudentPortal" component={({ route }) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
