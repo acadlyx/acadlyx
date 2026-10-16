@@ -64,6 +64,7 @@ test("library and calendar native screens reference existing API workflows", () 
   const attendance = read("src/screens/AttendanceScreen.tsx");
   const leave = read("src/screens/LeaveScreen.tsx");
   const parent = read("src/screens/ParentScreen.tsx");
+  const hr = read("src/screens/HRScreen.tsx");
   for (const route of ["/library/books", "/library/reservations", "/library/loans", "/library/fines", "/return", "/renew"]) assert.ok(library.includes(route), "Missing library route fragment: " + route);
   assert.ok(library.includes("library.manage"));
   assert.ok(calendar.includes("/calendar/events"));
