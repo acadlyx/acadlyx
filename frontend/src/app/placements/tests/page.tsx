@@ -15,6 +15,12 @@ type Test = {
 type Drive = { id: string; title: string; status: string; company: { name: string } };
 type ScopeOption = { id: string; name: string; code?: string; completionYear?: number };
 type Student = { id: string; firstName: string; lastName: string; idNumber?: string | null; studentEnrollments?: Array<{ program?: { name?: string }; batch?: { name?: string } }> };
+type AudiencePreview = { matchingCount: number; sample: Array<{ id: string; firstName: string; lastName: string }>; truncated: boolean };
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 export default function PlacementTestsPage() {
   const router = useRouter();
@@ -25,6 +31,10 @@ export default function PlacementTestsPage() {
   const [departments, setDepartments] = useState<ScopeOption[]>([]);
   const [programs, setPrograms] = useState<ScopeOption[]>([]);
   const [batches, setBatches] = useState<ScopeOption[]>([]);
+  const [semesters, setSemesters] = useState<ScopeOption[]>([]);
+  const [sections, setSections] = useState<ScopeOption[]>([]);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
+  const [previewingAudience, setPreviewingAudience] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -45,16 +55,23 @@ export default function PlacementTestsPage() {
       setItems(testsResponse.data || []);
       setDrives(drivesResponse.data || []);
       setStudents(studentsResponse.data || []);
-      const [campusResult, departmentResult, programResult, batchResult] = await Promise.allSettled([
+      const criteriaResult = await Promise.allSettled([
         authedFetch<{ data: ScopeOption[] }>("/campuses"),
         authedFetch<{ data: ScopeOption[] }>("/departments"),
         authedFetch<{ data: ScopeOption[] }>("/programs"),
         authedFetch<{ data: ScopeOption[] }>("/batches"),
+        authedFetch<{ data: { semesters: ScopeOption[]; sections: ScopeOption[] } }>("/placements/criteria-options"),
       ]);
+      const [campusResult, departmentResult, programResult, batchResult, placementCriteriaResult] = criteriaResult;
       if (campusResult.status === "fulfilled") setCampuses(campusResult.value.data || []);
       if (departmentResult.status === "fulfilled") setDepartments(departmentResult.value.data || []);
       if (programResult.status === "fulfilled") setPrograms(programResult.value.data || []);
       if (batchResult.status === "fulfilled") setBatches(batchResult.value.data || []);
+      if (placementCriteriaResult.status === "fulfilled") {
+        setSemesters(placementCriteriaResult.value.data.semesters || []);
+        setSections(placementCriteriaResult.value.data.sections || []);
+      }
+
     } catch (e) {
       if (e instanceof AuthRequiredError) router.replace("/login");
       else setError(e instanceof HttpRequestError ? e.message : "Unable to load placement assessments.");
@@ -84,6 +101,18 @@ export default function PlacementTestsPage() {
     });
   }, [items, search, statusFilter, dateFrom, dateTo]);
 
+  async function deleteDraft(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await authedFetch("/placements/tests/" + id, { method: "DELETE" });
+      await load();
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to delete this unused draft.");
+    } finally { setBusy(false); }
+  }
+
   async function updateTest(id: string, payload: { scheduledAt?: string; status?: "DRAFT" | "SCHEDULED" | "CANCELLED" }) {
     setBusy(true);
     setError("");
@@ -98,10 +127,43 @@ export default function PlacementTestsPage() {
     }
   }
 
+  async function previewAudience(formElement: HTMLFormElement | null) {
+    if (!formElement) return;
+    const form = new FormData(formElement);
+    const targeting = {
+      campusIds: form.getAll("campusIds").filter((value): value is string => typeof value === "string"),
+      departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
+      programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
+      batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+      semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+      sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
+      graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
+    };
+    const studentIds = form.getAll("studentIds").filter((value): value is string => typeof value === "string");
+    setPreviewingAudience(true);
+    setAudiencePreview(null);
+    setError("");
+    try {
+      const response = await authedFetch<{ data: AudiencePreview }>("/placements/audience/preview", {
+        method: "POST",
+        body: JSON.stringify({ targeting, studentIds, driveId: form.get("driveId"), applicationStatuses: ["SHORTLISTED", "TEST"], candidateOnly: true }),
+      });
+      setAudiencePreview(response.data);
+    } catch (cause) {
+      if (cause instanceof AuthRequiredError) router.replace("/login");
+      else setError(cause instanceof HttpRequestError ? cause.message : "Unable to preview assessment candidates.");
+    } finally { setPreviewingAudience(false); }
+  }
+
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const schedulingStatus = String(form.get("status") || "SCHEDULED");
+    if (schedulingStatus === "SCHEDULED" && (!audiencePreview || audiencePreview.matchingCount === 0)) {
+      setError("Preview at least one intended candidate before scheduling this assessment.");
+      return;
+    }
     setBusy(true);
     setError("");
     const localDate = String(form.get("scheduledAt") || "");
@@ -121,6 +183,8 @@ export default function PlacementTestsPage() {
         departmentIds: form.getAll("departmentIds").filter((value): value is string => typeof value === "string"),
         programIds: form.getAll("programIds").filter((value): value is string => typeof value === "string"),
         batchIds: form.getAll("batchIds").filter((value): value is string => typeof value === "string"),
+        semesterIds: form.getAll("semesterIds").filter((value): value is string => typeof value === "string"),
+        sectionIds: form.getAll("sectionIds").filter((value): value is string => typeof value === "string"),
         graduatingYears: String(form.get("graduatingYears") || "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isInteger(value) && value >= 2000 && value <= 2200),
       },
     };
@@ -145,7 +209,7 @@ export default function PlacementTestsPage() {
           <p className="mt-2 text-sm text-slate-600">Schedule company assessments, assign candidates, and keep participation linked to the placement drive.</p>
         </section>
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-        <form onSubmit={create} className="grid gap-4 rounded-3xl border bg-white p-6 md:grid-cols-2">
+        <form onSubmit={create} onChange={() => setAudiencePreview(null)} className="grid gap-4 rounded-3xl border bg-white p-6 md:grid-cols-2">
           <h2 className="text-lg font-black text-slate-950 md:col-span-2">Schedule an assessment</h2>
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Placement drive
             <select name="driveId" required className="rounded-xl border bg-white px-3 py-3">
@@ -193,6 +257,12 @@ export default function PlacementTestsPage() {
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Batch
                 <select name="batchIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{batches.map((item) => <option key={item.id} value={item.id}>{item.name}{item.completionYear ? ` · graduates ${item.completionYear}` : ""}</option>)}</select>
               </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Semester
+                <select name="semesterIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">Section
+                <select name="sectionIds" multiple size={3} className="rounded-xl border bg-white px-3 py-2 text-sm font-normal">{sections.map((item) => <option key={item.id} value={item.id}>{item.name}{item.code ? ` · ${item.code}` : ""}</option>)}</select>
+              </label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Graduating year(s)
                 <input name="graduatingYears" inputMode="numeric" placeholder="2027, 2028" className="rounded-xl border bg-white px-3 py-3 font-normal" />
               </label>
@@ -204,6 +274,11 @@ export default function PlacementTestsPage() {
             </select>
             <span className="text-xs font-normal text-slate-500">Candidates already moved to the Test stage for this drive are assigned automatically.</span>
           </label>
+          <div className="flex flex-wrap items-center gap-3 md:col-span-2">
+            <button type="button" disabled={busy || previewingAudience} onClick={(event) => void previewAudience(event.currentTarget.form)} className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{previewingAudience ? "Counting candidates…" : "Preview candidates"}</button>
+            {audiencePreview && <span className="text-sm font-bold text-slate-800">{audiencePreview.matchingCount.toLocaleString("en-IN")} candidate(s){audiencePreview.truncated ? " · preview capped at 10,000" : ""}</span>}
+          </div>
+          {audiencePreview && <p className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-700 md:col-span-2">Sample: {audiencePreview.sample.map((student) => student.firstName + " " + student.lastName).join(", ") || "No matching candidates"}{audiencePreview.matchingCount > audiencePreview.sample.length ? "…" : ""}</p>}
           <button disabled={busy || loading || drives.length === 0} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white disabled:opacity-50 md:col-span-2">{busy ? "Scheduling…" : "Schedule assessment"}</button>
         </form>
         <section className="space-y-3">
@@ -226,10 +301,11 @@ export default function PlacementTestsPage() {
             <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-3">
               <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("scheduledAt"); if (typeof value === "string" && value) void updateTest(item.id, { scheduledAt: new Date(value).toISOString() }); }}>
                 <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">Reschedule
-                  <input name="scheduledAt" type="datetime-local" required defaultValue={new Date(item.scheduledAt).toISOString().slice(0, 16)} disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
+                  <input name="scheduledAt" type="datetime-local" required defaultValue={toDateTimeLocal(item.scheduledAt)} disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-2 py-2 text-sm" />
                 </label>
                 <button type="submit" disabled={busy || item.status === "CANCELLED"} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50">Save time</button>
               </form>
+              {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Permanently delete this unused assessment draft? Drafts with candidate assignments must be retained.")) void deleteDraft(item.id); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete draft</button>}
               {item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void updateTest(item.id, { status: "SCHEDULED" })} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50">Publish assessment</button>}
               {item.status !== "CANCELLED" && <button type="button" disabled={busy} onClick={() => { if (window.confirm("Cancel this assessment and notify assigned students?")) void updateTest(item.id, { status: "CANCELLED" }); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Cancel assessment</button>}
             </div>

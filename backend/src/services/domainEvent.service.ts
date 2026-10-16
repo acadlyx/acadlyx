@@ -39,13 +39,15 @@ async function claimOutboxEvent() {
     attempts: number;
   }>>`
     UPDATE "domain_event_outbox"
-    SET "attempts" = "attempts" + 1
+    SET "attempts" = "attempts" + 1,
+        "lastAttemptAt" = CURRENT_TIMESTAMP
     WHERE "id" = (
       SELECT "id"
       FROM "domain_event_outbox"
       WHERE "processedAt" IS NULL
         AND "attempts" < 10
-      ORDER BY "createdAt" ASC
+        AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP)
+      ORDER BY "nextAttemptAt" NULLS FIRST, "createdAt" ASC
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     )
@@ -84,15 +86,17 @@ export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainRes
       }
       await prisma.domainEventOutbox.update({
         where: { id: row.id },
-        data: { processedAt: new Date(), lastError: null },
+        data: { processedAt: new Date(), lastError: null, nextAttemptAt: null },
       });
       processed += 1;
     } catch (error) {
       failed += 1;
+      const delayMs = Math.min(15 * 60_000, 5_000 * (2 ** Math.min(Math.max(row.attempts - 1, 0), 8)));
       await prisma.domainEventOutbox.update({
         where: { id: row.id },
         data: {
           lastError: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
+          nextAttemptAt: row.attempts < 10 ? new Date(Date.now() + delayMs) : null,
         },
       }).catch(() => undefined);
     }

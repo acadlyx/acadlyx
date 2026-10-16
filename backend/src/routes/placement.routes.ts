@@ -25,9 +25,26 @@ const opportunityCreate = z.object({
 });
 const opportunityUpdate = opportunityCreate.partial().extend({ isActive: z.boolean().optional() });
 const transitionBody = z.object({ status: z.string().trim().min(3).max(32) });
+const bulkApplicationTransitionBody = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  status: z.string().trim().min(3).max(32),
+});
 const companyCreate = z.object({ name: z.string().trim().min(2).max(200), logoUrl: z.string().url().optional(), industry: z.string().max(120).optional(), companyType: z.string().max(120).optional(), website: z.string().url().optional(), description: z.string().max(5000).optional(), headquarters: z.string().max(200).optional() });
 const joiningVerification = z.object({ actualJoiningDate:z.string().datetime().optional(), status:z.enum(["VERIFIED","REJECTED"]), proofUrl:z.string().url().optional(), notes:z.string().max(3000).optional() });
-const offerCreate = z.object({ applicationId:z.string().uuid(), role:z.string().trim().min(2).max(200), offerDate:z.string().datetime(), joiningDate:z.string().datetime().optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), offerDocumentUrl:z.string().url().optional() });
+const offerCreate = z.object({ applicationId:z.string().uuid(), role:z.string().trim().min(2).max(200), offerDate:z.string().datetime(), responseDeadline:z.string().datetime().optional(), joiningDate:z.string().datetime().optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), offerDocumentUrl:z.string().url().optional() });
+const offerUpdate = z.object({
+  role: z.string().trim().min(2).max(200).optional(),
+  offerDate: z.string().datetime().optional(),
+  responseDeadline: z.string().datetime().nullable().optional(),
+  joiningDate: z.string().datetime().nullable().optional(),
+  totalCtc: z.number().nonnegative().nullable().optional(),
+  fixedCtc: z.number().nonnegative().nullable().optional(),
+  variableCtc: z.number().nonnegative().nullable().optional(),
+  bonus: z.number().nonnegative().nullable().optional(),
+  currency: z.string().length(3).optional(),
+  offerDocumentUrl: z.string().url().nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+});
 const openingCreate = z.object({ companyId:z.string().uuid(), role:z.string().trim().min(2).max(200), description:z.string().max(5000).optional(), employmentType:z.string().max(80).optional(), location:z.string().max(200).optional(), totalCtc:z.number().nonnegative().optional(), fixedCtc:z.number().nonnegative().optional(), variableCtc:z.number().nonnegative().optional(), bonus:z.number().nonnegative().optional(), stipend:z.number().nonnegative().optional(), currency:z.string().length(3).optional(), packagePeriod:z.string().max(40).optional(), requiredSkills:z.array(z.string().uuid()).optional(), eligibility:z.record(z.string(),z.unknown()).optional(), hiringBatchIds:z.array(z.string().uuid()).optional(), deadline:z.string().datetime().optional(), applicationProcess:z.string().max(5000).optional() });
 const driveCreate = z.object({
   companyId: z.string().uuid(), title: z.string().trim().min(2).max(200), openingId: z.string().uuid().optional(), campusId: z.string().uuid().optional(),
@@ -45,7 +62,16 @@ const placementCohortTargeting = z.object({
   programIds: z.array(z.string().uuid()).max(100).optional(),
   departmentIds: z.array(z.string().uuid()).max(100).optional(),
   batchIds: z.array(z.string().uuid()).max(100).optional(),
+  semesterIds: z.array(z.string().uuid()).max(100).optional(),
+  sectionIds: z.array(z.string().uuid()).max(500).optional(),
   graduatingYears: z.array(z.number().int().min(2000).max(2200)).max(30).optional(),
+});
+const audiencePreview = z.object({
+  targeting: placementCohortTargeting.optional(),
+  studentIds: z.array(z.string().uuid()).max(10000).optional(),
+  driveId: z.string().uuid().optional(),
+  applicationStatuses: z.array(z.enum(["APPLICATION_SUBMITTED", "SHORTLISTED", "TEST", "INTERVIEW", "SELECTED", "OFFERED", "ACCEPTED", "JOINED"])).max(8).optional(),
+  candidateOnly: z.boolean().optional(),
 });
 const interviewCreate = z.object({
   driveId: z.string().uuid(),
@@ -87,10 +113,13 @@ const testUpdate = z.object({
   status: z.enum(["DRAFT", "SCHEDULED", "CANCELLED"]).optional(),
 });
 const visitUpdate = z.object({
+  type: z.string().trim().min(2).max(80).optional(),
   startsAt: z.string().datetime().optional(),
   endsAt: z.string().datetime().nullable().optional(),
   venue: z.string().max(300).nullable().optional(),
   purpose: z.string().max(1000).nullable().optional(),
+  participatingStudentIds: z.array(z.string().uuid()).max(10000).optional(),
+  targeting: placementCohortTargeting.optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]).optional(),
 });
 const visitCreate = z.object({
@@ -179,6 +208,18 @@ router.post(
   }),
 );
 
+router.post(
+  "/applications/bulk-status",
+  authorize("placements.manage"),
+  asyncHandler(async (req, res) => {
+    const body = bulkApplicationTransitionBody.parse(req.body);
+    const result = await placement.bulkTransitionApplications(
+      requireInstitution(req), requireAuthenticatedUser(req), body.ids, body.status,
+    );
+    res.json({ success: true, data: result });
+  }),
+);
+
 router.get(
   "/metrics",
   authorize("placements.read"),
@@ -232,6 +273,27 @@ router.get("/criteria-options", authorize("placements.read"), asyncHandler(async
   res.json({ success: true, data });
 }));
 
+router.post("/audience/preview", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const body = audiencePreview.parse(req.body);
+  const data = await placement.previewPlacementCohortAudience(
+    requireInstitution(req), requireAuthenticatedUser(req), body.targeting, body.studentIds, body.driveId, body.applicationStatuses, body.candidateOnly,
+  );
+  res.json({ success: true, data });
+}));
+router.get("/my-calendar", authorize("placements.read"), asyncHandler(async (req,res) => {
+  const data = await placement.getMyPlacementCalendar(requireInstitution(req), requireAuthenticatedUser(req));
+  res.json({ success: true, data });
+}));
+router.get("/automation/failures", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const data = await placement.listPlacementAutomationFailures(requireInstitution(req), requireAuthenticatedUser(req));
+  res.json({ success: true, data });
+}));
+router.post("/automation/failures/:id/retry", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const data = await placement.retryPlacementAutomationFailure(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data });
+}));
+
 router.get("/drives", authorize("placements.read"), asyncHandler(async (req,res) => {
   const actor=requireAuthenticatedUser(req);
   const data=await placement.listPlacementDrives(requireInstitution(req),actor,{status:typeof req.query.status==="string"?req.query.status:undefined,search:typeof req.query.search==="string"?req.query.search.trim().slice(0,120):undefined,page:positiveQueryInt(req.query.page,1,1000000),pageSize:positiveQueryInt(req.query.pageSize,50,100)});
@@ -258,6 +320,11 @@ router.post("/drives/:id/status", authorize("placements.manage"), asyncHandler(a
   const item=await placement.transitionPlacementDrive(requireInstitution(req),requireAuthenticatedUser(req),id,statusBody.parse(req.body).status);
   res.json({success:true,data:item});
 }));
+router.delete("/drives/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementDrive(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data: item });
+}));
 router.get("/drives/:id/eligibility", authorize("placements.read"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
   const data=await placement.checkDriveEligibility(requireInstitution(req),requireAuthenticatedUser(req),id,typeof req.query.studentId==="string"?req.query.studentId:undefined);
@@ -271,6 +338,11 @@ router.post("/drives/:id/apply", authorize("placements.apply"), asyncHandler(asy
 router.post("/offers", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const item=await placement.createPlacementOffer(requireInstitution(req),requireAuthenticatedUser(req),offerCreate.parse(req.body));
   res.status(201).json({success:true,data:item});
+}));
+router.patch("/offers/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.updatePlacementOffer(requireInstitution(req), requireAuthenticatedUser(req), id, offerUpdate.parse(req.body));
+  res.json({ success: true, data: item });
 }));
 router.post("/offers/:id/joining-verification", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
@@ -309,6 +381,11 @@ router.patch("/interviews/:id", authorize("placements.manage"), asyncHandler(asy
   const item = await placement.updatePlacementInterview(requireInstitution(req), requireAuthenticatedUser(req), id, interviewUpdate.parse(req.body));
   res.json({ success: true, data: item });
 }));
+router.delete("/interviews/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementInterview(requireInstitution(req), requireAuthenticatedUser(req), id);
+  res.json({ success: true, data: item });
+}));
 router.post("/interviews/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const {id}=idParams.parse(req.params);
   const item=await placement.addPlacementInterviewParticipant(requireInstitution(req),requireAuthenticatedUser(req),id,interviewParticipant.parse(req.body).studentId);
@@ -330,6 +407,11 @@ router.post("/visits", authorize("placements.manage"), asyncHandler(async (req,r
 router.patch("/visits/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const { id } = idParams.parse(req.params);
   const item = await placement.updatePlacementVisit(requireInstitution(req), requireAuthenticatedUser(req), id, visitUpdate.parse(req.body));
+  res.json({ success: true, data: item });
+}));
+router.delete("/visits/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementVisit(requireInstitution(req), requireAuthenticatedUser(req), id);
   res.json({ success: true, data: item });
 }));
 
@@ -385,6 +467,11 @@ router.post("/tests", authorize("placements.manage"), asyncHandler(async (req,re
 router.patch("/tests/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
   const { id } = idParams.parse(req.params);
   const item = await placement.updatePlacementTest(requireInstitution(req), requireAuthenticatedUser(req), id, testUpdate.parse(req.body));
+  res.json({ success: true, data: item });
+}));
+router.delete("/tests/:id", authorize("placements.manage"), asyncHandler(async (req,res) => {
+  const { id } = idParams.parse(req.params);
+  const item = await placement.deletePlacementTest(requireInstitution(req), requireAuthenticatedUser(req), id);
   res.json({ success: true, data: item });
 }));
 router.post("/tests/:id/participants", authorize("placements.manage"), asyncHandler(async (req,res) => {

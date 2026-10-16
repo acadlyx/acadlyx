@@ -1504,6 +1504,7 @@ model PlacementOffer {
   bonus Decimal? @db.Decimal(12,2)
   currency String @default("INR")
   offerDate DateTime
+  responseDeadline DateTime?
   acceptanceAt DateTime?
   joiningDate DateTime?
   joiningStatus String @default("PENDING")
@@ -2040,10 +2041,13 @@ model DomainEventOutbox {
   processedAt   DateTime?
   attempts      Int      @default(0)
   lastError     String?
+  nextAttemptAt DateTime?
+  lastAttemptAt DateTime?
   createdAt     DateTime @default(now())
 
   @@index([institutionId, createdAt])
   @@index([processedAt, createdAt])
+  @@index([processedAt, nextAttemptAt, createdAt])
   @@index([name, processedAt, createdAt])
   @@map("domain_event_outbox")
 }
