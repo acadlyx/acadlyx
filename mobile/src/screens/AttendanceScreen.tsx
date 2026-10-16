@@ -136,7 +136,7 @@ export function AttendanceScreen() {
   }
 
   if (selectedId) {
-    const locked = Boolean(session?.isLocked);
+    const locked = Boolean(session?.isLocked || session?.lockedAt);
     const unmarked = (session?.roster || []).filter(p => statuses[p.studentId] === null || statuses[p.studentId] === undefined).length;
     return <View style={styles.root}>
       <View style={styles.header}>
@@ -198,7 +198,7 @@ export function AttendanceScreen() {
       sessionsQuery.isError ? <View style={styles.state}><Text style={styles.sectionTitle}>Sessions unavailable</Text><Text style={styles.muted}>{sessionsQuery.error instanceof Error ? sessionsQuery.error.message : "Try again."}</Text><Pressable onPress={() => { void sessionsQuery.refetch(); }} style={styles.primaryButton}><Text style={styles.buttonText}>Retry</Text></Pressable></View> :
       <FlatList data={sessions} keyExtractor={item => item.id} contentContainerStyle={styles.list} initialNumToRender={15} windowSize={7}
         renderItem={({ item }) => <Pressable onPress={() => setSelectedId(item.id)} style={styles.sessionCard}>
-          <View style={styles.sessionTop}><Text style={styles.personName}>{item.courseOffering?.course?.name || item.courseOffering?.course?.code || "Attendance session"}</Text><Text style={styles.statusPill}>{item.isLocked ? "LOCKED" : item.isSubmitted ? "SUBMITTED" : "DRAFT"}</Text></View>
+          <View style={styles.sessionTop}><Text style={styles.personName}>{item.courseOffering?.course?.name || item.courseOffering?.course?.code || "Attendance session"}</Text><Text style={styles.statusPill}>{(item.isLocked || item.lockedAt) ? "LOCKED" : item.isSubmitted ? "SUBMITTED" : "DRAFT"}</Text></View>
           <Text style={styles.meta}>{dateValue(item.sessionDate)}{item.courseOffering?.section?.name ? " · Section " + item.courseOffering.section.name : ""}</Text>
           <Text style={styles.open}>Open roster and attendance →</Text>
         </Pressable>}
