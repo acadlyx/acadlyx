@@ -1,0 +1,97 @@
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest, ApiError } from "../api/client";
+import { toCollection, displayValue, safeRecordEntries, recordTitle } from "../api/payload";
+import { useAuth } from "../auth/AuthProvider";
+import { getModule } from "../modules/catalog";
+import { RootStackParamList } from "../navigation/RootNavigator";
+import { colors, radius, spacing } from "../ui/theme";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Module">;
+
+export function ModuleScreen({ route }: Props) {
+  const { user } = useAuth();
+  const module = getModule(route.params.moduleId);
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ["module", user?.id, module?.id],
+    queryFn: () => {
+      if (!module) throw new Error("This mobile module has not been mapped.");
+      return apiRequest<unknown>(module.endpoint);
+    },
+    enabled: Boolean(user?.id && module),
+    staleTime: 0
+  });
+  const records = useMemo(() => {
+    const loaded = toCollection(query.data);
+    const normalized = search.trim().toLowerCase();
+    return normalized ? loaded.filter((item) => displayValue(item).toLowerCase().includes(normalized)) : loaded;
+  }, [query.data, search]);
+
+  if (!module) return <View style={styles.center}><Text style={styles.errorTitle}>Module not found</Text><Text style={styles.muted}>This route is not in the native catalog.</Text></View>;
+
+  return <View style={styles.root}>
+    <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>
+    <TextInput value={search} onChangeText={setSearch} placeholder="Filter loaded records" placeholderTextColor={colors.textMuted}
+      style={styles.search} accessibilityLabel="Filter loaded records" />
+    {query.isLoading ? <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /><Text style={styles.muted}>Loading live records…</Text></View> :
+      query.isError ? <View style={styles.center}>
+        <Text style={styles.errorTitle}>{query.error instanceof ApiError && query.error.status === 403 ? "Access not granted" : "Could not load records"}</Text>
+        <Text style={styles.muted}>{query.error instanceof Error ? query.error.message : "The request failed. Try again."}</Text>
+        {query.error instanceof ApiError && query.error.requestId ? <Text style={styles.requestId}>Request reference: {query.error.requestId}</Text> : null}
+        <Pressable accessibilityRole="button" onPress={() => { void query.refetch(); }} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+      </View> : <FlatList data={records}
+        keyExtractor={(item, index) => {
+          if (typeof item === "object" && item !== null) {
+            const value = item as Record<string, unknown>;
+            const key = value.id || value.code || value.email || value.name || value.title;
+            if (typeof key === "string" || typeof key === "number") return String(key) + "-" + index;
+          }
+          return "record-" + index;
+        }}
+        refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => { void query.refetch(); }} tintColor={colors.primary} />}
+        contentContainerStyle={styles.list}
+        renderItem={({ item, index }) => {
+          const rowKey = String(index);
+          const title = recordTitle(item, "Record " + String(index + 1));
+          const fields = safeRecordEntries(item);
+          return <View style={styles.record}>
+            <Pressable accessibilityRole="button" accessibilityLabel={"Show details for " + title}
+              onPress={() => setExpanded(expanded === rowKey ? null : rowKey)} style={styles.recordHead}>
+              <Text style={styles.recordTitle}>{title}</Text><Text style={styles.expand}>{expanded === rowKey ? "−" : "+"}</Text>
+            </Pressable>
+            {fields.slice(0, expanded === rowKey ? 30 : 3).map(([field, value]) => <View key={field} style={styles.field}>
+              <Text style={styles.fieldLabel}>{field.replace(/([A-Z])/g, " $1").replace(/[_-]/g, " ")}</Text><Text style={styles.fieldValue}>{displayValue(value)}</Text>
+            </View>)}
+            {expanded === rowKey && fields.length === 0 ? <Text style={styles.muted}>No displayable fields were returned.</Text> : null}
+            {fields.length > 3 && expanded !== rowKey ? <Text style={styles.more}>Tap to inspect {fields.length} displayable fields</Text> : null}
+          </View>;
+        }}
+        ListEmptyComponent={<View style={styles.center}><Text style={styles.errorTitle}>No records returned</Text><Text style={styles.muted}>The authorized API response contained no displayable records.</Text></View>}
+        initialNumToRender={12} windowSize={7} />}
+    <View style={styles.footer}><Text style={styles.footerText}>Read-only foundation. Create, edit, delete and approval actions need their actual backend schemas and permissions before they can be enabled.</Text></View>
+  </View>;
+}
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.canvas },
+  heading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  title: { color: colors.text, fontWeight: "900", fontSize: 23 },
+  description: { color: colors.textMuted, lineHeight: 19, fontSize: 13, marginTop: 6 }, source: { color: colors.textMuted, fontSize: 10, marginTop: 7 },
+  search: { marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: colors.surface, color: colors.text, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 13, paddingVertical: 11 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 14 },
+  record: { borderColor: colors.border, borderWidth: 1, backgroundColor: colors.surface, borderRadius: radius.md, marginBottom: 10, padding: spacing.md },
+  recordHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 7 },
+  recordTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "800" }, expand: { color: colors.primary, fontSize: 22, fontWeight: "800", paddingHorizontal: 5 },
+  field: { borderTopWidth: 1, borderTopColor: colors.surfaceMuted, paddingTop: 8, marginTop: 5 },
+  fieldLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4 },
+  fieldValue: { color: colors.text, fontSize: 13, lineHeight: 19, marginTop: 3 }, more: { color: colors.primary, marginTop: 9, fontSize: 11, fontWeight: "800" },
+  center: { flex: 1, padding: spacing.xl, justifyContent: "center", alignItems: "center", gap: 10 },
+  muted: { color: colors.textMuted, textAlign: "center", fontSize: 13, lineHeight: 19 }, errorTitle: { color: colors.text, fontSize: 17, fontWeight: "800" },
+  retry: { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: radius.md, marginTop: 6 }, retryText: { color: colors.white, fontWeight: "800" },
+  requestId: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
+  footer: { borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface, padding: spacing.md },
+  footerText: { color: colors.textMuted, fontSize: 10, lineHeight: 15, textAlign: "center" }
+});
