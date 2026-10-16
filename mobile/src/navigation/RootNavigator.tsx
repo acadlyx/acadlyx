@@ -10,11 +10,12 @@ import { HomeScreen } from "../screens/HomeScreen";
 import { ModulesScreen } from "../screens/ModulesScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
+import { AssignmentsScreen } from "../screens/AssignmentsScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string } };
+export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined };
 export type TabParamList = { Home: undefined; Modules: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -63,6 +64,7 @@ export function RootNavigator() {
         {status === "authenticated" ? <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Module" component={ModuleScreen} options={({ route }) => ({ title: getModule(route.params.moduleId)?.title || "Module" })} />
+          <Stack.Screen name="Assignments" component={AssignmentsScreen} options={{ title: "Assignments" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
