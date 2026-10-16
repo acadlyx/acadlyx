@@ -42,7 +42,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/enrollment-requests` | Generic read-only request surface | PARTIAL; individual/bulk decision workflow is missing |
 | `/movements` | No dedicated workflow | NOT IMPLEMENTED |
 | `/certificates` | Generic read-only surface | PARTIAL; request, issue and rejection actions are missing |
-| `/attendance-sessions` | Generic read surface | PARTIAL; marking, submit, correction and governance actions are missing |
+| `/attendance-sessions` | Native session list/detail, create from selected course offering, roster PRESENT/ABSENT/LATE marking, draft save, submit only with complete roster, and locked-session guard | PARTIAL; correction-request creation/approval, richer filters and isolated integration/device test evidence remain |
 | `/assignments` | Dedicated list/detail, create draft, DRAFT/PUBLISHED toggle, student submit, review roster, grade/feedback and explicit reopen | PARTIAL; attachments, robust pagination/filtering, comprehensive edge-case/device tests and service-level test evidence remain |
 | `/internal-marks` | Generic read-only marks surface | PARTIAL; mark entry, validation and approval are missing |
 | `/grades` | Grade-scale read surface mapped to `/grades/scale` | PARTIAL; complete grade/result publishing and history UX is missing |
