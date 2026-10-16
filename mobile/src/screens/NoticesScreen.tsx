@@ -72,7 +72,7 @@ export function NoticesScreen() {
       }
       const payload = {
         title: title.trim(), body: body.trim(), audience,
-        ...(expiresAt ? { expiresAt: new Date(expiresAt + "T12:00:00").toISOString() } : {})
+        ...(editing ? { expiresAt: expiresAt ? new Date(expiresAt + "T12:00:00").toISOString() : null } : (expiresAt ? { expiresAt: new Date(expiresAt + "T12:00:00").toISOString() } : {}))
       };
       if (editing) {
         return apiRequest<Notice>("/erp/notices/" + encodeURIComponent(editing.id), { method: "PATCH", body: JSON.stringify(payload) });
