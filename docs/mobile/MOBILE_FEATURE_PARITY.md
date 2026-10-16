@@ -37,7 +37,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/leave` | Read surface mapped to `/leave/requests/mine` | PARTIAL; apply/cancel/approve/reject and balance/leave-type administration are missing |
 | `/portal` | Notifications list, individual mark-read, mark-all-read, document list mapping | PARTIAL; push registration/delivery, preferences, authorized deep links, document lifecycle and notification create/bulk actions remain |
 | `/library` | Dedicated catalogue/search, available-only filter, self-reservations, my loans, staff circulation, renew/return conditions, fines, and book create/edit; borrower/book are selected from API results rather than raw IDs | PARTIAL; copy-level inventory management, reservation cancel/queue, issue lookup when `/students` is denied, fine waiver approvals, richer policy screens and device/API test evidence remain |
-| `/calendar` | Read surface mapped to `/calendar/events` | PARTIAL; event creation/edit/delete and richer calendar UX remain |
+| `/calendar` | Dedicated event list/search/create/edit/delete at `/calendar/events` using server-scoped handlers | PARTIAL; academic-year picker, recurring/timezone-specific UX and integration/device test evidence remain |
 | `/registrations` | Generic read-only registration surface | PARTIAL; individual/bulk submit, decision, drop and offering update workflows remain |
 | `/enrollment-requests` | Generic read-only request surface | PARTIAL; individual/bulk decision workflow is missing |
 | `/movements` | No dedicated workflow | NOT IMPLEMENTED |
