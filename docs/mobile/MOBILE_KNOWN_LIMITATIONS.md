@@ -4,7 +4,7 @@ This is an initial implementation increment, not a production-ready full-parity 
 
 ## Functional gaps
 
-- Most modules are generic read-only list/detail adapters. Dedicated assignment create/publish/submit/review/reopen, notice create/edit/delete and timetable create/edit/delete flows are now wired to inspected existing APIs. Other modules still need their own create/edit/delete, archive/restore, bulk, approval/rejection, publish/lock and state-transition workflows.
+- Most modules are generic read-only list/detail adapters. Dedicated assignment create/publish/submit/review/reopen, notice create/edit/delete, timetable create/edit/delete and library catalogue/reservation/loan/return/renew/book-maintenance flows are now wired to inspected existing APIs. Other modules still need their own create/edit/delete, archive/restore, bulk, approval/rejection, publish/lock and state-transition workflows.
 - The generic adapter does not yet provide fully typed API contracts, schema-validated inputs, reliable per-module pagination, sorting or server-side filters.
 - Workspace/context switching is not implemented. This is a release blocker for roles with multiple campus/department/workspace scopes.
 - Global search through /search?q= is not wired; search on the module directory is local.
