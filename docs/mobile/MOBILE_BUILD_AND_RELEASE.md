@@ -26,6 +26,10 @@ For local development:
 
 Never put PostgreSQL credentials, Supabase service-role keys, refresh service secrets, privileged backend tokens or database URLs in EXPO_PUBLIC variables. These variables are bundled into the mobile app.
 
+## Automated pull-request gate
+
+The repository now includes `.github/workflows/mobile-ci.yml`, triggered on pull requests targeting `production-upgrade-2026-09-20` and by manual dispatch. It installs mobile dependencies, checks Expo compatibility, runs TypeScript and structural tests, runs Expo Doctor and exports Android and iOS JavaScript bundles. These exports are not signed APK/AAB/IPA builds or device tests; check actual Actions results before treating the gate as passed.
+
 ## Install and validate
 
 ~~~
