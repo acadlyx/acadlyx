@@ -46,6 +46,7 @@ test("dedicated assignment, notice and timetable screens call the existing APIs"
   const notices = read("src/screens/NoticesScreen.tsx");
   const timetable = read("src/screens/TimetableScreen.tsx");
   const library = read("src/screens/LibraryScreen.tsx");
+  const calendar = read("src/screens/CalendarScreen.tsx");
   assert.match(assignments, /\/assignments\/.*\/submit/);
   assert.match(assignments, /\/submissions\/.*\/reopen/);
   assert.match(assignments, /assignments\.create/);
