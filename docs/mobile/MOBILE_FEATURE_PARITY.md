@@ -2,76 +2,78 @@
 
 ## Status semantics
 
-- FOUNDATION: an API-backed read-only discovery surface or route mapping exists. This does not mean CRUD is complete.
-- PARTIAL: some functionality is implemented, but workflow states/actions or native integrations are missing.
-- NOT IMPLEMENTED: there is no native workflow yet.
-- SERVER ONLY: intentionally not treated as a user-facing workflow.
+- FOUNDATION: a route mapping or generic read-only surface exists; CRUD is not implied.
+- PARTIAL: some functional workflow is wired, but native actions, edge cases, scope selection or test evidence are missing.
+- NOT IMPLEMENTED: no usable native workflow is implemented.
+- SERVER ONLY: a backend endpoint is not a user-facing app action.
 
-Source reviewed: backend/src/app.ts and the route modules on the feature branch's base commit 2dc568ec4416a295028cf64eaa7ee659b9258d89. The backend has 56 route mount calls across 55 unique API prefixes, because two routers are mounted under /lms. The mobile catalog is a first increment only.
+Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the route/controller/validator/service files referenced in this matrix on protected base commit `2dc568ec4416a295028cf64eaa7ee659b9258d89`. The backend mount table contains 56 mount calls across 55 unique API prefixes because two routers share `/lms`. This matrix is an implementation inventory, not a claim of total parity.
 
 | API surface | Native screen/action in this increment | Status and explicit gap |
 |---|---|---|
-| /health | No screen; service-level API endpoint | SERVER ONLY |
-| /auth | Login, MFA, secure token persistence, refresh, logout and password change | PARTIAL; profile editing/photo and password recovery not wired. Recovery route not present in inspected auth router. |
-| /workspace/context | Catalog only; no native context selector | NOT IMPLEMENTED |
-| /my-work | Live home screen reads work summary and shows returned items | PARTIAL; work-item actions and deep links to native workflows are missing |
-| /search | No integration with global search | NOT IMPLEMENTED; module list search is local |
-| /workflow | No workflow queue/detail/approval screen | NOT IMPLEMENTED |
-| /placements | Opportunity list surface | PARTIAL; applications, drives, offers, interviews, eligibility and lifecycle actions remain |
-| /institutions | Generic read-only adapter listed in catalog | FOUNDATION; dedicated administration forms are missing |
-| /users | Generic read-only adapter | FOUNDATION; user lifecycle/role mutation screens are missing |
-| /campuses | Generic read-only adapter | FOUNDATION; scope-specific details and edits are missing |
-| /departments | Generic read-only adapter | FOUNDATION; department lifecycle workflows are missing |
-| /programs | Generic read-only adapter | FOUNDATION; programme lifecycle workflows are missing |
-| /academic-years | Generic read-only adapter | FOUNDATION; create/update/current-year workflows are missing |
-| /batches | Generic read-only adapter | FOUNDATION; dedicated CRUD is missing |
-| /semesters | Generic read-only adapter | FOUNDATION; dedicated CRUD is missing |
-| /sections | Generic read-only adapter | FOUNDATION; dedicated CRUD is missing |
-| /courses | Generic read-only adapter | FOUNDATION; course authoring is missing |
-| /course-offerings | Generic read-only adapter | FOUNDATION; faculty assignment/workload workflows are missing |
-| /obe | Generic read-only adapter | PARTIAL; mapping, assessment, attainment calculation and approval are missing |
-| /students | Student master list surface and role-gated self-service endpoint mapping | PARTIAL; master record forms, enrollment lifecycle and detail relations need dedicated screens |
-| /faculty | Generic read-only adapter | FOUNDATION; profile/workload actions are missing |
-| /admissions | Generic read-only adapter | FOUNDATION; admission application workflow and documents are missing |
-| /hr | Generic employee-record adapter | PARTIAL; HR lifecycle, payroll features and permissions require module-specific implementation |
-| /leave | Generic read-only adapter | PARTIAL; apply, approve, reject and transition screens are missing |
-| /portal | Notifications list, mark-all-read action and documents route mapping | PARTIAL; individual mark-read action, creation and document lifecycle are missing |
-| /library | Catalogue list surface | PARTIAL; issue, return, renew, reservation, damaged inventory and fines are missing |
-| /calendar | Generic read-only adapter | FOUNDATION; calendar filters and create/edit workflows are missing |
-| /registrations | Generic read-only adapter | FOUNDATION; registration submit/approve/reject workflows are missing |
-| /enrollment-requests | Generic read-only adapter | FOUNDATION; workflow transition UI is missing |
-| /movements | No dedicated mobile workflow | NOT IMPLEMENTED |
-| /certificates | Generic read-only adapter | FOUNDATION; certificate request/issue lifecycle is missing |
-| /attendance-sessions | Generic read-only adapter | PARTIAL; attendance marking, submission, correction, lock and approval are missing |
-| /assignments | Generic list/detail read adapter | PARTIAL; creation, submission, review, grading and reopen are missing |
-| /internal-marks | Generic read-only adapter | PARTIAL; mark entry, validation and approval are missing |
-| /grades | Generic read-only adapter | PARTIAL; grade finalization/publication screens are missing |
-| /directory | No dedicated directory UX yet | FOUNDATION only if endpoint is exposed in generic catalogue; typed workflow is missing |
-| /examinations | Session read surface | PARTIAL; scheduling, rooms, seating, invigilators, hall tickets, approvals and publication remain |
-| /attendance | No governance/correction workflow | NOT IMPLEMENTED |
-| /lms (two routers) | Generic read-only adapter | PARTIAL; courses, materials, attempts, assessments and grading are not full workflows |
-| /billing | No complete billing workflow | NOT IMPLEMENTED |
-| /finance | Overview, invoices and payments read surfaces | PARTIAL; invoice lifecycle, payment entry, receipts, concessions, refunds, reconciliation, audit and export are not native workflows |
-| /parent | No dedicated parent dashboard; backend endpoint is in route inventory | NOT IMPLEMENTED |
-| /operations | Generic read-only adapter | FOUNDATION; action queue and maintenance lifecycle are missing |
-| /security | No audit/security administration screen | NOT IMPLEMENTED |
-| /subscriptions | No native platform subscription administration | NOT IMPLEMENTED |
-| /intelligence | Generic read-only adapter | FOUNDATION; report catalogue, filter/query contracts and exports need dedicated implementation |
-| /ask-acadlyx | No native assistant integration | NOT IMPLEMENTED |
-| /erp | Notices/timetable list surfaces | PARTIAL; authoring/edits missing. Legacy examination write routes return 410 and must not be revived. |
-| /imports | No native file-picker/preview/commit workflow | NOT IMPLEMENTED |
-| /people-imports | No native file-picker/preview/commit workflow | NOT IMPLEMENTED |
-| /exports | No format selection, download or export-audit screen | NOT IMPLEMENTED |
-| /site-content | No CMS authoring/publish workflow | NOT IMPLEMENTED |
-| /events | Generic read-only adapter | FOUNDATION; event authoring and attachments are missing |
-| /institutional-cms | No CMS authoring/publish workflow | NOT IMPLEMENTED |
-| /files | No upload/download/binary-preview workflows | NOT IMPLEMENTED |
-| /payment-webhooks | Server-to-server handler; not exposed as a mobile action | SERVER ONLY |
+| `/health` | No screen; service-level API | SERVER ONLY |
+| `/auth` | Login, MFA, SecureStore token persistence, refresh, logout, password change, account roles | PARTIAL; profile editing/photo and password recovery not wired. The inspected auth router exposes a recovery-institution list, but no password-reset workflow. |
+| `/workspace/context` | Route documented, no native context selector | NOT IMPLEMENTED; blocking for safe multi-workspace selection and scoped query keys |
+| `/my-work` | Live home screen reads work summary/items | PARTIAL; work-item actions and safe native deep links are missing |
+| `/search` | No server global-search screen; local catalog filter only | NOT IMPLEMENTED |
+| `/workflow` | No complete native approval queue | NOT IMPLEMENTED |
+| `/placements` | Placement opportunity list mapping | PARTIAL; drives, applications, eligibility, interviews, offers and state transitions remain |
+| `/institutions` | Generic read-only surface | FOUNDATION; administration forms are missing |
+| `/users` | Generic read-only surface | FOUNDATION; account lifecycle, role/permission edit, deletion approvals and audit UI are missing |
+| `/campuses` | Generic read-only surface | FOUNDATION; dedicated detail/edit and campus access management are missing |
+| `/departments` | Generic read-only surface | FOUNDATION; dedicated structure management is missing |
+| `/programs` | Generic read-only surface | FOUNDATION; lifecycle and curriculum management are missing |
+| `/academic-years` | Generic read-only surface | FOUNDATION; create/update/current-year lifecycle is missing |
+| `/batches` | Generic read-only surface | FOUNDATION; dedicated CRUD is missing |
+| `/semesters` | Generic read-only surface | FOUNDATION; dedicated CRUD is missing |
+| `/sections` | Generic read-only surface | FOUNDATION; roster and section management are missing |
+| `/courses` | Generic read-only surface | FOUNDATION; course authoring is missing |
+| `/course-offerings` | Generic read-only surface and selection source for assignment/timetable forms | PARTIAL; offering assignment/workload management is missing |
+| `/obe` | Course-offering list surface | PARTIAL; outcomes, mapping, assessment scores, submission/approval and attainment workflows remain |
+| `/students` | Generic student list and mapped `/students/me/*` routes | PARTIAL; student lifecycle, enrolment, document and student-detail workflows are incomplete |
+| `/faculty` | Read surface for `/faculty/me/dashboard` | PARTIAL; dedicated teaching/workload screens and dashboard verification are missing |
+| `/admissions` | Generic read-only application surface | PARTIAL; application status transitions, enrolment and document workflows remain |
+| `/hr` | Employee read surface | PARTIAL; employee lifecycle, attendance and supported payroll workflows remain |
+| `/leave` | Read surface mapped to `/leave/requests/mine` | PARTIAL; apply/cancel/approve/reject and balance/leave-type administration are missing |
+| `/portal` | Notifications list, individual mark-read, mark-all-read, document list mapping | PARTIAL; push registration/delivery, preferences, authorized deep links, document lifecycle and notification create/bulk actions remain |
+| `/library` | Generic book catalogue surface | PARTIAL; circulation, renew/return, damaged inventory, reservations, fees/fines and waiver lifecycle remain |
+| `/calendar` | Read surface mapped to `/calendar/events` | PARTIAL; event creation/edit/delete and richer calendar UX remain |
+| `/registrations` | Generic read-only registration surface | PARTIAL; individual/bulk submit, decision, drop and offering update workflows remain |
+| `/enrollment-requests` | Generic read-only request surface | PARTIAL; individual/bulk decision workflow is missing |
+| `/movements` | No dedicated workflow | NOT IMPLEMENTED |
+| `/certificates` | Generic read-only surface | PARTIAL; request, issue and rejection actions are missing |
+| `/attendance-sessions` | Generic read surface | PARTIAL; marking, submit, correction and governance actions are missing |
+| `/assignments` | Dedicated list/detail, create draft, DRAFT/PUBLISHED toggle, student submit, review roster, grade/feedback and explicit reopen | PARTIAL; attachments, robust pagination/filtering, comprehensive edge-case/device tests and service-level test evidence remain |
+| `/internal-marks` | Generic read-only marks surface | PARTIAL; mark entry, validation and approval are missing |
+| `/grades` | Grade-scale read surface mapped to `/grades/scale` | PARTIAL; complete grade/result publishing and history UX is missing |
+| `/directory` | Generic read-only surface where permitted | FOUNDATION; typed directory/search UX remains |
+| `/examinations` | Session read surface | PARTIAL; schedules, rooms, seating, invigilators, hall tickets, mark entry/approval, revaluation and publication remain |
+| `/attendance` | No governance/correction workflows | NOT IMPLEMENTED |
+| `/lms` (two routers) | Catalog read surface mapped to `/lms/catalog` | PARTIAL; modules, lessons, resources, quizzes/attempts, grading, announcements and live-class workflows remain |
+| `/billing` | No complete billing workflow | NOT IMPLEMENTED |
+| `/finance` | Overview, invoices and payments read surfaces; Finance Command Center route mapping | PARTIAL; invoice/payment/refund/concession/reconciliation approvals, receipts, fee-structure workflow and audit/export remain |
+| `/parent` | Children list endpoint mapped to `/parent/children` | PARTIAL; child-specific attendance, results, fees, coursework, notices and calendar require a full scope-aware parent experience |
+| `/operations` | Summary read surface mapped to `/operations/summary` | PARTIAL; assets, maintenance and facilities CRUD/workflows remain |
+| `/security` | No audit/security administration screen | NOT IMPLEMENTED |
+| `/subscriptions` | No native subscription administration | NOT IMPLEMENTED |
+| `/intelligence` | Command-center read surface | PARTIAL; student risk/recommendations/career/report filtering and export are missing |
+| `/ask-acadlyx` | No native assistant integration | NOT IMPLEMENTED |
+| `/erp` | Dedicated notice create/edit/delete and timetable create/edit/delete; actual course offerings are chosen via API | PARTIAL; department-targeted notice picker and device/API test evidence remain. Legacy ERP exam writes return 410 and must not be revived. |
+| `/imports` | No native picker/preview/commit workflow | NOT IMPLEMENTED |
+| `/people-imports` | No native picker/preview/commit workflow | NOT IMPLEMENTED |
+| `/exports` | No format selection, file download or export-audit UI | NOT IMPLEMENTED |
+| `/site-content` | No native CMS authoring/publishing | NOT IMPLEMENTED |
+| `/events` | Generic event read surface | PARTIAL; event create/edit/delete, media upload/reorder and categories are missing |
+| `/institutional-cms` | No native authoring/publish workflow | NOT IMPLEMENTED |
+| `/files` | No upload/download/binary-preview workflow | NOT IMPLEMENTED |
+| `/payment-webhooks` | Server-to-server route; not exposed as an interactive mobile action | SERVER ONLY |
 
-## Current screen inventory
+## Role inventory
 
-The source contains sign-in/MFA, native root/tabs navigation, home/My Work, module directory, a generic module list/detail renderer, notifications and account/password control screens. Student self-service endpoints are mapped for dashboard, attendance, marks, assignments and timetable but have not been smoke-tested.
+The backend RBAC catalog has 20 role identifiers: `SUPER_ADMIN`, `INSTITUTION_ADMIN`, `CHAIRMAN`, `MANAGEMENT`, `DIRECTOR`, `DEAN`, `REGISTRAR`, `HOD`, `FACULTY`, `ACCOUNTS`, `HR`, `ADMISSIONS`, `EXAMINATION`, `LIBRARIAN`, `PLACEMENT`, `IT`, `CMS`, `STUDENT`, `PARENT`, and `CLUB_PRESIDENT`. All can reach the authenticated shell where the backend grants a session, but this does **not** mean all 20 dedicated dashboards or role workflows are implemented. See `MOBILE_ROLE_PERMISSION_MATRIX.md`.
 
-## Definition of mobile completion
+## Completion evidence
 
-A generic screen or endpoint mapping is not full feature parity. Before a feature is marked complete, add dedicated mobile UI, typed request/response contract, validated inputs, permission and scope checks, loading/empty/error/success states, idempotent mutation behavior, query invalidation, and automated tests against an isolated institution. This matrix deliberately does not claim 100% parity.
+The implemented source currently includes sign-in/MFA, native tabs, My Work, permission-filtered module discovery, generic read-only detail rendering, dedicated assignment/notices/timetable workflows, notifications read actions, account roles and password change. The exact original logo is used on sign-in. Student self-service routes are mapped but not smoke-tested.
+
+A screen/route is not evidence of complete feature parity. Each feature needs a dedicated API contract, validation, permission and scope checks, loading/empty/error/success states, idempotent mutations where relevant, query invalidation and automated tests against an isolated institution. TypeScript, native builds, live integration tests, scope-isolation tests and web/mobile data-consistency tests have **not** been run in this environment. No 100% parity claim is made.
