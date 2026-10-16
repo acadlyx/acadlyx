@@ -28,6 +28,19 @@ The web app uses the same API prefix and origin pattern. The API, its Prisma ser
 | Documents | /portal/documents/me | GET | Catalog mapping only |
 | Other listed modules | See MOBILE_FEATURE_PARITY.md | GET | Foundation only; actual response schemas still need verification |
 
+## Dedicated module workflows in this increment
+
+| Capability | Endpoint(s) | Methods wired in the native UI | Scope / gaps |
+|---|---|---|---|
+| Assignments | `/assignments`, `/assignments/:id`, `/assignments/:id/submit`, `/assignments/:id/submissions`, `/assignments/:id/submissions/:studentId`, `/assignments/:id/submissions/:studentId/reopen` | GET, POST, PATCH | Draft creation, publish/unpublish, submit, review and reopen. Server validates course offering, reviewer authority and ownership. Attachments and isolated integration tests remain. |
+| Notices | `/erp/notices`, `/erp/notices/:id` | GET, POST, PATCH, DELETE | Read uses notices.read; mutation controls are displayed with notices.manage. Department-targeted audience selection is not implemented. |
+| Timetable | `/erp/timetable`, `/erp/timetable/:id`, `/course-offerings` | GET, POST, PATCH, DELETE | Uses selected course offering records; backend performs scope and collision validation. Dedicated device/API tests remain. |
+| Library | `/library/books`, `/library/reservations`, `/library/loans`, `/library/loans/mine`, `/library/loans/:id/renew`, `/library/loans/:id/return`, `/library/fines`, `/students` | GET, POST, PATCH | Catalogue, reservation, staff issue/renew/return-condition, fines and book create/edit. Fine waiver, copy-level tools and borrower lookup when /students is denied remain. |
+| Calendar | `/calendar/events`, `/calendar/events/:id` | GET, POST, PATCH, DELETE | Native event list/search/create/edit/delete. Academic-year-specific selection and time-zone/recurrence UX are not implemented. |
+| Notifications | `/portal/notifications`, `/portal/notifications/:id`, `/portal/notifications/read-all` | GET, PATCH, POST | Individual and bulk mark-read. Push registration/delivery and deep links are not implemented. |
+
+These methods are wired in source and remain subject to real CI, live isolated-API testing and server-side authorization. Table inclusion is not a claim that an end-to-end test has passed.
+
 ## Request behavior
 
 - Authenticated calls use the access token from Expo SecureStore.
