@@ -64,4 +64,4 @@ The mobile design tokens use deep green actions, warm neutral surfaces, readable
 
 ## Architectural gaps
 
-The foundation has not been compiled or run on a device in this environment. Dedicated assignment, notice, timetable and library workflows have been added from inspected backend contracts, but require compile, device and isolated API verification. Module-specific contracts, context switching, dedicated role dashboards, remaining workflow forms, file operations, push/deep links, offline policy and integration/E2E tests remain. Full feature parity is not claimed.
+The foundation has not been compiled or run on a device in this environment. Dedicated assignment, notice, timetable, library, calendar and attendance workflows have been added from inspected backend contracts, but require compile, device and isolated API verification. Module-specific contracts, context switching, dedicated role dashboards, remaining workflow forms, file operations, push/deep links, offline policy and integration/E2E tests remain. Full feature parity is not claimed.
