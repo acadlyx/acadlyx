@@ -73,9 +73,13 @@ export function TimetableScreen() {
       if (!validTime(startTime) || !validTime(endTime)) throw new Error("Times must use HH:mm (24-hour) format.");
       if (endTime <= startTime) throw new Error("End time must be after start time.");
       if (room.trim().length > 100) throw new Error("Room must be at most 100 characters.");
-      const payload = { courseOfferingId, dayOfWeek, startTime, endTime, room: room.trim() || undefined };
-      if (editing) return apiRequest<Entry>("/erp/timetable/" + encodeURIComponent(editing.id), { method: "PATCH", body: JSON.stringify(payload) });
-      return apiRequest<Entry>("/erp/timetable", { method: "POST", body: JSON.stringify(payload) });
+      const common = { courseOfferingId, dayOfWeek, startTime, endTime };
+      if (editing) return apiRequest<Entry>("/erp/timetable/" + encodeURIComponent(editing.id), {
+        method: "PATCH", body: JSON.stringify({ ...common, room: room.trim() || null })
+      });
+      return apiRequest<Entry>("/erp/timetable", {
+        method: "POST", body: JSON.stringify({ ...common, ...(room.trim() ? { room: room.trim() } : {}) })
+      });
     },
     onSuccess: async () => { await refresh(); resetForm(); }
   });
