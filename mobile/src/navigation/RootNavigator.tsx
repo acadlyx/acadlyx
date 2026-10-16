@@ -15,11 +15,12 @@ import { NoticesScreen } from "../screens/NoticesScreen";
 import { TimetableScreen } from "../screens/TimetableScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
 import { CalendarScreen } from "../screens/CalendarScreen";
+import { AttendanceScreen } from "../screens/AttendanceScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined };
+export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined };
 export type TabParamList = { Home: undefined; Modules: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -73,6 +74,7 @@ export function RootNavigator() {
           <Stack.Screen name="Timetable" component={TimetableScreen} options={{ title: "Timetable" }} />
           <Stack.Screen name="Library" component={LibraryScreen} options={{ title: "Library" }} />
           <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: "Calendar" }} />
+          <Stack.Screen name="Attendance" component={AttendanceScreen} options={{ title: "Attendance" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
