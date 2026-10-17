@@ -59,12 +59,14 @@ function getMissingFields(
     guardianPhone: string | null;
   },
   enrollmentAvailable: boolean,
+  row: Row,
+  wasExistingUser: boolean,
 ) {
   const fields: string[] = [];
   if (!text(user.email) || user.email.includes("@invalid.acadlyx.local")) fields.push("email");
   if (!text(user.idNumber) || user.idNumber.startsWith("IMPORT-")) fields.push("idNumber");
-  if (!text(user.firstName) || user.firstName === "Imported") fields.push("firstName");
-  if (!text(user.lastName) || user.lastName === "Student") fields.push("lastName");
+  if (!text(user.firstName) || (!wasExistingUser && !text(row.firstname))) fields.push("firstName");
+  if (!text(user.lastName) || (!wasExistingUser && !text(row.lastname))) fields.push("lastName");
   if (!text(user.phone)) fields.push("phone");
   if (!text(profile.admissionNumber) || profile.admissionNumber.startsWith("IMPORT-")) fields.push("admissionNumber");
   if (!profile.dateOfBirth) fields.push("dateOfBirth");
@@ -219,13 +221,14 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
           user,
           profile,
           enrollmentAvailable: enrollmentCreated || Boolean(currentActiveEnrollment),
+          wasExistingUser: Boolean(existingUserId),
         };
       });
       imported.push({
         id: result.user.id,
         row: index + 2,
         name: (result.user.firstName + " " + result.user.lastName).trim(),
-        missingFields: getMissingFields(result.user, result.profile, result.enrollmentAvailable),
+        missingFields: getMissingFields(result.user, result.profile, result.enrollmentAvailable, row, result.wasExistingUser),
       });
     } catch (error) {
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
