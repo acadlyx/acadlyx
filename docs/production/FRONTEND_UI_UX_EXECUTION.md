@@ -8,7 +8,7 @@ This work repairs role/workspace ownership, navigation destination integrity, an
 
 - Repository: `acadlyx/acadlyx`
 - Authorized branch: `native-mobile-parity-2026-10-17`
-- Last source checkpoint before this tracker edit: `8a2c751d88efe02ef6bbb8e8147500c4195ac918`
+- Last implementation checkpoint before this tracker edit: `9cfd7ab4f8e9828834878adc7cb3ebc51f19c26a`
 - Production reference SHA: `2dc568ec4416a295028cf64eaa7ee659b9258d89`
 - PR #77 remains draft and must not be merged/deployed.
 - Environment limitation: no writable local checkout is mounted in this session. Changes were committed to the authorized remote branch through the GitHub repository integration. Local npm, typecheck, lint, browser sessions, and viewport screenshots were not run in this session.
@@ -81,7 +81,8 @@ Intentionally shared routes such as LMS, Events & Gallery, notices, and notifica
 - Added the Parent `Children → /parent/children` menu entry for the existing real linked-child page, tagged the route with the `parent_portal` tenant entitlement, and supplied `allowedRoles={["PARENT"]}` on the existing page. No mock student data or new backend endpoints were introduced.
 - Added `STAFF` to `DASHBOARD_IDS` to match the role's existing label, priority, home `/staff`, routes, and sidebar. This makes the dashboard identity helper recognize a role that the rest of the existing frontend already supports.
 - Added source guards for fee ownership, Management queue permissions, Director permission alignment, Dean/HOD duplicate resolution, Parent child-route ownership/entitlement, Staff dashboard identity, and the shell palette.
-- Main source files touched in this work: `frontend/src/lib/adminNavigation.ts`, `frontend/src/lib/navigation.ts`, `frontend/src/lib/authority.ts`, `frontend/src/components/dashboard/DashboardShell.tsx`, `frontend/src/components/accounts/FeeStructureApprovalQueue.tsx`, `frontend/src/app/management/fee-approvals/page.tsx`, `frontend/src/app/director/fee-approvals/page.tsx`, `frontend/src/app/parent/children/page.tsx`, and `frontend/scripts/validate-source.mjs`.
+- Added five focused Playwright cases in `frontend/e2e/leadership-authenticated-workspace.spec.mjs`: Institution Admin must not see Accounts fee-management links; Management fee approvals must stay in its owned route across direct load/reload; Parent must reach its linked-child screen; Dean and HOD must each see exactly one workspace-owned Notices destination. The test fixture now exposes the `parent_portal` tenant feature only to the Parent case. These tests have been committed but **have not yet been reported as executed** by CI.
+- Main source files touched in this work: `frontend/src/lib/adminNavigation.ts`, `frontend/src/lib/navigation.ts`, `frontend/src/lib/authority.ts`, `frontend/src/components/dashboard/DashboardShell.tsx`, `frontend/src/components/accounts/FeeStructureApprovalQueue.tsx`, `frontend/src/app/management/fee-approvals/page.tsx`, `frontend/src/app/director/fee-approvals/page.tsx`, `frontend/src/app/parent/children/page.tsx`, `frontend/scripts/validate-source.mjs`, and `frontend/e2e/leadership-authenticated-workspace.spec.mjs`.
 
 ### Confirmed source-content assertions
 
@@ -92,7 +93,8 @@ These were **source-content checks executed against the fetched text**, not exec
 ## Verification and CI
 
 - A Frontend build on intermediate SHA `aed3fbc1bef946b45b8411c2bb0ad84d31587dda` **failed at `npm run validate:source`**, before TypeScript and build ran. Its log reported the finance ownership/Management approval source guard. At that intermediate point the Management page/component wiring was still being reconciled. Subsequent commits restored the shared queue, changed the Management and Director wrappers, tightened Director permission alignment, and updated the source guard; do not claim the intermediate run passed.
-- Latest code SHA before this tracker edit: `8a2c751d88efe02ef6bbb8e8147500c4195ac918`. The exact-head Frontend build, ERP verification, Production Quality, Production Gate, and Native Mobile CI results must be checked after this documentation commit produces its own SHA.
+- The failed Frontend build at `aed3fbc1bef946b45b8411c2bb0ad84d31587dda` stopped at the fee-ownership source guard before typecheck/build. Later changes now provide the shared queue and role-scoped wrappers and update that guard, and additional browser regression tests are committed. These fixes are still **pending exact-head CI confirmation**; do not infer that the earlier failure is cleared until a later run completes successfully.
+- Last code/test SHA before this tracker edit: `9cfd7ab4f8e9828834878adc7cb3ebc51f19c26a`. Exact-head Frontend build, ERP verification, Production Quality, Production Gate, Native Mobile CI and the new Playwright tests must be checked after the tracker commit produces its own SHA.
 - Exact-head TypeScript, lint, production build, route/browser tests: pending; no local command execution in this session.
 - Browser verification of the 300 individual route files and the prescribed 320–1920 px viewport set: 0 routes completed. The existing CI's Playwright jobs are separate evidence and must be checked by commit SHA.
 
