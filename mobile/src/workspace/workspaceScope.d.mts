@@ -9,9 +9,13 @@ export interface WorkspaceContextIds {
 }
 export declare function setActiveWorkspaceContext(scope?: WorkspaceContextIds | null): void;
 export declare function applyWorkspaceContext(path: string, enabled: boolean): string;
+export interface WorkspaceQueryCache {
+  getAll(): Array<{ reset(): void }>;
+}
 export interface WorkspaceQueryClient {
   cancelQueries(): Promise<unknown>;
-  resetQueries(): Promise<unknown>;
+  getQueryCache(): WorkspaceQueryCache;
+  invalidateQueries(filters: { refetchType: "active" | "all" | "inactive" | "none" }): Promise<unknown>;
 }
 export declare function transitionWorkspaceContext(
   queryClient: WorkspaceQueryClient,
