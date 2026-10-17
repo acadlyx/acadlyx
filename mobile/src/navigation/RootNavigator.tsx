@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { LoginScreen } from "../screens/LoginScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { ModulesScreen } from "../screens/ModulesScreen";
+import { GlobalSearchScreen } from "../screens/GlobalSearchScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { AssignmentsScreen } from "../screens/AssignmentsScreen";
@@ -26,7 +27,7 @@ import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 
 export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"ASSIGNMENTS"|"TIMETABLE" } };
-export type TabParamList = { Home: undefined; Modules: undefined; Notifications: undefined; Profile: undefined };
+export type TabParamList = { Home: undefined; Modules: undefined; Search: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
@@ -47,6 +48,7 @@ function MainTabs() {
     }}>
       <Tabs.Screen name="Home" component={HomeTab} options={{ title: "ACADLYX", tabBarLabel: "Home", tabBarIcon: () => <Text>⌂</Text> }} />
       <Tabs.Screen name="Modules" component={ModulesScreen} options={{ title: "Modules", tabBarIcon: () => <Text>▦</Text> }} />
+      <Tabs.Screen name="Search" component={GlobalSearchScreen} options={{ title: "Search", tabBarIcon: () => <Text>⌕</Text> }} />
       <Tabs.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications", tabBarIcon: () => <Text>♢</Text> }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ title: "My Account", tabBarIcon: () => <Text>◉</Text> }} />
     </Tabs.Navigator>
