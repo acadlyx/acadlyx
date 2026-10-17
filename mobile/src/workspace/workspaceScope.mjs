@@ -85,3 +85,22 @@ export async function transitionWorkspaceContext(queryClient, activateScope, per
   // Active observers refetch after the server-validated scope is active.
   await queryClient.invalidateQueries({ refetchType: "active" });
 }
+
+/** Stable cache-boundary key for account and effective-authority transitions. */
+export function getAuthorizationShape(user) {
+  if (!user) return "anonymous";
+  return String(user.id || "anonymous") + ":" +
+    (user.roles || []).slice().sort().join(",") + ":" +
+    (user.permissions || []).slice().sort().join(",");
+}
+
+/**
+ * The same QueryClient backs screens and the workspace provider. Clear both
+ * its in-memory records and the module-level scope filter before the next
+ * authorization shape is allowed to render.
+ */
+export async function resetAuthorizationState(queryClient, clearActiveScope) {
+  await queryClient.cancelQueries();
+  clearActiveScope();
+  queryClient.clear();
+}
