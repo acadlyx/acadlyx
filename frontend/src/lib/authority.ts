@@ -37,6 +37,7 @@ export const DASHBOARD_IDS = [
   "STUDENT",
   "PARENT",
   "CLUB_PRESIDENT",
+  "STAFF",
 ] as const;
 
 export type DashboardId =
