@@ -58,6 +58,36 @@ test("global search uses the existing server-scoped API and is reachable in nati
   assert.ok(navigator.includes("name=\"Search\" component={GlobalSearchScreen}"));
 });
 
+test("workspace context exposes seven dimensions and revalidates scope before cache reset", () => {
+  const screen = read("src/screens/WorkspaceContextScreen.tsx");
+  const provider = read("src/workspace/WorkspaceContextProvider.tsx");
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  const workspaceRoute = read("../backend/src/routes/workspaceContext.routes.ts");
+  const workspaceService = read("../backend/src/services/workspaceContext.service.ts");
+
+  for (const field of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) {
+    assert.ok(screen.includes(field), "Missing native selector dimension: " + field);
+  }
+  assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
+  assert.ok(provider.includes("await queryClient.resetQueries()"));
+  assert.ok(provider.includes("queryClient.invalidateQueries"));
+  assert.ok(provider.includes("setActiveWorkspaceContext(validated.scope)"));
+  assert.ok(navigator.includes('name="WorkspaceContext" component={WorkspaceContextScreen}'));
+  assert.ok(workspaceRoute.includes('req.query.campusId'));
+  assert.ok(workspaceService.includes("Campus not found in your authorized institution scope"));
+  for (const validation of [
+    "Department not found in your authorized institution scope",
+    "Program is not valid for the selected department",
+    "Academic year is not valid for the selected academic context",
+    "Semester is not valid for the selected academic context",
+    "Section is not valid for the selected semester",
+    "Batch is not valid for the selected program"
+  ]) assert.ok(workspaceService.includes(validation), "Missing server validation: " + validation);
+  assert.ok(client.includes('departments: ["campusId"]'));
+  assert.ok(client.includes('programs: ["departmentId"]'));
+  assert.ok(client.includes('"course-offerings": ["semesterId", "sectionId", "departmentId"]'));
+});
+
 test("assignment lifecycle calls use real backend route patterns", () => {
   const screen = read("src/screens/AssignmentsScreen.tsx");
   for (const route of ["/assignments", "/submit", "/submissions", "/reopen"]) assert.ok(screen.includes(route), "Missing route fragment: " + route);
