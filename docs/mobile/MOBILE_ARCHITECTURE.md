@@ -42,7 +42,8 @@ mobile/
 2. Access and refresh tokens are stored with Expo SecureStore. The app does not use local storage or expose privileged database credentials.
 3. Protected requests use the existing bearer-token API contract. On one 401 response, the client attempts the existing POST /auth/refresh flow once; if renewal fails, it clears local credentials.
 4. Existing API envelopes with success and data fields are unwrapped by the client.
-5. Authenticated reads are requested from existing API routes. TanStack Query uses in-memory caching only; the query client is cleared when the authenticated user changes.\n6. The workspace-context provider calls GET /api/v1/workspace/context. Selection changes are accepted only after the backend returns the canonical context, then query state is reset and invalidated so active reads reload under the new scope. Supported list contracts receive only the context filters they explicitly accept.
+5. Authenticated reads are requested from existing API routes. TanStack Query uses in-memory caching only; the query client is cleared when the authenticated user changes.
+6. The workspace-context provider calls GET /api/v1/workspace/context. Selection changes are accepted only after the backend returns the canonical context, then query state is reset and invalidated so active reads reload under the new scope. Supported list contracts receive only the context filters they explicitly accept.
 7. Backend services, authorization middleware, Prisma transactions and the existing PostgreSQL database remain authoritative. The mobile app does not connect directly to PostgreSQL or Supabase.
 
 ## Authorization
