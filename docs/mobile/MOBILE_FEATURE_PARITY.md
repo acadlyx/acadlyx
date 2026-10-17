@@ -70,7 +70,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 
 ## Role inventory
 
-The backend RBAC catalog has 20 role identifiers: `SUPER_ADMIN`, `INSTITUTION_ADMIN`, `CHAIRMAN`, `MANAGEMENT`, `DIRECTOR`, `DEAN`, `REGISTRAR`, `HOD`, `FACULTY`, `ACCOUNTS`, `HR`, `ADMISSIONS`, `EXAMINATION`, `LIBRARIAN`, `PLACEMENT`, `IT`, `CMS`, `STUDENT`, `PARENT`, and `CLUB_PRESIDENT`. All can reach the authenticated shell where the backend grants a session, but this does **not** mean all 20 dedicated dashboards or role workflows are implemented. See `MOBILE_ROLE_PERMISSION_MATRIX.md`.
+The backend RBAC catalog has 20 role identifiers: `SUPER_ADMIN`, `INSTITUTION_ADMIN`, `CHAIRMAN`, `MANAGEMENT`, `DIRECTOR`, `DEAN`, `REGISTRAR`, `HOD`, `FACULTY`, `ACCOUNTS`, `HR`, `ADMISSIONS`, `EXAMINATION`, `LIBRARIAN`, `PLACEMENT`, `IT`, `CMS`, `STUDENT`, `PARENT`, and `CLUB_PRESIDENT`. Each now has a separate native dashboard composition in `mobile/src/screens/RoleDashboardScreen.tsx`, using the same effective-role priority as the backend. These dashboards are `IMPLEMENTED_UNVERIFIED`: live authorized API and device verification is still required, and dashboard availability does **not** imply workflow parity. See `MOBILE_IMPLEMENTATION_TRACKER.md` and `MOBILE_ROLE_PERMISSION_MATRIX.md`.
 
 ## Completion evidence
 

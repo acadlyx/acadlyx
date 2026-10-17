@@ -58,6 +58,19 @@ test("global search uses the existing server-scoped API and is reachable in nati
   assert.ok(navigator.includes("name=\"Search\" component={GlobalSearchScreen}"));
 });
 
+test("all twenty canonical roles have distinct native dashboard compositions", () => {
+  const dashboard = read("src/screens/RoleDashboardScreen.tsx");
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  for (const role of ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT"]) {
+    assert.match(dashboard, new RegExp("\\b" + role + "\\s*:"), "Missing dashboard composition for " + role);
+  }
+  assert.ok(dashboard.includes("/my-work"));
+  assert.ok(dashboard.includes("signalPermission"), "Role signals must be permission-gated before request.");
+  assert.ok(dashboard.includes("EFFECTIVE_WORKSPACE_ROLE_PRIORITY") || dashboard.includes("Keep this exact order aligned"), "Dashboard role selection must track the backend effective-role policy.");
+  assert.ok(dashboard.includes("Counts are never substituted"));
+  assert.ok(navigator.includes("RoleDashboardScreen"));
+});
+
 test("workspace context exposes seven dimensions and revalidates scope before cache reset", () => {
   const screen = read("src/screens/WorkspaceContextScreen.tsx");
   const provider = read("src/workspace/WorkspaceContextProvider.tsx");
@@ -146,6 +159,7 @@ test("required parity and release documentation exists and states limitations ho
   const docs = [
     "../docs/mobile/MOBILE_ARCHITECTURE.md",
     "../docs/mobile/MOBILE_FEATURE_PARITY.md",
+    "../docs/mobile/MOBILE_IMPLEMENTATION_TRACKER.md",
     "../docs/mobile/MOBILE_ROLE_PERMISSION_MATRIX.md",
     "../docs/mobile/MOBILE_API_INTEGRATION.md",
     "../docs/mobile/MOBILE_TEST_REPORT.md",
@@ -154,4 +168,5 @@ test("required parity and release documentation exists and states limitations ho
   ];
   for (const path of docs) assert.ok(readFileSync(resolve(root, path), "utf8").length > 500, "Missing/short doc: " + path);
   assert.ok(read("../docs/mobile/MOBILE_FEATURE_PARITY.md").includes("No 100% parity claim is made."));
+  assert.ok(read("../docs/mobile/MOBILE_IMPLEMENTATION_TRACKER.md").includes("IMPLEMENTED_UNVERIFIED"));
 });

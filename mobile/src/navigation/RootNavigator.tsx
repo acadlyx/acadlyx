@@ -7,6 +7,7 @@ import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../auth/AuthProvider";
 import { LoginScreen } from "../screens/LoginScreen";
 import { HomeScreen } from "../screens/HomeScreen";
+import { RoleDashboardScreen } from "../screens/RoleDashboardScreen";
 import { ModulesScreen } from "../screens/ModulesScreen";
 import { GlobalSearchScreen } from "../screens/GlobalSearchScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
@@ -34,7 +35,10 @@ const Tabs = createBottomTabNavigator<TabParamList>();
 
 function HomeTab() {
   const { user } = useAuth();
-  return user?.roles.includes("STUDENT") ? <StudentPortalScreen /> : <HomeScreen />;
+  // The dashboard resolves the same effective-role priority as the backend;
+  // this also prevents a multi-role account from falling into a secondary
+  // Student workspace merely because it carries the STUDENT role.
+  return user ? <RoleDashboardScreen /> : <HomeScreen />;
 }
 
 function MainTabs() {
