@@ -34,14 +34,14 @@ export function applyWorkspaceContext(path, enabled) {
 
   const acceptedFields = {
     departments: ["campusId"],
-    programs: ["departmentId"],
-    courses: ["departmentId"],
+    programs: ["campusId", "departmentId"],
+    courses: ["campusId", "departmentId"],
     "academic-years": ["campusId", "departmentId", "programId"],
     batches: ["campusId", "departmentId", "programId"],
-    semesters: ["programId", "departmentId", "academicYearId"],
-    sections: ["semesterId", "departmentId"],
-    "course-offerings": ["semesterId", "sectionId", "departmentId"],
-    students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]
+    semesters: ["campusId", "programId", "departmentId", "academicYearId"],
+    sections: ["campusId", "semesterId", "departmentId"],
+    "course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"],
+    students: ["campusId", "departmentId", "programId", "academicYearId", "semesterId", "sectionId"]
   };
   const routeParts = route.split("/");
   const fields = routeParts.length === 1 ? acceptedFields[routeParts[0]] : undefined;
