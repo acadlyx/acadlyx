@@ -316,3 +316,30 @@ test("workspace transition cancels old reads and resets cached records before ac
     queryClient.clear();
   }
 });
+
+
+test("Android Back follows tab history and preserves stack/auth boundaries", () => {
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  const modules = read("src/screens/ModulesScreen.tsx");
+  const dashboard = read("src/screens/RoleDashboardScreen.tsx");
+  const auth = read("src/auth/AuthProvider.tsx");
+
+  // Tab history returns to the previously selected tab. Module details are
+  // pushed on the root native stack so Back pops to their real origin.
+  assert.ok(navigator.includes('<Tabs.Navigator backBehavior="history" screenOptions={{'));
+  assert.ok(navigator.includes('<Stack.Screen name="Main" component={MainTabs}'));
+  assert.ok(navigator.includes('<Stack.Screen name="Module" component={ModuleScreen}'));
+  assert.ok(modules.includes('navigation.navigate("Module", { moduleId: item.id })'));
+  assert.ok(dashboard.includes('navigation.navigate("Module", { moduleId })'));
+  assert.ok(navigator.includes('name="WorkspaceContext" component={WorkspaceContextScreen}'));
+
+  // Keep React Navigation's native Back handling; no blanket handler should
+  // mask an absent/replaced stack entry or forcibly exit the application.
+  assert.ok(!/BackHandler/.test(navigator + modules + dashboard));
+
+  // Logout clears credentials and swaps protected routes for Login.
+  assert.ok(navigator.includes('status === "authenticated" ? <>'));
+  assert.ok(navigator.includes('name="Login" component={LoginScreen}'));
+  assert.ok(auth.includes("await clearTokens()"));
+  assert.ok(auth.includes('setStatus("unauthenticated")'));
+});

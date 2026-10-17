@@ -1,8 +1,13 @@
 "use client";
 
-import { redirect } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-/** Legacy route: permanently route to the Director workspace before client auth guards run. */
+/** Legacy route: replace browser history with the role-owned Director workspace. */
 export default function DirectorOperationsRedirect() {
-  redirect("/director");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/director");
+  }, [router]);
+  return null;
 }

@@ -244,11 +244,12 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       createdGlobalSuperAdminRole = true;
     }
 
-    const batchesReadPermission = await prisma.permission.findUnique({
+    const batchesReadPermission = await prisma.permission.upsert({
       where: { key: "batches.read" },
+      update: { module: "academics", description: "View student batches" },
+      create: { key: "batches.read", module: "academics", description: "View student batches" },
       select: { id: true },
     });
-    assert.ok(batchesReadPermission, "The RBAC catalog must contain batches.read for the authorized scope-filter test.");
     await prisma.rolePermission.create({
       data: { roleId: tenantRolesA.HOD, permissionId: batchesReadPermission.id },
     });

@@ -43,7 +43,7 @@ function HomeTab() {
 
 function MainTabs() {
   return (
-    <Tabs.Navigator screenOptions={{
+    <Tabs.Navigator backBehavior="history" screenOptions={{
       headerStyle: { backgroundColor: colors.surface },
       headerTintColor: colors.text,
       headerTitleStyle: { fontWeight: "800" },

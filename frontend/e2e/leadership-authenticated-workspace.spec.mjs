@@ -110,6 +110,7 @@ test("placement workspace routes load with scoped authenticated session", async 
     ["/placements/reports", "Placement Intelligence"],
   ]) {
     await page.goto(baseURL + path, { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(baseURL + path);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);

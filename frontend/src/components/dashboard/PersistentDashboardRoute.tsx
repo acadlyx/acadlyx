@@ -22,6 +22,14 @@ const OUTSIDE_DASHBOARD = [
 ];
 
 function pageTitle(pathname: string) {
+  // Preserve explicit workflow naming when a route's page-level DashboardShell
+  // is embedded under this persistent shell (e.g. "Placement Calendar").
+  const normalizedPath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const explicitTitles: Record<string, string> = {
+    "/placements/calendar": "Placement Calendar",
+  };
+  if (explicitTitles[normalizedPath]) return explicitTitles[normalizedPath];
+
   const leaf = pathname.split("/").filter(Boolean).at(-1) || "Workspace";
   return decodeURIComponent(leaf)
     .replace(/[-_]/g, " ")
