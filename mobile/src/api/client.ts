@@ -1,4 +1,7 @@
 import * as SecureStore from "expo-secure-store";
+import { applyWorkspaceContext, setActiveWorkspaceContext } from "../workspace/workspaceScope.mjs";
+export { setActiveWorkspaceContext };
+export type { WorkspaceContextIds } from "../workspace/workspaceScope.mjs";
 
 const RAW_API_ORIGIN = process.env.EXPO_PUBLIC_API_URL || "https://acadlyx-api.onrender.com";
 export const API_ORIGIN = RAW_API_ORIGIN.trim().replace(/\/+$/, "").replace(/\/api\/v1$/, "");
@@ -9,60 +12,6 @@ const REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
 const DEFAULT_TIMEOUT_MS = 30000;
 
 export type AuthTokens = { accessToken: string; refreshToken: string; expiresIn?: string };
-export type WorkspaceContextIds = {
-  campusId?: string | null;
-  departmentId?: string | null;
-  programId?: string | null;
-  academicYearId?: string | null;
-  batchId?: string | null;
-  semesterId?: string | null;
-  sectionId?: string | null;
-};
-
-let activeWorkspaceContext: WorkspaceContextIds = {};
-
-export function setActiveWorkspaceContext(scope?: WorkspaceContextIds | null): void {
-  activeWorkspaceContext = {};
-  if (!scope) return;
-  for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
-    const value = scope[key];
-    if (typeof value === "string" && value.trim()) activeWorkspaceContext[key] = value;
-  }
-}
-
-function applyWorkspaceContext(path: string, enabled: boolean): string {
-  if (!enabled || /^https?:\/\//i.test(path)) return path;
-  const separator = path.indexOf("?");
-  const pathname = separator >= 0 ? path.slice(0, separator) : path;
-  const route = pathname.replace(/^\/+/, "").replace(/\/+$/, "");
-  if (route === "auth" || route.startsWith("auth/") ||
-      route === "workspace/context" || route.startsWith("workspace/context/")) return path;
-
-  // Only propagate fields explicitly accepted by each strict list-query contract.
-  // This avoids breaking unrelated endpoints with Zod strict query validation.
-  const acceptedFields: Record<string, readonly (keyof WorkspaceContextIds)[]> = {
-    departments: ["campusId"],
-    programs: ["departmentId"],
-    courses: ["departmentId"],
-    batches: ["programId"],
-    semesters: ["programId", "departmentId", "academicYearId"],
-    sections: ["semesterId", "departmentId"],
-    "course-offerings": ["semesterId", "sectionId", "departmentId"],
-    students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]
-  };
-  const routeParts = route.split("/");
-  const listRoute = routeParts.length === 1 ? routeParts[0] : "";
-  const fields = acceptedFields[listRoute];
-  if (!fields) return path;
-
-  const params = new URLSearchParams(separator >= 0 ? path.slice(separator + 1) : "");
-  for (const key of fields) {
-    const value = activeWorkspaceContext[key];
-    if (typeof value === "string" && value && !params.has(key)) params.set(key, value);
-  }
-  const query = params.toString();
-  return query ? pathname + "?" + query : pathname;
-}
 type ApiEnvelope<T> = {
   success?: boolean;
   data?: T;
