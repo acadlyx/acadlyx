@@ -27,6 +27,13 @@ export const listSessionsQuerySchema = z.object({
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
   isSubmitted: z.enum(["true", "false"]).optional(),
+  campusId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  programId: z.string().uuid().optional(),
+  academicYearId: z.string().uuid().optional(),
+  batchId: z.string().uuid().optional(),
+  semesterId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
 });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
