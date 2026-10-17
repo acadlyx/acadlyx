@@ -348,6 +348,16 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     };
     const validContext = contextData(await request(contextPath(validSelection), roleUsers.INSTITUTION_ADMIN.token));
     assert.deepEqual(validContext.scope, { institutionId: institutionA.id, ...validSelection });
+    assert.notEqual(
+      (await request(contextPath({ programId: programA2.id }), roleUsers.STUDENT.token)).status,
+      200,
+      "A Student must not switch away from their active enrollment by supplying a different programme ID."
+    );
+    assert.notEqual(
+      (await request("/students?departmentId=" + departmentA1.id + "&programId=" + programA1.id + "&academicYearId=" + yearA1.id + "&semesterId=" + semesterA1.id + "&sectionId=" + sectionA2.id, roleUsers.INSTITUTION_ADMIN.token)).status,
+      200,
+      "A student list filter must reject a section that does not belong to its selected semester."
+    );
 
     const invalidCases: Array<{ label: string; values: Record<string, string | undefined> }> = [
       { label: "foreign/deleted campus", values: { ...validSelection, campusId: campusB.id } },
