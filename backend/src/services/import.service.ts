@@ -115,7 +115,16 @@ export function buildStudentProfileUpdateFields(input: {
 }
 
 export function parseWorkbook(buffer: Buffer) {
-  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  // XLSX.read's Buffer auto-detection is not reliable for plain CSV upload
+  // buffers. Select binary mode for XLS/XLSX signatures and string mode for
+  // UTF-8 delimited text (including files with a leading BOM).
+  const isZipWorkbook = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+  const isOleWorkbook = buffer.length >= 8 && buffer.subarray(0, 8).equals(
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+  );
+  const workbook = isZipWorkbook || isOleWorkbook
+    ? XLSX.read(buffer, { type: "buffer", cellDates: true })
+    : XLSX.read(buffer.toString("utf8").replace(/^\uFEFF/, ""), { type: "string", cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new AppError("Workbook has no sheets", 400);
   const rows = XLSX.utils.sheet_to_json<Row>(workbook.Sheets[sheetName], { defval: "" });

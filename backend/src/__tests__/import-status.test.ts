@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildStudentProfileUpdateFields, normalizeStudentStatus } from "../services/import.service";
+import { buildStudentProfileUpdateFields, normalizeStudentStatus, parseWorkbook } from "../services/import.service";
 
 test("student import status normalization accepts common case and whitespace variants", () => {
   assert.equal(normalizeStudentStatus("Active"), "ACTIVE");
@@ -80,4 +80,29 @@ test("student import rejects invalid non-empty dates instead of saving them as m
     }),
     /Invalid date of birth/,
   );
+});
+
+test("CSV import normalizes spaced headers and preserves UTF-8 row values", () => {
+  const csv = Buffer.from(
+    "Admission Number,First Name,Last Name\nADM-CSV-1,Asha,Sharma",
+    "utf8",
+  );
+  const parsed = parseWorkbook(csv);
+  assert.equal(parsed.totalRows, 1);
+  assert.deepEqual(parsed.rows[0], {
+    admissionnumber: "ADM-CSV-1",
+    firstname: "Asha",
+    lastname: "Sharma",
+  });
+});
+
+test("CSV import accepts a UTF-8 BOM", () => {
+  const csv = Buffer.from(
+    "\uFEFFAdmission Number,First Name\nADM-BOM-1,Asha",
+    "utf8",
+  );
+  assert.deepEqual(parseWorkbook(csv).rows[0], {
+    admissionnumber: "ADM-BOM-1",
+    firstname: "Asha",
+  });
 });

@@ -79,6 +79,8 @@ test("partial student import preserves existing profile data and calculates miss
       permissions: ["students.create", "students.update", "users.update"],
     };
 
+    const parsedInput = (await import("../services/import.service")).parseWorkbook(csv);
+    assert.equal(parsedInput.rows[0]?.admissionnumber, "ADM-" + suffix, "CSV parser must preserve the admission number header/value: " + JSON.stringify(parsedInput.rows[0]));
     const result = await commitPartialStudentImport(csv, institution.id, actor);
     assert.equal(result.imported, 1);
     assert.equal(result.failed, 0);
