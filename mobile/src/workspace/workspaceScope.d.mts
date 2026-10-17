@@ -22,3 +22,17 @@ export declare function transitionWorkspaceContext(
   activateScope: () => void,
   persistScope: () => Promise<unknown>
 ): Promise<void>;
+
+export interface AuthorizationUserShape {
+  id: string;
+  roles: string[];
+  permissions: string[];
+}
+export declare function getAuthorizationShape(user?: AuthorizationUserShape | null): string;
+export interface AuthorizationQueryClient extends WorkspaceQueryClient {
+  clear(): void;
+}
+export declare function resetAuthorizationState(
+  queryClient: AuthorizationQueryClient,
+  clearActiveScope: () => void
+): Promise<void>;
