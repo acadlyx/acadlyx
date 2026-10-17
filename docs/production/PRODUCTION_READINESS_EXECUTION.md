@@ -7,9 +7,9 @@
 - Repository: https://github.com/acadlyx/acadlyx
 - Authorized branch: `native-mobile-parity-2026-10-17`
 - Protected production baseline: `production-upgrade-2026-09-20`
-- Latest branch HEAD at this status refresh: `e02303e5fff146312c94e5d6ee6e9849daab0de0` (P0 test fixes plus a stale-RBAC reconciliation fix and regression source check; this exact head's CI was queued when refreshed).
+- Latest fully green tested branch SHA: `b822b53de454badcef801da1b92c9f854f16a07e`. This includes P0 outbox test fixes, stale-RBAC reconciliation, queued-import completion handling and its JSX syntax correction. This tracker update creates a newer SHA, so CI must be checked again before considering that documentation commit the latest tested head.
 - PR: https://github.com/acadlyx/acadlyx/pull/77 (draft; not approved for merge)
-- Prior check snapshot for `58b3999f9e47cdbe1307656173e891efcfd4f6cf`: Native Mobile CI, Frontend build, Production Gate, and Production Quality succeeded, but ERP verification failed (run 39058172602; backend job 117470368485). On updated branch commit `c7698ff636e40f31c24d0714c9635b1ec67b9fcf`, the PR merge candidate `ef7d79870320b69f2e637272bbd48d6de5e69fcd` passed ERP verification with 239/239 tests, and the standalone Frontend build and Native Mobile CI passed. Production Gate and Production Quality's remaining jobs were still running at this refresh. These results are not release-wide completion evidence.
+- Baseline `58b3999f9e47cdbe1307656173e891efcfd4f6cf` failed ERP verification (238/239). The P0 test fixes passed on candidate `ef7d79870320b69f2e637272bbd48d6de5e69fcd` (239/239). The latest functional change at `b822b53de454badcef801da1b92c9f854f16a07e` has all five workflows green on this exact SHA: ERP verification run 2241, Production Quality run 2912, Native Mobile CI run 239, Production Gate run 1857, and Frontend build run 1396. Evidence: https://github.com/acadlyx/acadlyx/actions/runs/39061361222 ; https://github.com/acadlyx/acadlyx/actions/runs/39061361209 ; https://github.com/acadlyx/acadlyx/actions/runs/39061361162 ; https://github.com/acadlyx/acadlyx/actions/runs/39061361158 ; https://github.com/acadlyx/acadlyx/actions/runs/39061361113. Release/deployment remains unapproved and not ready; the Production Quality deployment-smoke job was intentionally skipped because no deployment is authorized.
 - Environment limitation: no writable local checkout is mounted in this session. Remote source inspection and branch commits are available through the connected GitHub integration; local shell/test execution is not available here. CI must therefore provide the real runtime/database verification evidence for remote changes. Do not mark code verified before those results arrive.
 
 ## Status definitions
@@ -68,10 +68,10 @@
 - Status: `IMPLEMENTED_UNVERIFIED`
 - Root cause: the old shell initialized `routeAuthReady` to `Boolean(cachedUser)` and called `getCurrentUser({ background: true })`; the API helper explicitly returns a fresh cache immediately while revalidation runs in the background. The route guard could therefore run against stale RBAC and incorrectly redirect a user.
 - Changes made: commit `c5d51a642ffb5ca6e7fc2182dcfe312974641744` starts authorization readiness as false, awaits `getCurrentUser({ force: true })`, keeps protected child rendering behind the readiness gate, and displays an accessible retry state when revalidation fails. Commit `e02303e5fff146312c94e5d6ee6e9849daab0de0` adds source-contract regression assertions to the existing Library-access validation script.
-- Tests: not yet run for the latest source-fix commit. Frontend workflow run 1393, ERP verification run 2238, Native Mobile CI run 236, Production Gate run 1854 and Production Quality run 2909 are queued/pending for branch head `e02303e5fff146312c94e5d6ee6e9849daab0de0`.
+- Tests: on `b822b53de454badcef801da1b92c9f854f16a07e`, frontend source checks (including the Library stale-RBAC guard), frontend TypeScript typecheck/production build, ERP verification, Production Quality, Production Gate, and Native Mobile CI passed. This verifies compilation and source-contract coverage, not an authenticated browser exercise of the Student Library route after stale cache/revocation; keep this task IMPLEMENTED_UNVERIFIED until that behavior is tested live.
 - Commit SHA: `c5d51a642ffb5ca6e7fc2182dcfe312974641744` (implementation), `e02303e5fff146312c94e5d6ee6e9849daab0de0` (regression check).
 - Remaining verification: CI must pass on the latest branch/PR merge candidate, and protected browser/API scenarios should verify stale permission refresh and transient auth-service failure. The current CI public/login browser smoke does not yet prove role-switch isolation end to end.
-- Precise next action: poll all triggered CI and inspect the new source-check/build outcomes before marking verified.
+- Precise next action: add/run an authenticated browser/API regression that starts with a stale cached role, refreshes /auth/me, verifies the authorized Student Library view appears without false denial, and verifies transient revalidation failure stays fail-closed.
 
 ### P1-AUTH-001 — Full backend authorization and workspace isolation
 - Priority/module: P1 / authentication, RBAC, API scope
@@ -123,13 +123,28 @@
 - Changes/tests/commit: none.
 - Next action: keep the existing app/backend; implement one module lifecycle at a time with role/scope tests.
 
+### P1-IMPORT-002 — Background import reports verified completion
+- Priority/module: P1 / web data import
+- Acceptance: enqueue receipt is distinct from job outcome; UI waits for COMPLETED/PARTIAL results, presents terminal errors and row-level failures, does not poll forever, allows status rechecks when bounded waiting expires, and never claims a queue ticket is a successful import.
+- Relevant files: frontend/src/lib/dataTransferApi.ts, frontend/src/components/dashboard/DataTransferActions.tsx, frontend/scripts/test-import-workflow.mjs, frontend/package.json, backend import/job contracts.
+- Status: IMPLEMENTED_UNVERIFIED
+- Root cause: backend returns HTTP 202 with {jobId,status,type,mode}, but UI treated it as an ImportCommitResult and displayed imported row count before background processing completed; its existing poller was unused.
+- Changes made: commit da38ea9fdd4844bef2fc844436c205e316f1f6db adds a runtime-validated enqueue receipt, bounded poller for COMPLETED/PARTIAL, retry/status CTA, row-error rendering, rollback messaging and a source-contract guard wired into validate:source. Commit b822b53de454badcef801da1b92c9f854f16a07e fixes the nested JSX expression found by the first CI typecheck.
+- Tests: on b822b53de454badcef801da1b92c9f854f16a07e, test-import-workflow.mjs passed within frontend source validation; frontend TypeScript typecheck and production build passed; ERP tests 239/239; all five workflows listed in the execution snapshot passed. An earlier run on da38ea9... correctly failed typecheck (TS1005: } expected); this is recorded as a failed intermediate checkpoint, not hidden.
+- Commit SHA: implementation da38ea9fdd4844bef2fc844436c205e316f1f6db; syntax fix b822b53de454badcef801da1b92c9f854f16a07e.
+- Remaining verification: no browser/API test has yet exercised a real import job from upload through database mutations and terminal UI result, including PARTIAL, FAILED, atomic rollback, long-running timeout and a network interruption.
+- Precise next action: add a disposable-tenant backend/browser integration test for upload → queued job → status/result, then rerun the full import path before marking verified.
+
 ### P1-XPORT-001 — Universal exports and imports
 - Priority/module: P1 / web and mobile data handling
-- Acceptance: applicable pages support authorized filtered/selected/page datasets and supported formats; large exports are server-side; import preview/normalization/row errors/manual correction/commit semantics are tested; student admission-number uniqueness remains enforced.
+- Acceptance: applicable pages support authorized filtered/selected/page datasets; large exports are server-side; import preview/normalization/row errors/manual correction/commit semantics are behaviorally tested; student admission-number uniqueness remains enforced; mobile import/export workflows work where required.
 - Relevant files: existing export/import services, routes, web pages and mobile flows.
-- Status: `NOT_STARTED`
-- Changes/tests/commit: none.
-- Next action: inventory actual tabular pages/APIs and implement missing shared service contracts.
+- Status: IN_PROGRESS
+- Changes made: background-import result reporting improved under P1-IMPORT-002; this narrow UI/API fix does not complete the broader workstream.
+- Tests: web source guard, TypeScript build, ERP, Quality, Gate and Native Mobile CI passed at b822b53de454badcef801da1b92c9f854f16a07e; no full browser workflow for all import/export modes and no native file operations test.
+- Commit SHA: see P1-IMPORT-002.
+- Remaining defects: server-side selection/filter fidelity across actual pages, comprehensive import row-error and rollback behavior, mobile import/export, and end-to-end authorization/download scope tests.
+- Precise next action: add real end-to-end tests for the student partial-import/manual-completion flow and one atomic generic import, then inventory applicable exports across pages.
 
 ### P1-DB-001 — Migration, outbox, concurrency and recovery reliability
 - Priority/module: P1 / Prisma/PostgreSQL/operations
@@ -151,9 +166,10 @@
 - Priority/module: P1 / GitHub Actions
 - Acceptance: all required workflow and job-level checks pass on the same release-candidate SHA; no disabled/skipped gate is represented as passed; workflow links and exact SHAs are recorded.
 - Relevant files: `.github/workflows/**`.
-- Status: `IN_PROGRESS`
-- Evidence: for branch commit `c7698ff636e40f31c24d0714c9635b1ec67b9fcf`, PR merge-candidate ERP verification run 2235 passed in full (239/239); Frontend build run 1390 passed; Native Mobile CI run 233 passed. A subsequent documentation-only tracker commit `43827b02cb3f1afff60e46186f533bd3e8df93a6` also completed ERP verification run 2236, Frontend build run 1391, Native Mobile CI run 234 and Production Gate run 1852 successfully; Production Quality run 2907 was still completing browser smoke. After the RBAC fix and source test, branch head is `e02303e5fff146312c94e5d6ee6e9849daab0de0`, and the five required workflows were queued/pending as runs 1393, 2238, 236, 1854 and 2909 at last refresh. These are different commits and not yet a common green release-candidate set.
-- Next action: poll current checks, record the exact merge SHA and per-job results, and do not infer readiness from mixed-commit green jobs.
+- Status: VERIFIED (CI workflow set only; not product/release readiness)
+- Evidence: all five required workflows passed on the same exact functional SHA b822b53de454badcef801da1b92c9f854f16a07e: ERP verification #2241 (239 passed, 0 failed), Frontend build #1396, Native Mobile CI #239, Production Gate #1857 and Production Quality #2912. Links are recorded in the execution snapshot and ledger below.
+- Gate scope: Production Quality passed Prisma migration validation, populated legacy refund compatibility, isolated PostgreSQL backup/restore, 10k-student finance performance, backend tests/typecheck, frontend build and desktop/mobile public/login browser smoke. Its Production deployment smoke checks job was skipped intentionally because deployment is not authorized; that job is not claimed as passed. Mobile CI passed Expo Doctor, structural tests and Android/iOS JavaScript bundle exports; it does not establish signed native artifacts or physical-device tests.
+- Next action: rerun these checks after any further code/tracker commit; do not merge/deploy and do not infer whole-product readiness from green CI.
 
 ### P1-BROWSER-001 — Real browser and API/device validation
 - Priority/module: P1 / QA
@@ -184,7 +200,12 @@
 | 2026-10-17 | `58b3999f9e47cdbe1307656173e891efcfd4f6cf` | Frontend build run 1387 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39058172620. |
 | 2026-10-17 | `58b3999f9e47cdbe1307656173e891efcfd4f6cf` | Production Gate run 1848 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39058172744. |
 | 2026-10-17 | `58b3999f9e47cdbe1307656173e891efcfd4f6cf` | Production Quality run 2903 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39058172639. |
+| 2026-10-17 | b822b53de454badcef801da1b92c9f854f16a07e | ERP verification run 2241 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39061361222 — disposable PostgreSQL, RUN_POSTGRES_INTEGRATION=1, 239 tests passed / 0 failed. |
+| 2026-10-17 | b822b53de454badcef801da1b92c9f854f16a07e | Frontend build run 1396 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39061361113 — source validation (442 frontend files), source guards including queued-import checks, TypeScript typecheck and production build passed. |
+| 2026-10-17 | b822b53de454badcef801da1b92c9f854f16a07e | Native Mobile CI run 239 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39061361162 — mobile typecheck, 24 structural tests, Expo Doctor 21/21, Android/iOS JavaScript bundle exports. Not signed APK/AAB/IPA or device validation. |
+| 2026-10-17 | b822b53de454badcef801da1b92c9f854f16a07e | Production Gate run 1857 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39061361158 — backend and frontend jobs succeeded. |
+| 2026-10-17 | b822b53de454badcef801da1b92c9f854f16a07e | Production Quality run 2912 | SUCCESS | https://github.com/acadlyx/acadlyx/actions/runs/39061361209 — migration/legacy DB, backup/restore, 10k finance performance, backend tests, frontend build and public/login browser smoke passed; production deployment smoke was skipped by design. |
 
 ## Release decision
 
-**NOT PRODUCTION READY.** The two P0 test/fixture issues are verified fixed on the tested PR merge candidate. The stale-RBAC shell fix is implemented but unverified. The high-severity `node-forge@1.4.0` advisory remains an external security blocker without a stable patched release listed; full role isolation, workflow parity, imports/exports, device verification and staging/release gates remain unverified. The production baseline remains protected.
+**NOT PRODUCTION READY.** The placement outbox and synthetic foreign-key test defects are fixed and verified in the PostgreSQL-backed run (239/239). Five CI workflows passed together on b822b53de454badcef801da1b92c9f854f16a07e. The stale-RBAC and queued-import fixes are implemented but need true browser/API behavior tests. The high-severity node-forge@1.4.0 advisory remains a security blocker; full web/native workflow parity, end-to-end imports/exports, signed native artifacts/device tests and staging release acceptance are incomplete. Production remains unchanged; no merge or deployment is authorized.
