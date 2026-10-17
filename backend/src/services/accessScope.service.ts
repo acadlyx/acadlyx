@@ -221,8 +221,11 @@ export async function assertAcademicYearInScope(
   });
   if (!year) throw new AppError("Academic year not found in this institution", 404);
 
-  const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
   if (isInstitutionWide(actor)) return;
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const allowedDepartmentIds = activeRole === "STUDENT"
+    ? await getStudentDepartmentIds(institutionId, actor.id)
+    : await getAuthorizedDepartmentIds(institutionId, actor);
 
   if (!allowedDepartmentIds.length) {
     throw new AppError("Academic year is outside your authorized scope", 403);
