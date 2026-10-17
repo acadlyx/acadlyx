@@ -313,3 +313,11 @@ test("Student cannot open Management fee approvals by entering the URL directly"
   await expect(page).toHaveURL(/\/student$/);
   await expect(page.getByRole("heading", { name: "Pending institutional fee approvals", exact: true })).toHaveCount(0);
 });
+
+test("Student notices navigation resolves to one student-owned route", async ({ page }) => {
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/student/notices", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student\/notices$/);
+  await expect(page.locator('a[href="/student/notices"]')).toHaveCount(1);
+  await expect(page.locator('a[href="/notices"]')).toHaveCount(0);
+});
