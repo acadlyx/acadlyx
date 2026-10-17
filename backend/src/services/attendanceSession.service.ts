@@ -6,6 +6,7 @@ import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster } from "../utils/academicRoster";
 import { recordAuditLog } from "./audit.service";
 import { getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isDirectorScoped, assertCourseOfferingInScope, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { courseOfferingWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -277,7 +278,7 @@ export async function upsertRecords(
   return getSessionById(institutionId, user, sessionId);
 }
 
-export interface ListFilters extends PaginationParams {
+export interface ListFilters extends PaginationParams, WorkspaceContextFilterInput {
   courseOfferingId?: string;
   facultyId?: string;
   dateFrom?: Date;
@@ -290,7 +291,7 @@ export async function listSessions(
   user: AuthenticatedUser,
   filters: ListFilters
 ) {
-  const where: Prisma.AttendanceSessionWhereInput = {
+  let where: Prisma.AttendanceSessionWhereInput = {
     institutionId,
     ...(filters.courseOfferingId
       ? { courseOfferingId: filters.courseOfferingId }
@@ -328,6 +329,12 @@ export async function listSessions(
     where.facultyId = user.id;
   } else {
     throw new AppError("Attendance history is not available for this role", 403);
+  }
+
+  const contextOfferingWhere = courseOfferingWorkspaceWhere(institutionId, filters);
+  if (contextOfferingWhere) {
+    // Intersect context with the role-derived offering/faculty boundary.
+    where = { AND: [where, { courseOffering: contextOfferingWhere }] };
   }
 
   const [items, total] = await Promise.all([
