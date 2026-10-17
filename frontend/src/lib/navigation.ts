@@ -1930,18 +1930,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/timetable",
-    [
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-      "HOD",
-      "FACULTY",
-      "STUDENT",
-      "PARENT",
-    ],
-  ],
+  ["/timetable", ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD", "FACULTY"]],
 
   [
     "/reports",
@@ -2143,17 +2132,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/academics",
-    [
-      "INSTITUTION_ADMIN",
-      "DEAN",
-      "REGISTRAR",
-      "HOD",
-      "FACULTY",
-      "STUDENT",
-    ],
-  ],
+  ["/academics", ["DEAN"]],
 
   ["/employees", ["HR"]],
 
