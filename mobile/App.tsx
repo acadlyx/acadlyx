@@ -5,13 +5,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { WorkspaceContextProvider } from "./src/workspace/WorkspaceContextProvider";
 import { colors } from "./src/ui/theme";
 
 function SessionCacheBoundary() {
   const { user } = useAuth();
   const client = useQueryClient();
   useEffect(() => { client.clear(); }, [client, user?.id]);
-  return <RootNavigator />;
+  return <WorkspaceContextProvider><RootNavigator /></WorkspaceContextProvider>;
 }
 
 export default function App() {
