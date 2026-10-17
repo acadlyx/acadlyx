@@ -120,6 +120,10 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(workspaceScope.includes('sections: ["campusId", "semesterId", "departmentId"]'));
   assert.ok(workspaceScope.includes('"course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"]'));
   assert.ok(workspaceScope.includes('students: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
+  assert.ok(workspaceScope.includes('assignments: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
+  assert.ok(workspaceScope.includes('"attendance-sessions": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
+  assert.ok(workspaceScope.includes('"internal-marks": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
+  assert.ok(workspaceScope.includes('"erp/timetable": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
   assert.ok(provider.includes("authorizationKey") && provider.includes("user.permissions"));
   assert.ok(provider.includes("mustWaitForValidatedContext"), "Do not render screens until the current saved scope is server-validated.");
   assert.ok(appSource.includes("await client.cancelQueries()"));
@@ -232,10 +236,18 @@ test("workspace query filters follow the new scope, remove stale selections, and
     departmentId: "department-a",
     programId: "program-a",
     academicYearId: "year-a",
+    batchId: "batch-a",
     semesterId: "semester-a",
     sectionId: "section-a"
   })) assert.equal(students.get(key), value);
-  assert.equal(students.get("batchId"), null, "Do not append a parameter the endpoint does not contractually accept.");
+
+  for (const endpoint of ["/assignments", "/attendance-sessions", "/internal-marks", "/erp/timetable"]) {
+    const params = new URLSearchParams(applyWorkspaceContext(endpoint, true).split("?")[1]);
+    assert.equal(params.get("campusId"), "campus-a", endpoint + " should follow campus context.");
+    assert.equal(params.get("programId"), "program-a", endpoint + " should follow programme context.");
+    assert.equal(params.get("batchId"), "batch-a", endpoint + " should follow batch context.");
+    assert.equal(params.get("sectionId"), "section-a", endpoint + " should follow section context.");
+  }
 
   const unsupported = "/finance/invoices?page=1&status=PENDING";
   assert.equal(applyWorkspaceContext(unsupported, true), unsupported, "Unknown endpoints must not receive guessed query parameters.");
