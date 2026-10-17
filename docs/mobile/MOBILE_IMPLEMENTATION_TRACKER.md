@@ -56,7 +56,7 @@ needed permission and all quick actions open existing native destinations.
 | Capability | Source / native location | State | Remaining work |
 |---|---|---|---|
 | Authentication, MFA, token refresh and logout | `/auth`; `AuthProvider.tsx`, `api/client.ts` | IMPLEMENTED_UNVERIFIED | Live expiry, refresh-race and device checks |
-| Authorized workspace/context | `/workspace/context`; `WorkspaceContextProvider.tsx` | IMPLEMENTED_UNVERIFIED | Isolation tests and live cross-scope verification |
+| Authorized workspace/context | `/workspace/context`; `WorkspaceContextProvider.tsx`; `workspaceContext.service.ts` | IMPLEMENTED_UNVERIFIED | Server-validates persisted selections; account/role changes clear cache and re-resolve effective role. Live cross-scope verification still required. |
 | Module inventory and generic read surfaces | `MODULES`, `ModuleScreen.tsx` | IN_PROGRESS | This is not workflow parity; module-specific actions remain |
 | Attendance, assignments, notices, timetable, library, calendar | Dedicated screen files in `mobile/src/screens` | IN_PROGRESS | Route matrix identifies remaining workflow actions and tests |
 | Parent, HR, admissions and student portals | Dedicated screen files | IN_PROGRESS | Live contract and complete lifecycle tests |
@@ -72,5 +72,7 @@ needed permission and all quick actions open existing native destinations.
 | `mobile: npm run typecheck` | PASS | 2026-10-17 |
 | `mobile: npm run doctor` | PASS — 21/21 Expo checks after adding `package-lock.json` | 2026-10-17 |
 | `mobile: npm audit --omit=dev --json` | 22 advisories — 15 high, 7 moderate, 0 critical; remediation requires a reviewed Expo/React Native compatibility update | 2026-10-17 |
+| `backend: workspace-context-role.contract.test.ts` | PASS — effective-role, campus/department and academic hierarchy guards | 2026-10-17 |
+| `backend: npm run typecheck` | PASS | 2026-10-17 |
 | Live authenticated API tests | NOT RUN | No authorized test account/API environment configured |
 | iOS / Android build | NOT RUN | No simulator/device or build credentials available |

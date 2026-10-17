@@ -11,7 +11,10 @@ import { colors } from "./src/ui/theme";
 function SessionCacheBoundary() {
   const { user } = useAuth();
   const client = useQueryClient();
-  useEffect(() => { client.clear(); }, [client, user?.id]);
+  const authorizationShape = (user?.roles || []).slice().sort().join(",") + ":" + (user?.permissions || []).slice().sort().join(",");
+  // A refreshed session may change a user's role or grants without changing
+  // their account id. Clear old records before rendering the new authority.
+  useEffect(() => { client.clear(); }, [authorizationShape, client, user?.id]);
   return <WorkspaceContextProvider><RootNavigator /></WorkspaceContextProvider>;
 }
 

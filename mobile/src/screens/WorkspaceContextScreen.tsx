@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../auth/AuthProvider";
 import { WorkspaceItem, useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 import { WorkspaceContextIds } from "../api/client";
@@ -11,10 +10,12 @@ type Dimension = { key: DimensionKey; label: string; items: WorkspaceItem[] };
 const DEFAULT_LABEL = "Institution / default scope";
 
 export function WorkspaceContextScreen() {
-  const { user } = useAuth();
   const { context, loading, saving, error, refresh, changeContext } = useWorkspaceContext();
   const [activeDimension, setActiveDimension] = useState<DimensionKey | null>(null);
-  const fixedStudentScope = user?.roles.includes("STUDENT") ?? false;
+  // `context.role` is server-derived using the canonical effective-role
+  // policy. A Faculty+Student account must not be locked to the secondary
+  // Student enrollment scope.
+  const fixedStudentScope = context?.role === "STUDENT";
 
   const dimensions = useMemo<Dimension[]>(() => context ? [
     { key: "campusId", label: "Campus", items: context.children.campuses || [] },

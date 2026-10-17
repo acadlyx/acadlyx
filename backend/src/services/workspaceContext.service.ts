@@ -6,10 +6,10 @@ import {
   getManagedDepartmentIds,
   getStaffDepartmentIds,
   getStudentDepartmentIds,
+  getEffectiveWorkspaceRole,
   isDirectorScoped,
   isInstitutionWide,
 } from "./accessScope.service";
-import { getCanonicalRoleNames } from "../config/rbac";
 
 export type WorkspaceContextInput = {
   campusId?: string;
@@ -26,23 +26,23 @@ async function allowedDepartmentIds(
   actor: AuthenticatedUser
 ): Promise<string[] | null> {
   if (isInstitutionWide(actor)) return null;
-  const roles = getCanonicalRoleNames(actor.roles);
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (isDirectorScoped(actor)) return getDirectorDepartmentIds(institutionId, actor.id);
-  if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
-  if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
+  if (activeRole === "DEAN" || activeRole === "HOD") return getManagedDepartmentIds(institutionId, actor.id);
+  if (activeRole === "FACULTY") return getStaffDepartmentIds(institutionId, actor.id);
+  if (activeRole === "STUDENT") return getStudentDepartmentIds(institutionId, actor.id);
   return [];
 }
 
-function workspaceBasePath(roles: string[]) {
-  if (roles.includes("HOD")) return "/hod";
-  if (roles.includes("FACULTY")) return "/faculty";
-  if (roles.includes("STUDENT")) return "/student";
-  if (roles.includes("INSTITUTION_ADMIN")) return "/admin";
-  if (roles.includes("REGISTRAR")) return "/registrar";
-  if (roles.includes("DEAN")) return "/dean";
-  if (roles.includes("DIRECTOR")) return "/director";
-  if (roles.includes("CHAIRMAN")) return "/chairman";
+function workspaceBasePath(activeRole: string) {
+  if (activeRole === "HOD") return "/hod";
+  if (activeRole === "FACULTY") return "/faculty";
+  if (activeRole === "STUDENT") return "/student";
+  if (activeRole === "INSTITUTION_ADMIN") return "/admin";
+  if (activeRole === "REGISTRAR") return "/registrar";
+  if (activeRole === "DEAN") return "/dean";
+  if (activeRole === "DIRECTOR") return "/director";
+  if (activeRole === "CHAIRMAN") return "/chairman";
   return "/dashboard";
 }
 
@@ -63,14 +63,14 @@ async function buildWorkspaceContext(
   input: WorkspaceContextInput = {}
 ) {
   const allowed = await allowedDepartmentIds(institutionId, actor);
-  const roles = getCanonicalRoleNames(actor.roles);
+  const activeRole = getEffectiveWorkspaceRole(actor);
   let campusId = input.campusId;
   let departmentId = input.departmentId;
 
   if (!departmentId && allowed?.length === 1) departmentId = allowed[0];
   if (departmentId) await assertDepartmentScope(institutionId, actor, departmentId);
 
-  if (roles.includes("STUDENT")) {
+  if (activeRole === "STUDENT") {
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: { institutionId, userId: actor.id, status: "ACTIVE" },
       orderBy: { enrolledAt: "desc" },
@@ -303,7 +303,7 @@ async function buildWorkspaceContext(
 
   const institution = await institutionPromise;
 
-  const basePath = workspaceBasePath(roles);
+  const basePath = workspaceBasePath(activeRole);
   const contextHref = (extra: Record<string, string | undefined> = {}) => {
     const params = new URLSearchParams();
     const values = { campusId: effectiveCampusId ?? undefined, departmentId, programId: input.programId, batchId: input.batchId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId, ...extra };
@@ -363,7 +363,7 @@ async function buildWorkspaceContext(
       name: institution?.name ?? "",
       logoUrl: institution?.logoUrl ?? null,
     },
-    role: roles[0] ?? "UNKNOWN",
+    role: activeRole,
     scope: {
       institutionId,
       campusId: effectiveCampusId,

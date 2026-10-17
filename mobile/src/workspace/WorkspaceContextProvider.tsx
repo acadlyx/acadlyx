@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import * as SecureStore from "expo-secure-store";
 import { apiRequest, setActiveWorkspaceContext, WorkspaceContextIds } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -52,6 +53,43 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Workspace context could not be loaded. Check your connection and try again.";
 }
 
+function workspaceStorageKey(userId: string, roles: string[]): string {
+  // Bind a remembered selector value to both the account and effective role
+  // inputs. A permission/role refresh can therefore never revive a previous
+  // workspace selection under a different authorization shape.
+  return "acadlyx_workspace_context_v1:" + userId + ":" + [...roles].sort().join(",");
+}
+
+async function readStoredScope(key: string): Promise<WorkspaceContextIds | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const scope: WorkspaceContextIds = {};
+    for (const dimension of DIMENSION_KEYS) {
+      const value = (parsed as Record<string, unknown>)[dimension];
+      if (typeof value === "string" && value.trim()) scope[dimension] = value;
+    }
+    return Object.keys(scope).length ? scope : null;
+  } catch {
+    return null;
+  }
+}
+
+async function storeScope(key: string, scope: WorkspaceContextIds): Promise<void> {
+  const serializable: WorkspaceContextIds = {};
+  for (const dimension of DIMENSION_KEYS) {
+    const value = scope[dimension];
+    if (typeof value === "string" && value.trim()) serializable[dimension] = value;
+  }
+  try { await SecureStore.setItemAsync(key, JSON.stringify(serializable)); } catch { /* Context remains valid for this session. */ }
+}
+
+async function clearStoredScope(key: string): Promise<void> {
+  try { await SecureStore.deleteItemAsync(key); } catch { /* Best-effort cleanup of an invalid remembered scope. */ }
+}
+
 type WorkspaceContextValue = {
   context: WorkspaceContextPayload | null;
   loading: boolean;
@@ -70,6 +108,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const authorizationKey = user ? workspaceStorageKey(user.id, user.roles) : null;
 
   const acceptContext = useCallback((next: WorkspaceContextPayload) => {
     setActiveWorkspaceContext(next.scope);
@@ -78,50 +117,68 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
   }, []);
 
   const refresh = useCallback(async () => {
-    if (status !== "authenticated" || !user?.id) return;
+    if (status !== "authenticated" || !user?.id || !authorizationKey) return;
     setLoading(true);
     setError(null);
     try {
       const next = await apiRequest<WorkspaceContextPayload>(contextPath(context?.scope));
       acceptContext(next);
+      await storeScope(authorizationKey, next.scope);
     } catch (issue) {
       setError(errorMessage(issue));
     } finally {
       setLoading(false);
     }
-  }, [acceptContext, context?.scope, status, user?.id]);
+  }, [acceptContext, authorizationKey, context?.scope, status, user?.id]);
 
   useEffect(() => {
     let active = true;
     setContext(null);
     setError(null);
     setActiveWorkspaceContext(null);
-    if (status !== "authenticated" || !user?.id) {
+    if (status !== "authenticated" || !user?.id || !authorizationKey) {
       setLoading(false);
       setSaving(false);
       return () => { active = false; };
     }
 
     setLoading(true);
-    apiRequest<WorkspaceContextPayload>("/workspace/context")
-      .then(async (next) => {
+    (async () => {
+      const remembered = await readStoredScope(authorizationKey);
+      if (!active) return;
+      try {
+        // Re-validate persisted client state every launch. It is only a
+        // convenience value, never a grant of access.
+        const next = await apiRequest<WorkspaceContextPayload>(contextPath(remembered));
         if (!active) return;
         acceptContext(next);
+        await storeScope(authorizationKey, next.scope);
         // Ensure any request that began before the initial context loaded is refreshed.
         await queryClient.invalidateQueries({ refetchType: "active" });
-      })
-      .catch((issue: unknown) => {
-        if (active) setError(errorMessage(issue));
-      })
-      .finally(() => {
+      } catch (issue) {
+        if (remembered) await clearStoredScope(authorizationKey);
+        if (!active) return;
+        try {
+          // A deleted or newly unauthorized saved item must not lock a user
+          // out of their default server-authorized workspace.
+          const fallback = await apiRequest<WorkspaceContextPayload>("/workspace/context");
+          if (!active) return;
+          acceptContext(fallback);
+          await storeScope(authorizationKey, fallback.scope);
+          await queryClient.invalidateQueries({ refetchType: "active" });
+        } catch (fallbackIssue) {
+          if (active) setError(errorMessage(remembered ? fallbackIssue : issue));
+        }
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    })();
 
     return () => { active = false; };
-  }, [acceptContext, queryClient, status, user?.id]);
+  }, [acceptContext, authorizationKey, queryClient, status, user?.id]);
 
   const changeContext = useCallback(async (patch: Partial<Record<DimensionKey, string | null>>) => {
-    if (!context || saving) return;
+    if (!context || saving || !authorizationKey) return;
     const requested: WorkspaceContextIds = { ...context.scope };
     for (const key of DIMENSION_KEYS) {
       if (Object.prototype.hasOwnProperty.call(patch, key)) requested[key] = patch[key] ?? null;
@@ -136,6 +193,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
       // prevents records fetched under the previous workspace from remaining on screen.
       await queryClient.cancelQueries();
       acceptContext(validated);
+      await storeScope(authorizationKey, validated.scope);
       await queryClient.resetQueries();
       await queryClient.invalidateQueries({ refetchType: "none" });
     } catch (issue) {
@@ -144,7 +202,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
     } finally {
       setSaving(false);
     }
-  }, [acceptContext, context, queryClient, saving]);
+  }, [acceptContext, authorizationKey, context, queryClient, saving]);
 
   const value = useMemo<WorkspaceContextValue>(() => ({
     context, loading, saving, error, refresh, changeContext

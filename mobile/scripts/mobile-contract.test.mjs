@@ -82,10 +82,15 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
     assert.ok(screen.includes(field), "Missing native selector dimension: " + field);
   }
   assert.match(screen, /case "semesterId":[\s\S]*?batchId: null/, "Changing semesters must clear a potentially incompatible batch.");
+  assert.ok(screen.includes('context?.role === "STUDENT"'), "Only a server-derived active Student workspace may lock context selection.");
   assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
   assert.ok(provider.includes("await queryClient.resetQueries()"));
   assert.ok(provider.includes("queryClient.invalidateQueries"));
   assert.ok(provider.includes("setActiveWorkspaceContext(next.scope)"));
+  assert.ok(provider.includes("expo-secure-store"), "Validated context must use secure device persistence.");
+  assert.ok(provider.includes("workspaceStorageKey"), "Persisted context must be isolated by account and roles.");
+  assert.ok(provider.includes("clearStoredScope"), "An invalid remembered context must be removed before fallback.");
+  assert.ok(provider.includes("/workspace/context\")"), "Invalid persisted context must fall back to the server default.");
   assert.ok(navigator.includes('name="WorkspaceContext" component={WorkspaceContextScreen}'));
   assert.ok(workspaceRoute.includes('req.query.campusId'));
   assert.ok(workspaceService.includes("Campus not found in your authorized institution scope"));
@@ -103,6 +108,13 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(client.includes('batches: ["programId"]'));
   assert.ok(client.includes('students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]'));
   assert.ok(client.includes('"course-offerings": ["semesterId", "sectionId", "departmentId"]'));
+});
+
+test("session cache is cleared when a current account's authorization shape changes", () => {
+  const app = read("App.tsx");
+  assert.ok(app.includes("authorizationShape"));
+  assert.ok(app.includes("user?.permissions"));
+  assert.match(app, /client\.clear\(\).*authorizationShape/s);
 });
 
 test("assignment lifecycle calls use real backend route patterns", () => {
