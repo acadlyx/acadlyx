@@ -34,12 +34,26 @@ function applyWorkspaceContext(path: string, enabled: boolean): string {
   if (!enabled || /^https?:\/\//i.test(path)) return path;
   const separator = path.indexOf("?");
   const pathname = separator >= 0 ? path.slice(0, separator) : path;
-  const route = pathname.replace(/^\/+/, "");
+  const route = pathname.replace(/^\/+/, "").replace(/\/+$/, "");
   if (route === "auth" || route.startsWith("auth/") ||
       route === "workspace/context" || route.startsWith("workspace/context/")) return path;
 
+  // Only propagate fields explicitly accepted by each strict list-query contract.
+  // This avoids breaking unrelated endpoints with Zod strict query validation.
+  const acceptedFields: Record<string, readonly (keyof WorkspaceContextIds)[]> = {
+    departments: ["campusId"],
+    programs: ["departmentId"],
+    semesters: ["programId", "departmentId", "academicYearId"],
+    sections: ["semesterId", "departmentId"],
+    "course-offerings": ["semesterId", "sectionId", "departmentId"]
+  };
+  const routeParts = route.split("/");
+  const listRoute = routeParts.length === 1 ? routeParts[0] : "";
+  const fields = acceptedFields[listRoute];
+  if (!fields) return path;
+
   const params = new URLSearchParams(separator >= 0 ? path.slice(separator + 1) : "");
-  for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+  for (const key of fields) {
     const value = activeWorkspaceContext[key];
     if (typeof value === "string" && value && !params.has(key)) params.set(key, value);
   }
@@ -162,7 +176,7 @@ async function performRequest<T>(path: string, options: ApiRequestOptions, mayRe
   }
   if (method !== "GET" && !headers.has("X-Idempotency-Key")) headers.set("X-Idempotency-Key", makeIdempotencyKey());
 
-  const requestPath = applyWorkspaceContext(path, auth);
+  const requestPath = applyWorkspaceContext(path, auth && method === "GET");
   const response = await fetchWithTimeout(
     API_BASE_URL + (requestPath.startsWith("/") ? requestPath : "/" + requestPath),
     { ...init, method, headers },
