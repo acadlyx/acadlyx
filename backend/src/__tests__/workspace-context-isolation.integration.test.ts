@@ -444,6 +444,65 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     assert.ok(offeringRows.length > 0 && offeringRows.every((row) => row.semesterId === semesterA1.id));
     assert.equal((await request("/course-offerings?semesterId=" + semesterA2.id, facultyToken)).status, 403);
 
+    const scopedPath = (pathname: string, context: Record<string, string>) => {
+      const params = new URLSearchParams({ page: "1", pageSize: "100", ...context });
+      return pathname + "?" + params.toString();
+    };
+    const workflowContextA1 = {
+      campusId: campusA1.id,
+      departmentId: departmentA1.id,
+      programId: programA1.id,
+      academicYearId: yearA1.id,
+      batchId: batchA1.id,
+      semesterId: semesterA1.id,
+      sectionId: sectionA1.id,
+    };
+    const workflowContextA2 = {
+      campusId: campusA2.id,
+      departmentId: departmentA2.id,
+      programId: programA2.id,
+      academicYearId: yearA2.id,
+      batchId: batchA2.id,
+      semesterId: semesterA2.id,
+      sectionId: sectionA2.id,
+    };
+    for (const [label, path] of [
+      ["assignments", "/assignments"],
+      ["attendance sessions", "/attendance-sessions"],
+      ["internal marks", "/internal-marks"],
+      ["timetable", "/erp/timetable"],
+    ] as const) {
+      const first = await request(scopedPath(path, workflowContextA1), roleUsers.CHAIRMAN.token);
+      assert.equal(first.status, 200, label + " A1 context rejected: " + JSON.stringify(first.body));
+      const second = await request(scopedPath(path, workflowContextA2), roleUsers.CHAIRMAN.token);
+      assert.equal(second.status, 200, label + " A2 context rejected: " + JSON.stringify(second.body));
+      const firstRows = first.body.data as Array<Record<string, unknown>>;
+      const secondRows = second.body.data as Array<Record<string, unknown>>;
+      assert.ok(firstRows.length > 0, label + " must return seeded A1 data under the A1 context.");
+      assert.ok(secondRows.length > 0, label + " must return seeded A2 data under the A2 context.");
+      const a1Ids = new Set(firstRows.map((row) => {
+        const offering = row.courseOffering as { id?: string } | undefined;
+        return typeof row.courseOfferingId === "string" ? row.courseOfferingId : offering?.id;
+      }));
+      const a2Ids = new Set(secondRows.map((row) => {
+        const offering = row.courseOffering as { id?: string } | undefined;
+        return typeof row.courseOfferingId === "string" ? row.courseOfferingId : offering?.id;
+      }));
+      assert.ok(a1Ids.has(offeringA1.id), label + " did not return the selected A1 offering.");
+      assert.ok(!a1Ids.has(offeringA2.id), label + " leaked an A2 offering into the A1 query.");
+      assert.ok(a2Ids.has(offeringA2.id), label + " did not return the selected A2 offering.");
+      assert.ok(!a2Ids.has(offeringA1.id), label + " leaked an A1 offering into the A2 query.");
+    }
+
+    for (const path of [
+      "/assignments?campusId=" + campusA2.id,
+      "/attendance-sessions?campusId=" + campusA2.id,
+      "/internal-marks?campusId=" + campusA2.id,
+      "/erp/timetable?campusId=" + campusA2.id,
+    ]) {
+      assert.equal((await request(path, facultyToken)).status, 403, "Faculty must not force another campus via " + path);
+    }
+
     const batches = await request("/batches?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id + "&programId=" + programA1.id, roleUsers.HOD.token);
     assert.equal(batches.status, 200, JSON.stringify(batches.body));
     const batchRows = batches.body.data as Array<{ id: string; programId: string }>;
