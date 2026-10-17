@@ -67,6 +67,30 @@ async function installAuthenticatedSession(page, role) {
       });
       return;
     }
+    if (path.endsWith("/library/loans/mine")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { items: [], activeCount: 0, outstandingFine: 0 },
+        }),
+      });
+      return;
+    }
+    if (path.endsWith("/library/books")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: [],
+          categories: [],
+          meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+        }),
+      });
+      return;
+    }
     if (path.endsWith("/placements/criteria-options")) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { campuses: [], departments: [], programs: [], batches: [], semesters: [], skills: [] } }) });
       return;
@@ -152,6 +176,8 @@ test("placement workspace routes load with scoped authenticated session", async 
 
 
 test("stale Student permissions do not redirect an authorized Library route before fresh /auth/me resolves", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.stack || error.message));
   const session = await installAuthenticatedSession(page, "STUDENT");
   await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
@@ -161,6 +187,7 @@ test("stale Student permissions do not redirect an authorized Library route befo
   // in-memory client cache is refreshed to the now-unprivileged state.
   await page.locator('a[href="/student/library"]').click();
   await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  expect(pageErrors, "Library page should not throw browser exceptions").toEqual([]);
   session.user.permissions = session.user.permissions.filter((permission) => !["library.read", "library.borrow"].includes(permission));
   session.user.tenantFeatures = session.user.tenantFeatures.filter((feature) => feature !== "library");
   await page.locator('a[href="/student/attendance"]').click();
@@ -190,6 +217,8 @@ test("stale Student permissions do not redirect an authorized Library route befo
 });
 
 test("temporary /auth/me failure fails closed and can recover through Retry verification", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.stack || error.message));
   const session = await installAuthenticatedSession(page, "STUDENT");
   await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
@@ -199,6 +228,7 @@ test("temporary /auth/me failure fails closed and can recover through Retry veri
   // retry, rather than redirecting the student or showing stale records.
   await page.locator('a[href="/student/library"]').click();
   await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  expect(pageErrors, "Library page should not throw browser exceptions").toEqual([]);
   await page.locator('a[href="/student/attendance"]').click();
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
