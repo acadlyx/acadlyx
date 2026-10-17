@@ -12,7 +12,7 @@ function normalizeRoleName(role: string): string {
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments|fee-approvals|fee-structures|fee-heads)(\/|$)/, "fees"],
   [/^\/parent\/children(\/|$)/, "parent_portal"],
-  [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student)\/students(\/|$)|^\/students(\/|$)/, "students"],
+  [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student|admissions|library|placements)\/students(\/|$)|^\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
   [/^\/(chairman|director|dean|registrar|admissions)\/(admissions|applications)(\/|$)|^\/applications(\/|$)|^\/admissions(\/|$)/, "admissions"],
   [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/examinations?(\/|$)/, "exams"],
@@ -63,13 +63,19 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
 ];
 
-export function tenantFeatureForPath(pathname: string): string | null {
+function tenantFeaturesForPath(pathname: string): string[] {
   const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
-  return TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1] ?? null;
+  return Array.from(
+    new Set(
+      TENANT_FEATURE_BY_ROUTE
+        .filter(([pattern]) => pattern.test(normalizedPath))
+        .map(([, feature]) => feature),
+    ),
+  );
 }
 
-function tenantFeatureForNavigation(item: NavigationItem): string | null {
-  return tenantFeatureForPath(item.href);
+function tenantFeaturesForNavigation(item: NavigationItem): string[] {
+  return tenantFeaturesForPath(item.href);
 }
 
 
@@ -2252,9 +2258,10 @@ export function getNavigationForRoles(
       item.permissions.length === 0 ||
       item.permissions.every((permission) => permissionSet.has(permission));
 
-    const feature = tenantFeatureForNavigation(item);
-    const featureAllowed =
-      !feature || tenantFeatures.includes(feature);
+    const requiredFeatures = tenantFeaturesForNavigation(item);
+    const featureAllowed = requiredFeatures.every((feature) =>
+      tenantFeatures.includes(feature),
+    );
 
     return roleAllowed && permissionAllowed && featureAllowed;
   });
@@ -2367,8 +2374,8 @@ export function canAccessRoute(
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
-  const tenantFeature = tenantFeatureForPath(normalizedPath);
-  if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
+  const requiredTenantFeatures = tenantFeaturesForPath(normalizedPath);
+  if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
 
   const matchingNamespace =
     NAMESPACE_OWNERS
