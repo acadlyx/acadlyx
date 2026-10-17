@@ -71,7 +71,7 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
   assert.ok(provider.includes("await queryClient.resetQueries()"));
   assert.ok(provider.includes("queryClient.invalidateQueries"));
-  assert.ok(provider.includes("setActiveWorkspaceContext(validated.scope)"));
+  assert.ok(provider.includes("setActiveWorkspaceContext(next.scope)"));
   assert.ok(navigator.includes('name="WorkspaceContext" component={WorkspaceContextScreen}'));
   assert.ok(workspaceRoute.includes('req.query.campusId'));
   assert.ok(workspaceService.includes("Campus not found in your authorized institution scope"));
