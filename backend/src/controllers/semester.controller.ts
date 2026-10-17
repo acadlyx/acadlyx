@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
-import { assertDepartmentInScope, assertProgramInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
+import { assertAcademicYearInScope, assertCampusInScope, assertDepartmentInScope, assertProgramInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as semesterService from "../services/semester.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -15,6 +15,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
+  const campusId = (req.query.campusId as string | undefined) || undefined;
   const programId = (req.query.programId as string | undefined) || undefined;
   const academicYearId =
     (req.query.academicYearId as string | undefined) || undefined;
@@ -22,11 +23,15 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+  if (campusId) await assertCampusInScope(institutionId, actor, campusId);
   if (departmentId) await assertDepartmentInScope(institutionId, actor, departmentId);
+  if (programId) await assertProgramInScope(institutionId, actor, programId);
+  if (academicYearId) await assertAcademicYearInScope(institutionId, actor, academicYearId);
 
   const { items, total } = await semesterService.listSemesters(institutionId, {
     ...pagination,
     search,
+    campusId,
     programId,
     departmentId,
     departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor),
