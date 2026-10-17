@@ -11,6 +11,7 @@ function normalizeRoleName(role: string): string {
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments|fee-approvals|fee-structures|fee-heads)(\/|$)/, "fees"],
+  [/^\/payments(\/|$)/, "fees"],
   [/^\/parent\/children(\/|$)/, "parent_portal"],
   [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student|admissions|library|placements)\/students(\/|$)|^\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
@@ -28,6 +29,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
   [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
   [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
+  [/^\/cms(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
@@ -38,6 +40,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/((student)\/)?library(\/|$)/, "library"],
   [/^\/((student)\/)?placements?(\/|$)/, "placements"],
   [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
+  [/^\/enrollment(\/|$)/, "admissions"],
   [/^\/(hr|employees|leave-management)(\/|$)|^\/(faculty|hod|director|dean|registrar)\/leave(\/|$)/, "hr"],
   [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
   [/^\/lms(\/|$)/, "lms"],
@@ -54,6 +57,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent)\/calendar(\/|$)|^\/calendar(\/|$)/, "calendar"],
   [/^\/admin\/imports(\/|$)|^\/imports(\/|$)|^\/exports(\/|$)/, "import_export"],
   [/^\/documents(\/|$)|^\/forms(\/|$)/, "documents"],
+  [/^\/forms(\/|$)/, "certificates"],
   [/^\/operations(\/|$)|^\/(chairman|director|dean|hod|management|it)\/operations(\/|$)/, "operations"],
   [/^\/analytics(\/|$)/, "analytics"],
   [/^\/promotions?(\/|$)|^\/student-promotion(\/|$)/, "promotions"],
@@ -1870,7 +1874,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/library/students", ["LIBRARIAN"]],
   ["/club", ["CLUB_PRESIDENT"]],
   ["/cms", ["SUPER_ADMIN", "CMS"]],
-  ["/enrollment", ["ADMISSIONS", "REGISTRAR", "CHAIRMAN", "DIRECTOR", "DEAN"]],
+  ["/enrollment", ["ADMISSIONS"]],
   ["/erp", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD", "STAFF", "FACULTY", "PARENT", "STUDENT"]],
   ["/faculty-management", ["HR"]],
   ["/forms", ["REGISTRAR", "STUDENT"]],
@@ -1884,7 +1888,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/profile", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
   ["/today", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
   ["/user-deletion-approvals", ["INSTITUTION_ADMIN"]],
-  ["/fees/receipts", ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS", "STUDENT", "PARENT"]],
+  ["/fees/receipts", ["ACCOUNTS"]],
   ["/fees/collections", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]],
 
   ["/admin/institutional-cms", ["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR"]],
@@ -1913,13 +1917,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/placements",
-    [
-      "PLACEMENT",
-      "STUDENT",
-    ],
-  ],
+  ["/placements", ["PLACEMENT"]],
 
   ["/it", ["IT"]],
   ["/staff", ["STAFF"]],
@@ -2048,16 +2046,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/admissions",
-    [
-      "ADMISSIONS",
-      "REGISTRAR",
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-    ],
-  ],
+  ["/admissions", ["ADMISSIONS"]],
 
   [
     "/applications",
@@ -2349,6 +2338,16 @@ function namespaceMatchesPath(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(prefix + "/");
 }
 
+const REDIRECT_ONLY_ROUTE_ROLES: Record<string, string[]> = {
+  "/club": ["CLUB_PRESIDENT"],
+  "/cms": ["SUPER_ADMIN", "CMS"],
+  "/enrollment": ["ADMISSIONS"],
+  "/forms": ["REGISTRAR", "STUDENT"],
+  "/institution-settings": ["INSTITUTION_ADMIN"],
+  "/payments": ["ACCOUNTS", "STUDENT", "PARENT"],
+  "/fees/receipts": ["ACCOUNTS"],
+};
+
 export function canAccessRoute(
   pathname: string,
   roles: string[],
@@ -2414,6 +2413,14 @@ export function canAccessRoute(
     .filter(([prefix]) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))
     .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
   if (requiredPermission && !permissionSet.has(requiredPermission)) return false;
+
+  // Explicit legacy aliases have no sidebar entry of their own. They may mount
+  // only their redirect for the declared owner, after role, tenant-feature and
+  // module-permission checks above. The destination is re-authorized separately.
+  const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath];
+  if (redirectOnlyRoles) {
+    return redirectOnlyRoles.some((role) => normalizeRoleName(role) === activeRole);
+  }
 
   // Placement pages are a single role-owned workspace. Deep routes such as
   // calendar, applications, interviews and offers must not be denied merely
