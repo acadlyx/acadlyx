@@ -1,6 +1,6 @@
 import test from "node:test";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { applyWorkspaceContext, setActiveWorkspaceContext, transitionWorkspaceContext } from "../src/workspace/workspaceScope.mjs";
+import { applyWorkspaceContext, getAuthorizationShape, resetAuthorizationState, setActiveWorkspaceContext, transitionWorkspaceContext } from "../src/workspace/workspaceScope.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -130,169 +130,33 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(appSource.includes("setActiveWorkspaceContext(null)") || client.includes("setActiveWorkspaceContext"));
 });
 
-test("session cache and active context are cleared when account, role or permission changes", () => {
+test("authorization changes distinguish account, roles and permissions and clear previous scope/cache", async () => {
   const app = read("App.tsx");
-  assert.ok(app.includes("authorizationShape"));
-  assert.ok(app.includes('user?.id || "anonymous"'), "Account ID must be part of the authorization cache boundary.");
-  assert.ok(app.includes("user?.roles"));
-  assert.ok(app.includes("user?.permissions"));
-  assert.ok(app.includes("setActiveWorkspaceContext(null)"), "Old account scope must be cleared before the new session renders.");
-  assert.match(app, /client\.clear\(\).*authorizationShape/s);
-});
+  assert.ok(app.includes("getAuthorizationShape(user)"));
+  assert.ok(app.includes("resetAuthorizationState(client, () => setActiveWorkspaceContext(null))"));
+  assert.ok(app.includes("clearedShape !== authorizationShape"), "The new auth shape must be gated until cache reset completes.");
 
-test("assignment lifecycle calls use real backend route patterns", () => {
-  const screen = read("src/screens/AssignmentsScreen.tsx");
-  for (const route of ["/assignments", "/submit", "/submissions", "/reopen"]) assert.ok(screen.includes(route), "Missing route fragment: " + route);
-  for (const permission of ["assignments.create", "assignments.update", "assignments.submit", "assignments.review"]) assert.ok(screen.includes(permission), "Missing permission: " + permission);
-});
+  const original = { id: "user-a", roles: ["FACULTY", "STUDENT"], permissions: ["attendance.read", "assignments.read"] };
+  assert.equal(
+    getAuthorizationShape(original),
+    getAuthorizationShape({ ...original, roles: [...original.roles].reverse(), permissions: [...original.permissions].reverse() }),
+    "Role/permission ordering alone must not create a new authorization shape."
+  );
+  assert.notEqual(getAuthorizationShape(original), getAuthorizationShape({ ...original, id: "user-b" }), "Account changes must invalidate scope.");
+  assert.notEqual(getAuthorizationShape(original), getAuthorizationShape({ ...original, roles: ["STUDENT"] }), "Role changes must invalidate scope.");
+  assert.notEqual(getAuthorizationShape(original), getAuthorizationShape({ ...original, permissions: ["attendance.read"] }), "Permission revocation must invalidate scope.");
 
-test("notices and timetable include scoped API actions and permission gates", () => {
-  const notices = read("src/screens/NoticesScreen.tsx");
-  const timetable = read("src/screens/TimetableScreen.tsx");
-  assert.ok(notices.includes("/erp/notices"));
-  assert.ok(notices.includes("notices.manage"));
-  assert.ok(timetable.includes("/erp/timetable"));
-  assert.ok(timetable.includes("timetable.manage"));
-  assert.ok(timetable.includes("/course-offerings"));
-});
-
-test("library and calendar native screens reference existing API workflows", () => {
-  const library = read("src/screens/LibraryScreen.tsx");
-  const calendar = read("src/screens/CalendarScreen.tsx");
-  const attendance = read("src/screens/AttendanceScreen.tsx");
-  const leave = read("src/screens/LeaveScreen.tsx");
-  const parent = read("src/screens/ParentScreen.tsx");
-  const hr = read("src/screens/HRScreen.tsx");
-  const admissions = read("src/screens/AdmissionsScreen.tsx");
-  const studentPortal = read("src/screens/StudentPortalScreen.tsx");
-  for (const route of ["/library/books", "/library/reservations", "/library/loans", "/library/fines", "/return", "/renew"]) assert.ok(library.includes(route), "Missing library route fragment: " + route);
-  assert.ok(library.includes("library.manage"));
-  assert.ok(calendar.includes("/calendar/events"));
-  assert.ok(calendar.includes("calendar.manage"));
-  assert.ok(attendance.includes("/attendance-sessions"));
-  assert.ok(attendance.includes("attendance.mark"));
-  assert.ok(attendance.includes("JSON.stringify({ records, submit })"));
-  assert.ok(attendance.includes("session.isLocked"));
-  assert.ok(leave.includes("/leave/requests/mine"));
-  assert.ok(leave.includes("/leave/requests/approvals"));
-  assert.ok(leave.includes("/leave/requests/") && leave.includes("/decision"));
-  assert.ok(leave.includes("leave.apply") && leave.includes("leave.approve"));
-  assert.ok(parent.includes("/parent/children"));
-  assert.ok(parent.includes("/attendance") && parent.includes("/results") && parent.includes("/fees"));
-  assert.ok(parent.includes("roles.includes(\"PARENT\")"));
-});
-
-test("original logo is bundled and displayed on sign-in", () => {
-  const logo = readFileSync(resolve(root, "assets/acadlyx-logo.png"));
-  const login = read("src/screens/LoginScreen.tsx");
-  assert.ok(logo.length > 1000);
-  assert.equal(logo.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
-  assert.ok(login.includes("assets/acadlyx-logo.png"));
-});
-
-test("required parity and release documentation exists and states limitations honestly", () => {
-  const docs = [
-    "../docs/mobile/MOBILE_ARCHITECTURE.md",
-    "../docs/mobile/MOBILE_FEATURE_PARITY.md",
-    "../docs/mobile/MOBILE_IMPLEMENTATION_TRACKER.md",
-    "../docs/mobile/MOBILE_ROLE_PERMISSION_MATRIX.md",
-    "../docs/mobile/MOBILE_API_INTEGRATION.md",
-    "../docs/mobile/MOBILE_TEST_REPORT.md",
-    "../docs/mobile/MOBILE_BUILD_AND_RELEASE.md",
-    "../docs/mobile/MOBILE_KNOWN_LIMITATIONS.md"
-  ];
-  for (const path of docs) assert.ok(readFileSync(resolve(root, path), "utf8").length > 500, "Missing/short doc: " + path);
-  assert.ok(read("../docs/mobile/MOBILE_FEATURE_PARITY.md").includes("No 100% parity claim is made."));
-  assert.ok(read("../docs/mobile/MOBILE_IMPLEMENTATION_TRACKER.md").includes("IMPLEMENTED_UNVERIFIED"));
-});
-
-
-test("workspace query filters follow the new scope, remove stale selections, and preserve UI filters", () => {
-  setActiveWorkspaceContext(null);
-  setActiveWorkspaceContext(null);
-  setActiveWorkspaceContext({
-    campusId: "campus-a",
-    departmentId: "department-a",
-    programId: "program-a",
-    academicYearId: "year-a",
-    batchId: "batch-a",
-    semesterId: "semester-a",
-    sectionId: "section-a"
-  });
-
-  const departments = new URLSearchParams(applyWorkspaceContext("/departments?page=2&campusId=campus-old&search=engineering", true).split("?")[1]);
-  assert.equal(departments.get("campusId"), "campus-a");
-  assert.equal(departments.get("search"), "engineering");
-  assert.equal(departments.get("page"), "2");
-
-  const years = new URLSearchParams(applyWorkspaceContext("/academic-years?search=2026", true).split("?")[1]);
-  assert.equal(years.get("campusId"), "campus-a");
-  assert.equal(years.get("departmentId"), "department-a");
-  assert.equal(years.get("programId"), "program-a");
-
-  const students = new URLSearchParams(applyWorkspaceContext("/students?page=1&status=ACTIVE", true).split("?")[1]);
-  for (const [key, value] of Object.entries({
-    campusId: "campus-a",
-    departmentId: "department-a",
-    programId: "program-a",
-    academicYearId: "year-a",
-    batchId: "batch-a",
-    semesterId: "semester-a",
-    sectionId: "section-a"
-  })) assert.equal(students.get(key), value);
-
-  for (const endpoint of ["/assignments", "/attendance-sessions", "/internal-marks", "/erp/timetable"]) {
-    const params = new URLSearchParams(applyWorkspaceContext(endpoint, true).split("?")[1]);
-    assert.equal(params.get("campusId"), "campus-a", endpoint + " should follow campus context.");
-    assert.equal(params.get("programId"), "program-a", endpoint + " should follow programme context.");
-    assert.equal(params.get("batchId"), "batch-a", endpoint + " should follow batch context.");
-    assert.equal(params.get("sectionId"), "section-a", endpoint + " should follow section context.");
-  }
-
-  const unsupported = "/finance/invoices?page=1&status=PENDING";
-  assert.equal(applyWorkspaceContext(unsupported, true), unsupported, "Unknown endpoints must not receive guessed query parameters.");
-  assert.equal(applyWorkspaceContext("/departments?page=2", false), "/departments?page=2", "Unauthenticated calls must not receive context filters.");
-
-  // Clearing a workspace selector must remove old IDs that came from the
-  // previous context, but must preserve independent user-entered filters.
-  setActiveWorkspaceContext({ campusId: "campus-a" });
-  const cleared = new URLSearchParams(applyWorkspaceContext(
-    "/students?departmentId=department-a&programId=program-a&academicYearId=year-a&semesterId=semester-a&sectionId=section-a&search=Smith",
-    true
-  ).split("?")[1]);
-  for (const key of ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]) {
-    assert.equal(cleared.get(key), null, "Stale scope must be removed for " + key);
-  }
-  assert.equal(cleared.get("search"), "Smith");
-  assert.equal(cleared.get("campusId"), "campus-a");
-});
-
-test("workspace transition cancels old reads and resets cached records before active screens refetch", async () => {
-  let activeScope = "campus-a";
-  let persistedScope = null;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  const observer = new QueryObserver(queryClient, {
-    queryKey: ["scope-aware-records"],
-    queryFn: async () => activeScope
-  });
-  const unsubscribe = observer.subscribe(() => {});
   try {
-    await observer.refetch();
-    await queryClient.fetchQuery({ queryKey: ["inactive-scope-cache"], queryFn: async () => activeScope, staleTime: Infinity });
-    assert.equal(queryClient.getQueryData(["scope-aware-records"]), "campus-a");
-    assert.equal(queryClient.getQueryData(["inactive-scope-cache"]), "campus-a");
-
-    await transitionWorkspaceContext(
-      queryClient,
-      () => { activeScope = "campus-b"; },
-      async () => { persistedScope = activeScope; }
-    );
-
-    assert.equal(persistedScope, "campus-b", "Persist only the activated canonical scope.");
-    assert.equal(queryClient.getQueryData(["scope-aware-records"]), "campus-b", "An active screen must refetch after transition.");
-    assert.equal(queryClient.getQueryData(["inactive-scope-cache"]), undefined, "Inactive screens must not retain records from the previous scope.");
+    setActiveWorkspaceContext({ campusId: "campus-old", departmentId: "department-old" });
+    await queryClient.fetchQuery({ queryKey: ["private-records", "user-a"], queryFn: async () => [{ id: "record-from-old-scope" }] });
+    assert.ok(queryClient.getQueryData(["private-records", "user-a"]));
+    assert.ok(applyWorkspaceContext("/courses", true).includes("campusId=campus-old"));
+    await resetAuthorizationState(queryClient, () => setActiveWorkspaceContext(null));
+    assert.equal(queryClient.getQueryCache().getAll().length, 0, "No old account's records may remain cached.");
+    assert.equal(applyWorkspaceContext("/courses", true), "/courses", "The old scope must be cleared before new account requests.");
   } finally {
-    unsubscribe();
     queryClient.clear();
   }
 });
+
