@@ -110,4 +110,27 @@ The latest completed CI run for `f8c3e580008941d3bee53c9130819893fdadb837` repor
 
 The follow-up patch fixes the canonical contract rather than faking permissions in tests: HOD receives `batches.read` only (not batch create/update/delete), and the integration fixture uses an empty JWT permission array so the real authentication path resolves role permissions. The Director legacy alias is allowed only for an effective Director and redirects to `/director`; the destination still passes the normal authorization boundary. The persistent shell now preserves the expected explicit titles for calendar, applications, offers, drives, openings and placement intelligence. The Director Playwright test now asserts the role-owned heading both before and after reload.
 
-These changes require fresh CI results. PostgreSQL-backed integration and Playwright outcomes are not yet claimed as passing; no physical Android/iOS device validation has been performed. The Expo/RN advisories remain an open review item: do not run broad major-version downgrades or report advisories fixed without a new audit against the committed lockfile.
+These changes have now been verified by the completed CI runs for this commit. Physical Android/iOS device validation remains outstanding, the full native ERP workflow parity tracker remains `IN_PROGRESS`, and the Expo dependency advisory described below remains an unresolved security review item.
+
+
+## Verified CI outcome — `288dcd602ec37a6f9c1dc40c1a1bd201c21f2039` (2026-10-17)
+
+All five required GitHub Actions workflows completed successfully on this commit:
+
+| Workflow | Result | Evidence |
+|---|---|---|
+| ACADLYX Native Mobile CI | PASS | [Run 39038769615](https://github.com/acadlyx/acadlyx/actions/runs/39038769615) — TypeScript, structural contracts, Expo Doctor, Android JS bundle export and iOS JS bundle export all succeeded |
+| ACADLYX Production Gate | PASS | [Run 39038769660](https://github.com/acadlyx/acadlyx/actions/runs/39038769660) — backend and frontend jobs succeeded |
+| Frontend build | PASS | [Run 39038769654](https://github.com/acadlyx/acadlyx/actions/runs/39038769654) — source validation, typecheck, lint and production build succeeded |
+| ACADLYX ERP verification | PASS | [Run 39038769597](https://github.com/acadlyx/acadlyx/actions/runs/39038769597) — backend and frontend jobs succeeded |
+| ACADLYX Production Quality | PASS | [Run 39038769606](https://github.com/acadlyx/acadlyx/actions/runs/39038769606) — backend typecheck/tests, browser smoke, frontend build, migration validation, 10k-student finance profile, backup/restore rehearsal and legacy refund compatibility all succeeded |
+
+The isolated PostgreSQL-backed test was enabled with `RUN_POSTGRES_INTEGRATION=1`; its real API suite finished with **236 passed, 0 failed, 0 skipped**. The HOD scoped `GET /api/v1/batches?...campusId=...&departmentId=...&programId=...` returned HTTP 200, and the same suite's cross-programme/cross-tenant denial assertions passed. The browser-smoke job ran **4 Playwright tests; 4 passed**. The previously failing Director legacy redirect/heading and Placement workflow titles therefore passed in this run.
+
+The Production Quality workflow's `Production deployment smoke checks` job was skipped because this was a pull-request run. No production deployment was run or requested. A passing CI suite does not equal physical-device or full functional-parity sign-off.
+
+### Remaining release limitations
+
+- **Android/iOS device verification: NOT RUN.** React Navigation tab-back history is covered by the native structural regression test and Android/iOS JS bundle exports passed, but no physical device/emulator was available to verify hardware Back, system gestures, modal/drawer behavior, or auth transitions end-to-end.
+- **Full ERP mobile parity: IN PROGRESS / IMPLEMENTED_UNVERIFIED by workflow.** The generic module surfaces and the dedicated screens documented in `MOBILE_FEATURE_PARITY.md` do not establish every create/edit/approval/import/export/offline/deep-link workflow as complete. Continue from the existing tracker; do not claim 100% parity.
+- **Dependency advisory: UNRESOLVED.** The committed `mobile/package-lock.json` is lockfile v3 with 510 package entries. It locks `node-forge@1.4.0` under the Expo CLI/code-signing dependency path (`@expo/cli@57.0.31` / `@expo/code-signing-certificates@0.0.6`); `node-forge` is required there at `^1.3.3`. The upstream advisory [GHSA-86w9-cpqp-85rv / CVE-2026-85393](https://github.com/advisories/GHSA-86w9-cpqp-85rv) reports versions through 1.4.0 as affected and lists no patched version as of this audit (2026-10-17). Do not claim this is fixed by successful builds or downgrade the Expo/RN stack blindly; monitor for a compatible upstream fix or a coordinated toolchain update. This environment did **not** run a fresh full `npm audit`, so the earlier documented count of 22 advisories is historical rather than a current scan result.
