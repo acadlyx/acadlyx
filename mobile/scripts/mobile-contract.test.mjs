@@ -118,7 +118,7 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(workspaceScope.includes('semesters: ["campusId", "programId", "departmentId", "academicYearId"]'));
   assert.ok(workspaceScope.includes('sections: ["campusId", "semesterId", "departmentId"]'));
   assert.ok(workspaceScope.includes('"course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"]'));
-  assert.ok(workspaceScope.includes('students: ["campusId", "departmentId", "programId", "academicYearId", "semesterId", "sectionId"]'));
+  assert.ok(workspaceScope.includes('students: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
   assert.ok(provider.includes("authorizationKey") && provider.includes("user.permissions"));
   assert.ok(provider.includes("mustWaitForValidatedContext"), "Do not render screens until the current saved scope is server-validated.");
   assert.ok(appSource.includes("await client.cancelQueries()"));
