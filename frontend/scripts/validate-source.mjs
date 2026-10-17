@@ -40,6 +40,10 @@ const dashboardFrameFile = path.join(root, "components", "dashboard", "UnifiedDa
 const dashboardFrameSource = fs.readFileSync(dashboardFrameFile, "utf8");
 const managementFeeApprovalsFile = path.join(root, "app", "management", "fee-approvals", "page.tsx");
 const managementFeeApprovalsSource = fs.readFileSync(managementFeeApprovalsFile, "utf8");
+const roleScopedStudentsFile = path.join(root, "components", "dashboard", "RoleScopedStudents.tsx");
+const roleScopedStudentsSource = fs.readFileSync(roleScopedStudentsFile, "utf8");
+const libraryStudentsPageFile = path.join(root, "app", "library", "students", "page.tsx");
+const libraryStudentsPageSource = fs.readFileSync(libraryStudentsPageFile, "utf8");
 const feeApprovalQueueFile = path.join(root, "components", "accounts", "FeeStructureApprovalQueue.tsx");
 const feeApprovalQueueSource = fs.readFileSync(feeApprovalQueueFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
@@ -125,6 +129,13 @@ if (
   !navigationSource.includes('["/admissions/students", ["ADMISSIONS"]') ||
   !navigationSource.includes('["/library/reports", ["LIBRARIAN"]') ||
   !navigationSource.includes('["/library/students", ["LIBRARIAN"]') ||
+  !navigationSource.includes('href: "/admissions/students"') ||
+  !navigationSource.includes('href: "/library/students"') ||
+  !navigationSource.includes('roles: ["ADMISSIONS"]') ||
+  !navigationSource.includes('roles: ["LIBRARIAN"]') ||
+  !roleScopedStudentsSource.includes("detailBasePath?: string | null;") ||
+  !roleScopedStudentsSource.includes("View student profile →") ||
+  !libraryStudentsPageSource.includes("detailBasePath={null}") ||
   !navigationSource.includes('["/lms/settings"') ||
   !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/profile"') ||
