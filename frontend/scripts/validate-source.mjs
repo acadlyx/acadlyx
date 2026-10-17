@@ -30,6 +30,8 @@ const parentChildrenFile = path.join(root, "app", "parent", "children", "page.ts
 const parentChildrenSource = fs.readFileSync(parentChildrenFile, "utf8");
 const dashboardIdsMatch = authoritySource.match(/export const DASHBOARD_IDS = \[([\s\S]*?)\] as const/);
 const shellSource = fs.readFileSync(shellFile, "utf8");
+const protectedBoundaryFile = path.join(root, "components", "auth", "ProtectedRouteBoundary.tsx");
+const protectedBoundarySource = fs.readFileSync(protectedBoundaryFile, "utf8");
 const adminNavigationFile = path.join(root, "lib", "adminNavigation.ts");
 const adminNavigationSource = fs.readFileSync(adminNavigationFile, "utf8");
 const dashboardTokensFile = path.join(root, "app", "acadlyx-dashboard-tokens.css");
@@ -113,6 +115,17 @@ if (
   !navigationSource.includes('["/profile"') ||
   !navigationSource.includes('["/my-work"')
 ) {
+  failures.push("src/lib/navigation.ts: unknown protected routes must fail closed and shared/legacy route families must declare explicit workspace owners");
+}
+if (
+  !navigationSource.includes("if (!matchingNamespace) {") ||
+  !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
+  !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
+  !navigationSource.includes('["/lms/settings"') ||
+  !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
+  !navigationSource.includes('["/profile"') ||
+  !navigationSource.includes('["/my-work"')
+) {
   failures.push("src/lib/navigation.ts: unknown protected routes must fail closed and each shared/legacy route family must declare explicit workspace owners");
 }
 if (
@@ -145,6 +158,32 @@ for (const file of walk(root)) {
   if (/^<<<<<<< |^=======$|^>>>>>>> /m.test(text)) {
     failures.push(`${path.relative(process.cwd(), file)}: unresolved merge conflict marker`);
   }
+}
+
+// Every non-public App Router page must have an explicit namespace owner.
+const namespaceOwnerStart = navigationSource.indexOf("const NAMESPACE_OWNERS:");
+const namespaceOwnerEnd = navigationSource.indexOf("\n];", namespaceOwnerStart);
+const namespaceOwnerSource = namespaceOwnerStart >= 0 && namespaceOwnerEnd > namespaceOwnerStart
+  ? navigationSource.slice(namespaceOwnerStart, namespaceOwnerEnd)
+  : "";
+const namespaceOwnerPrefixes = [...namespaceOwnerSource.matchAll(/\[\s*"([^"]+)"\s*,\s*\[/g)].map((match) => match[1]);
+const publicExactMatch = protectedBoundarySource.match(/const PUBLIC_EXACT_ROUTES = new Set\(\[([\s\S]*?)\]\);/);
+const publicExactRoutes = new Set([...(publicExactMatch?.[1] || "").matchAll(/"([^"]+)"/g)].map((match) => match[1]));
+const appRouteRoot = path.join(root, "app");
+const routePageFiles = walk(appRouteRoot).filter((file) => /^page\.(tsx|ts|jsx|js)$/.test(path.basename(file)));
+const uncoveredProtectedRoutes = routePageFiles.filter((file) => {
+  const relative = path.relative(appRouteRoot, file).split(path.sep).join("/");
+  const routePath = /^page\.(tsx|ts|jsx|js)$/.test(relative)
+    ? "/"
+    : "/" + relative.replace(/\/page\.(tsx|ts|jsx|js)$/, "");
+  if (publicExactRoutes.has(routePath)) return false;
+  return !namespaceOwnerPrefixes.some((prefix) => routePath === prefix || routePath.startsWith(prefix + "/"));
+});
+if (!publicExactMatch || uncoveredProtectedRoutes.length > 0) {
+  failures.push(
+    "App Router route ownership: " + uncoveredProtectedRoutes.length + " protected page(s) have no explicit namespace owner: " +
+    (uncoveredProtectedRoutes.map((file) => path.relative(root, file)).join(", ") || "public-route registry could not be parsed"),
+  );
 }
 
 if (failures.length) {
