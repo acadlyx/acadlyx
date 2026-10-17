@@ -1,51 +1,118 @@
-# ACADLYX Frontend UI/UX Execution Tracker
+# ACADLYX Frontend Ownership & UI/UX Remediation Tracker
 
 Last updated: 2026-10-18
 
-## Scope and protection
+## Mission and protection
 
-This tracker covers the existing web frontend only: UI consistency, responsive behavior, accessibility, navigation usability, and interaction quality. Work is confined to `frontend/` and frontend documentation. Do not modify backend authorization, APIs, database schema, migrations, infrastructure, the protected production baseline, `main`, or PR #77 status. No merge or deployment is authorized.
+This work repairs role/workspace ownership, navigation destination integrity, and shared visual consistency in the **existing web frontend**. The authorized implementation branch is `native-mobile-parity-2026-10-17`; `production-upgrade-2026-09-20` is inspected read-only. No merge, production commit, deployment, infrastructure change, backend permission change, database change, or API authorization change is authorized.
 
 - Repository: `acadlyx/acadlyx`
 - Authorized branch: `native-mobile-parity-2026-10-17`
-- Protected baseline: `production-upgrade-2026-09-20`
-- Local execution limitation: no writable repository checkout is mounted in this session. Remote changes were made through the connected GitHub repository integration. Local shell commands, package scripts, local browser execution, and screenshot inspection have therefore **not** been run; rely only on exact-head CI evidence for automated checks.
+- Last source checkpoint before this tracker edit: `8a2c751d88efe02ef6bbb8e8147500c4195ac918`
+- Production reference SHA: `2dc568ec4416a295028cf64eaa7ee659b9258d89`
+- PR #77 remains draft and must not be merged/deployed.
+- Environment limitation: no writable local checkout is mounted in this session. Changes were committed to the authorized remote branch through the GitHub repository integration. Local npm, typecheck, lint, browser sessions, and viewport screenshots were not run in this session.
 
-## Route progress counts
+## Current route inventory
 
-Counts are intentionally not guessed before the route inventory is enumerated from the actual App Router and role navigation:
+The recursive Git tree was fetched successfully (`truncated: false`) from both refs. A route here means a source file matching `frontend/src/app/**/page.{tsx,ts,jsx,js}`; this is a source inventory, not a claim that each route renders or works.
 
-| Measure | Current count |
-|---|---:|
-| Routes audited | 0 (inventory not yet enumerated) |
-| Routes implemented | 0 individual routes (checkpoint is shared-shell work) |
-| Routes browser-verified | 0 |
-| Routes pending audit/verification | Not yet quantifiable until inventory exists |
+| Measure | Authorized feature branch | Read-only production reference |
+|---|---:|---:|
+| App Router page files | 300 | 299 |
+| Pages under Management | 8 | 7 |
+| Pages individually browser-verified in this session | 0 | Not applicable |
+| Pages fully audited end-to-end (route, action, permission, data context, browser) | 0 | Not applicable |
 
-The counts above do not mean the whole frontend has been inspected or is complete. The shared foundation review started with `frontend/package.json`, `src/app/layout.tsx`, `src/app/globals.css`, `src/app/acadlyx-dashboard-tokens.css`, `src/app/acadlyx-contrast.css`, `src/app/acadlyx-responsive.css`, `src/app/acadlyx-modal-responsive.css`, `src/components/ui/AcadlyxDesignSystem.tsx`, `src/components/dashboard/DashboardShell.tsx`, `src/components/dashboard/UnifiedDashboardFrame.tsx`, `src/lib/navigation.ts`, and `scripts/validate-source.mjs`.
+The additional feature-branch page is `frontend/src/app/management/fee-approvals/page.tsx`. The two branches have the same page-file count in the other role directories enumerated for this checkpoint. A file count alone is not feature parity, and no route is marked browser-verified based on source inspection or build status.
 
-## Checkpoint FUI-001 — Shared dashboard brand consistency
+## Role → workspace → sidebar/route ownership matrix
 
-- Status: `IMPLEMENTED_UNVERIFIED` until exact-head CI passes; browser verification remains pending.
-- Confirmed defect: the global brand tokens are warm beige with a dark-green primary, but the shared dashboard navigation's active state, active shadow, sidebar, fallback brand mark, profile avatar, and profile shortcut used blue accents or a separate navy palette.
-- Implemented:
-  - Reconciled dashboard sidebar, hover, active, text, border, focus, and shadow tokens with the existing green/beige brand palette.
-  - Replaced blue utility accents in `UnifiedDashboardFrame.tsx` with existing semantic CSS variables for brand and focus styling.
-  - Added design-token source-contract assertions to `frontend/scripts/validate-source.mjs` so the active sidebar palette and shared-shell semantic colors are checked by the existing source-validation command.
-- Files changed:
-  - `frontend/src/app/acadlyx-dashboard-tokens.css`
-  - `frontend/src/components/dashboard/UnifiedDashboardFrame.tsx`
-  - `frontend/scripts/validate-source.mjs`
-- Code checkpoint: `afe9b343a81c57093c59cf25ce07afc68d20ce6d` (the tracker commit that follows this code checkpoint will have a newer SHA).
-- Source inspection performed: fetched the updated files from the authorized remote branch and checked the expected green tokens, absence of the prior blue active-state token/shadow, absence of the specified blue utility classes in the shared shell, and presence of the validation guards. This is a source-content check, **not** a run of `npm run validate:source`.
-- Local tests: not run; no writable checkout.
-- Exact-head CI, TypeScript, lint, build and browser status: pending final checkpoint verification.
-- Routes affected: the shared authenticated dashboard shell globally; no individual route behavior or authorization rule was changed.
-- Remaining work: confirm CI on the final exact SHA; exercise the changed shell in browsers at 320, 375, 390, 430, 768, 1024, 1280, 1440 and 1920 px; verify keyboard focus and reduced-motion behavior; build a definitive role-aware route inventory; count audited/implemented/browser-verified/pending routes separately.
+This is a **source-derived ownership map**, based on `authority.ts`, `navigation.ts`, `adminNavigation.ts`, existing route wrappers, and the role-owned route namespace checks. Sidebar items remain filtered by authenticated permissions and tenant entitlements; this matrix does not grant permissions. `getPrimaryRole` selects one effective workspace for multi-role accounts; it does not union every role's sidebar.
 
-## Next implementation queue
+| Role | Home/workspace | Primary owned menu/workflow areas | Required context/boundary to preserve |
+|---|---|---|---|
+| Super Admin | `/superadmin` | Platform overview, institutions, platform users, site CMS, platform placements, notices and notifications | Platform-level tasks only; do not reuse Accounts routes just because the role has a secondary fee permission |
+| Institution Admin | `/admin` | Institution overview, users, students, imports/exports, academic masters, campuses, notices, calendar, parent links, events/gallery, operations | Institution scope with granted permissions and tenant-feature entitlements; no automatic specialist/finance authority |
+| Chairman | `/chairman` | Institution oversight, fee structure drafts/oversight, academic oversight, collections, reports, intelligence, student oversight, notices/events | Institution-wide only where existing backend scope allows; preserve maker-checker workflow |
+| Management | `/management` | Management overview, operations, intelligence/reports, placement, notices/events, dedicated fee-approval queue | Institutional approval workflow only with fee read + approval permissions; creator must not approve their own draft |
+| Director | `/director` | Campus oversight, examinations, fee structures/approvals/collections, reports, students, admissions, OBE, notices/events | Campus-scoped where required; preserve live API scope enforcement |
+| Registrar | `/registrar` | Academic masters, students, admissions, certificates, course registration, student movement/promotion, reports, notices | Authorized institution/academic scope; do not grant campus-wide director access |
+| Dean | `/dean` | Academic oversight, exams/OBE, students/results, department fees, reports/intelligence, placement, notices | Assigned academic/department context; generic Notices destination now resolves to `/dean/notices` |
+| HOD | `/hod` | Students/faculty, attendance, timetable, enrollment/course-registration requests, exams/OBE, department fees, reports/intelligence, notices | Authorized department/programme/batch/section context; generic Notices destination now resolves to `/hod/notices` |
+| Faculty | `/faculty` | Assigned courses, students, attendance, assignments, exams, marks, OBE, leave/profile, notices | Teaching assignment and course-offering scope; no unrelated department-wide or finance actions |
+| Accounts | `/accounts` | Fee structures/heads, invoices, payments, receipts, dues, collections, concessions, refunds, transactions, audit/reports | Assigned financial scope and existing permissions; active/approved structures are required for assignment |
+| HR | `/hr` | Employees, leave management, reports, notices | HR permissions and assigned institution scope |
+| Admissions | `/admissions` | Applications, admissions/student workflow, reports, notices | Admissions permissions; avoid using general student routes to broaden the action surface |
+| Examination | `/examination` | Examination administration, admit-card templates, OBE, reports, notices | Exam-specific permissions and academic context |
+| Librarian | `/library` | Copies, circulation, fines, policies, library reports, authorized student lookup, notices | Library inventory/circulation scope; do not use unrelated Accounts routes for fines or charges |
+| Placement | `/placements` | Students, companies, drives, openings, applications, calendar, visits, interviews, tests, offers, reports | Placement workflow and candidate eligibility scope |
+| IT | `/it` | IT overview, operations, notices | IT/operations permissions; not a general institution admin |
+| CMS | `/site-content` | Website CMS, notices/notifications, events/gallery | CMS-specific permissions; not general tenant administration |
+| Student | `/student` | Personal academics, attendance, assignments, exams/results, fees, library, timetable, placement, profile/documents, notices | Own student identity/enrollment only; no cross-student records |
+| Parent | `/parent` | Linked children, child-specific attendance/results/fees/coursework/notices, parent notices/notifications | Only active backend-linked child records; every child/tab API remains independently authorized |
+| Club President | `/club-president` | Club workspace, notices/notifications, common events/gallery | Club-specific role and permissions |
+| Staff | `/staff` | Staff overview, operations, notices/notifications | Staff-specific role scope; dashboard identity now matches its existing home, label and navigation entry |
 
-1. Resolve exact-head CI for FUI-001 and repair any real regression without weakening validation.
-2. Inventory actual public/authentication and authenticated routes from the App Router and navigation configuration.
-3. Fix the next confirmed shared-shell issue, then progress through high-usage screens and route families with focused regression coverage.
-4. Do not mark a route browser-verified from a build or source-contract check alone.
+Intentionally shared routes such as LMS, Events & Gallery, notices, and notifications remain shared only where role/permission/tenant filtering allows them. A shared page wrapper is not, by itself, proof that two roles have identical authority.
+
+## Implemented checkpoints
+
+### FUI-001 — Shared dashboard visual identity
+
+**Status:** Implemented in source; latest exact-head CI/browser confirmation pending.
+
+- Reconciled sidebar background, hover, active state, focus and shadow with the existing green/beige semantic tokens.
+- Removed identified blue utility accents from the shared frame branding and profile controls.
+- Added source-contract checks to `frontend/scripts/validate-source.mjs`.
+- Files: `frontend/src/app/acadlyx-dashboard-tokens.css`, `frontend/src/components/dashboard/UnifiedDashboardFrame.tsx`, `frontend/scripts/validate-source.mjs`.
+
+### FUI-002 — Incorrect workspace ownership and duplicate destinations
+
+**Status:** Implemented in source; exact-head CI/browser confirmation pending.
+
+- Removed Institution Admin's `Fee Structures → /accounts/fee-structures` item from `INSTITUTION_ADMIN_NAV`. The route is owned by Accounts in the existing namespace registry; a link that the route guard redirects is misleading.
+- Restricted generic `Fee Structures` and `Fee Heads` navigation in `ROLE_NAVIGATION` to Accounts, removing the links from Super Admin and Management. This does not alter backend authorization or change access to the routes.
+- Added a dedicated Management route `/management/fee-approvals` and menu item, gated on `fees.structure.read` and `fees.structure.approve`. It reuses `FeeStructureApprovalQueue`; it does not expose Accounts-only invoice assignment actions.
+- Refactored Director's existing campus fee-approval page to reuse the same queue component while preserving its role-specific campus copy. The queue requires the effective role to match the current workspace and checks both fee-read and approval permission before showing the queue; APIs still enforce actual record scope and maker-checker.
+- Aligned the Director's sidebar entry to require both `fees.structure.read` and `fees.structure.approve`, matching the queue’s UI gating.
+- Mapped fee-approval/fee-structure aliases to the existing `fees` tenant entitlement; did not bypass tenant entitlements.
+- Fixed duplicate Dean/HOD Notices destinations by mapping generic `/notices` to their existing role-owned wrappers before final destination deduplication.
+- Added the Parent `Children → /parent/children` menu entry for the existing real linked-child page, tagged the route with the `parent_portal` tenant entitlement, and supplied `allowedRoles={["PARENT"]}` on the existing page. No mock student data or new backend endpoints were introduced.
+- Added `STAFF` to `DASHBOARD_IDS` to match the role's existing label, priority, home `/staff`, routes, and sidebar. This makes the dashboard identity helper recognize a role that the rest of the existing frontend already supports.
+- Added source guards for fee ownership, Management queue permissions, Director permission alignment, Dean/HOD duplicate resolution, Parent child-route ownership/entitlement, Staff dashboard identity, and the shell palette.
+- Main source files touched in this work: `frontend/src/lib/adminNavigation.ts`, `frontend/src/lib/navigation.ts`, `frontend/src/lib/authority.ts`, `frontend/src/components/dashboard/DashboardShell.tsx`, `frontend/src/components/accounts/FeeStructureApprovalQueue.tsx`, `frontend/src/app/management/fee-approvals/page.tsx`, `frontend/src/app/director/fee-approvals/page.tsx`, `frontend/src/app/parent/children/page.tsx`, and `frontend/scripts/validate-source.mjs`.
+
+### Confirmed source-content assertions
+
+The latest fetched branch source was inspected programmatically through the repository integration. These assertions returned true: the Admin menu no longer links to Accounts fee structures; Fee Structures/Fee Heads entries are Accounts-only; Management has a dedicated approval item/page and shared queue with required permission checks; the Parent Children entry is Parent-only and tagged with `parent_portal`; Dean/HOD notices overrides point to role-owned destinations; Staff appears in dashboard identity and workspace home; fee-route aliases enforce the existing `fees` feature; dashboard shell palette uses green semantic tokens.
+
+These were **source-content checks executed against the fetched text**, not execution of `npm run validate:source`, TypeScript, lint, build, or browser automation.
+
+## Verification and CI
+
+- A Frontend build on intermediate SHA `aed3fbc1bef946b45b8411c2bb0ad84d31587dda` **failed at `npm run validate:source`**, before TypeScript and build ran. Its log reported the finance ownership/Management approval source guard. At that intermediate point the Management page/component wiring was still being reconciled. Subsequent commits restored the shared queue, changed the Management and Director wrappers, tightened Director permission alignment, and updated the source guard; do not claim the intermediate run passed.
+- Latest code SHA before this tracker edit: `8a2c751d88efe02ef6bbb8e8147500c4195ac918`. The exact-head Frontend build, ERP verification, Production Quality, Production Gate, and Native Mobile CI results must be checked after this documentation commit produces its own SHA.
+- Exact-head TypeScript, lint, production build, route/browser tests: pending; no local command execution in this session.
+- Browser verification of the 300 individual route files and the prescribed 320–1920 px viewport set: 0 routes completed. The existing CI's Playwright jobs are separate evidence and must be checked by commit SHA.
+
+## Progress metrics (definition and current evidence)
+
+These are separated by what was actually inventoried versus tested; none means all workflows are production-ready.
+
+| Dimension | Progress to date | Measurement rule |
+|---|---|---|
+| Role/workspace identity | 21/21 supported role identities mapped to home and role-owned menu areas (100% for identity/home mapping) | Count labels, priority/dashboard IDs, home mappings and role navigation entries; action-level scope and route behavior still unverified |
+| Feature ownership remediation | 6 confirmed ownership/navigation defects addressed in this bounded pass | Count the Admin fee link, non-Accounts fee links, missing Management approval surface, duplicate Dean/HOD notice destinations, missing Parent Children entry/entitlement, and missing Staff dashboard identity. Not a percentage of all possible defects |
+| Navigation source consistency | Key targeted assertions present; exact-head test pending | Existing source-contract assertions target the specific changed invariants; full sidebar/API permission coverage is not claimed |
+| Visual consistency | 1 shared-shell palette defect corrected in source | Only the identified shared dashboard brand mismatch; page-by-page visual audit remains incomplete |
+| Responsive/accessibility | 0/300 routes browser-verified (0%) | Requires actual viewport/browser and keyboard/reduced-motion evidence |
+| Regression verification | Latest exact-head CI pending | Passing source inspection is not counted as a test run; report each CI workflow and SHA separately |
+
+## Next actions
+
+1. Check CI results on the newest exact branch HEAD, fix any source-guard/type/lint/build failure, and do not weaken the guards to manufacture a pass.
+2. Add role/navigation browser assertions for Management fee approvals, Parent Children, Dean/HOD Notices, and absence of Accounts fee management in the Institution Admin menu where the existing test fixtures support those roles.
+3. Continue reviewing the remaining route inventory by role and verify action-level ownership and scope, rather than bulk-rewriting pages.
+4. Exercise the shared shell at 320, 375, 390, 430, 768, 1024, 1280, 1440 and 1920 px; verify keyboard focus, dialog/drawer dismissal, refresh/back/forward, and reduced-motion.
+5. Keep counts of source-inventoried, source-reviewed, implemented, and browser-verified routes separate.
