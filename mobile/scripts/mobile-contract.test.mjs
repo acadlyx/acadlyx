@@ -68,6 +68,7 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   for (const field of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) {
     assert.ok(screen.includes(field), "Missing native selector dimension: " + field);
   }
+  assert.match(screen, /case "semesterId":[\s\S]*?batchId: null/, "Changing semesters must clear a potentially incompatible batch.");
   assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
   assert.ok(provider.includes("await queryClient.resetQueries()"));
   assert.ok(provider.includes("queryClient.invalidateQueries"));
