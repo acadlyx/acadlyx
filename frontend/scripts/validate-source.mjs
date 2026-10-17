@@ -59,11 +59,14 @@ if (
 }
 const feeStructureNavigation = navigationSource.match(/\{\s*label: "Fee Structures",\s*href: "\/accounts\/fee-structures",[\s\S]*?\n\s*\},/);
 const feeHeadsNavigation = navigationSource.match(/\{\s*label: "Fee Heads",\s*href: "\/accounts\/fee-heads",[\s\S]*?\n\s*\},/);
+const directorFeeApprovalNavigation = navigationSource.match(/\{\s*label: "Fee approvals",\s*href: "\/director\/fee-approvals",[\s\S]*?\n\s*\},/);
 if (
   !feeStructureNavigation ||
   !/roles:\s*\["ACCOUNTS"\]/.test(feeStructureNavigation[0]) ||
   !feeHeadsNavigation ||
   !/roles:\s*\["ACCOUNTS"\]/.test(feeHeadsNavigation[0]) ||
+  !directorFeeApprovalNavigation ||
+  !/permissions:\s*\["fees.structure.read",\s*"fees.structure.approve"\]/.test(directorFeeApprovalNavigation[0]) ||
   !navigationSource.includes('label: "Fee structure approvals"') ||
   !navigationSource.includes('href: "/management/fee-approvals"') ||
   !managementFeeApprovalsSource.includes('FeeStructureApprovalQueue') ||
