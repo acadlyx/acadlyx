@@ -41,7 +41,7 @@ export function applyWorkspaceContext(path, enabled) {
     semesters: ["campusId", "programId", "departmentId", "academicYearId"],
     sections: ["campusId", "semesterId", "departmentId"],
     "course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"],
-    students: ["campusId", "departmentId", "programId", "academicYearId", "semesterId", "sectionId"]
+    students: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]
   };
   const routeParts = route.split("/");
   const fields = routeParts.length === 1 ? acceptedFields[routeParts[0]] : undefined;
