@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { setActiveWorkspaceContext } from "./src/api/client";
 import { WorkspaceContextProvider } from "./src/workspace/WorkspaceContextProvider";
 import { colors } from "./src/ui/theme";
 
@@ -24,6 +25,9 @@ function SessionCacheBoundary() {
     setClearedShape(null);
     void (async () => {
       await client.cancelQueries();
+      // Reset the module-level query filter together with cached records. A new
+      // account must never issue requests with the previous account's scope.
+      setActiveWorkspaceContext(null);
       client.clear();
       if (active) setClearedShape(authorizationShape);
     })();
