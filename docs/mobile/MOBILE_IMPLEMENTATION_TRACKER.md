@@ -1,7 +1,7 @@
 # ACADLYX native mobile implementation tracker
 
 Last audited on the authorized branch `native-mobile-parity-2026-10-17` at
-`ad43c6ff6a97af9f9a6f3f89a24d6ec3a321b47e`.
+`37d17cba2d39efe2938cb9478664f4f72de68c22`.
 
 This is the persistent implementation tracker. The route-by-route source,
 native locations, workflow gaps, and backend dependencies are maintained in
@@ -65,16 +65,24 @@ needed permission and all quick actions open existing native destinations.
 | Native build/device verification | Expo configuration | BLOCKED | No simulator/device or build service evidence has been supplied in this environment |
 | Dependency security remediation | `mobile/package-lock.json` | BLOCKED | `npm audit --omit=dev --json` reports 22 upstream advisories (15 high, 7 moderate). `npm audit fix --dry-run` proposes incompatible major downgrades to Expo 44 / React Native 0.72 while this app is Expo 57 / React Native 0.86; affected paths include Expo CLI → code-signing/Metro and React Native → community CLI/Metro. A reviewed supported-SDK upgrade is required. |
 
+## Current follow-up status (2026-10-17)
+
+- Backend unused fixture binding fixed in commit `2215622402a42c06ee87278b6a4012e806954ac8`.
+- Stale mobile cache-boundary assertion fixed in commit `394aa89384aec6eeff8811ff1b673efb29accc9e`; Native Mobile CI passed typecheck, all 16 structural tests, Expo Doctor (21/21), Android JS bundle export and iOS JS bundle export on that commit.
+- Backend integration test fixture permission corrected in commit `37d17cba2d39efe2938cb9478664f4f72de68c22`; the rerun is pending.
+- Back navigation root cause has not been reproduced in a live Android runtime. `RootNavigator.tsx` uses a native stack with normal React Navigation history and no custom `BackHandler`; do not mark Back as fixed until a device/emulator reproduction and regression test exist.
+- Full ERP workflow parity remains incomplete. Role dashboards and generic read-only module surfaces are not evidence of complete create/edit/approval/import/export workflows.
+
 ## Verification log
 
 | Check | Result | Date |
 |---|---|---|
-| `mobile: npm test` | PASS — 13 tests on earlier head; Priority 1 context-transition tests added and latest run pending | 2026-10-17 |
+| `mobile: npm test` | PASS — 16/16 structural tests on commit `394aa893`; no Android hardware Back/device test performed | 2026-10-17 |
 | `mobile: npm run typecheck` | PASS | 2026-10-17 |
 | `mobile: npm run doctor` | PASS — 21/21 Expo checks after adding `package-lock.json` | 2026-10-17 |
 | `mobile: npm audit --omit=dev --json` | 22 advisories — 15 high, 7 moderate, 0 critical; remediation requires a reviewed Expo/React Native compatibility update | 2026-10-17 |
 | `backend: workspace-context-role.contract.test.ts` | PASS on earlier head — source contract for effective-role and hierarchy guards | 2026-10-17 |
-| `backend: workspace-context-isolation.integration.test.ts` | ADDED; latest CI pending — real Express API + disposable PostgreSQL; all 20 roles, multi-role priority, seven context dimensions, revocation, deleted/foreign IDs, direct unauthorized list calls, tenant/student isolation | 2026-10-17 |
+| `backend: workspace-context-isolation.integration.test.ts` | Real Express API + disposable PostgreSQL suite runs, but latest run failed at the HOD `/batches` read fixture because its signed test token lacked `batches.read`; fixture now grants only that permission through a test role-permission row and includes it in the HOD token. Latest CI rerun pending. | 2026-10-17 |
 | `backend: npm run typecheck` | PASS on earlier head; latest Priority 1 service/controller/test changes pending CI | 2026-10-17 |
 | Production live API smoke tests | NOT RUN | No production records or production credentials were used. The new API suite runs only against isolated CI PostgreSQL; its latest result is pending. |
 | iOS / Android build | NOT RUN | No simulator/device or build credentials available |
