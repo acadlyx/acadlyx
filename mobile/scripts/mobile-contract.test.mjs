@@ -27,6 +27,12 @@ test("session tokens use SecureStore and no privileged database secret is bundle
   assert.ok(!/service_role|postgresql:\/\/|SUPABASE_SERVICE_ROLE_KEY/i.test(client));
 });
 
+test("navigator source contains real line breaks between JSX elements", () => {
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  assert.ok(!navigator.includes("\\n          <Stack.Screen"), "Navigator must not contain literal escaped newline text before JSX.");
+  assert.ok(navigator.includes("\n          <Stack.Screen"), "Navigator stack screens should be separate source lines.");
+});
+
 test("native identity and platform commands are configured", () => {
   assert.equal(app.expo.name, "ACADLYX");
   assert.equal(app.expo.scheme, "acadlyx");
