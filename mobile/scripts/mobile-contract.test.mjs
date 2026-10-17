@@ -126,10 +126,13 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(appSource.includes("setActiveWorkspaceContext(null)") || client.includes("setActiveWorkspaceContext"));
 });
 
-test("session cache is cleared when a current account's authorization shape changes", () => {
+test("session cache and active context are cleared when account, role or permission changes", () => {
   const app = read("App.tsx");
   assert.ok(app.includes("authorizationShape"));
+  assert.ok(app.includes('user?.id || "anonymous"'), "Account ID must be part of the authorization cache boundary.");
+  assert.ok(app.includes("user?.roles"));
   assert.ok(app.includes("user?.permissions"));
+  assert.ok(app.includes("setActiveWorkspaceContext(null)"), "Old account scope must be cleared before the new session renders.");
   assert.match(app, /client\.clear\(\).*authorizationShape/s);
 });
 
