@@ -64,6 +64,10 @@ async function buildWorkspaceContext(
 ) {
   const allowed = await allowedDepartmentIds(institutionId, actor);
   const activeRole = getEffectiveWorkspaceRole(actor);
+  // Preserve the user's request separately from the canonical values we later
+  // derive. In particular, a Student request must not silently ignore an
+  // attempted switch to a foreign/deleted campus or another enrollment.
+  const requestedSelection = { ...input };
   let campusId = input.campusId;
   let departmentId = input.departmentId;
 
@@ -85,6 +89,9 @@ async function buildWorkspaceContext(
     });
 
     if (!enrollment) {
+      if (Object.values(requestedSelection).some((value) => typeof value === "string" && value.trim())) {
+        throw new AppError("No active enrollment authorizes the requested academic context", 403);
+      }
       return {
         role: "STUDENT",
         scope: {
@@ -102,17 +109,24 @@ async function buildWorkspaceContext(
       };
     }
 
-    departmentId = enrollment.program.departmentId;
-    campusId = enrollment.program.department.campusId ?? undefined;
-    input = {
-      campusId,
-      departmentId,
+    const canonicalSelection: WorkspaceContextInput = {
+      campusId: enrollment.program.department.campusId ?? undefined,
+      departmentId: enrollment.program.departmentId,
       programId: enrollment.programId,
       academicYearId: enrollment.academicYearId,
       semesterId: enrollment.semesterId ?? undefined,
       sectionId: enrollment.sectionId ?? undefined,
       batchId: enrollment.batchId ?? undefined,
     };
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+      const requested = requestedSelection[key];
+      if (typeof requested === "string" && requested.trim() && requested !== canonicalSelection[key]) {
+        throw new AppError("Selected academic context is outside the student's active enrollment", 403);
+      }
+    }
+    departmentId = canonicalSelection.departmentId;
+    campusId = canonicalSelection.campusId;
+    input = canonicalSelection;
   }
 
   const campuses = await prisma.campus.findMany({
