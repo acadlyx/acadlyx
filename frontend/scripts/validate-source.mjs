@@ -50,13 +50,13 @@ if (
 ) {
   failures.push("src/lib/adminNavigation.ts: the Accounts-owned fee-structure route must not be exposed in the Institution Admin menu; retain it in Accounts navigation");
 }
-const feeStructureNavigation = navigationSource.match(/\\{\\s*label: "Fee Structures",\\s*href: "\\/accounts\\/fee-structures",[\\s\\S]*?\\n\\s*\\},/);
-const feeHeadsNavigation = navigationSource.match(/\\{\\s*label: "Fee Heads",\\s*href: "\\/accounts\\/fee-heads",[\\s\\S]*?\\n\\s*\\},/);
+const feeStructureNavigation = navigationSource.match(/\{\s*label: "Fee Structures",\s*href: "\/accounts\/fee-structures",[\s\S]*?\n\s*\},/);
+const feeHeadsNavigation = navigationSource.match(/\{\s*label: "Fee Heads",\s*href: "\/accounts\/fee-heads",[\s\S]*?\n\s*\},/);
 if (
   !feeStructureNavigation ||
-  !/roles:\\s*\\["ACCOUNTS"\\]/.test(feeStructureNavigation[0]) ||
+  !/roles:\s*\["ACCOUNTS"\]/.test(feeStructureNavigation[0]) ||
   !feeHeadsNavigation ||
-  !/roles:\\s*\\["ACCOUNTS"\\]/.test(feeHeadsNavigation[0]) ||
+  !/roles:\s*\["ACCOUNTS"\]/.test(feeHeadsNavigation[0]) ||
   !navigationSource.includes('label: "Fee structure approvals"') ||
   !navigationSource.includes('href: "/management/fee-approvals"') ||
   !managementFeeApprovalsSource.includes('allowedRoles={["MANAGEMENT"]}') ||
@@ -65,8 +65,8 @@ if (
   failures.push("src/lib/navigation.ts: Accounts fee tools must remain Accounts-owned and Management approvals must use a Management-owned route");
 }
 if (
-  !/DEAN:\\s*\\{[^}]*"\\/notices": "\\/dean\\/notices"/.test(shellSource) ||
-  !/HOD:\\s*\\{[^}]*"\\/notices": "\\/hod\\/notices"/.test(shellSource) ||
+  !/DEAN:\s*\{[^}]*"\/notices": "\/dean\/notices"/.test(shellSource) ||
+  !/HOD:\s*\{[^}]*"\/notices": "\/hod\/notices"/.test(shellSource) ||
   !shellSource.includes("uniqueDestinations.has(destination)")
 ) {
   failures.push("src/components/dashboard/DashboardShell.tsx: Dean/HOD shared-notice links must resolve to one workspace-owned destination");
