@@ -8,6 +8,7 @@ import {
   assertProgramInScope,
   assertSectionInScope,
   assertSemesterInScope,
+  getEffectiveWorkspaceRole,
 } from "../services/accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 
@@ -102,6 +103,40 @@ export async function assertWorkspaceContextFilters(
   if (filters.semesterId && !semester) throw new AppError("Selected semester is not available in this institution", 404);
   if (filters.sectionId && !section) throw new AppError("Selected section is not available in this institution", 404);
   if (filters.batchId && !batch) throw new AppError("Selected batch is not available in this institution", 404);
+
+  if (getEffectiveWorkspaceRole(actor) === "STUDENT") {
+    const enrollment = await prisma.studentEnrollment.findFirst({
+      where: { institutionId, userId: actor.id, status: "ACTIVE" },
+      orderBy: { enrolledAt: "desc" },
+      select: {
+        programId: true,
+        academicYearId: true,
+        batchId: true,
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true, department: { select: { campusId: true } } } },
+      },
+    });
+    if (!enrollment) {
+      throw new AppError("No active enrollment authorizes this academic context", 403);
+    }
+    const enrollmentScope: WorkspaceContextFilterInput = {
+      campusId: enrollment.program.department.campusId ?? undefined,
+      departmentId: enrollment.program.departmentId,
+      programId: enrollment.programId,
+      academicYearId: enrollment.academicYearId,
+      batchId: enrollment.batchId ?? undefined,
+      semesterId: enrollment.semesterId ?? undefined,
+      sectionId: enrollment.sectionId ?? undefined,
+    };
+    for (const key of CONTEXT_KEYS) {
+      const requested = filters[key];
+      if (requested && requested !== enrollmentScope[key]) {
+        throw new AppError("Selected academic context is outside the student's active enrollment", 403);
+      }
+    }
+    return;
+  }
 
   if (filters.campusId) await assertCampusInScope(institutionId, actor, filters.campusId);
   if (filters.departmentId) await assertDepartmentInScope(institutionId, actor, filters.departmentId);
