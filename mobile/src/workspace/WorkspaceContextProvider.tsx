@@ -1,7 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
 import { apiRequest, setActiveWorkspaceContext, WorkspaceContextIds } from "../api/client";
+import { transitionWorkspaceContext } from "./workspaceScope.mjs";
+import { colors, spacing } from "../ui/theme";
 import { useAuth } from "../auth/AuthProvider";
 
 export type WorkspaceItem = {
@@ -53,11 +56,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Workspace context could not be loaded. Check your connection and try again.";
 }
 
-function workspaceStorageKey(userId: string, roles: string[]): string {
+function workspaceStorageKey(userId: string, roles: string[], permissions: string[]): string {
   // Bind a remembered selector value to both the account and effective role
   // inputs. A permission/role refresh can therefore never revive a previous
   // workspace selection under a different authorization shape.
-  return "acadlyx_workspace_context_v1:" + userId + ":" + [...roles].sort().join(",");
+  return "acadlyx_workspace_context_v2:" + userId + ":" + [...roles].sort().join(",") + ":" + [...permissions].sort().join(",");
 }
 
 async function readStoredScope(key: string): Promise<WorkspaceContextIds | null> {
@@ -108,7 +111,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const authorizationKey = user ? workspaceStorageKey(user.id, user.roles) : null;
+  const authorizationKey = user ? workspaceStorageKey(user.id, user.roles, user.permissions) : null;
 
   const acceptContext = useCallback((next: WorkspaceContextPayload) => {
     setActiveWorkspaceContext(next.scope);
@@ -122,10 +125,25 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
     setError(null);
     try {
       const next = await apiRequest<WorkspaceContextPayload>(contextPath(context?.scope));
-      acceptContext(next);
-      await storeScope(authorizationKey, next.scope);
+      await transitionWorkspaceContext(
+        queryClient,
+        () => acceptContext(next),
+        () => storeScope(authorizationKey, next.scope)
+      );
     } catch (issue) {
-      setError(errorMessage(issue));
+      try {
+        // A currently selected campus/department may have been revoked since
+        // the last load. Fall back to the server-authorized default rather than
+        // keeping the revoked selection active in memory.
+        const fallback = await apiRequest<WorkspaceContextPayload>("/workspace/context");
+        await transitionWorkspaceContext(
+          queryClient,
+          () => acceptContext(fallback),
+          () => storeScope(authorizationKey, fallback.scope)
+        );
+      } catch (fallbackIssue) {
+        setError(errorMessage(fallbackIssue || issue));
+      }
     } finally {
       setLoading(false);
     }
@@ -141,6 +159,14 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
       setSaving(false);
       return () => { active = false; };
     }
+    // SUPER_ADMIN is a platform-level account without tenant identity. The
+    // current workspace-context contract is intentionally tenant-scoped; do
+    // not retry it as though this were a tenant session.
+    if (user.roles.includes("SUPER_ADMIN")) {
+      setLoading(false);
+      setSaving(false);
+      return () => { active = false; };
+    }
 
     setLoading(true);
     (async () => {
@@ -151,10 +177,12 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
         // convenience value, never a grant of access.
         const next = await apiRequest<WorkspaceContextPayload>(contextPath(remembered));
         if (!active) return;
-        acceptContext(next);
-        await storeScope(authorizationKey, next.scope);
-        // Ensure any request that began before the initial context loaded is refreshed.
-        await queryClient.invalidateQueries({ refetchType: "active" });
+        await transitionWorkspaceContext(
+          queryClient,
+          () => acceptContext(next),
+          () => storeScope(authorizationKey, next.scope)
+        );
+        if (!active) return;
       } catch (issue) {
         if (remembered) await clearStoredScope(authorizationKey);
         if (!active) return;
@@ -163,9 +191,12 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
           // out of their default server-authorized workspace.
           const fallback = await apiRequest<WorkspaceContextPayload>("/workspace/context");
           if (!active) return;
-          acceptContext(fallback);
-          await storeScope(authorizationKey, fallback.scope);
-          await queryClient.invalidateQueries({ refetchType: "active" });
+          await transitionWorkspaceContext(
+            queryClient,
+            () => acceptContext(fallback),
+            () => storeScope(authorizationKey, fallback.scope)
+          );
+          if (!active) return;
         } catch (fallbackIssue) {
           if (active) setError(errorMessage(remembered ? fallbackIssue : issue));
         }
@@ -189,13 +220,15 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
     try {
       // The server validates every supplied identifier and returns the canonical context.
       const validated = await apiRequest<WorkspaceContextPayload>(contextPath(requested));
-      // Update the API scope only after successful server validation. Resetting query state
-      // prevents records fetched under the previous workspace from remaining on screen.
-      await queryClient.cancelQueries();
-      acceptContext(validated);
-      await storeScope(authorizationKey, validated.scope);
-      await queryClient.resetQueries();
-      await queryClient.invalidateQueries({ refetchType: "none" });
+      // The transition helper cancels reads under the old scope before activating
+      // the new one, persists only the server-returned scope, and resets the
+      // entire query cache. Active screens refetch; inactive screens cannot
+      // later reveal records cached under the previous context.
+      await transitionWorkspaceContext(
+        queryClient,
+        () => acceptContext(validated),
+        () => storeScope(authorizationKey, validated.scope)
+      );
     } catch (issue) {
       setError(errorMessage(issue));
       throw issue;
@@ -208,7 +241,18 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
     context, loading, saving, error, refresh, changeContext
   }), [context, loading, saving, error, refresh, changeContext]);
 
-  return <WorkspaceContextState.Provider value={value}>{children}</WorkspaceContextState.Provider>;
+  const tenantContextRequired = status === "authenticated" && Boolean(user) && !user?.roles.includes("SUPER_ADMIN");
+  const mustWaitForValidatedContext = tenantContextRequired && !context && !error;
+
+  return <WorkspaceContextState.Provider value={value}>
+    {mustWaitForValidatedContext ? (
+      <View style={{ flex: 1, backgroundColor: colors.canvas, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Loading authorized workspace</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>Validating your saved academic scope before loading records.</Text>
+      </View>
+    ) : children}
+  </WorkspaceContextState.Provider>;
 }
 
 export function useWorkspaceContext(): WorkspaceContextValue {
