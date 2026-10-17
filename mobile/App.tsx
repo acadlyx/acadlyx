@@ -9,12 +9,31 @@ import { WorkspaceContextProvider } from "./src/workspace/WorkspaceContextProvid
 import { colors } from "./src/ui/theme";
 
 function SessionCacheBoundary() {
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const client = useQueryClient();
-  const authorizationShape = (user?.roles || []).slice().sort().join(",") + ":" + (user?.permissions || []).slice().sort().join(",");
-  // A refreshed session may change a user's role or grants without changing
-  // their account id. Clear old records before rendering the new authority.
-  useEffect(() => { client.clear(); }, [authorizationShape, client, user?.id]);
+  const authorizationShape = (user?.id || "anonymous") + ":" +
+    (user?.roles || []).slice().sort().join(",") + ":" +
+    (user?.permissions || []).slice().sort().join(",");
+  const [clearedShape, setClearedShape] = useState<string | null>(null);
+
+  // This is a render gate, not just an effect-side cleanup: after a token
+  // refresh changes the account, roles or permissions, no screen from the old
+  // authorization shape may render while the query cache is being cleared.
+  useEffect(() => {
+    let active = true;
+    setClearedShape(null);
+    void (async () => {
+      await client.cancelQueries();
+      client.clear();
+      if (active) setClearedShape(authorizationShape);
+    })();
+    return () => { active = false; };
+  }, [authorizationShape, client]);
+
+  if (status === "authenticated" && user && clearedShape !== authorizationShape) {
+    return <AppBootFallback />;
+  }
+
   return <WorkspaceContextProvider><RootNavigator /></WorkspaceContextProvider>;
 }
 
