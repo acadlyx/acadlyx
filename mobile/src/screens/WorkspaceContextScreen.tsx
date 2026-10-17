@@ -77,6 +77,7 @@ export function WorkspaceContextScreen() {
           departmentId: item?.program?.departmentId ?? context.scope.departmentId ?? null,
           programId: item?.programId ?? context.scope.programId ?? null,
           academicYearId: item?.academicYearId ?? context.scope.academicYearId ?? null,
+          batchId: null,
           semesterId: item?.id ?? null,
           sectionId: null
         };
