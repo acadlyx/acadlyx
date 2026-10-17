@@ -159,6 +159,86 @@ export async function getAuthorizedDepartmentIds(
   return [];
 }
 
+/**
+ * Returns active campus IDs the effective workspace can use. Director scope
+ * comes only from CampusAccess; other academic roles derive campus membership
+ * from their authorized departments or active student enrollments.
+ * null means institution-wide tenant scope, not platform-wide cross-tenant access.
+ */
+export async function getAuthorizedCampusIds(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<string[] | null> {
+  if (isInstitutionWide(actor)) return null;
+
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    return getDirectorCampusIds(institutionId, actor.id);
+  }
+
+  const departmentIds = activeRole === "STUDENT"
+    ? await getStudentDepartmentIds(institutionId, actor.id)
+    : await getAuthorizedDepartmentIds(institutionId, actor);
+  if (!departmentIds.length) return [];
+
+  const rows = await prisma.campus.findMany({
+    where: {
+      institutionId,
+      isActive: true,
+      departments: { some: { id: { in: departmentIds }, isActive: true } },
+    },
+    select: { id: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((row) => row.id);
+}
+
+export async function assertCampusInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  campusId: string
+): Promise<void> {
+  const campus = await prisma.campus.findFirst({
+    where: { id: campusId, institutionId, isActive: true },
+    select: { id: true },
+  });
+  if (!campus) throw new AppError("Campus not found in this institution", 404);
+
+  const allowedCampusIds = await getAuthorizedCampusIds(institutionId, actor);
+  if (allowedCampusIds !== null && !allowedCampusIds.includes(campusId)) {
+    throw new AppError("This campus is outside your authorized scope", 403);
+  }
+}
+
+export async function assertAcademicYearInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  academicYearId: string
+): Promise<void> {
+  const year = await prisma.academicYear.findFirst({
+    where: { id: academicYearId, institutionId },
+    select: { id: true },
+  });
+  if (!year) throw new AppError("Academic year not found in this institution", 404);
+
+  const allowedDepartmentIds = await getAuthorizedDepartmentIds(institutionId, actor);
+  if (isInstitutionWide(actor)) return;
+
+  if (!allowedDepartmentIds.length) {
+    throw new AppError("Academic year is outside your authorized scope", 403);
+  }
+  const scopedSemester = await prisma.semester.findFirst({
+    where: {
+      institutionId,
+      academicYearId,
+      isActive: true,
+      program: { departmentId: { in: allowedDepartmentIds } },
+    },
+    select: { id: true },
+  });
+  if (!scopedSemester) throw new AppError("Academic year is outside your authorized scope", 403);
+}
+
 export async function assertDepartmentInScope(
   institutionId: string,
   actor: AuthenticatedUser,
