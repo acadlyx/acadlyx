@@ -323,17 +323,27 @@ test("Student notices navigation resolves to one student-owned route", async ({ 
 });
 
 
-test("Accounts cannot directly open the role-owned LMS workspace", async ({ page }) => {
+test("Accounts cannot mount LMS data by entering the role-owned route directly", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("/api/v1/lms")) forbiddenRequests.push(request.url());
+  });
   await installAuthenticatedSession(page, "ACCOUNTS");
   await page.goto(baseURL + "/lms", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/accounts$/);
   await expect(page.getByRole("heading", { name: "LMS", exact: true })).toHaveCount(0);
   await expect(page.locator('a[href="/lms"]')).toHaveCount(0);
+  expect(forbiddenRequests, "an unowned LMS route must be rejected before protected page effects run").toEqual([]);
 });
 
 test("Student cannot mount administrative user-deletion approvals through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("permanent-deletion-requests")) forbiddenRequests.push(request.url());
+  });
   await installAuthenticatedSession(page, "STUDENT");
   await page.goto(baseURL + "/user-deletion-approvals", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/student$/);
   await expect(page.getByRole("heading", { name: "Permanent Deletion Requests", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "the deletion queue API must not be called for a non-owner route").toEqual([]);
 });
