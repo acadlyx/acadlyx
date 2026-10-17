@@ -71,7 +71,12 @@ export function applyWorkspaceContext(path, enabled) {
  */
 export async function transitionWorkspaceContext(queryClient, activateScope, persistScope) {
   await queryClient.cancelQueries();
+  // Clear old record values while retaining active observers. Waiting to reset
+  // until after SecureStore writes leaves a short window where the new scope
+  // label can render above records from the previous scope.
+  for (const query of queryClient.getQueryCache().getAll()) query.reset();
   activateScope();
   await persistScope();
-  await queryClient.resetQueries();
+  // Active observers refetch after the server-validated scope is active.
+  await queryClient.invalidateQueries({ refetchType: "active" });
 }
