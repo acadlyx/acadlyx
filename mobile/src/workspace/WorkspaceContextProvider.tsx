@@ -104,8 +104,11 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
 
     setLoading(true);
     apiRequest<WorkspaceContextPayload>("/workspace/context")
-      .then((next) => {
-        if (active) acceptContext(next);
+      .then(async (next) => {
+        if (!active) return;
+        acceptContext(next);
+        // Ensure any request that began before the initial context loaded is refreshed.
+        await queryClient.invalidateQueries({ refetchType: "active" });
       })
       .catch((issue: unknown) => {
         if (active) setError(errorMessage(issue));
@@ -115,7 +118,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
       });
 
     return () => { active = false; };
-  }, [acceptContext, status, user?.id]);
+  }, [acceptContext, queryClient, status, user?.id]);
 
   const changeContext = useCallback(async (patch: Partial<Record<DimensionKey, string | null>>) => {
     if (!context || saving) return;
@@ -134,7 +137,7 @@ export function WorkspaceContextProvider({ children }: { children: React.ReactNo
       await queryClient.cancelQueries();
       acceptContext(validated);
       await queryClient.resetQueries();
-      await queryClient.invalidateQueries({ refetchType: "all" });
+      await queryClient.invalidateQueries({ refetchType: "none" });
     } catch (issue) {
       setError(errorMessage(issue));
       throw issue;
