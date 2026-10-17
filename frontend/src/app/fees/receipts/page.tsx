@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function Page() {
-  redirect("/erp?tab=fees");
+export default function LegacyFeeReceiptsPage(): never {
+  redirect("/accounts/receipts");
 }
