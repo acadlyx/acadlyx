@@ -27,6 +27,10 @@ const navigationSource = fs.readFileSync(navigationFile, "utf8");
 const shellSource = fs.readFileSync(shellFile, "utf8");
 const adminNavigationFile = path.join(root, "lib", "adminNavigation.ts");
 const adminNavigationSource = fs.readFileSync(adminNavigationFile, "utf8");
+const dashboardTokensFile = path.join(root, "app", "acadlyx-dashboard-tokens.css");
+const dashboardTokensSource = fs.readFileSync(dashboardTokensFile, "utf8");
+const dashboardFrameFile = path.join(root, "components", "dashboard", "UnifiedDashboardFrame.tsx");
+const dashboardFrameSource = fs.readFileSync(dashboardFrameFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
   failures.push("src/lib/navigation.ts: empty tenant feature list must not imply every module is enabled");
 }
@@ -35,6 +39,21 @@ if (!navigationSource.includes("!feature || tenantFeatures.includes(feature)") |
 }
 if (!adminNavigationSource.includes("isTenantFeatureEnabled") || !adminNavigationSource.includes("unique.has(destination)")) {
   failures.push("src/lib/adminNavigation.ts: institution-admin navigation must enforce tenant features and deduplicate destinations");
+}
+if (
+  !dashboardTokensSource.includes("--acadlyx-sidebar-bg: #18392d;") ||
+  !dashboardTokensSource.includes("--acadlyx-sidebar-active-bg: #315c4a;") ||
+  dashboardTokensSource.includes("#2563eb") ||
+  dashboardTokensSource.includes("rgba(37, 99, 235")
+) {
+  failures.push("src/app/acadlyx-dashboard-tokens.css: dashboard navigation must use the semantic green brand palette, not blue active-state tokens");
+}
+if (
+  /(?:text|bg|ring|outline)-blue-(?:50|100|300|600|700)\\b/.test(dashboardFrameSource) ||
+  !dashboardFrameSource.includes("bg-[var(--acadlyx-primary)]") ||
+  !dashboardFrameSource.includes("text-[var(--acadlyx-primary)]")
+) {
+  failures.push("src/components/dashboard/UnifiedDashboardFrame.tsx: shared shell brand accents must use semantic design tokens");
 }
 if (!navigationSource.includes("Tenant entitlement checks run before namespace checks")) {
   failures.push("src/lib/navigation.ts: entitlement checks must precede namespace fallback to protect direct routes");
