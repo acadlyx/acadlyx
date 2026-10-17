@@ -170,7 +170,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         select: { id: true },
       });
       await prisma.tenantFeatureEntitlement.createMany({
-        data: ["academics", "students"].map((featureKey) => ({
+        data: ["academics", "students", "assignments", "attendance", "results", "timetable"].map((featureKey) => ({
           institutionId,
           subscriptionId: subscription.id,
           featureKey,
@@ -247,6 +247,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     for (const name of TENANT_ROLES) {
       roleUsers[name] = await createUserFixture(name.toLowerCase(), institutionA.id, [name], tenantRolesA);
     }
+    const facultyA2 = await createUserFixture("faculty-a2", institutionA.id, ["FACULTY"], tenantRolesA);
     const superAdmin = await createUserFixture("super-admin", null, ["SUPER_ADMIN"], { SUPER_ADMIN: globalSuperAdminRoleId });
 
     const multiDirectorAdmin = await createUserFixture("multi-director-admin", institutionA.id, ["DIRECTOR", "INSTITUTION_ADMIN"], tenantRolesA);
@@ -291,6 +292,39 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       data: [
         { institutionId: institutionA.id, courseId: courseA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, facultyId: roleUsers.FACULTY.id },
         { institutionId: institutionA.id, courseId: multiFacultyCourse.id, semesterId: semesterA1.id, sectionId: sectionA1.id, facultyId: multiFacultyStudent.id },
+        { institutionId: institutionA.id, courseId: courseA2.id, semesterId: semesterA2.id, sectionId: sectionA2.id, facultyId: facultyA2.id },
+      ],
+    });
+    const offeringA1 = await prisma.courseOffering.findFirstOrThrow({
+      where: { institutionId: institutionA.id, courseId: courseA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id },
+      select: { id: true },
+    });
+    const offeringA2 = await prisma.courseOffering.findFirstOrThrow({
+      where: { institutionId: institutionA.id, courseId: courseA2.id, semesterId: semesterA2.id, sectionId: sectionA2.id },
+      select: { id: true },
+    });
+    await prisma.assignment.createMany({
+      data: [
+        { institutionId: institutionA.id, courseOfferingId: offeringA1.id, createdById: roleUsers.FACULTY.id, title: "Scope Assignment A1 " + suffix, description: "Context isolation fixture", dueDate: new Date("2026-12-01T00:00:00.000Z"), maxMarks: 10, status: "PUBLISHED" },
+        { institutionId: institutionA.id, courseOfferingId: offeringA2.id, createdById: facultyA2.id, title: "Scope Assignment A2 " + suffix, description: "Context isolation fixture", dueDate: new Date("2026-12-01T00:00:00.000Z"), maxMarks: 10, status: "PUBLISHED" },
+      ],
+    });
+    await prisma.attendanceSession.createMany({
+      data: [
+        { institutionId: institutionA.id, courseOfferingId: offeringA1.id, facultyId: roleUsers.FACULTY.id, sessionDate: new Date("2026-10-10T00:00:00.000Z") },
+        { institutionId: institutionA.id, courseOfferingId: offeringA2.id, facultyId: facultyA2.id, sessionDate: new Date("2026-10-11T00:00:00.000Z") },
+      ],
+    });
+    await prisma.internalMark.createMany({
+      data: [
+        { institutionId: institutionA.id, courseOfferingId: offeringA1.id, studentId: studentA1.id, enteredById: roleUsers.FACULTY.id, component: "Scope fixture", marksObtained: 8, maxMarks: 10 },
+        { institutionId: institutionA.id, courseOfferingId: offeringA2.id, studentId: studentA2.id, enteredById: facultyA2.id, component: "Scope fixture", marksObtained: 7, maxMarks: 10 },
+      ],
+    });
+    await prisma.timetableEntry.createMany({
+      data: [
+        { institutionId: institutionA.id, courseOfferingId: offeringA1.id, dayOfWeek: 1, startTime: "09:00", endTime: "10:00", room: "Scope A1" },
+        { institutionId: institutionA.id, courseOfferingId: offeringA2.id, dayOfWeek: 1, startTime: "10:00", endTime: "11:00", room: "Scope A2" },
       ],
     });
 
