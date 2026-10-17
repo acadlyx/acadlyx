@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../auth/AuthProvider";
 import { LoginScreen } from "../screens/LoginScreen";
@@ -91,7 +91,7 @@ export function RootNavigator() {
           <Stack.Screen name="Parent" component={ParentScreen} options={{ title: "Parent portal" }} />
           <Stack.Screen name="HR" component={HRScreen} options={{ title: "Human resources" }} />
           <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />
-          <Stack.Screen name="StudentPortal" component={({ route }) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
+          <Stack.Screen name="StudentPortal" component={({ route }: NativeStackScreenProps<RootStackParamList, "StudentPortal">) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
