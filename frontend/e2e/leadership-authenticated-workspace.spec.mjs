@@ -17,6 +17,8 @@ async function installAuthenticatedSession(page, role) {
   });
 
   let metricRequests = 0;
+  let authMeGate = null;
+  let authMeFailure = null;
   const user = {
     id: `browser-test-${role.toLowerCase()}`,
     institutionId: "browser-test-institution",
@@ -26,7 +28,7 @@ async function installAuthenticatedSession(page, role) {
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
     permissions,
-    tenantFeatures: ["fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms", "students", "faculty", "timetable", "results", "reports"],
+    tenantFeatures: ["fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms", "students", "faculty", "timetable", "results", "reports", "notifications"],
   };
 
   await page.route("**/api/v1/**", async (route) => {
@@ -34,6 +36,15 @@ async function installAuthenticatedSession(page, role) {
     const path = url.pathname;
 
     if (path.endsWith("/auth/me")) {
+      if (authMeGate) {
+        const gate = authMeGate;
+        authMeGate = null;
+        await gate;
+      }
+      if (authMeFailure) {
+        await route.fulfill({ status: authMeFailure.status, contentType: "application/json", body: JSON.stringify({ success: false, error: { message: authMeFailure.message } }) });
+        return;
+      }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: user }) });
       return;
     }
@@ -60,6 +71,12 @@ async function installAuthenticatedSession(page, role) {
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) });
   });
+
+  return {
+    user,
+    setAuthMeGate(gate) { authMeGate = gate; },
+    setAuthMeFailure(failure) { authMeFailure = failure; },
+  };
 }
 
 test("authenticated Director workspace handles failed metrics, retry, refresh and browser history", async ({ page }) => {
@@ -116,4 +133,57 @@ test("placement workspace routes load with scoped authenticated session", async 
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);
+});
+
+
+test("stale Student permissions do not redirect an authorized Library route before fresh /auth/me resolves", async ({ page }) => {
+  const session = await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/student/notifications", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "My Notifications", exact: true })).toBeVisible();
+
+  // This represents an RBAC update after the user was already cached in the
+  // current browser tab. The cached identity is deliberately missing the
+  // Library permission and tenant entitlement; the next /auth/me contains
+  // the freshly authorized state.
+  expect(session.user.permissions).not.toContain("library.read");
+  expect(session.user.tenantFeatures).not.toContain("library");
+  session.user.permissions = [...session.user.permissions, "library.read", "library.borrow"];
+  session.user.tenantFeatures = [...session.user.tenantFeatures, "library"];
+
+  let releaseAuthMe;
+  const gate = new Promise((resolve) => { releaseAuthMe = resolve; });
+  session.setAuthMeGate(gate);
+  const freshAuthRequest = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/auth/me"));
+  await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
+  await expect(page).toHaveURL(/\/student\/library$/);
+  await freshAuthRequest;
+  await expect(page.getByRole("status").getByText("Loading your secure workspace…")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toHaveCount(0);
+
+  // If the route guard used the stale cached permissions, it would send the
+  // browser back to /student before the server's authorization update arrived.
+  await expect(page).toHaveURL(/\/student\/library$/);
+  releaseAuthMe();
+  await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/student\/library$/);
+  await expect(page.getByText(/You do not have access to this page/i)).toHaveCount(0);
+});
+
+test("temporary /auth/me failure fails closed and can recover through Retry verification", async ({ page }) => {
+  const session = await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/student/notifications", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "My Notifications", exact: true })).toBeVisible();
+
+  session.setAuthMeFailure({ status: 503, message: "Synthetic identity-service outage" });
+  await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
+  await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry verification" })).toBeVisible();
+  await expect(page.getByText(/You do not have access to this page/i)).toHaveCount(0);
+
+  session.setAuthMeFailure(null);
+  session.user.permissions = [...session.user.permissions, "library.read", "library.borrow"];
+  session.user.tenantFeatures = [...session.user.tenantFeatures, "library"];
+  await page.getByRole("button", { name: "Retry verification" }).click();
+  await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/student\/library$/);
 });
