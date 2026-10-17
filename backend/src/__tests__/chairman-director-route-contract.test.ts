@@ -79,11 +79,20 @@ test("Chairman legacy fee-approval route redirects to the direct publication wor
 test("Director fee approvals have a dedicated page and backend program/semester scope enforcement", () => {
   const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
   const dashboard = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
+  const queue = readFileSync(join(frontend, "../components/accounts/FeeStructureApprovalQueue.tsx"), "utf8");
   const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
 
-  assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
+  // Role enforcement belongs to the shared queue, which is used by Director
+  // and Management with different scope contracts. Keep the role prop and
+  // the component's effective-role/permission guard in sync.
+  assert.ok(page.includes('role="DIRECTOR"'), "approval page must configure the shared queue for the Director workspace");
+  assert.ok(page.includes('scope="campus"'), "Director approval page must be campus-scoped");
   assert.ok(page.includes("assigned campus scope"), "page must explain the campus boundary");
+  assert.ok(queue.includes("allowedRoles={[role]}"), "the shared approval queue must bind its shell to the configured role");
+  assert.ok(queue.includes("getPrimaryRole(user.roles) !== role"), "the shared queue must deny secondary-role access when the effective role differs");
+  assert.ok(queue.includes('!user.permissions.includes("fees.structure.approve")'), "approvals require the explicit permission");
+  assert.ok(queue.includes('!user.permissions.includes("fees.structure.read")'), "the queue also requires read permission");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/director/fee-approvals"'), "Director may retain campus fee approval workflow in the sidebar");
   assert.ok(!dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "Director dashboard should not duplicate approval workflow shortcuts");
