@@ -16,25 +16,25 @@ function actor(roles: string[]): AuthenticatedUser {
 
 test("department-scoped student imports cannot create unplaced or incompletely scoped students", async () => {
   await assert.rejects(
-    assertPartialStudentImportScope("institution-1", actor([""HOD""]), null, null, null),
-    /must include a valid programme and academic year/,
+    assertPartialStudentImportScope("institution-1", actor(["HOD"]), null, null, null),
+    /must include a valid programme, academic year, and semester/,
   );
   await assert.rejects(
-    assertPartialStudentImportScope("institution-1", actor([""DEAN""]), null, null, null),
-    /must include a valid programme and academic year/,
+    assertPartialStudentImportScope("institution-1", actor(["DEAN"]), null, null, null),
+    /must include a valid programme, academic year, and semester/,
   );
   await assert.rejects(
-    assertPartialStudentImportScope("institution-1", actor([""DIRECTOR""]), null, null, null),
-    /must include a valid programme and academic year/,
+    assertPartialStudentImportScope("institution-1", actor(["DIRECTOR"]), null, null, null),
+    /must include a valid programme, academic year, and semester/,
   );
 });
 
 test("institution administration and institution-wide admissions may create incomplete student rows for follow-up", async () => {
   await assert.doesNotReject(
-    assertPartialStudentImportScope("institution-1", actor([""INSTITUTION_ADMIN""]), null, null, null),
+    assertPartialStudentImportScope("institution-1", actor(["INSTITUTION_ADMIN"]), null, null, null),
   );
   await assert.doesNotReject(
-    assertPartialStudentImportScope("institution-1", actor([""ADMISSIONS""]), null, null, null),
+    assertPartialStudentImportScope("institution-1", actor(["ADMISSIONS"]), null, null, null),
   );
 });
 
