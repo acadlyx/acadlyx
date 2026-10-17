@@ -390,7 +390,7 @@ test("native examination workspace uses canonical marks lifecycle and protects s
     assert.ok(screen.includes(permission), "Missing permission gate: " + permission);
   }
   assert.ok(screen.includes('effectiveRole === "STUDENT" || effectiveRole === "PARENT"'));
-  assert.ok(screen.includes("if (!canReadMarks)"));
+  assert.ok(screen.includes(": !canReadMarks ?"), "Student/Parent roles must not render the staff marksheet branch.");
   assert.ok(moduleScreen.includes('module?.id === "examinations"'));
   for (const route of [
     '"/schedules/:id/marks"',
