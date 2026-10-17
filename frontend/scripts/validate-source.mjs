@@ -45,8 +45,13 @@ const feeApprovalQueueSource = fs.readFileSync(feeApprovalQueueFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
   failures.push("src/lib/navigation.ts: empty tenant feature list must not imply every module is enabled");
 }
-if (!navigationSource.includes("!feature || tenantFeatures.includes(feature)") || !navigationSource.includes("if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;")) {
-  failures.push("src/lib/navigation.ts: navigation and direct-route guards must fail closed for disabled tenant features");
+if (
+  !navigationSource.includes("requiredFeatures.every((feature) =>") ||
+  !navigationSource.includes("requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))") ||
+  !navigationSource.includes("function tenantFeaturesForPath(pathname: string): string[]") ||
+  !navigationSource.includes("admissions|library|placements)\\/students")
+) {
+  failures.push("src/lib/navigation.ts: navigation and direct-route guards must enforce every matching module and student-workflow tenant feature");
 }
 if (!adminNavigationSource.includes("isTenantFeatureEnabled") || !adminNavigationSource.includes("unique.has(destination)")) {
   failures.push("src/lib/adminNavigation.ts: institution-admin navigation must enforce tenant features and deduplicate destinations");
@@ -112,6 +117,8 @@ if (
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
   !navigationSource.includes('["/fees/receipts", ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS", "STUDENT", "PARENT"]') ||
   !navigationSource.includes('["/students", ["INSTITUTION_ADMIN"]') ||
+  !navigationSource.includes('["/students/[id]", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"]') ||
+  !navigationSource.includes("function namespaceMatchesPath(pathname: string, prefix: string): boolean") ||
   !navigationSource.includes('["/academics", ["DEAN"]') ||
   !navigationSource.includes('["/timetable", ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD", "FACULTY"]') ||
   !navigationSource.includes('["/admissions/reports", ["ADMISSIONS"]') ||
