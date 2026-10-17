@@ -14,7 +14,8 @@ export type MobileModule = {
 export const MODULES: MobileModule[] = [
   { id: "student-dashboard", title: "My Dashboard", category: "My Learning", description: "Personal academic overview.", endpoint: "/students/me/dashboard", allowedRoles: ["STUDENT"] },
   { id: "student-attendance", title: "My Attendance", category: "My Learning", description: "Attendance records for the signed-in student.", endpoint: "/students/me/attendance", allowedRoles: ["STUDENT"] },
-  { id: "student-marks", title: "My Marks", category: "My Learning", description: "Marks visible to the signed-in student.", endpoint: "/students/me/marks", allowedRoles: ["STUDENT"] },
+  { id: "student-marks", title: "My Performance", category: "My Learning", description: "Approved examination performance and internal assessment marks.", endpoint: "/examinations/my/performance", allowedRoles: ["STUDENT"] },
+  { id: "student-results", title: "Published Results", category: "My Learning", description: "Official examination marks published by the institution.", endpoint: "/examinations/my/results", allowedRoles: ["STUDENT"] },
   { id: "student-assignments", title: "My Assignments", category: "My Learning", description: "Assignments visible to the signed-in student.", endpoint: "/students/me/assignments", allowedRoles: ["STUDENT"] },
   { id: "student-timetable", title: "My Timetable", category: "My Learning", description: "Timetable for the signed-in student.", endpoint: "/students/me/timetable", allowedRoles: ["STUDENT"] },
   { id: "students", title: "Students", category: "People & Structure", description: "Student master records within your authorized scope.", endpoint: "/students", requiredAnyPermissions: ["students.read"] },
