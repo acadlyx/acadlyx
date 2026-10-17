@@ -168,7 +168,7 @@ test("stale Student permissions do not redirect an authorized Library route befo
   await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
   await expect(page).toHaveURL(/\/student\/library$/);
   await freshAuthRequest;
-  await expect(page.getByRole("status").getByText("Loading your secure workspace…")).toBeVisible();
+  await expect(page.getByRole("status").getByText("Checking your secure workspace…")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toHaveCount(0);
 
   // If the route guard used the stale cached permissions, it would send the

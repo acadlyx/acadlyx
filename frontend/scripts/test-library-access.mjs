@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 const read = (path) => readFileSync(resolve(process.cwd(), path), "utf8");
 const studentRoute = read("src/app/student/library/page.tsx");
 const dashboardShell = read("src/components/dashboard/DashboardShell.tsx");
+const protectedBoundary = read("src/components/auth/ProtectedRouteBoundary.tsx");
 const studentModule = read("src/components/student/StudentSelfServiceModule.tsx");
 const navigation = read("src/lib/navigation.ts");
 const auth = read("src/lib/auth.ts");
@@ -42,6 +43,15 @@ assert.ok(dashboardShell.includes("const reconcile = getCurrentUser({ force: tru
   "DashboardShell must wait for fresh /auth/me permissions instead of accepting a background cache hit");
 assert.ok(dashboardShell.includes("Workspace verification unavailable") && dashboardShell.includes("Retry verification"),
   "a failed permission revalidation must fail closed with a recoverable retry state");
+
+assert.ok(protectedBoundary.includes("getCurrentUser({ force: true })"),
+  "the global protected-route boundary must revalidate /auth/me rather than authorize a new path from cached RBAC");
+assert.ok(protectedBoundary.includes('type AuthState = "checking" | "authenticated" | "unauthenticated" | "unauthorized" | "unavailable";'),
+  "transient identity failures must be tracked separately from confirmed unauthorized access");
+assert.ok(protectedBoundary.includes("Workspace verification unavailable") && protectedBoundary.includes("Retry verification"),
+  "the global auth boundary must keep protected content hidden and offer retry when /auth/me is temporarily unavailable");
+assert.ok(protectedBoundary.includes("validatedPath !== route"),
+  "the global auth boundary must bind its authorization result to the complete route contract");
 
 assert.match(backendRoutes, /router\.use\(authenticate, requireFeature\("library"\)\)/,
   "all Library API routes must retain authentication and tenant entitlement checks");
