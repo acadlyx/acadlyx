@@ -28,7 +28,7 @@ const authorityFile = path.join(root, "lib", "authority.ts");
 const authoritySource = fs.readFileSync(authorityFile, "utf8");
 const parentChildrenFile = path.join(root, "app", "parent", "children", "page.tsx");
 const parentChildrenSource = fs.readFileSync(parentChildrenFile, "utf8");
-const dashboardIdsMatch = authoritySource.match(/export const DASHBOARD_IDS = \\[([\\s\\S]*?)\\] as const/);
+const dashboardIdsMatch = authoritySource.match(/export const DASHBOARD_IDS = \[([\s\S]*?)\] as const/);
 const shellSource = fs.readFileSync(shellFile, "utf8");
 const adminNavigationFile = path.join(root, "lib", "adminNavigation.ts");
 const adminNavigationSource = fs.readFileSync(adminNavigationFile, "utf8");
@@ -102,11 +102,11 @@ if (
 ) {
   failures.push("src/lib/authority.ts and src/lib/navigation.ts: fee aliases must enforce tenant entitlement and every routed workspace role must have a dashboard identity");
 }
-const parentChildrenNavigation = navigationSource.match(/\\{\\s*label: "Children",\\s*href: "\\/parent\\/children",[\\s\\S]*?\\n\\s*\\},/);
+const parentChildrenNavigation = navigationSource.match(/\{\s*label: "Children",\s*href: "\/parent\/children",[\s\S]*?\n\s*\},/);
 if (
   !parentChildrenNavigation ||
-  !/roles:\\s*\\["PARENT"\\]/.test(parentChildrenNavigation[0]) ||
-  !navigationSource.split("\\n").some((line) => line.includes("parent_portal") && line.includes("children")) ||
+  !/roles:\s*\["PARENT"\]/.test(parentChildrenNavigation[0]) ||
+  !navigationSource.split("\n").some((line) => line.includes("parent_portal") && line.includes("children")) ||
   !parentChildrenSource.includes('allowedRoles={["PARENT"]}')
 ) {
   failures.push("src/lib/navigation.ts: the linked-children route must be exposed only in the parent workspace and gated by the parent-portal entitlement");
