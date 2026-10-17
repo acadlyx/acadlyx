@@ -21,9 +21,12 @@ test("domain events fan out to exact and wildcard subscribers without sharing mu
     received.push("*:" + event.name);
   });
 
+  // This is a subscriber fan-out unit test, not a persistence integration
+  // test. Leave tenant/actor foreign keys null rather than inventing IDs that
+  // cannot exist in the database; PostgreSQL persistence is covered separately.
   publishDomainEvent("test.enterprise", {
-    institutionId: "institution-a",
-    actorId: "actor-a",
+    institutionId: null,
+    actorId: null,
     payload: { resourceId: "resource-a" },
   });
 
