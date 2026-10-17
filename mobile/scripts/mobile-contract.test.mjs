@@ -454,3 +454,43 @@ test("private student document assets apply student record scope before download
   assert.ok(controller.includes("!canReadReferencedStudentDocument"));
   assert.ok(controller.includes("const isOwner = result.file.ownerId === actor.id"));
 });
+
+
+test("student performance and published results use canonical scoped APIs", () => {
+  const portal = read("src/screens/StudentPortalScreen.tsx");
+  const client = read("src/api/client.ts");
+  const modules = read("src/screens/ModulesScreen.tsx");
+  const dashboard = read("src/screens/RoleDashboardScreen.tsx");
+  const navigation = read("src/navigation/RootNavigator.tsx");
+  const catalog = read("src/modules/catalog.ts");
+  const examinationRoutes = read("../backend/src/routes/examination.routes.ts");
+  const examinationService = read("../backend/src/services/examination.service.ts");
+  const studentRoutes = read("../backend/src/routes/student.routes.ts");
+
+  for (const endpoint of ["/examinations/my/performance", "/examinations/my/results", "/students/me/marks"]) {
+    assert.ok(portal.includes(endpoint), "Missing self-service endpoint: " + endpoint);
+  }
+  assert.ok(portal.includes('tab==="RESULTS"'));
+  assert.ok(portal.includes("Internal assessment marks"));
+  assert.ok(portal.includes("Published examination results"));
+  assert.ok(portal.includes("Download marksheet PDF"));
+  assert.ok(client.includes("export async function apiDownloadPdf"));
+  assert.ok(client.includes('headers.set("Authorization", "Bearer " + token)'));
+  assert.ok(client.includes("if (await refreshSession()) return request(false)"));
+  assert.ok(client.includes('contentType !== "application/pdf"'));
+  assert.ok(client.includes('!== "%PDF"'));
+  assert.ok(client.includes("await file.write(bytes)"));
+  assert.ok(modules.includes('item.id === "student-results"'));
+  assert.ok(dashboard.includes('moduleId === "student-results"'));
+  assert.ok(navigation.includes('"RESULTS"'));
+  assert.ok(catalog.includes('id: "student-results"'));
+  assert.ok(examinationRoutes.includes('"/my/performance"') && examinationRoutes.includes('"/my/results"'));
+  const routeStart = examinationRoutes.indexOf('"/sessions/:id/marksheet.pdf"');
+  assert.ok(routeStart >= 0);
+  assert.ok(examinationRoutes.slice(routeStart, routeStart + 500).includes('authorize("results.read")'));
+  const pdfStart = examinationService.indexOf("export async function generateStudentMarksheetPdf(");
+  const pdfEnd = examinationService.indexOf("\n// ==========================================================", pdfStart);
+  assert.ok(pdfStart >= 0 && pdfEnd > pdfStart);
+  assert.ok(examinationService.slice(pdfStart, pdfEnd).includes("assertCanViewStudent(institutionId, actor, studentId)"));
+  assert.ok(studentRoutes.includes('"/me/marks"') && studentRoutes.includes('authorizeRoles("STUDENT")'));
+});

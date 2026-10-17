@@ -168,3 +168,12 @@ The Production Quality workflow's `Production deployment smoke checks` job was s
 - Authorized Director, Dean, HOD and institution/examination roles use a scoped read-only list. Student and Parent are excluded from the staff marks module and keep the dedicated individual results screens.
 - Added a Faculty dashboard quick action, dedicated module dispatch, role gating and source-contract assertions referencing the backend validator/service and the existing web marks-entry workflow.
 - State remains IN_PROGRESS until CI passes and a real authorized Faculty API test plus Android/iOS device checks are recorded. Result approval/correction and export workflows are not implied; they are not implemented by the existing internal-marks API.
+
+
+## Native student performance/results slice — 2026-10-17
+
+- Changed the student portal's Performance tab to GET /examinations/my/performance, which returns approved/published examination marks plus non-duplicated legacy result rows. Internal assessment component marks are fetched separately from GET /students/me/marks.
+- Added a Published Results tab backed by GET /examinations/my/results; publication status remains the backend source of truth. Performance/results are displayed as domain fields rather than raw object dumps.
+- Added an authenticated PDF download helper that uses the mobile bearer token, retries once after the existing refresh-token flow, validates content type and PDF signature, writes to app cache and hands off to native preview/share. It calls the existing results.read-protected marksheet endpoint; the backend applies assertCanViewStudent before document generation.
+- Exposed My Performance and Published Results from the student dashboard and module catalog. StudentPortal follows changed initialTab navigation parameters. Source-contract coverage includes API routes, the permission boundary, token refresh and PDF validation.
+- Grade/semester aggregation, live API-role tests and physical-device PDF verification remain open. Status remains IN_PROGRESS pending CI and device evidence.
