@@ -19,9 +19,9 @@ import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
 const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/chairman/notices": "/chairman/notices", "/chairman/notifications": "/chairman/notifications", "/chairman/events-gallery": "/chairman/events-gallery" },
   DIRECTOR: { "/reports": "/director/reports", "/examinations": "/director/examinations", "/examinations/operations": "/director/examinations/operations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery", "/placements": "/director/placements", "/obe": "/director/obe" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students" },
+  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students", "/notices": "/dean/notices" },
   REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
-  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence" },
+  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence", "/notices": "/hod/notices" },
   FACULTY: { "/erp": "/faculty/operations" },
   HR: { "/reports": "/hr/reports" },
   STAFF: { "/erp": "/staff/operations" },
