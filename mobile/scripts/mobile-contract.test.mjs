@@ -48,6 +48,16 @@ test("bounded session refresh and backend permission filtering are present", () 
   assert.ok(catalog.includes("requiredAnyPermissions"));
 });
 
+test("global search uses the existing server-scoped API and is reachable in native navigation", () => {
+  const screen = read("src/screens/GlobalSearchScreen.tsx");
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  assert.ok(screen.includes("/search?q="));
+  assert.ok(screen.includes("encodeURIComponent(queryText)"));
+  assert.ok(screen.includes("queryText.length >= 2"));
+  assert.ok(navigator.includes("GlobalSearchScreen"));
+  assert.ok(navigator.includes("name=\"Search\" component={GlobalSearchScreen}"));
+});
+
 test("assignment lifecycle calls use real backend route patterns", () => {
   const screen = read("src/screens/AssignmentsScreen.tsx");
   for (const route of ["/assignments", "/submit", "/submissions", "/reopen"]) assert.ok(screen.includes(route), "Missing route fragment: " + route);
