@@ -19,6 +19,7 @@ mobile/
     auth/AuthProvider.tsx
     modules/catalog.ts
     navigation/RootNavigator.tsx
+    workspace/WorkspaceContextProvider.tsx
     screens/
       HomeScreen.tsx
       LoginScreen.tsx
@@ -30,6 +31,7 @@ mobile/
       LibraryScreen.tsx
       NotificationsScreen.tsx
       ProfileScreen.tsx
+      WorkspaceContextScreen.tsx
     ui/theme.ts
   scripts/mobile-contract.test.mjs
 ~~~
@@ -40,14 +42,14 @@ mobile/
 2. Access and refresh tokens are stored with Expo SecureStore. The app does not use local storage or expose privileged database credentials.
 3. Protected requests use the existing bearer-token API contract. On one 401 response, the client attempts the existing POST /auth/refresh flow once; if renewal fails, it clears local credentials.
 4. Existing API envelopes with success and data fields are unwrapped by the client.
-5. Authenticated reads are requested from existing API routes. TanStack Query uses in-memory caching only; the query client is cleared when the authenticated user changes.
-6. Backend services, authorization middleware, Prisma transactions and the existing PostgreSQL database remain authoritative. The mobile app does not connect directly to PostgreSQL or Supabase.
+5. Authenticated reads are requested from existing API routes. TanStack Query uses in-memory caching only; the query client is cleared when the authenticated user changes.\n6. The workspace-context provider calls GET /api/v1/workspace/context. Selection changes are accepted only after the backend returns the canonical context, then query state is reset and invalidated so active reads reload under the new scope. Supported list contracts receive only the context filters they explicitly accept.
+7. Backend services, authorization middleware, Prisma transactions and the existing PostgreSQL database remain authoritative. The mobile app does not connect directly to PostgreSQL or Supabase.
 
 ## Authorization
 
 The signed-in user and exact roles/permissions are returned by the backend. The module catalog uses known permission keys for navigation usability, not as a security boundary. Every API request must still be authorized server-side against institution, campus, department, programme, academic year/session, batch, semester, section, student ownership and workflow scope.
 
-Context selection is not implemented. Therefore multi-workspace users must not consider their mobile experience release-ready until the app integrates GET /api/v1/workspace/context and invalidates all context-sensitive queries after a permitted scope change.
+The native Workspace & context screen supports campus, department, programme, academic year, batch, semester and section selection. Each change is validated through GET /api/v1/workspace/context before it becomes active. The API client passes only query parameters supported by the known list contracts (departments, programmes, semesters, sections and course offerings); other routes still rely on their own server-side authorization and may need explicit context filters in their dedicated workflow work. This implementation does not make the client an authorization boundary. The screen is read-only for Student accounts because the backend derives that scope from the active enrollment.
 
 ## Reliability and privacy
 
