@@ -360,3 +360,38 @@ test("Director cannot mount Institution Admin student master through a direct UR
   await expect(page.getByRole("heading", { name: "Students", exact: true })).toHaveCount(0);
   expect(forbiddenRequests, "the generic Institution Admin student-list request must not run for a Director").toEqual([]);
 });
+
+
+test("Director cannot mount Dean-only academics data through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  const forbiddenPaths = new Set([
+    "/api/v1/departments",
+    "/api/v1/programs",
+    "/api/v1/academic-years",
+    "/api/v1/course-offerings",
+  ]);
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (forbiddenPaths.has(pathname)) forbiddenRequests.push(request.url());
+  });
+
+  await installAuthenticatedSession(page, "DIRECTOR");
+  await page.goto(baseURL + "/academics", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Academic structure", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "Dean-only academic structure APIs must not run for a Director direct URL").toEqual([]);
+});
+
+test("Student cannot mount the shared leadership timetable through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.includes("/timetable")) forbiddenRequests.push(request.url());
+  });
+
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/timetable", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: "Timetable", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "the student must use the Student-owned timetable route, not the shared leadership page").toEqual([]);
+});
