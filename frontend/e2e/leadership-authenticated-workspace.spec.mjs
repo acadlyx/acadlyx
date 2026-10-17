@@ -27,7 +27,7 @@ async function installAuthenticatedSession(page, role) {
     firstName: "Browser",
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
-    permissions: role === "STUDENT" ? [...permissions, "library.read", "library.borrow"] : permissions,
+    permissions: role === "STUDENT" || role === "LIBRARIAN" ? [...permissions, "library.read", "library.borrow"] : permissions,
     tenantFeatures: [
       "fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms",
       "students", "faculty", "timetable", "results", "reports", "notifications",
