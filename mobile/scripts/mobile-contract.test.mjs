@@ -505,7 +505,7 @@ test("native documents viewer uses the authenticated scoped portal endpoint", ()
   assert.ok(screen.includes('"/portal/documents/me"'));
   assert.ok(screen.includes('user.permissions.includes("documents.read")'));
   assert.ok(screen.includes("Linking.openURL(document.url)"));
-  assert.ok(screen.includes("/^https?:\\\\/\\\\/\\\\S+$/i.test(document.url)"));
+  assert.ok(screen.includes("if (!/^https?:\\/\\/\\S+$/i.test(document.url)"));
   assert.ok(screen.includes("query.isError") && screen.includes("ListEmptyComponent"));
   assert.ok(moduleScreen.includes('module?.id === "documents"'));
   assert.ok(moduleScreen.includes("if (isDocumentsWorkspace) return <DocumentsScreen />"));
