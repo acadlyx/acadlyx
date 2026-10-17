@@ -13,7 +13,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 |---|---|---|
 | `/health` | No screen; service-level API | SERVER ONLY |
 | `/auth` | Login, MFA, SecureStore token persistence, refresh, logout, password change, account roles | PARTIAL; profile editing/photo and password recovery not wired. The inspected auth router exposes a recovery-institution list, but no password-reset workflow. |
-| `/workspace/context` | Route documented, no native context selector | NOT IMPLEMENTED; blocking for safe multi-workspace selection and scoped query keys |
+| `/workspace/context` | Native Workspace & context screen for campus, department, programme, academic year, batch, semester and section; canonical context is activated only after the server accepts it; query state is reset and invalidated on changes | PARTIAL; context filters are currently forwarded only to known list contracts that accept them, while remaining module-specific filters and live/device verification are still required |
 | `/my-work` | Live home screen reads work summary/items | PARTIAL; work-item actions and safe native deep links are missing |
 | `/search` | Native Search tab queries the existing `/search?q=` endpoint after a short input debounce; displays only server-returned person/course/notice results | PARTIAL; result-to-record deep links are not wired and live API/device verification remains |
 | `/workflow` | No complete native approval queue | NOT IMPLEMENTED |
