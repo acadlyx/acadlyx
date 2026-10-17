@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation } from "@tanstack/react-query";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { colors, radius, spacing } from "../ui/theme";
+import { RootStackParamList } from "../navigation/RootNavigator";
 
 export function ProfileScreen() {
   const { user, signOut, changePassword } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,6 +38,10 @@ export function ProfileScreen() {
         <View style={styles.roles}>{(user?.roles || []).map((role) => <View key={role} style={styles.rolePill}><Text style={styles.roleText}>{role.replace(/_/g, " ")}</Text></View>)}</View>
         <Text style={styles.meta}>The backend returned {String(user?.permissions.length || 0)} permissions for this session. Authorization is still checked on the server.</Text>
       </View>
+      <Pressable accessibilityRole="button" onPress={() => navigation.navigate("WorkspaceContext")} style={styles.contextButton}>
+        <View style={styles.contextCopy}><Text style={styles.contextTitle}>Workspace & academic context</Text><Text style={styles.contextHint}>Manage the authorized campus and academic scope for this session.</Text></View>
+        <Text style={styles.contextArrow}>›</Text>
+      </Pressable>
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Change password</Text>
         <Text style={styles.help}>The existing authenticated API processes the update. A successful change ends this mobile session.</Text>
@@ -65,6 +73,9 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.text, fontWeight: "900", fontSize: 17 }, roles: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   rolePill: { backgroundColor: colors.primarySoft, paddingHorizontal: 9, paddingVertical: 6, borderRadius: radius.pill },
   roleText: { color: colors.primary, fontSize: 10, fontWeight: "800" }, meta: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 14 },
+  contextButton: { flexDirection: "row", alignItems: "center", gap: 10, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  contextCopy: { flex: 1, gap: 4 }, contextTitle: { color: colors.primary, fontWeight: "900", fontSize: 13 },
+  contextHint: { color: colors.textMuted, fontSize: 11, lineHeight: 16 }, contextArrow: { color: colors.primary, fontWeight: "900", fontSize: 23 },
   help: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 7, marginBottom: 7 },
   label: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: 11, marginBottom: 6 },
   input: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 12, color: colors.text },
