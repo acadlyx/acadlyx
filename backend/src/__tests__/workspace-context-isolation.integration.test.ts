@@ -502,6 +502,21 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     ]) {
       assert.equal((await request(path, facultyToken)).status, 403, "Faculty must not force another campus via " + path);
     }
+    assert.notEqual(
+      (await request("/assignments?programId=" + programA1.id + "&academicYearId=" + yearA2.id, roleUsers.CHAIRMAN.token)).status,
+      200,
+      "Assignment list must reject a programme/year combination that has no matching active semester."
+    );
+    assert.notEqual(
+      (await request("/internal-marks?semesterId=" + semesterA1.id + "&sectionId=" + sectionA2.id, roleUsers.CHAIRMAN.token)).status,
+      200,
+      "Marks list must reject a section outside the selected semester."
+    );
+    assert.notEqual(
+      (await request("/attendance-sessions?batchId=" + batchA2.id + "&sectionId=" + sectionA1.id, roleUsers.CHAIRMAN.token)).status,
+      200,
+      "Attendance list must reject a batch outside the selected section's programme."
+    );
 
     const batches = await request("/batches?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id + "&programId=" + programA1.id, roleUsers.HOD.token);
     assert.equal(batches.status, 200, JSON.stringify(batches.body));
