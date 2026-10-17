@@ -77,7 +77,7 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(workspaceService.includes("Campus not found in your authorized institution scope"));
   for (const validation of [
     "Department not found in your authorized institution scope",
-    "Program is not valid for the selected department",
+    "Program is not valid for the selected department or authorized scope",
     "Academic year is not valid for the selected academic context",
     "Semester is not valid for the selected academic context",
     "Section is not valid for the selected semester",
