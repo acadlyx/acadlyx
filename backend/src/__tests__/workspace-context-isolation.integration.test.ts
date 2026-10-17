@@ -727,7 +727,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     // peer or a child from another institution, and loses access immediately
     // when the relationship row is removed.
     const linkedParentFees = await request(
-      "/parent-portal/children/" + studentA1.id + "/fees",
+      "/parent/children/" + studentA1.id + "/fees",
       roleUsers.PARENT.token,
     );
     assert.equal(linkedParentFees.status, 200, "A server-linked parent must be able to read their child's fee summary: " + JSON.stringify(linkedParentFees.body));
@@ -737,12 +737,12 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       "The parent portal response must identify only the linked child.",
     );
     assert.equal(
-      (await request("/parent-portal/children/" + studentA2.id + "/fees", roleUsers.PARENT.token)).status,
+      (await request("/parent/children/" + studentA2.id + "/fees", roleUsers.PARENT.token)).status,
       404,
       "A parent must not access an unlinked student in the same institution or learn whether that child exists.",
     );
     assert.equal(
-      (await request("/parent-portal/children/" + studentB.id + "/fees", roleUsers.PARENT.token)).status,
+      (await request("/parent/children/" + studentB.id + "/fees", roleUsers.PARENT.token)).status,
       404,
       "A parent must not access a student from a different institution.",
     );
@@ -750,7 +750,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       where: { parentId_studentId: { parentId: roleUsers.PARENT.id, studentId: studentA1.id } },
     });
     assert.equal(
-      (await request("/parent-portal/children/" + studentA1.id + "/fees", roleUsers.PARENT.token)).status,
+      (await request("/parent/children/" + studentA1.id + "/fees", roleUsers.PARENT.token)).status,
       404,
       "Revoking the parent-student link must immediately remove access on the next request.",
     );
