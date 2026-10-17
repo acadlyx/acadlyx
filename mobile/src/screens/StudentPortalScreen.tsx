@@ -1,18 +1,20 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, ApiError } from "../api/client";
+import { apiDownloadPdf, apiRequest, ApiError } from "../api/client";
+import * as Sharing from "expo-sharing";
 import { displayValue, safeRecordEntries, toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
-type StudentTab="OVERVIEW"|"ATTENDANCE"|"MARKS"|"ASSIGNMENTS"|"TIMETABLE";
+type StudentTab="OVERVIEW"|"ATTENDANCE"|"MARKS"|"RESULTS"|"ASSIGNMENTS"|"TIMETABLE";
 type AssignmentSubmission={id?:string;content?:string;status?:string;marksAwarded?:number|null;feedback?:string|null;submittedAt?:string};
 type StudentAssignment={id:string;title:string;description?:string;dueDate?:string;maxMarks?:number;status?:string;courseCode?:string;courseOffering?:{course?:{code?:string;name?:string}};mySubmission?:AssignmentSubmission|null;submission?:AssignmentSubmission|null;[key:string]:unknown};
 const tabs:Array<{id:StudentTab,label:string,endpoint:string}>=[
  {id:"OVERVIEW",label:"Overview",endpoint:"/students/me/dashboard"},
  {id:"ATTENDANCE",label:"Attendance",endpoint:"/students/me/attendance"},
- {id:"MARKS",label:"Marks & results",endpoint:"/students/me/marks"},
+ {id:"MARKS",label:"Performance",endpoint:"/examinations/my/performance"},
+ {id:"RESULTS",label:"Published results",endpoint:"/examinations/my/results"},
  {id:"ASSIGNMENTS",label:"Assignments",endpoint:"/students/me/assignments"},
  {id:"TIMETABLE",label:"Timetable",endpoint:"/students/me/timetable"}
 ];
@@ -23,11 +25,19 @@ function object(value:unknown):Record<string,unknown>{return typeof value==="obj
 export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:StudentTab}){
  const {user}=useAuth();const client=useQueryClient();
  const [tab,setTab]=useState<StudentTab>(initialTab);const [selectedAssignmentId,setSelectedAssignmentId]=useState<string|null>(null);const [submissionText,setSubmissionText]=useState("");
+ const [downloadBusy,setDownloadBusy]=useState<string|null>(null);const [downloadError,setDownloadError]=useState("");
+ useEffect(()=>{setTab(initialTab);setSelectedAssignmentId(null);setSubmissionText("");setDownloadError("");},[initialTab]);
  const canSubmit=Boolean(user?.permissions.includes("assignments.submit"));
  const current=tabs.find(t=>t.id===tab)||tabs[0];
  const query=useQuery({queryKey:["student-self-service",user?.id,tab],queryFn:()=>apiRequest<unknown>(current.endpoint),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")),staleTime:0});
+ const internalMarksQuery=useQuery({queryKey:["student-self-service",user?.id,"INTERNAL_MARKS"],queryFn:()=>apiRequest<unknown>("/students/me/marks"),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")&&tab==="MARKS"),staleTime:0});
  const assignments=useMemo(()=>rows<StudentAssignment>(tab==="ASSIGNMENTS"?query.data:null).filter(a=>typeof a.id==="string"),[query.data,tab]);
+ const examMarks=useMemo(()=>rows<unknown>(tab==="MARKS"?query.data:null).map(object),[query.data,tab]);
+ const publishedResults=useMemo(()=>rows<unknown>(tab==="RESULTS"?query.data:null).map(object),[query.data,tab]);
+ const internalMarks=useMemo(()=>rows<unknown>(tab==="MARKS"?internalMarksQuery.data:null).map(object),[internalMarksQuery.data,tab]);
+ const publishedSessions=useMemo(()=>{const unique=new Map<string,Record<string,unknown>>();for(const result of publishedResults){if(typeof result.examSessionId==="string"&&result.examSessionId&&!unique.has(result.examSessionId))unique.set(result.examSessionId,result);}return [...unique.entries()].map(([id,result])=>({id,name:String(result.examName||"Examination")}));},[query.data,tab]);
  const selected=assignments.find(a=>a.id===selectedAssignmentId)||null;
+ const downloadMarksheet=async(sessionId:string)=>{setDownloadBusy(sessionId);setDownloadError("");try{const file=await apiDownloadPdf("/examinations/sessions/"+encodeURIComponent(sessionId)+"/marksheet.pdf","ACADLYX_"+sessionId+"_Marksheet.pdf");try{await file.preview({title:"ACADLYX Marksheet"});}catch(previewError){if(await Sharing.isAvailableAsync())await Sharing.shareAsync(file.uri,{dialogTitle:"Share or save ACADLYX marksheet",mimeType:"application/pdf"});else throw previewError;}}catch(error){setDownloadError(error instanceof Error?error.message:"Unable to download the marksheet. Please retry.");}finally{setDownloadBusy(null);}};
  const submit=useMutation({
   mutationFn:async()=>{
    if(!canSubmit)throw new Error("Your session does not include assignments.submit.");
@@ -59,7 +69,7 @@ export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:Student
    </ScrollView>
   </View>
   {query.isLoading?<View style={styles.state}><ActivityIndicator size="large" color={colors.primary}/><Text style={styles.muted}>Loading your {tab.toLowerCase()}…</Text></View>:
-   query.isError?<View style={styles.state}><Text style={styles.title}>Could not load this section</Text><Text style={styles.muted}>{query.error instanceof ApiError?query.error.message:query.error instanceof Error?query.error.message:"Check your connection and try again."}</Text><Pressable onPress={()=>{void query.refetch();}} style={styles.primary}><Text style={styles.primaryText}>Retry</Text></Pressable></View>:
+   query.isError&&!(tab==="MARKS"&&internalMarksQuery.data!==undefined)?<View style={styles.state}><Text style={styles.title}>Could not load this section</Text><Text style={styles.muted}>{query.error instanceof ApiError?query.error.message:query.error instanceof Error?query.error.message:"Check your connection and try again."}</Text><Pressable onPress={()=>{void query.refetch();}} style={styles.primary}><Text style={styles.primaryText}>Retry</Text></Pressable></View>:
    <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={()=>{void query.refetch();}} tintColor={colors.primary}/>}>
     {tab==="OVERVIEW"?<>
      <View style={styles.hero}><Text style={styles.studentName}>{headline}</Text><Text style={styles.meta}>{String(student.email||user.email||"")}</Text>
@@ -77,7 +87,44 @@ export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:Student
      {notices.length?<View style={styles.card}><Text style={styles.sectionTitle}>Announcements</Text>{notices.slice(0,6).map((it,i)=><View key={String(i)} style={styles.field}><Text style={styles.rowTitle}>{displayValue(object(it).title||object(it).name||"Announcement")}</Text><Text style={styles.meta}>{displayValue(object(it).body||object(it).message||object(it).createdAt)}</Text></View>)}</View>:null}
     </>:null}
     {tab==="ATTENDANCE"?<><View style={styles.card}><Text style={styles.sectionTitle}>Attendance summary</Text>{attendancePercentage!==null?<Text style={styles.metricValue}>{String(attendancePercentage)}%</Text>:null}{safeRecordEntries(query.data).map(([k,v])=><View key={k} style={styles.field}><Text style={styles.fieldLabel}>{k.replace(/([A-Z])/g," $1").replace(/[_-]/g," ")}</Text><Text style={styles.value}>{displayValue(v)}</Text></View>)}</View></>:null}
-    {tab==="MARKS"?<View style={styles.card}><Text style={styles.sectionTitle}>Marks and results</Text>{rows(query.data).map((it,i)=><View key={String(i)} style={styles.field}>{safeRecordEntries(it).map(([k,v])=><View key={k} style={styles.inline}><Text style={styles.fieldLabel}>{k.replace(/([A-Z])/g," $1").replace(/[_-]/g," ")}</Text><Text style={styles.value}>{displayValue(v)}</Text></View>)}</View>)}{rows(query.data).length===0?<Text style={styles.muted}>No marks or results have been returned for your account.</Text>:null}</View>:null}
+    {tab==="MARKS"?<>
+     {query.isError?<View style={styles.warning}><Text style={styles.warningTitle}>Examination performance could not load</Text><Text style={styles.warningText}>{query.error instanceof Error?query.error.message:"The examination request failed."}</Text></View>:null}
+     <View style={styles.card}>
+      <Text style={styles.sectionTitle}>Examination performance</Text>
+      {examMarks.map((mark,i)=><View key={String(mark.examScheduleId||i)} style={styles.resultRow}>
+       <View style={styles.resultHeading}><View style={styles.resultMain}><Text style={styles.rowTitle}>{String(mark.courseCode||"Course")} — {String(mark.courseName||"Course name unavailable")}</Text><Text style={styles.meta}>{String(mark.examName||"Examination")} · {dateLabel(typeof mark.examDate==="string"?mark.examDate:undefined)}</Text></View>
+        <Text style={styles.score}>{mark.isAbsent===true?"AB":mark.marksObtained===null||mark.marksObtained===undefined?"Not recorded":String(mark.marksObtained)+"/"+String(mark.maxMarks??"—")}</Text>
+       </View>
+       <Text style={styles.meta}>Status: {String(mark.status||"Unavailable")}{mark.passMarks!==null&&mark.passMarks!==undefined?" · Pass mark "+String(mark.passMarks):""}</Text>
+      </View>)}
+      {!query.isLoading&&examMarks.length===0&&!query.isError?<Text style={styles.muted}>No approved examination marks are available yet.</Text>:null}
+      {query.isLoading?<Text style={styles.muted}>Loading examination performance…</Text>:null}
+     </View>
+     <View style={styles.card}>
+      <Text style={styles.sectionTitle}>Internal assessment marks</Text>
+      <Text style={styles.meta}>Internal component marks are shown separately from examination marks.</Text>
+      {internalMarksQuery.isLoading?<Text style={styles.muted}>Loading internal assessment marks…</Text>:null}
+      {internalMarksQuery.isError?<View style={styles.warning}><Text style={styles.warningTitle}>Internal marks could not load</Text><Text style={styles.warningText}>{internalMarksQuery.error instanceof Error?internalMarksQuery.error.message:"The internal marks request failed."}</Text><Pressable onPress={()=>{void internalMarksQuery.refetch();}} style={styles.retry}><Text style={styles.retryText}>Retry internal marks</Text></Pressable></View>:null}
+      {internalMarks.map((mark,i)=>{const offering=object(mark.courseOffering);const course=object(offering.course);return <View key={String(mark.id||i)} style={styles.resultRow}><View style={styles.resultHeading}><View style={styles.resultMain}><Text style={styles.rowTitle}>{String(course.code||"Course")} — {String(course.name||"Course name unavailable")}</Text><Text style={styles.meta}>{String(mark.component||"Assessment component")}</Text></View><Text style={styles.score}>{String(mark.marksObtained??"—")}/{String(mark.maxMarks??"—")}</Text></View></View>;})}
+      {!internalMarksQuery.isLoading&&!internalMarksQuery.isError&&internalMarks.length===0?<Text style={styles.muted}>No internal assessment marks are available yet.</Text>:null}
+     </View>
+    </>:null}
+    {tab==="RESULTS"?<View style={styles.card}>
+     <Text style={styles.sectionTitle}>Published examination results</Text>
+     <Text style={styles.meta}>Only results published by the institution appear here. Draft and pending-approval marks are excluded by the backend.</Text>
+     {publishedResults.map((result,i)=><View key={String(result.examScheduleId||i)} style={styles.resultRow}>
+      <View style={styles.resultHeading}><View style={styles.resultMain}><Text style={styles.rowTitle}>{String(result.courseCode||"Course")} — {String(result.courseName||"Course name unavailable")}</Text><Text style={styles.meta}>{String(result.examName||"Examination")} · {dateLabel(typeof result.examDate==="string"?result.examDate:undefined)}</Text></View>
+       <Text style={styles.score}>{result.isAbsent===true?"AB":result.marksObtained===null||result.marksObtained===undefined?"Not recorded":String(result.marksObtained)+"/"+String(result.maxMarks??"—")}</Text>
+      </View>
+      <Text style={styles.meta}>Published: {dateLabel(typeof result.publishedAt==="string"?result.publishedAt:undefined)}</Text>
+      {typeof result.remarks==="string"&&result.remarks.trim()?<Text style={styles.meta}>Remarks: {result.remarks}</Text>:null}
+     </View>)}
+     {query.isLoading?<Text style={styles.muted}>Loading published results…</Text>:null}
+     {!query.isLoading&&!query.isError&&publishedResults.length===0?<Text style={styles.muted}>No published examination results are available yet.</Text>:null}
+     {publishedSessions.map(session=><View key={session.id} style={styles.downloadRow}><Text style={styles.rowTitle}>{session.name}</Text><Pressable accessibilityRole="button" disabled={downloadBusy===session.id} onPress={()=>{void downloadMarksheet(session.id);}} style={[styles.primary,downloadBusy===session.id?styles.disabled:null]}><Text style={styles.primaryText}>{downloadBusy===session.id?"Preparing PDF…":"Download marksheet PDF"}</Text></Pressable></View>)}
+     {publishedResults.some(result=>result.examSessionId===null||result.examSessionId===undefined)?<Text style={styles.meta}>Some older result records have no downloadable examination session; they remain visible above.</Text>:null}
+     {downloadError?<View style={styles.warning}><Text style={styles.warningTitle}>Marksheet download failed</Text><Text style={styles.warningText}>{downloadError}</Text></View>:null}
+    </View>:null}
     {tab==="TIMETABLE"?<>{rows(query.data).sort((a,b)=>Number(object(a).dayOfWeek||0)-Number(object(b).dayOfWeek||0)).map((it,i)=><View key={String(i)} style={styles.card}><Text style={styles.rowTitle}>{displayValue(object(it).courseCode||object(object(it).course).code||"Class") } · {displayValue(object(it).startTime)}–{displayValue(object(it).endTime)}</Text>{safeRecordEntries(it).map(([k,v])=><View key={k} style={styles.inline}><Text style={styles.fieldLabel}>{k}</Text><Text style={styles.value}>{displayValue(v)}</Text></View>)}</View>)}{rows(query.data).length===0?<View style={styles.card}><Text style={styles.muted}>No timetable entries have been returned. This may mean your enrolment/section is not yet configured.</Text></View>:null}</>:null}
     {tab==="ASSIGNMENTS"?<>
      {selected?<View style={styles.card}>
@@ -88,7 +135,7 @@ export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:Student
      </View>:assignments.map(a=><Pressable key={a.id} onPress={()=>{setSelectedAssignmentId(a.id);setSubmissionText("");}} style={styles.card}><Text style={styles.rowTitle}>{a.title}</Text><Text style={styles.meta}>{a.courseCode||a.courseOffering?.course?.code||"Course"} · Due {dateLabel(a.dueDate)}</Text><Text style={styles.meta}>{a.maxMarks!==undefined?"Maximum marks: "+String(a.maxMarks):""}</Text><Text style={styles.open}>{a.mySubmission||a.submission?"View submitted work":"Open assignment →"}</Text></Pressable>)}
      {!selected&&assignments.length===0?<View style={styles.card}><Text style={styles.sectionTitle}>No published assignments due</Text><Text style={styles.muted}>The student self-service API returned no upcoming assignments.</Text></View>:null}
     </>:null}
-    <Text style={styles.footnote}>Student data is sourced from the authenticated /students/me endpoints. No records are generated locally.</Text>
+    <Text style={styles.footnote}>Student data is sourced from authenticated self-service APIs. Published results exclude draft and pending examination marks; no records are generated locally.</Text>
    </ScrollView>}
  </View>;
 }
@@ -105,5 +152,5 @@ const styles=StyleSheet.create({
  primary:{backgroundColor:colors.primary,borderRadius:radius.md,paddingHorizontal:14,paddingVertical:12,alignItems:"center",justifyContent:"center",marginTop:10},primaryText:{color:colors.white,fontSize:12,fontWeight:"900"},disabled:{opacity:.45},
  label:{color:colors.text,fontSize:12,fontWeight:"800",marginTop:10},input:{borderWidth:1,borderColor:colors.border,borderRadius:radius.md,backgroundColor:colors.surface,color:colors.text,paddingHorizontal:12,paddingVertical:10,fontSize:13},
  textArea:{minHeight:140,marginTop:8},submission:{backgroundColor:colors.surfaceMuted,borderRadius:radius.md,padding:12,marginTop:10,gap:5},error:{color:colors.danger,fontSize:11,lineHeight:17,marginTop:8},
- state:{flex:1,alignItems:"center",justifyContent:"center",padding:spacing.xl,gap:10},muted:{color:colors.textMuted,fontSize:12,lineHeight:18},footnote:{color:colors.textMuted,fontSize:10,lineHeight:16,textAlign:"center",marginTop:8}
+ state:{flex:1,alignItems:"center",justifyContent:"center",padding:spacing.xl,gap:10},muted:{color:colors.textMuted,fontSize:12,lineHeight:18},warning:{borderWidth:1,borderColor:colors.warning,borderRadius:radius.md,backgroundColor:colors.surface,padding:spacing.md,marginBottom:8},warningTitle:{color:colors.warning,fontWeight:"900",fontSize:12},warningText:{color:colors.textMuted,fontSize:11,lineHeight:17,marginTop:4},resultRow:{borderTopWidth:1,borderColor:colors.border,paddingVertical:10,gap:5},resultHeading:{flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between",gap:10},resultMain:{flex:1},score:{color:colors.text,fontWeight:"900",fontSize:12,textAlign:"right",maxWidth:112},downloadRow:{borderTopWidth:1,borderColor:colors.border,paddingVertical:9,gap:5},retry:{alignSelf:"flex-start",paddingVertical:8},retryText:{color:colors.primary,fontWeight:"900",fontSize:11},footnote:{color:colors.textMuted,fontSize:10,lineHeight:16,textAlign:"center",marginTop:8}
 });
