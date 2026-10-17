@@ -1858,6 +1858,25 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 ].filter((item): item is NavigationItem => Boolean(item));
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
+  ["/club", ["CLUB_PRESIDENT"]],
+  ["/cms", ["SUPER_ADMIN", "CMS"]],
+  ["/enrollment", ["ADMISSIONS", "REGISTRAR", "CHAIRMAN", "DIRECTOR", "DEAN"]],
+  ["/erp", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD", "STAFF", "FACULTY", "PARENT", "STUDENT"]],
+  ["/faculty-management", ["HR"]],
+  ["/forms", ["REGISTRAR", "STUDENT"]],
+  ["/institution-settings", ["INSTITUTION_ADMIN"]],
+  ["/institutionalcms", ["INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"]],
+  ["/lms/settings", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "HOD", "FACULTY"]],
+  ["/lms/reports", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "HOD", "FACULTY"]],
+  ["/lms/parent", ["PARENT"]],
+  ["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "STUDENT", "PARENT", "HOD", "FACULTY"]],
+  ["/my-work", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/profile", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/today", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/user-deletion-approvals", ["INSTITUTION_ADMIN"]],
+  ["/fees/receipts", ["SUPER_ADMIN", "MANAGEMENT", "DIRECTOR", "HOD", "STUDENT", "PARENT"]],
+  ["/fees/collections", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]],
+
   ["/admin/institutional-cms", ["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR"]],
   ["/superadmin", ["SUPER_ADMIN"]],
   ["/admin", ["INSTITUTION_ADMIN"]],
@@ -2378,7 +2397,9 @@ export function canAccessRoute(
       )[0];
 
   if (!matchingNamespace) {
-    return true;
+    // Protected routes fail closed unless a namespace (including a specific
+    // legacy alias/shared workspace) explicitly declares their owner roles.
+    return false;
   }
 
   const [, allowedRoles] =
@@ -2394,6 +2415,8 @@ export function canAccessRoute(
   // user actually has the module's read capability. Role ownership alone is
   // never enough to open a protected module directly by URL.
   const namespacePermission: Array<[string, string]> = [
+    ["/lms/settings", "lms.manage"],
+    ["/lms", "lms.read"],
     ["/obe", "obe.read"],
     ["/examination", "exams.read"],
   ];
