@@ -28,7 +28,7 @@ export function RoleScopedStudents({
   role: string;
   title: string;
   subtitle: string;
-  detailBasePath?: string;
+  detailBasePath?: string | null;
   apiBasePath?: string;
   placementFilters?: boolean;
 }) {
@@ -129,17 +129,35 @@ export function RoleScopedStudents({
               <button type="button" onClick={() => void load()} disabled={loading} className="text-sm font-bold text-emerald-700 disabled:opacity-50">Refresh</button>
             </div>
             <div className="divide-y divide-slate-100">
-              {students.map((student) => (
-                <Link key={student.id} href={`${detailBasePath}/${encodeURIComponent(student.id)}`} className="block px-5 py-4 transition hover:bg-slate-50 sm:px-6">
+              {students.map((student) => {
+                const rowContent = (
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-bold text-slate-950">{student.firstName} {student.lastName}</p>
                       <p className="text-xs text-slate-500">{student.profile?.admissionNumber || student.email}</p>
                     </div>
-                    <span className="text-xs font-semibold text-emerald-700">View placement profile →</span>
+                    {detailBasePath ? (
+                      <span className="text-xs font-semibold text-emerald-700">
+                        {placementFilters ? "View placement profile →" : "View student profile →"}
+                      </span>
+                    ) : null}
                   </div>
-                </Link>
-              ))}
+                );
+
+                return detailBasePath ? (
+                  <Link
+                    key={student.id}
+                    href={`${detailBasePath}/${encodeURIComponent(student.id)}`}
+                    className="block px-5 py-4 transition hover:bg-slate-50 sm:px-6"
+                  >
+                    {rowContent}
+                  </Link>
+                ) : (
+                  <div key={student.id} className="px-5 py-4 sm:px-6">
+                    {rowContent}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 sm:px-6">
               <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-40">Previous</button>
