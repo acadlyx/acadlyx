@@ -9,6 +9,43 @@ const REFRESH_TOKEN_KEY = "acadlyx_refresh_token";
 const DEFAULT_TIMEOUT_MS = 30000;
 
 export type AuthTokens = { accessToken: string; refreshToken: string; expiresIn?: string };
+export type WorkspaceContextIds = {
+  campusId?: string | null;
+  departmentId?: string | null;
+  programId?: string | null;
+  academicYearId?: string | null;
+  batchId?: string | null;
+  semesterId?: string | null;
+  sectionId?: string | null;
+};
+
+let activeWorkspaceContext: WorkspaceContextIds = {};
+
+export function setActiveWorkspaceContext(scope?: WorkspaceContextIds | null): void {
+  activeWorkspaceContext = {};
+  if (!scope) return;
+  for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+    const value = scope[key];
+    if (typeof value === "string" && value.trim()) activeWorkspaceContext[key] = value;
+  }
+}
+
+function applyWorkspaceContext(path: string, enabled: boolean): string {
+  if (!enabled || /^https?:\/\//i.test(path)) return path;
+  const separator = path.indexOf("?");
+  const pathname = separator >= 0 ? path.slice(0, separator) : path;
+  const route = pathname.replace(/^\/+/, "");
+  if (route === "auth" || route.startsWith("auth/") ||
+      route === "workspace/context" || route.startsWith("workspace/context/")) return path;
+
+  const params = new URLSearchParams(separator >= 0 ? path.slice(separator + 1) : "");
+  for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+    const value = activeWorkspaceContext[key];
+    if (typeof value === "string" && value && !params.has(key)) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? pathname + "?" + query : pathname;
+}
 type ApiEnvelope<T> = {
   success?: boolean;
   data?: T;
@@ -125,8 +162,9 @@ async function performRequest<T>(path: string, options: ApiRequestOptions, mayRe
   }
   if (method !== "GET" && !headers.has("X-Idempotency-Key")) headers.set("X-Idempotency-Key", makeIdempotencyKey());
 
+  const requestPath = applyWorkspaceContext(path, auth);
   const response = await fetchWithTimeout(
-    API_BASE_URL + (path.startsWith("/") ? path : "/" + path),
+    API_BASE_URL + (requestPath.startsWith("/") ? requestPath : "/" + requestPath),
     { ...init, method, headers },
     timeoutMs,
     parentSignal
