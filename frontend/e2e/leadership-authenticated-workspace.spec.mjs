@@ -31,6 +31,7 @@ async function installAuthenticatedSession(page, role) {
     tenantFeatures: [
       "fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms",
       "students", "faculty", "timetable", "results", "reports", "notifications",
+      "documents", "certificates",
       ...(role === "STUDENT" || role === "LIBRARIAN" ? ["library"] : []),
       ...(role === "PARENT" ? ["parent_portal"] : []),
     ],
@@ -504,4 +505,74 @@ test("Admissions student list opens the existing role-authorized student profile
   await expect(page).toHaveURL(/\/students\/browser-test-student$/);
   await expect(page.getByRole("heading", { name: "Student Profile", exact: true })).toBeVisible();
   await expect(page.getByText("TEST-001")).toBeVisible();
+});
+
+
+test("Accounts legacy Payments URL resolves to Accounts payments", async ({ page }) => {
+  await installAuthenticatedSession(page, "ACCOUNTS");
+  await page.goto(baseURL + "/payments", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/accounts\/payments$/);
+  await expect(page.getByRole("heading", { name: /Payments/i }).first()).toBeVisible();
+});
+
+test("Student legacy Payments URL resolves to Student fees, not Accounts", async ({ page }) => {
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/payments", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student\/fees$/);
+  await expect(page.locator('a[href="/accounts/payments"]')).toHaveCount(0);
+});
+
+test("Parent legacy Payments URL resolves to linked-child workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "PARENT");
+  await page.goto(baseURL + "/payments", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/parent\/children$/);
+  await expect(page.getByRole("heading", { name: "My children", exact: true })).toBeVisible();
+});
+
+test("Accounts legacy fee-receipts URL resolves to Accounts receipts", async ({ page }) => {
+  await installAuthenticatedSession(page, "ACCOUNTS");
+  await page.goto(baseURL + "/fees/receipts", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/accounts\/receipts$/);
+  await expect(page.getByRole("heading", { name: /Receipts/i }).first()).toBeVisible();
+});
+
+test("Student cannot mount Accounts receipts through the legacy fee-receipts URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.includes("/api/v1/erp/fee-receipts")) forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/fees/receipts", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  expect(forbiddenRequests, "legacy Accounts receipts route must not start fee-receipt API effects for Student").toEqual([]);
+});
+
+test("Club President legacy route resolves to Club President workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "CLUB_PRESIDENT");
+  await page.goto(baseURL + "/club", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/club-president$/);
+});
+
+test("CMS legacy route resolves to authorized CMS workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "CMS");
+  await page.goto(baseURL + "/cms", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/site-content$/);
+});
+
+test("Admissions enrollment alias resolves to Admissions workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "ADMISSIONS");
+  await page.goto(baseURL + "/enrollment", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/admissions$/);
+});
+
+test("Registrar forms alias resolves to certificates workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "REGISTRAR");
+  await page.goto(baseURL + "/forms", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/certificates$/);
+});
+
+test("Institution Admin institution-settings alias resolves to admin workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "INSTITUTION_ADMIN");
+  await page.goto(baseURL + "/institution-settings", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/admin$/);
 });
