@@ -6,15 +6,14 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { setActiveWorkspaceContext } from "./src/api/client";
+import { getAuthorizationShape, resetAuthorizationState } from "./src/workspace/workspaceScope.mjs";
 import { WorkspaceContextProvider } from "./src/workspace/WorkspaceContextProvider";
 import { colors } from "./src/ui/theme";
 
 function SessionCacheBoundary() {
   const { user, status } = useAuth();
   const client = useQueryClient();
-  const authorizationShape = (user?.id || "anonymous") + ":" +
-    (user?.roles || []).slice().sort().join(",") + ":" +
-    (user?.permissions || []).slice().sort().join(",");
+  const authorizationShape = getAuthorizationShape(user);
   const [clearedShape, setClearedShape] = useState<string | null>(null);
 
   // This is a render gate, not just an effect-side cleanup: after a token
@@ -24,11 +23,9 @@ function SessionCacheBoundary() {
     let active = true;
     setClearedShape(null);
     void (async () => {
-      await client.cancelQueries();
-      // Reset the module-level query filter together with cached records. A new
-      // account must never issue requests with the previous account's scope.
-      setActiveWorkspaceContext(null);
-      client.clear();
+      // Reset the module-level query filter together with cached records. A
+      // new account or effective grant shape must never see the prior scope.
+      await resetAuthorizationState(client, () => setActiveWorkspaceContext(null));
       if (active) setClearedShape(authorizationShape);
     })();
     return () => { active = false; };
