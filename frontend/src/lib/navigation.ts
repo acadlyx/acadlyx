@@ -1965,13 +1965,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD"],
   ],
 
-  [
-    "/students",
-    [
-      "INSTITUTION_ADMIN",
-    ],
-  ],
-  ],
+  ["/students", ["INSTITUTION_ADMIN"]],
 
   ["/user-management", ["INSTITUTION_ADMIN"]],
 
