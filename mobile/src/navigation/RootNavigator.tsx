@@ -25,8 +25,9 @@ import { StudentPortalScreen } from "../screens/StudentPortalScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
+import { WorkspaceContextScreen } from "../screens/WorkspaceContextScreen";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"ASSIGNMENTS"|"TIMETABLE" } };
+export type RootStackParamList = { Login: undefined; Main: undefined; WorkspaceContext: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"ASSIGNMENTS"|"TIMETABLE" } };
 export type TabParamList = { Home: undefined; Modules: undefined; Search: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -80,6 +81,7 @@ export function RootNavigator() {
       }}>
         {status === "authenticated" ? <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="WorkspaceContext" component={WorkspaceContextScreen} options={{ title: "Workspace & context" }} />
           <Stack.Screen name="Module" component={ModuleScreen} options={({ route }) => ({ title: getModule(route.params.moduleId)?.title || "Module" })} />
           <Stack.Screen name="Assignments" component={AssignmentsScreen} options={{ title: "Assignments" }} />
           <Stack.Screen name="Notices" component={NoticesScreen} options={{ title: "Notices" }} />
