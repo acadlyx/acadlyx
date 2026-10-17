@@ -196,7 +196,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         select: { id: true },
       });
       await prisma.tenantFeatureEntitlement.createMany({
-        data: ["academics", "students", "assignments", "attendance", "results", "timetable", "parent_portal"].map((featureKey) => ({
+        data: ["academics", "students", "assignments", "attendance", "results", "timetable", "parent_portal", "fees"].map((featureKey) => ({
           institutionId,
           subscriptionId: subscription.id,
           featureKey,
@@ -754,9 +754,101 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       404,
       "Revoking the parent-student link must immediately remove access on the next request.",
     );
+
+    // Exercise fee-structure maker-checker through registered Express routes
+    // and PostgreSQL state, not only service/source-contract tests.
+    const makerFeeHead = await prisma.feeHead.create({
+      data: {
+        institutionId: institutionA.id,
+        name: "Maker checker tuition " + suffix,
+        code: "MC-" + suffix.toUpperCase(),
+      },
+      select: { id: true },
+    });
+    const createdFeeStructure = await requestWithBody(
+      "/erp/fee-structures",
+      roleUsers.CHAIRMAN.token,
+      "POST",
+      {
+        name: "Maker checker structure " + suffix,
+        academicYearId: yearA1.id,
+        programId: programA1.id,
+        semesterId: semesterA1.id,
+        items: [{ feeHeadId: makerFeeHead.id, amount: 1500, dueDays: 30, installmentNumber: 1 }],
+      },
+    );
+    assert.equal(createdFeeStructure.status, 201, "Chairman must be able to create a draft through the API: " + JSON.stringify(createdFeeStructure.body));
+    const createdFeeStructureData = createdFeeStructure.body.data as { id: string; status: string };
+    assert.ok(createdFeeStructureData.id);
+    assert.equal(createdFeeStructureData.status, "DRAFT", "API creation cannot publish a fee structure implicitly");
+
+    const nonChairmanDirectPublish = await requestWithBody(
+      "/erp/fee-structures/" + createdFeeStructureData.id + "/publish",
+      roleUsers.MANAGEMENT.token,
+      "POST",
+      {},
+    );
+    assert.equal(nonChairmanDirectPublish.status, 403, "Management may not bypass the Chairman-only direct publication workflow");
+    assert.equal(
+      (await prisma.feeStructure.findFirstOrThrow({ where: { id: createdFeeStructureData.id }, select: { status: true } })).status,
+      "DRAFT",
+      "Rejected direct publication must leave the draft unchanged",
+    );
+
+    const submittedFeeStructure = await requestWithBody(
+      "/erp/fee-structures/" + createdFeeStructureData.id + "/submit",
+      roleUsers.CHAIRMAN.token,
+      "POST",
+      {},
+    );
+    assert.equal(submittedFeeStructure.status, 200, "The creator must be able to submit their own draft for approval: " + JSON.stringify(submittedFeeStructure.body));
+    assert.equal(
+      (await prisma.feeStructure.findFirstOrThrow({ where: { id: createdFeeStructureData.id }, select: { status: true } })).status,
+      "PENDING_APPROVAL",
+    );
+
+    const selfApproval = await requestWithBody(
+      "/erp/fee-structures/" + createdFeeStructureData.id + "/approve",
+      roleUsers.CHAIRMAN.token,
+      "POST",
+      {},
+    );
+    assert.equal(selfApproval.status, 403, "The maker cannot approve their own fee-structure submission");
+    assert.match(selfApproval.body.error?.message || "", /creator cannot approve/i);
+    const studentApproval = await requestWithBody(
+      "/erp/fee-structures/" + createdFeeStructureData.id + "/approve",
+      roleUsers.STUDENT.token,
+      "POST",
+      {},
+    );
+    assert.equal(studentApproval.status, 403, "A Student must not receive fee-structure approval authority");
+
+    const afterDeniedApprovals = await prisma.feeStructure.findFirstOrThrow({
+      where: { id: createdFeeStructureData.id },
+      select: { status: true, createdById: true },
+    });
+    assert.equal(afterDeniedApprovals.status, "PENDING_APPROVAL", "Denied approval attempts must not mutate the workflow state");
+    assert.equal(afterDeniedApprovals.createdById, roleUsers.CHAIRMAN.id);
+
+    const secondApprover = await requestWithBody(
+      "/erp/fee-structures/" + createdFeeStructureData.id + "/approve",
+      roleUsers.MANAGEMENT.token,
+      "POST",
+      {},
+    );
+    assert.equal(secondApprover.status, 200, "A separate authorized Management approver must be able to approve: " + JSON.stringify(secondApprover.body));
+    assert.equal(
+      (await prisma.feeStructure.findFirstOrThrow({ where: { id: createdFeeStructureData.id }, select: { status: true } })).status,
+      "ACTIVE",
+      "Approval by a distinct authorized user must transition the submitted structure to ACTIVE",
+    );
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server?.close(() => resolve()));
+    }
+    if (institutionIds.length) {
+      await prisma.feeStructure.deleteMany({ where: { institutionId: { in: institutionIds } } }).catch(() => undefined);
+      await prisma.feeHead.deleteMany({ where: { institutionId: { in: institutionIds } } }).catch(() => undefined);
     }
     if (userIds.length) {
       await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => undefined);
