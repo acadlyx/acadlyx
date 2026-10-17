@@ -126,7 +126,7 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(workspaceScope.includes('"erp/timetable": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]'));
   assert.ok(provider.includes("authorizationKey") && provider.includes("user.permissions"));
   assert.ok(provider.includes("mustWaitForValidatedContext"), "Do not render screens until the current saved scope is server-validated.");
-  assert.ok(appSource.includes("await client.cancelQueries()"));
+  assert.ok(appSource.includes("await resetAuthorizationState(client, () => setActiveWorkspaceContext(null))"), "Session cache boundary must reset scoped queries before rendering the new authorization shape.");
   assert.ok(appSource.includes("setActiveWorkspaceContext(null)") || client.includes("setActiveWorkspaceContext"));
 });
 
