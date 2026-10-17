@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertPartialStudentImportScope } from "../services/import.service";
+import { assertExistingStudentImportPermission, assertPartialStudentImportScope } from "../services/import.service";
 import type { AuthenticatedUser } from "../types/auth";
 
 function actor(roles: string[]): AuthenticatedUser {
@@ -36,4 +36,15 @@ test("institution administration and institution-wide admissions may create inco
   await assert.doesNotReject(
     assertPartialStudentImportScope("institution-1", actor(["ADMISSIONS"]), null),
   );
+});
+
+test("updating an existing student requires the distinct students.update permission", () => {
+  assert.throws(
+    () => assertExistingStudentImportPermission(actor(["INSTITUTION_ADMIN"])),
+    /requires students.update permission/,
+  );
+  assert.doesNotThrow(() => assertExistingStudentImportPermission({
+    ...actor(["INSTITUTION_ADMIN"]),
+    permissions: ["students.create", "students.update"],
+  }));
 });

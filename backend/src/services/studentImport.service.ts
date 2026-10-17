@@ -93,17 +93,44 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
       const result = await prisma.$transaction(async (tx) => {
         const roleId = await findRoleId(tx, institutionId);
         const placement = await resolvePlacement(tx, institutionId, row);
-        await assertPartialStudentImportScope(institutionId, actor, placement?.departmentId ?? null);
         const existingProfile = await tx.studentProfile.findFirst({ where: { institutionId, admissionNumber }, select: { userId: true } });
         const existingEmail = suppliedEmail ? await tx.user.findUnique({ where: { email: suppliedEmail }, select: { id: true, institutionId: true } }) : null;
         if (existingEmail && existingEmail.institutionId !== institutionId) throw new AppError("The supplied email already belongs to another institution", 409);
         if (existingProfile && existingEmail && existingProfile.userId !== existingEmail.id) throw new AppError("Admission number and email refer to different users", 409);
         const existingUserId = existingProfile?.userId ?? existingEmail?.id;
-        const existingUser = existingUserId ? await tx.user.findUnique({ where: { id: existingUserId }, select: { email: true, idNumber: true } }) : null;
+        const existingStudentProfile = existingUserId
+          ? await tx.studentProfile.findUnique({ where: { userId: existingUserId }, select: { institutionId: true, admissionNumber: true } })
+          : null;
+        if (existingStudentProfile && existingStudentProfile.institutionId !== institutionId) {
+          throw new AppError("The supplied account belongs to another institution", 409);
+        }
+        if (existingStudentProfile && existingStudentProfile.admissionNumber !== admissionNumber) {
+          throw new AppError("The supplied email already belongs to a student with a different admission number", 409);
+        }
+        if (existingStudentProfile) assertExistingStudentImportPermission(actor);
+        await assertPartialStudentImportScope(
+          institutionId, actor, placement?.departmentId ?? null, placement?.programId ?? null,
+          placement?.semesterId ?? null, existingUserId,
+        );
+        const existingUser = existingUserId
+          ? await tx.user.findUnique({ where: { id: existingUserId } })
+          : null;
+        if (existingUserId && !existingUser) throw new AppError("The imported account no longer exists; retry after refreshing the student list", 409);
         const finalEmail = existingUser?.email ?? email;
         const finalIdNumber = existingUser?.idNumber ?? idNumber;
         const user = existingUserId
-          ? await tx.user.update({ where: { id: existingUserId }, data: { email: finalEmail, idNumber: finalIdNumber, firstName, lastName, phone: text(row.phone) || null } })
+          ? actor.permissions.includes("users.update")
+            ? await tx.user.update({
+                where: { id: existingUserId },
+                data: {
+                  email: finalEmail,
+                  idNumber: finalIdNumber,
+                  ...(text(row.firstname) ? { firstName } : {}),
+                  ...(text(row.lastname) ? { lastName } : {}),
+                  ...(text(row.phone) ? { phone: text(row.phone) } : {}),
+                },
+              })
+            : existingUser!
           : await tx.user.create({ data: { institutionId, email: finalEmail, idNumber: finalIdNumber, passwordHash: await hashPassword("Import-" + crypto.randomUUID() + "-9xA!"), firstName, lastName, phone: text(row.phone) || null, isActive: true } });
         await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId } }, update: {}, create: { userId: user.id, roleId } });
         await tx.studentProfile.upsert({

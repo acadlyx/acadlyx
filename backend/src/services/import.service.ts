@@ -107,18 +107,50 @@ export async function assertPartialStudentImportScope(
   institutionId: string,
   actor: AuthenticatedUser,
   departmentId: string | null,
+  programId: string | null,
+  semesterId: string | null,
+  existingUserId?: string | null,
 ): Promise<void> {
   const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWide(actor) || (activeRole === "ADMISSIONS" && isInstitutionWideAdmissions(actor))) {
     return;
   }
-  if (!departmentId) {
+  if (!departmentId || !programId || !semesterId) {
     throw new AppError(
-      "Scoped student imports must include a valid programme and academic year for authorization.",
+      "Scoped student imports must include a valid programme, academic year, and semester for authorization.",
       403,
     );
   }
   await assertImportDepartmentScope(institutionId, actor, departmentId);
+  if (!existingUserId) return;
+
+  const existingProfile = await prisma.studentProfile.findFirst({
+    where: { institutionId, userId: existingUserId },
+    select: { userId: true },
+  });
+  if (!existingProfile) {
+    throw new AppError("Campus/department-scoped imports cannot attach an existing non-student account.", 403);
+  }
+
+  const existingEnrollments = await prisma.studentEnrollment.findMany({
+    where: { institutionId, userId: existingUserId },
+    select: { programId: true, program: { select: { departmentId: true } } },
+  });
+  if (
+    existingEnrollments.length === 0 ||
+    existingEnrollments.some((enrollment) => enrollment.program.departmentId !== departmentId || enrollment.programId !== programId)
+  ) {
+    throw new AppError(
+      "A scoped import cannot overwrite or move a student outside the existing programme scope. Use the approved student-movement workflow.",
+      409,
+    );
+  }
+}
+
+export function assertExistingStudentImportPermission(actor: Pick<AuthenticatedUser, "permissions">): void {
+  if (!actor.permissions.includes("students.update")) {
+    throw new AppError("Updating an existing student through import requires students.update permission", 403);
+  }
 }
 
 async function assertImportDepartmentScope(institutionId: string, actor: AuthenticatedUser, departmentId: string, allowAdmissionsStudentCreation = false, allowExamination = false) {
@@ -154,7 +186,7 @@ async function findOrCreateRole(
   return role;
 }
 
-async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string) {
+async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string, allowExistingUpdate = true) {
   const email = text(row.email).toLowerCase();
   const idNumber = text(row.idnumber || row.id || row.loginid).toUpperCase();
   if (!email) throw new AppError("Every user row needs an email", 400);
@@ -171,7 +203,9 @@ async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, r
     throw new AppError("New imported users require a password of at least 12 characters", 400);
   }
   const user = existing
-    ? await tx.user.update({ where: { id: existing.id }, data: { idNumber, firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
+    ? allowExistingUpdate
+      ? await tx.user.update({ where: { id: existing.id }, data: { idNumber, firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
+      : existing
     : await tx.user.create({ data: { institutionId, email, idNumber, passwordHash: await hashPassword(password), firstName: text(row.firstname) || "User", lastName: text(row.lastname), phone: text(row.phone) || null } });
   await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: role.id } }, update: {}, create: { userId: user.id, roleId: role.id } });
   return user;
@@ -281,6 +315,18 @@ async function processImportRow(
           });
 
           const email = text(row.email).toLowerCase();
+          const existingEmailUser = email
+            ? await tx.user.findUnique({ where: { email }, select: { id: true, institutionId: true } })
+            : null;
+          if (existingEmailUser && existingEmailUser.institutionId !== institutionId) {
+            throw new AppError("The supplied email already belongs to another institution", 409);
+          }
+          const existingEmailProfile = existingEmailUser
+            ? await tx.studentProfile.findUnique({ where: { userId: existingEmailUser.id }, select: { institutionId: true, admissionNumber: true } })
+            : null;
+          if (existingEmailProfile && existingEmailProfile.admissionNumber !== admissionNumber) {
+            throw new AppError("The supplied email already belongs to a student with a different admission number", 409);
+          }
           if (existingProfile && email && existingProfile.user.email.toLowerCase() !== email) {
             throw new AppError(
               "Admission number " + admissionNumber + " is already assigned to " + existingProfile.user.email,
@@ -288,7 +334,8 @@ async function processImportRow(
             );
           }
 
-          const user = await upsertUser(tx, institutionId, row, "STUDENT");
+          if (existingProfile || existingEmailProfile) assertExistingStudentImportPermission(actor);
+          const user = await upsertUser(tx, institutionId, row, "STUDENT", actor.permissions.includes("users.update"));
           const program = await resolveProgram(tx, institutionId, row);
           await assertImportDepartmentScope(institutionId, actor, program.departmentId, true);
           if (existingProfile) {
