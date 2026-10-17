@@ -434,3 +434,13 @@ test("native internal-mark entry uses faculty-owned rosters and existing validat
   assert.ok(rosterService.includes("assertOwnsCourseOffering(user, offering.facultyId)"));
   assert.ok(webMarksPage.includes("getCourseOfferingRoster") && webMarksPage.includes("enterMarks"));
 });
+
+
+test("internal mark fields are read-only without marks.enter", () => {
+  const screen = read("src/screens/InternalMarksScreen.tsx");
+  assert.ok(screen.includes("const canEnter = isFaculty && has("));
+  assert.ok(screen.includes("editable={canEnter} value={maxMarks}"));
+  assert.ok(screen.includes("editable={canEnter} value={marks[student.studentId] || \"\"}"));
+  assert.ok(screen.includes("{canEnter ? <Button"));
+  assert.ok(screen.includes("Read-only access: your session does not have marks.enter."));
+});

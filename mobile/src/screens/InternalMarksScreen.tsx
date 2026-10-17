@@ -142,18 +142,18 @@ export function InternalMarksScreen() {
       <View style={styles.card}>
         <Text style={styles.label}>Assessment component</Text><TextInput value={component} onChangeText={setComponent} maxLength={100} placeholder="e.g. Internal 1" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Assessment component" />
         <Button label="Load component" secondary disabled={!component.trim() || component.trim().length > 100} onPress={() => {setActiveComponent(component.trim());setErrorMessage("");}} />
-        <Text style={styles.label}>Maximum marks</Text><TextInput value={maxMarks} onChangeText={setMaxMarks} keyboardType="decimal-pad" placeholder="50" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Maximum marks" />
+        <Text style={styles.label}>Maximum marks</Text><TextInput editable={canEnter} value={maxMarks} onChangeText={setMaxMarks} keyboardType="decimal-pad" placeholder="50" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Maximum marks" />
         <Text style={styles.detail}>Blank entries are left unchanged. Select Load component to switch to another component's saved marks.</Text>
       </View>
       {roster.map(student => <View style={styles.card} key={student.studentId}>
         <View style={styles.row}><View style={styles.studentInfo}><Text style={styles.cardTitle}>{studentLabel({firstName:student.firstName,lastName:student.lastName})}</Text><Text style={styles.detail}>{student.rollNumber || "Roll number not available"}</Text></View>
-        <View style={styles.markInputWrap}><TextInput value={marks[student.studentId] || ""} onChangeText={raw => setMarks(current => ({...current,[student.studentId]:raw}))} keyboardType="decimal-pad" placeholder="—" placeholderTextColor={colors.textMuted} style={styles.markInput} accessibilityLabel={"Marks for "+studentLabel({firstName:student.firstName,lastName:student.lastName})} /><Text style={styles.maxText}>/ {maxMarks || "—"}</Text></View></View>
+        <View style={styles.markInputWrap}><TextInput editable={canEnter} value={marks[student.studentId] || ""} onChangeText={raw => setMarks(current => ({...current,[student.studentId]:raw}))} keyboardType="decimal-pad" placeholder="—" placeholderTextColor={colors.textMuted} style={styles.markInput} accessibilityLabel={"Marks for "+studentLabel({firstName:student.firstName,lastName:student.lastName})} /><Text style={styles.maxText}>/ {maxMarks || "—"}</Text></View></View>
       </View>)}
       {!roster.length ? <Empty title="No active students" detail="No students were returned for this assigned course offering." /> : null}
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
       {saveMutation.isError ? <Text style={styles.error}>{saveMutation.error instanceof Error?saveMutation.error.message:"Marks could not be saved."}</Text> : null}
       {saveMutation.isSuccess ? <Text style={styles.success}>Marks were accepted by the backend; refreshing saved records.</Text> : null}
-      <Button label={saveMutation.isPending ? "Saving marks…" : "Save marks"} disabled={saveMutation.isPending || !roster.length || !activeComponent.trim()} onPress={() => {setErrorMessage("");saveMutation.mutate();}} />
+      {canEnter ? <Button label={saveMutation.isPending ? "Saving marks…" : "Save marks"} disabled={saveMutation.isPending || !roster.length || !activeComponent.trim()} onPress={() => {setErrorMessage("");saveMutation.mutate();}} /> : <Text style={styles.muted}>Read-only access: your session does not have marks.enter.</Text>}
     </ScrollView>
     : readQuery.isLoading ? <Loading text="scope-filtered mark records" /> : readQuery.isError ? <Retry error={readQuery.error} retry={() => {void readQuery.refetch();}} /> : <FlatList
       data={readRecords} keyExtractor={(x,i) => field(x,"id") || "mark-"+i} contentContainerStyle={styles.list}
