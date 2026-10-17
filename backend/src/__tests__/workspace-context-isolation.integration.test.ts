@@ -196,7 +196,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         select: { id: true },
       });
       await prisma.tenantFeatureEntitlement.createMany({
-        data: ["academics", "students", "assignments", "attendance", "results", "timetable"].map((featureKey) => ({
+        data: ["academics", "students", "assignments", "attendance", "results", "timetable", "parent_portal"].map((featureKey) => ({
           institutionId,
           subscriptionId: subscription.id,
           featureKey,
@@ -310,6 +310,14 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         { institutionId: institutionB.id, userId: studentB.id, programId: programB.id, academicYearId: yearB.id, batchId: batchB.id, semesterId: semesterB.id, sectionId: sectionB.id, status: "ACTIVE" },
         { institutionId: institutionA.id, userId: multiFacultyStudent.id, programId: programA1.id, academicYearId: yearA1.id, batchId: batchA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, status: "ACTIVE" },
       ],
+    });
+    await prisma.parentStudentLink.create({
+      data: {
+        institutionId: institutionA.id,
+        parentId: roleUsers.PARENT.id,
+        studentId: studentA1.id,
+        relationship: "Guardian",
+      },
     });
 
     const multiFacultyCourse = await prisma.course.create({
@@ -713,6 +721,39 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     const restoredContext = contextData(await request("/workspace/context", replacementAccessToken));
     assert.equal(restoredContext.role, "STUDENT");
     assert.equal(restoredContext.scope.programId, programA2.id, "Only a new active session may resume the student's own enrollment scope.");
+
+    // Exercise parent-child authorization through the actual API/database. A
+    // parent can read a linked child's fee summary, cannot probe an unlinked
+    // peer or a child from another institution, and loses access immediately
+    // when the relationship row is removed.
+    const linkedParentFees = await request(
+      "/parent-portal/children/" + studentA1.id + "/fees",
+      roleUsers.PARENT.token,
+    );
+    assert.equal(linkedParentFees.status, 200, "A server-linked parent must be able to read their child's fee summary: " + JSON.stringify(linkedParentFees.body));
+    assert.equal(
+      (linkedParentFees.body.data as { studentId?: string }).studentId,
+      studentA1.id,
+      "The parent portal response must identify only the linked child.",
+    );
+    assert.equal(
+      (await request("/parent-portal/children/" + studentA2.id + "/fees", roleUsers.PARENT.token)).status,
+      404,
+      "A parent must not access an unlinked student in the same institution or learn whether that child exists.",
+    );
+    assert.equal(
+      (await request("/parent-portal/children/" + studentB.id + "/fees", roleUsers.PARENT.token)).status,
+      404,
+      "A parent must not access a student from a different institution.",
+    );
+    await prisma.parentStudentLink.delete({
+      where: { parentId_studentId: { parentId: roleUsers.PARENT.id, studentId: studentA1.id } },
+    });
+    assert.equal(
+      (await request("/parent-portal/children/" + studentA1.id + "/fees", roleUsers.PARENT.token)).status,
+      404,
+      "Revoking the parent-student link must immediately remove access on the next request.",
+    );
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server?.close(() => resolve()));
