@@ -444,3 +444,13 @@ test("internal mark fields are read-only without marks.enter", () => {
   assert.ok(screen.includes("{canEnter ? <Button"));
   assert.ok(screen.includes("Read-only access: your session does not have marks.enter."));
 });
+
+
+test("private student document assets apply student record scope before download", () => {
+  const controller = read("../backend/src/controllers/fileStorage.controller.ts");
+  assert.ok(controller.includes('result.file.module === "documents" && result.file.referenceId'));
+  assert.ok(controller.includes('role: { name: "STUDENT" }'));
+  assert.ok(controller.includes("await assertCanViewStudent(institutionId, actor, referencedStudent.id)"));
+  assert.ok(controller.includes("!canReadReferencedStudentDocument"));
+  assert.ok(controller.includes("const isOwner = result.file.ownerId === actor.id"));
+});

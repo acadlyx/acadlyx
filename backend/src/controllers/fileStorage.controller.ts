@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
+import { prisma } from "../lib/prisma";
+import { assertCanViewStudent } from "../services/accessScope.service";
 import { requireInstitution } from "../utils/requireInstitution";
 import {
   deleteFile,
@@ -98,11 +100,32 @@ export const get = async (req: Request, res: Response): Promise<void> => {
   const result = await getFileDelivery(req.params.id, institutionId, req.query.download === "true");
 
   if (!req.user?.roles.includes("SUPER_ADMIN")) {
+    const actor = req.user!;
     const modulePermissions = MODULE_PERMISSIONS[result.file.module] ?? ["documents.read"];
-    const canRead = modulePermissions.some((permission) => req.user!.permissions.includes(permission));
-    const isOwner = result.file.ownerId === req.user!.id;
+    const canRead = modulePermissions.some((permission) => actor.permissions.includes(permission));
+    const isOwner = result.file.ownerId === actor.id;
     const publicSiteAsset = result.file.module === "site" && result.file.visibility === "public";
-    if (!publicSiteAsset && !canRead && !isOwner) {
+    let canReadReferencedStudentDocument = false;
+
+    // Generic documents.read must not expose another campus/department's
+    // private student asset by guessing a FileAsset UUID. Resolve the referenced
+    // student and apply the same backend record-scope guard used by the portals.
+    if (result.file.module === "documents" && result.file.referenceId) {
+      const referencedStudent = await prisma.user.findFirst({
+        where: {
+          id: result.file.referenceId,
+          institutionId,
+          userRoles: { some: { role: { name: "STUDENT" } } },
+        },
+        select: { id: true },
+      });
+      if (referencedStudent) {
+        await assertCanViewStudent(institutionId, actor, referencedStudent.id);
+        canReadReferencedStudentDocument = actor.permissions.includes("documents.read");
+      }
+    }
+
+    if (!publicSiteAsset && !canRead && !isOwner && !canReadReferencedStudentDocument) {
       throw new AppError("You are not allowed to access this file", 403);
     }
   }
