@@ -30,7 +30,12 @@ export type TabParamList = { Home: undefined; Modules: undefined; Notifications:
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
-function HomeTab() {\n  const { user } = useAuth();\n  return user?.roles.includes("STUDENT") ? <StudentPortalScreen /> : <HomeScreen />;\n}\n\nfunction MainTabs() {
+function HomeTab() {
+  const { user } = useAuth();
+  return user?.roles.includes("STUDENT") ? <StudentPortalScreen /> : <HomeScreen />;
+}
+
+function MainTabs() {
   return (
     <Tabs.Navigator screenOptions={{
       headerStyle: { backgroundColor: colors.surface },
