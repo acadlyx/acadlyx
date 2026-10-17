@@ -1077,10 +1077,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/admissions/students",
     icon: "◎",
     roles: ["ADMISSIONS"],
-    permissions: ["students.read"],
+    permissions: ["students.read", "admissions.read"],
     group: "Admissions",
   },
   {
@@ -1169,10 +1169,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/library/students",
     icon: "◎",
     roles: ["LIBRARIAN"],
-    permissions: ["students.read"],
+    permissions: ["students.read", "library.read"],
     group: "Circulation",
   },
   {
@@ -1958,6 +1958,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD"],
   ],
 
+  ["/students/[id]", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"]],
   ["/students", ["INSTITUTION_ADMIN"]],
 
   ["/user-management", ["INSTITUTION_ADMIN"]],
@@ -2322,6 +2323,25 @@ export function navigationForUser(
   );
 }
 
+function namespaceMatchesPath(pathname: string, prefix: string): boolean {
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const prefixSegments = prefix.split("/").filter(Boolean);
+  const hasDynamicSegment = prefixSegments.some(
+    (segment) => segment.startsWith("[") && segment.endsWith("]"),
+  );
+
+  if (hasDynamicSegment) {
+    return prefixSegments.length === pathSegments.length &&
+      prefixSegments.every((segment, index) =>
+        segment.startsWith("[") && segment.endsWith("]")
+          ? pathSegments[index].length > 0
+          : pathSegments[index] === segment,
+      );
+  }
+
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
 export function canAccessRoute(
   pathname: string,
   roles: string[],
@@ -2352,13 +2372,7 @@ export function canAccessRoute(
 
   const matchingNamespace =
     NAMESPACE_OWNERS
-      .filter(
-        ([prefix]) =>
-          normalizedPath === prefix ||
-          normalizedPath.startsWith(
-            `${prefix}/`,
-          ),
-      )
+      .filter(([prefix]) => namespaceMatchesPath(normalizedPath, prefix))
       .sort(
         (a, b) =>
           b[0].length -
@@ -2422,8 +2436,20 @@ export function canAccessRoute(
   );
 
   if (!relevantItem) {
+    // Explicit dynamic namespace entries represent detail routes whose page
+    // contract authorizes owner roles even when no sidebar item targets an ID.
+    // Keep the match exact to the declared route shape; arbitrary nested paths
+    // and unknown protected routes remain denied.
+    if (
+      matchingNamespace[0].split("/").some(
+        (segment) => segment.startsWith("[") && segment.endsWith("]"),
+      )
+    ) {
+      return true;
+    }
+
     const protectedNamespace = NAMESPACE_OWNERS.some(([prefix]) =>
-      normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"),
+      namespaceMatchesPath(normalizedPath, prefix),
     );
     return !protectedNamespace;
   }
