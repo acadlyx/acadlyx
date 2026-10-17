@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
 import { assertTenantQuota } from "./entitlement.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
-import { assertPartialStudentImportScope, normalizeStudentStatus, parseWorkbook } from "./import.service";
+import { assertExistingStudentImportPermission, assertPartialStudentImportScope, normalizeStudentStatus, parseWorkbook } from "./import.service";
 
 type Row = Record<string, any>;
 const text = (value: any): string => String(value ?? "").trim();
