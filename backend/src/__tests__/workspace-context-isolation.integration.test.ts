@@ -493,6 +493,15 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       assert.ok(a2Ids.has(offeringA2.id), label + " did not return the selected A2 offering.");
       assert.ok(!a2Ids.has(offeringA1.id), label + " leaked an A1 offering into the A2 query.");
     }
+    const studentAssignments = await request(scopedPath("/assignments", workflowContextA1), studentA1.token);
+    assert.equal(studentAssignments.status, 200, "A Student's own active enrollment context should be accepted.");
+    const studentAssignmentRows = studentAssignments.body.data as Array<{ courseOfferingId: string }>;
+    assert.ok(studentAssignmentRows.every((row) => row.courseOfferingId === offeringA1.id));
+    assert.equal(
+      (await request(scopedPath("/assignments", workflowContextA2), studentA1.token)).status,
+      403,
+      "A Student must not use the list filters to switch to a different batch/programme/section."
+    );
 
     for (const path of [
       "/assignments?campusId=" + campusA2.id,
