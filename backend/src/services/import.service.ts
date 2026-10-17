@@ -488,6 +488,41 @@ export async function commit(
   return result;
 }
 
+export type ImportJobReuseDisposition =
+  | "new-job"
+  | "reuse-same-request"
+  | "different-owner"
+  | "different-request"
+  | "invalid-payload";
+
+export function classifyImportJobReuse(input: {
+  jobPayload: unknown;
+  jobCreatorId: string | null;
+  uploadedFileId: string;
+  actorId: string;
+  type: ImportType;
+  mode: "partial" | "atomic";
+}): ImportJobReuseDisposition {
+  const { jobPayload, jobCreatorId, uploadedFileId, actorId, type, mode } = input;
+  if (!jobPayload || typeof jobPayload !== "object" || Array.isArray(jobPayload)) {
+    return "invalid-payload";
+  }
+
+  const payload = jobPayload as Record<string, unknown>;
+  if (
+    typeof payload.fileId !== "string" ||
+    typeof payload.importType !== "string" ||
+    (payload.mode !== "partial" && payload.mode !== "atomic")
+  ) {
+    return "invalid-payload";
+  }
+
+  if (payload.fileId === uploadedFileId) return "new-job";
+  if (jobCreatorId !== actorId) return "different-owner";
+  if (payload.importType !== type || payload.mode !== mode) return "different-request";
+  return "reuse-same-request";
+}
+
 export async function enqueueImport(
   buffer: Buffer,
   type: ImportType,
@@ -503,15 +538,47 @@ export async function enqueueImport(
     mimeType: options.mimeType, ownerId: actor.id, referenceId: digest,
     visibility: "private", resourceType: "raw",
   });
+  const mode = options.mode === "partial" ? "partial" : "atomic";
   try {
     const job = await enqueueJob({
       institutionId, type: JOB_TYPES.BULK_IMPORT,
-      payload: { fileId: stored.id, importType: type, mode: options.mode === "partial" ? "partial" : "atomic" },
+      payload: { fileId: stored.id, importType: type, mode },
       createdById: actor.id, maxAttempts: 3, priority: 30,
       idempotencyKey: "BULK_IMPORT:" + type + ":" + digest,
     });
+    const reuse = classifyImportJobReuse({
+      jobPayload: job.payload,
+      jobCreatorId: job.createdById,
+      uploadedFileId: stored.id,
+      actorId: actor.id,
+      type,
+      mode,
+    });
+    if (reuse !== "new-job") {
+      // enqueueJob may return an existing idempotent job after we have already
+      // uploaded a new private file. Delete the unused upload before returning
+      // or raising a conflict so retries do not create orphaned tenant files.
+      await deleteFile(stored.id, institutionId);
+      if (reuse === "different-owner") {
+        throw new AppError(
+          "An identical import is already associated with another account. Ask that account owner to check its status before retrying.",
+          409,
+        );
+      }
+      if (reuse === "different-request") {
+        throw new AppError(
+          "An identical import already exists with a different import type or mode. Check the existing job before retrying.",
+          409,
+        );
+      }
+      if (reuse === "invalid-payload") {
+        throw new AppError("The existing import job cannot be safely reused. Contact support before retrying.", 500);
+      }
+      return { jobId: job.id, status: job.status, type, mode };
+    }
+
     await prisma.fileAsset.update({ where: { id: stored.id }, data: { referenceId: job.id } });
-    return { jobId: job.id, status: job.status, type, mode: options.mode === "partial" ? "partial" : "atomic" };
+    return { jobId: job.id, status: job.status, type, mode };
   } catch (error) {
     await deleteFile(stored.id, institutionId).catch(() => undefined);
     throw error;
