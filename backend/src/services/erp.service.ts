@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
+import { courseOfferingWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 import { AuthenticatedUser } from "../types/auth";
 import { getCanonicalRoleNames } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
@@ -2296,7 +2297,7 @@ export async function listTimetableEntries(
   filters: {
     dayOfWeek?: number;
     courseOfferingId?: string;
-  } = {}
+  } & WorkspaceContextFilterInput = {}
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
@@ -2311,12 +2312,17 @@ export async function listTimetableEntries(
   ]);
 
   const offeringScope = await getOfferingReadScope(institutionId, actor);
+  const contextScope = courseOfferingWorkspaceWhere(institutionId, filters);
+  const effectiveOfferingScope: Prisma.CourseOfferingWhereInput = contextScope
+    ? { AND: [offeringScope, contextScope] }
+    : offeringScope;
+
   return prisma.timetableEntry.findMany({
     where: {
       institutionId,
       ...(filters.dayOfWeek !== undefined ? { dayOfWeek: filters.dayOfWeek } : {}),
       ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
-      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
+      ...(Object.keys(effectiveOfferingScope).length ? { courseOffering: effectiveOfferingScope } : {}),
     },
     include: {
       courseOffering: {
