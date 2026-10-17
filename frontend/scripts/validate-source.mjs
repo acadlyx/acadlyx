@@ -44,6 +44,10 @@ const roleScopedStudentsFile = path.join(root, "components", "dashboard", "RoleS
 const roleScopedStudentsSource = fs.readFileSync(roleScopedStudentsFile, "utf8");
 const libraryStudentsPageFile = path.join(root, "app", "library", "students", "page.tsx");
 const libraryStudentsPageSource = fs.readFileSync(libraryStudentsPageFile, "utf8");
+const legacyPaymentsFile = path.join(root, "app", "payments", "page.tsx");
+const legacyPaymentsSource = fs.readFileSync(legacyPaymentsFile, "utf8");
+const legacyFeeReceiptsFile = path.join(root, "app", "fees", "receipts", "page.tsx");
+const legacyFeeReceiptsSource = fs.readFileSync(legacyFeeReceiptsFile, "utf8");
 const feeApprovalQueueFile = path.join(root, "components", "accounts", "FeeStructureApprovalQueue.tsx");
 const feeApprovalQueueSource = fs.readFileSync(feeApprovalQueueFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
@@ -119,7 +123,7 @@ if (
   !navigationSource.includes("if (!matchingNamespace) {") ||
   !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
-  !navigationSource.includes('["/fees/receipts", ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS", "STUDENT", "PARENT"]') ||
+  !navigationSource.includes('["/fees/receipts", ["ACCOUNTS"]') ||
   !navigationSource.includes('["/students", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/students/[id]", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"]') ||
   !navigationSource.includes("function namespaceMatchesPath(pathname: string, prefix: string): boolean") ||
@@ -129,6 +133,16 @@ if (
   !navigationSource.includes('["/admissions/students", ["ADMISSIONS"]') ||
   !navigationSource.includes('["/library/reports", ["LIBRARIAN"]') ||
   !navigationSource.includes('["/library/students", ["LIBRARIAN"]') ||
+  !navigationSource.includes('["/placements", ["PLACEMENT"]') ||
+  !navigationSource.includes('["/admissions", ["ADMISSIONS"]') ||
+  !navigationSource.includes('["/forms", ["REGISTRAR"]') ||
+  !navigationSource.includes('"/payments": ["ACCOUNTS", "STUDENT", "PARENT"]') ||
+  !navigationSource.includes('"/fees/receipts": ["ACCOUNTS"]') ||
+  !navigationSource.includes('const REDIRECT_ONLY_ROUTE_ROLES: Record<string, string[]>') ||
+  !legacyPaymentsSource.includes('ACCOUNTS: "/accounts/payments"') ||
+  !legacyPaymentsSource.includes('STUDENT: "/student/fees"') ||
+  !legacyPaymentsSource.includes('PARENT: "/parent/children"') ||
+  !legacyFeeReceiptsSource.includes('redirect("/accounts/receipts")') ||
   !navigationSource.includes('href: "/admissions/students"') ||
   !navigationSource.includes('href: "/library/students"') ||
   !navigationSource.includes('roles: ["ADMISSIONS"]') ||
