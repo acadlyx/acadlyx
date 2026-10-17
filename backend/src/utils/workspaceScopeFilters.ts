@@ -120,6 +120,17 @@ export async function assertWorkspaceContextFilters(
   if (department && program && program.departmentId !== department.id) {
     throw new AppError("Selected programme does not belong to the selected department", 400);
   }
+  if (program && year) {
+    const matchingSemester = semester?.programId === program.id && semester.academicYearId === year.id
+      ? { id: semester.id }
+      : await prisma.semester.findFirst({
+          where: { institutionId, programId: program.id, academicYearId: year.id, isActive: true },
+          select: { id: true },
+        });
+    if (!matchingSemester) {
+      throw new AppError("Selected academic year has no active semester for the selected programme", 400);
+    }
+  }
   if (program && semester && semester.programId !== program.id) {
     throw new AppError("Selected semester does not belong to the selected programme", 400);
   }
