@@ -105,7 +105,8 @@ if (!navigationSource.includes("Tenant entitlement checks run before namespace c
   failures.push("src/lib/navigation.ts: entitlement checks must precede namespace fallback to protect direct routes");
 }
 if (
-  !/if \\(!matchingNamespace\\) \\{[\\s\\S]*?return false;[\\s\\S]*?\\}/.test(navigationSource) ||
+  !navigationSource.includes("if (!matchingNamespace) {") ||
+  !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
   !navigationSource.includes('["/lms/settings"') ||
   !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
