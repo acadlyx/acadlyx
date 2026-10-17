@@ -48,6 +48,11 @@ const legacyPaymentsFile = path.join(root, "app", "payments", "page.tsx");
 const legacyPaymentsSource = fs.readFileSync(legacyPaymentsFile, "utf8");
 const legacyFeeReceiptsFile = path.join(root, "app", "fees", "receipts", "page.tsx");
 const legacyFeeReceiptsSource = fs.readFileSync(legacyFeeReceiptsFile, "utf8");
+const legacyClubSource = fs.readFileSync(path.join(root, "app", "club", "page.tsx"), "utf8");
+const legacyCmsSource = fs.readFileSync(path.join(root, "app", "cms", "page.tsx"), "utf8");
+const legacyEnrollmentSource = fs.readFileSync(path.join(root, "app", "enrollment", "page.tsx"), "utf8");
+const legacyFormsSource = fs.readFileSync(path.join(root, "app", "forms", "page.tsx"), "utf8");
+const legacyInstitutionSettingsSource = fs.readFileSync(path.join(root, "app", "institution-settings", "page.tsx"), "utf8");
 const feeApprovalQueueFile = path.join(root, "components", "accounts", "FeeStructureApprovalQueue.tsx");
 const feeApprovalQueueSource = fs.readFileSync(feeApprovalQueueFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
@@ -57,6 +62,8 @@ if (
   !navigationSource.includes("requiredFeatures.every((feature) =>") ||
   !navigationSource.includes("requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))") ||
   !navigationSource.includes("function tenantFeaturesForPath(pathname: string): string[]") ||
+  !navigationSource.includes('[/^\\/documents(\\/|$)/, "documents"]') ||
+  !navigationSource.includes('[/^\\/forms(\\/|$)/, "certificates"]') ||
   !navigationSource.includes("admissions|library|placements)\\/students")
 ) {
   failures.push("src/lib/navigation.ts: navigation and direct-route guards must enforce every matching module and student-workflow tenant feature");
@@ -151,6 +158,17 @@ if (
   !legacyPaymentsSource.includes('PARENT: "/parent/children"') ||
   !legacyFeeReceiptsSource.includes('RoleRedirect') ||
   !legacyFeeReceiptsSource.includes('destinations={{ ACCOUNTS: "/accounts/receipts" }}') ||
+  !legacyClubSource.includes('RoleRedirect') ||
+  !legacyClubSource.includes('CLUB_PRESIDENT: "/club-president"') ||
+  !legacyCmsSource.includes('RoleRedirect') ||
+  !legacyCmsSource.includes('SUPER_ADMIN: "/site-content"') ||
+  !legacyCmsSource.includes('CMS: "/site-content"') ||
+  !legacyEnrollmentSource.includes('RoleRedirect') ||
+  !legacyEnrollmentSource.includes('ADMISSIONS: "/admissions"') ||
+  !legacyFormsSource.includes('RoleRedirect') ||
+  !legacyFormsSource.includes('REGISTRAR: "/certificates"') ||
+  !legacyInstitutionSettingsSource.includes('RoleRedirect') ||
+  !legacyInstitutionSettingsSource.includes('INSTITUTION_ADMIN: "/admin"') ||
   !navigationSource.includes('href: "/admissions/students"') ||
   !navigationSource.includes('href: "/library/students"') ||
   !navigationSource.includes('roles: ["ADMISSIONS"]') ||
