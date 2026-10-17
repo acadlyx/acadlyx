@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
 import { assertTenantQuota } from "./entitlement.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
-import { assertExistingStudentImportPermission, assertPartialStudentImportScope, normalizeStudentStatus, parseWorkbook } from "./import.service";
+import { assertExistingStudentImportPermission, assertPartialStudentImportScope, buildStudentProfileUpdateFields, normalizeStudentStatus, parseWorkbook } from "./import.service";
 
 type Row = Record<string, any>;
 const text = (value: any): string => String(value ?? "").trim();
@@ -89,6 +89,7 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
       const firstName = text(row.firstname) || "Imported"; const lastName = text(row.lastname) || "Student";
       const studentStatus = normalizeStudentStatus(row.status);
       const dateOfBirth = date(row.dateofbirth);
+      const admissionDate = date(row.admissiondate);
       let enrollmentCreated = false;
       const result = await prisma.$transaction(async (tx) => {
         const roleId = await findRoleId(tx, institutionId);
@@ -103,6 +104,9 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
           : null;
         if (existingStudentProfile && existingStudentProfile.institutionId !== institutionId) {
           throw new AppError("The supplied account belongs to another institution", 409);
+        }
+        if (existingEmail && !existingStudentProfile) {
+          throw new AppError("The supplied email belongs to an account without a student profile; use an explicit account-conversion workflow", 409);
         }
         if (existingStudentProfile && existingStudentProfile.admissionNumber !== admissionNumber) {
           throw new AppError("The supplied email already belongs to a student with a different admission number", 409);
@@ -133,13 +137,74 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
             : existingUser!
           : await tx.user.create({ data: { institutionId, email: finalEmail, idNumber: finalIdNumber, passwordHash: await hashPassword("Import-" + crypto.randomUUID() + "-9xA!"), firstName, lastName, phone: text(row.phone) || null, isActive: true } });
         await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId } }, update: {}, create: { userId: user.id, roleId } });
+        const existingEnrollmentForYear = placement?.semesterId
+          ? await tx.studentEnrollment.findUnique({
+              where: { userId_academicYearId: { userId: user.id, academicYearId: placement.academicYearId } },
+              select: { programId: true, semesterId: true, sectionId: true, status: true, rollNumber: true },
+            })
+          : null;
+        if (placement?.semesterId && existingUserId) {
+          const currentActiveEnrollment = await tx.studentEnrollment.findFirst({
+            where: { institutionId, userId: existingUserId, status: "ACTIVE" },
+            select: { programId: true },
+          });
+          if (currentActiveEnrollment && currentActiveEnrollment.programId !== placement.programId) {
+            throw new AppError("An active student enrollment cannot be reassigned through import. Use the approved student-movement workflow.", 409);
+          }
+        }
         await tx.studentProfile.upsert({
           where: { userId: user.id },
-          update: { admissionNumber, dateOfBirth, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: studentStatus },
-          create: { institutionId, userId: user.id, admissionNumber, dateOfBirth, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: studentStatus },
+          update: buildStudentProfileUpdateFields({
+            row,
+            admissionNumber,
+            dateOfBirth,
+            admissionDate,
+            normalizedStatus: studentStatus,
+          }),
+          create: {
+            institutionId,
+            userId: user.id,
+            admissionNumber,
+            dateOfBirth,
+            gender: text(row.gender) || null,
+            bloodGroup: text(row.bloodgroup) || null,
+            nationality: text(row.nationality) || null,
+            address: text(row.address) || null,
+            city: text(row.city) || null,
+            state: text(row.state) || null,
+            postalCode: text(row.postalcode) || null,
+            guardianName: text(row.guardianname) || null,
+            guardianPhone: text(row.guardianphone) || null,
+            guardianEmail: text(row.guardianemail) || null,
+            admissionDate,
+            status: studentStatus,
+          },
         });
         if (placement?.semesterId) {
-          await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: placement.academicYearId } }, update: { programId: placement.programId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: studentStatus }, create: { institutionId, userId: user.id, programId: placement.programId, academicYearId: placement.academicYearId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: studentStatus } });
+          await tx.studentEnrollment.upsert({
+            where: { userId_academicYearId: { userId: user.id, academicYearId: placement.academicYearId } },
+            update: {
+              programId: placement.programId,
+              semesterId: placement.semesterId,
+              ...(placement.sectionId
+                ? { sectionId: placement.sectionId }
+                : existingEnrollmentForYear && existingEnrollmentForYear.semesterId !== placement.semesterId
+                  ? { sectionId: null }
+                  : {}),
+              ...(text(row.rollnumber) ? { rollNumber: text(row.rollnumber) } : {}),
+              ...(text(row.status) ? { status: studentStatus } : {}),
+            },
+            create: {
+              institutionId,
+              userId: user.id,
+              programId: placement.programId,
+              academicYearId: placement.academicYearId,
+              semesterId: placement.semesterId,
+              sectionId: placement.sectionId,
+              rollNumber: text(row.rollnumber) || null,
+              status: studentStatus,
+            },
+          });
           enrollmentCreated = true;
         }
         return user;

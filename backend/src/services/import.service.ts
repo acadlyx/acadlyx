@@ -66,6 +66,54 @@ export function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRA
   return normalized;
 }
 
+export function buildStudentProfileUpdateFields(input: {
+  row: Record<string, unknown>;
+  admissionNumber: string;
+  dateOfBirth: Date | null;
+  admissionDate: Date | null;
+  normalizedStatus: ReturnType<typeof normalizeStudentStatus>;
+}): Prisma.StudentProfileUpdateInput {
+  const { row, admissionNumber, dateOfBirth, admissionDate, normalizedStatus } = input;
+  const value = (key: string) => text(row[key]);
+  const hasDateOfBirth = Boolean(value("dateofbirth"));
+  const hasAdmissionDate = Boolean(value("admissiondate"));
+
+  if (hasDateOfBirth && !dateOfBirth) {
+    throw new AppError("Invalid date of birth in student import row", 400);
+  }
+  if (hasAdmissionDate && !admissionDate) {
+    throw new AppError("Invalid admission date in student import row", 400);
+  }
+
+  const update: Prisma.StudentProfileUpdateInput = { admissionNumber };
+  if (hasDateOfBirth) update.dateOfBirth = dateOfBirth!;
+  if (hasAdmissionDate) update.admissionDate = admissionDate!;
+
+  const gender = value("gender");
+  const bloodGroup = value("bloodgroup");
+  const nationality = value("nationality");
+  const address = value("address");
+  const city = value("city");
+  const state = value("state");
+  const postalCode = value("postalcode");
+  const guardianName = value("guardianname");
+  const guardianPhone = value("guardianphone");
+  const guardianEmail = value("guardianemail");
+
+  if (gender) update.gender = gender;
+  if (bloodGroup) update.bloodGroup = bloodGroup;
+  if (nationality) update.nationality = nationality;
+  if (address) update.address = address;
+  if (city) update.city = city;
+  if (state) update.state = state;
+  if (postalCode) update.postalCode = postalCode;
+  if (guardianName) update.guardianName = guardianName;
+  if (guardianPhone) update.guardianPhone = guardianPhone;
+  if (guardianEmail) update.guardianEmail = guardianEmail;
+  if (value("status")) update.status = normalizedStatus;
+  return update;
+}
+
 export function parseWorkbook(buffer: Buffer) {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const sheetName = workbook.SheetNames[0];
@@ -308,6 +356,8 @@ async function processImportRow(
           const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
           if (!admissionNumber) throw new AppError("admissionNumber (or rollNumber) is required for students", 400);
           const normalizedStatus = normalizeStudentStatus(row.status);
+          const importedDateOfBirth = text(row.dateofbirth) ? date(row.dateofbirth) : null;
+          const importedAdmissionDate = text(row.admissiondate) ? date(row.admissiondate) : null;
 
           const existingProfile = await tx.studentProfile.findFirst({
             where: { institutionId, admissionNumber },
@@ -324,6 +374,9 @@ async function processImportRow(
           const existingEmailProfile = existingEmailUser
             ? await tx.studentProfile.findUnique({ where: { userId: existingEmailUser.id }, select: { institutionId: true, admissionNumber: true } })
             : null;
+          if (existingEmailUser && !existingEmailProfile) {
+            throw new AppError("The supplied email belongs to an account without a student profile; use an explicit account-conversion workflow", 409);
+          }
           if (existingEmailProfile && existingEmailProfile.admissionNumber !== admissionNumber) {
             throw new AppError("The supplied email already belongs to a student with a different admission number", 409);
           }
@@ -363,8 +416,65 @@ async function processImportRow(
             );
           }
 
-          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: normalizedStatus }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: normalizedStatus } });
-          await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } }, update: { programId: program.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: normalizedStatus }, create: { institutionId, userId: user.id, programId: program.id, academicYearId: year.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: normalizedStatus } });
+          await tx.studentProfile.upsert({
+            where: { userId: user.id },
+            update: buildStudentProfileUpdateFields({
+              row,
+              admissionNumber,
+              dateOfBirth: importedDateOfBirth,
+              admissionDate: importedAdmissionDate,
+              normalizedStatus,
+            }),
+            create: {
+              institutionId,
+              userId: user.id,
+              admissionNumber,
+              dateOfBirth: importedDateOfBirth,
+              gender: text(row.gender) || null,
+              bloodGroup: text(row.bloodgroup) || null,
+              nationality: text(row.nationality) || null,
+              address: text(row.address) || null,
+              city: text(row.city) || null,
+              state: text(row.state) || null,
+              postalCode: text(row.postalcode) || null,
+              guardianName: text(row.guardianname) || null,
+              guardianPhone: text(row.guardianphone) || null,
+              guardianEmail: text(row.guardianemail) || null,
+              admissionDate: importedAdmissionDate,
+              status: normalizedStatus,
+            },
+          });
+          const existingEnrollment = await tx.studentEnrollment.findUnique({
+            where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } },
+            select: { programId: true, semesterId: true, sectionId: true, rollNumber: true },
+          });
+          const compatibleEnrollment = existingEnrollment?.programId === program.id ? existingEnrollment : null;
+          const effectiveSemesterId = semesterId ?? compatibleEnrollment?.semesterId ?? null;
+          const effectiveSectionId = sectionId ?? (
+            compatibleEnrollment && compatibleEnrollment.semesterId === effectiveSemesterId
+              ? compatibleEnrollment.sectionId
+              : null
+          );
+          await tx.studentEnrollment.upsert({
+            where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } },
+            update: {
+              programId: program.id,
+              semesterId: effectiveSemesterId,
+              sectionId: effectiveSectionId,
+              ...(text(row.rollnumber) ? { rollNumber: text(row.rollnumber) } : {}),
+              ...(text(row.status) ? { status: normalizedStatus } : {}),
+            },
+            create: {
+              institutionId,
+              userId: user.id,
+              programId: program.id,
+              academicYearId: year.id,
+              semesterId: effectiveSemesterId,
+              sectionId: effectiveSectionId,
+              rollNumber: text(row.rollnumber) || null,
+              status: normalizedStatus,
+            },
+          });
         } else if (type === "faculty") {
           await upsertUser(tx, institutionId, row, "FACULTY");
         } else if (type === "departments") {
