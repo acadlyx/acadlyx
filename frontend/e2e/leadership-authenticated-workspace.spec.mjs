@@ -165,7 +165,7 @@ test("stale Student permissions do not redirect an authorized Library route befo
   const gate = new Promise((resolve) => { releaseAuthMe = resolve; });
   session.setAuthMeGate(gate);
   const freshAuthRequest = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/auth/me"));
-  await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
+  await page.locator('a[href="/student/library"]').click();
   await expect(page).toHaveURL(/\/student\/library$/);
   await freshAuthRequest;
   await expect(page.getByRole("status").getByText("Checking your secure workspace…")).toBeVisible();
@@ -186,7 +186,7 @@ test("temporary /auth/me failure fails closed and can recover through Retry veri
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
   session.setAuthMeFailure({ status: 503, message: "Synthetic identity-service outage" });
-  await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
+  await page.locator('a[href="/student/library"]').click();
   await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry verification" })).toBeVisible();
   await expect(page.getByText(/You do not have access to this page/i)).toHaveCount(0);
