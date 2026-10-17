@@ -481,7 +481,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/director/fee-approvals",
     icon: "✓",
     roles: ["DIRECTOR"],
-    permissions: ["fees.structure.approve"],
+    permissions: ["fees.structure.read", "fees.structure.approve"],
     group: "Finance",
     activeMatch: "nested",
   },
