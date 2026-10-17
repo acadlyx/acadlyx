@@ -164,17 +164,14 @@ async function buildWorkspaceContext(
     select: { name: true, logoUrl: true },
   });
 
+  const contextDepartmentIds = selectedDepartment ? [selectedDepartment.id] : departments.map((department) => department.id);
+
   const programsPromise = prisma.program.findMany({
     where: {
       institutionId,
       isActive: true,
-      ...(selectedDepartment
-        ? { departmentId: selectedDepartment.id }
-        : campusId
-          ? { department: { campusId } }
-          : allowed
-            ? { departmentId: { in: allowed } }
-            : {}),
+      ...(selectedDepartment ? { departmentId: selectedDepartment.id } : allowed ? { departmentId: { in: allowed } } : {}),
+      ...(campusId ? { department: { campusId } } : {}),
     },
     select: {
       id: true,
@@ -190,9 +187,14 @@ async function buildWorkspaceContext(
   const academicYearsPromise = prisma.academicYear.findMany({
     where: {
       institutionId,
-      ...(input.programId
-        ? { semesters: { some: { programId: input.programId, isActive: true } } }
-        : {}),
+      semesters: {
+        some: {
+          isActive: true,
+          ...(input.programId
+            ? { programId: input.programId }
+            : { program: { departmentId: { in: contextDepartmentIds } } }),
+        },
+      },
     },
     select: { id: true, name: true, startDate: true, endDate: true, isCurrent: true },
     orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
@@ -204,13 +206,7 @@ async function buildWorkspaceContext(
       isActive: true,
       ...(input.programId
         ? { programId: input.programId }
-        : selectedDepartment
-          ? { program: { departmentId: selectedDepartment.id } }
-          : campusId
-            ? { program: { department: { campusId } } }
-            : allowed
-              ? { program: { departmentId: { in: allowed } } }
-              : {}),
+        : { program: { departmentId: { in: contextDepartmentIds } } }),
       ...(input.academicYearId ? { academicYearId: input.academicYearId } : {}),
     },
     select: {
@@ -379,7 +375,15 @@ async function buildWorkspaceContext(
       batchId: selectedBatch?.id ?? null,
     },
     breadcrumbs,
-    children: { campuses, departments, programs, academicYears, batches, semesters, sections },
+    children: {
+      campuses,
+      departments,
+      programs: selectedDepartment ? programs.filter((program) => program.departmentId === selectedDepartment?.id) : programs,
+      academicYears,
+      batches,
+      semesters,
+      sections,
+    },
   };
 }
 
