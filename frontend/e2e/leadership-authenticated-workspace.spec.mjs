@@ -395,3 +395,52 @@ test("Student cannot mount the shared leadership timetable through a direct URL"
   await expect(page.getByRole("heading", { name: "Timetable", exact: true })).toHaveCount(0);
   expect(forbiddenRequests, "the student must use the Student-owned timetable route, not the shared leadership page").toEqual([]);
 });
+
+
+test("Director cannot mount Admissions-only student list through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/students") forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "DIRECTOR");
+  await page.goto(baseURL + "/admissions/students", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Admissions Students", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "Director must not fetch the Admissions-scoped student list").toEqual([]);
+});
+
+test("Student cannot mount Librarian-only student access list through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/students") forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/library/students", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: "Library Students", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "Student must not fetch the Librarian-scoped student list").toEqual([]);
+});
+
+test("Director cannot mount Admissions-only reports through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/exports/attendance/options") forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "DIRECTOR");
+  await page.goto(baseURL + "/admissions/reports", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Institutional reports", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "Director must not load Admission-only report options").toEqual([]);
+});
+
+test("Student cannot mount Librarian-only reports through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/exports/attendance/options") forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/library/reports", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: "Institutional reports", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "Student must not load Library-only report options").toEqual([]);
+});
