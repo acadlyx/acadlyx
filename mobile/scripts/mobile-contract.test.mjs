@@ -1,4 +1,6 @@
 import test from "node:test";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { applyWorkspaceContext, setActiveWorkspaceContext, transitionWorkspaceContext } from "../src/workspace/workspaceScope.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -184,4 +186,87 @@ test("required parity and release documentation exists and states limitations ho
   for (const path of docs) assert.ok(readFileSync(resolve(root, path), "utf8").length > 500, "Missing/short doc: " + path);
   assert.ok(read("../docs/mobile/MOBILE_FEATURE_PARITY.md").includes("No 100% parity claim is made."));
   assert.ok(read("../docs/mobile/MOBILE_IMPLEMENTATION_TRACKER.md").includes("IMPLEMENTED_UNVERIFIED"));
+});
+
+
+test("workspace query filters follow the new scope, remove stale selections, and preserve UI filters", () => {
+  setActiveWorkspaceContext(null);
+  setActiveWorkspaceContext(null);
+  setActiveWorkspaceContext({
+    campusId: "campus-a",
+    departmentId: "department-a",
+    programId: "program-a",
+    academicYearId: "year-a",
+    batchId: "batch-a",
+    semesterId: "semester-a",
+    sectionId: "section-a"
+  });
+
+  const departments = new URLSearchParams(applyWorkspaceContext("/departments?page=2&campusId=campus-old&search=engineering", true).split("?")[1]);
+  assert.equal(departments.get("campusId"), "campus-a");
+  assert.equal(departments.get("search"), "engineering");
+  assert.equal(departments.get("page"), "2");
+
+  const years = new URLSearchParams(applyWorkspaceContext("/academic-years?search=2026", true).split("?")[1]);
+  assert.equal(years.get("campusId"), "campus-a");
+  assert.equal(years.get("departmentId"), "department-a");
+  assert.equal(years.get("programId"), "program-a");
+
+  const students = new URLSearchParams(applyWorkspaceContext("/students?page=1&status=ACTIVE", true).split("?")[1]);
+  for (const [key, value] of Object.entries({
+    campusId: "campus-a",
+    departmentId: "department-a",
+    programId: "program-a",
+    academicYearId: "year-a",
+    semesterId: "semester-a",
+    sectionId: "section-a"
+  })) assert.equal(students.get(key), value);
+  assert.equal(students.get("batchId"), null, "Do not append a parameter the endpoint does not contractually accept.");
+
+  const unsupported = "/finance/invoices?page=1&status=PENDING";
+  assert.equal(applyWorkspaceContext(unsupported, true), unsupported, "Unknown endpoints must not receive guessed query parameters.");
+  assert.equal(applyWorkspaceContext("/departments?page=2", false), "/departments?page=2", "Unauthenticated calls must not receive context filters.");
+
+  // Clearing a workspace selector must remove old IDs that came from the
+  // previous context, but must preserve independent user-entered filters.
+  setActiveWorkspaceContext({ campusId: "campus-a" });
+  const cleared = new URLSearchParams(applyWorkspaceContext(
+    "/students?departmentId=department-a&programId=program-a&academicYearId=year-a&semesterId=semester-a&sectionId=section-a&search=Smith",
+    true
+  ).split("?")[1]);
+  for (const key of ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]) {
+    assert.equal(cleared.get(key), null, "Stale scope must be removed for " + key);
+  }
+  assert.equal(cleared.get("search"), "Smith");
+  assert.equal(cleared.get("campusId"), "campus-a");
+});
+
+test("workspace transition cancels old reads and resets cached records before active screens refetch", async () => {
+  let activeScope = "campus-a";
+  let persistedScope = null;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  const observer = new QueryObserver(queryClient, {
+    queryKey: ["scope-aware-records"],
+    queryFn: async () => activeScope
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  try {
+    await observer.refetch();
+    await queryClient.fetchQuery({ queryKey: ["inactive-scope-cache"], queryFn: async () => activeScope, staleTime: Infinity });
+    assert.equal(queryClient.getQueryData(["scope-aware-records"]), "campus-a");
+    assert.equal(queryClient.getQueryData(["inactive-scope-cache"]), "campus-a");
+
+    await transitionWorkspaceContext(
+      queryClient,
+      () => { activeScope = "campus-b"; },
+      async () => { persistedScope = activeScope; }
+    );
+
+    assert.equal(persistedScope, "campus-b", "Persist only the activated canonical scope.");
+    assert.equal(queryClient.getQueryData(["scope-aware-records"]), "campus-b", "An active screen must refetch after transition.");
+    assert.equal(queryClient.getQueryData(["inactive-scope-cache"]), undefined, "Inactive screens must not retain records from the previous scope.");
+  } finally {
+    unsubscribe();
+    queryClient.clear();
+  }
 });
