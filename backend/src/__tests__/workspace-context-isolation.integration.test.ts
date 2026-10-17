@@ -215,7 +215,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       prisma.batch.create({ data: { institutionId: institutionA.id, programId: programA2.id, name: "Batch A2 " + suffix, code: "BA2" + suffix, admissionYear: 2024, completionYear: 2027 }, select: { id: true } }),
       prisma.batch.create({ data: { institutionId: institutionB.id, programId: programB.id, name: "Batch B " + suffix, code: "BB" + suffix, admissionYear: 2024, completionYear: 2027 }, select: { id: true } }),
     ]);
-    const [courseA1, courseA2, courseB] = await Promise.all([
+    const [courseA1, courseA2] = await Promise.all([
       prisma.course.create({ data: { institutionId: institutionA.id, departmentId: departmentA1.id, name: "Course A1 " + suffix, code: "CA1" + suffix, credits: 3 }, select: { id: true } }),
       prisma.course.create({ data: { institutionId: institutionA.id, departmentId: departmentA2.id, name: "Course A2 " + suffix, code: "CA2" + suffix, credits: 3 }, select: { id: true } }),
       prisma.course.create({ data: { institutionId: institutionB.id, departmentId: departmentB.id, name: "Course B " + suffix, code: "CB" + suffix, credits: 3 }, select: { id: true } }),
