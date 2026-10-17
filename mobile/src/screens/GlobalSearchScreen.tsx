@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
 import { colors, radius, spacing } from "../ui/theme";
+import { RootStackParamList } from "../navigation/RootNavigator";
 
 type SearchResult = { type: "person" | "course" | "notice"; id: string; title: string; subtitle: string; href?: string };
 
@@ -16,6 +19,7 @@ function resultTypeLabel(type: SearchResult["type"]): string {
 
 export function GlobalSearchScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [input, setInput] = useState("");
   const [queryText, setQueryText] = useState("");
 
@@ -38,6 +42,14 @@ export function GlobalSearchScreen() {
     typeof (value as SearchResult).title === "string" &&
     typeof (value as SearchResult).type === "string"
   );
+
+  function openResult(result: SearchResult) {
+    // Do not follow the backend's web href on native. Each destination issues
+    // its own authorized API request, so a result that has become unavailable
+    // between search and navigation cannot expose a stale record.
+    if (result.type === "notice") navigation.navigate("Notices");
+    else navigation.navigate("Module", { moduleId: result.type === "person" ? "students" : "courses" });
+  }
 
   return <View style={styles.root}>
     <View style={styles.header}>
@@ -72,13 +84,14 @@ export function GlobalSearchScreen() {
       keyExtractor={(item) => item.type + ":" + item.id}
       refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => { void query.refetch(); }} tintColor={colors.primary} />}
       contentContainerStyle={styles.list}
-      renderItem={({ item }) => <View style={styles.result}>
+      renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={"Open " + item.title} onPress={() => openResult(item)} style={({ pressed }) => [styles.result, pressed ? styles.pressed : null]}>
         <View style={styles.resultTop}>
           <Text style={styles.resultTitle}>{item.title}</Text>
           <View style={styles.badge}><Text style={styles.badgeText}>{resultTypeLabel(item.type)}</Text></View>
         </View>
         {item.subtitle ? <Text style={styles.resultSubtitle}>{item.subtitle}</Text> : null}
-      </View>}
+        <Text style={styles.open}>Open authorized record ›</Text>
+      </Pressable>}
       ListEmptyComponent={<View style={styles.empty}>
         <Text style={styles.emptyTitle}>No matching records</Text>
         <Text style={styles.muted}>No results were returned for this query in your authorized scope.</Text>
@@ -98,12 +111,13 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 13, paddingVertical: 12, fontSize: 14 },
   hint: { color: colors.textMuted, fontSize: 11 },
   list: { padding: spacing.lg, paddingBottom: 24 },
-  result: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginBottom: 9, gap: 7 },
+  result: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginBottom: 9, gap: 7 }, pressed: { opacity: 0.72 },
   resultTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   resultTitle: { color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 },
   resultSubtitle: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
   badge: { backgroundColor: colors.primarySoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.pill },
   badgeText: { color: colors.primary, fontSize: 9, fontWeight: "900" },
+  open: { color: colors.primary, fontSize: 11, fontWeight: "900", marginTop: 3 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: 10 },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "900", textAlign: "center" },
   muted: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: "center" },

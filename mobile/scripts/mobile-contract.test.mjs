@@ -54,6 +54,9 @@ test("global search uses the existing server-scoped API and is reachable in nati
   assert.ok(screen.includes("/search?q="));
   assert.ok(screen.includes("encodeURIComponent(queryText)"));
   assert.ok(screen.includes("queryText.length >= 2"));
+  assert.ok(screen.includes("function openResult"));
+  assert.ok(screen.includes('navigation.navigate("Notices")'));
+  assert.ok(screen.includes('moduleId: result.type === "person" ? "students" : "courses"'));
   assert.ok(navigator.includes("GlobalSearchScreen"));
   assert.ok(navigator.includes("name=\"Search\" component={GlobalSearchScreen}"));
 });
