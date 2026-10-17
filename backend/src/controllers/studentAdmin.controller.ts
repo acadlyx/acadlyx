@@ -61,6 +61,10 @@ export const list = asyncHandler(
             typeof req.query.programId === "string"
               ? req.query.programId
               : undefined,
+          batchId:
+            typeof req.query.batchId === "string"
+              ? req.query.batchId
+              : undefined,
           semesterId:
             typeof req.query.semesterId === "string"
               ? req.query.semesterId
