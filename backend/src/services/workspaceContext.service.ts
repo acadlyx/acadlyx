@@ -388,42 +388,13 @@ async function buildWorkspaceContext(
 }
 
 
-type WorkspaceCacheEntry = {
-  expiresAt: number;
-  value?: Awaited<ReturnType<typeof buildWorkspaceContext>>;
-  promise?: Promise<Awaited<ReturnType<typeof buildWorkspaceContext>>>;
-};
-
-const WORKSPACE_CONTEXT_CACHE_TTL_MS = 2_000;
-const workspaceContextCache = new Map<string, WorkspaceCacheEntry>();
-
-function workspaceContextCacheKey(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  input: WorkspaceContextInput,
-): string {
-  return [
-    institutionId,
-    actor.id,
-    actor.roles.slice().sort().join(","),
-    input.campusId ?? "",
-    input.departmentId ?? "",
-    input.programId ?? "",
-    input.academicYearId ?? "",
-    input.semesterId ?? "",
-    input.sectionId ?? "",
-    input.batchId ?? "",
-  ].join("|");
-}
-
-export function invalidateWorkspaceContextCache(institutionId?: string): void {
-  if (!institutionId) {
-    workspaceContextCache.clear();
-    return;
-  }
-  for (const key of workspaceContextCache.keys()) {
-    if (key.startsWith(institutionId + "|")) workspaceContextCache.delete(key);
-  }
+/**
+ * Compatibility hook for services that revoke/change academic access. The
+ * workspace context is intentionally not memoized: campus/department grants
+ * and enrollment state can be revoked without changing the user's role list.
+ */
+export function invalidateWorkspaceContextCache(_institutionId?: string): void {
+  // No shared workspace-scope cache is retained.
 }
 
 export async function getWorkspaceContext(
@@ -431,45 +402,8 @@ export async function getWorkspaceContext(
   actor: AuthenticatedUser,
   input: WorkspaceContextInput = {}
 ) {
-  // Explicit selector requests are authorization decisions, not cacheable
-  // display hints. Re-read CampusAccess/DepartmentAccess and the academic
-  // hierarchy on every request so a revoked or deleted saved selection cannot
-  // be revived by the short-lived default-context cache.
-  const hasExplicitSelection = [
-    input.campusId,
-    input.departmentId,
-    input.programId,
-    input.academicYearId,
-    input.batchId,
-    input.semesterId,
-    input.sectionId,
-  ].some((value) => typeof value === "string" && value.trim().length > 0);
-  if (hasExplicitSelection) return buildWorkspaceContext(institutionId, actor, input);
-
-  const key = workspaceContextCacheKey(institutionId, actor, input);
-  const now = Date.now();
-  const cached = workspaceContextCache.get(key);
-
-  if (cached?.value && cached.expiresAt > now) return cached.value;
-  if (cached?.promise) return cached.promise;
-
-  const promise = buildWorkspaceContext(institutionId, actor, input)
-    .then((value) => {
-      workspaceContextCache.set(key, {
-        value,
-        expiresAt: Date.now() + WORKSPACE_CONTEXT_CACHE_TTL_MS,
-      });
-      return value;
-    })
-    .catch((error) => {
-      workspaceContextCache.delete(key);
-      throw error;
-    });
-
-  workspaceContextCache.set(key, {
-    promise,
-    expiresAt: now + WORKSPACE_CONTEXT_CACHE_TTL_MS,
-  });
-
-  return promise;
+  // A context response is an authorization decision. Resolve CampusAccess,
+  // DepartmentAccess and enrollment state from the database on every request;
+  // role bindings can stay unchanged while grants are revoked.
+  return buildWorkspaceContext(institutionId, actor, input);
 }
