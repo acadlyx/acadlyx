@@ -9,17 +9,38 @@ import {
 
 export interface ListFilters extends PaginationParams {
   search?: string;
+  campusId?: string;
+  departmentId?: string;
+  departmentIds?: string[];
+  programId?: string;
 }
 
 export async function listAcademicYears(
   institutionId: string,
   filters: ListFilters
 ) {
+  const hasAcademicScope = Boolean(
+    filters.campusId || filters.departmentId || filters.programId || filters.departmentIds !== undefined
+  );
   const where: Prisma.AcademicYearWhereInput = {
     institutionId,
     ...(filters.search
       ? { name: { contains: filters.search, mode: "insensitive" } }
       : {}),
+    ...(hasAcademicScope ? {
+      semesters: {
+        some: {
+          isActive: true,
+          ...(filters.programId ? { programId: filters.programId } : {}),
+          ...((filters.campusId || filters.departmentId || filters.departmentIds !== undefined) ? {
+            program: {
+              ...(filters.departmentId ? { departmentId: filters.departmentId } : filters.departmentIds !== undefined ? { departmentId: { in: filters.departmentIds } } : {}),
+              ...(filters.campusId ? { department: { campusId: filters.campusId } } : {}),
+            },
+          } : {}),
+        },
+      },
+    } : {}),
   };
 
   const [items, total] = await Promise.all([
