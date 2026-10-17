@@ -118,17 +118,6 @@ if (
   failures.push("src/lib/navigation.ts: unknown protected routes must fail closed and shared/legacy route families must declare explicit workspace owners");
 }
 if (
-  !navigationSource.includes("if (!matchingNamespace) {") ||
-  !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
-  !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
-  !navigationSource.includes('["/lms/settings"') ||
-  !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
-  !navigationSource.includes('["/profile"') ||
-  !navigationSource.includes('["/my-work"')
-) {
-  failures.push("src/lib/navigation.ts: unknown protected routes must fail closed and each shared/legacy route family must declare explicit workspace owners");
-}
-if (
   !navigationSource.includes("(fees|payments|fee-approvals|fee-structures|fee-heads)") ||
   !dashboardIdsMatch ||
   !dashboardIdsMatch[1].includes('"STAFF"') ||
