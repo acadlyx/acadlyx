@@ -511,7 +511,9 @@ test("native documents viewer uses the authenticated scoped portal endpoint", ()
   assert.ok(moduleScreen.includes("if (isDocumentsWorkspace) return <DocumentsScreen />"));
   assert.ok(catalog.includes('id: "documents"') && catalog.includes('requiredAnyPermissions: ["documents.read"]'));
   assert.ok(routes.includes('"/documents/me"'));
-  assert.ok(routes.includes('authorize("documents.read")'));
+  const myDocumentsRoute = routes.indexOf('"/documents/me"');
+  assert.ok(myDocumentsRoute >= 0);
+  assert.ok(routes.slice(myDocumentsRoute, myDocumentsRoute + 180).includes('"documents.read"'));
   assert.ok(service.includes("export async function listMyDocuments"));
   assert.ok(service.includes("return getDocumentsForOwner("));
   assert.ok(service.includes("ownerId"));
