@@ -314,6 +314,12 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       }
     }
     assert.equal((await request("/workspace/context", superAdmin.token)).status, 403, "Platform Super Admin must not use a tenant-scoped workspace endpoint without institution context.");
+    assert.equal((await request("/institutions?page=1&pageSize=100", superAdmin.token)).status, 200, "The same platform account must retain its authorized platform API.");
+    assert.equal((await request("/institutions?page=1&pageSize=100", roleUsers.INSTITUTION_ADMIN.token)).status, 403, "Institution roles must not gain platform-level institution administration.");
+    const studentBHome = contextData(await request("/workspace/context", studentB.token));
+    assert.equal(studentBHome.role, "STUDENT");
+    assert.equal(studentBHome.scope.campusId, campusB.id);
+    assert.notEqual((await request(contextPath({ campusId: campusA1.id }), studentB.token)).status, 200, "A tenant B student must not restore a campus saved from tenant A.");
 
     // Canonical role priority for accounts with multiple role bindings.
     const multiCases = [
@@ -360,7 +366,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     // Scoped list routes must apply context and server-side role isolation,
     // including routes that previously calculated but ignored allowed IDs.
     const facultyToken = roleUsers.FACULTY.token;
-    const courses = await request("/courses?page=1&pageSize=100", facultyToken);
+    const courses = await request("/courses?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id, facultyToken);
     assert.equal(courses.status, 200, JSON.stringify(courses.body));
     const courseRows = courses.body.data as Array<{ id: string; departmentId: string }>;
     assert.ok(courseRows.length > 0 && courseRows.every((row) => row.departmentId === departmentA1.id));
@@ -372,29 +378,29 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     const programmeRows = programmes.body.data as Array<{ id: string; departmentId: string }>;
     assert.ok(programmeRows.length > 0 && programmeRows.every((row) => row.departmentId === departmentA1.id));
 
-    const years = await request("/academic-years?page=1&pageSize=100", facultyToken);
+    const years = await request("/academic-years?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id + "&programId=" + programA1.id, facultyToken);
     assert.equal(years.status, 200, JSON.stringify(years.body));
     const yearRows = years.body.data as Array<{ id: string }>;
     assert.deepEqual(ids(yearRows), [yearA1.id]);
     assert.equal((await request("/academic-years?campusId=" + campusA2.id, facultyToken)).status, 403);
 
-    const semesters = await request("/semesters?page=1&pageSize=100", facultyToken);
+    const semesters = await request("/semesters?page=1&pageSize=100&campusId=" + campusA1.id + "&programId=" + programA1.id + "&departmentId=" + departmentA1.id + "&academicYearId=" + yearA1.id, facultyToken);
     assert.equal(semesters.status, 200, JSON.stringify(semesters.body));
     const semesterRows = semesters.body.data as Array<{ id: string; programId: string }>;
     assert.ok(semesterRows.length > 0 && semesterRows.every((row) => row.programId === programA1.id));
 
-    const sections = await request("/sections?page=1&pageSize=100", facultyToken);
+    const sections = await request("/sections?page=1&pageSize=100&campusId=" + campusA1.id + "&semesterId=" + semesterA1.id + "&departmentId=" + departmentA1.id, facultyToken);
     assert.equal(sections.status, 200, JSON.stringify(sections.body));
     const sectionRows = sections.body.data as Array<{ id: string; semesterId: string }>;
     assert.ok(sectionRows.length > 0 && sectionRows.every((row) => row.semesterId === semesterA1.id));
 
-    const offerings = await request("/course-offerings?page=1&pageSize=100", facultyToken);
+    const offerings = await request("/course-offerings?page=1&pageSize=100&campusId=" + campusA1.id + "&semesterId=" + semesterA1.id + "&sectionId=" + sectionA1.id + "&departmentId=" + departmentA1.id, facultyToken);
     assert.equal(offerings.status, 200, JSON.stringify(offerings.body));
     const offeringRows = offerings.body.data as Array<{ id: string; semesterId: string }>;
     assert.ok(offeringRows.length > 0 && offeringRows.every((row) => row.semesterId === semesterA1.id));
     assert.equal((await request("/course-offerings?semesterId=" + semesterA2.id, facultyToken)).status, 403);
 
-    const batches = await request("/batches?page=1&pageSize=100", roleUsers.HOD.token);
+    const batches = await request("/batches?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id + "&programId=" + programA1.id, roleUsers.HOD.token);
     assert.equal(batches.status, 200, JSON.stringify(batches.body));
     const batchRows = batches.body.data as Array<{ id: string; programId: string }>;
     assert.ok(batchRows.length > 0 && batchRows.every((row) => row.programId === programA1.id));
@@ -402,7 +408,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     assert.equal((await request("/batches/" + batchB.id, roleUsers.HOD.token)).status, 404);
     assert.equal((await request("/batches/" + batchA2.id, roleUsers.HOD.token)).status, 403);
 
-    const students = await request("/students?page=1&pageSize=100", roleUsers.HOD.token);
+    const students = await request("/students?page=1&pageSize=100&campusId=" + campusA1.id + "&departmentId=" + departmentA1.id + "&programId=" + programA1.id + "&academicYearId=" + yearA1.id + "&batchId=" + batchA1.id + "&semesterId=" + semesterA1.id + "&sectionId=" + sectionA1.id, roleUsers.HOD.token);
     assert.equal(students.status, 200, JSON.stringify(students.body));
     const studentRows = students.body.data as Array<{ id: string }>;
     assert.ok(studentRows.some((row) => row.id === studentA1.id));
