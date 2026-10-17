@@ -24,6 +24,8 @@ const failures = [];
 const navigationFile = path.join(root, "lib", "navigation.ts");
 const shellFile = path.join(root, "components", "dashboard", "DashboardShell.tsx");
 const navigationSource = fs.readFileSync(navigationFile, "utf8");
+const authorityFile = path.join(root, "lib", "authority.ts");
+const authoritySource = fs.readFileSync(authorityFile, "utf8");
 const shellSource = fs.readFileSync(shellFile, "utf8");
 const adminNavigationFile = path.join(root, "lib", "adminNavigation.ts");
 const adminNavigationSource = fs.readFileSync(adminNavigationFile, "utf8");
@@ -88,6 +90,14 @@ if (
 }
 if (!navigationSource.includes("Tenant entitlement checks run before namespace checks")) {
   failures.push("src/lib/navigation.ts: entitlement checks must precede namespace fallback to protect direct routes");
+}
+if (
+  !navigationSource.includes("(fees|payments|fee-approvals|fee-structures|fee-heads)") ||
+  !authoritySource.includes('"STAFF"') ||
+  !navigationSource.includes('STAFF: "/staff"') ||
+  !authoritySource.includes("export const DASHBOARD_IDS")
+) {
+  failures.push("src/lib/authority.ts and src/lib/navigation.ts: fee approval aliases must enforce tenant entitlement and every routed workspace role must have a dashboard identity");
 }
 
 if (!shellSource.includes("uniqueDestinations") || !shellSource.includes("uniqueDestinations.has(destination)")) {
