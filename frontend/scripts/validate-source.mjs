@@ -81,9 +81,10 @@ if (
 if (
   !/DEAN:\s*\{[^}]*"\/notices": "\/dean\/notices"/.test(shellSource) ||
   !/HOD:\s*\{[^}]*"\/notices": "\/hod\/notices"/.test(shellSource) ||
+  !/STUDENT:\s*\{[^}]*"\/notices": "\/student\/notices"/.test(shellSource) ||
   !shellSource.includes("uniqueDestinations.has(destination)")
 ) {
-  failures.push("src/components/dashboard/DashboardShell.tsx: Dean/HOD shared-notice links must resolve to one workspace-owned destination");
+  failures.push("src/components/dashboard/DashboardShell.tsx: Dean, HOD and Student notice links must resolve to one workspace-owned destination");
 }
 if (
   !dashboardTokensSource.includes("--acadlyx-sidebar-bg: #18392d;") ||
