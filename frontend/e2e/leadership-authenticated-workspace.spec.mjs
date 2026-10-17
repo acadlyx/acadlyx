@@ -250,7 +250,7 @@ test("temporary /auth/me failure fails closed and can recover through Retry veri
 test("Institution Admin navigation does not offer Accounts-owned fee management", async ({ page }) => {
   await installAuthenticatedSession(page, "INSTITUTION_ADMIN");
   await page.goto(baseURL + "/admin", { waitUntil: "networkidle" });
-  await expect(page.locator('a[href="/admin/departments"]')).toHaveCount(1);
+  await expect(page.locator('a[href="/admin"]')).toHaveCount(1);
   await expect(page.locator('a[href="/accounts/fee-structures"]')).toHaveCount(0);
   await expect(page.locator('a[href="/accounts/fee-heads"]')).toHaveCount(0);
   await expect(page.locator('a[href="/admin/departments"]')).toHaveCount(1);
