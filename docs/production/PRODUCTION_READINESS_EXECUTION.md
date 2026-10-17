@@ -7,7 +7,7 @@
 - Repository: https://github.com/acadlyx/acadlyx
 - Authorized branch: `native-mobile-parity-2026-10-17`
 - Protected production baseline: `production-upgrade-2026-09-20`
-- Latest branch HEAD at this status refresh: `c7698ff636e40f31c24d0714c9635b1ec67b9fcf` (two P0 test fixes included; branch commit is not identical to the PR merge-candidate SHA).
+- Latest branch HEAD at this status refresh: `e02303e5fff146312c94e5d6ee6e9849daab0de0` (P0 test fixes plus a stale-RBAC reconciliation fix and regression source check; this exact head's CI was queued when refreshed).
 - PR: https://github.com/acadlyx/acadlyx/pull/77 (draft; not approved for merge)
 - Prior check snapshot for `58b3999f9e47cdbe1307656173e891efcfd4f6cf`: Native Mobile CI, Frontend build, Production Gate, and Production Quality succeeded, but ERP verification failed (run 39058172602; backend job 117470368485). On updated branch commit `c7698ff636e40f31c24d0714c9635b1ec67b9fcf`, the PR merge candidate `ef7d79870320b69f2e637272bbd48d6de5e69fcd` passed ERP verification with 239/239 tests, and the standalone Frontend build and Native Mobile CI passed. Production Gate and Production Quality's remaining jobs were still running at this refresh. These results are not release-wide completion evidence.
 - Environment limitation: no writable local checkout is mounted in this session. Remote source inspection and branch commits are available through the connected GitHub integration; local shell/test execution is not available here. CI must therefore provide the real runtime/database verification evidence for remote changes. Do not mark code verified before those results arrive.
@@ -60,6 +60,18 @@
 - Precise next action: recheck advisory/upstream release status; run `npm audit --omit=dev` and full `npm audit`, generate an SBOM if supported, identify installed package call sites and verify Android/iOS bundle contents in a writable checkout. Then upgrade only to a supported patched release and rerun the mobile compatibility/build suite.
 
 ## Remaining P1 queue
+
+### P1-AUTH-002 — Fresh RBAC reconciliation before route rendering
+- Priority/module: P1 / frontend authorization state
+- Acceptance: when cached roles/permissions are stale, the shell waits for a current `/auth/me` response before running route guards or rendering protected children; authorized users are not redirected based on old permission data. If revalidation fails, old permissions are not treated as fresh; the page presents a recoverable retry state. Backend authorization remains authoritative.
+- Relevant files: `frontend/src/components/dashboard/DashboardShell.tsx`, `frontend/scripts/test-library-access.mjs`.
+- Status: `IMPLEMENTED_UNVERIFIED`
+- Root cause: the old shell initialized `routeAuthReady` to `Boolean(cachedUser)` and called `getCurrentUser({ background: true })`; the API helper explicitly returns a fresh cache immediately while revalidation runs in the background. The route guard could therefore run against stale RBAC and incorrectly redirect a user.
+- Changes made: commit `c5d51a642ffb5ca6e7fc2182dcfe312974641744` starts authorization readiness as false, awaits `getCurrentUser({ force: true })`, keeps protected child rendering behind the readiness gate, and displays an accessible retry state when revalidation fails. Commit `e02303e5fff146312c94e5d6ee6e9849daab0de0` adds source-contract regression assertions to the existing Library-access validation script.
+- Tests: not yet run for the latest source-fix commit. Frontend workflow run 1393, ERP verification run 2238, Native Mobile CI run 236, Production Gate run 1854 and Production Quality run 2909 are queued/pending for branch head `e02303e5fff146312c94e5d6ee6e9849daab0de0`.
+- Commit SHA: `c5d51a642ffb5ca6e7fc2182dcfe312974641744` (implementation), `e02303e5fff146312c94e5d6ee6e9849daab0de0` (regression check).
+- Remaining verification: CI must pass on the latest branch/PR merge candidate, and protected browser/API scenarios should verify stale permission refresh and transient auth-service failure. The current CI public/login browser smoke does not yet prove role-switch isolation end to end.
+- Precise next action: poll all triggered CI and inspect the new source-check/build outcomes before marking verified.
 
 ### P1-AUTH-001 — Full backend authorization and workspace isolation
 - Priority/module: P1 / authentication, RBAC, API scope
@@ -140,8 +152,8 @@
 - Acceptance: all required workflow and job-level checks pass on the same release-candidate SHA; no disabled/skipped gate is represented as passed; workflow links and exact SHAs are recorded.
 - Relevant files: `.github/workflows/**`.
 - Status: `IN_PROGRESS`
-- Evidence: for branch commit `c7698ff636e40f31c24d0714c9635b1ec67b9fcf`, PR merge-candidate ERP verification run 2235 passed in full (239/239); Frontend build run 1390 passed; Native Mobile CI run 233 passed. Production Gate run 1851 had backend checks pass (including tests and lint) while frontend build was still running at last poll. Production Quality run 2906 had finance 10k-student workload, populated legacy refund compatibility, Prisma migration validation, and isolated PostgreSQL backup/restore jobs pass; backend, frontend, and browser smoke jobs were still in progress. Reconfirm on the latest final commit since tracker changes create a new SHA.
-- Next action: poll current triggered CI jobs and preserve evidence against the resulting exact commit. Keep all required workflows enabled.
+- Evidence: for branch commit `c7698ff636e40f31c24d0714c9635b1ec67b9fcf`, PR merge-candidate ERP verification run 2235 passed in full (239/239); Frontend build run 1390 passed; Native Mobile CI run 233 passed. A subsequent documentation-only tracker commit `43827b02cb3f1afff60e46186f533bd3e8df93a6` also completed ERP verification run 2236, Frontend build run 1391, Native Mobile CI run 234 and Production Gate run 1852 successfully; Production Quality run 2907 was still completing browser smoke. After the RBAC fix and source test, branch head is `e02303e5fff146312c94e5d6ee6e9849daab0de0`, and the five required workflows were queued/pending as runs 1393, 2238, 236, 1854 and 2909 at last refresh. These are different commits and not yet a common green release-candidate set.
+- Next action: poll current checks, record the exact merge SHA and per-job results, and do not infer readiness from mixed-commit green jobs.
 
 ### P1-BROWSER-001 — Real browser and API/device validation
 - Priority/module: P1 / QA
@@ -175,4 +187,4 @@
 
 ## Release decision
 
-**NOT PRODUCTION READY.** The two P0 test/fixture issues are verified fixed on the tested PR merge candidate. The high-severity `node-forge@1.4.0` advisory remains an external security blocker without a stable patched release listed; full role isolation, workflow parity, imports/exports, device verification and staging/release gates remain unverified. The production baseline remains protected.
+**NOT PRODUCTION READY.** The two P0 test/fixture issues are verified fixed on the tested PR merge candidate. The stale-RBAC shell fix is implemented but unverified. The high-severity `node-forge@1.4.0` advisory remains an external security blocker without a stable patched release listed; full role isolation, workflow parity, imports/exports, device verification and staging/release gates remain unverified. The production baseline remains protected.
