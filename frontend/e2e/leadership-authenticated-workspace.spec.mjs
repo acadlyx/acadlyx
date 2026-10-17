@@ -576,3 +576,24 @@ test("Institution Admin institution-settings alias resolves to admin workspace",
   await page.goto(baseURL + "/institution-settings", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/admin$/);
 });
+
+
+test("Student cannot open the CMS legacy alias or trigger CMS data requests", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.includes("/api/v1/cms") || pathname.includes("/api/v1/site-content")) forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/cms", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: /Website CMS/i })).toHaveCount(0);
+  expect(forbiddenRequests, "unauthorized legacy CMS routes must not issue CMS requests").toEqual([]);
+});
+
+test("Student cannot open the Registrar forms legacy alias", async ({ page }) => {
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/forms", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: /Certificates/i }).first()).toHaveCount(0);
+});
