@@ -522,6 +522,24 @@ async function assertStudentListContext(
     throw new AppError("Selected department does not belong to the selected campus", 400);
   }
 
+  if (semester && section && section.semesterId !== semester.id) {
+    throw new AppError("Selected section does not belong to the selected semester", 400);
+  }
+  if (program && year) {
+    const matchingSemester = await prisma.semester.findFirst({
+      where: {
+        institutionId,
+        programId: program.id,
+        academicYearId: year.id,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!matchingSemester) {
+      throw new AppError("Selected academic year does not contain an active semester for the selected program", 400);
+    }
+  }
+
   const semesterProgramId = semester?.programId ?? section?.semester.programId;
   const semesterYearId = semester?.academicYearId ?? section?.semester.academicYearId;
   const semesterDepartmentId = semester?.program.departmentId ?? section?.semester.program.departmentId;
