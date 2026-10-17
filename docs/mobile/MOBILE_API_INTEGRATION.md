@@ -48,12 +48,12 @@ These methods are wired in source and remain subject to real CI, live isolated-A
 - Responses matching the existing success/data envelope are unwrapped.
 - The client uses request timeouts, actionable generic server/network messages, and a generated X-Idempotency-Key for non-GET requests. Endpoint-level rules still determine whether an action is idempotent and transactional.
 - 403s are surfaced as denied operations.
-- Query data is in-memory, and the query client clears after account identity changes.
+- Query data is in-memory, and the query client clears after account identity changes.\n- The workspace provider validates scope changes through `/workspace/context`, then resets and invalidates cached queries. Context identifiers are only appended to known list endpoints with compatible query contracts (`/departments`, `/programs`, `/semesters`, `/sections`, `/course-offerings`); other screens still depend on their dedicated API scope enforcement and may require explicit filters.
 - The client does not implement multipart/binary operations or offline write queues.
 
 ## Backend changes and migrations
 
-No backend route, controller, service, RBAC policy, Prisma schema or database migration was changed in this increment. Existing endpoints and permission contracts are used. No production record was modified.
+The existing `GET /workspace/context` route and service were extended to accept campus selection, return accessible campus options and campus scope, keep department options switchable within the authorized campus set, and explicitly reject an invalid selected academic year. No Prisma schema or database migration was added. The protected production branch and production records were not changed.
 
 ## Contract work still required
 
