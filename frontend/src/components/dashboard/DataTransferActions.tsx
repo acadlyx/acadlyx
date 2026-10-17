@@ -111,7 +111,7 @@ export default function DataTransferActions({ type, compact = false }: { type: D
       {message && <span role="status" className="basis-full text-xs text-slate-600">{message}</span>}
       {pendingJobId && <button type="button" disabled={busy} onClick={() => void checkPendingJob()} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">Check import status</button>}
       {completionUrl && <a href={completionUrl} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Complete imported student details</a>}
-      {errors.length > 0 && <div className="basis-full rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><p className="font-black">Row-level errors</p><ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">{errors.slice(0, 100).map((item, index) => <li key={`${item.row ?? "row"}-${index}`}>Row {item.row ?? "?"}: {item.message}</li>)}</ul>{errors.length > 100 && <p className="mt-2 font-semibold">Showing the first 100 errors.</p></div>}
+      {errors.length > 0 && <div className="basis-full rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><p className="font-black">Row-level errors</p><ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">{errors.slice(0, 100).map((item, index) => <li key={`${item.row ?? "row"}-${index}`}>Row {item.row ?? "?"}: {item.message}</li>)}</ul>{errors.length > 100 && <p className="mt-2 font-semibold">Showing the first 100 errors.</p>}</div>}
     </div>
   );
 }
