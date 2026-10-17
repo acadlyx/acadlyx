@@ -43,9 +43,12 @@ function applyWorkspaceContext(path: string, enabled: boolean): string {
   const acceptedFields: Record<string, readonly (keyof WorkspaceContextIds)[]> = {
     departments: ["campusId"],
     programs: ["departmentId"],
+    courses: ["departmentId"],
+    batches: ["programId"],
     semesters: ["programId", "departmentId", "academicYearId"],
     sections: ["semesterId", "departmentId"],
-    "course-offerings": ["semesterId", "sectionId", "departmentId"]
+    "course-offerings": ["semesterId", "sectionId", "departmentId"],
+    students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]
   };
   const routeParts = route.split("/");
   const listRoute = routeParts.length === 1 ? routeParts[0] : "";
