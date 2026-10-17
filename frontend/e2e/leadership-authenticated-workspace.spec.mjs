@@ -27,8 +27,12 @@ async function installAuthenticatedSession(page, role) {
     firstName: "Browser",
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
-    permissions,
-    tenantFeatures: ["fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms", "students", "faculty", "timetable", "results", "reports", "notifications"],
+    permissions: role === "STUDENT" ? [...permissions, "library.read", "library.borrow"] : permissions,
+    tenantFeatures: [
+      "fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms",
+      "students", "faculty", "timetable", "results", "reports", "notifications",
+      ...(role === "STUDENT" ? ["library"] : []),
+    ],
   };
 
   await page.route("**/api/v1/**", async (route) => {
@@ -152,27 +156,32 @@ test("stale Student permissions do not redirect an authorized Library route befo
   await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
-  // This represents an RBAC update after the user was already cached in the
-  // current browser tab. The cached identity is deliberately missing the
-  // Library permission and tenant entitlement; the next /auth/me contains
-  // the freshly authorized state.
-  expect(session.user.permissions).not.toContain("library.read");
-  expect(session.user.tenantFeatures).not.toContain("library");
+  // Establish a genuine Next.js history entry while the Student is authorized
+  // for Library. Then revoke the grant server-side and visit Attendance so the
+  // in-memory client cache is refreshed to the now-unprivileged state.
+  await page.locator('a[href="/student/library"]').click();
+  await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  session.user.permissions = session.user.permissions.filter((permission) => !["library.read", "library.borrow"].includes(permission));
+  session.user.tenantFeatures = session.user.tenantFeatures.filter((feature) => feature !== "library");
+  await page.locator('a[href="/student/attendance"]').click();
+  await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/student\/attendance$/);
+
+  // The cached current identity is now missing Library permission. Grant it
+  // again on the identity response, gate /auth/me, and navigate back to the
+  // existing Library history entry. The guard must wait rather than redirect
+  // based on its stale cached denial.
   session.user.permissions = [...session.user.permissions, "library.read", "library.borrow"];
   session.user.tenantFeatures = [...session.user.tenantFeatures, "library"];
-
   let releaseAuthMe;
   const gate = new Promise((resolve) => { releaseAuthMe = resolve; });
   session.setAuthMeGate(gate);
   const freshAuthRequest = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/auth/me"));
-  await page.locator('a[href="/student/library"]').click();
+  await page.goBack();
   await expect(page).toHaveURL(/\/student\/library$/);
   await freshAuthRequest;
   await expect(page.getByRole("status").getByText("Checking your secure workspace…")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toHaveCount(0);
-
-  // If the route guard used the stale cached permissions, it would send the
-  // browser back to /student before the server's authorization update arrived.
   await expect(page).toHaveURL(/\/student\/library$/);
   releaseAuthMe();
   await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
@@ -185,15 +194,22 @@ test("temporary /auth/me failure fails closed and can recover through Retry veri
   await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
-  session.setAuthMeFailure({ status: 503, message: "Synthetic identity-service outage" });
+  // Keep a real Library entry in the browser's Next.js history, then return to
+  // it with /auth/me failing. Protected content must remain hidden and offer
+  // retry, rather than redirecting the student or showing stale records.
   await page.locator('a[href="/student/library"]').click();
+  await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
+  await page.locator('a[href="/student/attendance"]').click();
+  await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
+
+  session.setAuthMeFailure({ status: 503, message: "Synthetic identity-service outage" });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/student\/library$/);
   await expect(page.getByRole("heading", { name: "Workspace verification unavailable" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry verification" })).toBeVisible();
   await expect(page.getByText(/You do not have access to this page/i)).toHaveCount(0);
 
   session.setAuthMeFailure(null);
-  session.user.permissions = [...session.user.permissions, "library.read", "library.borrow"];
-  session.user.tenantFeatures = [...session.user.tenantFeatures, "library"];
   await page.getByRole("button", { name: "Retry verification" }).click();
   await expect(page.getByRole("heading", { name: "My Library", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/student\/library$/);
