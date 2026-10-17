@@ -2316,13 +2316,36 @@ export async function getMarksSheet(
   actor: AuthenticatedUser,
   examScheduleId: string
 ) {
+  // This endpoint returns a whole course roster for mark entry and review.
+  // Student and Parent self-results are exposed through their dedicated,
+  // ownership-scoped portal endpoints instead of this staff marksheet.
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "STUDENT" || activeRole === "PARENT") {
+    throw new AppError("Roster-level marksheets are only available to authorized teaching and examination staff", 403);
+  }
   const schedule = await loadSchedule(institutionId, examScheduleId);
   await assertCanReadSchedule(institutionId, actor, schedule);
 
-  const roster = await getCourseOfferingRoster(
+  let roster = await getCourseOfferingRoster(
     institutionId,
     schedule.courseOfferingId
   );
+  const session = await loadSession(institutionId, schedule.examSessionId);
+  if (session.registrationRequired) {
+    const candidates = await prisma.$queryRaw<Array<{ studentId: string }>>(Prisma.sql`
+      SELECT r."studentId"
+      FROM "exam_registrations" r
+      JOIN "exam_eligibilities" e
+        ON e."examSessionId" = r."examSessionId"
+        AND e."studentId" = r."studentId"
+      WHERE r."institutionId" = ${institutionId}
+        AND r."examSessionId" = ${schedule.examSessionId}
+        AND r."status" = 'REGISTERED'
+        AND e."status" = 'ELIGIBLE'
+    `);
+    const eligibleIds = new Set(candidates.map((candidate) => candidate.studentId));
+    roster = roster.filter((student) => eligibleIds.has(student.studentId));
+  }
 
   const [marks, attendance] = await Promise.all([
     prisma.$queryRaw<
@@ -2652,10 +2675,15 @@ export async function lockExamSchedule(
     let expectedCandidates = roster.length;
     if (session.registrationRequired) {
       const registered = await tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
-        SELECT COUNT(*)::int AS count FROM "exam_registrations"
-        WHERE "institutionId" = ${institutionId}
-          AND "examSessionId" = ${schedule.examSessionId}
-          AND "status" = 'REGISTERED'
+        SELECT COUNT(*)::int AS count
+        FROM "exam_registrations" r
+        JOIN "exam_eligibilities" e
+          ON e."examSessionId" = r."examSessionId"
+          AND e."studentId" = r."studentId"
+        WHERE r."institutionId" = ${institutionId}
+          AND r."examSessionId" = ${schedule.examSessionId}
+          AND r."status" = 'REGISTERED'
+          AND e."status" = 'ELIGIBLE'
       `);
       expectedCandidates = registered[0]?.count ?? 0;
     }

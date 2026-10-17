@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
-import { assertDepartmentInScope, assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
+import { assertCampusInScope, assertDepartmentInScope, assertSectionInScope, assertSemesterInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import * as sectionService from "../services/section.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -15,15 +15,19 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const actor = requireAuthenticatedUser(req);
   const pagination = parsePagination(req);
   const search = (req.query.search as string | undefined) || undefined;
+  const campusId = (req.query.campusId as string | undefined) || undefined;
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
   const departmentId = (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+  if (campusId) await assertCampusInScope(institutionId, actor, campusId);
   if (departmentId) await assertDepartmentInScope(institutionId, actor, departmentId);
+  if (semesterId) await assertSemesterInScope(institutionId, actor, semesterId);
 
   const { items, total } = await sectionService.listSections(institutionId, {
     ...pagination,
     search,
+    campusId,
     semesterId,
     departmentId,
     departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor),

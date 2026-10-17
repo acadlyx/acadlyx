@@ -2330,6 +2330,12 @@ export function canAccessRoute(
 
   const activeRole = getPrimaryRole(roles);
 
+  // This URL is a redirect-only legacy alias, not the Operations workspace.
+  // Allow only the effective Director role to reach its redirect even when the
+  // tenant's separate Operations feature is disabled; /director is authorized
+  // normally after navigation, and this route serves no operational data.
+  if (normalizedPath === "/director/operations") return activeRole === "DIRECTOR";
+
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.

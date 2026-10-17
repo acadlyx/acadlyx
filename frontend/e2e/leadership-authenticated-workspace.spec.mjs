@@ -81,8 +81,10 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   // the removed Operations page must not return as a duplicate destination.
   await page.goto(baseURL + "/director/operations", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
   await page.reload({ waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
   expect(pageErrors, "no unhandled browser exceptions").toEqual([]);
 });
 
@@ -110,6 +112,7 @@ test("placement workspace routes load with scoped authenticated session", async 
     ["/placements/reports", "Placement Intelligence"],
   ]) {
     await page.goto(baseURL + path, { waitUntil: "networkidle" });
+    await expect(page).toHaveURL(baseURL + path);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);

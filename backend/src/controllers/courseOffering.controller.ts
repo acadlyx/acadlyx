@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { requireAuthenticatedUser } from "../utils/requireInstitution";
 import * as courseOfferingService from "../services/courseOffering.service";
-import { assertCourseInScope, assertCourseOfferingInScope, assertSectionInScope, assertSemesterInScope, assertDepartmentInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
+import { assertCampusInScope, assertCourseInScope, assertCourseOfferingInScope, assertSectionInScope, assertSemesterInScope, assertDepartmentInScope, getAuthorizedDepartmentIds, isInstitutionWide } from "../services/accessScope.service";
 import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
@@ -24,14 +24,19 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const semesterId = (req.query.semesterId as string | undefined) || undefined;
   const sectionId = (req.query.sectionId as string | undefined) || undefined;
   const facultyId = (req.query.facultyId as string | undefined) || undefined;
+  const campusId = (req.query.campusId as string | undefined) || undefined;
   const departmentId = (req.query.departmentId as string | undefined) || undefined;
   const isActive =
     req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+  if (campusId) await assertCampusInScope(institutionId, actor, campusId);
   if (departmentId) await assertDepartmentInScope(institutionId, actor, departmentId);
+  if (courseId) await assertCourseInScope(institutionId, actor, courseId);
+  if (semesterId) await assertSemesterInScope(institutionId, actor, semesterId);
+  if (sectionId) await assertSectionInScope(institutionId, actor, sectionId);
 
   const { items, total } = await courseOfferingService.listCourseOfferings(
     institutionId,
-    { ...pagination, courseId, semesterId, sectionId, facultyId, departmentId, departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor), isActive }
+    { ...pagination, courseId, semesterId, sectionId, facultyId, campusId, departmentId, departmentIds: isInstitutionWide(actor) ? undefined : await getAuthorizedDepartmentIds(institutionId, actor), isActive }
   );
 
   res.status(200).json({

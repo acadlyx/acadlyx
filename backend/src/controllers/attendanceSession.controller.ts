@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { requireInstitution } from "../utils/requireInstitution";
+import { assertWorkspaceContextFilters, readWorkspaceContextFilters } from "../utils/workspaceScopeFilters";
 import {
   CreateSessionInput,
   UpdateRecordsInput,
@@ -42,12 +43,15 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     req.query.isSubmitted === undefined
       ? undefined
       : req.query.isSubmitted === "true";
+  const contextFilters = readWorkspaceContextFilters(req.query as Record<string, unknown>);
+  await assertWorkspaceContextFilters(institutionId, user, contextFilters);
 
   const { items, total } = await attendanceService.listSessions(
     institutionId,
     user,
     {
       ...pagination,
+      ...contextFilters,
       courseOfferingId,
       facultyId,
       dateFrom,

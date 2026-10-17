@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { requireInstitution } from "../utils/requireInstitution";
+import { assertWorkspaceContextFilters, readWorkspaceContextFilters } from "../utils/workspaceScopeFilters";
 import {
   CreateAssignmentInput,
   ReviewSubmissionInput,
@@ -24,8 +25,11 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   const courseOfferingId =
     (req.query.courseOfferingId as string | undefined) || undefined;
   const status = (req.query.status as "DRAFT" | "PUBLISHED" | undefined) || undefined;
+  const contextFilters = readWorkspaceContextFilters(req.query as Record<string, unknown>);
+  await assertWorkspaceContextFilters(institutionId, user, contextFilters);
 
   const { items, total } = await assignmentService.listAssignments(institutionId, user, {
+    ...contextFilters,
     ...pagination,
     search,
     courseOfferingId,

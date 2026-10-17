@@ -6,6 +6,9 @@ import { PaginationParams } from "../utils/pagination";
 export interface BatchListFilters extends PaginationParams {
   search?: string;
   programId?: string;
+  departmentId?: string;
+  departmentIds?: string[];
+  campusId?: string;
   isActive?: boolean;
 }
 
@@ -24,6 +27,14 @@ export async function listBatches(institutionId: string, filters: BatchListFilte
   const where: Prisma.BatchWhereInput = {
     institutionId,
     ...(filters.programId ? { programId: filters.programId } : {}),
+    ...((filters.departmentId || filters.departmentIds || filters.campusId)
+      ? {
+          program: {
+            ...(filters.departmentId ? { departmentId: filters.departmentId } : filters.departmentIds ? { departmentId: { in: filters.departmentIds } } : {}),
+            ...(filters.campusId ? { department: { campusId: filters.campusId } } : {}),
+          },
+        }
+      : {}),
     ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
     ...(filters.search ? {
       OR: [
