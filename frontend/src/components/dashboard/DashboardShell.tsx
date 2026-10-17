@@ -51,6 +51,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   // final authorization decision. Permissions/entitlements can change after
   // RBAC sync, so route guards wait for one fresh /auth/me reconciliation.
   const [routeAuthReady, setRouteAuthReady] = useState(false);
+  const [verifiedPathname, setVerifiedPathname] = useState<string | null>(null);
   const [authCheckError, setAuthCheckError] = useState("");
   const [authRetryCount, setAuthRetryCount] = useState(0);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
@@ -63,21 +64,46 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   useEffect(() => {
     if (embeddedInWorkspaceShell) return;
     let alive = true;
+    const requestedPathname = pathname;
     setRouteAuthReady(false);
     setAuthCheckError("");
 
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    // The cached identity is for fast paint only. A fresh /auth/me result
-    // must resolve before route permissions or protected children are used.
-    // getCurrentUser({ background: true }) returns the cache immediately and
-    // would let stale RBAC redirect an authorized user before refresh finishes.
+    // Authorization is tied to the destination pathname. A previously
+    // verified user's permissions must never authorize a different route
+    // after client navigation until a fresh /auth/me response is available.
+    // The render gate and route guard also compare verifiedPathname so the
+    // previous path's state cannot redirect the new path during the effect gap.
     const reconcile = getCurrentUser({ force: true });
 
-    // Workspace context is independent of /auth/me. Start both requests at
-    // the same time so the shell doesn't add a serial network/database trip
-    // before loading breadcrumbs and institution branding.
+    reconcile.then((current) => {
+      if (!alive) return;
+      setUser(current);
+      setVerifiedPathname(requestedPathname);
+      setAuthCheckError("");
+      setRouteAuthReady(true);
+    }).catch((error) => {
+      if (!alive) return;
+      if (error instanceof AuthRequiredError) {
+        setUser(null);
+        setVerifiedPathname(null);
+        router.replace("/login");
+        return;
+      }
+      // Fail closed on stale authorization while remaining recoverable when
+      // the identity service is temporarily unavailable.
+      setVerifiedPathname(null);
+      setAuthCheckError("We couldn't verify your current workspace permissions. Check your connection and retry.");
+      setRouteAuthReady(false);
+    });
+    return () => { alive = false; };
+  }, [router, pathname, embeddedInWorkspaceShell, authRetryCount]);
+
+  useEffect(() => {
+    if (embeddedInWorkspaceShell) return;
+    let alive = true;
     void workspaceGet<{
       data?: {
         institution?: { name?: string; logoUrl?: string | null };
@@ -95,28 +121,10 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
       }
     }).catch(() => {
       // Workspace context/branding is supplementary. Route authorization
-      // still waits for /auth/me and the backend enforces every API scope.
-    });
-
-    reconcile.then((current) => {
-      if (!alive) return;
-      setUser(current);
-      setAuthCheckError("");
-      setRouteAuthReady(true);
-    }).catch((error) => {
-      if (!alive) return;
-      if (error instanceof AuthRequiredError) {
-        setUser(null);
-        router.replace("/login");
-        return;
-      }
-      // Fail closed on stale authorization while remaining recoverable when
-      // the identity service is temporarily unavailable.
-      setAuthCheckError("We couldn't verify your current workspace permissions. Check your connection and retry.");
-      setRouteAuthReady(false);
+      // remains governed by fresh /auth/me and backend API enforcement.
     });
     return () => { alive = false; };
-  }, [router, embeddedInWorkspaceShell, authRetryCount]);
+  }, [embeddedInWorkspaceShell]);
 
   // Prefetch only after identity/active workspace resolution. Starting this
   // request from allowedRoles before /auth/me resolves can race the page-level
@@ -166,7 +174,10 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   }, [router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   useEffect(() => {
-    if (!user || !routeAuthReady) return;
+    // Do not evaluate route authorization with a cache verified for a different
+    // pathname. The reconciliation effect will unlock this guard only after
+    // the current destination's /auth/me request has completed successfully.
+    if (!user || !routeAuthReady || (!embeddedInWorkspaceShell && verifiedPathname !== pathname)) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
     const primaryRole = getPrimaryRole(roles);
     if (allowedRoles?.length &&
@@ -176,7 +187,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     }
     if (embeddedInWorkspaceShell) return;
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
-  }, [pathname, router, user, routeAuthReady, allowedRolesKey, embeddedInWorkspaceShell]);
+  }, [pathname, router, user, routeAuthReady, verifiedPathname, allowedRolesKey, embeddedInWorkspaceShell]);
 
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
@@ -223,7 +234,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     );
   }
 
-  if (!user || (!embeddedInWorkspaceShell && !routeAuthReady)) {
+  if (!user || (!embeddedInWorkspaceShell && (!routeAuthReady || verifiedPathname !== pathname))) {
     return (
       <div role="status" aria-live="polite" className="min-h-[40vh] animate-pulse p-6 sm:p-8">
         <span className="sr-only">Loading your secure workspace…</span>
