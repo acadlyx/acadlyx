@@ -111,6 +111,7 @@ if (
   !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
   !navigationSource.includes('["/fees/receipts", ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS", "STUDENT", "PARENT"]') ||
+  !navigationSource.includes('["/students", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/lms/settings"') ||
   !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/profile"') ||
