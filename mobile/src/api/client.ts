@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { File, Paths } from "expo-file-system";
 import { applyWorkspaceContext, setActiveWorkspaceContext } from "../workspace/workspaceScope.mjs";
 export { setActiveWorkspaceContext };
 export type { WorkspaceContextIds } from "../workspace/workspaceScope.mjs";
@@ -158,4 +159,54 @@ async function performRequest<T>(path: string, options: ApiRequestOptions, mayRe
 
 export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   return performRequest<T>(path, options, true);
+}
+
+/**
+ * Download an authenticated PDF into the app cache. This uses the same
+ * access-token refresh flow as JSON requests, and validates the response
+ * before handing bytes to the native viewer.
+ */
+export async function apiDownloadPdf(path: string, filename: string): Promise<File> {
+  const requestPath = applyWorkspaceContext(path, true);
+  const url = API_BASE_URL + (requestPath.startsWith("/") ? requestPath : "/" + requestPath);
+
+  const request = async (mayRefresh: boolean): Promise<Response> => {
+    const token = await getAccessToken();
+    const headers = new Headers({ Accept: "application/pdf" });
+    if (token) headers.set("Authorization", "Bearer " + token);
+    const response = await fetchWithTimeout(url, { method: "GET", headers }, DEFAULT_TIMEOUT_MS);
+    if (response.status === 401 && mayRefresh) {
+      if (await refreshSession()) return request(false);
+      await clearTokens();
+      throw new ApiError("Your session has expired. Please sign in again.", 401, "SESSION_EXPIRED");
+    }
+    return response;
+  };
+
+  const response = await request(true);
+  if (!response.ok) {
+    const parsed = parseJson(await response.text()) as ApiEnvelope<unknown> | null;
+    const message = parsed?.error?.message || (
+      response.status === 403 ? "ACADLYX denied this download for your current permissions or scope." :
+      response.status >= 500 ? "ACADLYX is temporarily unavailable. Please try again." :
+      "The PDF download could not be completed."
+    );
+    throw new ApiError(message, response.status, parsed?.error?.code || "DOWNLOAD_FAILED", parsed?.error?.requestId);
+  }
+
+  const contentType = (response.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/pdf") {
+    throw new ApiError("The server did not return a PDF document.", 502, "INVALID_DOWNLOAD_TYPE");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 500 || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== "%PDF") {
+    throw new ApiError("The downloaded file is not a valid PDF.", 502, "INVALID_PDF");
+  }
+
+  const safeName = (filename || "ACADLYX_Marksheet.pdf").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+  const withExtension = safeName.toLowerCase().endsWith(".pdf") ? safeName : safeName + ".pdf";
+  const file = new File(Paths.cache, Date.now().toString(36) + "_" + withExtension);
+  file.create();
+  await file.write(bytes);
+  return file;
 }
