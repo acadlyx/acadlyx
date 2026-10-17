@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "../lib/prisma";
 import { commitPartialStudentImport } from "../services/studentImport.service";
+import { parseWorkbook } from "../services/import.service";
 
 const integrationEnabled = process.env.RUN_POSTGRES_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
 
@@ -79,7 +80,7 @@ test("partial student import preserves existing profile data and calculates miss
       permissions: ["students.create", "students.update", "users.update"],
     };
 
-    const parsedInput = (await import("../services/import.service")).parseWorkbook(csv);
+    const parsedInput = parseWorkbook(csv);
     assert.equal(parsedInput.rows[0]?.admissionnumber, "ADM-" + suffix, "CSV parser must preserve the admission number header/value: " + JSON.stringify(parsedInput.rows[0]));
     const result = await commitPartialStudentImport(csv, institution.id, actor);
     assert.equal(result.imported, 1);
