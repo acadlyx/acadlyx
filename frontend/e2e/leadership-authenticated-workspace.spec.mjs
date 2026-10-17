@@ -52,6 +52,17 @@ async function installAuthenticatedSession(page, role) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { institution: { name: "Browser Test Institution", logoUrl: null }, breadcrumbs: [] } }) });
       return;
     }
+    if (path.endsWith("/students/me/attendance")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { overallPercentage: 0, totalPresent: 0, totalSessions: 0, subjects: [] },
+        }),
+      });
+      return;
+    }
     if (path.endsWith("/placements/criteria-options")) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { campuses: [], departments: [], programs: [], batches: [], semesters: [], skills: [] } }) });
       return;
