@@ -112,6 +112,8 @@ if (
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
   !navigationSource.includes('["/fees/receipts", ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "DIRECTOR", "DEAN", "HOD", "ACCOUNTS", "STUDENT", "PARENT"]') ||
   !navigationSource.includes('["/students", ["INSTITUTION_ADMIN"]') ||
+  !navigationSource.includes('["/academics", ["DEAN"]') ||
+  !navigationSource.includes('["/timetable", ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD", "FACULTY"]') ||
   !navigationSource.includes('["/lms/settings"') ||
   !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/profile"') ||
