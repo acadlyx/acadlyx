@@ -93,7 +93,8 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
   assert.ok(provider.includes("transitionWorkspaceContext"));
   assert.ok(workspaceScope.includes("await queryClient.cancelQueries()"));
-  assert.ok(workspaceScope.includes("await queryClient.resetQueries()"));
+  assert.ok(workspaceScope.includes("query.reset()"), "Cached values must be cleared before the active scope label changes.");
+  assert.ok(workspaceScope.includes('invalidateQueries({ refetchType: "active" })'));
   assert.ok(provider.includes("setActiveWorkspaceContext(next.scope)"));
   assert.ok(provider.includes("expo-secure-store"), "Validated context must use secure device persistence.");
   assert.ok(provider.includes("workspaceStorageKey"), "Persisted context must be isolated by account and roles.");
