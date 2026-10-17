@@ -50,7 +50,9 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   // A cached user is useful for instant rendering, but must never be the
   // final authorization decision. Permissions/entitlements can change after
   // RBAC sync, so route guards wait for one fresh /auth/me reconciliation.
-  const [routeAuthReady, setRouteAuthReady] = useState(Boolean(cachedUser));
+  const [routeAuthReady, setRouteAuthReady] = useState(false);
+  const [authCheckError, setAuthCheckError] = useState("");
+  const [authRetryCount, setAuthRetryCount] = useState(0);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
   const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
@@ -61,12 +63,17 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   useEffect(() => {
     if (embeddedInWorkspaceShell) return;
     let alive = true;
+    setRouteAuthReady(false);
+    setAuthCheckError("");
+
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    const reconcile = cached
-      ? getCurrentUser({ background: true })
-      : getCurrentUser();
+    // The cached identity is for fast paint only. A fresh /auth/me result
+    // must resolve before route permissions or protected children are used.
+    // getCurrentUser({ background: true }) returns the cache immediately and
+    // would let stale RBAC redirect an authorized user before refresh finishes.
+    const reconcile = getCurrentUser({ force: true });
 
     // Workspace context is independent of /auth/me. Start both requests at
     // the same time so the shell doesn't add a serial network/database trip
@@ -94,14 +101,22 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     reconcile.then((current) => {
       if (!alive) return;
       setUser(current);
+      setAuthCheckError("");
       setRouteAuthReady(true);
     }).catch((error) => {
       if (!alive) return;
-      setRouteAuthReady(true);
-      if (error instanceof AuthRequiredError) router.replace("/login");
+      if (error instanceof AuthRequiredError) {
+        setUser(null);
+        router.replace("/login");
+        return;
+      }
+      // Fail closed on stale authorization while remaining recoverable when
+      // the identity service is temporarily unavailable.
+      setAuthCheckError("We couldn't verify your current workspace permissions. Check your connection and retry.");
+      setRouteAuthReady(false);
     });
     return () => { alive = false; };
-  }, [router, embeddedInWorkspaceShell]);
+  }, [router, embeddedInWorkspaceShell, authRetryCount]);
 
   // Prefetch only after identity/active workspace resolution. Starting this
   // request from allowedRoles before /auth/me resolves can race the page-level
@@ -192,7 +207,23 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     return Array.from(uniqueDestinations.values());
   }, [adminDepartments, user, workspaceRole]);
 
-  if (!user) {
+  if (!embeddedInWorkspaceShell && authCheckError) {
+    return (
+      <main role="alert" aria-live="assertive" className="mx-auto flex min-h-[40vh] max-w-2xl flex-col items-start justify-center gap-4 p-6 sm:p-8">
+        <h1 className="text-xl font-bold text-slate-900">Workspace verification unavailable</h1>
+        <p className="text-sm text-slate-600">{authCheckError}</p>
+        <button
+          type="button"
+          onClick={() => setAuthRetryCount((attempt) => attempt + 1)}
+          className="acadlyx-button acadlyx-button-primary"
+        >
+          Retry verification
+        </button>
+      </main>
+    );
+  }
+
+  if (!user || (!embeddedInWorkspaceShell && !routeAuthReady)) {
     return (
       <div role="status" aria-live="polite" className="min-h-[40vh] animate-pulse p-6 sm:p-8">
         <span className="sr-only">Loading your secure workspace…</span>
