@@ -277,10 +277,10 @@ test("workspace query filters follow the new scope, remove stale selections, and
   // previous context, but must preserve independent user-entered filters.
   setActiveWorkspaceContext({ campusId: "campus-a" });
   const cleared = new URLSearchParams(applyWorkspaceContext(
-    "/students?departmentId=department-a&programId=program-a&academicYearId=year-a&semesterId=semester-a&sectionId=section-a&search=Smith",
+    "/students?departmentId=department-a&programId=program-a&academicYearId=year-a&batchId=batch-a&semesterId=semester-a&sectionId=section-a&search=Smith",
     true
   ).split("?")[1]);
-  for (const key of ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]) {
+  for (const key of ["departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) {
     assert.equal(cleared.get(key), null, "Stale scope must be removed for " + key);
   }
   assert.equal(cleared.get("search"), "Smith");
