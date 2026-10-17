@@ -431,6 +431,21 @@ export async function getWorkspaceContext(
   actor: AuthenticatedUser,
   input: WorkspaceContextInput = {}
 ) {
+  // Explicit selector requests are authorization decisions, not cacheable
+  // display hints. Re-read CampusAccess/DepartmentAccess and the academic
+  // hierarchy on every request so a revoked or deleted saved selection cannot
+  // be revived by the short-lived default-context cache.
+  const hasExplicitSelection = [
+    input.campusId,
+    input.departmentId,
+    input.programId,
+    input.academicYearId,
+    input.batchId,
+    input.semesterId,
+    input.sectionId,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+  if (hasExplicitSelection) return buildWorkspaceContext(institutionId, actor, input);
+
   const key = workspaceContextCacheKey(institutionId, actor, input);
   const now = Date.now();
   const cached = workspaceContextCache.get(key);
