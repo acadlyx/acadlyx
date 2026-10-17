@@ -88,7 +88,8 @@ export function RootNavigator() {
           <Stack.Screen name="Leave" component={LeaveScreen} options={{ title: "Leave management" }} />
           <Stack.Screen name="Parent" component={ParentScreen} options={{ title: "Parent portal" }} />
           <Stack.Screen name="HR" component={HRScreen} options={{ title: "Human resources" }} />
-          <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />\n          <Stack.Screen name="StudentPortal" component={({ route }) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
+          <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />
+          <Stack.Screen name="StudentPortal" component={({ route }) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>
     </NavigationContainer>
