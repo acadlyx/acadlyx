@@ -2316,6 +2316,13 @@ export async function getMarksSheet(
   actor: AuthenticatedUser,
   examScheduleId: string
 ) {
+  // This endpoint returns a whole course roster for mark entry and review.
+  // Student and Parent self-results are exposed through their dedicated,
+  // ownership-scoped portal endpoints instead of this staff marksheet.
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "STUDENT" || activeRole === "PARENT") {
+    throw new AppError("Roster-level marksheets are only available to authorized teaching and examination staff", 403);
+  }
   const schedule = await loadSchedule(institutionId, examScheduleId);
   await assertCanReadSchedule(institutionId, actor, schedule);
 
