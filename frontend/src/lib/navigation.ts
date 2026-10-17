@@ -11,6 +11,7 @@ function normalizeRoleName(role: string): string {
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments|fee-approvals|fee-structures|fee-heads)(\/|$)/, "fees"],
+  [/^\/parent\/children(\/|$)/, "parent_portal"],
   [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student)\/students(\/|$)|^\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
   [/^\/(chairman|director|dean|registrar|admissions)\/(admissions|applications)(\/|$)|^\/applications(\/|$)|^\/admissions(\/|$)/, "admissions"],
@@ -1481,6 +1482,15 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["STUDENT"],
     permissions: ["documents.read"],
     group: "Account",
+  },
+
+  {
+    label: "Children",
+    href: "/parent/children",
+    icon: "people",
+    roles: ["PARENT"],
+    group: "Student",
+    activeMatch: "nested",
   },
 
   {
