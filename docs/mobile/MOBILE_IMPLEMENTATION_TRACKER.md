@@ -1,7 +1,7 @@
 # ACADLYX native mobile implementation tracker
 
 Last audited on the authorized branch `native-mobile-parity-2026-10-17` at
-`be1b80582d022652ffc4488a8a8813db10e93b26`.
+`ad43c6ff6a97af9f9a6f3f89a24d6ec3a321b47e`.
 
 This is the persistent implementation tracker. The route-by-route source,
 native locations, workflow gaps, and backend dependencies are maintained in
@@ -56,7 +56,7 @@ needed permission and all quick actions open existing native destinations.
 | Capability | Source / native location | State | Remaining work |
 |---|---|---|---|
 | Authentication, MFA, token refresh and logout | `/auth`; `AuthProvider.tsx`, `api/client.ts` | IMPLEMENTED_UNVERIFIED | Live expiry, refresh-race and device checks |
-| Authorized workspace/context | `/workspace/context`; `WorkspaceContextProvider.tsx`; `workspaceContext.service.ts` | IMPLEMENTED_UNVERIFIED | Server-validates persisted selections; account/role changes clear cache and re-resolve effective role. Live cross-scope verification still required. |
+| Authorized workspace/context | `/workspace/context`; `WorkspaceContextProvider.tsx`; `workspaceContext.service.ts`; `workspaceScope.mjs` | IMPLEMENTED_UNVERIFIED | Selector supports all seven dimensions. Context authorization is resolved fresh from PostgreSQL, selections are persisted per account/role/permission shape and revalidated on restore, and cached record values are reset before new scope activation. Real API/PostgreSQL role and tenant isolation suite added; latest CI result required. |
 | Module inventory and generic read surfaces | `MODULES`, `ModuleScreen.tsx` | IN_PROGRESS | This is not workflow parity; module-specific actions remain |
 | Attendance, assignments, notices, timetable, library, calendar | Dedicated screen files in `mobile/src/screens` | IN_PROGRESS | Route matrix identifies remaining workflow actions and tests |
 | Parent, HR, admissions and student portals | Dedicated screen files | IN_PROGRESS | Live contract and complete lifecycle tests |
@@ -69,11 +69,12 @@ needed permission and all quick actions open existing native destinations.
 
 | Check | Result | Date |
 |---|---|---|
-| `mobile: npm test` | PASS — 13 tests | 2026-10-17 |
+| `mobile: npm test` | PASS — 13 tests on earlier head; Priority 1 context-transition tests added and latest run pending | 2026-10-17 |
 | `mobile: npm run typecheck` | PASS | 2026-10-17 |
 | `mobile: npm run doctor` | PASS — 21/21 Expo checks after adding `package-lock.json` | 2026-10-17 |
 | `mobile: npm audit --omit=dev --json` | 22 advisories — 15 high, 7 moderate, 0 critical; remediation requires a reviewed Expo/React Native compatibility update | 2026-10-17 |
-| `backend: workspace-context-role.contract.test.ts` | PASS — effective-role, campus/department and academic hierarchy guards | 2026-10-17 |
-| `backend: npm run typecheck` | PASS | 2026-10-17 |
-| Live authenticated API tests | NOT RUN | No authorized test account/API environment configured |
+| `backend: workspace-context-role.contract.test.ts` | PASS on earlier head — source contract for effective-role and hierarchy guards | 2026-10-17 |
+| `backend: workspace-context-isolation.integration.test.ts` | ADDED; latest CI pending — real Express API + disposable PostgreSQL; all 20 roles, multi-role priority, seven context dimensions, revocation, deleted/foreign IDs, direct unauthorized list calls, tenant/student isolation | 2026-10-17 |
+| `backend: npm run typecheck` | PASS on earlier head; latest Priority 1 service/controller/test changes pending CI | 2026-10-17 |
+| Production live API smoke tests | NOT RUN | No production records or production credentials were used. The new API suite runs only against isolated CI PostgreSQL; its latest result is pending. |
 | iOS / Android build | NOT RUN | No simulator/device or build credentials available |
