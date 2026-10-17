@@ -321,3 +321,19 @@ test("Student notices navigation resolves to one student-owned route", async ({ 
   await expect(page.locator('a[href="/student/notices"]')).toHaveCount(1);
   await expect(page.locator('a[href="/notices"]')).toHaveCount(0);
 });
+
+
+test("Accounts cannot directly open the role-owned LMS workspace", async ({ page }) => {
+  await installAuthenticatedSession(page, "ACCOUNTS");
+  await page.goto(baseURL + "/lms", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/accounts$/);
+  await expect(page.getByRole("heading", { name: "LMS", exact: true })).toHaveCount(0);
+  await expect(page.locator('a[href="/lms"]')).toHaveCount(0);
+});
+
+test("Student cannot mount administrative user-deletion approvals through a direct URL", async ({ page }) => {
+  await installAuthenticatedSession(page, "STUDENT");
+  await page.goto(baseURL + "/user-deletion-approvals", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/student$/);
+  await expect(page.getByRole("heading", { name: "Permanent Deletion Requests", exact: true })).toHaveCount(0);
+});
