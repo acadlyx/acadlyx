@@ -347,3 +347,16 @@ test("Student cannot mount administrative user-deletion approvals through a dire
   await expect(page.getByRole("heading", { name: "Permanent Deletion Requests", exact: true })).toHaveCount(0);
   expect(forbiddenRequests, "the deletion queue API must not be called for a non-owner route").toEqual([]);
 });
+
+
+test("Director cannot mount Institution Admin student master through a direct URL", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/students") forbiddenRequests.push(request.url());
+  });
+  await installAuthenticatedSession(page, "DIRECTOR");
+  await page.goto(baseURL + "/students", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Students", exact: true })).toHaveCount(0);
+  expect(forbiddenRequests, "the generic Institution Admin student-list request must not run for a Director").toEqual([]);
+});
