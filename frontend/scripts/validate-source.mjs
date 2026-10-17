@@ -31,6 +31,8 @@ const dashboardTokensFile = path.join(root, "app", "acadlyx-dashboard-tokens.css
 const dashboardTokensSource = fs.readFileSync(dashboardTokensFile, "utf8");
 const dashboardFrameFile = path.join(root, "components", "dashboard", "UnifiedDashboardFrame.tsx");
 const dashboardFrameSource = fs.readFileSync(dashboardFrameFile, "utf8");
+const managementFeeApprovalsFile = path.join(root, "app", "management", "fee-approvals", "page.tsx");
+const managementFeeApprovalsSource = fs.readFileSync(managementFeeApprovalsFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
   failures.push("src/lib/navigation.ts: empty tenant feature list must not imply every module is enabled");
 }
@@ -47,6 +49,27 @@ if (
   !navigationSource.includes('roles: ["ACCOUNTS"]')
 ) {
   failures.push("src/lib/adminNavigation.ts: the Accounts-owned fee-structure route must not be exposed in the Institution Admin menu; retain it in Accounts navigation");
+}
+const feeStructureNavigation = navigationSource.match(/\\{\\s*label: "Fee Structures",\\s*href: "\\/accounts\\/fee-structures",[\\s\\S]*?\\n\\s*\\},/);
+const feeHeadsNavigation = navigationSource.match(/\\{\\s*label: "Fee Heads",\\s*href: "\\/accounts\\/fee-heads",[\\s\\S]*?\\n\\s*\\},/);
+if (
+  !feeStructureNavigation ||
+  !/roles:\\s*\\["ACCOUNTS"\\]/.test(feeStructureNavigation[0]) ||
+  !feeHeadsNavigation ||
+  !/roles:\\s*\\["ACCOUNTS"\\]/.test(feeHeadsNavigation[0]) ||
+  !navigationSource.includes('label: "Fee structure approvals"') ||
+  !navigationSource.includes('href: "/management/fee-approvals"') ||
+  !managementFeeApprovalsSource.includes('allowedRoles={["MANAGEMENT"]}') ||
+  !managementFeeApprovalsSource.includes('view="fee-structures"')
+) {
+  failures.push("src/lib/navigation.ts: Accounts fee tools must remain Accounts-owned and Management approvals must use a Management-owned route");
+}
+if (
+  !/DEAN:\\s*\\{[^}]*"\\/notices": "\\/dean\\/notices"/.test(shellSource) ||
+  !/HOD:\\s*\\{[^}]*"\\/notices": "\\/hod\\/notices"/.test(shellSource) ||
+  !shellSource.includes("uniqueDestinations.has(destination)")
+) {
+  failures.push("src/components/dashboard/DashboardShell.tsx: Dean/HOD shared-notice links must resolve to one workspace-owned destination");
 }
 if (
   !dashboardTokensSource.includes("--acadlyx-sidebar-bg: #18392d;") ||
