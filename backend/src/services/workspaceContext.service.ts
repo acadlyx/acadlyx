@@ -2,9 +2,11 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
+  getDirectorDepartmentIds,
   getManagedDepartmentIds,
   getStaffDepartmentIds,
   getStudentDepartmentIds,
+  isDirectorScoped,
   isInstitutionWide,
 } from "./accessScope.service";
 import { getCanonicalRoleNames } from "../config/rbac";
@@ -25,7 +27,8 @@ async function allowedDepartmentIds(
 ): Promise<string[] | null> {
   if (isInstitutionWide(actor)) return null;
   const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
+  if (isDirectorScoped(actor)) return getDirectorDepartmentIds(institutionId, actor.id);
+  if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
   if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
   if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
   return [];
@@ -92,6 +95,7 @@ async function buildWorkspaceContext(
           academicYearId: null,
           semesterId: null,
           sectionId: null,
+          batchId: null,
         },
         breadcrumbs: [],
         children: { campuses: [], departments: [], programs: [], academicYears: [], batches: [], semesters: [], sections: [] },
@@ -142,7 +146,7 @@ async function buildWorkspaceContext(
     orderBy: { name: "asc" },
   });
 
-  const selectedDepartment = departmentId
+  let selectedDepartment = departmentId
     ? departments.find((department) => department.id === departmentId) ?? null
     : departments.length === 1 ? departments[0] : null;
 
@@ -150,8 +154,8 @@ async function buildWorkspaceContext(
     throw new AppError("Department not found in your authorized institution scope", 404);
   }
   if (!departmentId && selectedDepartment) departmentId = selectedDepartment.id;
-  const effectiveCampusId = requestedCampus?.id ?? selectedDepartment?.campus?.id ?? null;
-  const effectiveCampus = effectiveCampusId
+  let effectiveCampusId = requestedCampus?.id ?? selectedDepartment?.campus?.id ?? null;
+  let effectiveCampus = effectiveCampusId
     ? campuses.find((campus) => campus.id === effectiveCampusId) ?? selectedDepartment?.campus ?? null
     : null;
 
@@ -164,7 +168,13 @@ async function buildWorkspaceContext(
     where: {
       institutionId,
       isActive: true,
-      ...(selectedDepartment ? { departmentId: selectedDepartment.id } : campusId ? { department: { campusId } } : {}),
+      ...(selectedDepartment
+        ? { departmentId: selectedDepartment.id }
+        : campusId
+          ? { department: { campusId } }
+          : allowed
+            ? { departmentId: { in: allowed } }
+            : {}),
     },
     select: {
       id: true,
@@ -198,7 +208,9 @@ async function buildWorkspaceContext(
           ? { program: { departmentId: selectedDepartment.id } }
           : campusId
             ? { program: { department: { campusId } } }
-            : {}),
+            : allowed
+              ? { program: { departmentId: { in: allowed } } }
+              : {}),
       ...(input.academicYearId ? { academicYearId: input.academicYearId } : {}),
     },
     select: {
@@ -225,6 +237,10 @@ async function buildWorkspaceContext(
 
   if (input.semesterId && !selectedSemester) {
     throw new AppError("Semester is not valid for the selected academic context", 404);
+  }
+  if (selectedSemester) {
+    if (!input.programId) input.programId = selectedSemester.programId;
+    if (!input.academicYearId) input.academicYearId = selectedSemester.academicYearId;
   }
 
   const sectionsPromise = selectedSemester
@@ -262,7 +278,19 @@ async function buildWorkspaceContext(
     : null;
 
   if (input.programId && !selectedProgram) {
-    throw new AppError("Program is not valid for the selected department", 404);
+    throw new AppError("Program is not valid for the selected department or authorized scope", 404);
+  }
+  if (selectedProgram) {
+    const programDepartment = departments.find((department) => department.id === selectedProgram.departmentId) ?? null;
+    if (!programDepartment || (selectedDepartment && selectedDepartment.id !== programDepartment.id)) {
+      throw new AppError("Program is not valid for the selected department or authorized scope", 404);
+    }
+    selectedDepartment = programDepartment;
+    departmentId = programDepartment.id;
+    if (!effectiveCampusId && programDepartment.campus?.id) {
+      effectiveCampusId = programDepartment.campus.id;
+      effectiveCampus = campuses.find((campus) => campus.id === effectiveCampusId) ?? programDepartment.campus;
+    }
   }
 
   if (input.batchId && !selectedBatch) {
