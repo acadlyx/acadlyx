@@ -49,7 +49,7 @@ These methods are wired in source and remain subject to real CI, live isolated-A
 - The client uses request timeouts, actionable generic server/network messages, and a generated X-Idempotency-Key for non-GET requests. Endpoint-level rules still determine whether an action is idempotent and transactional.
 - 403s are surfaced as denied operations.
 - Query data is in-memory, and the query client clears after account identity changes.
-- The workspace provider validates scope changes through `/workspace/context`, then resets and invalidates cached queries. Context identifiers are only appended to known list endpoints with compatible query contracts (`/departments`, `/programs`, `/semesters`, `/sections`, `/course-offerings`); other screens still depend on their dedicated API scope enforcement and may require explicit filters.
+- The workspace provider validates scope changes through `/workspace/context`, then resets and invalidates cached queries. Context identifiers are appended only to known list endpoints with compatible query contracts: `/departments` (campus), `/programs` and `/courses` (department), `/batches` (programme), `/semesters` (programme/department/year), `/sections` (semester/department), `/course-offerings` (semester/section/department), and `/students` (department/programme/year/semester/section). Other screens still depend on their dedicated API scope enforcement and may require explicit filters.
 - The client does not implement multipart/binary operations or offline write queues.
 
 ## Backend changes and migrations
