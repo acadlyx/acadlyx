@@ -400,3 +400,37 @@ test("native examination workspace uses canonical marks lifecycle and protects s
   ]) assert.ok(routes.includes(route), "Missing backend route: " + route);
   assert.match(service, /activeRole === "STUDENT" \|\| activeRole === "PARENT"/);
 });
+
+
+test("native internal-mark entry uses faculty-owned rosters and existing validation", () => {
+  const screen = read("src/screens/InternalMarksScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const dashboard = read("src/screens/RoleDashboardScreen.tsx");
+  const catalog = read("src/modules/catalog.ts");
+  const routes = read("../backend/src/routes/internalMark.routes.ts");
+  const validators = read("../backend/src/validators/internalMark.validators.ts");
+  const service = read("../backend/src/services/internalMark.service.ts");
+  const facultyRoutes = read("../backend/src/routes/faculty.routes.ts");
+  const rosterService = read("../backend/src/services/courseOffering.service.ts");
+  const webMarksPage = read("../frontend/src/app/faculty/marks/[courseOfferingId]/page.tsx");
+
+  for (const route of ["/faculty/me/course-offerings", "/course-offerings/", "/roster", "/internal-marks?courseOfferingId=", 'apiRequest<unknown>("/internal-marks"']) {
+    assert.ok(screen.includes(route), "Missing internal-mark API integration: " + route);
+  }
+  for (const permission of ["marks.read", "marks.enter", "students.read", "course-offerings.read"]) {
+    assert.ok(screen.includes(permission), "Missing permission gate: " + permission);
+  }
+  assert.ok(screen.includes('role === "FACULTY"'));
+  assert.ok(screen.includes("records.length"), "Saving must require at least one non-empty mark");
+  assert.ok(moduleScreen.includes('module?.id === "internal-marks"'));
+  assert.ok(dashboard.includes('label: "Internal marks"'));
+  assert.ok(catalog.includes('allowedRoles: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION", "DIRECTOR", "DEAN", "HOD", "FACULTY"]'));
+  assert.ok(routes.includes('authorize("marks.read")'));
+  assert.ok(routes.includes('authorizeWorkflow("marks.enter")'));
+  assert.ok(validators.includes("maxMarks: z.number().positive().max(1000)"));
+  assert.ok(service.includes("assertOwnsCourseOffering(user, offering.facultyId)"));
+  assert.ok(service.includes("getCourseOfferingRosterIds(institutionId, offering.id)"));
+  assert.ok(facultyRoutes.includes('"/me/course-offerings"'));
+  assert.ok(rosterService.includes("assertOwnsCourseOffering(user, offering.facultyId)"));
+  assert.ok(webMarksPage.includes("getCourseOfferingRoster") && webMarksPage.includes("enterMarks"));
+});

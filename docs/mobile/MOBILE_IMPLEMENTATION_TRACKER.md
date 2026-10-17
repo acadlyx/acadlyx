@@ -160,3 +160,11 @@ The Production Quality workflow's `Production deployment smoke checks` job was s
 - Student/Parent effective roles do not use the staff marksheet endpoint; their personal results stay on the dedicated self-service APIs. A service-boundary guard denies roster-level marksheet reads to Student/Parent roles.
 - Registration-required marksheets are limited to registered, eligible candidates; schedule locking now counts the same eligible candidate set as mark entry. Source-contract tests cover the role guard, candidate selection, endpoints and UI permission gates.
 - State remains IN_PROGRESS until the current commit's checks pass, followed by isolated live API and physical-device verification. Rooms, seating, invigilators, exam attendance, hall tickets, file downloads, corrections/revaluation and full publication-job lifecycle remain incomplete.
+
+## Native internal-mark workflow slice — 2026-10-17
+
+- Added a dedicated native internal-mark screen. Faculty load only assigned courses through /faculty/me/course-offerings, then the ownership-gated /course-offerings/:id/roster and /internal-marks?courseOfferingId=...&component=... APIs populate roster rows and saved component marks.
+- Save calls the existing POST /internal-marks contract with courseOfferingId, component, maxMarks and records. Client validation checks numeric ranges; the server independently enforces owning faculty or institution-wide authority, roster membership, institutional scope, component bounds and maximum marks. Blank entries are omitted so partial saves do not zero or erase untouched students.
+- Authorized Director, Dean, HOD and institution/examination roles use a scoped read-only list. Student and Parent are excluded from the staff marks module and keep the dedicated individual results screens.
+- Added a Faculty dashboard quick action, dedicated module dispatch, role gating and source-contract assertions referencing the backend validator/service and the existing web marks-entry workflow.
+- State remains IN_PROGRESS until CI passes and a real authorized Faculty API test plus Android/iOS device checks are recorded. Result approval/correction and export workflows are not implied; they are not implemented by the existing internal-marks API.
