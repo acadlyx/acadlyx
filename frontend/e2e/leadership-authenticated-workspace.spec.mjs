@@ -31,7 +31,7 @@ async function installAuthenticatedSession(page, role) {
     tenantFeatures: [
       "fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms",
       "students", "faculty", "timetable", "results", "reports", "notifications",
-      ...(role === "STUDENT" ? ["library"] : []),
+      ...(role === "STUDENT" || role === "LIBRARIAN" ? ["library"] : []),
       ...(role === "PARENT" ? ["parent_portal"] : []),
     ],
   };
@@ -107,6 +107,45 @@ async function installAuthenticatedSession(page, role) {
       } else {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { stats: { students: 42, faculty: 7, departments: 2, courses: 12, exams: 3, examResults: 9 } } }) });
       }
+      return;
+    }
+    if (path === "/api/v1/students" && (role === "ADMISSIONS" || role === "LIBRARIAN")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: [{
+            id: "browser-test-student",
+            firstName: "Test",
+            lastName: "Student",
+            email: "student@browser-test.invalid",
+            profile: { admissionNumber: "TEST-001" },
+          }],
+          meta: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
+        }),
+      });
+      return;
+    }
+    if (path === "/api/v1/students/browser-test-student" && role === "ADMISSIONS") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: "browser-test-student",
+            firstName: "Test",
+            lastName: "Student",
+            email: "student@browser-test.invalid",
+            isActive: true,
+            createdAt: "2026-10-01T00:00:00.000Z",
+            profile: { admissionNumber: "TEST-001" },
+            enrollments: [],
+            currentEnrollment: null,
+          },
+        }),
+      });
       return;
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: [] }) });
@@ -443,4 +482,26 @@ test("Student cannot mount Librarian-only reports through a direct URL", async (
   await expect(page).toHaveURL(/\/student$/);
   await expect(page.getByRole("heading", { name: "Institutional reports", exact: true })).toHaveCount(0);
   expect(forbiddenRequests, "Student must not load Library-only report options").toEqual([]);
+});
+
+
+test("Librarian student list is role-owned and does not link to an unauthorized generic profile", async ({ page }) => {
+  await installAuthenticatedSession(page, "LIBRARIAN");
+  await page.goto(baseURL + "/library/students", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/library\/students$/);
+  await expect(page.getByText("Test Student", { exact: false })).toBeVisible();
+  await expect(page.locator('a[href="/library/students/browser-test-student"]')).toHaveCount(0);
+  await expect(page.locator('a[href="/students/browser-test-student"]')).toHaveCount(0);
+  await expect(page.locator('a[href="/library/students"]')).toHaveCount(1);
+});
+
+test("Admissions student list opens the existing role-authorized student profile deep link", async ({ page }) => {
+  await installAuthenticatedSession(page, "ADMISSIONS");
+  await page.goto(baseURL + "/admissions/students", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/admissions\/students$/);
+  await expect(page.getByText("Test Student", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: /Test Student/ }).click();
+  await expect(page).toHaveURL(/\/students\/browser-test-student$/);
+  await expect(page.getByRole("heading", { name: "Student Profile", exact: true })).toBeVisible();
+  await expect(page.getByText("TEST-001")).toBeVisible();
 });
