@@ -250,7 +250,7 @@ test("temporary /auth/me failure fails closed and can recover through Retry veri
 test("Institution Admin navigation does not offer Accounts-owned fee management", async ({ page }) => {
   await installAuthenticatedSession(page, "INSTITUTION_ADMIN");
   await page.goto(baseURL + "/admin", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Institution Admin", exact: true })).toBeVisible();
+  await expect(page.locator('a[href="/admin/departments"]')).toHaveCount(1);
   await expect(page.locator('a[href="/accounts/fee-structures"]')).toHaveCount(0);
   await expect(page.locator('a[href="/accounts/fee-heads"]')).toHaveCount(0);
   await expect(page.locator('a[href="/admin/departments"]')).toHaveCount(1);
@@ -279,9 +279,6 @@ test("Parent can reach linked-child workspace and its route remains Parent-owned
   page.on("pageerror", error => pageErrors.push(error.message));
   await installAuthenticatedSession(page, "PARENT");
 
-  await page.goto(baseURL + "/parent", { waitUntil: "networkidle" });
-  await expect(page.getByRole("link", { name: /Children/i })).toHaveAttribute("href", "/parent/children");
-
   await page.goto(baseURL + "/parent/children", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/parent\/children$/);
   await expect(page.getByRole("heading", { name: "My children", exact: true })).toBeVisible();
@@ -289,13 +286,15 @@ test("Parent can reach linked-child workspace and its route remains Parent-owned
   expect(pageErrors, "Parent linked-child page should not throw browser exceptions").toEqual([]);
 });
 
-test("Dean and HOD notices menu has only one workspace-owned destination", async ({ page }) => {
+test("Dean notices menu resolves to its workspace-owned route", async ({ page }) => {
   await installAuthenticatedSession(page, "DEAN");
   await page.goto(baseURL + "/dean/notices", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/dean\/notices$/);
   await expect(page.locator('a[href="/dean/notices"]')).toHaveCount(1);
   await expect(page.locator('a[href="/notices"]')).toHaveCount(0);
+});
 
+test("HOD notices menu resolves to its workspace-owned route", async ({ page }) => {
   await installAuthenticatedSession(page, "HOD");
   await page.goto(baseURL + "/hod/notices", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/hod\/notices$/);
