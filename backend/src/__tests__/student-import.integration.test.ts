@@ -82,7 +82,7 @@ test("partial student import preserves existing profile data and calculates miss
     const result = await commitPartialStudentImport(csv, institution.id, actor);
     assert.equal(result.imported, 1);
     assert.equal(result.failed, 0);
-    assert.equal(result.incomplete.length, 0, "a previously complete student should not be redirected to manual completion just because columns were omitted");
+    assert.equal(result.incomplete.length, 0, "a previously complete student should not be redirected to manual completion just because columns were omitted; missing fields: " + JSON.stringify(result.incomplete.map((item) => ({ row: item.row, name: item.name, missingFields: item.missingFields }))));
     assert.equal(result.complete.length, 1);
 
     const [afterProfile, afterUser, afterEnrollment] = await Promise.all([
