@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthRequiredError, getCurrentUser } from "@/lib/auth";
 import { getPrimaryRole } from "@/lib/authority";
@@ -33,6 +33,10 @@ export default function PaymentsRouteAlias() {
     }
   }, [router]);
 
+  useEffect(() => {
+    void openAuthorizedWorkspace();
+  }, [openAuthorizedWorkspace]);
+
   return (
     <main className="mx-auto flex min-h-[40vh] max-w-xl flex-col items-start justify-center gap-4 px-4 py-10">
       <p role="status" aria-live="polite" className="text-sm font-medium text-[var(--acadlyx-muted)]">
@@ -45,15 +49,6 @@ export default function PaymentsRouteAlias() {
           className="acadlyx-button acadlyx-button-primary"
         >
           Retry
-        </button>
-      ) : null}
-      {!error ? (
-        <button
-          type="button"
-          onClick={() => void openAuthorizedWorkspace()}
-          className="acadlyx-button acadlyx-button-primary"
-        >
-          Continue
         </button>
       ) : null}
     </main>
