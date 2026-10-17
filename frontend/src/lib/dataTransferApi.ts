@@ -68,14 +68,38 @@ export async function commitPartialStudentImport(file: File): Promise<ImportComm
   const body = await authedFetch<{ data: ImportCommitResult & { incomplete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; complete?: Array<{ id: string; row: number; name: string; missingFields: string[] }>; failedRows?: Array<{ row: number; message: string }> } }>(`/imports/students/commit-partial`, { method: "POST", body: form });
   return body.data;
 }
-export async function commitImport(type: DataType, file: File): Promise<ImportCommitResult & { jobId?: string; status?: string }> {
+export interface ImportJobSubmission {
+  jobId: string;
+  status: string;
+  type: DataType;
+  mode: "partial" | "atomic";
+}
+
+const IMPORT_JOB_STATUSES = new Set([
+  "QUEUED", "PROCESSING", "COMPLETED", "PARTIAL",
+  "FAILED", "CANCEL_REQUESTED", "CANCELLED",
+]);
+
+export async function commitImport(type: DataType, file: File): Promise<ImportJobSubmission> {
   const form = new FormData();
   form.append("file", file);
-  const body = await authedFetch<{ data: ImportCommitResult }>(`/imports/${type}/commit`, {
+  const body = await authedFetch<{ data: unknown }>(`/imports/${type}/commit`, {
     method: "POST",
     body: form,
   });
-  return body.data;
+  const submission = body.data as Partial<ImportJobSubmission> | null | undefined;
+  if (
+    !submission ||
+    typeof submission.jobId !== "string" ||
+    !submission.jobId.trim() ||
+    typeof submission.status !== "string" ||
+    !IMPORT_JOB_STATUSES.has(submission.status) ||
+    submission.type !== type ||
+    (submission.mode !== "atomic" && submission.mode !== "partial")
+  ) {
+    throw new Error("The server did not return a valid import job receipt. No import success is confirmed.");
+  }
+  return submission as ImportJobSubmission;
 }
 
 export async function getImportJob(jobId: string) {
