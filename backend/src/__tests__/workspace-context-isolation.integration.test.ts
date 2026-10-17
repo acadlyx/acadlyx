@@ -140,6 +140,30 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     return { status: response.status, body };
   }
 
+  async function requestWithBody(
+    path: string,
+    token: string,
+    method: "PATCH" | "POST",
+    data: Record<string, unknown>,
+  ): Promise<ApiResult> {
+    const response = await fetch(baseUrl + "/api/v1" + path, {
+      method,
+      headers: {
+        Authorization: "Bearer " + token,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    let body: ApiBody;
+    try {
+      body = await response.json() as ApiBody;
+    } catch {
+      body = {};
+    }
+    return { status: response.status, body };
+  }
+
   function contextPath(values: Record<string, string | undefined>): string {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(values)) if (value) params.set(key, value);
@@ -632,6 +656,63 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       401,
       "Deactivating an account must invalidate its existing access token on the next protected request.",
     );
+
+    // Exercise deactivation through the real user-lifecycle API. Deactivation
+    // must revoke live refresh sessions transactionally; reactivation restores
+    // account eligibility but must not resurrect any previously issued token.
+    assert.equal(
+      (await request("/workspace/context", studentA2.token)).status,
+      200,
+      "The lifecycle target must be authorized before administrative deactivation.",
+    );
+    const deactivated = await requestWithBody(
+      "/users/" + studentA2.id + "/status",
+      roleUsers.INSTITUTION_ADMIN.token,
+      "PATCH",
+      { isActive: false },
+    );
+    assert.equal(deactivated.status, 200, "Authorized institutional deactivation must succeed: " + JSON.stringify(deactivated.body));
+    assert.equal((deactivated.body.data as { isActive?: boolean })?.isActive, false);
+    assert.equal(
+      (await request("/workspace/context", studentA2.token)).status,
+      401,
+      "The existing access token must fail immediately after the lifecycle service revokes its session.",
+    );
+
+    const reactivated = await requestWithBody(
+      "/users/" + studentA2.id + "/status",
+      roleUsers.INSTITUTION_ADMIN.token,
+      "PATCH",
+      { isActive: true },
+    );
+    assert.equal(reactivated.status, 200, "Authorized reactivation must succeed: " + JSON.stringify(reactivated.body));
+    assert.equal((reactivated.body.data as { isActive?: boolean })?.isActive, true);
+    assert.equal(
+      (await request("/workspace/context", studentA2.token)).status,
+      401,
+      "Reactivation must not revive a token whose refresh session was revoked at deactivation.",
+    );
+
+    const replacementRefreshToken = generateRefreshToken();
+    const replacementSession = await prisma.refreshToken.create({
+      data: {
+        userId: studentA2.id,
+        tokenHash: hashToken(replacementRefreshToken),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const replacementAccessToken = signAccessToken({
+      sub: studentA2.id,
+      institutionId: institutionA.id,
+      email: studentA2.email,
+      roles: ["STUDENT"],
+      permissions: [],
+      sid: replacementSession.id,
+    });
+    const restoredContext = contextData(await request("/workspace/context", replacementAccessToken));
+    assert.equal(restoredContext.role, "STUDENT");
+    assert.equal(restoredContext.scope.programId, programA2.id, "Only a new active session may resume the student's own enrollment scope.");
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server?.close(() => resolve()));
