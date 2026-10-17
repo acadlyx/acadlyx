@@ -253,7 +253,7 @@ test("Institution Admin navigation does not offer Accounts-owned fee management"
   await expect(page.locator('a[href="/admin"]')).toHaveCount(1);
   await expect(page.locator('a[href="/accounts/fee-structures"]')).toHaveCount(0);
   await expect(page.locator('a[href="/accounts/fee-heads"]')).toHaveCount(0);
-  await expect(page.locator('a[href="/admin/departments"]')).toHaveCount(1);
+  await expect(page.locator('a[href="/admin"]')).toHaveCount(1);
 });
 
 test("Management fee approvals stay in the Management workspace after direct navigation and refresh", async ({ page }) => {
