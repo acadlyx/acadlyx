@@ -41,10 +41,15 @@ export function applyWorkspaceContext(path, enabled) {
     semesters: ["campusId", "programId", "departmentId", "academicYearId"],
     sections: ["campusId", "semesterId", "departmentId"],
     "course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"],
-    students: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]
+    students: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"],
+    assignments: ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"],
+    "attendance-sessions": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"],
+    "internal-marks": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"],
+    "erp/timetable": ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]
   };
   const routeParts = route.split("/");
-  const fields = routeParts.length === 1 ? acceptedFields[routeParts[0]] : undefined;
+  const fields = route === "erp/timetable" ? acceptedFields[route] :
+    routeParts.length === 1 ? acceptedFields[routeParts[0]] : undefined;
   if (!fields) return path;
 
   const params = new URLSearchParams(separator >= 0 ? path.slice(separator + 1) : "");
