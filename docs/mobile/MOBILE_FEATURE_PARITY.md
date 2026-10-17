@@ -51,7 +51,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/attendance` | No governance/correction workflows | NOT IMPLEMENTED |
 | `/lms` (two routers) | Catalog read surface mapped to `/lms/catalog` | PARTIAL; modules, lessons, resources, quizzes/attempts, grading, announcements and live-class workflows remain |
 | `/billing` | No complete billing workflow | NOT IMPLEMENTED |
-| `/finance` | Overview, invoices and payments read surfaces; Finance Command Center route mapping | PARTIAL; invoice/payment/refund/concession/reconciliation approvals, receipts, fee-structure workflow and audit/export remain |
+| `/finance`, `/erp/fee-structures` | Dedicated native Finance Workspace for scoped invoice/payment status, refund request/approval/processing, and fee-structure submit/publish/approve/reject transitions | PARTIAL; invoice creation/cancellation, payment recording/checkout/confirmation, fee assignment, concessions, reconciliation, receipts, exports/audit and server pagination remain; API/device verification required |
 | `/parent` | Children list endpoint mapped to `/parent/children` | PARTIAL; child-specific attendance, results, fees, coursework, notices and calendar require a full scope-aware parent experience |
 | `/operations` | Summary read surface mapped to `/operations/summary` | PARTIAL; assets, maintenance and facilities CRUD/workflows remain |
 | `/security` | No audit/security administration screen | NOT IMPLEMENTED |

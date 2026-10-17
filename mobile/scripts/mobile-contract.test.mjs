@@ -343,3 +343,29 @@ test("Android Back follows tab history and preserves stack/auth boundaries", () 
   assert.ok(auth.includes("await clearTokens()"));
   assert.ok(auth.includes('setStatus("unauthenticated")'));
 });
+
+
+test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
+  const finance = read("src/screens/FinanceScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const modules = read("src/modules/catalog.ts");
+  const financeRoutes = read("../backend/src/routes/finance.routes.ts");
+  const financeService = read("../backend/src/services/finance.service.ts");
+  const erpRoutes = read("../backend/src/routes/erp.routes.ts");
+  for (const route of ["/erp/fee-structures", "/finance/invoices?page=1&pageSize=25", "/finance/payments", "/finance/refunds", "/finance/payments/", "/finance/refunds/"]) {
+    assert.ok(finance.includes(route), "Missing existing route: " + route);
+  }
+  for (const permission of ["fees.structure.read", "fees.structure.manage", "fees.structure.approve", "fees.structure.publish", "fees.invoice.read", "fees.payment.read", "fees.refund.read", "fees.refund.request", "fees.refund.approve", "fees.refund.process"]) {
+    assert.ok(finance.includes(permission), "Missing UI permission gate: " + permission);
+  }
+  assert.ok(moduleScreen.includes('from "./FinanceScreen"'));
+  assert.ok(modules.includes('id: "fee-structures"'));
+  assert.ok(modules.includes('id: "finance-refunds"'));
+  assert.ok(financeRoutes.includes('authorizeAnyPermission("fees.read","fees.invoice.read")'));
+  assert.ok(financeRoutes.includes('authorizeAnyPermission("fees.read","fees.payment.read")'));
+  assert.ok(financeRoutes.includes('authorizeAnyPermission("fees.read","fees.refund.read","fees.refund.approve","fees.refund.process")'));
+  assert.ok(financeService.includes('!has(a,"fees.refund.approve")&&!has(a,"fees.refund.process")'));
+  for (const route of ['"/fee-structures/:id/submit"', '"/fee-structures/:id/publish"', '"/fee-structures/:id/approve"', '"/fee-structures/:id/reject"']) {
+    assert.ok(erpRoutes.includes(route), "Missing fee-structure transition: " + route);
+  }
+});
