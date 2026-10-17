@@ -85,6 +85,9 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   ]) assert.ok(workspaceService.includes(validation), "Missing server validation: " + validation);
   assert.ok(client.includes('departments: ["campusId"]'));
   assert.ok(client.includes('programs: ["departmentId"]'));
+  assert.ok(client.includes('courses: ["departmentId"]'));
+  assert.ok(client.includes('batches: ["programId"]'));
+  assert.ok(client.includes('students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]'));
   assert.ok(client.includes('"course-offerings": ["semesterId", "sectionId", "departmentId"]'));
 });
 
