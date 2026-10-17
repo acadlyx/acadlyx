@@ -103,6 +103,24 @@ function assertImportPermission(actor: AuthenticatedUser, type: ImportType) {
   }
 }
 
+export async function assertPartialStudentImportScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  departmentId: string | null,
+): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) || (activeRole === "ADMISSIONS" && isInstitutionWideAdmissions(actor))) {
+    return;
+  }
+  if (!departmentId) {
+    throw new AppError(
+      "Scoped student imports must include a valid programme and academic year for authorization.",
+      403,
+    );
+  }
+  await assertImportDepartmentScope(institutionId, actor, departmentId);
+}
+
 async function assertImportDepartmentScope(institutionId: string, actor: AuthenticatedUser, departmentId: string, allowAdmissionsStudentCreation = false, allowExamination = false) {
   const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWide(actor) || (allowExamination && activeRole === "EXAMINATION" && isInstitutionWideExamination(actor)) || (allowAdmissionsStudentCreation && activeRole === "ADMISSIONS" && isInstitutionWideAdmissions(actor))) return;

@@ -7,7 +7,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
 import { assertTenantQuota } from "./entitlement.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
-import { parseWorkbook } from "./import.service";
+import { assertPartialStudentImportScope, normalizeStudentStatus, parseWorkbook } from "./import.service";
 
 type Row = Record<string, any>;
 const text = (value: any): string => String(value ?? "").trim();
@@ -33,7 +33,7 @@ async function findRoleId(tx: Prisma.TransactionClient, institutionId: string) {
 async function resolvePlacement(tx: Prisma.TransactionClient, institutionId: string, row: Row) {
   const programCode = text(row.programcode); const yearName = text(row.academicyear);
   if (!programCode || !yearName) return null;
-  const program = await tx.program.findFirst({ where: { institutionId, code: programCode, isActive: true }, select: { id: true } });
+  const program = await tx.program.findFirst({ where: { institutionId, code: programCode, isActive: true }, select: { id: true, departmentId: true } });
   const academicYear = await tx.academicYear.findFirst({ where: { institutionId, name: yearName }, select: { id: true } });
   if (!program || !academicYear) return null;
   let semesterId: string | null = null; let sectionId: string | null = null;
@@ -46,10 +46,16 @@ async function resolvePlacement(tx: Prisma.TransactionClient, institutionId: str
     const semester = await tx.semester.findFirst({ where: { institutionId, programId: program.id, academicYearId: academicYear.id, number: Number(row.semesternumber), isActive: true }, select: { id: true } });
     semesterId = semester?.id ?? null;
   }
-  return { programId: program.id, academicYearId: academicYear.id, semesterId, sectionId };
+  return { programId: program.id, departmentId: program.departmentId, academicYearId: academicYear.id, semesterId, sectionId };
 }
 
-function getMissingFields(row: Row, email: string, idNumber: string, enrollmentCreated: boolean) {
+function getMissingFields(
+  row: Row,
+  email: string,
+  idNumber: string,
+  enrollmentCreated: boolean,
+  dateOfBirth: Date | null,
+) {
   const fields: string[] = [];
   if (!text(row.email) || email.includes("@invalid.acadlyx.local")) fields.push("email");
   if (!text(row.idnumber || row.id || row.loginid) || idNumber.startsWith("IMPORT-")) fields.push("idNumber");
@@ -57,7 +63,7 @@ function getMissingFields(row: Row, email: string, idNumber: string, enrollmentC
   if (!text(row.lastname)) fields.push("lastName");
   if (!text(row.phone)) fields.push("phone");
   if (!text(row.admissionnumber) && !text(row.rollnumber)) fields.push("admissionNumber");
-  if (!text(row.dateofbirth)) fields.push("dateOfBirth");
+  if (!dateOfBirth) fields.push("dateOfBirth");
   if (!text(row.gender)) fields.push("gender");
   if (!text(row.guardianname)) fields.push("guardianName");
   if (!text(row.guardianphone)) fields.push("guardianPhone");
@@ -81,9 +87,13 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
       const suppliedId = text(row.idnumber || row.id || row.loginid).toUpperCase();
       const idNumber = suppliedId || syntheticIdNumber(admissionNumber);
       const firstName = text(row.firstname) || "Imported"; const lastName = text(row.lastname) || "Student";
+      const studentStatus = normalizeStudentStatus(row.status);
+      const dateOfBirth = date(row.dateofbirth);
       let enrollmentCreated = false;
       const result = await prisma.$transaction(async (tx) => {
         const roleId = await findRoleId(tx, institutionId);
+        const placement = await resolvePlacement(tx, institutionId, row);
+        await assertPartialStudentImportScope(institutionId, actor, placement?.departmentId ?? null);
         const existingProfile = await tx.studentProfile.findFirst({ where: { institutionId, admissionNumber }, select: { userId: true } });
         const existingEmail = suppliedEmail ? await tx.user.findUnique({ where: { email: suppliedEmail }, select: { id: true, institutionId: true } }) : null;
         if (existingEmail && existingEmail.institutionId !== institutionId) throw new AppError("The supplied email already belongs to another institution", 409);
@@ -98,17 +108,16 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
         await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId } }, update: {}, create: { userId: user.id, roleId } });
         await tx.studentProfile.upsert({
           where: { userId: user.id },
-          update: { admissionNumber, dateOfBirth: date(row.dateofbirth), gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: text(row.status) || "ACTIVE" },
-          create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: date(row.dateofbirth), gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: text(row.status) || "ACTIVE" },
+          update: { admissionNumber, dateOfBirth, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: studentStatus },
+          create: { institutionId, userId: user.id, admissionNumber, dateOfBirth, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: date(row.admissiondate), status: studentStatus },
         });
-        const placement = await resolvePlacement(tx, institutionId, row);
         if (placement?.semesterId) {
-          await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: placement.academicYearId } }, update: { programId: placement.programId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" }, create: { institutionId, userId: user.id, programId: placement.programId, academicYearId: placement.academicYearId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: text(row.status) || "ACTIVE" } });
+          await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: placement.academicYearId } }, update: { programId: placement.programId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: studentStatus }, create: { institutionId, userId: user.id, programId: placement.programId, academicYearId: placement.academicYearId, semesterId: placement.semesterId, sectionId: placement.sectionId, rollNumber: text(row.rollnumber) || null, status: studentStatus } });
           enrollmentCreated = true;
         }
         return user;
       });
-      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, result.email, result.idNumber, enrollmentCreated) });
+      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, result.email, result.idNumber, enrollmentCreated, dateOfBirth) });
     } catch (error) {
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
     }
