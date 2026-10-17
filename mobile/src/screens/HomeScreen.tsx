@@ -7,6 +7,7 @@ import { apiRequest, ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { colors, radius, spacing } from "../ui/theme";
 import { RootStackParamList } from "../navigation/RootNavigator";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 
 type WorkItem = { id: string; title: string; count: number; priority: "critical" | "high" | "normal"; detail?: string; href?: string; state?: string };
 type WorkSummary = { generatedAt?: string; total?: number; critical?: number; high?: number; items?: WorkItem[]; completed?: number; pending?: number };
@@ -14,6 +15,7 @@ type WorkSummary = { generatedAt?: string; total?: number; critical?: number; hi
 export function HomeScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { context: workspaceContext } = useWorkspaceContext();
   const query = useQuery({
     queryKey: ["my-work", user?.id],
     queryFn: () => apiRequest<WorkSummary>("/my-work"),
@@ -22,6 +24,16 @@ export function HomeScreen() {
   });
   const fullName = [user?.firstName, user?.lastName].filter((part) => typeof part === "string" && part.length > 0).join(" ");
   const greeting = fullName || user?.email || "ACADLYX user";
+  const activeScopeLabels = workspaceContext ? [
+    workspaceContext.scope.campusId ? workspaceContext.children.campuses.find((item) => item.id === workspaceContext.scope.campusId)?.name : null,
+    workspaceContext.scope.departmentId ? workspaceContext.children.departments.find((item) => item.id === workspaceContext.scope.departmentId)?.name : null,
+    workspaceContext.scope.programId ? workspaceContext.children.programs.find((item) => item.id === workspaceContext.scope.programId)?.name : null,
+    workspaceContext.scope.academicYearId ? workspaceContext.children.academicYears.find((item) => item.id === workspaceContext.scope.academicYearId)?.name : null,
+    workspaceContext.scope.batchId ? workspaceContext.children.batches.find((item) => item.id === workspaceContext.scope.batchId)?.name : null,
+    workspaceContext.scope.semesterId ? workspaceContext.children.semesters.find((item) => item.id === workspaceContext.scope.semesterId)?.name : null,
+    workspaceContext.scope.sectionId ? workspaceContext.children.sections.find((item) => item.id === workspaceContext.scope.sectionId)?.name : null
+  ].filter((label): label is string => Boolean(label)).join(" / ") : "Loading authorized scope";
+  const activeScopeLabel = activeScopeLabels || workspaceContext?.institution?.name || "Institution-wide";
 
   return <ScrollView style={styles.root} contentContainerStyle={styles.content}
     refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => { void query.refetch(); }} tintColor={colors.primary} />}>
@@ -31,7 +43,7 @@ export function HomeScreen() {
       <Text style={styles.subtitle}>Work and access are determined by your current ACADLYX session.</Text>
       <View style={styles.roleRow}>{(user?.roles || []).map((role) => <View key={role} style={styles.rolePill}><Text style={styles.roleText}>{role.replace(/_/g, " ")}</Text></View>)}</View>
       <Pressable accessibilityRole="button" accessibilityLabel="Change workspace and academic context" onPress={() => navigation.navigate("WorkspaceContext")} style={styles.contextButton}>
-        <View style={styles.contextCopy}><Text style={styles.contextTitle}>Workspace & academic context</Text><Text style={styles.contextSubtitle}>Campus, department, programme, year, batch, semester and section</Text></View>
+        <View style={styles.contextCopy}><Text style={styles.contextTitle}>Workspace & academic context</Text><Text style={styles.contextSubtitle}>Active: {activeScopeLabel}</Text><Text style={styles.contextHint}>Campus, department, programme, year, batch, semester and section</Text></View>
         <Text style={styles.contextArrow}>›</Text>
       </Pressable>
     </View>
@@ -67,7 +79,7 @@ const styles = StyleSheet.create({
   roleText: { color: colors.primary, fontSize: 10, fontWeight: "800" },
   contextButton: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18, padding: 13, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   contextCopy: { flex: 1, gap: 4 }, contextTitle: { color: colors.primary, fontWeight: "900", fontSize: 13 },
-  contextSubtitle: { color: colors.textMuted, fontSize: 11, lineHeight: 16 }, contextArrow: { color: colors.primary, fontSize: 24, fontWeight: "900" },
+  contextSubtitle: { color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: "700" }, contextHint: { color: colors.textMuted, fontSize: 10, lineHeight: 15 }, contextArrow: { color: colors.primary, fontSize: 24, fontWeight: "900" },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 24, marginBottom: 10 },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: "800" }, link: { color: colors.primary, fontWeight: "800" },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 12 },
