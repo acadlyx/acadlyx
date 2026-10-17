@@ -28,10 +28,11 @@ async function createActiveStudentEnrollment(institutionId: string, userId: stri
   });
 }
 
-async function drainPlacementEvents() {
-  // The production path is asynchronous; integration tests explicitly drain
-  // the real outbox consumer rather than expecting a DB insert to be delivery.
-  await drainDomainEventOutbox(100);
+async function drainPlacementEvents(institutionId: string) {
+  // Keep this integration test isolated from unrelated tenants and any older
+  // retryable outbox rows. The production outbox consumer remains real; only
+  // the test's drain scope is narrowed to the disposable institution fixture.
+  await drainDomainEventOutbox(100, { institutionId });
 }
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
@@ -87,7 +88,7 @@ test("placement visit is visible only to its explicitly targeted student and omi
       notes: "Private recruiter follow-up: do not disclose",
     });
     assert.ok(created.id);
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
 
     const [intended, other] = await Promise.all([
       listPlacementVisits(institution.id, intendedActor),
@@ -180,7 +181,7 @@ test("scheduled assessment is persisted for its explicit candidates and invisibl
     assert.equal((await listPlacementTests(institution.id, intendedActor)).length, 0, "draft assessment must not be visible to students");
     assert.equal(await prisma.notification.count({ where: { institutionId: institution.id, userId: intendedStudent.id, dedupeKey: { startsWith: `placement:test:${created.id}:` } } }), 0, "draft assessment must not notify students");
     await updatePlacementTest(institution.id, staffActor, created.id, { status: "SCHEDULED" });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     const [intended, other] = await Promise.all([
       listPlacementTests(institution.id, intendedActor),
       listPlacementTests(institution.id, otherActor),
@@ -243,20 +244,20 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
       startsAt: "2030-04-01T10:00:00.000Z",
       targeting: { campusIds: [campus.id], departmentIds: [department.id], programIds: [program.id], batchIds: [batch.id], graduatingYears: [2027] },
     });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 1);
     assert.equal((await listPlacementVisits(institution.id, otherActor)).length, 0);
     const createdNotification = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:created:` } } });
     assert.equal(createdNotification.length, 1, "creation notification must be delivered once");
 
     await updatePlacementVisit(institution.id, staffActor, event.id, { startsAt: "2030-04-02T10:00:00.000Z" });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     await updatePlacementVisit(institution.id, staffActor, event.id, { startsAt: "2030-04-02T10:00:00.000Z" });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     const rescheduled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:rescheduled:` } } });
     assert.equal(rescheduled.length, 1, "retrying the same reschedule must not duplicate notifications");
     await updatePlacementVisit(institution.id, staffActor, event.id, { status: "CANCELLED" });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
     const cancelled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:cancelled:` } } });
     assert.equal(cancelled.length, 1, "cancellation notification must be delivered once");
@@ -272,7 +273,7 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     const draftCreatedNotifications = await prisma.notification.count({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:` } } });
     assert.equal(draftCreatedNotifications, 0, "draft creation must not notify students");
     await updatePlacementVisit(institution.id, staffActor, draft.id, { status: "PUBLISHED" });
-    await drainPlacementEvents();
+    await drainPlacementEvents(institution.id);
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 1, "publishing a draft makes it visible to the intended audience");
     const published = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${draft.id}:published:` } } });
     assert.equal(published.length, 1, "publication notification must be delivered once");
