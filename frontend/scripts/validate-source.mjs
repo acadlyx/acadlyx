@@ -114,6 +114,10 @@ if (
   !navigationSource.includes('["/students", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/academics", ["DEAN"]') ||
   !navigationSource.includes('["/timetable", ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD", "FACULTY"]') ||
+  !navigationSource.includes('["/admissions/reports", ["ADMISSIONS"]') ||
+  !navigationSource.includes('["/admissions/students", ["ADMISSIONS"]') ||
+  !navigationSource.includes('["/library/reports", ["LIBRARIAN"]') ||
+  !navigationSource.includes('["/library/students", ["LIBRARIAN"]') ||
   !navigationSource.includes('["/lms/settings"') ||
   !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
   !navigationSource.includes('["/profile"') ||
