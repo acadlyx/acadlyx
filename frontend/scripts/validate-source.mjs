@@ -49,7 +49,7 @@ if (
   failures.push("src/app/acadlyx-dashboard-tokens.css: dashboard navigation must use the semantic green brand palette, not blue active-state tokens");
 }
 if (
-  /(?:text|bg|ring|outline)-blue-(?:50|100|300|600|700)\\b/.test(dashboardFrameSource) ||
+  /(?:text|bg|ring|outline)-blue-(?:50|100|300|600|700)\b/.test(dashboardFrameSource) ||
   !dashboardFrameSource.includes("bg-[var(--acadlyx-primary)]") ||
   !dashboardFrameSource.includes("text-[var(--acadlyx-primary)]")
 ) {
