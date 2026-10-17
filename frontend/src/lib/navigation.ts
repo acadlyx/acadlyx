@@ -1858,6 +1858,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 ].filter((item): item is NavigationItem => Boolean(item));
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
+  ["/admissions/reports", ["ADMISSIONS"]],
+  ["/admissions/students", ["ADMISSIONS"]],
+  ["/library/reports", ["LIBRARIAN"]],
+  ["/library/students", ["LIBRARIAN"]],
   ["/club", ["CLUB_PRESIDENT"]],
   ["/cms", ["SUPER_ADMIN", "CMS"]],
   ["/enrollment", ["ADMISSIONS", "REGISTRAR", "CHAIRMAN", "DIRECTOR", "DEAN"]],
