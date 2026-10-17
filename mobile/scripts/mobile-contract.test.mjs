@@ -10,6 +10,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 const catalog = read("src/modules/catalog.ts");
 const client = read("src/api/client.ts");
+const workspaceScope = read("src/workspace/workspaceScope.mjs");
+const appSource = read("App.tsx");
 const app = JSON.parse(readFileSync(resolve(root, "app.json"), "utf8"));
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
@@ -89,8 +91,9 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
   assert.match(screen, /case "semesterId":[\s\S]*?batchId: null/, "Changing semesters must clear a potentially incompatible batch.");
   assert.ok(screen.includes('context?.role === "STUDENT"'), "Only a server-derived active Student workspace may lock context selection.");
   assert.ok(provider.includes('"/workspace/context"'), "Selection must use the existing backend context route.");
-  assert.ok(provider.includes("await queryClient.resetQueries()"));
-  assert.ok(provider.includes("queryClient.invalidateQueries"));
+  assert.ok(provider.includes("transitionWorkspaceContext"));
+  assert.ok(workspaceScope.includes("await queryClient.cancelQueries()"));
+  assert.ok(workspaceScope.includes("await queryClient.resetQueries()"));
   assert.ok(provider.includes("setActiveWorkspaceContext(next.scope)"));
   assert.ok(provider.includes("expo-secure-store"), "Validated context must use secure device persistence.");
   assert.ok(provider.includes("workspaceStorageKey"), "Persisted context must be isolated by account and roles.");
@@ -107,12 +110,19 @@ test("workspace context exposes seven dimensions and revalidates scope before ca
     "Section is not valid for the selected semester",
     "Batch is not valid for the selected program"
   ]) assert.ok(workspaceService.includes(validation), "Missing server validation: " + validation);
-  assert.ok(client.includes('departments: ["campusId"]'));
-  assert.ok(client.includes('programs: ["departmentId"]'));
-  assert.ok(client.includes('courses: ["departmentId"]'));
-  assert.ok(client.includes('batches: ["programId"]'));
-  assert.ok(client.includes('students: ["departmentId", "programId", "academicYearId", "semesterId", "sectionId"]'));
-  assert.ok(client.includes('"course-offerings": ["semesterId", "sectionId", "departmentId"]'));
+  assert.ok(workspaceScope.includes('departments: ["campusId"]'));
+  assert.ok(workspaceScope.includes('programs: ["campusId", "departmentId"]'));
+  assert.ok(workspaceScope.includes('courses: ["campusId", "departmentId"]'));
+  assert.ok(workspaceScope.includes('"academic-years": ["campusId", "departmentId", "programId"]'));
+  assert.ok(workspaceScope.includes('batches: ["campusId", "departmentId", "programId"]'));
+  assert.ok(workspaceScope.includes('semesters: ["campusId", "programId", "departmentId", "academicYearId"]'));
+  assert.ok(workspaceScope.includes('sections: ["campusId", "semesterId", "departmentId"]'));
+  assert.ok(workspaceScope.includes('"course-offerings": ["campusId", "semesterId", "sectionId", "departmentId"]'));
+  assert.ok(workspaceScope.includes('students: ["campusId", "departmentId", "programId", "academicYearId", "semesterId", "sectionId"]'));
+  assert.ok(provider.includes("authorizationKey") && provider.includes("user.permissions"));
+  assert.ok(provider.includes("mustWaitForValidatedContext"), "Do not render screens until the current saved scope is server-validated.");
+  assert.ok(appSource.includes("await client.cancelQueries()"));
+  assert.ok(appSource.includes("setActiveWorkspaceContext(null)") || client.includes("setActiveWorkspaceContext"));
 });
 
 test("session cache is cleared when a current account's authorization shape changes", () => {
