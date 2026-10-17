@@ -463,6 +463,8 @@ async function assertStudentListContext(
   institutionId: string,
   actor: AuthenticatedUser,
   params: {
+    campusId?: string;
+    campusId?: string;
     academicYearId?: string;
     departmentId?: string;
     programId?: string;
@@ -470,6 +472,11 @@ async function assertStudentListContext(
     sectionId?: string;
   }
 ) {
+  const campus = params.campusId
+    ? await prisma.campus.findFirst({ where: { id: params.campusId, institutionId, isActive: true }, select: { id: true } })
+    : null;
+  if (params.campusId && !campus) throw new AppError("Selected campus is not available in this institution", 404);
+
   const department = params.departmentId
     ? await prisma.department.findFirst({ where: { id: params.departmentId, institutionId, isActive: true }, select: { id: true } })
     : null;
@@ -570,13 +577,18 @@ export async function listStudents(
   if (serverEnrollmentPredicate) enrollmentPredicates.push(serverEnrollmentPredicate);
 
   const hasRequestedAcademicFilter = Boolean(
-    params.departmentId || params.academicYearId || params.programId ||
+    params.campusId || params.departmentId || params.academicYearId || params.programId ||
     params.semesterId || params.sectionId
   );
   if (hasRequestedAcademicFilter) {
     enrollmentPredicates.push({
       institutionId,
-      ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
+      ...((params.campusId || params.departmentId) ? {
+        program: {
+          ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+          ...(params.campusId ? { department: { campusId: params.campusId } } : {}),
+        },
+      } : {}),
       ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
       ...(params.programId ? { programId: params.programId } : {}),
       ...(params.semesterId ? { semesterId: params.semesterId } : {}),
