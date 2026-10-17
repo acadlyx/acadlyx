@@ -139,10 +139,18 @@ if (
   !navigationSource.includes('"/payments": ["ACCOUNTS", "STUDENT", "PARENT"]') ||
   !navigationSource.includes('"/fees/receipts": ["ACCOUNTS"]') ||
   !navigationSource.includes('const REDIRECT_ONLY_ROUTE_ROLES: Record<string, string[]>') ||
+  !navigationSource.includes('"/club": ["CLUB_PRESIDENT"]') ||
+  !navigationSource.includes('"/cms": ["SUPER_ADMIN", "CMS"]') ||
+  !navigationSource.includes('"/enrollment": ["ADMISSIONS"]') ||
+  !navigationSource.includes('"/forms": ["REGISTRAR"]') ||
+  !navigationSource.includes('"/institution-settings": ["INSTITUTION_ADMIN"]') ||
+  !legacyPaymentsSource.includes("RoleRedirect") ||
+  !legacyFeeReceiptsSource.includes("RoleRedirect") ||
   !legacyPaymentsSource.includes('ACCOUNTS: "/accounts/payments"') ||
   !legacyPaymentsSource.includes('STUDENT: "/student/fees"') ||
   !legacyPaymentsSource.includes('PARENT: "/parent/children"') ||
-  !legacyFeeReceiptsSource.includes('redirect("/accounts/receipts")') ||
+  !legacyFeeReceiptsSource.includes('RoleRedirect') ||
+  !legacyFeeReceiptsSource.includes('destinations={{ ACCOUNTS: "/accounts/receipts" }}') ||
   !navigationSource.includes('href: "/admissions/students"') ||
   !navigationSource.includes('href: "/library/students"') ||
   !navigationSource.includes('roles: ["ADMISSIONS"]') ||
