@@ -50,24 +50,28 @@ async function resolvePlacement(tx: Prisma.TransactionClient, institutionId: str
 }
 
 function getMissingFields(
-  row: Row,
-  email: string,
-  idNumber: string,
-  enrollmentCreated: boolean,
-  dateOfBirth: Date | null,
+  user: { email: string; idNumber: string; firstName: string; lastName: string; phone: string | null },
+  profile: {
+    admissionNumber: string;
+    dateOfBirth: Date | null;
+    gender: string | null;
+    guardianName: string | null;
+    guardianPhone: string | null;
+  },
+  enrollmentAvailable: boolean,
 ) {
   const fields: string[] = [];
-  if (!text(row.email) || email.includes("@invalid.acadlyx.local")) fields.push("email");
-  if (!text(row.idnumber || row.id || row.loginid) || idNumber.startsWith("IMPORT-")) fields.push("idNumber");
-  if (!text(row.firstname)) fields.push("firstName");
-  if (!text(row.lastname)) fields.push("lastName");
-  if (!text(row.phone)) fields.push("phone");
-  if (!text(row.admissionnumber) && !text(row.rollnumber)) fields.push("admissionNumber");
-  if (!dateOfBirth) fields.push("dateOfBirth");
-  if (!text(row.gender)) fields.push("gender");
-  if (!text(row.guardianname)) fields.push("guardianName");
-  if (!text(row.guardianphone)) fields.push("guardianPhone");
-  if (!enrollmentCreated) fields.push("enrollment");
+  if (!text(user.email) || user.email.includes("@invalid.acadlyx.local")) fields.push("email");
+  if (!text(user.idNumber) || user.idNumber.startsWith("IMPORT-")) fields.push("idNumber");
+  if (!text(user.firstName) || user.firstName === "Imported") fields.push("firstName");
+  if (!text(user.lastName) || user.lastName === "Student") fields.push("lastName");
+  if (!text(user.phone)) fields.push("phone");
+  if (!text(profile.admissionNumber) || profile.admissionNumber.startsWith("IMPORT-")) fields.push("admissionNumber");
+  if (!profile.dateOfBirth) fields.push("dateOfBirth");
+  if (!text(profile.gender)) fields.push("gender");
+  if (!text(profile.guardianName)) fields.push("guardianName");
+  if (!text(profile.guardianPhone)) fields.push("guardianPhone");
+  if (!enrollmentAvailable) fields.push("enrollment");
   return [...new Set(fields)];
 }
 
@@ -152,7 +156,7 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
             throw new AppError("An active student enrollment cannot be reassigned through import. Use the approved student-movement workflow.", 409);
           }
         }
-        await tx.studentProfile.upsert({
+        const profile = await tx.studentProfile.upsert({
           where: { userId: user.id },
           update: buildStudentProfileUpdateFields({
             row,
@@ -207,9 +211,22 @@ export async function commitPartialStudentImport(buffer: Buffer, institutionId: 
           });
           enrollmentCreated = true;
         }
-        return user;
+        const currentActiveEnrollment = await tx.studentEnrollment.findFirst({
+          where: { institutionId, userId: user.id, status: "ACTIVE", academicYear: { isCurrent: true } },
+          select: { id: true },
+        });
+        return {
+          user,
+          profile,
+          enrollmentAvailable: enrollmentCreated || Boolean(currentActiveEnrollment),
+        };
       });
-      imported.push({ id: result.id, row: index + 2, name: (firstName + " " + lastName).trim(), missingFields: getMissingFields(row, result.email, result.idNumber, enrollmentCreated, dateOfBirth) });
+      imported.push({
+        id: result.user.id,
+        row: index + 2,
+        name: (result.user.firstName + " " + result.user.lastName).trim(),
+        missingFields: getMissingFields(result.user, result.profile, result.enrollmentAvailable),
+      });
     } catch (error) {
       errors.push({ row: index + 2, message: error instanceof Error ? error.message : "Unknown import error" });
     }
