@@ -41,6 +41,14 @@ if (!adminNavigationSource.includes("isTenantFeatureEnabled") || !adminNavigatio
   failures.push("src/lib/adminNavigation.ts: institution-admin navigation must enforce tenant features and deduplicate destinations");
 }
 if (
+  /label: "Fee Structures",\s*href: "\/accounts\/fee-structures"/.test(adminNavigationSource) ||
+  !navigationSource.includes('label: "Fee Structures"') ||
+  !navigationSource.includes('href: "/accounts/fee-structures"') ||
+  !navigationSource.includes('roles: ["ACCOUNTS"]')
+) {
+  failures.push("src/lib/adminNavigation.ts: the Accounts-owned fee-structure route must not be exposed in the Institution Admin menu; retain it in Accounts navigation");
+}
+if (
   !dashboardTokensSource.includes("--acadlyx-sidebar-bg: #18392d;") ||
   !dashboardTokensSource.includes("--acadlyx-sidebar-active-bg: #315c4a;") ||
   dashboardTokensSource.includes("#2563eb") ||
