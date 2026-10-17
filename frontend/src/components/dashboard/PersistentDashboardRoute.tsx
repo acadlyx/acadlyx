@@ -27,6 +27,11 @@ function pageTitle(pathname: string) {
   const normalizedPath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
   const explicitTitles: Record<string, string> = {
     "/placements/calendar": "Placement Calendar",
+    "/placements/applications": "Placement Applications",
+    "/placements/offers": "Placement Offers",
+    "/placements/drives": "Placement Drives",
+    "/placements/openings": "Job Openings",
+    "/placements/reports": "Placement Intelligence",
   };
   if (explicitTitles[normalizedPath]) return explicitTitles[normalizedPath];
 

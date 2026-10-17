@@ -81,7 +81,6 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     institutionId: string | null,
     roleNames: string[],
     roleMap: Record<string, string>,
-    permissions: string[] = [],
   ): Promise<UserFixture> {
     const user = await prisma.user.create({
       data: {
@@ -117,7 +116,9 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       institutionId,
       email: user.email,
       roles: roleNames,
-      permissions,
+      // Auth middleware derives permissions from the canonical role catalogue;
+      // do not make this integration test pass through synthetic JWT grants.
+      permissions: [],
       sid: session.id,
     });
     const fixture = { id: user.id, email: user.email, token, roles: roleNames };
@@ -244,21 +245,10 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       createdGlobalSuperAdminRole = true;
     }
 
-    const batchesReadPermission = await prisma.permission.upsert({
-      where: { key: "batches.read" },
-      update: { module: "academics", description: "View student batches" },
-      create: { key: "batches.read", module: "academics", description: "View student batches" },
-      select: { id: true },
-    });
-    await prisma.rolePermission.create({
-      data: { roleId: tenantRolesA.HOD, permissionId: batchesReadPermission.id },
-    });
-
     const roleUsers: Record<string, UserFixture> = {};
     for (const name of TENANT_ROLES) {
       roleUsers[name] = await createUserFixture(
         name.toLowerCase(), institutionA.id, [name], tenantRolesA,
-        name === "HOD" ? ["batches.read"] : [],
       );
     }
     const facultyA2 = await createUserFixture("faculty-a2", institutionA.id, ["FACULTY"], tenantRolesA);

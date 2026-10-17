@@ -846,6 +846,7 @@ export const ROLE_PERMISSIONS: Record<
     "departments.read",
     "programs.read",
     "academic-years.read",
+    "batches.read",
     "semesters.read",
     "sections.read",
     "sections.update",

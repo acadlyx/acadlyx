@@ -97,3 +97,17 @@ needed permission and all quick actions open existing native destinations.
 - The placement calendar heading mismatch was traced to `PersistentDashboardRoute` overriding nested page titles with the last path segment (rendering `Calendar`). It now preserves the explicit title `Placement Calendar`, and the browser smoke also asserts the URL has not been redirected before asserting the heading.
 - Android tab navigation opts into visit history and has source-contract coverage. This is automated structural coverage, not an emulated hardware event. Full mobile workflows remain `IN_PROGRESS`, and physical device verification is outstanding.
 - Continuation CI results must be read from the new commit's Actions runs; the results above describe the baseline HEAD only.
+
+
+## Follow-up verification — 2026-10-17
+
+The latest completed CI run for `f8c3e580008941d3bee53c9130819893fdadb837` reported:
+
+- **Native Mobile CI: PASS.** Mobile TypeScript, structural contracts, Expo Doctor and Android/iOS JavaScript bundle exports completed successfully.
+- **Frontend build: PASS.** Source validation, typecheck, lint and production build completed successfully.
+- **ERP verification / Production Gate: FAIL.** The PostgreSQL API suite had 234 passing tests and 1 failing integration test. `GET /api/v1/batches?...campusId=...&departmentId=...&programId=...` returned HTTP 403, `Missing required permission(s): batches.read`, at assertion line 545. The test-only database `RolePermission` row and JWT permission field did not affect effective permissions because `authenticate` recalculates them from `getEffectivePermissions(roles)` in `backend/src/config/rbac.ts`.
+- **Production Quality browser smoke: FAIL.** Director legacy-route navigation expected `/director` but ended at `/`; `canAccessRoute` applied the `operations` tenant-feature gate before the redirect-only legacy page could run. Placement route checks reached `/placements/applications` but the global shell supplied the generic heading `Applications`, not `Placement Applications`.
+
+The follow-up patch fixes the canonical contract rather than faking permissions in tests: HOD receives `batches.read` only (not batch create/update/delete), and the integration fixture uses an empty JWT permission array so the real authentication path resolves role permissions. The Director legacy alias is allowed only for an effective Director and redirects to `/director`; the destination still passes the normal authorization boundary. The persistent shell now preserves the expected explicit titles for calendar, applications, offers, drives, openings and placement intelligence. The Director Playwright test now asserts the role-owned heading both before and after reload.
+
+These changes require fresh CI results. PostgreSQL-backed integration and Playwright outcomes are not yet claimed as passing; no physical Android/iOS device validation has been performed. The Expo/RN advisories remain an open review item: do not run broad major-version downgrades or report advisories fixed without a new audit against the committed lockfile.

@@ -115,3 +115,13 @@ test("institution administration does not receive examination write authority by
   assert.equal(permissions.has("exams.manage"), false);
   assert.equal(permissions.has("exams.approve"), false);
 });
+
+
+test("HOD receives scoped batch read without batch mutation authority", () => {
+  const hodPermissions = new Set(ROLE_PERMISSIONS.HOD ?? []);
+
+  assert.equal(hodPermissions.has("batches.read"), true);
+  assert.equal(hodPermissions.has("batches.create"), false);
+  assert.equal(hodPermissions.has("batches.update"), false);
+  assert.equal(hodPermissions.has("batches.delete"), false);
+});

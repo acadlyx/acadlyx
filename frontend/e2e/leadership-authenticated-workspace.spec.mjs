@@ -81,8 +81,10 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   // the removed Operations page must not return as a duplicate destination.
   await page.goto(baseURL + "/director/operations", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
   await page.reload({ waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/director$/);
+  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
   expect(pageErrors, "no unhandled browser exceptions").toEqual([]);
 });
 
