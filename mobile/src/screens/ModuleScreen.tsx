@@ -6,6 +6,7 @@ import { apiRequest, ApiError } from "../api/client";
 import { toCollection, displayValue, safeRecordEntries, recordTitle } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
 import { getModule } from "../modules/catalog";
+import { ExaminationsScreen } from "./ExaminationsScreen";
 import { FinanceScreen } from "./FinanceScreen";
 import type { Section as FinanceSection } from "./FinanceScreen";
 import { RootStackParamList } from "../navigation/RootNavigator";
@@ -18,6 +19,7 @@ export function ModuleScreen({ route }: Props) {
   const module = getModule(route.params.moduleId);
   const financeSections: Record<string, FinanceSection> = { "fee-structures": "structures", "finance-invoices": "invoices", "finance-payments": "payments", "finance-refunds": "refunds" };
   const isFinanceWorkspace = Boolean(module && Object.prototype.hasOwnProperty.call(financeSections, module.id));
+  const isExaminationsWorkspace = module?.id === "examinations";
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
@@ -26,7 +28,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -37,6 +39,7 @@ export function ModuleScreen({ route }: Props) {
 
   if (!module) return <View style={styles.center}><Text style={styles.errorTitle}>Module not found</Text><Text style={styles.muted}>This route is not in the native catalog.</Text></View>;
   if (isFinanceWorkspace) return <FinanceScreen initialTab={financeSections[module.id]} />;
+  if (isExaminationsWorkspace) return <ExaminationsScreen />;
 
   return <View style={styles.root}>
     <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>

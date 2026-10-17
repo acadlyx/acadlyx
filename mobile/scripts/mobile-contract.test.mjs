@@ -369,3 +369,34 @@ test("native finance screen binds existing backend contracts and permission-gate
     assert.ok(erpRoutes.includes(route), "Missing fee-structure transition: " + route);
   }
 });
+
+
+test("native examination workspace uses canonical marks lifecycle and protects student/parent views", () => {
+  const screen = read("src/screens/ExaminationsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const routes = read("../backend/src/routes/examination.routes.ts");
+  const service = read("../backend/src/services/examination.service.ts");
+  for (const route of [
+    "/examinations/sessions?page=1&pageSize=30",
+    "/examinations/sessions/",
+    "/examinations/schedules/",
+    "/marks",
+    "/marks/approve",
+    "/lock",
+    "/publish",
+    "/examinations/jobs/"
+  ]) assert.ok(screen.includes(route), "Missing exam API path: " + route);
+  for (const permission of ["exams.read", "marks.read", "marks.enter", "exams.approve"]) {
+    assert.ok(screen.includes(permission), "Missing permission gate: " + permission);
+  }
+  assert.ok(screen.includes('effectiveRole === "STUDENT" || effectiveRole === "PARENT"'));
+  assert.ok(screen.includes("if (!canReadMarks)"));
+  assert.ok(moduleScreen.includes('module?.id === "examinations"'));
+  for (const route of [
+    '"/schedules/:id/marks"',
+    '"/schedules/:id/marks/approve"',
+    '"/schedules/:id/lock"',
+    '"/schedules/:id/publish"'
+  ]) assert.ok(routes.includes(route), "Missing backend route: " + route);
+  assert.match(service, /activeRole === "STUDENT" \|\| activeRole === "PARENT"/);
+});

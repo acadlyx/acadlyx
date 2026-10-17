@@ -47,7 +47,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/internal-marks` | Generic read-only marks surface | PARTIAL; mark entry, validation and approval are missing |
 | `/grades` | Grade-scale read surface mapped to `/grades/scale` | PARTIAL; complete grade/result publishing and history UX is missing |
 | `/directory` | Generic read-only surface where permitted | FOUNDATION; typed directory/search UX remains |
-| `/examinations` | Session read surface | PARTIAL; schedules, rooms, seating, invigilators, hall tickets, mark entry/approval, revaluation and publication remain |
+| `/examinations` | Dedicated native sessions/schedules plus staff marksheet read, draft save, submit, approve, lock and queued results publication; Student/Parent roles do not open the whole-roster marksheet | PARTIAL; room/seating/invigilation, exam attendance, hall tickets and file downloads, correction/revaluation, complete publication-job UX and API/device tests remain |
 | `/attendance` | No governance/correction workflows | NOT IMPLEMENTED |
 | `/lms` (two routers) | Catalog read surface mapped to `/lms/catalog` | PARTIAL; modules, lessons, resources, quizzes/attempts, grading, announcements and live-class workflows remain |
 | `/billing` | No complete billing workflow | NOT IMPLEMENTED |

@@ -151,3 +151,12 @@ The Production Quality workflow's `Production deployment smoke checks` job was s
 - Lockfile v3 pins node-forge 1.4.0 via expo/node_modules/@expo/cli 57.0.31 and @expo/code-signing-certificates 0.0.6, which itself depends on node-forge. The path is Expo CLI/signing tooling; a compiled runtime-bundle search was not run, so this does not claim the vulnerable package is absent from every shipped artifact.
 - Official GHSA-86w9-cpqp-85rv / CVE-2026-85393 still lists all node-forge versions through 1.4.0 as affected and no patched release as of 2026-10-17. No lockfile deletion, incompatible Expo/React Native downgrade, blind override, or home-grown cryptographic patch was applied.
 - Safest interim mitigation is to keep signing/build operations in trusted developer/CI environments and avoid using this affected verification path on untrusted signature/certificate inputs. Monitor the upstream advisory and Expo dependency updates. This remains a security sign-off item for workflows relying on the affected verifier. The previously documented 22-advisory total is historical; this turn did not run a fresh full npm audit.
+
+
+## Native examination workflow slice — 2026-10-17
+
+- Added a dedicated mobile examination workspace using the canonical session, schedule marksheet and transition endpoints. The generic read-only renderer no longer handles the Examinations module.
+- Staff flows include partial draft saves, complete-roster submission, submitted-mark approval, locking only after every displayed eligible candidate is approved, and enqueueing publication only after the schedule is locked. The screen reports action errors and publication job status; the backend remains authoritative for permissions, roster scope, maker-checker and state transitions.
+- Student/Parent effective roles do not use the staff marksheet endpoint; their personal results stay on the dedicated self-service APIs. A service-boundary guard denies roster-level marksheet reads to Student/Parent roles.
+- Registration-required marksheets are limited to registered, eligible candidates; schedule locking now counts the same eligible candidate set as mark entry. Source-contract tests cover the role guard, candidate selection, endpoints and UI permission gates.
+- State remains IN_PROGRESS until the current commit's checks pass, followed by isolated live API and physical-device verification. Rooms, seating, invigilators, exam attendance, hall tickets, file downloads, corrections/revaluation and full publication-job lifecycle remain incomplete.
