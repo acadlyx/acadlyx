@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const read = (path) => readFileSync(resolve(process.cwd(), path), "utf8");
 const studentRoute = read("src/app/student/library/page.tsx");
+const dashboardShell = read("src/components/dashboard/DashboardShell.tsx");
 const studentModule = read("src/components/student/StudentSelfServiceModule.tsx");
 const navigation = read("src/lib/navigation.ts");
 const auth = read("src/lib/auth.ts");
@@ -34,6 +35,13 @@ assert.match(api, /authedFetch/,
   "Library API calls must use the authenticated API client");
 assert.ok(auth.includes("tenantFeatures?: string[]") && auth.includes("export async function getCurrentUser"),
   "the current-user authentication flow must expose tenant entitlements");
+
+assert.ok(dashboardShell.includes("const [routeAuthReady, setRouteAuthReady] = useState(false);"),
+  "cached RBAC data must not mark a protected route as authorization-ready");
+assert.ok(dashboardShell.includes("const reconcile = getCurrentUser({ force: true });"),
+  "DashboardShell must wait for fresh /auth/me permissions instead of accepting a background cache hit");
+assert.ok(dashboardShell.includes("Workspace verification unavailable") && dashboardShell.includes("Retry verification"),
+  "a failed permission revalidation must fail closed with a recoverable retry state");
 
 assert.match(backendRoutes, /router\.use\(authenticate, requireFeature\("library"\)\)/,
   "all Library API routes must retain authentication and tenant entitlement checks");
