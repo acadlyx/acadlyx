@@ -20,6 +20,13 @@ export const listMarksQuerySchema = z.object({
   courseOfferingId: z.string().uuid().optional(),
   studentId: z.string().uuid().optional(),
   component: z.string().trim().optional(),
+  campusId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  programId: z.string().uuid().optional(),
+  academicYearId: z.string().uuid().optional(),
+  batchId: z.string().uuid().optional(),
+  semesterId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
 });
 
 export type EnterMarksInput = z.infer<typeof enterMarksSchema>;
