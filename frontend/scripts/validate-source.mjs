@@ -105,6 +105,16 @@ if (!navigationSource.includes("Tenant entitlement checks run before namespace c
   failures.push("src/lib/navigation.ts: entitlement checks must precede namespace fallback to protect direct routes");
 }
 if (
+  !/if \\(!matchingNamespace\\) \\{[\\s\\S]*?return false;[\\s\\S]*?\\}/.test(navigationSource) ||
+  !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
+  !navigationSource.includes('["/lms/settings"') ||
+  !navigationSource.includes('["/user-deletion-approvals", ["INSTITUTION_ADMIN"]') ||
+  !navigationSource.includes('["/profile"') ||
+  !navigationSource.includes('["/my-work"')
+) {
+  failures.push("src/lib/navigation.ts: unknown protected routes must fail closed and each shared/legacy route family must declare explicit workspace owners");
+}
+if (
   !navigationSource.includes("(fees|payments|fee-approvals|fee-structures|fee-heads)") ||
   !dashboardIdsMatch ||
   !dashboardIdsMatch[1].includes('"STAFF"') ||
