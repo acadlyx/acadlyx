@@ -15,7 +15,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/auth` | Login, MFA, SecureStore token persistence, refresh, logout, password change, account roles | PARTIAL; profile editing/photo and password recovery not wired. The inspected auth router exposes a recovery-institution list, but no password-reset workflow. |
 | `/workspace/context` | Route documented, no native context selector | NOT IMPLEMENTED; blocking for safe multi-workspace selection and scoped query keys |
 | `/my-work` | Live home screen reads work summary/items | PARTIAL; work-item actions and safe native deep links are missing |
-| `/search` | No server global-search screen; local catalog filter only | NOT IMPLEMENTED |
+| `/search` | Native Search tab queries the existing `/search?q=` endpoint after a short input debounce; displays only server-returned person/course/notice results | PARTIAL; result-to-record deep links are not wired and live API/device verification remains |
 | `/workflow` | No complete native approval queue | NOT IMPLEMENTED |
 | `/placements` | Placement opportunity list mapping | PARTIAL; drives, applications, eligibility, interviews, offers and state transitions remain |
 | `/institutions` | Generic read-only surface | FOUNDATION; administration forms are missing |
