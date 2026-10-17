@@ -494,3 +494,25 @@ test("student performance and published results use canonical scoped APIs", () =
   assert.ok(examinationService.slice(pdfStart, pdfEnd).includes("assertCanViewStudent(institutionId, actor, studentId)"));
   assert.ok(studentRoutes.includes('"/me/marks"') && studentRoutes.includes('authorizeRoles("STUDENT")'));
 });
+
+
+test("native documents viewer uses the authenticated scoped portal endpoint", () => {
+  const screen = read("src/screens/DocumentsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const catalog = read("src/modules/catalog.ts");
+  const routes = read("../backend/src/routes/portal.routes.ts");
+  const service = read("../backend/src/services/portal.service.ts");
+  assert.ok(screen.includes('"/portal/documents/me"'));
+  assert.ok(screen.includes('user.permissions.includes("documents.read")'));
+  assert.ok(screen.includes("Linking.openURL(document.url)"));
+  assert.ok(screen.includes("/^https?:\\\\/\\\\/\\\\S+$/i.test(document.url)"));
+  assert.ok(screen.includes("query.isError") && screen.includes("ListEmptyComponent"));
+  assert.ok(moduleScreen.includes('module?.id === "documents"'));
+  assert.ok(moduleScreen.includes("if (isDocumentsWorkspace) return <DocumentsScreen />"));
+  assert.ok(catalog.includes('id: "documents"') && catalog.includes('requiredAnyPermissions: ["documents.read"]'));
+  assert.ok(routes.includes('"/documents/me"'));
+  assert.ok(routes.includes('authorize("documents.read")'));
+  assert.ok(service.includes("export async function listMyDocuments"));
+  assert.ok(service.includes("return getDocumentsForOwner("));
+  assert.ok(service.includes("ownerId"));
+});

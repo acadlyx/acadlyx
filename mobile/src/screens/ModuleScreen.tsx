@@ -9,6 +9,7 @@ import { getModule } from "../modules/catalog";
 import { InternalMarksScreen } from "./InternalMarksScreen";
 import { ExaminationsScreen } from "./ExaminationsScreen";
 import { FinanceScreen } from "./FinanceScreen";
+import { DocumentsScreen } from "./DocumentsScreen";
 import type { Section as FinanceSection } from "./FinanceScreen";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { colors, radius, spacing } from "../ui/theme";
@@ -22,6 +23,7 @@ export function ModuleScreen({ route }: Props) {
   const isFinanceWorkspace = Boolean(module && Object.prototype.hasOwnProperty.call(financeSections, module.id));
   const isExaminationsWorkspace = module?.id === "examinations";
   const isInternalMarksWorkspace = module?.id === "internal-marks";
+  const isDocumentsWorkspace = module?.id === "documents";
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
@@ -30,7 +32,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -43,6 +45,7 @@ export function ModuleScreen({ route }: Props) {
   if (isFinanceWorkspace) return <FinanceScreen initialTab={financeSections[module.id]} />;
   if (isExaminationsWorkspace) return <ExaminationsScreen />;
   if (isInternalMarksWorkspace) return <InternalMarksScreen />;
+  if (isDocumentsWorkspace) return <DocumentsScreen />;
 
   return <View style={styles.root}>
     <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>

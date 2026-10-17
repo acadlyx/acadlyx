@@ -177,3 +177,11 @@ The Production Quality workflow's `Production deployment smoke checks` job was s
 - Added an authenticated PDF download helper that uses the mobile bearer token, retries once after the existing refresh-token flow, validates content type and PDF signature, writes to app cache and hands off to native preview/share. It calls the existing results.read-protected marksheet endpoint; the backend applies assertCanViewStudent before document generation.
 - Exposed My Performance and Published Results from the student dashboard and module catalog. StudentPortal follows changed initialTab navigation parameters. Source-contract coverage includes API routes, the permission boundary, token refresh and PDF validation.
 - Grade/semester aggregation, live API-role tests and physical-device PDF verification remain open. Status remains IN_PROGRESS pending CI and device evidence.
+
+
+## Native documents reader slice — 2026-10-17
+
+- Replaced the generic module record renderer for Documents with a dedicated native reader using GET /portal/documents/me. The endpoint authorizes documents.read and the service resolves records for the authenticated actor's institution and ownerId.
+- Added refresh, loading, retry/error, empty states, and open-document action. The app rejects non-HTTP(S) schemes before handing a returned URL to the operating system. It does not invent a storage URL or allow the client to choose another user's ownerId.
+- This slice is intentionally read/open only: it does not present upload or delete controls because the existing portal record API and file-storage module permissions do not grant a generic self-upload action. Administrators' scoped document management still needs its own schema-validated native workflow. Native binary download/import/export and physical-device document handler tests remain open.
+- Functional state remains IN_PROGRESS pending CI and isolated API-role checks.
