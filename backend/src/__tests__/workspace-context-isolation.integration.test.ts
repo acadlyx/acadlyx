@@ -391,6 +391,43 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     assert.equal(studentBHome.scope.campusId, campusB.id);
     assert.notEqual((await request(contextPath({ campusId: campusA1.id }), studentB.token)).status, 200, "A tenant B student must not restore a campus saved from tenant A.");
 
+    // Leadership landing KPI requests must not depend on Notices being enabled.
+    // This isolated tenant deliberately has no "notices" entitlement (see the
+    // feature seed above), and getManagementWorkspaceSummary is designed not to
+    // execute the full workspace's notices query.
+    const chairmanSummary = await request("/erp/me/summary", roleUsers.CHAIRMAN.token);
+    assert.equal(
+      chairmanSummary.status,
+      200,
+      "Chairman landing KPIs must remain available without the optional Notices feature: " + JSON.stringify(chairmanSummary.body),
+    );
+    const chairmanSummaryData = chairmanSummary.body.data as {
+      workspaceType?: string;
+      stats?: Record<string, number>;
+    };
+    assert.equal(chairmanSummaryData.workspaceType, "CHAIRMAN");
+    assert.equal(chairmanSummaryData.stats?.departments, 2, "Chairman KPI counts must remain institution-wide.");
+
+    const directorSummary = await request("/erp/me/summary", roleUsers.DIRECTOR.token);
+    assert.equal(
+      directorSummary.status,
+      200,
+      "Director landing KPIs must not require Notices when an active campus scope is assigned: " + JSON.stringify(directorSummary.body),
+    );
+    const directorSummaryData = directorSummary.body.data as {
+      workspaceType?: string;
+      stats?: Record<string, number>;
+    };
+    assert.equal(directorSummaryData.workspaceType, "DIRECTOR");
+    assert.equal(directorSummaryData.stats?.departments, 1, "Director KPI department count must be constrained to the assigned campus.");
+    assert.equal(directorSummaryData.stats?.students, 2, "Director KPI student count must include only active students enrolled in its assigned campus scope.");
+
+    assert.equal(
+      (await request("/erp/me/summary", roleUsers.STUDENT.token)).status,
+      403,
+      "Removing the unrelated notices entitlement gate must not make a Student eligible for leadership KPIs.",
+    );
+
     // Canonical role priority for accounts with multiple role bindings.
     const multiCases = [
       { fixture: multiDirectorAdmin, role: "DIRECTOR", campuses: [campusA1.id], departments: [departmentA1.id] },
