@@ -38,6 +38,8 @@ const dashboardFrameFile = path.join(root, "components", "dashboard", "UnifiedDa
 const dashboardFrameSource = fs.readFileSync(dashboardFrameFile, "utf8");
 const managementFeeApprovalsFile = path.join(root, "app", "management", "fee-approvals", "page.tsx");
 const managementFeeApprovalsSource = fs.readFileSync(managementFeeApprovalsFile, "utf8");
+const feeApprovalQueueFile = path.join(root, "components", "accounts", "FeeStructureApprovalQueue.tsx");
+const feeApprovalQueueSource = fs.readFileSync(feeApprovalQueueFile, "utf8");
 if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource.includes("featureAllowed")) {
   failures.push("src/lib/navigation.ts: empty tenant feature list must not imply every module is enabled");
 }
@@ -64,10 +66,14 @@ if (
   !/roles:\s*\["ACCOUNTS"\]/.test(feeHeadsNavigation[0]) ||
   !navigationSource.includes('label: "Fee structure approvals"') ||
   !navigationSource.includes('href: "/management/fee-approvals"') ||
-  !managementFeeApprovalsSource.includes('allowedRoles={["MANAGEMENT"]}') ||
-  !managementFeeApprovalsSource.includes('view="fee-structures"')
+  !managementFeeApprovalsSource.includes('FeeStructureApprovalQueue') ||
+  !managementFeeApprovalsSource.includes('role="MANAGEMENT"') ||
+  !managementFeeApprovalsSource.includes('scope="institution"') ||
+  !feeApprovalQueueSource.includes('"fees.structure.approve"') ||
+  !feeApprovalQueueSource.includes('"fees.structure.read"') ||
+  !feeApprovalQueueSource.includes("getPrimaryRole(user.roles) !== role")
 ) {
-  failures.push("src/lib/navigation.ts: Accounts fee tools must remain Accounts-owned and Management approvals must use a Management-owned route");
+  failures.push("src/lib/navigation.ts: Accounts fee tools must remain Accounts-owned and Management approvals must use a permission-scoped Management queue");
 }
 if (
   !/DEAN:\s*\{[^}]*"\/notices": "\/dean\/notices"/.test(shellSource) ||
