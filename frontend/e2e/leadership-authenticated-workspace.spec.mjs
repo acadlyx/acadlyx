@@ -138,8 +138,8 @@ test("placement workspace routes load with scoped authenticated session", async 
 
 test("stale Student permissions do not redirect an authorized Library route before fresh /auth/me resolves", async ({ page }) => {
   const session = await installAuthenticatedSession(page, "STUDENT");
-  await page.goto(baseURL + "/student/notifications", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "My Notifications", exact: true })).toBeVisible();
+  await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
   // This represents an RBAC update after the user was already cached in the
   // current browser tab. The cached identity is deliberately missing the
@@ -171,8 +171,8 @@ test("stale Student permissions do not redirect an authorized Library route befo
 
 test("temporary /auth/me failure fails closed and can recover through Retry verification", async ({ page }) => {
   const session = await installAuthenticatedSession(page, "STUDENT");
-  await page.goto(baseURL + "/student/notifications", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "My Notifications", exact: true })).toBeVisible();
+  await page.goto(baseURL + "/student/attendance", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "My attendance", exact: true })).toBeVisible();
 
   session.setAuthMeFailure({ status: 503, message: "Synthetic identity-service outage" });
   await page.evaluate(() => window.history.pushState({}, "", "/student/library"));
