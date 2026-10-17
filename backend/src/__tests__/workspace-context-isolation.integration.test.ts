@@ -581,6 +581,57 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     await prisma.campus.delete({ where: { id: campusA2.id } });
     const deletedCampus = await request(contextPath({ campusId: campusA2.id }), roleUsers.INSTITUTION_ADMIN.token);
     assert.notEqual(deletedCampus.status, 200, "Deleted campus IDs must not be revived by saved client state.");
+
+    // Verify authentication/session invalidation through the real Express API,
+    // not only the pure refresh-session predicate. Every protected request must
+    // bind the access JWT subject to the live, unexpired, unrevoked DB session.
+    const [itSession, cmsSession] = await Promise.all([
+      prisma.refreshToken.findFirstOrThrow({ where: { userId: roleUsers.IT.id }, select: { id: true } }),
+      prisma.refreshToken.findFirstOrThrow({ where: { userId: roleUsers.CMS.id }, select: { id: true } }),
+    ]);
+    const wrongSessionSubjectToken = signAccessToken({
+      sub: roleUsers.IT.id,
+      institutionId: institutionA.id,
+      email: roleUsers.IT.email,
+      roles: ["IT"],
+      permissions: [],
+      sid: cmsSession.id,
+    });
+    assert.equal(
+      (await request("/workspace/context", wrongSessionSubjectToken)).status,
+      401,
+      "An access token must not borrow another account's refresh-session ID.",
+    );
+
+    await prisma.refreshToken.update({
+      where: { id: itSession.id },
+      data: { revokedAt: new Date() },
+    });
+    assert.equal(
+      (await request("/workspace/context", roleUsers.IT.token)).status,
+      401,
+      "A revoked refresh session must immediately invalidate its still-signed access token.",
+    );
+
+    await prisma.refreshToken.update({
+      where: { id: cmsSession.id },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    assert.equal(
+      (await request("/workspace/context", roleUsers.CMS.token)).status,
+      401,
+      "An expired refresh session must invalidate its access token even if the JWT itself remains valid.",
+    );
+
+    await prisma.user.update({
+      where: { id: roleUsers.HR.id },
+      data: { isActive: false },
+    });
+    assert.equal(
+      (await request("/workspace/context", roleUsers.HR.token)).status,
+      401,
+      "Deactivating an account must invalidate its existing access token on the next protected request.",
+    );
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server?.close(() => resolve()));
