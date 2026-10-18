@@ -25,3 +25,18 @@ export function canApplySessionResponse(
   return isSessionCurrent(requestedScope, currentScope)
     && requestedGeneration === currentGeneration;
 }
+
+/**
+ * Stable signature of authority-relevant /auth/me fields. Order differences
+ * in role/permission arrays do not represent an authority change.
+ */
+export function authorizationContextKey(user) {
+  if (!user) return null;
+  return JSON.stringify({
+    id: user.id,
+    institutionId: user.institutionId,
+    roles: [...user.roles].sort(),
+    permissions: [...user.permissions].sort(),
+    tenantFeatures: [...(user.tenantFeatures ?? [])].sort(),
+  });
+}
