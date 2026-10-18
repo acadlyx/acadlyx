@@ -51,7 +51,7 @@ export function ModuleScreen({ route }: Props) {
   const financeSections: Record<string, FinanceSection> = { "fee-structures": "structures", "finance-invoices": "invoices", "finance-payments": "payments", "finance-refunds": "refunds" };
   const isFinanceWorkspace = Boolean(module && Object.prototype.hasOwnProperty.call(financeSections, module.id));
   const isExaminationsWorkspace = module?.id === "examinations";
-  const isInternalMarksWorkspace = module?.id === "internal-marks";
+  const isInternalMarksWorkspace = module?.id === "internal-marks" || module?.id === "grades";
   const isDocumentsWorkspace = module?.id === "documents";
   const isAcademicRecordsWorkspace = Boolean(module && supportsAcademicRecords(module.id));
   const isStudentsWorkspace = module?.id === "students";
