@@ -127,6 +127,28 @@ test("persisted role grants and user permission lookup use the canonical notice 
     "platform-only role remains outside tenant notice access");
 });
 
+test("legacy redirect aliases pass the route boundary only through explicit role and permission policy", () => {
+  const accessStart = navigation.indexOf("export function canAccessRoute");
+  const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
+  const source = navigation.slice(accessStart, homeStart);
+  const aliasCheck = source.indexOf("const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath]");
+  const namespaceLookup = source.indexOf("const matchingNamespace");
+  const failClosed = source.indexOf("if (!matchingNamespace)");
+  const aliasPermissions = source.indexOf("const requiredAliasPermissions", aliasCheck);
+  assert.ok(aliasCheck >= 0 && namespaceLookup > aliasCheck && failClosed > namespaceLookup,
+    "explicit redirect-only routes must be resolved before the generic namespace fail-closed check");
+  assert.ok(aliasPermissions > aliasCheck && source.indexOf("requiredAliasPermissions.every", aliasPermissions) > aliasPermissions,
+    "legacy aliases must still enforce their declared permission requirements");
+  for (const alias of [
+    '"/payments"', '"/fees/receipts"', '"/club"', '"/cms"',
+    '"/enrollment"', '"/forms"', '"/institution-settings"',
+  ]) {
+    assert.ok(navigation.includes(alias), alias + " must remain explicitly declared");
+  }
+  assert.ok(source.includes('normalizedPath === "/cms"'),
+    "the platform CMS alias must preserve the Super Admin platform exception without granting tenant CMS access");
+});
+
 test("role-owned notice and notification URLs require read permissions before page access", () => {
   const accessStart = navigation.indexOf("export function canAccessRoute");
   const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
