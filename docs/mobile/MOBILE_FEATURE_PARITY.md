@@ -17,7 +17,7 @@ Source reviewed: `backend/src/app.ts`, `backend/src/config/rbac.ts`, and the rou
 | `/my-work` | Live home screen reads work summary/items | PARTIAL; work-item actions and safe native deep links are missing |
 | `/search` | Native Search tab queries the existing `/search?q=` endpoint after a short input debounce; displays only server-returned person/course/notice results | PARTIAL; result-to-record deep links are not wired and live API/device verification remains |
 | `/workflow` | No complete native approval queue | NOT IMPLEMENTED |
-| `/placements` | Placement opportunity list mapping | PARTIAL; drives, applications, eligibility, interviews, offers and state transitions remain |
+| `/placements` | Dedicated placement workspace: drives, opportunities, server eligibility explanation, student registration/application, offers and placement calendar | PARTIAL; coordinator create/edit, interview/test and offer administration, cohort targeting UI, documents and live/device verification remain |
 | `/institutions` | Generic read-only surface | FOUNDATION; administration forms are missing |
 | `/users` | Generic read-only surface | FOUNDATION; account lifecycle, role/permission edit, deletion approvals and audit UI are missing |
 | `/campuses` | Generic read-only surface | FOUNDATION; dedicated detail/edit and campus access management are missing |

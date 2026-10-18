@@ -61,7 +61,8 @@ needed permission and all quick actions open existing native destinations.
 | Attendance, assignments, notices, timetable, library, calendar | Dedicated screen files in `mobile/src/screens` | IN_PROGRESS | Route matrix identifies remaining workflow actions and tests |
 | Parent, HR, admissions and student portals | Dedicated screen files | IN_PROGRESS | Live contract and complete lifecycle tests |
 | Global search | `/search`; `GlobalSearchScreen.tsx` | IMPLEMENTED_UNVERIFIED | Debounced server-scoped search now opens a native authorized destination; live search/result authorization still required |
-| Finance, examinations, LMS, placements, CMS, files, imports/exports, assistant | `MOBILE_FEATURE_PARITY.md` route matrix | IN_PROGRESS / NOT_STARTED by route | Implement only against inspected existing contracts |
+| Placement | `/placements`; `PlacementScreen.tsx` | IMPLEMENTED_UNVERIFIED | Drives, opportunities, eligibility explanation, student registration/application, offers and calendar are native. Coordinator create/edit, interview/test/offer administration, cohort builder and live API/device checks remain. |
+| Finance, examinations, LMS, CMS, files, imports/exports, assistant | `MOBILE_FEATURE_PARITY.md` route matrix | IN_PROGRESS / NOT_STARTED by route | Implement only against inspected existing contracts |
 | Native build/device verification | Expo configuration | BLOCKED | No simulator/device or build service evidence has been supplied in this environment |
 | Dependency security remediation | `mobile/package-lock.json` | BLOCKED | `npm audit --omit=dev --json` reports 22 upstream advisories (15 high, 7 moderate). `npm audit fix --dry-run` proposes incompatible major downgrades to Expo 44 / React Native 0.72 while this app is Expo 57 / React Native 0.86; affected paths include Expo CLI → code-signing/Metro and React Native → community CLI/Metro. A reviewed supported-SDK upgrade is required. |
 
@@ -81,10 +82,11 @@ needed permission and all quick actions open existing native destinations.
 | `mobile: npm run typecheck` | PASS | 2026-10-17 |
 | `mobile: npm run doctor` | PASS — 21/21 Expo checks after adding `package-lock.json` | 2026-10-17 |
 | `mobile: npm audit --omit=dev --json` | 22 advisories — 15 high, 7 moderate, 0 critical; remediation requires a reviewed Expo/React Native compatibility update | 2026-10-17 |
-| `backend: workspace-context-role.contract.test.ts` | PASS on earlier head — source contract for effective-role and hierarchy guards | 2026-10-17 |
-| `backend: workspace-context-isolation.integration.test.ts` | Real Express API + disposable PostgreSQL suite runs, but latest run failed at the HOD `/batches` read fixture because its signed test token lacked `batches.read`; fixture now grants only that permission through a test role-permission row and includes it in the HOD token. Latest CI rerun pending. | 2026-10-17 |
-| `backend: npm run typecheck` | PASS on earlier head; latest Priority 1 service/controller/test changes pending CI | 2026-10-17 |
-| Production live API smoke tests | NOT RUN | No production records or production credentials were used. The new API suite runs only against isolated CI PostgreSQL; its latest result is pending. |
+| `backend: workspace-context-role.contract.test.ts` | PASS — effective-role and hierarchy guards; later isolated PostgreSQL suite passed in CI | 2026-10-17 |
+| `backend: workspace-context-isolation.integration.test.ts` | PASS in the verified CI PostgreSQL suite | 2026-10-17 |
+| `backend: npm run typecheck` | PASS in verified CI | 2026-10-17 |
+| `mobile: placement workflow contract` | PASS — drives, eligibility, apply, offers and calendar route coverage | 2026-10-19 |
+| Live authenticated API tests | NOT RUN | No authorized test account/API environment configured |
 | iOS / Android build | NOT RUN | No simulator/device or build credentials available |
 
 

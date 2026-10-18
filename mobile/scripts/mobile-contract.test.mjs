@@ -202,6 +202,17 @@ test("library and calendar native screens reference existing API workflows", () 
   assert.ok(parent.includes("roles.includes(\"PARENT\")"));
 });
 
+test("placement workspace uses existing eligibility and lifecycle contracts", () => {
+  const placement = read("src/screens/PlacementScreen.tsx");
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  const modules = read("src/screens/ModulesScreen.tsx");
+  for (const route of ["/placements/drives", "/eligibility", "/apply", "/placements/opportunities", "/placements/offers", "/placements/my-calendar"]) assert.ok(placement.includes(route), "Missing placement API contract: " + route);
+  assert.ok(placement.includes("placements.apply"));
+  assert.ok(placement.includes("missingAttributes"));
+  assert.ok(navigator.includes("PlacementScreen"));
+  assert.ok(modules.includes('navigation.navigate("Placement")'));
+});
+
 test("original logo is bundled and displayed on sign-in", () => {
   const logo = readFileSync(resolve(root, "assets/acadlyx-logo.png"));
   const login = read("src/screens/LoginScreen.tsx");

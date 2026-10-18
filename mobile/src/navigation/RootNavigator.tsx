@@ -22,13 +22,14 @@ import { LeaveScreen } from "../screens/LeaveScreen";
 import { ParentScreen } from "../screens/ParentScreen";
 import { HRScreen } from "../screens/HRScreen";
 import { AdmissionsScreen } from "../screens/AdmissionsScreen";
+import { PlacementScreen } from "../screens/PlacementScreen";
 import { StudentPortalScreen } from "../screens/StudentPortalScreen";
 import { ModuleScreen } from "../screens/ModuleScreen";
 import { getModule } from "../modules/catalog";
 import { colors } from "../ui/theme";
 import { WorkspaceContextScreen } from "../screens/WorkspaceContextScreen";
 
-export type RootStackParamList = { Login: undefined; Main: undefined; WorkspaceContext: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"RESULTS"|"ASSIGNMENTS"|"TIMETABLE" } };
+export type RootStackParamList = { Login: undefined; Main: undefined; WorkspaceContext: undefined; Module: { moduleId: string }; Assignments: undefined; Notices: undefined; Timetable: undefined; Library: undefined; Calendar: undefined; Attendance: undefined; Leave: undefined; Parent: undefined; HR: undefined; Admissions: undefined; Placement: undefined; StudentPortal: { initialTab?: "OVERVIEW"|"ATTENDANCE"|"MARKS"|"RESULTS"|"ASSIGNMENTS"|"TIMETABLE" } };
 export type TabParamList = { Home: undefined; Modules: undefined; Search: undefined; Notifications: undefined; Profile: undefined };
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -97,6 +98,7 @@ export function RootNavigator() {
           <Stack.Screen name="Parent" component={ParentScreen} options={{ title: "Parent portal" }} />
           <Stack.Screen name="HR" component={HRScreen} options={{ title: "Human resources" }} />
           <Stack.Screen name="Admissions" component={AdmissionsScreen} options={{ title: "Admissions" }} />
+          <Stack.Screen name="Placement" component={PlacementScreen} options={{ title: "Placement" }} />
           <Stack.Screen name="StudentPortal" component={({ route }: NativeStackScreenProps<RootStackParamList, "StudentPortal">) => <StudentPortalScreen initialTab={route.params?.initialTab} />} options={{ title: "Student portal" }} />
         </> : <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />}
       </Stack.Navigator>

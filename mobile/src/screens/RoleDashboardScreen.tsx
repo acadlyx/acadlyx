@@ -73,6 +73,7 @@ export function RoleDashboardScreen() {
     else if (moduleId === "timetable") navigation.navigate("Timetable");
     else if (moduleId === "hr") navigation.navigate("HR");
     else if (moduleId === "admissions") navigation.navigate("Admissions");
+    else if (moduleId === "placements") navigation.navigate("Placement");
     else if (moduleId === "parent-children") navigation.navigate("Parent");
     else if (moduleId === "student-attendance") navigation.navigate("StudentPortal", { initialTab: "ATTENDANCE" });
     else if (moduleId === "student-marks") navigation.navigate("StudentPortal", { initialTab: "MARKS" });
