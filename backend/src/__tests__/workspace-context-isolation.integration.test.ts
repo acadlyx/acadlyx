@@ -317,15 +317,15 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       "A secondary HOD DepartmentAccess row must not broaden an effective Dean workspace",
     );
 
-    // Secondary Librarian/Director grants must not allow the active Student
-    // workspace to enter staff-only library operations. The library feature is
-    // enabled on this fixture tenant so the result tests role isolation itself.
+    // Student precedes Librarian in effective workspace priority, so an
+    // incidental Librarian role must not open staff library operations. A
+    // Director workspace is also not the Librarian workspace.
     assert.equal((await request("/library/summary", multiStudentLibrarian.token)).status, 403);
     assert.equal((await request("/library/loans", multiStudentLibrarian.token)).status, 403);
     assert.equal((await requestWithBody("/library/loans", multiStudentLibrarian.token, "POST", {})).status, 403);
     assert.equal((await requestWithBody("/library/books", multiStudentLibrarian.token, "POST", {})).status, 403);
     assert.equal((await requestWithBody("/library/fines/00000000-0000-0000-0000-000000000000/waiver-request", multiStudentLibrarian.token, "POST", {})).status, 403);
-    assert.equal((await requestWithBody("/library/fines/00000000-0000-0000-0000-000000000000/waiver-approve", multiStudentDirector.token, "POST", {})).status, 403);
+    assert.equal((await request("/library/summary", multiStudentDirector.token)).status, 403);
 
     const otherBorrowerId = roleUsers.FACULTY.id;
     assert.equal(
