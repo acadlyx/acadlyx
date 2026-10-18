@@ -26,6 +26,7 @@ const expenseFields = {
   spentAt: z.coerce.date(),
   supportDetails: z.string().trim().max(3000).optional(),
   supportingDocumentUrl: z.string().trim().url().max(1500).refine(v => /^https?:\/\//i.test(v), "Supporting document URL must use HTTP or HTTPS").optional().or(z.literal("")),
+  supportingDocumentFileId: z.string().uuid().optional().or(z.literal("")),
   campusId: z.string().uuid().optional().or(z.literal("")),
   departmentId: z.string().uuid().optional().or(z.literal("")),
 };

@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
+import { deleteFile } from "./fileStorage.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
 import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
 
@@ -533,7 +534,7 @@ export async function cancelInvoice(institutionId:string,a:AuthenticatedUser,id:
 
 type FinanceExpenseRow = {
  id:string; institutionId:string; category:string; description:string; amount:Prisma.Decimal|number|string;
- vendor:string|null; reference:string|null; spentAt:Date; supportDetails:string|null; supportingDocumentUrl:string|null;
+ vendor:string|null; reference:string|null; spentAt:Date; supportDetails:string|null; supportingDocumentUrl:string|null; supportingDocumentFileId:string|null;
  campusId:string|null; departmentId:string|null; status:string; createdById:string; updatedById:string|null;
  approvedById:string|null; decisionComment:string|null; approvedAt:Date|null; createdAt:Date; updatedAt:Date;
 };
@@ -582,6 +583,7 @@ function expenseInput(input:any,context:{campusId:string|null;departmentId:strin
   spentAt:new Date(input.spentAt),
   supportDetails:input.supportDetails?.trim()?String(input.supportDetails).trim():null,
   supportingDocumentUrl:input.supportingDocumentUrl?.trim()?String(input.supportingDocumentUrl).trim():null,
+  supportingDocumentFileId:input.supportingDocumentFileId?String(input.supportingDocumentFileId):null,
   campusId:context.campusId,
   departmentId:context.departmentId,
  };
@@ -602,7 +604,11 @@ export async function createExpense(institutionId:string,a:AuthenticatedUser,inp
  const context=await assertExpenseContext(institutionId,s,input);
  const x=expenseInput(input,context); const id=crypto.randomUUID();
  const created=await prisma.$transaction(async tx=>{
-  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`INSERT INTO "finance_expenses" ("id","institutionId","category","description","amount","vendor","reference","spentAt","supportDetails","supportingDocumentUrl","campusId","departmentId","status","createdById","updatedById","createdAt","updatedAt") VALUES (${id},${institutionId},${x.category},${x.description},${x.amount},${x.vendor},${x.reference},${x.spentAt},${x.supportDetails},${x.supportingDocumentUrl},${x.campusId},${x.departmentId},'PENDING',${a.id},${a.id},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *`);
+  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`INSERT INTO "finance_expenses" ("id","institutionId","category","description","amount","vendor","reference","spentAt","supportDetails","supportingDocumentUrl","supportingDocumentFileId","campusId","departmentId","status","createdById","updatedById","createdAt","updatedAt") VALUES (${id},${institutionId},${x.category},${x.description},${x.amount},${x.vendor},${x.reference},${x.spentAt},${x.supportDetails},${x.supportingDocumentUrl},${x.supportingDocumentFileId},${x.campusId},${x.departmentId},'PENDING',${a.id},${a.id},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *`);
+  if(x.supportingDocumentFileId) {
+   const attached=await tx.fileAsset.updateMany({where:{id:x.supportingDocumentFileId,institutionId,module:"expenses",ownerId:a.id,referenceId:null},data:{referenceId:id}});
+   if(attached.count!==1) throw new AppError("Supporting file is not available for attachment in this institution",409);
+  }
   await tx.$executeRaw(Prisma.sql`INSERT INTO "finance_expense_status_history" ("id","institutionId","expenseId","fromStatus","toStatus","comment","changedById","createdAt") VALUES (${crypto.randomUUID()},${institutionId},${id},NULL,'PENDING','Expense submitted for approval',${a.id},CURRENT_TIMESTAMP)`);
   return rows[0];
  });
@@ -614,16 +620,26 @@ export async function updateExpense(institutionId:string,a:AuthenticatedUser,id:
  if(!has(a,"expenses.manage")) throw new AppError("Expense management permission required",403);
  const s=await scope(institutionId,a); assertExpenseScope(s);
  const context=await assertExpenseContext(institutionId,s,input); const x=expenseInput(input,context);
- const updated=await prisma.$transaction(async tx=>{
+ const result=await prisma.$transaction(async tx=>{
   const current=await visibleExpense(institutionId,s,id,true,tx);
   if(!["PENDING","REJECTED"].includes(current.status)) throw new AppError("Approved expenses cannot be edited",409);
   const status=current.status==="REJECTED"?"PENDING":current.status;
-  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "category"=${x.category},"description"=${x.description},"amount"=${x.amount},"vendor"=${x.vendor},"reference"=${x.reference},"spentAt"=${x.spentAt},"supportDetails"=${x.supportDetails},"supportingDocumentUrl"=${x.supportingDocumentUrl},"campusId"=${x.campusId},"departmentId"=${x.departmentId},"status"=${status},"updatedById"=${a.id},"decisionComment"=NULL,"approvedById"=NULL,"approvedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} RETURNING *`);
+  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "category"=${x.category},"description"=${x.description},"amount"=${x.amount},"vendor"=${x.vendor},"reference"=${x.reference},"spentAt"=${x.spentAt},"supportDetails"=${x.supportDetails},"supportingDocumentUrl"=${x.supportingDocumentUrl},"supportingDocumentFileId"=${x.supportingDocumentFileId},"campusId"=${x.campusId},"departmentId"=${x.departmentId},"status"=${status},"updatedById"=${a.id},"decisionComment"=NULL,"approvedById"=NULL,"approvedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} RETURNING *`);
+  if(x.supportingDocumentFileId && x.supportingDocumentFileId!==current.supportingDocumentFileId) {
+   const attached=await tx.fileAsset.updateMany({where:{id:x.supportingDocumentFileId,institutionId,module:"expenses",ownerId:a.id,referenceId:null},data:{referenceId:id}});
+   if(attached.count!==1) throw new AppError("Supporting file is not available for attachment in this institution",409);
+  }
+  if(current.supportingDocumentFileId && current.supportingDocumentFileId!==x.supportingDocumentFileId) {
+   await tx.fileAsset.updateMany({where:{id:current.supportingDocumentFileId,institutionId,module:"expenses",referenceId:id},data:{referenceId:null}});
+  }
   if(current.status==="REJECTED") await tx.$executeRaw(Prisma.sql`INSERT INTO "finance_expense_status_history" ("id","institutionId","expenseId","fromStatus","toStatus","comment","changedById","createdAt") VALUES (${crypto.randomUUID()},${institutionId},${id},'REJECTED','PENDING','Edited and resubmitted for approval',${a.id},CURRENT_TIMESTAMP)`);
-  return rows[0];
+  return {expense:rows[0],previousFileId:current.supportingDocumentFileId};
  });
- await audit(institutionId,a.id,"finance.expense.update","FinanceExpense",id,{status:updated.status});
- return updated;
+ await audit(institutionId,a.id,"finance.expense.update","FinanceExpense",id,{status:result.expense.status});
+ if(result.previousFileId && result.previousFileId!==result.expense.supportingDocumentFileId) {
+  try { await deleteFile(result.previousFileId,institutionId); } catch { /* provider cleanup can be reconciled later */ }
+ }
+ return result.expense;
 }
 export async function decideExpense(institutionId:string,a:AuthenticatedUser,id:string,input:{decision:"APPROVED"|"REJECTED";comment?:string}) {
  if(!has(a,"expenses.approve")) throw new AppError("Expense approval permission required",403);
