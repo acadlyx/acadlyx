@@ -88,6 +88,7 @@ function eventItem(item: InstitutionalEvent): UpdateItem {
 export function RecentUpdatesPanel() {
   const searchParams = useSearchParams();
   const currentQuery = searchParams.toString();
+  const departmentId = searchParams.get("departmentId") || "";
   const [items, setItems] = useState<UpdateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [failedSources, setFailedSources] = useState<string[]>([]);
@@ -99,7 +100,7 @@ export function RecentUpdatesPanel() {
     Promise.allSettled([
       getNotifications(1, 8),
       listNotices(false),
-      listEvents({ status: "PUBLISHED", page: 1, pageSize: 8 }),
+      listEvents({ status: "PUBLISHED", departmentId: departmentId || undefined, page: 1, pageSize: 8 }),
     ]).then((results) => {
       if (!active) return;
       const [notificationsResult, noticesResult, eventsResult] = results;
@@ -113,7 +114,9 @@ export function RecentUpdatesPanel() {
       }
 
       if (noticesResult.status === "fulfilled") {
-        next.push(...noticesResult.value.map(noticeItem));
+        next.push(...noticesResult.value
+          .filter((notice) => !departmentId || !notice.departmentId || notice.departmentId === departmentId)
+          .map(noticeItem));
       } else {
         failed.push("notices");
       }
@@ -137,7 +140,7 @@ export function RecentUpdatesPanel() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, departmentId]);
 
   return (
     <section aria-labelledby="recent-updates-title" className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
