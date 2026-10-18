@@ -53,7 +53,7 @@ export function LeaveScreen() {
   enabled:Boolean(user?.id&&canApply),
   staleTime:15000
  });
- const balancesQuery=useQuery({queryKey:["leave-balances",user?.id],queryFn:()=>apiRequest<unknown>("/leave/balances"),enabled:Boolean(user?.id&&canApply&&tab==="BALANCES"),staleTime:0});
+ const balancesQuery=useQuery({queryKey:["leave-balances",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/leave/balances"),enabled:Boolean(user?.id&&canApply&&tab==="BALANCES"),staleTime:0});
  const mineQuery=useQuery({queryKey:["leave-mine",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/mine?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApply&&tab==="MINE"),staleTime:0});
  const approvalsQuery=useQuery({queryKey:["leave-approvals",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/approvals?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApprove&&tab==="APPROVALS"),staleTime:0});
  const allQuery=useQuery({queryKey:["leave-all",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/all?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canRead&&tab==="ALL"),staleTime:0});

@@ -45,13 +45,13 @@ export function AttendanceScreen() {
   const [search, setSearch] = useState("");
 
   const sessionsQuery = useQuery({
-    queryKey: ["attendance-sessions", user?.id],
+    queryKey: ["attendance-sessions", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/attendance-sessions?page=1&pageSize=50"),
     enabled: Boolean(user?.id && canRead),
     staleTime: 0
   });
   const offeringsQuery = useQuery({
-    queryKey: ["attendance-course-offerings", user?.id],
+    queryKey: ["attendance-course-offerings", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/course-offerings?page=1&pageSize=100"),
     enabled: Boolean(user?.id && canMark && createVisible),
     staleTime: 15000

@@ -80,7 +80,7 @@ export function AssignmentsScreen() {
     staleTime: 0
   });
   const offerings = useQuery({
-    queryKey: ["course-offerings-for-assignment", user?.id],
+    queryKey: ["course-offerings-for-assignment", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/course-offerings?page=1&pageSize=100"),
     enabled: Boolean(user?.id && canCreate && showCreate),
     staleTime: 15000

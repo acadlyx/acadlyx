@@ -40,10 +40,10 @@ export function AdmissionsScreen(){
 
  const list=useQuery({queryKey:["admissions",user?.id, workspaceKey,search,filterStatus],queryFn:()=>apiRequest<unknown>("/admissions?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(filterStatus!=="ALL"?"&status="+filterStatus:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
  const detail=useQuery({queryKey:["admission",user?.id, workspaceKey,selectedId],queryFn:()=>apiRequest<Application>("/admissions/"+encodeURIComponent(selectedId as string)),enabled:Boolean(user?.id&&canRead&&selectedId),staleTime:0});
- const programsQuery=useQuery({queryKey:["admission-programs",user?.id],queryFn:()=>apiRequest<unknown>("/programs?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
- const yearsQuery=useQuery({queryKey:["admission-years",user?.id],queryFn:()=>apiRequest<unknown>("/academic-years?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
- const semestersQuery=useQuery({queryKey:["admission-semesters",user?.id],queryFn:()=>apiRequest<unknown>("/semesters?page=1&pageSize=100"),enabled:Boolean(user?.id&&canEnroll&&enrollForm),staleTime:15000});
- const sectionsQuery=useQuery({queryKey:["admission-sections",user?.id],queryFn:()=>apiRequest<unknown>("/sections?page=1&pageSize=100"),enabled:Boolean(user?.id&&canEnroll&&enrollForm),staleTime:15000});
+ const programsQuery=useQuery({queryKey:["admission-programs",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/programs?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
+ const yearsQuery=useQuery({queryKey:["admission-years",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/academic-years?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
+ const semestersQuery=useQuery({queryKey:["admission-semesters",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/semesters?page=1&pageSize=100"),enabled:Boolean(user?.id&&canEnroll&&enrollForm),staleTime:15000});
+ const sectionsQuery=useQuery({queryKey:["admission-sections",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/sections?page=1&pageSize=100"),enabled:Boolean(user?.id&&canEnroll&&enrollForm),staleTime:15000});
  const apps=useMemo(()=>rows<Application>(list.data).filter(a=>typeof a.id==="string"),[list.data]);
  const programs=useMemo(()=>rows<Program>(programsQuery.data).filter(x=>typeof x.id==="string"),[programsQuery.data]);
  const years=useMemo(()=>rows<AcademicYear>(yearsQuery.data).filter(x=>typeof x.id==="string"),[yearsQuery.data]);

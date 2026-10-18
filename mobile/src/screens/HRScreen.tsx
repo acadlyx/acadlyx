@@ -32,7 +32,7 @@ export function HRScreen(){
 
  const employeesQuery=useQuery({queryKey:["hr-employees",user?.id, workspaceKey,search,status,employmentType],queryFn:()=>apiRequest<unknown>("/hr/employees?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(status!=="ALL"?"&status="+status:"")+(employmentType!=="ALL"?"&employmentType="+employmentType:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
  const usersQuery=useQuery({queryKey:["hr-eligible-users",user?.id, workspaceKey,userSearch],queryFn:()=>apiRequest<unknown>("/hr/eligible-users?search="+encodeURIComponent(userSearch.trim())),enabled:Boolean(user?.id&&canManage&&form&&!editing),staleTime:15000});
- const departmentsQuery=useQuery({queryKey:["hr-departments",user?.id],queryFn:()=>apiRequest<unknown>("/departments?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
+ const departmentsQuery=useQuery({queryKey:["hr-departments",user?.id, workspaceKey],queryFn:()=>apiRequest<unknown>("/departments?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
  const employees=useMemo(()=>rows<Employee>(employeesQuery.data).filter(e=>typeof e.id==="string"),[employeesQuery.data]);
  const eligible=useMemo(()=>rows<EligibleUser>(usersQuery.data).filter(u=>typeof u.id==="string"),[usersQuery.data]);
  const departments=useMemo(()=>rows<Department>(departmentsQuery.data).filter(d=>typeof d.id==="string"),[departmentsQuery.data]);
