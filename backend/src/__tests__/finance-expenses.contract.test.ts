@@ -74,6 +74,8 @@ test("expense attachments and payment/refund integrations require provider-backe
  assert.match(finance,/gateway\.getRefund\(/);
  assert.match(finance,/confirmExternalSettlement/);
  assert.match(legacyBilling,/Direct PROCESSED transitions are disabled/);
+ const financePage=read("../frontend/src/components/accounts/FinancePage.tsx");
+ assert.match(financePage,/x\.payment\?\.method==="ONLINE"\|\|Boolean\(x\.payment\?\.provider\)/);
 });
 
 test("attached expense files resolve through the authorized expense scope",()=>{\n const finance=read("src/services/finance.service.ts");\n const controller=read("src/controllers/fileStorage.controller.ts");\n assert.match(finance,/assertExpenseAttachmentAccessible/);\n assert.match(finance,/visibleExpense\(institutionId,s,file\.referenceId\)/);\n assert.match(finance,/expense\.supportingDocumentFileId!==file\.id/);\n assert.match(controller,/await assertExpenseAttachmentAccessible\(institutionId, actor, result\.file\.id\)/);\n assert.match(controller,/attached expense document must be replaced/);\n});
