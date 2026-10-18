@@ -49,10 +49,16 @@ const canonicalFeatures = new Set([...featureArray.matchAll(/"([^"]+)"/g)].map((
 assert.ok(canonicalFeatures.size >= 30, "backend tenant feature catalogue should be parsed");
 
 function featuresForPath(pathname) {
-  const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
-  return Array.from(new Set(routeFeatureRules
+  const [rawPath, rawQuery] = pathname.split("?");
+  const normalizedPath = rawPath.replace(/\/+$/, "") || "/";
+  const features = routeFeatureRules
     .filter(({ pattern }) => pattern.test(normalizedPath))
-    .map(({ feature }) => feature)));
+    .map(({ feature }) => feature);
+  const query = new URLSearchParams(rawQuery || "");
+  if (normalizedPath === "/hod" && query.get("tab") === "registrations") {
+    features.push("registration");
+  }
+  return Array.from(new Set(features));
 }
 
 test("role-owned deep routes map to their canonical tenant entitlements", () => {
@@ -70,6 +76,7 @@ test("role-owned deep routes map to their canonical tenant entitlements", () => 
     ["/student/enrollment", "admissions"],
     ["/hod/enrollment-requests", "admissions"],
     ["/hod/course-registration-requests", "registration"],
+    ["/hod?tab=registrations", "registration"],
     ["/student/admit-cards", "exams"],
     ["/student/marks", "results"],
     ["/student/academic", "academics"],
@@ -126,6 +133,8 @@ test("direct-route and dashboard route guards both consult the tenant feature cl
   const featureGate = accessSource.indexOf("requiredTenantFeatures.some");
   const namespaceResolution = accessSource.indexOf("const matchingNamespace");
   assert.ok(featureGate >= 0 && namespaceResolution > featureGate, "tenant entitlement gate must run before namespace ownership");
+  assert.ok(accessSource.includes("tenantFeaturesForPath(pathname)"), "query-backed destinations must be evaluated with their query parameters");
+  assert.ok(boundarySource.includes("destination === route"), "unauthorized query-backed views must return to the role home instead of forcing a login loop");
   assert.ok(boundarySource.includes("canAccessRoute(route, currentUser.roles, currentUser.permissions, currentUser.tenantFeatures || [])"), "global direct-route boundary must enforce entitlement decisions");
   assert.ok(dashboardShellSource.includes("canAccessRoute(pathname, roles, permissions, tenantFeatures)"), "dashboard route guard must enforce entitlement decisions");
 });
