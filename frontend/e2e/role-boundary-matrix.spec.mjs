@@ -232,3 +232,10 @@ test("Library circulation URL resolves to its protected canonical tab", async ({
   await expect.poll(() => new URL(page.url()).search).toBe("?tab=circulation");
   await expect(page.getByRole("heading", { name: /Library/i }).first()).toBeVisible();
 });
+ 
+test("Director cannot open the unscoped calendar directly", async ({ page }) => {
+  await installRoleSession(page, "DIRECTOR");
+  await navigateAndWaitForIdentity(page, "/director/calendar");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/director");
+  await expect(page.locator('a[href="/director/calendar"]')).toHaveCount(0);
+});
