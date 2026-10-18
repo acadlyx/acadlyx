@@ -858,22 +858,37 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     // workspace scope; a unioned secondary role must not widen the directory.
     const sharedFeeHeadReaders = new Set(["CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]);
     for (const roleName of TENANT_ROLES) {
-      const readResult = await request("/erp/fee-heads", roleUsers[roleName].token);
+      // Use fresh active accounts/sessions for this independent matrix rather
+      // than reusing principals that earlier revocation tests intentionally
+      // deactivate or revoke.
+      const matrixUser = await createUserFixture(
+        "fee-matrix-" + roleName.toLowerCase(),
+        institutionA.id,
+        [roleName],
+        tenantRolesA,
+      );
+      const readResult = await request("/erp/fee-heads", matrixUser.token);
       const expectedReadStatus = sharedFeeHeadReaders.has(roleName) ? 200 : 403;
       assert.equal(readResult.status, expectedReadStatus, roleName + " fee-head read boundary: " + JSON.stringify(readResult.body));
 
       const writeResult = await requestWithBody(
         "/erp/fee-heads",
-        roleUsers[roleName].token,
+        matrixUser.token,
         "POST",
         { name: "API role matrix " + roleName + " " + suffix, code: "MX-" + roleName + "-" + suffix },
       );
       const expectedWriteStatus = sharedFeeHeadReaders.has(roleName) ? 201 : 403;
       assert.equal(writeResult.status, expectedWriteStatus, roleName + " fee-head mutation boundary: " + JSON.stringify(writeResult.body));
     }
-    assert.equal((await request("/erp/fee-heads", superAdmin.token)).status, 403, "Super Admin platform-only authority must not grant tenant Accounts API access");
+    const feeMatrixSuperAdmin = await createUserFixture(
+      "fee-matrix-super-admin",
+      null,
+      ["SUPER_ADMIN"],
+      { SUPER_ADMIN: globalSuperAdminRoleId },
+    );
+    assert.equal((await request("/erp/fee-heads", feeMatrixSuperAdmin.token)).status, 403, "Super Admin platform-only authority must not grant tenant Accounts API access");
     assert.equal(
-      (await requestWithBody("/erp/fee-heads", superAdmin.token, "POST", { name: "Platform catalog attempt " + suffix, code: "PL-" + suffix })).status,
+      (await requestWithBody("/erp/fee-heads", feeMatrixSuperAdmin.token, "POST", { name: "Platform catalog attempt " + suffix, code: "PL-" + suffix })).status,
       403,
       "Super Admin platform-only authority must not mutate a tenant fee-head catalog",
     );
