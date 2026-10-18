@@ -25,6 +25,7 @@ export const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
   STUDENT: { "/notices": "/student/notices" },
   HR: { "/reports": "/hr/reports" },
   EXAMINATION: { "/reports": "/examination/reports" },
+  REGISTRAR: { "/reports": "/registrar/reports" },
   ADMISSIONS: { "/reports": "/admissions/reports" },
   LIBRARIAN: { "/reports": "/library/reports" },
 };
@@ -34,6 +35,8 @@ export function roleOwnedHref(role: string | null, href: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
+  [/^\/accounts\/fees(\/|$)/, "fees"],
+  [/^\/faculty\/operations(\/|$)/, "academics"],
   // Parent pages require Parent Portal even when a nested page also needs
   // its own feature (for example, fees or placements).
   [/^\/parent(\/|$)/, "parent_portal"],
@@ -139,6 +142,8 @@ export type NavigationItem = {
   icon?: string;
   roles?: string[];
   permissions?: PermissionKey[];
+  /** Require at least one listed permission when the workspace contains per-action capabilities. */
+  anyPermissions?: PermissionKey[];
   group?: string;
   children?: NavigationItem[];
   /** Route matching strategy for active state. Nested is boundary-safe; exact is exact-only. */
@@ -325,6 +330,70 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Administration",
   },
    {
+    label: "Academic years",
+    href: "/admin/academic-years",
+    icon: "calendar",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["academic-years.read"],
+    group: "Academics",
+  },
+  {
+    label: "Programs",
+    href: "/admin/programs",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["programs.read"],
+    group: "Academics",
+  },
+  {
+    label: "Semesters",
+    href: "/admin/semesters",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["semesters.read"],
+    group: "Academics",
+  },
+  {
+    label: "Sections",
+    href: "/admin/sections",
+    icon: "people",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["sections.read"],
+    group: "Academics",
+  },
+  {
+    label: "Courses",
+    href: "/admin/courses",
+    icon: "document",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["courses.read"],
+    group: "Academics",
+  },
+  {
+    label: "Course offerings",
+    href: "/admin/course-offerings",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["course-offerings.read"],
+    group: "Academics",
+  },
+  {
+    label: "Documents",
+    href: "/admin/documents",
+    icon: "document",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["documents.read"],
+    group: "Institution",
+  },
+  {
+    label: "Parent links",
+    href: "/admin/parent-links",
+    icon: "people",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["parent-links.read"],
+    group: "Institution",
+  },
+  {
     label: "People",
     href: "/admin/users",
     icon: "♙",
@@ -528,6 +597,28 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Campus calendar",
+    href: "/director/calendar",
+    icon: "calendar",
+    roles: ["DIRECTOR"],
+    permissions: ["calendar.read"],
+    group: "Campus Operations",
+  },
+  {
+    label: "Import review",
+    href: "/director/imports",
+    icon: "download",
+    roles: ["DIRECTOR"],
+    anyPermissions: [
+      "users.create", "students.create", "campuses.create", "departments.create",
+      "programs.create", "academic-years.create", "semesters.create", "sections.create",
+      "courses.create", "course-offerings.create", "exams.manage", "marks.enter",
+      "attendance.mark", "fees.manage", "fees.pay", "notices.manage",
+      "timetable.manage", "parent-links.manage",
+    ],
+    group: "Campus Operations",
+  },
+  {
     label: "Examination operations",
     href: "/director/examinations/operations",
     icon: "◉",
@@ -666,6 +757,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Academic operations",
+    href: "/dean/operations",
+    icon: "academic",
+    roles: ["DEAN"],
+    permissions: ["operations.read"],
+    group: "Academic Leadership",
+  },
+  {
     label: "Outcome Based Education",
     href: "/dean/obe",
     icon: "◎",
@@ -739,6 +838,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Reports",
+    href: "/reports",
+    icon: "chart",
+    roles: ["REGISTRAR"],
+    permissions: ["reports.read"],
+    group: "Reports",
+  },
+  {
     label: "Students",
     href: "/registrar/students",
     icon: "◎",
@@ -794,6 +901,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["HOD"],
     group: "Workspace",
+  },
+  {
+    label: "Department operations",
+    href: "/hod/operations",
+    icon: "settings",
+    roles: ["HOD"],
+    permissions: ["operations.read"],
+    group: "Department",
   },
   {
     label: "Enrollment Requests",
@@ -932,6 +1047,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["FACULTY"],
     group: "Workspace",
+  },
+  {
+    label: "Teaching operations",
+    href: "/faculty/operations",
+    icon: "academic",
+    roles: ["FACULTY"],
+    permissions: ["courses.read"],
+    group: "Teaching",
   },
   {
     label: "My courses",
@@ -1576,6 +1699,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 
   {
+    label: "Profile",
+    href: "/parent/profile",
+    icon: "user",
+    roles: ["PARENT"],
+    permissions: ["parent-portal.read"],
+    group: "Family",
+  },
+  {
     label: "Children",
     href: "/parent/children",
     icon: "people",
@@ -1978,6 +2109,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/admin", ["INSTITUTION_ADMIN"]],
   ["/student", ["STUDENT"]],
   ["/faculty", ["FACULTY"]],
+  ["/parent/students/[studentId]", ["PARENT"]],
   ["/parent", ["PARENT"]],
   ["/chairman", ["CHAIRMAN"]],
   ["/director", ["DIRECTOR"]],
@@ -2324,10 +2456,11 @@ export function getNavigationForRoles(
       item.roles.length === 0 ||
       item.roles.some((role) => normalizeRoleName(role) === activeRole);
 
-    const permissionAllowed =
-      !item.permissions ||
-      item.permissions.length === 0 ||
-      item.permissions.every((permission) => permissionSet.has(permission));
+    const permissionAllowed = item.anyPermissions?.length
+      ? item.anyPermissions.some((permission) => permissionSet.has(permission))
+      : !item.permissions ||
+        item.permissions.length === 0 ||
+        item.permissions.every((permission) => permissionSet.has(permission));
 
     const requiredFeatures = tenantFeaturesForNavigation(item);
     const itemPath = item.href.split("?")[0].replace(/\/+$/, "") || "/";
@@ -2434,6 +2567,31 @@ const REDIRECT_ONLY_ROUTE_ROLES: Record<string, string[]> = {
   "/institutionalcms": ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
   "/payments": ["ACCOUNTS", "STUDENT", "PARENT"],
   "/fees/receipts": ["ACCOUNTS"],
+  "/accounts/fees": ["ACCOUNTS"],
+  "/chairman/fee-approvals": ["CHAIRMAN"],
+  "/hod/students": ["HOD"],
+  "/library/circulation": ["LIBRARIAN"],
+  "/student/admit-cards": ["STUDENT"],
+  "/student/marks": ["STUDENT"],
+  "/student/results": ["STUDENT"],
+  "/superadmin/audit": ["SUPER_ADMIN"],
+  "/superadmin/institutions": ["SUPER_ADMIN"],
+  "/superadmin/plans": ["SUPER_ADMIN"],
+  "/superadmin/users": ["SUPER_ADMIN"],
+};
+
+const REDIRECT_ONLY_ROUTE_PERMISSIONS: Record<string, string[]> = {
+  "/accounts/fees": ["fees.read"],
+  "/chairman/fee-approvals": ["fees.structure.read"],
+  "/hod/students": ["students.read"],
+  "/library/circulation": ["library.manage"],
+  "/student/admit-cards": ["exams.read"],
+  "/student/marks": ["marks.read"],
+  "/student/results": ["results.read"],
+  "/superadmin/audit": ["audit.read"],
+  "/superadmin/institutions": ["institutions.manage"],
+  "/superadmin/plans": ["plans.manage"],
+  "/superadmin/users": ["users.read"],
 };
 
 export function canAccessRoute(
@@ -2457,6 +2615,9 @@ export function canAccessRoute(
   // tenant's separate Operations feature is disabled; /director is authorized
   // normally after navigation, and this route serves no operational data.
   if (normalizedPath === "/director/operations") return activeRole === "DIRECTOR";
+  // Chairman Operations is a redirect-only compatibility route, not the
+  // Operations feature itself, so it serves no operational data.
+  if (normalizedPath === "/chairman/operations") return activeRole === "CHAIRMAN";
 
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
@@ -2495,6 +2656,7 @@ export function canAccessRoute(
   // user actually has the module's read capability. Role ownership alone is
   // never enough to open a protected module directly by URL.
   const namespacePermission: Array<[string, string]> = [
+    ["/parent/students", "parent-portal.read"],
     ["/lms/settings", "lms.manage"],
     ["/lms", "lms.read"],
     ["/obe", "obe.read"],
@@ -2510,6 +2672,8 @@ export function canAccessRoute(
   // module-permission checks above. The destination is re-authorized separately.
   const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath];
   if (redirectOnlyRoles) {
+    const requiredAliasPermissions = REDIRECT_ONLY_ROUTE_PERMISSIONS[normalizedPath] ?? [];
+    if (!requiredAliasPermissions.every((permission) => permissionSet.has(permission))) return false;
     return redirectOnlyRoles.some((role) => normalizeRoleName(role) === activeRole);
   }
 
@@ -2566,6 +2730,9 @@ export function canAccessRoute(
     return !protectedNamespace;
   }
 
+  if (relevantItem.anyPermissions?.length) {
+    return relevantItem.anyPermissions.some((permission) => permissionSet.has(permission));
+  }
   return (
     !relevantItem.permissions?.length ||
     relevantItem.permissions.every((permission) => permissionSet.has(permission))
