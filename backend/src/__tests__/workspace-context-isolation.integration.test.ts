@@ -853,6 +853,8 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     // head directory must not leak through direct REST due to that union.
     const accountFeeHeadRead = await request("/erp/fee-heads", roleUsers.ACCOUNTS.token);
     assert.equal(accountFeeHeadRead.status, 200, "Accounts can read the shared fee-head directory");
+    const directorFeeHeadRead = await request("/erp/fee-heads", roleUsers.DIRECTOR.token);
+    assert.equal(directorFeeHeadRead.status, 403, "Director may approve campus-scoped fee structures but must not enumerate the institution-wide fee-head catalog");
     const studentAccountsFeeHeadRead = await request("/erp/fee-heads", multiStudentAccounts.token);
     assert.equal(studentAccountsFeeHeadRead.status, 403, "Student+Accounts must not inherit the shared fee-head directory through a secondary Accounts grant");
 
