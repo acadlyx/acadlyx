@@ -295,7 +295,8 @@ export function getRefreshToken():
 }
 
 export function setTokens(
-  tokens: AuthTokens
+  tokens: AuthTokens,
+  options: { preserveSession?: boolean } = {},
 ): void {
   if (!isBrowser()) {
     return;
@@ -320,9 +321,14 @@ export function setTokens(
     tokens.refreshToken
   );
 
-  invalidateUserCache();
-  authCacheScope += 1;
-  notifyAuthCacheScopeChanged();
+  // Refresh-token rotation replaces credentials for the same principal.
+  // It must not invalidate identity/context requests that are part of that
+  // refresh retry; account login/MFA flows keep the default invalidation.
+  if (!options.preserveSession) {
+    invalidateUserCache();
+    authCacheScope += 1;
+    notifyAuthCacheScopeChanged();
+  }
 }
 
 export function clearTokens(): void {
@@ -763,7 +769,7 @@ async function tryRefresh(): Promise<boolean> {
         getRefreshToken() !== refreshToken
       ) return false;
 
-      setTokens(body.data.tokens);
+      setTokens(body.data.tokens, { preserveSession: true });
       return true;
     } catch {
       if (
