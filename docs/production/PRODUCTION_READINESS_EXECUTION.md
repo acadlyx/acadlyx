@@ -256,3 +256,17 @@
 - Need dedicated integration assertions for Director campus boundaries across every campus-scoped resource; Dean/HOD department boundaries across reads and mutations; Faculty teaching assignment boundaries; Student own-record boundaries; Parent linked-child boundaries; Super Admin platform-only behavior against tenant endpoints; foreign institution IDs across all services; revoked permissions/stale sessions; and disabled feature API access.
 - Need targeted frontend tests proving workspace change invalidates each relevant query family and that old-scope records cannot flash while requests race. The existing workspace transition implementation resets queries, but a full resource-family matrix has not been independently run in this batch.
 - Continue to treat production readiness as **NOT READY** until these gaps have endpoint-level test evidence and are reviewed. No full-isolation claim is made.
+
+
+### Batch 01 continuation — exact-head verification (2026-10-18)
+
+The earlier Batch 01 entry above refers to a prior candidate and is superseded for CI evidence by this exact-head check. The current PR #77 source branch is `native-mobile-parity-2026-10-17`, HEAD `11c0f4c5a0451f2f5a9509eaa3829dd32bf571b4`. The PR remains open against `production-upgrade-2026-09-20`; this batch made no writes to that protected base and triggered no production deployment.
+
+Exact-head GitHub Actions evidence:
+- [Frontend build — run 39112230979](https://github.com/acadlyx/acadlyx/actions/runs/39112230979): **SUCCESS**, including frontend typecheck and production build.
+- [Native Mobile CI — run 39112230975](https://github.com/acadlyx/acadlyx/actions/runs/39112230975): **SUCCESS**, including typecheck, structural tests, Android and iOS JavaScript bundle exports. This is not signed-device verification.
+- [Production Gate — run 39112230968](https://github.com/acadlyx/acadlyx/actions/runs/39112230968): **SUCCESS**, backend tests plus frontend lint/build.
+- [ERP verification — run 39112230973](https://github.com/acadlyx/acadlyx/actions/runs/39112230973): **SUCCESS**, backend tests plus frontend build and Chairman/Director route smoke.
+- [Production Quality — run 39112230972](https://github.com/acadlyx/acadlyx/actions/runs/39112230972): **SUCCESS** for backend tests/typecheck, frontend lint/typecheck/build, public/login browser smoke, migration validation, legacy refund compatibility, isolated PostgreSQL backup/restore rehearsal, and the 10k-student finance database workload. The production deployment smoke job was **SKIPPED**, so this is not evidence of a live production deployment.
+
+Batch 01 disposition remains **PARTIAL / NOT AUTHORIZATION-ACCEPTED**. These workflows establish that the committed code passes the configured CI suites, not that every endpoint in the requested 20-role × URL/navigation/API read/API mutation matrix has been exercised. Specifically, the repository evidence inspected in this batch does not establish exhaustive per-resource campus/department/teaching/linked-child/own-record scoping, every foreign-tenant identifier path, revoked-permission and stale-session behavior, or complete workspace-cache race coverage. Do not claim full isolation or production readiness from the green workflows alone. The concrete service-level role gates and regression tests listed in the Batch 01 entry above are verified changes; the remaining matrix must be completed before this batch can honestly be marked fully complete.
