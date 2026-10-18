@@ -187,3 +187,10 @@ The Production Quality workflow's `Production deployment smoke checks` job was s
 - Added refresh, loading, retry/error, empty states, and open-document action. The app rejects non-HTTP(S) schemes before handing a returned URL to the operating system. It does not invent a storage URL or allow the client to choose another user's ownerId.
 - This slice is intentionally read/open only: it does not present upload or delete controls because the existing portal record API and file-storage module permissions do not grant a generic self-upload action. Administrators' scoped document management still needs its own schema-validated native workflow. Native binary download/import/export and physical-device document handler tests remain open.
 - Functional state remains IN_PROGRESS pending CI and isolated API-role checks.
+
+## Native LMS workspace slice — 2026-10-19
+
+- Added a dedicated Learning Management mobile workspace backed exclusively by the existing LMS production routes. It discovers only server-authorized course offerings through `GET /lms/catalog`, opens `GET /lms/offerings/:id/workspace`, and renders course modules, lessons, linked resources, assignments, quizzes, live classes and announcements.
+- Resources and live meeting links are opened only when the server has supplied an HTTP(S) URL. Assignment submission/review continues to use the dedicated Assignments workspace rather than duplicating a separate submission state machine.
+- The workspace supports server-authorized course lifecycle actions (`SUBMIT`, `APPROVE`, `REJECT`, `PUBLISH`, `ARCHIVE`, and `REOPEN`) through the existing workflow endpoint, and lets eligible non-parent users post course discussions. Query invalidation refreshes both the selected workspace and its catalogue after successful mutations.
+- This is an implementation slice, not a claim of full LMS parity: native lesson/material authoring, quiz attempts/grading, live-class scheduling, gradebook, analytics, certificate requests, uploads and physical-device validation remain outside this slice.

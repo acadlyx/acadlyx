@@ -213,6 +213,17 @@ test("placement workspace uses existing eligibility and lifecycle contracts", ()
   assert.ok(modules.includes('navigation.navigate("Placement")'));
 });
 
+test("LMS workspace uses the existing course, discussion, and workflow contracts", () => {
+  const lms = read("src/screens/LmsScreen.tsx");
+  const navigator = read("src/navigation/RootNavigator.tsx");
+  const modules = read("src/screens/ModulesScreen.tsx");
+  for (const route of ["/lms/catalog", "/workspace", "/workflow", "/discussions"]) assert.ok(lms.includes(route), "Missing LMS route fragment: " + route);
+  for (const permission of ["lms.manage", "lms.attempt"]) assert.ok(lms.includes(permission), "Missing LMS permission gate: " + permission);
+  assert.ok(lms.includes("Linking.openURL"), "Course resources and meeting links should open through the native handler.");
+  assert.ok(navigator.includes("LmsScreen"));
+  assert.ok(modules.includes('navigation.navigate("Lms")'));
+});
+
 test("original logo is bundled and displayed on sign-in", () => {
   const logo = readFileSync(resolve(root, "assets/acadlyx-logo.png"));
   const login = read("src/screens/LoginScreen.tsx");
