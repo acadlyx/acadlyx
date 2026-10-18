@@ -619,7 +619,7 @@ test("Admissions student list opens the existing role-authorized student profile
   // The shell header reflects the current student identity; verify the
   // actual profile heading and admission number rendered by the page.
   await expect(page.getByRole("heading", { name: "Test Student", exact: true })).toBeVisible();
-  await expect(page.getByText("TEST-001")).toBeVisible();
+  await expect(page.getByText("TEST-001", { exact: true })).toBeVisible();
 });
 
 
