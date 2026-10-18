@@ -26,3 +26,8 @@ export type AuthorizationContext = {
 export function authorizationContextKey(
   user: AuthorizationContext | null,
 ): string | null;
+
+export function isWorkspaceResultCurrent(
+  resultRequestKey: string | undefined,
+  currentRequestKey: string,
+): boolean;
