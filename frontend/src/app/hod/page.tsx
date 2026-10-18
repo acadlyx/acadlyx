@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, authedFetch, getCurrentUser, isAuthenticated } from "@/lib/auth";
@@ -76,6 +76,7 @@ async function getData<T>(path: string): Promise<T> {
 }
 
 export default function HODDashboardPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [tenantFeatures, setTenantFeatures] = useState<string[] | null>(null);
   const hasAdmissionsFeature = tenantFeatures?.includes("admissions") ?? false;
@@ -87,9 +88,11 @@ export default function HODDashboardPage() {
 
   const contextParams = useMemo(
     () => ({
+      campusId: searchParams.get("campusId") || undefined,
       departmentId: searchParams.get("departmentId") || undefined,
       programId: searchParams.get("programId") || undefined,
       academicYearId: searchParams.get("academicYearId") || undefined,
+      batchId: searchParams.get("batchId") || undefined,
       semesterId: searchParams.get("semesterId") || undefined,
       sectionId: searchParams.get("sectionId") || undefined,
     }),
@@ -105,8 +108,8 @@ export default function HODDashboardPage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [pendingEnrollmentRequests, setPendingEnrollmentRequests] = useState(0);
 
-  const [semesterId, setSemesterId] = useState("");
-  const [sectionId, setSectionId] = useState("");
+  const [semesterId, setSemesterId] = useState(() => searchParams.get("semesterId") || "");
+  const [sectionId, setSectionId] = useState(() => searchParams.get("sectionId") || "");
   const [search, setSearch] = useState("");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [selectedOfferings, setSelectedOfferings] = useState<string[]>([]);
@@ -114,6 +117,23 @@ export default function HODDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+
+  function updateWorkspaceQuery(updates: Record<"semesterId" | "sectionId", string>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const query = params.toString();
+    router.replace(query ? `/hod?${query}` : "/hod", { scroll: false });
+  }
+
+  useEffect(() => {
+    setSemesterId(searchParams.get("semesterId") || "");
+    setSectionId(searchParams.get("sectionId") || "");
+    setSelectedStudents([]);
+    setSelectedOfferings([]);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -134,19 +154,26 @@ export default function HODDashboardPage() {
   }, []);
 
   const loadBase = useCallback(async () => {
+    const query = new URLSearchParams({ pageSize: "100" });
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId"] as const) {
+      const value = contextParams[key];
+      if (value) query.set(key, value);
+    }
     const semesterResponse = await authedFetch<Paged<Semester>>(
-      "/semesters?pageSize=100"
+      `/semesters?${query.toString()}`
     );
-    setSemesters(semesterResponse.data ?? []);
+    const availableSemesters = semesterResponse.data ?? [];
+    setSemesters(availableSemesters);
 
-    if (!semesterId && semesterResponse.data?.length) {
+    if (semesterId && !availableSemesters.some((semester) => semester.id === semesterId)) {
+      setSemesterId("");
+      setSectionId("");
+    } else if (!semesterId && availableSemesters.length) {
       const current =
-        semesterResponse.data.find(
-          (semester) => semester.academicYear?.id
-        ) ?? semesterResponse.data[0];
+        availableSemesters.find((semester) => semester.academicYear?.id) ?? availableSemesters[0];
       setSemesterId(current.id);
     }
-  }, [semesterId]);
+  }, [contextParams, semesterId]);
 
   const loadStudents = useCallback(async () => {
     const query = new URLSearchParams({
@@ -154,6 +181,10 @@ export default function HODDashboardPage() {
       status: "ACTIVE",
     });
 
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId"] as const) {
+      const value = contextParams[key];
+      if (value) query.set(key, value);
+    }
     if (semesterId) query.set("semesterId", semesterId);
     if (sectionId) query.set("sectionId", sectionId);
     if (search.trim()) query.set("search", search.trim());
@@ -162,7 +193,7 @@ export default function HODDashboardPage() {
       `/students?${query.toString()}`
     );
     setStudents(response.data ?? []);
-  }, [semesterId, sectionId, search]);
+  }, [semesterId, sectionId, search, contextParams]);
 
   const loadSectionsAndOfferings = useCallback(async () => {
     if (!semesterId) {
@@ -475,10 +506,12 @@ export default function HODDashboardPage() {
                 <select
                   value={semesterId}
                   onChange={(event) => {
-                    setSemesterId(event.target.value);
+                    const value = event.target.value;
+                    setSemesterId(value);
                     setSectionId("");
                     setSelectedStudents([]);
                     setSelectedOfferings([]);
+                    updateWorkspaceQuery({ semesterId: value, sectionId: "" });
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none"
                 >
@@ -497,9 +530,11 @@ export default function HODDashboardPage() {
                 <select
                   value={sectionId}
                   onChange={(event) => {
-                    setSectionId(event.target.value);
+                    const value = event.target.value;
+                    setSectionId(value);
                     setSelectedStudents([]);
                     setSelectedOfferings([]);
+                    updateWorkspaceQuery({ semesterId, sectionId: value });
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none"
                 >
@@ -684,7 +719,12 @@ export default function HODDashboardPage() {
 
                 <select
                   value={semesterId}
-                  onChange={(event) => setSemesterId(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSemesterId(value);
+                    setSectionId("");
+                    updateWorkspaceQuery({ semesterId: value, sectionId: "" });
+                  }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
                 >
                   <option value="">All semesters</option>
