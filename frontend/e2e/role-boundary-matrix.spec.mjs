@@ -98,7 +98,7 @@ test("Super Admin website CMS remains platform-accessible when tenant CMS entitl
   await installRoleSession(page, "SUPER_ADMIN", ["cms"]);
   await page.goto(`${baseURL}/site-content`, { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(page.url()).pathname).toBe("/site-content");
-  await expect(page.getByRole("heading", { name: "Website CMS" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "100% CMS-driven external site" })).toBeVisible();
 });
 
 for (const role of ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]) {
