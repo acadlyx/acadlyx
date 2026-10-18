@@ -324,7 +324,6 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         { institutionId: institutionA.id, userId: studentA2.id, programId: programA2.id, academicYearId: yearA2.id, batchId: batchA2.id, semesterId: semesterA2.id, sectionId: sectionA2.id, status: "ACTIVE" },
         { institutionId: institutionB.id, userId: studentB.id, programId: programB.id, academicYearId: yearB.id, batchId: batchB.id, semesterId: semesterB.id, sectionId: sectionB.id, status: "ACTIVE" },
         { institutionId: institutionA.id, userId: multiFacultyStudent.id, programId: programA1.id, academicYearId: yearA1.id, batchId: batchA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, status: "ACTIVE" },
-        { institutionId: institutionA.id, userId: multiStudentAccounts.id, programId: programA1.id, academicYearId: yearA1.id, batchId: batchA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, status: "ACTIVE" },
       ],
     });
     await prisma.parentStudentLink.create({
