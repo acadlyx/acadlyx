@@ -56,7 +56,7 @@ test("Executive dashboards stay sidebar-centric and every leadership destination
   assert.ok(!director.includes("/director/examinations/operations"), "Director dashboard should rely on the sidebar, not duplicate action cards");
   assert.ok(!director.includes('["Campus students","/students"]'), "Director must not route to the global student page");
   assert.ok(!director.includes('["Admissions","/admissions"]'), "Director must not route to global admissions");
-  assert.ok(!navigation.includes('label: "Institutional CMS"'), "leadership sidebars must not expose Institutional CMS");
+  assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?roles: \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"\],[\s\S]*?permissions: \["institutional-cms.read"\]/, "Institutional CMS must be restricted to authorized institutional roles");
   assert.ok(!navigation.includes('href: "/calendar"'), "Director must not be routed into the unscoped generic calendar");
 });
 
@@ -472,7 +472,7 @@ test("Chairman and Director have dedicated notice, notification and events route
     }
   }
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
-  assert.ok(!navigation.includes('label: "Institutional CMS"'));
+  assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?roles: \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"\],[\s\S]*?permissions: \["institutional-cms.read"\]/, "Institutional CMS must be restricted to authorized institutional roles");
   assert.ok(navigation.includes('href: "/chairman/events-gallery"'));
   assert.ok(navigation.includes('href: "/director/events-gallery"'));
 });
