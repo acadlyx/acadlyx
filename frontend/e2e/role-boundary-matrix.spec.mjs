@@ -166,6 +166,7 @@ const ENTITLEMENT_ROUTE_CASES = [
   { role: "HOD", path: "/hod/course-registration-requests", feature: "registration", home: "/hod" },
   { role: "STUDENT", path: "/student/documents", feature: "documents", home: "/student" },
   { role: "STUDENT", path: "/student/leave", feature: "leave", home: "/student" },
+  { role: "STUDENT", path: "/student/examinations/results", feature: "results", home: "/student" },
 ];
 
 
