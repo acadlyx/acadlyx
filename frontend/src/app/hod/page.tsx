@@ -121,7 +121,7 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
       return;
     }
     let mounted = true;
-    getCurrentUser()
+    getCurrentUser({ force: true })
       .then((user) => {
         if (mounted) setTenantFeatures(user?.tenantFeatures ?? []);
       })
