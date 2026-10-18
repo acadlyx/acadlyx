@@ -165,6 +165,17 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
+    label: "Institutional CMS",
+    href: "/admin/institutional-cms",
+    icon: "document",
+    group: "Institution",
+    description: "Draft tenant branding and dashboard copy for leadership approval.",
+    read: ["institutional-cms.read"],
+    create: ["institutional-cms.manage"],
+    update: ["institutional-cms.manage"],
+  },
+
+  {
     label: "Notices",
     href: "/admin/notices",
     icon: "notice",
