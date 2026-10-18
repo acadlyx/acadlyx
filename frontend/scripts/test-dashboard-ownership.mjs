@@ -41,6 +41,8 @@ test("all 20 canonical roles have an identity and distinct workspace home", () =
 test("platform Website CMS and institution-scoped CMS approval workflow have different ownership", () => {
   assert.match(navigation, /label: "Website CMS",[\s\S]*?href: "\/site-content",[\s\S]*?roles: \["SUPER_ADMIN", "CMS"\]/);
   assert.match(websiteCms, /allowedRoles=\{\["SUPER_ADMIN", "CMS"\]\}/);
+  assert.match(navigation, /label: "Website CMS",[\s\S]*?href: "\/site-content",[\s\S]*?activeMatch: "exact"/);
+  assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?activeMatch: "exact"/);
   assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?roles: \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"\],[\s\S]*?permissions: \["institutional-cms.read"\]/);
   assert.match(adminNavigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?read: \["institutional-cms.read"\]/);
   assert.match(institutionalCms, /Save draft/);
