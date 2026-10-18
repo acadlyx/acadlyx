@@ -77,8 +77,10 @@ export type WorkspaceBreadcrumb = {
 
 export type WorkspaceContext = {
   role: string;
+  institution?: { name: string; logoUrl: string | null };
   scope: {
     institutionId: string;
+    campusId: string | null;
     departmentId: string | null;
     programId: string | null;
     academicYearId: string | null;
@@ -88,6 +90,7 @@ export type WorkspaceContext = {
   };
   breadcrumbs: WorkspaceBreadcrumb[];
   children: {
+    campuses: Array<{ id: string; name: string; code: string }>;
     departments: Array<{ id: string; name: string; code: string }>;
     programs: Array<{ id: string; name: string; code: string; level: string; durationYears: number; departmentId: string }>;
     academicYears: Array<{ id: string; name: string; startDate: string; endDate: string; isCurrent: boolean }>;
