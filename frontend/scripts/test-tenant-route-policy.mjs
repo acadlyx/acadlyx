@@ -6,6 +6,8 @@ const navigationSource = readFileSync(new URL("../src/lib/navigation.ts", import
 const boundarySource = readFileSync(new URL("../src/components/auth/ProtectedRouteBoundary.tsx", import.meta.url), "utf8");
 const dashboardShellSource = readFileSync(new URL("../src/components/dashboard/DashboardShell.tsx", import.meta.url), "utf8");
 const backendFeaturesSource = readFileSync(new URL("../../backend/src/config/features.ts", import.meta.url), "utf8");
+const backendNoticeRoutesSource = readFileSync(new URL("../../backend/src/routes/erp.routes.ts", import.meta.url), "utf8");
+const backendFeatureGuardSource = readFileSync(new URL("../../backend/src/middleware/requireFeature.ts", import.meta.url), "utf8");
 const featureBlockStart = navigationSource.indexOf("const TENANT_FEATURE_BY_ROUTE");
 const featureBlockEnd = navigationSource.indexOf("export function tenantFeaturesForPath", featureBlockStart);
 assert.ok(featureBlockStart >= 0 && featureBlockEnd > featureBlockStart, "tenant feature route classifier must exist");
@@ -126,6 +128,46 @@ test("nested Parent pages require Parent Portal as well as their module-specific
   assert.ok(featuresForPath("/parent/fees").includes("fees"));
   assert.ok(featuresForPath("/parent/placements").includes("parent_portal"));
   assert.ok(featuresForPath("/parent/placements").includes("placements"));
+});
+
+test("all tenant notice aliases enforce the notices entitlement and notice APIs use the backend feature guard", () => {
+  const roleOwnedNoticePaths = [
+    "/chairman/notices",
+    "/management/notices",
+    "/director/notices",
+    "/dean/notices",
+    "/registrar/notices",
+    "/hod/notices",
+    "/faculty/notices",
+    "/accounts/notices",
+    "/hr/notices",
+    "/admissions/notices",
+    "/examination/notices",
+    "/library/notices",
+    "/placements/notices",
+    "/it/notices",
+    "/student/notices",
+    "/parent/notices",
+    "/club-president/notices",
+    "/staff/notices",
+    "/site-content/notices",
+    "/notices",
+  ];
+  for (const path of roleOwnedNoticePaths) {
+    assert.ok(featuresForPath(path).includes("notices"), path + " must require the notices entitlement");
+  }
+
+  const noticeRoutesStart = backendNoticeRoutesSource.indexOf("/* Notices */");
+  const noticeRoutesEnd = backendNoticeRoutesSource.indexOf("/* Exams and results */", noticeRoutesStart);
+  const noticeRoutes = backendNoticeRoutesSource.slice(noticeRoutesStart, noticeRoutesEnd);
+  assert.equal((noticeRoutes.match(/requireFeature\\("notices"\\)/g) || []).length, 4,
+    "GET/POST/PATCH/DELETE notice endpoints must all enforce the notices entitlement");
+  assert.match(noticeRoutes, /authorize\\("notices\\.read"\\)/, "notice reads must still require notices.read");
+  assert.match(noticeRoutes, /authorize\\("notices\\.manage"\\)/, "notice mutations must still require notices.manage");
+  assert.ok(backendFeatureGuardSource.includes("assertTenantFeature(req.user.institutionId, feature, subscriptionSnapshot)"),
+    "API feature guards must check the active tenant subscription, not frontend navigation only");
+  assert.ok(!featuresForPath("/superadmin/notices").includes("notices"),
+    "the platform-only legacy alias is a redirect and must not expose tenant notice data");
 });
 
 test("direct-route and dashboard route guards both consult the tenant feature classifier", () => {
