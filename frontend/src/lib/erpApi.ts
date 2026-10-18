@@ -85,6 +85,15 @@ export interface ErpOffering {
     id?: string;
     name?: string;
     number?: number;
+    program?: {
+      id?: string;
+      name?: string;
+      code?: string;
+    };
+    academicYear?: {
+      id?: string;
+      name?: string;
+    };
   };
 
   section?: {
