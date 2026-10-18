@@ -188,6 +188,7 @@ router.patch(
 router.get(
   "/loans/mine",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -296,6 +297,7 @@ router.post(
 router.post(
   "/reservations",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   validateBody(reserveBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -315,6 +317,7 @@ router.post(
 router.post(
   "/reservations/:id/cancel",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
