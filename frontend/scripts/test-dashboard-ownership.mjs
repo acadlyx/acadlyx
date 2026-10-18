@@ -104,3 +104,19 @@ test("route ownership fails closed and final destinations are de-duplicated", ()
   assert.match(shell, /const uniqueDestinations = new Map<string, typeof roleItems\[number\]>\(\)/);
   assert.match(shell, /if \(!uniqueDestinations\.has\(destination\)\) uniqueDestinations\.set\(destination, item\)/);
 });
+
+test("legacy operational aliases redirect to their canonical role-owned page", () => {
+  const accountsFees = readFrontend("app/accounts/fees/page.tsx");
+  const hodStudents = readFrontend("app/hod/students/page.tsx");
+  const libraryCirculation = readFrontend("app/library/circulation/page.tsx");
+  const chairmanFeeApprovals = readFrontend("app/chairman/fee-approvals/page.tsx");
+  const chairmanOperations = readFrontend("app/chairman/operations/page.tsx");
+  const directorOperations = readFrontend("app/director/operations/page.tsx");
+
+  assert.match(accountsFees, /redirect\("\/fees"\)/, "Accounts fees alias should resolve to the shared protected fees destination");
+  assert.match(hodStudents, /redirect\("\/hod"\)/, "HOD students must not duplicate the HOD home page");
+  assert.match(libraryCirculation, /redirect\("\/library\?tab=circulation"\)/, "Library circulation should use the canonical circulation tab");
+  assert.match(chairmanFeeApprovals, /redirect\("\/chairman\/fees\/structures"\)/);
+  assert.match(chairmanOperations, /redirect\("\/chairman"\)/);
+  assert.match(directorOperations, /router\.replace\("\/director"\)|window\.location\.replace\("\/director"\)/);
+});
