@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
 import { prisma } from "../lib/prisma";
 import { assertCanViewStudent } from "../services/accessScope.service";
+import { assertExpenseAttachmentAccessible } from "../services/finance.service";
 import { requireInstitution } from "../utils/requireInstitution";
 import {
   deleteFile,
@@ -102,6 +103,9 @@ export const get = async (req: Request, res: Response): Promise<void> => {
 
   if (!req.user?.roles.includes("SUPER_ADMIN")) {
     const actor = req.user!;
+    if (result.file.module === "expenses") {
+      await assertExpenseAttachmentAccessible(institutionId, actor, result.file.id);
+    }
     const modulePermissions = MODULE_PERMISSIONS[result.file.module] ?? ["documents.read"];
     const canRead = modulePermissions.some((permission) => actor.permissions.includes(permission));
     const isOwner = result.file.ownerId === actor.id;
@@ -148,6 +152,10 @@ export const remove = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const result = await getFileDelivery(req.params.id, institutionId);
   assertModuleAccess(req, result.file.module, result.file.module === "expenses" ? "expenses.manage" : undefined);
+  if (result.file.module === "expenses" && result.file.referenceId) {
+    await assertExpenseAttachmentAccessible(institutionId, req.user!, result.file.id);
+    throw new AppError("An attached expense document must be replaced from the expense form so its record and audit context stay linked.", 409);
+  }
   await deleteFile(req.params.id, institutionId);
   res.json({ success: true, data: { id: req.params.id, deleted: true } });
 };

@@ -636,6 +636,19 @@ function expenseInput(input:any,context:{campusId:string|null;departmentId:strin
   departmentId:context.departmentId,
  };
 }
+export async function assertExpenseAttachmentAccessible(institutionId:string,a:AuthenticatedUser,fileId:string):Promise<void>{
+ if(!has(a,"expenses.read")&&!has(a,"expenses.manage")&&!has(a,"expenses.approve"))throw new AppError("Expense document permission required",403);
+ const file=await prisma.fileAsset.findFirst({where:{id:fileId,institutionId,module:"expenses"},select:{id:true,ownerId:true,referenceId:true}});
+ if(!file)throw new AppError("Expense document not found in this institution",404);
+ if(!file.referenceId){
+  if(file.ownerId!==a.id&&!has(a,"expenses.manage"))throw new AppError("Expense document is not attached to a visible expense",403);
+  return;
+ }
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ const expense=await visibleExpense(institutionId,s,file.referenceId);
+ if(expense.supportingDocumentFileId!==file.id)throw new AppError("Expense document is no longer attached to this expense",404);
+}
+
 export async function listExpenses(institutionId:string,a:AuthenticatedUser,input:{status?:string;category?:string;search?:string}={}) {
  if(!has(a,"expenses.read")&&!has(a,"expenses.manage")&&!has(a,"expenses.approve")) throw new AppError("Expense visibility permission required",403);
  const s=await scope(institutionId,a); assertExpenseScope(s);
