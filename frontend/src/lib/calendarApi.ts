@@ -63,13 +63,6 @@ export async function listCampusOptions(): Promise<CampusOption[]> {
   return res.data;
 }
 
-export interface CampusOption { id: string; name: string; code: string; }
-
-export async function listCampusOptions(): Promise<CampusOption[]> {
-  const res = await authedFetch<PagedEnvelope<CampusOption>>("/campuses?page=1&pageSize=100");
-  return res.data;
-}
-
 export interface EventInput {
   title: string;
   description?: string;

@@ -45,7 +45,6 @@ const emptyForm = {
   audience: "ALL" as Audience,
   academicYearId: "",
   campusId: "",
-  campusId: "",
 };
 
 const day = (value: string) => new Date(value).toLocaleDateString();
@@ -61,8 +60,6 @@ export default function CalendarPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [years, setYears] = useState<AcademicYearOption[]>([]);
-  const [campuses, setCampuses] = useState<CampusOption[]>([]);
-  const [campusFilter, setCampusFilter] = useState("");
   const [campuses, setCampuses] = useState<CampusOption[]>([]);
   const [campusFilter, setCampusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -81,8 +78,6 @@ export default function CalendarPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const canManage = user?.permissions.includes("calendar.manage") ?? false;
-  const roles = user?.roles ?? [];
-  const institutionWide = roles.includes("CHAIRMAN") || (!roles.some((role) => ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"].includes(role)) && roles.some((role) => ["INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR"].includes(role)));
   const roles = user?.roles ?? [];
   const institutionWide = roles.includes("CHAIRMAN") || (!roles.some((role) => ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"].includes(role)) && roles.some((role) => ["INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR"].includes(role)));
 
@@ -160,7 +155,6 @@ export default function CalendarPage() {
       audience: event.audience,
       academicYearId: event.academicYearId ?? "",
        campusId: event.campusId ?? "",
-       campusId: event.campusId ?? "",
     });
   }
 
@@ -185,7 +179,6 @@ export default function CalendarPage() {
         endDate: form.endDate,
         audience: form.audience,
         academicYearId: form.academicYearId || undefined,
-         ...(form.campusId ? { campusId: form.campusId } : institutionWide ? { campusId: null } : {}),
          ...(form.campusId ? { campusId: form.campusId } : institutionWide ? { campusId: null } : {}),
       };
       if (editingId) {
@@ -266,12 +259,6 @@ export default function CalendarPage() {
               </option>
             ))}
           </select>
-          {campuses.length > 0 && (
-            <select aria-label="Filter by campus" value={campusFilter} onChange={(e) => { setPage(1); setCampusFilter(e.target.value); }} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-              <option value="">All authorized campuses</option>
-              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code} · {campus.name}</option>)}
-            </select>
-          )}
           {campuses.length > 0 && (
             <select aria-label="Filter by campus" value={campusFilter} onChange={(e) => { setPage(1); setCampusFilter(e.target.value); }} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
               <option value="">All authorized campuses</option>
@@ -394,15 +381,6 @@ export default function CalendarPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Campus</span>
-              <select value={form.campusId} onChange={(e) => setForm((prev) => ({ ...prev, campusId: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2">
-                {institutionWide && <option value="">Institution-wide</option>}
-                {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code} · {campus.name}</option>)}
-                {!institutionWide && <option value="">Auto-assign if only one campus is authorized</option>}
-              </select>
-              <span className="mt-1 block text-xs text-slate-500">Campus scope is validated by the server on every mutation.</span>
             </label>
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-600">Campus</span>
