@@ -160,10 +160,10 @@ test("all tenant notice aliases enforce the notices entitlement and notice APIs 
   const noticeRoutesStart = backendNoticeRoutesSource.indexOf("/* Notices */");
   const noticeRoutesEnd = backendNoticeRoutesSource.indexOf("/* Exams and results */", noticeRoutesStart);
   const noticeRoutes = backendNoticeRoutesSource.slice(noticeRoutesStart, noticeRoutesEnd);
-  assert.equal((noticeRoutes.match(/requireFeature\\("notices"\\)/g) || []).length, 4,
+  assert.equal(noticeRoutes.split('requireFeature("notices")').length - 1, 4,
     "GET/POST/PATCH/DELETE notice endpoints must all enforce the notices entitlement");
-  assert.match(noticeRoutes, /authorize\\("notices\\.read"\\)/, "notice reads must still require notices.read");
-  assert.match(noticeRoutes, /authorize\\("notices\\.manage"\\)/, "notice mutations must still require notices.manage");
+  assert.ok(noticeRoutes.includes('authorize("notices.read")'), "notice reads must still require notices.read");
+  assert.ok(noticeRoutes.includes('authorize("notices.manage")'), "notice mutations must still require notices.manage");
   assert.ok(backendFeatureGuardSource.includes("assertTenantFeature(req.user.institutionId, feature, subscriptionSnapshot)"),
     "API feature guards must check the active tenant subscription, not frontend navigation only");
   assert.ok(!featuresForPath("/superadmin/notices").includes("notices"),
