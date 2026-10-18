@@ -676,7 +676,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Admissions",
     href: "/admissions",
     icon: "▤",
-    roles: ["REGISTRAR"],
+    roles: ["REGISTRAR", "ADMISSIONS"],
     permissions: ["admissions.read"],
     group: "Academic",
   },
@@ -1870,6 +1870,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/admissions/reports", ["ADMISSIONS"]],
   ["/admissions/students", ["ADMISSIONS"]],
+  ["/admissions", ["ADMISSIONS", "REGISTRAR"]],
   ["/library/reports", ["LIBRARIAN"]],
   ["/library/students", ["LIBRARIAN"]],
   ["/club", ["CLUB_PRESIDENT"]],
