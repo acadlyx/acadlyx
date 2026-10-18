@@ -28,3 +28,11 @@ export async function decideFinanceExpense(id:string,decision:"APPROVED"|"REJECT
 export async function financeExpenseHistory(id:string){return(await authedFetch<{success:boolean;data:any[]}>("/finance/expenses/"+id+"/history")).data}
 
 export async function downloadFinanceExpenses(format:"xlsx"|"csv"|"docx"|"pdf"|"json"="xlsx"){const x=await authedDownload("/finance/expenses/export?format="+format);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+
+export async function financeRecordPayment(id:string,input:{amount:string;method:string;reference?:string;notes?:string;idempotencyKey:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/payments",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeRequestConcession(id:string,input:{amount:string;type:string;reason:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/concessions",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeRequestRefund(paymentId:string,input:{amount:string;reason:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/payments/"+paymentId+"/refunds",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeApproveConcession(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/concessions/"+id+"/approve",{method:"POST",body:JSON.stringify({})})).data}
+export async function financeApproveRefund(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/refunds/"+id+"/approve",{method:"POST",body:JSON.stringify({})})).data}
+export async function financeProcessRefund(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/refunds/"+id+"/process",{method:"POST",body:JSON.stringify({})})).data}
+export async function financeCancelInvoice(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/cancel",{method:"POST",body:JSON.stringify({})})).data}

@@ -143,11 +143,11 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  return {...base,pendingExpenses:pendingExpenseMetrics.count,pendingExpenseAmount:pendingExpenseMetrics.amount,paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),todayPaymentMethods:todayMethods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),trend,recentPayments,recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount))})),actionRequired:actions,pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})),programs:departments.programs,semesters:departments.semesters};
 }
 
-export async function invoices(institutionId:string,a:AuthenticatedUser,input:{studentId?:string;status?:string;search?:string;page?:number;pageSize?:number}){
+export async function invoices(institutionId:string,a:AuthenticatedUser,input:{studentId?:string;status?:string;search?:string;overdueOnly?:boolean;page?:number;pageSize?:number}){
  const s=await scope(institutionId,a);if(!has(a,"fees.read")&&!has(a,"fees.invoice.read"))throw new AppError("Invoice visibility permission required",403);
  if(input.studentId&&s.studentIds&&!s.studentIds.includes(input.studentId))throw new AppError("Student is outside your scope",403);
  const page=Math.max(1,input.page||1),size=Math.min(100,Math.max(1,input.pageSize||25));
- const where:Prisma.FeeInvoiceWhereInput={...invoiceWhere(s),...(input.studentId?{studentId:input.studentId}:{}),...(input.status?{status:input.status}:{}),...(input.search?{OR:[{title:{contains:input.search,mode:"insensitive"}},{invoiceNumber:{contains:input.search,mode:"insensitive"}}]}:{})};
+ const where:Prisma.FeeInvoiceWhereInput={...invoiceWhere(s),...(input.studentId?{studentId:input.studentId}:{}),...(input.overdueOnly?{status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]},dueDate:{lt:new Date()}}:{}),...(input.status?{status:input.status}:{}),...(input.search?{OR:[{title:{contains:input.search,mode:"insensitive"}},{invoiceNumber:{contains:input.search,mode:"insensitive"}}]}:{})};
  const [items,total]=await Promise.all([prisma.feeInvoice.findMany({where,include:{student:{select:{id:true,firstName:true,lastName:true,email:true,profile:{select:{admissionNumber:true}}}},payments:true,items:{include:{feeHead:true}},concessions:true,refunds:true,receipts:true},orderBy:{createdAt:"desc"},skip:(page-1)*size,take:size}),prisma.feeInvoice.count({where})]);
  return{items,total,page,pageSize:size};
 }
