@@ -63,6 +63,10 @@ test("Student and unrelated tenant roles cannot read, change, or submit Institut
   await expectForbidden(getInstitutionalCms(tenantId, student), "read permission");
   await expectForbidden(updateInstitutionalCms(tenantId, student, {}), "draft-management permission");
   await expectForbidden(submitInstitutionalCms(tenantId, student), "draft-management permission");
+
+  // Leadership role labels alone must not substitute for the explicit read grant.
+  const chairmanWithoutCmsPermissions = actor({ roles: ["CHAIRMAN"], permissions: [] });
+  await expectForbidden(getInstitutionalCms(tenantId, chairmanWithoutCmsPermissions), "read permission");
 });
 
 test("institutional draft writers cannot approve or reject without the approver role and permission", async () => {
