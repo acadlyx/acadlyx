@@ -248,6 +248,17 @@ function invalidateUserCache() {
     null;
 }
 
+function authorizationFingerprint(user: AuthUser | null): string | null {
+  if (!user) return null;
+  return JSON.stringify({
+    id: user.id,
+    institutionId: user.institutionId,
+    roles: [...user.roles].sort(),
+    permissions: [...user.permissions].sort(),
+    tenantFeatures: [...(user.tenantFeatures ?? [])].sort(),
+  });
+}
+
 function validateUser(
   user: AuthUser
 ): AuthUser {
@@ -441,6 +452,7 @@ export async function getCurrentUser(
     )
       .then(
         (response) => {
+          const previousAuthorization = authorizationFingerprint(cachedUser);
           const user =
             validateUser(
               response.data
@@ -451,6 +463,17 @@ export async function getCurrentUser(
 
           cachedUserAt =
             Date.now();
+
+          // Roles, permissions and tenant features can be revoked server-side
+          // without rotating a browser token. Invalidate dependent caches when
+          // a fresh /auth/me changes the effective authorization context.
+          if (
+            previousAuthorization !== null &&
+            previousAuthorization !== authorizationFingerprint(user)
+          ) {
+            authCacheScope += 1;
+            notifyAuthCacheScopeChanged();
+          }
 
           return user;
         }
