@@ -1,4 +1,5 @@
 import { apiUrl, createMutationKey } from "./api";
+import { authorizationContextKey } from "./sessionScopedCache.mjs";
 
 const ACCESS_TOKEN_KEY =
   "acadlyx_access_token";
@@ -248,17 +249,6 @@ function invalidateUserCache() {
     null;
 }
 
-function authorizationFingerprint(user: AuthUser | null): string | null {
-  if (!user) return null;
-  return JSON.stringify({
-    id: user.id,
-    institutionId: user.institutionId,
-    roles: [...user.roles].sort(),
-    permissions: [...user.permissions].sort(),
-    tenantFeatures: [...(user.tenantFeatures ?? [])].sort(),
-  });
-}
-
 function validateUser(
   user: AuthUser
 ): AuthUser {
@@ -452,7 +442,7 @@ export async function getCurrentUser(
     )
       .then(
         (response) => {
-          const previousAuthorization = authorizationFingerprint(cachedUser);
+          const previousAuthorization = authorizationContextKey(cachedUser);
           const user =
             validateUser(
               response.data
@@ -469,7 +459,7 @@ export async function getCurrentUser(
           // a fresh /auth/me changes the effective authorization context.
           if (
             previousAuthorization !== null &&
-            previousAuthorization !== authorizationFingerprint(user)
+            previousAuthorization !== authorizationContextKey(user)
           ) {
             authCacheScope += 1;
             notifyAuthCacheScopeChanged();
