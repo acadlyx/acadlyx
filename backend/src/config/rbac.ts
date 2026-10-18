@@ -524,14 +524,13 @@ export const ROLE_PERMISSIONS: Record<
     "placements.read",
     ...EVENTS_READ,
     "events.manage",
-    "fees.structure.read",
-    "fees.structure.manage",
     /*
      * Institution-wide administrative role.
      *
      * Institution Admin manages the institution's people,
-     * academic structure, institutional configuration and
-     * examination operations.
+     * academic structure and institutional configuration.
+     * Fees, assignments and examination operations remain
+     * separately entitled / role-owned capabilities.
      *
      * Platform-only permissions remain excluded.
      */
