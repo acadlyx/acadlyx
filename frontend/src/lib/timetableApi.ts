@@ -60,16 +60,27 @@ interface ApiEnvelope<T> {
  *
  * Backend authorization remains the security boundary.
  */
-export async function listTimetableEntries(): Promise<
-  TimetableEntry[]
-> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<TimetableEntry[]>
-    >(
-      "/erp/timetable",
-    );
+export type TimetableWorkspaceFilters = {
+  campusId?: string;
+  departmentId?: string;
+  programId?: string;
+  academicYearId?: string;
+  batchId?: string;
+  semesterId?: string;
+  sectionId?: string;
+};
 
+export async function listTimetableEntries(
+  filters: TimetableWorkspaceFilters = {},
+): Promise<TimetableEntry[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  const response = await authedFetch<ApiEnvelope<TimetableEntry[]>>(
+    query ? `/erp/timetable?${query}` : "/erp/timetable",
+  );
   return response.data;
 }
 
