@@ -28,3 +28,9 @@ export const requestConcession=asyncHandler(async(req,res)=>res.status(201).json
 export const approveConcession=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.approveConcession(requireInstitution(req),a(req),req.params.id)}));
 
 export const cancelInvoice=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.cancelInvoice(requireInstitution(req),a(req),req.params.id)}));
+
+export const expenses=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.listExpenses(requireInstitution(req),a(req),req.query as any)}));
+export const createExpense=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await finance.createExpense(requireInstitution(req),a(req),req.body)}));
+export const updateExpense=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.updateExpense(requireInstitution(req),a(req),req.params.id,req.body)}));
+export const decideExpense=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.decideExpense(requireInstitution(req),a(req),req.params.id,req.body)}));
+export const expenseHistory=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.expenseHistory(requireInstitution(req),a(req),req.params.id)}));

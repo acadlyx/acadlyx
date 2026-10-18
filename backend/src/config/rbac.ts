@@ -207,6 +207,9 @@ export const PERMISSIONS = [
 
   { key: "results.read", module: "exams", description: "View examination results within scope" },
 
+  { key: "expenses.read", module: "fees", description: "View institution expenses within authorized campus or department scope" },
+  { key: "expenses.manage", module: "fees", description: "Create and edit unapproved expenses" },
+  { key: "expenses.approve", module: "fees", description: "Approve or reject pending expenses with comments" },
   { key: "fees.read", module: "fees", description: "View fee records within scope" },
   { key: "fees.collection.read", module: "fees", description: "View authorized fee collection summaries" },
   { key: "fees.structure.read", module: "fees", description: "View fee structures and heads" },
@@ -645,6 +648,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
     "fees.structure.read",
     "fees.structure.manage",
     "fees.structure.approve",
@@ -671,6 +676,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
     "fees.structure.read",
     "fees.structure.manage",
     "fees.structure.approve",
@@ -690,6 +697,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
@@ -975,6 +984,8 @@ export const ROLE_PERMISSIONS: Record<
     "fees.refund.process",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.manage",
 
     "fees.read",
     "fees.manage",

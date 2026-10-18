@@ -526,3 +526,122 @@ export async function cancelInvoice(institutionId:string,a:AuthenticatedUser,id:
  if(result.changed)await audit(institutionId,a.id,"finance.invoice.cancel","FeeInvoice",id,{previousStatus:result.previousStatus});
  return result.invoice;
 }
+
+
+type FinanceExpenseRow = {
+ id:string; institutionId:string; category:string; description:string; amount:Prisma.Decimal|number|string;
+ vendor:string|null; reference:string|null; spentAt:Date; supportDetails:string|null; supportingDocumentUrl:string|null;
+ campusId:string|null; departmentId:string|null; status:string; createdById:string; updatedById:string|null;
+ approvedById:string|null; decisionComment:string|null; approvedAt:Date|null; createdAt:Date; updatedAt:Date;
+};
+type ExpenseScopeFilter = Scope & { actor: AuthenticatedUser };
+function assertExpenseScope(s:Scope):void {
+ if(s.studentIds) throw new AppError("Expense management is not available in student or parent scope",403);
+}
+function expenseWhere(institutionId:string,s:Scope):Prisma.Sql {
+ const parts:Prisma.Sql[]=[Prisma.sql`"institutionId" = ${institutionId}`];
+ if(s.departmentIds) parts.push(Prisma.sql`"departmentId" IN (${Prisma.join(s.departmentIds)})`);
+ if(s.campusIds) parts.push(Prisma.sql`"campusId" IN (${Prisma.join(s.campusIds)})`);
+ return Prisma.join(parts," AND ");
+}
+async function assertExpenseContext(institutionId:string,s:Scope,input:any):Promise<{campusId:string|null;departmentId:string|null}> {
+ const campusId=input.campusId ? String(input.campusId) : null;
+ const departmentId=input.departmentId ? String(input.departmentId) : null;
+ if(s.campusIds && (!campusId || !s.campusIds.includes(campusId))) throw new AppError("Choose a campus in your authorized campus scope",403);
+ if(s.departmentIds && (!departmentId || !s.departmentIds.includes(departmentId))) throw new AppError("Choose a department in your authorized department scope",403);
+ if(campusId) {
+  const campus=await prisma.campus.findFirst({where:{id:campusId,institutionId},select:{id:true}});
+  if(!campus) throw new AppError("Campus is outside this institution",403);
+  if(s.campusIds && !s.campusIds.includes(campus.id)) throw new AppError("Campus is outside your authorized scope",403);
+ }
+ if(departmentId) {
+  const where:any={id:departmentId,institutionId};
+  if(campusId) where.campusId=campusId;
+  if(s.departmentIds) where.id={in: s.departmentIds.filter(id=>id===departmentId)};
+  if(s.campusIds) where.campusId={in:s.campusIds};
+  const department=await prisma.department.findFirst({where,select:{id:true,campusId:true}});
+  if(!department) throw new AppError("Department is outside this institution or authorized scope",403);
+  if(campusId && department.campusId!==campusId) throw new AppError("The selected department does not belong to the selected campus",400);
+ }
+ return {campusId,departmentId};
+}
+async function visibleExpense(institutionId:string,s:Scope,id:string,forUpdate=false):Promise<FinanceExpenseRow> {
+ const rows=await prisma.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`SELECT * FROM "finance_expenses" WHERE "id" = ${id} AND ${expenseWhere(institutionId,s)} ${forUpdate?Prisma.sql`FOR UPDATE`:Prisma.empty}`);
+ if(!rows.length) throw new AppError("Expense not found in authorized scope",404);
+ return rows[0];
+}
+function expenseInput(input:any,context:{campusId:string|null;departmentId:string|null}) {
+ return {
+  category:String(input.category).trim(),
+  description:String(input.description).trim(),
+  amount:dec(input.amount),
+  vendor:input.vendor?.trim()?String(input.vendor).trim():null,
+  reference:input.reference?.trim()?String(input.reference).trim():null,
+  spentAt:new Date(input.spentAt),
+  supportDetails:input.supportDetails?.trim()?String(input.supportDetails).trim():null,
+  supportingDocumentUrl:input.supportingDocumentUrl?.trim()?String(input.supportingDocumentUrl).trim():null,
+  campusId:context.campusId,
+  departmentId:context.departmentId,
+ };
+}
+export async function listExpenses(institutionId:string,a:AuthenticatedUser,input:{status?:string;category?:string;search?:string}={}) {
+ if(!has(a,"expenses.read")&&!has(a,"expenses.manage")&&!has(a,"expenses.approve")) throw new AppError("Expense visibility permission required",403);
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ const parts:Prisma.Sql[]=[expenseWhere(institutionId,s)];
+ if(input.status) parts.push(Prisma.sql`"status" = ${input.status}`);
+ if(input.category) parts.push(Prisma.sql`"category" = ${input.category}`);
+ if(input.search) { const q=`%${input.search}%`; parts.push(Prisma.sql`("description" ILIKE ${q} OR COALESCE("vendor",'') ILIKE ${q} OR "category" ILIKE ${q} OR COALESCE("reference",'') ILIKE ${q})`); }
+ return prisma.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`SELECT * FROM "finance_expenses" WHERE ${Prisma.join(parts," AND ")} ORDER BY CASE "status" WHEN 'PENDING' THEN 0 WHEN 'REJECTED' THEN 1 ELSE 2 END, "spentAt" DESC, "createdAt" DESC LIMIT 500`);
+}
+export async function createExpense(institutionId:string,a:AuthenticatedUser,input:any) {
+ assertAccountsWorkspace(a,"Expense creation");
+ if(!has(a,"expenses.manage")) throw new AppError("Expense management permission required",403);
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ const context=await assertExpenseContext(institutionId,s,input);
+ const x=expenseInput(input,context); const id=crypto.randomUUID();
+ const created=await prisma.$transaction(async tx=>{
+  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`INSERT INTO "finance_expenses" ("id","institutionId","category","description","amount","vendor","reference","spentAt","supportDetails","supportingDocumentUrl","campusId","departmentId","status","createdById","updatedById","createdAt","updatedAt") VALUES (${id},${institutionId},${x.category},${x.description},${x.amount},${x.vendor},${x.reference},${x.spentAt},${x.supportDetails},${x.supportingDocumentUrl},${x.campusId},${x.departmentId},'PENDING',${a.id},${a.id},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *`);
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "finance_expense_status_history" ("id","institutionId","expenseId","fromStatus","toStatus","comment","changedById","createdAt") VALUES (${crypto.randomUUID()},${institutionId},${id},NULL,'PENDING','Expense submitted for approval',${a.id},CURRENT_TIMESTAMP)`);
+  return rows[0];
+ });
+ await audit(institutionId,a.id,"finance.expense.create","FinanceExpense",id,{amount:String(x.amount),category:x.category});
+ return created;
+}
+export async function updateExpense(institutionId:string,a:AuthenticatedUser,id:string,input:any) {
+ assertAccountsWorkspace(a,"Expense update");
+ if(!has(a,"expenses.manage")) throw new AppError("Expense management permission required",403);
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ const context=await assertExpenseContext(institutionId,s,input); const x=expenseInput(input,context);
+ const updated=await prisma.$transaction(async tx=>{
+  const current=await visibleExpense(institutionId,s,id,true);
+  if(!["PENDING","REJECTED"].includes(current.status)) throw new AppError("Approved expenses cannot be edited",409);
+  const status=current.status==="REJECTED"?"PENDING":current.status;
+  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "category"=${x.category},"description"=${x.description},"amount"=${x.amount},"vendor"=${x.vendor},"reference"=${x.reference},"spentAt"=${x.spentAt},"supportDetails"=${x.supportDetails},"supportingDocumentUrl"=${x.supportingDocumentUrl},"campusId"=${x.campusId},"departmentId"=${x.departmentId},"status"=${status},"updatedById"=${a.id},"decisionComment"=NULL,"approvedById"=NULL,"approvedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} RETURNING *`);
+  if(current.status==="REJECTED") await tx.$executeRaw(Prisma.sql`INSERT INTO "finance_expense_status_history" ("id","institutionId","expenseId","fromStatus","toStatus","comment","changedById","createdAt") VALUES (${crypto.randomUUID()},${institutionId},${id},'REJECTED','PENDING','Edited and resubmitted for approval',${a.id},CURRENT_TIMESTAMP)`);
+  return rows[0];
+ });
+ await audit(institutionId,a.id,"finance.expense.update","FinanceExpense",id,{status:updated.status});
+ return updated;
+}
+export async function decideExpense(institutionId:string,a:AuthenticatedUser,id:string,input:{decision:"APPROVED"|"REJECTED";comment?:string}) {
+ if(!has(a,"expenses.approve")) throw new AppError("Expense approval permission required",403);
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ const comment=String(input.comment||"").trim();
+ if(input.decision==="REJECTED"&&comment.length<3) throw new AppError("A rejection reason is required",400);
+ const updated=await prisma.$transaction(async tx=>{
+  const current=await visibleExpense(institutionId,s,id,true);
+  if(current.status!=="PENDING") throw new AppError("Only pending expenses can be approved or rejected",409);
+  const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "status"=${input.decision},"decisionComment"=${comment||null},"approvedById"=${input.decision==="APPROVED"?a.id:null},"approvedAt"=${input.decision==="APPROVED"?new Date():null},"updatedById"=${a.id},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} AND "status"='PENDING' RETURNING *`);
+  if(!rows.length) throw new AppError("Expense was already reviewed; reload and try again",409);
+  await tx.$executeRaw(Prisma.sql`INSERT INTO "finance_expense_status_history" ("id","institutionId","expenseId","fromStatus","toStatus","comment","changedById","createdAt") VALUES (${crypto.randomUUID()},${institutionId},${id},'PENDING',${input.decision},${comment||null},${a.id},CURRENT_TIMESTAMP)`);
+  return rows[0];
+ });
+ await audit(institutionId,a.id,input.decision==="APPROVED"?"finance.expense.approve":"finance.expense.reject","FinanceExpense",id,{comment});
+ return updated;
+}
+export async function expenseHistory(institutionId:string,a:AuthenticatedUser,id:string) {
+ if(!has(a,"expenses.read")&&!has(a,"expenses.manage")&&!has(a,"expenses.approve")) throw new AppError("Expense history permission required",403);
+ const s=await scope(institutionId,a); assertExpenseScope(s);
+ await visibleExpense(institutionId,s,id);
+ return prisma.$queryRaw<Array<{id:string;fromStatus:string|null;toStatus:string;comment:string|null;changedById:string;createdAt:Date}>>(Prisma.sql`SELECT "id","fromStatus","toStatus","comment","changedById","createdAt" FROM "finance_expense_status_history" WHERE "institutionId"=${institutionId} AND "expenseId"=${id} ORDER BY "createdAt" DESC`);
+}
