@@ -26,6 +26,58 @@ function exportUrl(type: ExportType, format: ExportFormat, options: ExportOption
   return "/exports/" + encodeURIComponent(type) + "?" + params.toString();
 }
 
+export interface BackgroundExportJob {
+  jobId: string;
+  status: string;
+  progress: number;
+  processed: number;
+  failed: number;
+  total: number;
+  errorMessage: string | null;
+  result?: { fileId?: string; filename?: string; rowCount?: number; contentType?: string } | null;
+}
+export interface ExportJobSubmission {
+  jobId: string;
+  status: string;
+  type: ExportType;
+  format: ExportFormat;
+}
+const EXPORT_JOB_STATUSES = new Set([
+  "QUEUED", "PROCESSING", "COMPLETED", "PARTIAL",
+  "FAILED", "CANCEL_REQUESTED", "CANCELLED",
+]);
+
+export async function getExportJob(jobId: string): Promise<BackgroundExportJob> {
+  const response = await authedFetch<{ data: { id: string; status: string; progress: number; processed: number; failed: number; total: number; errorMessage: string | null; result?: BackgroundExportJob["result"] } }>(`/exports/jobs/${encodeURIComponent(jobId)}`);
+  const job = response.data;
+  if (!job || typeof job.id !== "string" || !EXPORT_JOB_STATUSES.has(job.status)) throw new Error("The server did not return a valid export job state.");
+  return { jobId: job.id, status: job.status, progress: job.progress || 0, processed: job.processed || 0, failed: job.failed || 0, total: job.total || 0, errorMessage: job.errorMessage || null, result: job.result || null };
+}
+
+export async function cancelExportJob(jobId: string): Promise<BackgroundExportJob> {
+  const response = await authedFetch<{ data: { id: string; status: string; progress: number; processed: number; failed: number; total: number; errorMessage: string | null; result?: BackgroundExportJob["result"] } }>(`/exports/jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+  const job = response.data;
+  if (!job || typeof job.id !== "string" || !EXPORT_JOB_STATUSES.has(job.status)) throw new Error("The server did not return a valid export cancellation state.");
+  return { jobId: job.id, status: job.status, progress: job.progress || 0, processed: job.processed || 0, failed: job.failed || 0, total: job.total || 0, errorMessage: job.errorMessage || null, result: job.result || null };
+}
+
+async function enqueueExport(type: ExportType, format: ExportFormat, options: ExportOptions): Promise<ExportJobSubmission> {
+  const response = await authedFetch<{ data: ExportJobSubmission }>(`/exports/${encodeURIComponent(type)}/jobs`, {
+    method: "POST",
+    body: JSON.stringify({
+      format,
+      selection: options.selection || "all-filtered",
+      ...(options.ids ? { ids: options.ids } : {}),
+      ...(options.page !== undefined ? { page: options.page } : {}),
+      ...(options.pageSize !== undefined ? { pageSize: options.pageSize } : {}),
+      ...(options.filters ? { filters: options.filters } : {}),
+    }),
+  });
+  const job = response.data;
+  if (!job || typeof job.jobId !== "string" || !job.jobId.trim() || job.type !== type || job.format !== format || !EXPORT_JOB_STATUSES.has(job.status)) throw new Error("The server did not return a valid export job receipt.");
+  return job;
+}
+
 export interface ImportPreviewResult {
   totalRows: number;
   validRows?: number;
@@ -107,11 +159,35 @@ export async function getImportJob(jobId: string) {
   return body.data;
 }
 
-export async function exportData(type: ExportType, format: ExportFormat, options: ExportOptions = {}): Promise<void> {
-  const response = await authedBlobFetch(exportUrl(type, format, options));
+export async function exportData(
+  type: ExportType,
+  format: ExportFormat,
+  options: ExportOptions = {},
+  onBackgroundProgress?: (job: BackgroundExportJob) => void,
+): Promise<void> {
+  let response = await authedBlobFetch(exportUrl(type, format, options));
+  if (response.status === 413) {
+    const submission = await enqueueExport(type, format, options);
+    let job = await getExportJob(submission.jobId);
+    const startedAt = Date.now();
+    onBackgroundProgress?.(job);
+    while (!["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"].includes(job.status)) {
+      if (Date.now() - startedAt > 30 * 60 * 1000) {
+        throw new Error("The export is still processing. Reopen the job to check its state; no completion is confirmed.");
+      }
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
+      job = await getExportJob(submission.jobId);
+      onBackgroundProgress?.(job);
+    }
+    onBackgroundProgress?.(job);
+    if (job.status === "CANCELLED") throw new Error("The export job was cancelled.");
+    if (job.status === "FAILED") throw new Error(job.errorMessage || "The background export failed.");
+    if (!job.result?.fileId) throw new Error("The completed export job has no downloadable artifact.");
+    response = await authedBlobFetch(`/exports/jobs/${encodeURIComponent(submission.jobId)}/download`);
+  }
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message || "Export failed (" + response.status + ")");
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.error?.message || "Export failed (" + response.status + ")");
   }
   const blob = await response.blob();
   if (blob.size === 0) throw new Error("The server returned an empty export file. No download was created.");
