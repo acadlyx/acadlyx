@@ -990,17 +990,17 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedDepartment(
-                    event.target.value,
-                  );
-
-                  setSelectedProgram(
-                    "",
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedDepartment(value);
+                  setSelectedProgram("");
+                  setSelectedSemester("");
+                  setSelectedSection("");
+                  updateWorkspaceFilters({
+                    departmentId: value,
+                    programId: "",
+                    semesterId: "",
+                    sectionId: "",
+                  });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1041,13 +1041,15 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedProgram(
-                    event.target.value,
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedProgram(value);
+                  setSelectedSemester("");
+                  setSelectedSection("");
+                  updateWorkspaceFilters({
+                    programId: value,
+                    semesterId: "",
+                    sectionId: "",
+                  });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1091,13 +1093,10 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedSemester(
-                    event.target.value,
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedSemester(value);
+                  setSelectedSection("");
+                  updateWorkspaceFilters({ semesterId: value, sectionId: "" });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1135,13 +1134,11 @@ export default function TimetablePage() {
                 value={
                   selectedSection
                 }
-                onChange={(
-                  event,
-                ) =>
-                  setSelectedSection(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedSection(value);
+                  updateWorkspaceFilters({ sectionId: value });
+                }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
                 <option value="">
