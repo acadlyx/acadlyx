@@ -537,7 +537,6 @@ type FinanceExpenseRow = {
  campusId:string|null; departmentId:string|null; status:string; createdById:string; updatedById:string|null;
  approvedById:string|null; decisionComment:string|null; approvedAt:Date|null; createdAt:Date; updatedAt:Date;
 };
-type ExpenseScopeFilter = Scope & { actor: AuthenticatedUser };
 function assertExpenseScope(s:Scope):void {
  if(s.studentIds) throw new AppError("Expense management is not available in student or parent scope",403);
 }
