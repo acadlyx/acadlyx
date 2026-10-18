@@ -333,7 +333,10 @@ export default function TimetablePage() {
                 sectionId: workspaceFilters.sectionId,
               }),
               listTimetableEntries(workspaceFilters),
-              listTimetablePrograms(),
+              listTimetablePrograms({
+                campusId: workspaceFilters.campusId,
+                departmentId: workspaceFilters.departmentId,
+              }),
             ]);
 
           setOfferings(
