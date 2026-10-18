@@ -33,7 +33,7 @@ export function DocumentsScreen() {
   const workspaceKey = JSON.stringify(context?.scope ?? {});
   const [openError, setOpenError] = useState("");
   const query = useQuery({
-    queryKey: ["documents", user?.id],
+    queryKey: ["documents", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/portal/documents/me"),
     enabled: Boolean(user?.id && user.permissions.includes("documents.read")),
     staleTime: 0

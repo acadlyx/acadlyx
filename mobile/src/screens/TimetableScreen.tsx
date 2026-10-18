@@ -39,13 +39,13 @@ export function TimetableScreen() {
   const [room, setRoom] = useState("");
 
   const entriesQuery = useQuery({
-    queryKey: ["timetable", user?.id],
+    queryKey: ["timetable", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/erp/timetable"),
     enabled: Boolean(user?.id),
     staleTime: 0
   });
   const offeringsQuery = useQuery({
-    queryKey: ["course-offerings-for-timetable", user?.id],
+    queryKey: ["course-offerings-for-timetable", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/course-offerings?page=1&pageSize=100"),
     enabled: Boolean(user?.id && canManage && formVisible),
     staleTime: 15000

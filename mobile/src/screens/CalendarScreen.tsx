@@ -49,7 +49,7 @@ export function CalendarScreen() {
   const [audience, setAudience] = useState<Audience>("ALL");
 
   const list = useQuery({
-    queryKey: ["calendar-events", user?.id],
+    queryKey: ["calendar-events", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/calendar/events?page=1&pageSize=50"),
     enabled: Boolean(user?.id),
     staleTime: 0
