@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { AuthRequiredError, authedFetch, HttpRequestError } from "@/lib/auth";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Student = {
   id: string;
@@ -33,6 +33,8 @@ export function RoleScopedStudents({
   placementFilters?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,8 +42,38 @@ export function RoleScopedStudents({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [criteria, setCriteria] = useState<CriteriaOptions | null>(null);
-  const [filters, setFilters] = useState({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "", academicYearId: "" });
+  const [filters, setFilters] = useState(() => ({
+    campusId: placementFilters ? searchParams.get("campusId") || "" : "",
+    departmentId: placementFilters ? searchParams.get("departmentId") || "" : "",
+    programId: placementFilters ? searchParams.get("programId") || "" : "",
+    batchId: placementFilters ? searchParams.get("batchId") || "" : "",
+    semesterId: placementFilters ? searchParams.get("semesterId") || "" : "",
+    academicYearId: placementFilters ? searchParams.get("academicYearId") || "" : "",
+    sectionId: placementFilters ? searchParams.get("sectionId") || "" : "",
+  }));
   const pageSize = 25;
+
+  function updateWorkspaceFilter(key: keyof typeof filters, value: string) {
+    const next = { ...filters, [key]: value };
+    const dependents: Partial<Record<keyof typeof filters, Array<keyof typeof filters>>> = {
+      campusId: ["departmentId", "programId", "batchId", "semesterId", "sectionId"],
+      departmentId: ["programId", "semesterId", "sectionId"],
+      programId: ["batchId", "semesterId", "sectionId"],
+      academicYearId: ["semesterId", "sectionId"],
+      semesterId: ["sectionId"],
+    };
+    for (const child of dependents[key] || []) next[child] = "";
+    setFilters(next);
+    setPage(1);
+    const params = new URLSearchParams(searchParams.toString());
+    for (const contextKey of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+      const contextValue = next[contextKey];
+      if (contextValue) params.set(contextKey, contextValue);
+      else params.delete(contextKey);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +96,20 @@ export function RoleScopedStudents({
       setLoading(false);
     }
   }, [apiBasePath, page, pageSize, search, filters, router]);
+
+  useEffect(() => {
+    if (!placementFilters) return;
+    setFilters({
+      campusId: searchParams.get("campusId") || "",
+      departmentId: searchParams.get("departmentId") || "",
+      programId: searchParams.get("programId") || "",
+      batchId: searchParams.get("batchId") || "",
+      semesterId: searchParams.get("semesterId") || "",
+      academicYearId: searchParams.get("academicYearId") || "",
+      sectionId: searchParams.get("sectionId") || "",
+    });
+    setPage(1);
+  }, [searchParams, placementFilters]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -96,7 +142,7 @@ export function RoleScopedStudents({
           <label htmlFor="student-search" className="sr-only">Search students</label>
           <input id="student-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by student name, admission number or email" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm" />
           <button type="submit" className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white">Search</button>
-          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setFilters({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "", academicYearId: "" }); setPage(1); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
+          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); setFilters({ campusId: "", departmentId: "", programId: "", batchId: "", semesterId: "", academicYearId: "", sectionId: "" }); setPage(1); const params = new URLSearchParams(searchParams.toString()); for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) params.delete(key); const query = params.toString(); router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false }); }} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold">Reset</button>
           {placementFilters && <div className="grid w-full gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
             {([
               ["campusId", "Campus", criteria?.campuses ?? []],
@@ -106,7 +152,7 @@ export function RoleScopedStudents({
               ["semesterId", "Semester", criteria?.semesters ?? []],
               ["academicYearId", "Academic year / session", criteria?.academicYears ?? []],
             ] as Array<[keyof typeof filters, string, FilterOption[]]>).map(([key, label, options]) => <label key={key} className="flex flex-col gap-1 text-xs font-bold text-slate-600">{label}
-              <select value={filters[key]} onChange={(event) => { setFilters((current) => ({ ...current, [key]: event.target.value })); setPage(1); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal"><option value="">All {label.toLowerCase()}s</option>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+              <select value={filters[key]} onChange={(event) => updateWorkspaceFilter(key, event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal"><option value="">All {label.toLowerCase()}s</option>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
             </label>)}
           </div>}
         </form>
