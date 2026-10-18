@@ -134,7 +134,7 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  const overdueCount=await prisma.feeInvoice.count({where:{...invoiceFilter,dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}}});
  const pendingExpenseMetrics=(has(a,"expenses.read")||has(a,"expenses.manage")||has(a,"expenses.approve"))?await pendingExpenseSummary(institutionId,s):{count:0,amount:0};
  const actions=[
-  pendingExpenseMetrics.count>0?{kind:"expenses",count:pendingExpenseMetrics.count,label:"expenses awaiting approval",href:"/accounts/expenses"}:null,
+  pendingExpenseMetrics.count>0?{kind:"expenses",count:pendingExpenseMetrics.count,label:"expenses awaiting approval",href:getEffectiveWorkspaceRole(a)==="CHAIRMAN"?"/chairman/fees/expenses":getEffectiveWorkspaceRole(a)==="MANAGEMENT"?"/management/fees/expenses":getEffectiveWorkspaceRole(a)==="DIRECTOR"?"/director/fees/expenses":"/accounts/expenses"}:null,
   pendingRefunds>0?{kind:"refunds",count:pendingRefunds,label:"refunds awaiting review",href:"/accounts/refunds"}:null,
   pendingConcessions>0?{kind:"concessions",count:pendingConcessions,label:"concessions awaiting approval",href:"/accounts/concessions"}:null,
   pendingInvoices>0?{kind:"invoices",count:pendingInvoices,label:"invoices awaiting payment",href:"/accounts/invoices"}:null,

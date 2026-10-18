@@ -566,6 +566,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
+    label: "Expense approvals",
+    href: "/chairman/fees/expenses",
+    icon: "✓",
+    roles: ["CHAIRMAN"],
+    permissions: ["expenses.read"],
+    group: "Finance",
+  },
+  {
     label: "Financial oversight",
     href: "/chairman/fees",
     icon: "₹",
@@ -619,6 +627,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["exams.read"],
     group: "Academic",
     activeMatch: "nested",
+  },
+  {
+    label: "Expense approvals",
+    href: "/director/fees/expenses",
+    icon: "✓",
+    roles: ["DIRECTOR"],
+    permissions: ["expenses.read"],
+    group: "Finance",
   },
   {
     label: "Fee structures",
@@ -1726,6 +1742,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["CLUB_PRESIDENT"],
     group: "Workspace",
+  },
+  {
+    label: "Expense approvals",
+    href: "/management/fees/expenses",
+    icon: "✓",
+    roles: ["MANAGEMENT"],
+    permissions: ["expenses.read"],
+    group: "Finance",
   },
   {
     label: "Fee structure approvals",
