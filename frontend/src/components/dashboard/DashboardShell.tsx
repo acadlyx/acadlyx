@@ -9,30 +9,12 @@ import { useWorkspaceShellContext, WorkspaceShellProvider } from "./WorkspaceShe
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getPrimaryRole, normalizeRole } from "@/lib/authority";
-import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION } from "@/lib/navigation";
+import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION, roleOwnedHref } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
 import { getErpWorkspace, getErpWorkspaceSummary } from "@/lib/erpApi";
 import { GlobalSearchBar } from "./GlobalSearchBar";
 import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
-
-const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/chairman/notices": "/chairman/notices", "/chairman/notifications": "/chairman/notifications", "/chairman/events-gallery": "/chairman/events-gallery" },
-  DIRECTOR: { "/reports": "/director/reports", "/examinations": "/director/examinations", "/examinations/operations": "/director/examinations/operations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery", "/placements": "/director/placements", "/obe": "/director/obe" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students", "/notices": "/dean/notices" },
-  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
-  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence", "/notices": "/hod/notices" },
-  FACULTY: { "/erp": "/faculty/operations" },
-  STUDENT: { "/notices": "/student/notices" },
-  HR: { "/reports": "/hr/reports" },
-  STAFF: { "/erp": "/staff/operations" },
-  MANAGEMENT: { "/operations": "/management/operations", "/intelligence": "/management/intelligence", "/reports": "/management/reports" },
-  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
-};
-
-function roleOwnedHref(role: string | null, href: string): string {
-  return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
-}
 
 function routeIsAllowedForRole(pathname: string, _role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
   // Check the destination's own role and permission contract. Mapping a
