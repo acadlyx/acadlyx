@@ -153,9 +153,11 @@ export async function getAuthorizedDepartmentIds(
     return rows.map((row) => row.id);
   }
 
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    return getManagedDepartmentIds(institutionId, actor.id, activeRole);
+  }
+  if (activeRole === "FACULTY") return getStaffDepartmentIds(institutionId, actor.id);
   return [];
 }
 
@@ -285,12 +287,16 @@ export async function assertCourseOfferingInScope(institutionId: string, actor: 
 
 
 
-export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
-  // Inactive departments are no longer part of an operational workspace.
-  // Keep the access rows for audit/history, but never grant live scope through
-  // a disabled or cross-institution department.
+export async function getManagedDepartmentIds(
+  institutionId: string,
+  userId: string,
+  scope: "DEAN" | "HOD",
+): Promise<string[]> {
+  // DepartmentAccess rows are role-bound. Do not union HOD assignments into a
+  // Dean workspace (or Dean assignments into an HOD workspace) for multi-role
+  // accounts. Inactive/cross-tenant departments never grant live scope.
   const rows = await prisma.departmentAccess.findMany({
-    where: { userId, department: { institutionId, isActive: true } },
+    where: { userId, scope, department: { institutionId, isActive: true } },
     select: { departmentId: true },
   });
   return Array.from(new Set(rows.map((row) => row.departmentId)));
@@ -336,7 +342,7 @@ export async function getStudentWhereScope(
   if (actor.id && isInstitutionWide(actor)) return {};
 
   if (activeRole === "DEAN" || activeRole === "HOD") {
-    const departments = await getManagedDepartmentIds(institutionId, actor.id);
+    const departments = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return {
       studentEnrollments: {
@@ -424,7 +430,11 @@ export async function getStaffDepartmentIds(institutionId: string, userId: strin
 
 export async function assertHodCanReachUser(institutionId: string, actor: AuthenticatedUser, targetUserId: string): Promise<void> {
   if (actor.id === targetUserId) return;
-  const managed = await getManagedDepartmentIds(institutionId, actor.id);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole !== "DEAN" && activeRole !== "HOD") {
+    throw new AppError("Department-scoped user access is not available for this role", 403);
+  }
+  const managed = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
   if (managed.length === 0) throw new AppError("You have no department scope assigned", 403);
 
   const roles = await getUserRoleNames(institutionId, targetUserId);
@@ -470,7 +480,7 @@ export async function assertCanViewUserRecord(
   if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   } else if (activeRole === "DEAN" || activeRole === "HOD") {
-    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
   } else {
     // Students, parents, placement staff, and faculty do not gain generic
     // access to other employee/user records through a general read permission.
@@ -514,7 +524,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
 
   if (activeRole === "DEAN" || activeRole === "HOD") {
     const [managed, studentDepartments] = await Promise.all([
-      getManagedDepartmentIds(institutionId, actor.id),
+      getManagedDepartmentIds(institutionId, actor.id, activeRole),
       getStudentDepartmentIds(institutionId, studentId),
     ]);
     if (managed.length > 0 && studentDepartments.some((id) => managed.includes(id))) return;
