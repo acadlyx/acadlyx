@@ -10,7 +10,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { canManageNotices } from "@/lib/noticesPolicy";
+import { canManageNotices, canTargetDepartmentWithNotice, noticeRequiresDepartment } from "@/lib/noticesPolicy";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
@@ -121,6 +121,8 @@ export default function NoticesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canSelectDepartment, setCanSelectDepartment] = useState(false);
+  const [requiresDepartmentScope, setRequiresDepartmentScope] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showPublisher, setShowPublisher] = useState(false);
@@ -173,12 +175,16 @@ export default function NoticesPage() {
     try {
       const user = await getCurrentUser();
       const manage = canManageNotices(user.roles, user.permissions);
+      const allowDepartmentTargeting = manage && canTargetDepartmentWithNotice(user.roles);
+      const requireDepartmentTarget = manage && noticeRequiresDepartment(user.roles);
 
       setCanManage(manage);
+      setCanSelectDepartment(allowDepartmentTargeting);
+      setRequiresDepartmentScope(requireDepartmentTarget);
 
       const [noticeList, departmentList] = await Promise.all([
         listNotices(false),
-        manage ? listDepartments() : Promise.resolve([]),
+        allowDepartmentTargeting ? listDepartments() : Promise.resolve([]),
       ]);
 
       setNotices(noticeList);
@@ -208,6 +214,14 @@ export default function NoticesPage() {
 
     if (!form.title.trim() || !form.body.trim()) {
       setError("Title and message are required.");
+      return;
+    }
+    if (requiresDepartmentScope && !form.departmentId) {
+      setError("Select a department in your assigned campus or department scope.");
+      return;
+    }
+    if (!canSelectDepartment && form.departmentId) {
+      setError("This workspace can publish institution-wide notices only.");
       return;
     }
 
@@ -387,17 +401,33 @@ export default function NoticesPage() {
                   </span>
                   <select
                     value={form.departmentId}
+                    disabled={!canSelectDepartment}
+                    required={requiresDepartmentScope}
                     onChange={(event) => changeDepartmentScope(event.target.value)}
-                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    aria-describedby="notice-department-scope-help"
+                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                   >
-                    <option value="">All departments</option>
-                    {departments.map((department) => (
+                    <option value="" disabled={requiresDepartmentScope}>
+                      {requiresDepartmentScope
+                        ? "Select an assigned department"
+                        : canSelectDepartment
+                          ? "All departments"
+                          : "Institution-wide only"}
+                    </option>
+                    {canSelectDepartment ? departments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.name}
                         {department.code ? ` (${department.code})` : ""}
                       </option>
-                    ))}
+                    )) : null}
                   </select>
+                  <p id="notice-department-scope-help" className="mt-1 text-xs leading-5 text-slate-500">
+                    {requiresDepartmentScope
+                      ? "This role must publish within an assigned campus or department."
+                      : canSelectDepartment
+                        ? "Choose an authorized department or publish institution-wide."
+                        : "CMS publishing is institution-wide; department targeting requires an assigned institutional role."}
+                  </p>
                 </label>
 
                 <label>
