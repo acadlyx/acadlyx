@@ -184,30 +184,17 @@ export type TimetableProgram = {
  *
  * This is used only to build the timetable filters.
  */
-export async function listTimetablePrograms(): Promise<
-  TimetableProgram[]
-> {
-  const response =
-    await authedFetch<
-      ApiEnvelope<
-        | TimetableProgram[]
-        | {
-            items: TimetableProgram[];
-          }
-      >
-    >(
-      "/programs?page=1&pageSize=100",
-    );
-
-  if (
-    Array.isArray(
-      response.data,
-    )
-  ) {
-    return response.data;
+export async function listTimetablePrograms(
+  filters: Pick<TimetableWorkspaceFilters, "campusId" | "departmentId"> = {},
+): Promise<TimetableProgram[]> {
+  const params = new URLSearchParams({ page: "1", pageSize: "100" });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
   }
+  const response = await authedFetch<
+    ApiEnvelope<TimetableProgram[] | { items: TimetableProgram[] }>
+  >(`/programs?${params.toString()}`);
 
-  return (
-    response.data.items || []
-  );
+  if (Array.isArray(response.data)) return response.data;
+  return response.data.items || [];
 }
