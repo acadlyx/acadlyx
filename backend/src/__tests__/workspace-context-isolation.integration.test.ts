@@ -196,7 +196,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         select: { id: true },
       });
       await prisma.tenantFeatureEntitlement.createMany({
-        data: ["academics", "students", "assignments", "attendance", "results", "timetable", "parent_portal", "fees"].map((featureKey) => ({
+        data: ["academics", "students", "assignments", "attendance", "exams", "results", "timetable", "parent_portal", "fees"].map((featureKey) => ({
           institutionId,
           subscriptionId: subscription.id,
           featureKey,
