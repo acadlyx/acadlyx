@@ -14,3 +14,15 @@ export function canApplySessionResponse(
   requestedGeneration: number,
   currentGeneration: number,
 ): boolean;
+
+export type AuthorizationContext = {
+  id: string;
+  institutionId: string | null;
+  roles: readonly string[];
+  permissions: readonly string[];
+  tenantFeatures?: readonly string[];
+};
+
+export function authorizationContextKey(
+  user: AuthorizationContext | null,
+): string | null;
