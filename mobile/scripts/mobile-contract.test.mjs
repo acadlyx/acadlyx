@@ -681,6 +681,15 @@ test("shared web calendar exposes campus scope and Director uses campus-aware ed
 });
 
 
+test("mobile cancels and clears private query caches when identity or workspace changes", () => {
+ const boundary = read("src/auth/SessionQueryCacheBoundary.tsx");
+ const app = read("App.tsx");
+ assert.ok(boundary.includes("queryClient.cancelQueries()") && boundary.includes("queryClient.clear()"));
+ assert.ok(boundary.includes("institutionId") && boundary.includes("permissions") && boundary.includes("workspace"));
+ assert.ok(app.includes("<SessionQueryCacheBoundary>") && app.includes("</SessionQueryCacheBoundary>"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

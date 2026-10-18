@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./src/auth/AuthProvider";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { SessionQueryCacheBoundary } from "./src/auth/SessionQueryCacheBoundary";
 import { setActiveWorkspaceContext } from "./src/api/client";
 import { getAuthorizationShape, resetAuthorizationState } from "./src/workspace/workspaceScope.mjs";
 import { WorkspaceContextProvider } from "./src/workspace/WorkspaceContextProvider";
@@ -35,7 +36,7 @@ function SessionCacheBoundary() {
     return <AppBootFallback />;
   }
 
-  return <WorkspaceContextProvider><RootNavigator /></WorkspaceContextProvider>;
+  return <WorkspaceContextProvider><SessionQueryCacheBoundary><RootNavigator /></SessionQueryCacheBoundary></WorkspaceContextProvider>;
 }
 
 export default function App() {
