@@ -168,6 +168,18 @@ function getInflightMap(): Map<string, Promise<unknown>> {
  * the access token itself.
  */
 let authCacheScope = 0;
+const authCacheScopeListeners = new Set<() => void>();
+
+function notifyAuthCacheScopeChanged(): void {
+  // A faulty subscriber must not block other caches from invalidating.
+  for (const listener of authCacheScopeListeners) {
+    try {
+      listener();
+    } catch {
+      // Authentication state changes must not depend on UI listener success.
+    }
+  }
+}
 
 export type LoginResult =
   | {
@@ -305,6 +317,7 @@ export function setTokens(
 
   invalidateUserCache();
   authCacheScope += 1;
+  notifyAuthCacheScopeChanged();
 }
 
 export function clearTokens(): void {
@@ -325,10 +338,22 @@ export function clearTokens(): void {
 
   invalidateUserCache();
   authCacheScope += 1;
+  notifyAuthCacheScopeChanged();
 }
 
 export function getAuthCacheScope(): number {
   return authCacheScope;
+}
+
+/**
+ * Subscribe to credential/session transitions to invalidate ephemeral data
+ * immediately instead of waiting for feature-cache TTLs to expire.
+ */
+export function subscribeAuthCacheScope(listener: () => void): () => void {
+  authCacheScopeListeners.add(listener);
+  return () => {
+    authCacheScopeListeners.delete(listener);
+  };
 }
 
 /*
