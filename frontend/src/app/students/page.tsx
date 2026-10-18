@@ -39,8 +39,7 @@ export default function StudentsPage() {
 
     void (async () => {
       try {
-        const response =
-          const params = new URLSearchParams({ page: "1", pageSize: "12" });
+        const params = new URLSearchParams({ page: "1", pageSize: "12" });
           for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) {
             const value = searchParams.get(key);
             if (value) params.set(key, value);
