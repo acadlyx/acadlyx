@@ -43,11 +43,10 @@ async function fetchWorkspaceContext(
   });
 
   const suffix = query.toString();
-  let request: Promise<WorkspaceContext>;
-  request = authedFetch<{
+  const request = Promise.resolve().then(() => authedFetch<{
     success: boolean;
     data: WorkspaceContext;
-  }>(`/workspace/context${suffix ? `?${suffix}` : ""}`)
+  }>(`/workspace/context${suffix ? `?${suffix}` : ""}`))
     .then((response) => {
       // Do not let a response authenticated as a previous user populate the
       // new session's cache, even if the selector parameters are identical.
