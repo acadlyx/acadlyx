@@ -429,6 +429,29 @@ test("dedicated mobile workflows partition server data by active workspace", () 
 });
 
 
+test("mobile query keys cannot share cached results across academic workspace changes", () => {
+  const screens = [
+    "AssignmentsScreen.tsx", "AttendanceScreen.tsx", "AdmissionsScreen.tsx", "PlacementScreen.tsx",
+    "LibraryScreen.tsx", "HRScreen.tsx", "LeaveScreen.tsx", "NoticesScreen.tsx", "CalendarScreen.tsx",
+    "DocumentsScreen.tsx", "LmsScreen.tsx", "FinanceScreen.tsx", "ExaminationsScreen.tsx",
+    "StudentPortalScreen.tsx", "ParentScreen.tsx", "TimetableScreen.tsx", "NotificationsScreen.tsx",
+    "GlobalSearchScreen.tsx", "AcademicRecordsScreen.tsx"
+  ];
+  for (const name of screens) {
+    const screen = read("src/screens/" + name);
+    assert.ok(screen.includes("useWorkspaceContext"), name + " must subscribe to the workspace provider");
+    const queryKeys = [...screen.matchAll(/queryKey:\\s*(\\[[^\\]\\n]*\\])/g)];
+    for (const match of queryKeys) {
+      const before = screen.slice(Math.max(0, match.index - 100), match.index);
+      if (before.includes("invalidateQueries")) continue;
+      const key = match[1];
+      if (key.includes("user?.id")) assert.ok(key.includes("workspaceKey"), name + " has an unscoped query key: " + key);
+    }
+    if (name === "PlacementScreen.tsx") assert.ok(screen.includes('const keys = ["placements", user?.id, workspaceKey]'));
+  }
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
