@@ -94,7 +94,7 @@ test("institutional CMS permissions remain separate from platform site.manage", 
 test("notices are readable across the canonical roles but student publishing stays disabled", () => {
   const readRoles = notices.match(/const READ_ROLES = \[([\s\S]*?)\];/)?.[1] ?? "";
   for (const role of CANONICAL_ROLES) assert.ok(readRoles.includes('"'+role+'"'), role + " missing from notice read audience");
-  assert.match(notices, /const manage = getPrimaryRole\(user\.roles\) !== "STUDENT" && user\.permissions\.includes\("notices\.manage"\)/);
+  assert.ok(notices.includes("const manage = canManageNotices(user.roles, user.permissions);"));
   assert.match(notices, /listNotices\(false\)/);
   assert.match(notices, /manage \? listDepartments\(\) : Promise\.resolve\(\[\]\)/);
 });
