@@ -41,9 +41,8 @@ const BLOCKED_MIME_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function assertModuleAccess(req: Request, module: string, requiredPermission?: string): void {
+export function assertModuleAccess(req: Request, module: string, requiredPermission?: string): void {
   if (!req.user) throw new AppError("Authentication required", 401);
-  if (req.user.roles.includes("SUPER_ADMIN")) return;
 
   const permissions = requiredPermission ? [requiredPermission] : MODULE_PERMISSIONS[module];
   if (!permissions) {
@@ -101,7 +100,7 @@ export const get = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const result = await getFileDelivery(req.params.id, institutionId, req.query.download === "true");
 
-  if (!req.user?.roles.includes("SUPER_ADMIN")) {
+  {
     const actor = req.user!;
     if (result.file.module === "expenses") {
       await assertExpenseAttachmentAccessible(institutionId, actor, result.file.id);
