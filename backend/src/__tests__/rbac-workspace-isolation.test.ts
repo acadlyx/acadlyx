@@ -3,6 +3,7 @@ import test from "node:test";
 import { getEffectivePermissions } from "../config/rbac";
 import {
   getEffectiveWorkspaceRole,
+  isInstitutionWide,
   isInstitutionWideFinance,
   isInstitutionWideForRole,
 } from "../services/accessScope.service";
@@ -53,6 +54,11 @@ test("Super Admin remains platform-only rather than an operational tenant owner"
   ]) {
     assert.equal(permissions.has(permission), false, `Super Admin unexpectedly received ${permission}`);
   }
+  assert.equal(isInstitutionWide({ roles: ["SUPER_ADMIN"] }), false, "Platform authority must not become tenant-wide record scope");
+  assert.equal(isInstitutionWideFinance({ roles: ["SUPER_ADMIN"] }), false, "Super Admin must not enter generic tenant finance scope");
+  assert.equal(isInstitutionWideForRole({ roles: ["SUPER_ADMIN"] }, "ACCOUNTS"), false);
+  assert.equal(isInstitutionWideForRole({ roles: ["SUPER_ADMIN"] }, "ADMISSIONS"), false);
+  assert.equal(isInstitutionWideForRole({ roles: ["SUPER_ADMIN"] }, "EXAMINATION"), false);
 });
 
 test("multi-role workspace priority preserves narrow scopes with explicit Chairman precedence", () => {
