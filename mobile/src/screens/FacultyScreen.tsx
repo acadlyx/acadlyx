@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { NativeStackNavigationProp, useNavigation } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, apiRequest } from "../api/client";
 import { displayValue, toCollection } from "../api/payload";
