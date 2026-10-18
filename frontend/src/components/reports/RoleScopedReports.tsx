@@ -9,7 +9,7 @@ import { AuthRequiredError, authedFetch, getCachedCurrentUser, getCurrentUser, t
 
 type ReportId = "finance" | "admissions" | "hr" | "placement" | "library" | "examinations" | "intelligence";
 type ReportState = { status: "loading" | "ready" | "error"; payload?: unknown; error?: string };
-type ReportSource = { id: ReportId; title: string; endpoint: string };
+type ReportSource = { id: ReportId; title: string; endpoint: string; href?: string };
 type Metric = { label: string; value: string | number; kind?: "money" | "percent" };
 
 type ApiShape = {
@@ -133,11 +133,12 @@ function reportDetail(id: ReportId, payload: unknown): string | null {
 }
 
 function ReportCard({
-  title, state, onRetry, children,
+  title, state, onRetry, onOpen, children,
 }: {
   title: string;
   state?: ReportState;
   onRetry: () => void;
+  onOpen?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -149,7 +150,10 @@ function ReportCard({
             {state?.status === "loading" ? "Loading authorized records…" : state?.status === "error" ? "This source did not return a report." : "Live data from the existing ACADLYX service."}
           </p>
         </div>
-        <button type="button" onClick={onRetry} disabled={state?.status === "loading"} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">Refresh</button>
+        <div className="flex items-center gap-2">
+          {onOpen ? <button type="button" onClick={onOpen} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">View details</button> : null}
+          <button type="button" onClick={onRetry} disabled={state?.status === "loading"} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">Refresh</button>
+        </div>
       </div>
       {state?.status === "loading" ? <div role="status" className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Loading…</div> : null}
       {state?.status === "error" ? <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{state.error || "The service could not provide this report."}</p><p className="mt-1 text-xs">Missing or unauthorized data is not represented as zero.</p></div> : null}
@@ -195,16 +199,16 @@ export function RoleScopedReports({
     if (has(user, "fees.read", "fees.collection.read")) {
       found.push({ id: "finance", title: "Finance & fees", endpoint: `/finance/command-center?period=${encodeURIComponent(financePeriod)}` });
     }
-    if (has(user, "admissions.read")) found.push({ id: "admissions", title: "Admissions pipeline", endpoint: "/admissions?page=1&pageSize=1" });
-    if (has(user, "hr.read")) found.push({ id: "hr", title: "Workforce & HR", endpoint: "/hr/employees?page=1&pageSize=1" });
-    if (has(user, "placements.read")) found.push({ id: "placement", title: "Placement outcomes", endpoint: "/placements/metrics" });
-    if (role === "LIBRARIAN" && has(user, "library.read")) found.push({ id: "library", title: "Library circulation & inventory", endpoint: "/library/summary" });
-    if (has(user, "exams.read")) found.push({ id: "examinations", title: "Examination operations", endpoint: "/examinations/sessions?page=1&pageSize=1" });
+    if (has(user, "admissions.read")) found.push({ id: "admissions", title: "Admissions pipeline", endpoint: "/admissions?page=1&pageSize=1", href: "/admissions" });
+    if (has(user, "hr.read")) found.push({ id: "hr", title: "Workforce & HR", endpoint: "/hr/employees?page=1&pageSize=1", href: "/hr" });
+    if (has(user, "placements.read")) found.push({ id: "placement", title: "Placement outcomes", endpoint: "/placements/metrics", href: "/admin/placements" });
+    if (role === "LIBRARIAN" && has(user, "library.read")) found.push({ id: "library", title: "Library circulation & inventory", endpoint: "/library/summary", href: "/library" });
+    if (has(user, "exams.read")) found.push({ id: "examinations", title: "Examination operations", endpoint: "/examinations/sessions?page=1&pageSize=1", href: "/chairman/examinations" });
     if (has(user, "intelligence.read")) {
       const query = new URLSearchParams();
       if (from) query.set("from", new Date(from + "T00:00:00").toISOString());
       if (to) query.set("to", new Date(to + "T23:59:59.999").toISOString());
-      found.push({ id: "intelligence", title: "Institutional intelligence", endpoint: "/intelligence/command-center" + (query.toString() ? "?" + query.toString() : "") });
+      found.push({ id: "intelligence", title: "Institutional intelligence", endpoint: "/intelligence/command-center" + (query.toString() ? "?" + query.toString() : ""), href: "/chairman/intelligence" });
     }
     return found;
   }, [user, role, financePeriod, from, to]);
@@ -268,7 +272,7 @@ export function RoleScopedReports({
           const state = reports[source.id];
           const metrics = state?.status === "ready" ? reportMetrics(source.id, state.payload) : [];
           const detail = state?.status === "ready" ? reportDetail(source.id, state.payload) : null;
-          return <ReportCard key={source.id} title={source.title} state={state} onRetry={() => refresh(source.id)}>
+          return <ReportCard key={source.id} title={source.title} state={state} onRetry={() => refresh(source.id)} onOpen={source.href ? () => router.push(source.href!) : undefined}>
             {metrics.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{metrics.map((item) => <article key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 p-4"><p className="text-xs font-bold capitalize text-slate-500">{item.label}</p><p className="mt-2 text-xl font-black tracking-tight text-slate-950">{formatMetric(item)}</p></article>)}</div> : <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{detail || "The authorized endpoint did not return summary metrics for this view. No values have been fabricated."}</p>}
             {detail && metrics.length ? <p className="mt-3 text-xs leading-5 text-slate-500">{detail}</p> : null}
             <div className="mt-4">
