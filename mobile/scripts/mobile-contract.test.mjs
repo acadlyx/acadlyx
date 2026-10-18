@@ -478,7 +478,7 @@ test("events mobile workflow uses authorized CRUD and a bounded multipart image 
   const controller = read("../backend/src/controllers/events.controller.ts");
   const client = read("src/api/client.ts");
   const validators = read("../backend/src/validators/events.validators.ts");
-  for (const endpoint of ['"/events"', '"/events/categories"', '"/events/media/upload"', '"/events/" + encodeURIComponent']) {
+  for (const endpoint of ['"/events"', '"/events/categories"', '"/events/media/upload"', '"/events/"+encodeURIComponent']) {
     assert.ok(screen.includes(endpoint), "Missing event workflow endpoint " + endpoint);
   }
   assert.ok(screen.includes('method: "PATCH"') && screen.includes('method: "POST"') && screen.includes('method: "DELETE"'));
