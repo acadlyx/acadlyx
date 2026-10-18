@@ -806,6 +806,30 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       "Revoking the parent-student link must immediately remove access on the next request.",
     );
 
+    // Institution Admin must not gain Accounts/Fees or assignment access
+    // merely from its institution-administration role. Exercise real routes,
+    // including direct REST mutation attempts rather than only UI visibility.
+    assert.equal(
+      (await request("/erp/fee-structures", roleUsers.INSTITUTION_ADMIN.token)).status,
+      403,
+      "Institution Admin must not read Accounts-owned fee structures by calling the API directly",
+    );
+    assert.equal(
+      (await requestWithBody("/erp/fee-structures", roleUsers.INSTITUTION_ADMIN.token, "POST", {})).status,
+      403,
+      "Institution Admin must not create fee structures through the API",
+    );
+    assert.equal(
+      (await request("/assignments", roleUsers.INSTITUTION_ADMIN.token)).status,
+      403,
+      "Institution Admin must not read Assignments without an explicit assignment role grant",
+    );
+    assert.equal(
+      (await requestWithBody("/assignments", roleUsers.INSTITUTION_ADMIN.token, "POST", {})).status,
+      403,
+      "Institution Admin must not mutate Assignments without an explicit assignment role grant",
+    );
+
     // Exercise fee-structure maker-checker through registered Express routes
     // and PostgreSQL state, not only service/source-contract tests.
     const makerFeeHead = await prisma.feeHead.create({
