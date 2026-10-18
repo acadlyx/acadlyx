@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
@@ -48,6 +48,8 @@ const day = (value: string) => new Date(value).toLocaleDateString();
 
 export default function CalendarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [academicYearFilter, setAcademicYearFilter] = useState(() => searchParams.get("academicYearId") || "");
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
@@ -83,6 +85,7 @@ export default function CalendarPage() {
           search: search || undefined,
           eventType: eventType || undefined,
           audience: audience || undefined,
+          academicYearId: academicYearFilter || undefined,
           from: from || undefined,
           to: to || undefined,
         }),
@@ -105,7 +108,16 @@ export default function CalendarPage() {
       );
       setState("error");
     }
-  }, [page, search, eventType, audience, from, to, router]);
+  }, [page, search, eventType, audience, academicYearFilter, from, to, router]);
+
+  useEffect(() => {
+    const selectedYear = searchParams.get("academicYearId") || "";
+    setAcademicYearFilter(selectedYear);
+    setPage(1);
+    if (!editingId) {
+      setForm((current) => ({ ...current, academicYearId: selectedYear }));
+    }
+  }, [searchParams, editingId]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -204,7 +216,7 @@ export default function CalendarPage() {
       subtitle="Holidays, examinations, deadlines and events"
     >
       <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
-        <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
+        <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(academicYearFilter ? { academicYearId: academicYearFilter } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
         <section className="flex flex-wrap items-end gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <input
             value={search}
@@ -277,7 +289,7 @@ export default function CalendarPage() {
               onClick={() => {
                 setShowForm((v) => !v);
                 setEditingId(null);
-                setForm(emptyForm);
+                setForm({ ...emptyForm, academicYearId: academicYearFilter });
                 setFormError("");
               }}
               className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
