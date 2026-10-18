@@ -18,6 +18,8 @@ const notices = readFrontend("app/notices/page.tsx");
 const rbac = readRepo("backend/src/config/rbac.ts");
 const noticePolicy = readFrontend("lib/noticesPolicy.ts");
 const erpService = readRepo("backend/src/services/erp.service.ts");
+const userService = readRepo("backend/src/services/user.service.ts");
+const institutionService = readRepo("backend/src/services/institution.service.ts");
 const cmsRoutes = readRepo("backend/src/routes/institutionalCms.routes.ts");
 const siteContentRoutes = readRepo("backend/src/routes/siteContent.routes.ts");
 const cmsService = readRepo("backend/src/services/institutionalCms.service.ts");
@@ -108,6 +110,22 @@ test("route ownership fails closed and final destinations are de-duplicated", ()
   assert.match(shell, /if \(!uniqueDestinations\.has\(destination\)\) uniqueDestinations\.set\(destination, item\)/);
 });
 
+
+test("persisted role grants and user permission lookup use the canonical notice policy", () => {
+  const permissionLookupStart = userService.indexOf("export function getSystemRolePermissionKeys(");
+  const permissionLookupEnd = userService.indexOf("\n}", permissionLookupStart);
+  assert.ok(permissionLookupStart >= 0 && permissionLookupEnd > permissionLookupStart);
+  const permissionLookup = userService.slice(permissionLookupStart, permissionLookupEnd);
+  assert.ok(permissionLookup.includes("return getRolePermissions(roleName);"),
+    "role permission API must not bypass computed writer/read policy");
+
+  assert.ok(institutionService.includes("const desiredPermissionIds = getRolePermissions(roleName)"),
+    "institution role provisioning must persist effective canonical permissions rather than the base array");
+  assert.doesNotMatch(institutionService, /ROLE_PERMISSIONS\[roleName\]/,
+    "institution sync must not bypass the notice policy helper");
+  assert.ok(rbac.includes("const canReadTenantNotices = normalized !== \"SUPER_ADMIN\";"),
+    "platform-only role remains outside tenant notice access");
+});
 
 test("student detail routes require students.read before dynamic namespace fallback", () => {
   const accessStart = navigation.indexOf("export function canAccessRoute");
