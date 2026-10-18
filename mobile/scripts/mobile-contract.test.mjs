@@ -659,6 +659,17 @@ test("calendar API persists campus ownership and applies role-scoped access chec
 });
 
 
+test("shared web calendar exposes campus scope and Director uses campus-aware editor", () => {
+ const api = read("../frontend/src/lib/calendarApi.ts");
+ const page = read("../frontend/src/app/calendar/page.tsx");
+ const director = read("../frontend/src/app/director/calendar/page.tsx");
+ assert.ok(api.includes("listCampusOptions") && api.includes("campusId?: string | null"));
+ assert.ok(page.includes("setCampuses(campusOptions)") && page.includes("campusFilter"));
+ assert.ok(page.includes("campuses.map((campus)") && page.includes("...(form.campusId"));
+ assert.ok(director.includes('from "@/app/calendar/page"'));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

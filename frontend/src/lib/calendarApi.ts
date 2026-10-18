@@ -21,6 +21,8 @@ export interface CalendarEvent {
   startDate: string;
   endDate: string;
   audience: Audience;
+  campusId: string | null;
+  campus: { id: string; name: string; code: string } | null;
   academicYearId: string | null;
   academicYear: { id: string; name: string } | null;
 }
@@ -37,6 +39,7 @@ export async function listEvents(params: {
   to?: string;
   eventType?: EventType;
   audience?: Audience;
+  campusId?: string;
   academicYearId?: string;
   search?: string;
 } = {}): Promise<EventListResult> {
@@ -53,6 +56,13 @@ export async function listUpcomingEvents(limit = 10): Promise<CalendarEvent[]> {
   return res.data;
 }
 
+export interface CampusOption { id: string; name: string; code: string; }
+
+export async function listCampusOptions(): Promise<CampusOption[]> {
+  const res = await authedFetch<PagedEnvelope<CampusOption>>("/campuses?page=1&pageSize=100");
+  return res.data;
+}
+
 export interface EventInput {
   title: string;
   description?: string;
@@ -61,6 +71,7 @@ export interface EventInput {
   endDate: string;
   audience: Audience;
   academicYearId?: string;
+  campusId?: string | null;
 }
 
 export async function createEvent(input: EventInput): Promise<CalendarEvent> {
