@@ -33,3 +33,11 @@ test("expense approval has separate catalog permissions and authenticated routes
  assert.match(routes,/router\.post\("\/expenses\/:id\/decision",authorize\("expenses\.approve"\)/);
  assert.match(routes,/router\.get\("\/expenses\/export",authorize\("expenses\.export"\)/);
 });
+
+test("financial summaries and invoice exports use net paid balances after refunds",()=>{
+ const service=read("src/services/finance.service.ts");
+ assert.match(service,/outstanding=Math\.max\(0,billed-Number\(invAgg\._sum\.paidAmount\|\|0\)\)/);
+ assert.match(service,/const billed=Number\(x\.amount\),collected=Number\(x\.paidAmount\),outstanding=Math\.max\(0,billed-Number\(x\.paidAmount\)\)/);
+ assert.match(service,/outstanding:x\.status==="CANCELLED"\?0:Math\.max\(0,Number\(x\.amount\)-Number\(x\.paidAmount\)\)/);
+ assert.doesNotMatch(service,/Number\(x\.paidAmount\)-Number\(x\.refundedAmount\)/);
+});
