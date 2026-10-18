@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../auth/AuthProvider";
 import { MODULES, MobileModule, canOpenModule } from "../modules/catalog";
 import { RootStackParamList } from "../navigation/RootNavigator";
+import { openModule } from "../navigation/openModule";
 import { colors, radius, spacing } from "../ui/theme";
 
 export function ModulesScreen() {
@@ -22,7 +23,7 @@ export function ModulesScreen() {
 
   const renderModule = ({ item }: { item: MobileModule }) => (
     <Pressable accessibilityRole="button" accessibilityLabel={"Open " + item.title}
-      onPress={() => item.id === "assignments" ? navigation.navigate("Assignments") : item.id === "notices" ? navigation.navigate("Notices") : item.id === "timetable" ? navigation.navigate("Timetable") : item.id === "library" ? navigation.navigate("Library") : item.id === "calendar" ? navigation.navigate("Calendar") : item.id === "attendance" ? navigation.navigate("Attendance") : item.id === "leave" ? navigation.navigate("Leave") : item.id === "parent-children" ? navigation.navigate("Parent") : item.id === "hr" ? navigation.navigate("HR") : item.id === "admissions" ? navigation.navigate("Admissions") : item.id === "placements" ? navigation.navigate("Placement") : item.id === "lms" ? navigation.navigate("Lms") : item.id === "student-dashboard" ? navigation.navigate("StudentPortal", { initialTab: "OVERVIEW" }) : item.id === "student-attendance" ? navigation.navigate("StudentPortal", { initialTab: "ATTENDANCE" }) : item.id === "student-marks" ? navigation.navigate("StudentPortal", { initialTab: "MARKS" }) : item.id === "student-results" ? navigation.navigate("StudentPortal", { initialTab: "RESULTS" }) : item.id === "student-assignments" ? navigation.navigate("StudentPortal", { initialTab: "ASSIGNMENTS" }) : item.id === "student-timetable" ? navigation.navigate("StudentPortal", { initialTab: "TIMETABLE" }) : navigation.navigate("Module", { moduleId: item.id })}
+      onPress={() => openModule(navigation, item.id)}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}>
       <View style={styles.cardHeader}><Text style={styles.title}>{item.title}</Text><Text style={styles.arrow}>›</Text></View>
       <Text style={styles.category}>{item.category}</Text>

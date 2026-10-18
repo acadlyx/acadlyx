@@ -7,6 +7,8 @@ import { apiRequest, ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { getModule } from "../modules/catalog";
+import { openModule } from "../navigation/openModule";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type WorkItem = { id: string; title: string; count: number; priority?: "critical" | "high" | "normal"; detail?: string };
@@ -56,32 +58,16 @@ function collectionCount(value: unknown): number | undefined {
 
 export function RoleDashboardScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const role = ROLE_PRIORITY.find((candidate) => user?.roles.includes(candidate)) || "STUDENT";
   const dashboard = ROLE_DASHBOARDS[role] || ROLE_DASHBOARDS.STUDENT;
   const canLoadSignal = !dashboard.signalPermission || Boolean(user && user.permissions.includes(dashboard.signalPermission));
-  const work = useQuery({ queryKey: ["dashboard-work", user?.id, role], queryFn: () => apiRequest<WorkSummary>("/my-work"), enabled: Boolean(user?.id), staleTime: 10000 });
-  const signal = useQuery({ queryKey: ["dashboard-signal", user?.id, role], queryFn: () => apiRequest<unknown>(dashboard.signalEndpoint || "/my-work"), enabled: Boolean(user?.id && dashboard.signalEndpoint && canLoadSignal), staleTime: 10000 });
+  const work = useQuery({ queryKey: ["dashboard-work", user?.id, workspaceKey, role], queryFn: () => apiRequest<WorkSummary>("/my-work"), enabled: Boolean(user?.id), staleTime: 10000 });
+  const signal = useQuery({ queryKey: ["dashboard-signal", user?.id, workspaceKey, role], queryFn: () => apiRequest<unknown>(dashboard.signalEndpoint || "/my-work"), enabled: Boolean(user?.id && dashboard.signalEndpoint && canLoadSignal), staleTime: 10000 });
   const actions = useMemo(() => dashboard.actions.filter((action) => Boolean(user && hasAnyPermission(user.permissions, action.permissions) && getModule(action.moduleId))), [dashboard, user]);
-  const open = (moduleId: string) => {
-    if (moduleId === "assignments") navigation.navigate("Assignments");
-    else if (moduleId === "attendance") navigation.navigate("Attendance");
-    else if (moduleId === "leave") navigation.navigate("Leave");
-    else if (moduleId === "library") navigation.navigate("Library");
-    else if (moduleId === "calendar") navigation.navigate("Calendar");
-    else if (moduleId === "notices") navigation.navigate("Notices");
-    else if (moduleId === "timetable") navigation.navigate("Timetable");
-    else if (moduleId === "hr") navigation.navigate("HR");
-    else if (moduleId === "admissions") navigation.navigate("Admissions");
-    else if (moduleId === "placements") navigation.navigate("Placement");
-    else if (moduleId === "parent-children") navigation.navigate("Parent");
-    else if (moduleId === "student-attendance") navigation.navigate("StudentPortal", { initialTab: "ATTENDANCE" });
-    else if (moduleId === "student-marks") navigation.navigate("StudentPortal", { initialTab: "MARKS" });
-    else if (moduleId === "student-results") navigation.navigate("StudentPortal", { initialTab: "RESULTS" });
-    else if (moduleId === "student-assignments") navigation.navigate("StudentPortal", { initialTab: "ASSIGNMENTS" });
-    else if (moduleId === "student-timetable") navigation.navigate("StudentPortal", { initialTab: "TIMETABLE" });
-    else navigation.navigate("Module", { moduleId });
-  };
+  const open = (moduleId: string) => openModule(navigation, moduleId);
   const signalCount = collectionCount(signal.data);
   const refreshing = work.isRefetching || signal.isRefetching;
 

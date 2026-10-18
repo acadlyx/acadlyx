@@ -6,6 +6,7 @@ import { apiRequest, ApiError } from "../api/client";
 import { toCollection, displayValue, safeRecordEntries, recordTitle } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
 import { getModule } from "../modules/catalog";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { InternalMarksScreen } from "./InternalMarksScreen";
 import { ExaminationsScreen } from "./ExaminationsScreen";
 import { FinanceScreen } from "./FinanceScreen";
@@ -18,6 +19,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Module">;
 
 export function ModuleScreen({ route }: Props) {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const module = getModule(route.params.moduleId);
   const financeSections: Record<string, FinanceSection> = { "fee-structures": "structures", "finance-invoices": "invoices", "finance-payments": "payments", "finance-refunds": "refunds" };
   const isFinanceWorkspace = Boolean(module && Object.prototype.hasOwnProperty.call(financeSections, module.id));
@@ -27,7 +30,7 @@ export function ModuleScreen({ route }: Props) {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
-    queryKey: ["module", user?.id, module?.id],
+    queryKey: ["module", user?.id, workspaceKey, module?.id],
     queryFn: () => {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);

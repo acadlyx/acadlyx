@@ -210,7 +210,7 @@ test("placement workspace uses existing eligibility and lifecycle contracts", ()
   assert.ok(placement.includes("placements.apply"));
   assert.ok(placement.includes("missingAttributes"));
   assert.ok(navigator.includes("PlacementScreen"));
-  assert.ok(modules.includes('navigation.navigate("Placement")'));
+  assert.ok(read("src/navigation/openModule.ts").includes('navigation.navigate("Placement")'));
 });
 
 test("LMS workspace uses the existing course, discussion, and workflow contracts", () => {
@@ -221,7 +221,7 @@ test("LMS workspace uses the existing course, discussion, and workflow contracts
   for (const permission of ["lms.manage", "lms.attempt"]) assert.ok(lms.includes(permission), "Missing LMS permission gate: " + permission);
   assert.ok(lms.includes("Linking.openURL"), "Course resources and meeting links should open through the native handler.");
   assert.ok(navigator.includes("LmsScreen"));
-  assert.ok(modules.includes('navigation.navigate("Lms")'));
+  assert.ok(read("src/navigation/openModule.ts").includes('navigation.navigate("Lms")'));
 });
 
 test("original logo is bundled and displayed on sign-in", () => {
@@ -340,6 +340,26 @@ test("workspace transition cancels old reads and resets cached records before ac
 });
 
 
+test("module entry points share canonical native destinations and workspace-aware query keys", () => {
+  const routing = read("src/navigation/openModule.ts");
+  const modules = read("src/screens/ModulesScreen.tsx");
+  const dashboard = read("src/screens/RoleDashboardScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const expected = [
+    "assignments", "notices", "timetable", "library", "calendar", "attendance",
+    "leave", "parent-children", "hr", "admissions", "placements", "lms",
+    "student-dashboard", "student-attendance", "student-marks", "student-results",
+    "student-assignments", "student-timetable"
+  ];
+  for (const id of expected) assert.ok(routing.includes('case "' + id + '"'), "Missing canonical mobile destination for " + id);
+  assert.ok(modules.includes("openModule(navigation, item.id)"));
+  assert.ok(dashboard.includes("openModule(navigation, moduleId)"));
+  assert.ok(moduleScreen.includes("workspaceKey") && moduleScreen.includes('queryKey: ["module", user?.id, workspaceKey, module?.id]'));
+  assert.ok(dashboard.includes('queryKey: ["dashboard-work", user?.id, workspaceKey, role]'));
+  assert.ok(dashboard.includes('queryKey: ["dashboard-signal", user?.id, workspaceKey, role]'));
+});
+
+
 test("Android Back follows tab history and preserves stack/auth boundaries", () => {
   const navigator = read("src/navigation/RootNavigator.tsx");
   const modules = read("src/screens/ModulesScreen.tsx");
@@ -351,8 +371,10 @@ test("Android Back follows tab history and preserves stack/auth boundaries", () 
   assert.ok(navigator.includes('<Tabs.Navigator backBehavior="history" screenOptions={{'));
   assert.ok(navigator.includes('<Stack.Screen name="Main" component={MainTabs}'));
   assert.ok(navigator.includes('<Stack.Screen name="Module" component={ModuleScreen}'));
-  assert.ok(modules.includes('navigation.navigate("Module", { moduleId: item.id })'));
-  assert.ok(dashboard.includes('navigation.navigate("Module", { moduleId })'));
+  const moduleNavigation = read("src/navigation/openModule.ts");
+  assert.ok(modules.includes("openModule(navigation, item.id)"));
+  assert.ok(dashboard.includes("openModule(navigation, moduleId)"));
+  assert.ok(moduleNavigation.includes('navigation.navigate("Module", { moduleId })'));
   assert.ok(navigator.includes('name="WorkspaceContext" component={WorkspaceContextScreen}'));
 
   // Keep React Navigation's native Back handling; no blanket handler should
@@ -502,8 +524,7 @@ test("student performance and published results use canonical scoped APIs", () =
   assert.ok(client.includes('contentType !== "application/pdf"'));
   assert.ok(client.includes('!== "%PDF"'));
   assert.ok(client.includes("await file.write(bytes)"));
-  assert.ok(modules.includes('item.id === "student-results"'));
-  assert.ok(dashboard.includes('moduleId === "student-results"'));
+  assert.ok(read("src/navigation/openModule.ts").includes('case "student-results"'));
   assert.ok(navigation.includes('"RESULTS"'));
   assert.ok(catalog.includes('id: "student-results"'));
   assert.ok(examinationRoutes.includes('"/my/performance"') && examinationRoutes.includes('"/my/results"'));
