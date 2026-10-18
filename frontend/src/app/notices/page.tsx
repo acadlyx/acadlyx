@@ -24,7 +24,6 @@ import {
 } from "@/lib/erpApi";
 
 const READ_ROLES = [
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "DIRECTOR",
