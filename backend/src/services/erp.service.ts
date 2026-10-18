@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
 import { courseOfferingWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 import { AuthenticatedUser } from "../types/auth";
-import { getCanonicalRoleNames } from "../config/rbac";
+import { getCanonicalRoleNames, NOTICE_MANAGEMENT_ROLES } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { getManagementWorkspace, getManagementWorkspaceSummary, getWorkspaceType } from "./managementWorkspace.service";
 import {
@@ -1718,17 +1718,7 @@ export async function createNotice(
     expiresAt?: string;
   }
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }
@@ -2671,17 +2661,7 @@ export async function updateNotice(
     expiresAt?: Date | null;
   }
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }
@@ -2762,17 +2742,7 @@ export async function deleteNotice(
   actor: AuthenticatedUser,
   id: string
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }
