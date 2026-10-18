@@ -244,7 +244,7 @@ export function AcademicRecordsScreen({ moduleId }: { moduleId: string }) {
   const requiredRelations = useMemo(() => new Set((config?.fields || []).map((field) => field.relation).filter((value): value is Relation => Boolean(value))), [config]);
   const listQuery = useQuery({
     queryKey: ["academic-records", user?.id, workspaceKey, moduleId, page, search],
-    queryFn: () => apiRequest<unknown>(config!.endpoint + "?page=" + page + "&pageSize=" + PAGE_SIZE + (search.trim() ? "&search=" + encodeURIComponent(search.trim()) : "")),
+    queryFn: () => apiRequest<unknown>(config!.endpoint + "?page=" + page + "&pageSize=" + PAGE_SIZE + (search.trim() && config!.endpoint !== "/course-offerings" ? "&search=" + encodeURIComponent(search.trim()) : "")),
     enabled: Boolean(user?.id && config && user.permissions.includes(config.read)),
     staleTime: 0,
   });
@@ -260,12 +260,14 @@ export function AcademicRecordsScreen({ moduleId }: { moduleId: string }) {
   const relationRows = (relation: Relation) => toCollection(relationQueries[relation].data).map(object);
   const rows = useMemo(() => {
     const loaded = toCollection(listQuery.data).map(object);
-    return loaded.sort((left, right) => {
+    const term = search.trim().toLowerCase();
+    const filtered = term ? loaded.filter((row) => JSON.stringify(row).toLowerCase().includes(term)) : loaded;
+    return filtered.sort((left, right) => {
       const leftName = recordTitle(left, rowId(left)).toLowerCase();
       const rightName = recordTitle(right, rowId(right)).toLowerCase();
       return sort === "asc" ? leftName.localeCompare(rightName) : rightName.localeCompare(leftName);
     });
-  }, [listQuery.data, sort]);
+  }, [listQuery.data, search, sort]);
 
   const invalidate = async () => {
     await Promise.all([

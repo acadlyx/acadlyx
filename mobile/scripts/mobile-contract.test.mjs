@@ -408,6 +408,27 @@ test("academic master-data modules use validated operational CRUD workflows inst
 });
 
 
+test("dedicated mobile workflows partition server data by active workspace", () => {
+  const screens = [
+    "AssignmentsScreen.tsx", "AttendanceScreen.tsx", "AdmissionsScreen.tsx", "PlacementScreen.tsx",
+    "LibraryScreen.tsx", "HRScreen.tsx", "LeaveScreen.tsx", "NoticesScreen.tsx", "CalendarScreen.tsx",
+    "DocumentsScreen.tsx", "LmsScreen.tsx", "FinanceScreen.tsx", "ExaminationsScreen.tsx",
+    "StudentPortalScreen.tsx", "ParentScreen.tsx", "TimetableScreen.tsx", "NotificationsScreen.tsx", "GlobalSearchScreen.tsx"
+  ];
+  for (const name of screens) {
+    const screen = read("src/screens/" + name);
+    assert.ok(screen.includes("useWorkspaceContext"), name + " must subscribe to workspace scope");
+    assert.ok(screen.includes("workspaceKey"), name + " must partition query keys by workspace");
+  }
+  const academic = read("src/screens/AcademicRecordsScreen.tsx");
+  assert.ok(academic.includes('config!.endpoint !== "/course-offerings"'), "Do not send unsupported search params to course offerings.");
+  assert.ok(academic.includes("const filtered = term ? loaded.filter"), "Search must filter the canonical list.");
+  const notices = read("src/screens/NoticesScreen.tsx");
+  assert.ok(notices.includes("canTargetDepartment") && notices.includes('"/departments?page=1&pageSize=100"'));
+  assert.ok(notices.includes("departmentId: departmentId || null"), "Notice edits must be able to clear scope without arbitrary IDs.");
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

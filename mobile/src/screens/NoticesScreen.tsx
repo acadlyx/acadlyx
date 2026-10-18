@@ -4,10 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Audience = "ALL" | "STUDENT" | "FACULTY" | "PARENT" | "STAFF" | "HOD" | "MANAGEMENT";
-type Notice = { id: string; title: string; body: string; audience?: Audience; expiresAt?: string | null; createdAt?: string; [key: string]: unknown };
+type Notice = { id: string; title: string; body: string; audience?: Audience; departmentId?: string | null; department?: { name?: string; code?: string } | null; expiresAt?: string | null; createdAt?: string; [key: string]: unknown };
+type DepartmentChoice = { id: string; name: string; code?: string };
 const audiences: Audience[] = ["ALL", "STUDENT", "FACULTY", "PARENT", "STAFF", "HOD", "MANAGEMENT"];
 
 function normalizeNotices(value: unknown): Notice[] {
@@ -25,22 +27,38 @@ function displayDate(value?: string | null): string {
 
 export function NoticesScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canManage = Boolean(user?.permissions.includes("notices.manage"));
+  const canTargetDepartment = Boolean(canManage && user?.permissions.includes("departments.read"));
   const [editing, setEditing] = useState<Notice | null>(null);
   const [formVisible, setFormVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState<Audience>("ALL");
+  const [departmentId, setDepartmentId] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [search, setSearch] = useState("");
 
   const query = useQuery({
-    queryKey: ["notices", user?.id],
+    queryKey: ["notices", user?.id, workspaceKey],
     queryFn: () => apiRequest<unknown>("/erp/notices?includeExpired=false"),
     enabled: Boolean(user?.id),
     staleTime: 0
   });
+  const departmentsQuery = useQuery({
+    queryKey: ["notice-departments", user?.id, workspaceKey],
+    queryFn: () => apiRequest<unknown>("/departments?page=1&pageSize=100"),
+    enabled: Boolean(user?.id && canTargetDepartment),
+    staleTime: 0,
+  });
+  const departments = useMemo(() => toCollection(departmentsQuery.data).filter((item) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+    const value = item as Record<string, unknown>;
+    return typeof value.id === "string" && typeof value.name === "string";
+  }).map((item) => item as DepartmentChoice), [departmentsQuery.data]);
+
   const notices = useMemo(() => {
     const rows = normalizeNotices(query.data);
     const term = search.trim().toLowerCase();
@@ -48,16 +66,17 @@ export function NoticesScreen() {
   }, [query.data, search]);
 
   async function afterSave() {
-    await client.invalidateQueries({ queryKey: ["notices", user?.id] });
-    setEditing(null); setFormVisible(false); setTitle(""); setBody(""); setAudience("ALL"); setExpiresAt("");
+    await client.invalidateQueries({ queryKey: ["notices", user?.id, workspaceKey] });
+    setEditing(null); setFormVisible(false); setTitle(""); setBody(""); setAudience("ALL"); setDepartmentId(""); setExpiresAt("");
   }
 
   function beginCreate() {
-    setEditing(null); setTitle(""); setBody(""); setAudience("ALL"); setExpiresAt(""); setFormVisible(true);
+    setEditing(null); setTitle(""); setBody(""); setAudience("ALL"); setDepartmentId(""); setExpiresAt(""); setFormVisible(true);
   }
   function beginEdit(notice: Notice) {
     setEditing(notice); setTitle(notice.title); setBody(notice.body);
     setAudience(audiences.includes(notice.audience || "ALL") ? (notice.audience || "ALL") as Audience : "ALL");
+    setDepartmentId(typeof notice.departmentId === "string" ? notice.departmentId : "");
     setExpiresAt(notice.expiresAt ? new Date(notice.expiresAt).toISOString().slice(0, 10) : "");
     setFormVisible(true);
   }
@@ -72,6 +91,7 @@ export function NoticesScreen() {
       }
       const payload = {
         title: title.trim(), body: body.trim(), audience,
+        ...(canTargetDepartment ? (editing ? { departmentId: departmentId || null } : (departmentId ? { departmentId } : {})) : {}),
         ...(editing ? { expiresAt: expiresAt ? new Date(expiresAt + "T12:00:00").toISOString() : null } : (expiresAt ? { expiresAt: new Date(expiresAt + "T12:00:00").toISOString() } : {}))
       };
       if (editing) {
@@ -103,6 +123,15 @@ export function NoticesScreen() {
       <TextInput value={body} onChangeText={setBody} maxLength={10000} multiline textAlignVertical="top" style={[styles.input, styles.textArea]} placeholder="Write the notice message" placeholderTextColor={colors.textMuted} />
       <Text style={styles.label}>Audience</Text>
       <View style={styles.audiences}>{audiences.map((value) => <Pressable key={value} onPress={() => setAudience(value)} style={[styles.audience, audience === value ? styles.audienceSelected : null]}><Text style={[styles.audienceText, audience === value ? styles.audienceTextSelected : null]}>{value}</Text></Pressable>)}</View>
+      {canTargetDepartment ? <>
+        <Text style={styles.label}>Department scope (optional)</Text>
+        <View style={styles.audiences}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: !departmentId }} onPress={() => setDepartmentId("")} style={[styles.audience, !departmentId ? styles.audienceSelected : null]}><Text style={[styles.audienceText, !departmentId ? styles.audienceTextSelected : null]}>Institution-wide</Text></Pressable>
+          {departments.map((department) => <Pressable key={department.id} accessibilityRole="button" accessibilityState={{ selected: departmentId === department.id }} onPress={() => setDepartmentId(department.id)} style={[styles.audience, departmentId === department.id ? styles.audienceSelected : null]}><Text style={[styles.audienceText, departmentId === department.id ? styles.audienceTextSelected : null]}>{[department.code, department.name].filter(Boolean).join(" · ")}</Text></Pressable>)}
+        </View>
+        {departmentsQuery.isLoading ? <Text style={styles.helper}>Loading authorized departments…</Text> : null}
+        {departmentsQuery.isError ? <Text accessibilityRole="alert" style={styles.error}>Department choices are unavailable. Retry the department request or leave the notice institution-wide.</Text> : null}
+      </> : null}
       <Text style={styles.label}>Expiry date (optional, YYYY-MM-DD)</Text>
       <TextInput value={expiresAt} onChangeText={setExpiresAt} maxLength={10} style={styles.input} placeholder="2026-12-31" placeholderTextColor={colors.textMuted} />
       <Text style={styles.helper}>Institution-wide or role audience only. Department targeting is not offered here because the editor does not yet resolve a backend-authorized department picker.</Text>
@@ -116,7 +145,7 @@ export function NoticesScreen() {
         renderItem={({ item }) => <View style={styles.card}>
           <View style={styles.noticeHeader}><Text style={styles.noticeTitle}>{item.title}</Text><Text style={styles.audiencePill}>{item.audience || "ALL"}</Text></View>
           <Text style={styles.body}>{item.body}</Text>
-          <Text style={styles.meta}>Expiry: {displayDate(item.expiresAt)}</Text>
+          <Text style={styles.meta}>Scope: {item.department?.name || item.department?.code || (item.departmentId ? "Department-specific" : "Institution-wide")} · Expiry: {displayDate(item.expiresAt)}</Text>
           {canManage ? <View style={styles.actions}>
             <Pressable onPress={() => beginEdit(item)} style={styles.secondaryButton}><Text style={styles.secondaryText}>Edit</Text></Pressable>
             <Pressable onPress={() => Alert.alert("Delete notice", "Delete this notice from the existing system?", [

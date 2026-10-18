@@ -4,19 +4,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection, displayValue, safeRecordEntries, recordTitle } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 export function NotificationsScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const query = useQuery({
-    queryKey: ["module", user?.id, "notifications"],
+    queryKey: ["module", user?.id, workspaceKey, "notifications"],
     queryFn: () => apiRequest<unknown>("/portal/notifications"),
     enabled: Boolean(user?.id),
     staleTime: 0
   });
   const invalidateNotifications = async () => {
-    await client.invalidateQueries({ queryKey: ["module", user?.id, "notifications"] });
+    await client.invalidateQueries({ queryKey: ["module", user?.id] });
     await client.invalidateQueries({ queryKey: ["my-work", user?.id] });
   };
   const markAll = useMutation({
