@@ -936,6 +936,30 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       403,
       "Student+Accounts must not inherit shared fee-head mutation through secondary Accounts permissions",
     );
+    assert.equal(
+      (await requestWithBody("/finance/invoices", multiStudentAccounts.token, "POST", {
+        studentId: multiStudentAccounts.id,
+        title: "Unauthorized self-invoice " + suffix,
+        amount: 10,
+      })).status,
+      403,
+      "Student+Accounts must not inherit Accounts-only invoice creation inside its own Student scope",
+    );
+    assert.equal(
+      (await requestWithBody(
+        "/finance/invoices/00000000-0000-0000-0000-000000000000/payments",
+        multiStudentAccounts.token,
+        "POST",
+        { amount: 1, method: "CASH", idempotencyKey: "student-account-test-" + suffix },
+      )).status,
+      403,
+      "Student+Accounts must not inherit Accounts-only payment recording inside its own Student scope",
+    );
+    assert.equal(
+      (await request("/finance/overview", feeMatrixSuperAdmin.token)).status,
+      403,
+      "Platform Super Admin cannot use institution Finance APIs",
+    );
 
     const createdFeeStructure = await requestWithBody(
       "/erp/fee-structures",
