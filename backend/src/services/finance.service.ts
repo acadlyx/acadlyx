@@ -567,8 +567,8 @@ async function assertExpenseContext(institutionId:string,s:Scope,input:any):Prom
  }
  return {campusId,departmentId};
 }
-async function visibleExpense(institutionId:string,s:Scope,id:string,forUpdate=false):Promise<FinanceExpenseRow> {
- const rows=await prisma.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`SELECT * FROM "finance_expenses" WHERE "id" = ${id} AND ${expenseWhere(institutionId,s)} ${forUpdate?Prisma.sql`FOR UPDATE`:Prisma.empty}`);
+async function visibleExpense(institutionId:string,s:Scope,id:string,forUpdate=false,db:Pick<Prisma.TransactionClient,"$queryRaw">=prisma):Promise<FinanceExpenseRow> {
+ const rows=await db.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`SELECT * FROM "finance_expenses" WHERE "id" = ${id} AND ${expenseWhere(institutionId,s)} ${forUpdate?Prisma.sql`FOR UPDATE`:Prisma.empty}`);
  if(!rows.length) throw new AppError("Expense not found in authorized scope",404);
  return rows[0];
 }
@@ -615,7 +615,7 @@ export async function updateExpense(institutionId:string,a:AuthenticatedUser,id:
  const s=await scope(institutionId,a); assertExpenseScope(s);
  const context=await assertExpenseContext(institutionId,s,input); const x=expenseInput(input,context);
  const updated=await prisma.$transaction(async tx=>{
-  const current=await visibleExpense(institutionId,s,id,true);
+  const current=await visibleExpense(institutionId,s,id,true,tx);
   if(!["PENDING","REJECTED"].includes(current.status)) throw new AppError("Approved expenses cannot be edited",409);
   const status=current.status==="REJECTED"?"PENDING":current.status;
   const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "category"=${x.category},"description"=${x.description},"amount"=${x.amount},"vendor"=${x.vendor},"reference"=${x.reference},"spentAt"=${x.spentAt},"supportDetails"=${x.supportDetails},"supportingDocumentUrl"=${x.supportingDocumentUrl},"campusId"=${x.campusId},"departmentId"=${x.departmentId},"status"=${status},"updatedById"=${a.id},"decisionComment"=NULL,"approvedById"=NULL,"approvedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} RETURNING *`);
@@ -631,7 +631,7 @@ export async function decideExpense(institutionId:string,a:AuthenticatedUser,id:
  const comment=String(input.comment||"").trim();
  if(input.decision==="REJECTED"&&comment.length<3) throw new AppError("A rejection reason is required",400);
  const updated=await prisma.$transaction(async tx=>{
-  const current=await visibleExpense(institutionId,s,id,true);
+  const current=await visibleExpense(institutionId,s,id,true,tx);
   if(current.status!=="PENDING") throw new AppError("Only pending expenses can be approved or rejected",409);
   const rows=await tx.$queryRaw<FinanceExpenseRow[]>(Prisma.sql`UPDATE "finance_expenses" SET "status"=${input.decision},"decisionComment"=${comment||null},"approvedById"=${input.decision==="APPROVED"?a.id:null},"approvedAt"=${input.decision==="APPROVED"?new Date():null},"updatedById"=${a.id},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "institutionId"=${institutionId} AND "status"='PENDING' RETURNING *`);
   if(!rows.length) throw new AppError("Expense was already reviewed; reload and try again",409);
