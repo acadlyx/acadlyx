@@ -7,6 +7,20 @@ import { toCollection, displayValue, safeRecordEntries, recordTitle } from "../a
 import { useAuth } from "../auth/AuthProvider";
 import { getModule } from "../modules/catalog";
 import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
+import { AssignmentsScreen } from "./AssignmentsScreen";
+import { NoticesScreen } from "./NoticesScreen";
+import { TimetableScreen } from "./TimetableScreen";
+import { LibraryScreen } from "./LibraryScreen";
+import { CalendarScreen } from "./CalendarScreen";
+import { AttendanceScreen } from "./AttendanceScreen";
+import { LeaveScreen } from "./LeaveScreen";
+import { HRScreen } from "./HRScreen";
+import { AdmissionsScreen } from "./AdmissionsScreen";
+import { PlacementScreen } from "./PlacementScreen";
+import { LmsScreen } from "./LmsScreen";
+import { StudentPortalScreen } from "./StudentPortalScreen";
+import { NotificationsScreen } from "./NotificationsScreen";
+import { ParentScreen } from "./ParentScreen";
 import { InternalMarksScreen } from "./InternalMarksScreen";
 import { ExaminationsScreen } from "./ExaminationsScreen";
 import { FinanceScreen } from "./FinanceScreen";
@@ -45,6 +59,12 @@ export function ModuleScreen({ route }: Props) {
   const isEnrollmentRequestsWorkspace = module?.id === "enrollment-requests";
   const isOperationsWorkspace = module?.id === "operations";
   const isCertificatesWorkspace = module?.id === "certificates";
+  const isDedicatedWorkflow = Boolean(module && [
+    "assignments", "notices", "timetable", "library", "calendar", "attendance",
+    "leave", "hr", "admissions", "placements", "lms", "notifications",
+    "parent-children", "student-dashboard", "student-attendance", "student-marks",
+    "student-results", "student-assignments", "student-timetable",
+  ].includes(module.id));
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
@@ -53,7 +73,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace && !isFacultyWorkspace && !isEnrollmentRequestsWorkspace && !isOperationsWorkspace && !isCertificatesWorkspace),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace && !isFacultyWorkspace && !isEnrollmentRequestsWorkspace && !isOperationsWorkspace && !isCertificatesWorkspace && !isDedicatedWorkflow),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -76,6 +96,31 @@ export function ModuleScreen({ route }: Props) {
   if (isEnrollmentRequestsWorkspace) return <EnrollmentRequestsScreen />;
   if (isOperationsWorkspace) return <OperationsScreen />;
   if (isCertificatesWorkspace) return <CertificatesScreen />;
+  if (module?.id === "assignments") return <AssignmentsScreen />;
+  if (module?.id === "notices") return <NoticesScreen />;
+  if (module?.id === "timetable") return <TimetableScreen />;
+  if (module?.id === "library") return <LibraryScreen />;
+  if (module?.id === "calendar") return <CalendarScreen />;
+  if (module?.id === "attendance") return <AttendanceScreen />;
+  if (module?.id === "leave") return <LeaveScreen />;
+  if (module?.id === "hr") return <HRScreen />;
+  if (module?.id === "admissions") return <AdmissionsScreen />;
+  if (module?.id === "placements") return <PlacementScreen />;
+  if (module?.id === "lms") return <LmsScreen />;
+  if (module?.id === "notifications") return <NotificationsScreen />;
+  if (module?.id === "parent-children") return <ParentScreen />;
+  if (module?.id.startsWith("student-")) {
+    const initialTabs = {
+      "student-dashboard": "OVERVIEW",
+      "student-attendance": "ATTENDANCE",
+      "student-marks": "MARKS",
+      "student-results": "RESULTS",
+      "student-assignments": "ASSIGNMENTS",
+      "student-timetable": "TIMETABLE",
+    } as const;
+    const initialTab = initialTabs[module.id as keyof typeof initialTabs];
+    return <StudentPortalScreen initialTab={initialTab} />;
+  }
 
   return <View style={styles.root}>
     <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>

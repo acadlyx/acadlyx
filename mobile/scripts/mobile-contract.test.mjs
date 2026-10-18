@@ -585,6 +585,20 @@ test("certificate mobile workflow implements request, issue, reject and public v
 });
 
 
+test("ModuleScreen routes existing catalogue modules to dedicated operational screens", () => {
+  const source = read("src/screens/ModuleScreen.tsx");
+  const ids = [
+    "assignments", "notices", "timetable", "library", "calendar", "attendance",
+    "leave", "hr", "admissions", "placements", "lms", "notifications",
+    "parent-children", "student-dashboard", "student-attendance", "student-marks",
+    "student-results", "student-assignments", "student-timetable"
+  ];
+  for (const id of ids) assert.ok(source.includes('"'+id+'"'), "Missing dedicated dispatcher for "+id);
+  assert.ok(source.includes("!isDedicatedWorkflow"), "Generic read-only query must stay disabled when a dedicated workflow owns the module.");
+  assert.ok(source.includes("Read-only foundation"), "Unimplemented modules must remain explicit rather than showing fabricated workflows.");
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
