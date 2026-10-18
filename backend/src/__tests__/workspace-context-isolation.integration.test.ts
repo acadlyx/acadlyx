@@ -284,6 +284,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     const multiDeanHod = await createUserFixture("multi-dean-hod", institutionA.id, ["DEAN", "HOD"], tenantRolesA);
     const multiChairmanDirector = await createUserFixture("multi-chairman-director", institutionA.id, ["CHAIRMAN", "DIRECTOR"], tenantRolesA);
     const multiFacultyStudent = await createUserFixture("multi-faculty-student", institutionA.id, ["FACULTY", "STUDENT"], tenantRolesA);
+    const multiStudentAccounts = await createUserFixture("multi-student-accounts", institutionA.id, ["STUDENT", "ACCOUNTS"], tenantRolesA);
 
     await prisma.campusAccess.createMany({
       data: [
@@ -323,6 +324,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         { institutionId: institutionA.id, userId: studentA2.id, programId: programA2.id, academicYearId: yearA2.id, batchId: batchA2.id, semesterId: semesterA2.id, sectionId: sectionA2.id, status: "ACTIVE" },
         { institutionId: institutionB.id, userId: studentB.id, programId: programB.id, academicYearId: yearB.id, batchId: batchB.id, semesterId: semesterB.id, sectionId: sectionB.id, status: "ACTIVE" },
         { institutionId: institutionA.id, userId: multiFacultyStudent.id, programId: programA1.id, academicYearId: yearA1.id, batchId: batchA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, status: "ACTIVE" },
+        { institutionId: institutionA.id, userId: multiStudentAccounts.id, programId: programA1.id, academicYearId: yearA1.id, batchId: batchA1.id, semesterId: semesterA1.id, sectionId: sectionA1.id, status: "ACTIVE" },
       ],
     });
     await prisma.parentStudentLink.create({
@@ -845,6 +847,15 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       },
       select: { id: true },
     });
+
+    // The Accounts permission is accumulated into this multi-role principal,
+    // but Student is the effective workspace role. The shared/unscoped fee
+    // head directory must not leak through direct REST due to that union.
+    const accountFeeHeadRead = await request("/erp/fee-heads", roleUsers.ACCOUNTS.token);
+    assert.equal(accountFeeHeadRead.status, 200, "Accounts can read the shared fee-head directory");
+    const studentAccountsFeeHeadRead = await request("/erp/fee-heads", multiStudentAccounts.token);
+    assert.equal(studentAccountsFeeHeadRead.status, 403, "Student+Accounts must not inherit the shared fee-head directory through a secondary Accounts grant");
+
     const createdFeeStructure = await requestWithBody(
       "/erp/fee-structures",
       roleUsers.CHAIRMAN.token,
