@@ -1518,13 +1518,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["operations.read"],
     group: "Technology",
   },
-  {
-    label: "Import / Export",
-    href: "/it/imports",
-    icon: "⇅",
-    roles: ["IT"],
-    group: "Technology",
-  },
 
 
 
