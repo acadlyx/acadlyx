@@ -39,6 +39,7 @@ const MODULE_MIME_ALLOWLIST: Record<string, readonly string[]> = {
   library: ["application/pdf", "image/jpeg", "image/png", "image/webp"],
   operations: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
   imports: ["text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  exports: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/pdf", "application/json"],
   "events-gallery": ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
   expenses: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "text/csv", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
 };
