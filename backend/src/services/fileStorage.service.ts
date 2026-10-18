@@ -40,6 +40,7 @@ const MODULE_MIME_ALLOWLIST: Record<string, readonly string[]> = {
   operations: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/zip"],
   imports: ["text/csv", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   "events-gallery": ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
+  expenses: ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "text/csv", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
 };
 
 export interface StoredFile {

@@ -27,6 +27,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   lms: ["lms.manage", "lms.grade"],
   library: ["library.manage"],
   operations: ["operations.manage"],
+  expenses: ["expenses.read", "expenses.manage", "expenses.approve"],
 };
 
 const BLOCKED_MIME_TYPES = new Set([
@@ -39,11 +40,11 @@ const BLOCKED_MIME_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function assertModuleAccess(req: Request, module: string): void {
+function assertModuleAccess(req: Request, module: string, requiredPermission?: string): void {
   if (!req.user) throw new AppError("Authentication required", 401);
   if (req.user.roles.includes("SUPER_ADMIN")) return;
 
-  const permissions = MODULE_PERMISSIONS[module];
+  const permissions = requiredPermission ? [requiredPermission] : MODULE_PERMISSIONS[module];
   if (!permissions) {
     throw new AppError("Unsupported storage module", 400);
   }
@@ -62,7 +63,7 @@ function resourceTypeFor(mimeType: string): "image" | "video" | "raw" {
 export const upload = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const module = typeof req.body?.module === "string" ? req.body.module.trim().toLowerCase() : "";
-  assertModuleAccess(req, module);
+  assertModuleAccess(req, module, module === "expenses" ? "expenses.manage" : undefined);
 
   if (!req.file) throw new AppError("File is required", 400);
   if (BLOCKED_MIME_TYPES.has(req.file.mimetype)) {
@@ -146,7 +147,7 @@ export const get = async (req: Request, res: Response): Promise<void> => {
 export const remove = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const result = await getFileDelivery(req.params.id, institutionId);
-  assertModuleAccess(req, result.file.module);
+  assertModuleAccess(req, result.file.module, result.file.module === "expenses" ? "expenses.manage" : undefined);
   await deleteFile(req.params.id, institutionId);
   res.json({ success: true, data: { id: req.params.id, deleted: true } });
 };
