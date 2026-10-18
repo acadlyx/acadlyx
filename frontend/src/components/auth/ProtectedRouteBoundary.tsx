@@ -137,7 +137,11 @@ export function ProtectedRouteBoundary({
   }, [pathname, route, router, retryCount]);
 
   useEffect(() => {
-    if (state !== "unauthorized") {
+    // The previous route's authorization result is stale as soon as the
+    // pathname changes. Do not apply that decision to the destination while
+    // its own /auth/me validation is still pending; otherwise a legitimate
+    // redirect to the user's home can be redirected again to /login.
+    if (state !== "unauthorized" || validatedPath !== route) {
       return;
     }
 
@@ -150,7 +154,7 @@ export function ProtectedRouteBoundary({
         ? "/login"
         : destination,
     );
-  }, [pathname, route, router, state, user]);
+  }, [pathname, route, router, state, user, validatedPath]);
 
   if (isPublicRoute(pathname)) {
     return <>{children}</>;
