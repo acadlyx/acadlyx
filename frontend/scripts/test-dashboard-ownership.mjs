@@ -97,7 +97,7 @@ test("notices are readable across the canonical roles but student publishing sta
   assert.ok(!readRoles.includes('"SUPER_ADMIN"'), "platform Super Admin has no tenant notice reader scope");
   assert.ok(notices.includes("const manage = canManageNotices(user.roles, user.permissions);"));
   assert.match(notices, /listNotices\(false\)/);
-  assert.match(notices, /manage \? listDepartments\(\) : Promise\.resolve\(\[\]\)/);
+  assert.match(notices, /allowDepartmentTargeting \? listDepartments\(\) : Promise\.resolve\(\[\]\)/);
 });
 
 test("route ownership fails closed and final destinations are de-duplicated", () => {
