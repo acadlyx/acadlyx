@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
@@ -110,6 +110,9 @@ function noticeAccent(audience?: string) {
 
 export default function NoticesPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const contextDepartmentId = searchParams.get("departmentId") || "";
 
   const [notices, setNotices] = useState<ErpNotice[]>([]);
   const [departments, setDepartments] = useState<
@@ -130,6 +133,13 @@ export default function NoticesPage() {
     expiresAt: "",
   });
 
+  const visibleNotices = useMemo(
+    () => contextDepartmentId
+      ? notices.filter((notice) => !notice.departmentId || notice.departmentId === contextDepartmentId)
+      : notices,
+    [notices, contextDepartmentId],
+  );
+
   const departmentNameById = useMemo(() => {
     const map = new Map<string, string>();
 
@@ -139,6 +149,22 @@ export default function NoticesPage() {
 
     return map;
   }, [departments]);
+
+  useEffect(() => {
+    const departmentId = departments.some((department) => department.id === contextDepartmentId)
+      ? contextDepartmentId
+      : "";
+    setForm((current) => ({ ...current, departmentId }));
+  }, [contextDepartmentId, departments]);
+
+  function changeDepartmentScope(departmentId: string) {
+    setForm((current) => ({ ...current, departmentId }));
+    const params = new URLSearchParams(searchParams.toString());
+    if (departmentId) params.set("departmentId", departmentId);
+    else params.delete("departmentId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,7 +278,7 @@ export default function NoticesPage() {
                   Available notices
                 </p>
                 <p className="mt-1 text-2xl font-black text-slate-900">
-                  {loading ? "—" : notices.length}
+                  {loading ? "—" : visibleNotices.length}
                 </p>
               </div>
 
@@ -361,12 +387,7 @@ export default function NoticesPage() {
                   </span>
                   <select
                     value={form.departmentId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        departmentId: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => changeDepartmentScope(event.target.value)}
                     className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">All departments</option>
@@ -422,7 +443,7 @@ export default function NoticesPage() {
                 <div className="mt-2 h-3 w-1/2 rounded bg-slate-100" />
               </div>
             ))
-          ) : notices.length === 0 ? (
+          ) : visibleNotices.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-10 text-center">
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-[15px] bg-slate-100 text-slate-500">
                 ◌
@@ -435,7 +456,7 @@ export default function NoticesPage() {
               </p>
             </div>
           ) : (
-            notices.map((notice) => (
+            visibleNotices.map((notice) => (
               <article
                 key={notice.id}
                 className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_7px_24px_rgba(20,32,50,0.035)] sm:p-6"
