@@ -66,10 +66,12 @@ assert.match(rbac, /STUDENT:\s*\[[\s\S]*?"library\.read",[\s\S]*?"library\.borro
 assert.doesNotMatch(rbac.match(/STUDENT:\s*\[([\s\S]*?)\n\s*\],/)?.[1] ?? "",
   /"library\.manage"|"library\.fines\.waive\.(?:request|approve)/,
   "students must not receive librarian management or fine-waiver authority");
-assert.match(libraryService, /buildLibraryFineListWhere[\s\S]*?issue:\s*\{\s*borrowerId:\s*actor\.id\s*\}/,
-  "student fine queries must be scoped to their own borrower ID");
-assert.match(libraryService, /institutionId,[\s\S]*?actor\.roles\.includes\("STUDENT"\)/,
-  "student fine queries must retain institution isolation");
+assert.match(libraryService, /buildLibraryFineListWhere[\s\S]*?effectiveRole === "STUDENT"[\s\S]*?return \{ institutionId, issue: \{ borrowerId: actor\.id \} \}/,
+  "student fine queries must use effective Student workspace and scope to their own borrower ID");
+assert.match(libraryService, /if \(effectiveRole === "LIBRARIAN"\) return \{ institutionId \}/,
+  "institution-wide fine lists must be available only in the effective Librarian workspace");
+assert.match(libraryService, /Library fines are not available in the active workspace/,
+  "non-student/non-librarian workspaces must fail closed for library fines");
 assert.match(entitlementService, /if \(!entitlement \|\| !entitlement\.isEnabled\)/,
   "disabled or missing library entitlements must remain denied");
 
