@@ -29,10 +29,16 @@ async function installAuthenticatedSession(page, role) {
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
     permissions: role === "STUDENT" || role === "LIBRARIAN" ? [...permissions, "library.read", "library.borrow"] : permissions,
+    // This common fixture represents a tenant that has these modules
+    // enabled. Route-ownership tests must reach the role boundary, not fail
+    // early because a required tenant feature was omitted from the fixture.
+    // Feature-disabled behavior is covered separately with explicit overrides.
     tenantFeatures: [
       "fees", "exams", "lms", "attendance", "placements", "admissions", "obe", "cms",
       "students", "faculty", "timetable", "results", "reports", "notifications",
-      "documents", "certificates",
+      "documents", "certificates", "notices", "assignments", "calendar", "operations",
+      "registration", "import_export", "analytics", "promotions", "academics", "hr",
+      "intelligence",
       ...(role === "STUDENT" || role === "LIBRARIAN" ? ["library"] : []),
       ...(role === "PARENT" ? ["parent_portal"] : []),
     ],
