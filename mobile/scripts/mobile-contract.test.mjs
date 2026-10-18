@@ -621,6 +621,15 @@ test("OBE mobile screen connects outcome mapping, assessments, scores and attain
 });
 
 
+test("mobile report date filters show validation instead of throwing during render", () => {
+ const source=read("src/screens/ReportsScreen.tsx");
+ assert.ok(source.includes("const dateState=useMemo"));
+ assert.ok(source.includes('return {query:"",error:"Dates must use YYYY-MM-DD."}'));
+ assert.ok(source.includes("d.toISOString().slice(0,10)!==from")&&source.includes("d.toISOString().slice(0,10)!==to"));
+ assert.ok(!source.includes('throw new Error("Dates must use YYYY-MM-DD.")'));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
