@@ -271,14 +271,9 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     // test cannot race the fire-and-forget insert and falsely report a drain.
     let cancellationQueued = false;
     for (let attempt = 0; attempt < 30; attempt += 1) {
-      cancellationQueued = Boolean(await prisma.domainEventOutbox.findFirst({
-        where: { institutionId: institution.id, name: "placement.schedule.changed" },
-        // JSON payload matching is deliberately checked below after retrieval.
-        select: { id: true },
-      }));
       const queuedEvents = await prisma.domainEventOutbox.findMany({
         where: { institutionId: institution.id, name: "placement.schedule.changed" },
-        select: { id: true, payload: true },
+        select: { payload: true },
       });
       cancellationQueued = queuedEvents.some((entry) => {
         const payload = entry.payload as Record<string, unknown>;
