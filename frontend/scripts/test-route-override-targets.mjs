@@ -5,9 +5,9 @@ import test from "node:test";
 
 const frontendRoot = path.resolve(process.cwd());
 const appRoot = path.join(frontendRoot, "src/app");
-const shellPath = path.join(frontendRoot, "src/components/dashboard/DashboardShell.tsx");
-const shell = fs.readFileSync(shellPath, "utf8");
-const overrideBlock = shell.match(/const ROLE_ROUTE_OVERRIDES:[\\s\\S]*?= \\{([\\s\\S]*?)\\n\\};/)?.[1];
+const shell = fs.readFileSync(path.join(frontendRoot, "src/components/dashboard/DashboardShell.tsx"), "utf8");
+const navigation = fs.readFileSync(path.join(frontendRoot, "src/lib/navigation.ts"), "utf8");
+const overrideBlock = navigation.match(/export const ROLE_ROUTE_OVERRIDES:[\s\S]*?=\s*\{([\s\S]*?)\n\};/)?.[1];
 
 assert.ok(overrideBlock, "ROLE_ROUTE_OVERRIDES must remain a declared policy table");
 
@@ -17,9 +17,9 @@ function pageForRoute(route) {
 }
 
 const overrides = [];
-for (const roleEntry of overrideBlock.matchAll(/([A-Z_]+):\\s*\\{([^}]*)\\}/g)) {
+for (const roleEntry of overrideBlock.matchAll(/([A-Z_]+):\s*\{([^}]*)\}/g)) {
   const [, role, body] = roleEntry;
-  for (const pair of body.matchAll(/"([^"]+)"\\s*:\\s*"([^"]+)"/g)) {
+  for (const pair of body.matchAll(/"([^"]+)"\s*:\s*"([^"]+)"/g)) {
     const [, source, destination] = pair;
     overrides.push({ role, source, destination });
   }
