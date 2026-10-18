@@ -93,7 +93,8 @@ test("institutional CMS permissions remain separate from platform site.manage", 
 
 test("notices are readable across the canonical roles but student publishing stays disabled", () => {
   const readRoles = notices.match(/const READ_ROLES = \[([\s\S]*?)\];/)?.[1] ?? "";
-  for (const role of CANONICAL_ROLES) assert.ok(readRoles.includes('"'+role+'"'), role + " missing from notice read audience");
+  for (const role of CANONICAL_ROLES.filter((role) => role !== "SUPER_ADMIN")) assert.ok(readRoles.includes('"'+role+'"'), role + " missing from notice read audience");
+  assert.ok(!readRoles.includes('"SUPER_ADMIN"'), "platform Super Admin has no tenant notice reader scope");
   assert.ok(notices.includes("const manage = canManageNotices(user.roles, user.permissions);"));
   assert.match(notices, /listNotices\(false\)/);
   assert.match(notices, /manage \? listDepartments\(\) : Promise\.resolve\(\[\]\)/);
@@ -140,8 +141,10 @@ test("notice writer policy is explicit, shared by API/UI, and excludes unsupport
     "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
     "DEAN", "REGISTRAR", "HOD", "CMS",
   ]);
-  assert.ok(rbac.includes('basePermissions.filter((permission) => permission !== "notices.manage")'),
-    "non-writer roles must not inherit notice-write access from a shared permission bundle");
+  assert.ok(rbac.includes("const canReadTenantNotices = normalized !== \"SUPER_ADMIN\";"),
+    "platform-only Super Admin must not inherit tenant notice reads");
+  assert.ok(rbac.includes('permission !== "notices.manage"') && rbac.includes('permission !== "notices.read"'),
+    "non-writer roles and platform-only roles must not inherit notice access from shared permission bundles");
   assert.equal(erpService.split("assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);").length - 1, 3,
     "create, update and delete must use the same canonical writer allowlist");
   assert.ok(erpService.includes("assertNoticeDepartmentScope(institutionId, actor, input.departmentId)"),
@@ -159,6 +162,7 @@ test("legacy operational aliases redirect to their canonical role-owned page", (
   const chairmanFeeApprovals = readFrontend("app/chairman/fee-approvals/page.tsx");
   const chairmanOperations = readFrontend("app/chairman/operations/page.tsx");
   const directorOperations = readFrontend("app/director/operations/page.tsx");
+  const superadminNotices = readFrontend("app/superadmin/notices/page.tsx");
 
   assert.match(accountsFees, /redirect\("\/fees"\)/, "Accounts fees alias should resolve to the shared protected fees destination");
   assert.match(hodStudents, /redirect\("\/hod"\)/, "HOD students must not duplicate the HOD home page");
@@ -166,4 +170,6 @@ test("legacy operational aliases redirect to their canonical role-owned page", (
   assert.match(chairmanFeeApprovals, /redirect\("\/chairman\/fees\/structures"\)/);
   assert.match(chairmanOperations, /redirect\("\/chairman"\)/);
   assert.match(directorOperations, /router\.replace\("\/director"\)|window\.location\.replace\("\/director"\)/);
+  assert.match(superadminNotices, /redirect\("\/superadmin"\)/, "platform notice alias must not expose tenant notices");
+  assert.doesNotMatch(navigation, /href: "\/superadmin\/notices"/, "platform sidebar must not link to tenant notices");
 });
