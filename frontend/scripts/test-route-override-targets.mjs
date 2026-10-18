@@ -135,7 +135,7 @@ test("every final role-owned navigation destination resolves to an app page", ()
         override.role === role && override.source === entry.href,
       )?.destination ?? entry.href;
       const pathname = destination.split("?")[0].split("#")[0] || "/";
-      if (/^https?:\\/\\//i.test(pathname)) continue;
+      if (pathname.startsWith("http://") || pathname.startsWith("https://")) continue;
       if (!fs.existsSync(pageForRoute(pathname))) {
         missing.push({ role, source: entry.href, destination: pathname });
       }
