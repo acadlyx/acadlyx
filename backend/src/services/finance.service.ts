@@ -75,7 +75,7 @@ async function audit(institutionId:string,userId:string,action:string,entityType
 export async function overview(institutionId:string,a:AuthenticatedUser,filters:{period?:string;academicYearId?:string}={},resolvedScope?:Scope){
  if(!has(a,"fees.read")&&!has(a,"fees.collection.read"))throw new AppError("Financial visibility permission required",403);
  const s=resolvedScope ?? await scope(institutionId,a);
- const invoiceFilter:any={...invoiceWhere(s)}, paymentFilter:any={...paymentWhere(s)};
+ const invoiceFilter:any={...invoiceWhere(s),status:{not:"CANCELLED"}}, paymentFilter:any={...paymentWhere(s)};
  const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
  const month=new Date(now.getFullYear(),now.getMonth(),1);
  if(filters.academicYearId){invoiceFilter.academicYearId=filters.academicYearId;paymentFilter.invoice={...(paymentFilter.invoice||{}),academicYearId:filters.academicYearId};}
@@ -88,18 +88,19 @@ export async function overview(institutionId:string,a:AuthenticatedUser,filters:
  if(from){invoiceFilter.createdAt={gte:from};paymentFilter.paidAt={gte:from};}
  const overdueWhere={...invoiceFilter,dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}};
  const [invAgg,paidAgg,refAgg,overdueAgg,invoiceCount,paymentCount,todayAgg,monthAgg]=await Promise.all([
-  prisma.feeInvoice.aggregate({where:invoiceFilter,_sum:{amount:true}}),
+  prisma.feeInvoice.aggregate({where:invoiceFilter,_sum:{amount:true,paidAmount:true}}),
   prisma.feePayment.aggregate({where:{...paymentFilter,status:"SUCCESS"},_sum:{amount:true}}),
   prisma.feeInvoice.aggregate({where:invoiceFilter,_sum:{refundedAmount:true}}),
-  prisma.feeInvoice.aggregate({where:overdueWhere,_sum:{amount:true,paidAmount:true,refundedAmount:true}}),
+  prisma.feeInvoice.aggregate({where:overdueWhere,_sum:{amount:true,paidAmount:true}}),
   prisma.feeInvoice.count({where:invoiceFilter}),
   prisma.feePayment.count({where:paymentFilter}),
   prisma.feePayment.aggregate({where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:today}},_sum:{amount:true}}),
   prisma.feePayment.aggregate({where:{...paymentFilter,status:"SUCCESS",paidAt:{gte:month}},_sum:{amount:true}})
  ]);
  const billed=Number(invAgg._sum.amount||0), collected=Number(paidAgg._sum.amount||0), refunded=Number(refAgg._sum.refundedAmount||0);
- const overdue=Math.max(0,Number(overdueAgg._sum.amount||0)-Number(overdueAgg._sum.paidAmount||0)-Number(overdueAgg._sum.refundedAmount||0));
- return {billed,collected,refunded,outstanding:Math.max(0,billed-collected-refunded),overdue,collectionPercentage:billed?collected/billed*100:0,todayCollection:Number(todayAgg._sum.amount||0),monthCollection:Number(monthAgg._sum.amount||0),invoiceCount,paymentCount,scope:s};
+ const overdue=Math.max(0,Number(overdueAgg._sum.amount||0)-Number(overdueAgg._sum.paidAmount||0));
+ const outstanding=Math.max(0,billed-Number(invAgg._sum.paidAmount||0));
+ return {billed,collected,refunded,outstanding,overdue,collectionPercentage:billed?Math.max(0,billed-outstanding)/billed*100:0,todayCollection:Number(todayAgg._sum.amount||0),monthCollection:Number(monthAgg._sum.amount||0),invoiceCount,paymentCount,scope:s};
 }
 
 export async function commandCenter(institutionId:string,a:AuthenticatedUser,input:{period?:string}={}){
@@ -112,7 +113,7 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  const s=await scope(institutionId,a);
  const scopedInvoice=invoiceWhere(s);
  const scopedPayment=paymentWhere(s);
- const invoiceFilter:any=academicYearId?{...scopedInvoice,academicYearId}:scopedInvoice;
+ const invoiceFilter:any=academicYearId?{...scopedInvoice,academicYearId,status:{not:"CANCELLED"}}:{...scopedInvoice,status:{not:"CANCELLED"}};
  const paymentFilter:any=academicYearId?{...scopedPayment,invoice:{...(scopedPayment.invoice as any),academicYearId}}:scopedPayment;
  const base=await overview(institutionId,a,{period:input.period,academicYearId},s);
  const now=new Date(), thirty=new Date(now.getTime()-30*24*60*60*1000);
@@ -230,8 +231,8 @@ export async function collections(institutionId:string,a:AuthenticatedUser,filte
  if(!has(a,"fees.collection.read")&&!has(a,"fees.read"))throw new AppError("Collection visibility permission required",403);
  const s=await scope(institutionId,a);
  const collectionWhere:Prisma.FeeInvoiceWhereInput=filters.academicYearId
-  ? {...invoiceWhere(s),academicYearId:filters.academicYearId}
-  : invoiceWhere(s);
+  ? {...invoiceWhere(s),academicYearId:filters.academicYearId,status:{not:"CANCELLED"}}
+  : {...invoiceWhere(s),status:{not:"CANCELLED"}};
 
  // Invoice visibility must also scope the enrollment used to attribute the
  // amount to a department/program. Otherwise a student with historical or
@@ -270,7 +271,7 @@ export async function collections(institutionId:string,a:AuthenticatedUser,filte
  });
  const departments=new Map<string,any>(),programs=new Map<string,any>(),semesters=new Map<string,any>();
  for(const x of rows)for(const e of x.student.studentEnrollments){
-  const billed=Number(x.amount),collected=Number(x.paidAmount)-Number(x.refundedAmount),outstanding=Math.max(0,billed-Number(x.paidAmount)-Number(x.refundedAmount));
+  const billed=Number(x.amount),collected=Number(x.paidAmount),outstanding=Math.max(0,billed-Number(x.paidAmount));
   const d=e.program.department; const dr=departments.get(d.id)||{departmentId:d.id,name:d.name,billed:0,collected:0,outstanding:0};dr.billed+=billed;dr.collected+=collected;dr.outstanding+=outstanding;departments.set(d.id,dr);
   const pr=e.program; const prr=programs.get(pr.id)||{programId:pr.id,name:pr.name,departmentId:d.id,departmentName:d.name,billed:0,collected:0,outstanding:0};prr.billed+=billed;prr.collected+=collected;prr.outstanding+=outstanding;programs.set(pr.id,prr);
   if(e.semester){const se=e.semester;const sr=semesters.get(se.id)||{semesterId:se.id,name:se.name,billed:0,collected:0,outstanding:0};sr.billed+=billed;sr.collected+=collected;sr.outstanding+=outstanding;semesters.set(se.id,sr);}

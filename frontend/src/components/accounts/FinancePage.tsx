@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
-import { financeAudit, financeAssignStructure, financeCollections, financeConcessions, financeCommandCenter, financeHeads, financeInvoices, financePayments, financeReceipts, financeRefunds, financeStructures, financeTransactions, downloadFinanceExport } from "@/lib/financeApi";
+import { financeAudit, financeAssignStructure, financeCollections, financeConcessions, financeCommandCenter, financeHeads, financeInvoices, financePayments, financeReceipts, financeRefunds, financeStructures, financeTransactions, downloadFinanceExport, downloadFinanceExpenses } from "@/lib/financeApi";
 import { getCachedCurrentUser, getCurrentUser } from "@/lib/auth";
 import { approveFeeStructure, publishFeeStructure, rejectFeeStructure, submitFeeStructureForApproval, createFeeHead, createFeeStructure, listAcademicYears, listPrograms, listSemesters, listFeeHeads } from "@/lib/erpApi";
 
@@ -67,7 +67,7 @@ export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTI
     {view === "refunds" && <DataExportActions type="fee-refunds" compact />}
     {view === "concessions" && <DataExportActions type="fee-concessions" compact />}
     {view === "audit" && can("audit.read") && <DataExportActions type="fee-audit" compact />}
-    {view === "reports" && <><DataExportActions type="fees" compact /><DataExportActions type="fee-payments" compact /><DataExportActions type="fee-transactions" compact /></>}
+    {view === "reports" && <><DataExportActions type="fees" compact /><DataExportActions type="fee-payments" compact /><DataExportActions type="fee-transactions" compact />{can("expenses.export")&&<button type="button" onClick={()=>void downloadFinanceExpenses()} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Export expenses XLSX</button>}</>}
     {view === "dues" && <DataExportActions type="outstanding-dues" compact />}
     {view==="overview" ? <CommandCenter d={data} period={period} setPeriod={setPeriod} can={can}/> :
      view==="dues" ? <Dues d={data} can={can}/> :
@@ -81,6 +81,8 @@ function CommandCenter({d,period,setPeriod,can}:{d:any;period:Period;setPeriod:(
  const trend=d.trend||[], max=Math.max(...trend.map((x:any)=>Number(x.amount)||0),1);
  const actions=d.actionRequired||[];
  const methods=d.paymentMethods||[];
+ const metrics:any[]=[["Total billed",d.billed,"Financial position"],["Total collected",d.collected,"Successful payments"],["Outstanding",d.outstanding,"Current unpaid invoice balance"],["Overdue",d.overdue,`${d.overdueCount||0} accounts`],["Collection rate",`${Number(d.collectionPercentage||0).toFixed(1)}%`,"Net billed balance collected"]];
+ if(can("expenses.read")||can("expenses.manage")||can("expenses.approve"))metrics.push(["Pending expenses",String(d.pendingExpenses||0),`${money(Number(d.pendingExpenseAmount||0))} awaiting approval`]);
  const departments=d.departments||[];
  return <div className="space-y-5">
   <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -88,15 +90,7 @@ function CommandCenter({d,period,setPeriod,can}:{d:any;period:Period;setPeriod:(
    <div className="flex flex-wrap gap-2">{(["today","week","month","quarter","academic"] as Period[]).map(x=><button key={x} onClick={()=>setPeriod(x)} className={`rounded-xl border px-3 py-2 text-xs font-black capitalize ${period===x?"border-slate-950 bg-slate-950 text-white":"border-slate-200 bg-white text-slate-600"}`}>{x}</button>)}</div>
   </header>
 
-  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-   {[
-    ["Total billed",d.billed,"Financial position"],
-    ["Total collected",d.collected,"Successful payments"],
-    ["Outstanding",d.outstanding,"Still payable"],
-    ["Overdue",d.overdue,`${d.overdueCount||0} accounts`],
-    ["Collection rate",`${Number(d.collectionPercentage||0).toFixed(1)}%`,"Collected ÷ billed"]
-   ].map(([label,value,sub])=><Card key={String(label)} className="p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{typeof value==="number"?money(value):value}</p><p className="mt-1 text-xs font-semibold text-slate-500">{sub}</p></Card>)}
-  </div>
+  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{metrics.map(([label,value,sub])=><Card key={String(label)} className="p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p><p className="mt-2 text-2xl font-black text-slate-950">{typeof value==="number"?money(value):value}</p><p className="mt-1 text-xs font-semibold text-slate-500">{sub}</p></Card>)}</div>
 
   <div className="grid gap-5 xl:grid-cols-[1.45fr_.85fr]">
    <Card className="p-5"><SectionTitle title="Today's collection" subtitle={`${money(d.todayCollection)} collected · ${d.paymentCount||0} payments in authorized scope`}/><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-3xl font-black">{money(d.todayCollection)}</p><p className="mt-1 text-xs text-slate-500">Collected today</p></div><div className="space-y-2">{(d.todayPaymentMethods||[]).slice(0,5).map((m:any)=><div key={m.method} className="flex items-center justify-between text-sm"><span className="font-semibold text-slate-600">{m.method||"Other"}</span><span className="font-black">{money(m.amount)}</span></div>)}</div></div><div className="mt-5 border-t border-slate-100 pt-4"><div className="flex flex-wrap gap-2">{can("fees.payment.record")&&<Link href="/accounts/payments" className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Record payment</Link>}{can("fees.read")&&<Link href="/accounts/receipts" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700">Receipts</Link>}</div></div></Card>

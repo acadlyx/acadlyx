@@ -26,3 +26,5 @@ export async function createFinanceExpense(input:FinanceExpenseInput){return(awa
 export async function updateFinanceExpense(id:string,input:FinanceExpenseInput){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses/"+id,{method:"PUT",body:JSON.stringify(input)})).data}
 export async function decideFinanceExpense(id:string,decision:"APPROVED"|"REJECTED",comment:string){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses/"+id+"/decision",{method:"POST",body:JSON.stringify({decision,comment})})).data}
 export async function financeExpenseHistory(id:string){return(await authedFetch<{success:boolean;data:any[]}>("/finance/expenses/"+id+"/history")).data}
+
+export async function downloadFinanceExpenses(format:"xlsx"|"csv"|"docx"|"pdf"|"json"="xlsx"){const x=await authedDownload("/finance/expenses/export?format="+format);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
