@@ -16,6 +16,7 @@ import { getErpWorkspace, getErpWorkspaceSummary } from "@/lib/erpApi";
 import { GlobalSearchBar } from "./GlobalSearchBar";
 import { WorkspaceContextSelector } from "./WorkspaceContextSelector";
 import { MyWorkSummaryPanel } from "./MyWorkSummaryPanel";
+import { RecentUpdatesPanel } from "./RecentUpdatesPanel";
 
 const WORKSPACE_QUERY_KEYS = ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"];
 const ROLE_DASHBOARD_HOME_PATHS = new Set([
@@ -253,6 +254,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceRole !== "SUPER_ADMIN" && !pathname.startsWith("/accounts") ? <WorkspaceContextSelector onInstitutionBrand={setInstitutionBrand} /> : null}{workspaceRole !== "SUPER_ADMIN" && ROLE_DASHBOARD_HOME_PATHS.has(pathname) ? <MyWorkSummaryPanel /> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
+    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceRole !== "SUPER_ADMIN" && !pathname.startsWith("/accounts") ? <WorkspaceContextSelector onInstitutionBrand={setInstitutionBrand} /> : null}{workspaceRole !== "SUPER_ADMIN" && ROLE_DASHBOARD_HOME_PATHS.has(pathname) ? <><MyWorkSummaryPanel /><RecentUpdatesPanel /></> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
   </UnifiedDashboardFrame>;
 }
