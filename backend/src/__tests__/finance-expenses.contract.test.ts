@@ -18,7 +18,7 @@ test("expense reads and decisions retain tenant/scope checks and immutable trans
  const service=read("src/services/finance.service.ts");
  assert.match(service,/function expenseWhere\(institutionId:string,s:Scope\)/);
  assert.match(service,/"institutionId" = \$\{institutionId\}/);
- assert.match(service,/visibleExpense\(institutionId,s,id,true\)/);
+ assert.match(service,/visibleExpense\(institutionId,s,id,true,tx\)/);
  assert.match(service,/Only pending expenses can be approved or rejected/);
  assert.match(service,/UPDATE "finance_expenses"[\s\S]*?AND "status"='PENDING' RETURNING \*/);
  assert.match(service,/INSERT INTO "finance_expense_status_history"/);
