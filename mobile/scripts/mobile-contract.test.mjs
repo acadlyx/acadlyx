@@ -481,7 +481,7 @@ test("events mobile workflow uses authorized CRUD and a bounded multipart image 
   for (const endpoint of ['"/events"', '"/events/categories"', '"/events/media/upload"', '"/events/"+encodeURIComponent']) {
     assert.ok(screen.includes(endpoint), "Missing event workflow endpoint " + endpoint);
   }
-  assert.ok(screen.includes('method: "PATCH"') && screen.includes('method: "POST"') && screen.includes('method: "DELETE"'));
+  assert.ok(screen.includes('method:editingId?"PATCH":"POST"') && screen.includes('method:"POST"') && screen.includes('method:"DELETE"'));
   assert.ok(screen.includes("events.manage") && screen.includes("events.read") && screen.includes("workspaceKey"));
   assert.ok(screen.includes("DocumentPicker.getDocumentAsync") && screen.includes("FormData"));
   assert.ok(route.includes('authorize("events.manage"), imageUpload.single("file"), controller.uploadMedia'));
@@ -514,7 +514,7 @@ test("user administration mobile workflow is permission-gated and uses the canon
  const moduleScreen = read("src/screens/ModuleScreen.tsx");
  const routes = read("../backend/src/routes/user.routes.ts");
  const validators = read("../backend/src/validators/user.validators.ts");
- assert.ok(screen.includes('"/users?page="') && screen.includes('"/users/" + encodeURIComponent'));
+ assert.ok(screen.includes('"/users?page="') && screen.includes('"/users/"+encodeURIComponent'));
  assert.ok(screen.includes('method:editingId?"PATCH":"POST"') && screen.includes('"/status"'));
  assert.ok(screen.includes("users.read") && screen.includes("users.create") && screen.includes("users.update") && screen.includes("users.delete"));
  assert.ok(screen.includes("departmentIds") && screen.includes("campusIds") && screen.includes("workspaceKey"));
