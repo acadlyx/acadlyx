@@ -69,9 +69,9 @@ test("an active scoped workspace takes precedence over secondary admin grants", 
   assert.equal(getEffectiveWorkspaceRole(actor("CHAIRMAN", "DIRECTOR")), "CHAIRMAN");
 });
 
-test("ordinary institution-wide roles still retain generic scope", () => {
+test("institution-wide tenant roles retain generic scope while Super Admin remains platform-only", () => {
   assert.equal(isInstitutionWide(actor("INSTITUTION_ADMIN")), true);
   assert.equal(isInstitutionWide(actor("MANAGEMENT")), true);
   assert.equal(isInstitutionWide(actor("REGISTRAR")), true);
-  assert.equal(isInstitutionWide(actor("SUPER_ADMIN")), true);
+  assert.equal(isInstitutionWide(actor("SUPER_ADMIN")), false);
 });
