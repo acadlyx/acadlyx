@@ -73,6 +73,7 @@ function routeExists(href: string) {
 test("every literal ROLE_NAVIGATION destination resolves to an App Router page", () => {
   const items = navigationObjects();
   assert.ok(items.length > 100, "navigation parser should inspect the real role navigation inventory");
+  assert.ok(dashboardShellSource.includes("roleOwnedHref"), "DashboardShell must use the canonical role-owned destination resolver");
   const adminHrefs = [...adminNavigationSource.matchAll(/href:\s*"([^"]+)"/g)].map((match) => match[1]);
   const overridesStart = navigationSource.indexOf("const ROLE_ROUTE_OVERRIDES");
   const overridesEnd = navigationSource.indexOf("\n};", overridesStart);
