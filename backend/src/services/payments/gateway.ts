@@ -333,7 +333,7 @@ class HmacGateway implements PaymentGateway {
       throw new AppError("Invalid payment webhook payload", 400);
     }
 
-    if (!["payment.captured", "payment.authorized"].includes(body.event || "")) {
+    if (body.event !== "payment.captured") {
       return null;
     }
 

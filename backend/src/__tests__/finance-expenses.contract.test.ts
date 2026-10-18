@@ -51,3 +51,27 @@ test("invoice overdue filter parses textual false as false",()=>{
  const validators=read("src/validators/finance.validators.ts");
  assert.match(validators,/overdueOnly:z\.enum\(\["true","false"\]\)\.transform\(value=>value==="true"\)\.optional\(\)/);
 });
+
+test("expense attachments and payment/refund integrations require provider-backed settlement",()=>{
+ const storage=read("src/services/fileStorage.service.ts");
+ const controller=read("src/controllers/fileStorage.controller.ts");
+ const schema=read("src/validators/finance.validators.ts");
+ const finance=read("src/services/finance.service.ts");
+ const migration=read("prisma/migrations/20261019100000_finance_expense_supporting_files/migration.sql");
+ const student=read("../frontend/src/components/student/StudentFinancePage.tsx");
+ const gateway=read("src/services/payments/gateway.ts");
+ const legacyBilling=read("src/services/feeBilling.service.ts");
+ assert.match(storage,/expenses: \["application\/pdf"/);
+ assert.match(controller,/module === "expenses" \? "expenses\.manage"/);
+ assert.match(schema,/supportingDocumentFileId: z\.string\(\)\.uuid\(\)/);
+ assert.match(finance,/module:"expenses",ownerId:a\.id,referenceId:null/);
+ assert.match(migration,/"supportingDocumentFileId" TEXT/);
+ assert.match(student,/startCheckout\(invoice\.id\)/);
+ assert.match(student,/confirmPayment\(/);
+ assert.match(gateway,/payment\.status === "captured"/);
+ assert.match(gateway,/body\.event !== "payment\.captured"/);
+ assert.match(finance,/gateway\.createRefund\(/);
+ assert.match(finance,/gateway\.getRefund\(/);
+ assert.match(finance,/confirmExternalSettlement/);
+ assert.match(legacyBilling,/Direct PROCESSED transitions are disabled/);
+});

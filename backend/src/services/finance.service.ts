@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { getPaymentGateway } from "./payments/gateway";
+import type { GatewayRefund } from "./payments/gateway";
 import { deleteFile } from "./fileStorage.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
 import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
@@ -367,7 +368,7 @@ export async function processRefund(institutionId:string,a:AuthenticatedUser,id:
  if(online){
   if(visiblePayment.provider!=="razorpay"||!visiblePayment.providerPaymentId)throw new AppError("This online payment has no supported provider refund route. The ledger has not been changed.",409);
   const gateway=getPaymentGateway();
-  let providerRefund;
+  let providerRefund: GatewayRefund;
   if(initial.status==="APPROVED"){
    const claim=await prisma.feeRefund.updateMany({where:{id,institutionId,status:"APPROVED"},data:{status:"PROCESSING"}});
    if(claim.count!==1)throw new AppError("Refund state changed; reload before retrying",409);
