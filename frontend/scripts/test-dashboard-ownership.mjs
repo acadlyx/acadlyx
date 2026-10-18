@@ -94,6 +94,7 @@ test("notices are readable across the canonical roles but student publishing sta
 
 test("route ownership fails closed and final destinations are de-duplicated", () => {
   assert.match(navigation, /if \(!matchingNamespace\) \{[\s\S]*?return false;/);
+  assert.match(navigation, /item\.activeMatch === "exact" \|\| !normalizedPath\.startsWith\(href \+ "\/"\)/);
   assert.match(navigation, /const merged = new Map<string, NavigationItem>\(\)/);
   assert.match(shell, /const uniqueDestinations = new Map<string, typeof roleItems\[number\]>\(\)/);
   assert.match(shell, /if \(!uniqueDestinations\.has\(destination\)\) uniqueDestinations\.set\(destination, item\)/);
