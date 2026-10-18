@@ -80,6 +80,7 @@ test.describe("20-role direct URL and platform boundary matrix", () => {
       await installRoleSession(page, role);
       await page.goto(`${baseURL}/superadmin`, { waitUntil: "domcontentloaded" });
       await expect.poll(() => new URL(page.url()).pathname).not.toBe("/superadmin");
+      await expect(page.locator('a[href="/superadmin"]')).toHaveCount(0);
     });
   }
 
