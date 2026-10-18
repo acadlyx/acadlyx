@@ -17,6 +17,7 @@ const institutionalCms = readFrontend("app/admin/institutional-cms/page.tsx");
 const notices = readFrontend("app/notices/page.tsx");
 const rbac = readRepo("backend/src/config/rbac.ts");
 const cmsRoutes = readRepo("backend/src/routes/institutionalCms.routes.ts");
+const siteContentRoutes = readRepo("backend/src/routes/siteContent.routes.ts");
 const cmsService = readRepo("backend/src/services/institutionalCms.service.ts");
 
 const CANONICAL_ROLES = [
@@ -62,6 +63,9 @@ test("tenant CMS routes use the cms entitlement but Super Admin website editing 
 });
 
 test("institutional CMS permissions remain separate from platform site.manage", () => {
+  assert.ok(cmsRoutes.includes('router.use(requireFeature("cms"));'), "Institutional CMS API must reject disabled tenant entitlements");
+  assert.ok(siteContentRoutes.includes('router.use(requireFeature("cms"));'), "Website CMS API must enforce CMS tenant entitlement except platform bypass in middleware");
+  assert.ok(siteContentRoutes.includes('authorize("site.manage")'), "Website CMS API must retain platform website-editing authorization");
   for (const key of ["institutional-cms.read", "institutional-cms.manage", "institutional-cms.approve"]) {
     assert.ok(rbac.includes('key: "'+key+'"'), "missing catalog permission "+key);
     assert.ok(cmsRoutes.includes('"'+key+'"'), "backend route does not enforce "+key);
