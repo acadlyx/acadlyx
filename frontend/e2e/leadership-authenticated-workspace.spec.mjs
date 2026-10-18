@@ -58,6 +58,13 @@ async function installAuthenticatedSession(page, role) {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    // Do not install the application service worker in mocked-auth tests:
+    // service-worker fetches bypass page.route() and leak synthetic test
+    // tokens to the isolated API instead of using the deterministic fixtures.
+    if (path === "/sw.js") {
+      await route.fulfill({ status: 404, contentType: "application/javascript", body: "" });
+      return;
+    }
     if (!path.startsWith("/api/v1/")) {
       await route.continue();
       return;
