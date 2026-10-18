@@ -292,3 +292,16 @@ The latest implementation-branch HEAD before this tracker update was `1f1dea8ac5
 - This is a regression test for direct URL role boundaries, not proof of the entire requested matrix. It does not by itself establish role-owned navigation correctness or real API read/mutation authorization. Those must be backed by backend integration tests and browser assertions.
 - Current branch HEAD at time of writing: `6aff2d4b4fc907e6df281d0644a8bbec44182cca`. Exact-HEAD CI results for this new test are not yet available. Do not mark the full six-item request complete until CI executes the test and all required endpoint-level role/scope/cache cases are verified.
 - Protected production branch remains unchanged; no merge or deployment.
+
+
+### Batch 01 continuation — tenant/cache regressions (2026-10-18)
+
+- Added frontend cache regression cases in `frontend/scripts/test-workspace-context-cache.mjs` (commit `7e13d3ba81d9be023307aad28c5021809502c796`):
+  - same selectors under different session/tenant scopes produce distinct cache keys;
+  - authority signatures change when institution, role, permission, or tenant feature availability changes;
+  - a delayed result from a previous academic workspace cannot replace the current workspace;
+  - a pending result cannot publish after logout/session-scope rotation.
+- Source inspection confirms `backend/src/middleware/authenticate.ts` reloads the user, live refresh session, role bindings, institution status and effective tenant scope for protected requests, rejects revoked/expired sessions and rejects SUPER_ADMIN accounts mixed with institution-scoped role bindings. This is implementation evidence, not a substitute for endpoint-level adversarial integration tests proving platform actions cannot access tenant data without institutional authorization.
+- Existing `backend/src/__tests__/workspace-context-isolation.integration.test.ts` already contains tests for A1/A2 academic workspace isolation, foreign tenant IDs, Faculty campus filters, HOD department scope, revoked CampusAccess/DepartmentAccess, mismatched/revoked/expired sessions, and deactivation. The complete request still requires explicit assertions for disabled tenant features and Super Admin platform-vs-institution authorization, plus an auditable full endpoint read/mutation matrix.
+- Exact-head CI was queued for commit `7e13d3ba81d9be023307aad28c5021809502c796` at the time of inspection. The cache script and all CI suites have not been locally executed in this session; results must be checked against the final commit after all edits.
+- Disposition remains **PARTIAL / NOT AUTHORIZATION-ACCEPTED** until the required endpoint-level adversarial tests and final exact-HEAD CI are green. Protected production branch remains unchanged; no merge or deployment.
