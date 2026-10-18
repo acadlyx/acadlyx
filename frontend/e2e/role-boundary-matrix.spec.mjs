@@ -6,7 +6,7 @@ const TENANT_ROLES = [
   "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN",
   "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS",
   "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT",
-  "PARENT", "CLUB_PRESIDENT",
+  "PARENT", "CLUB_PRESIDENT", "STAFF",
 ];
 
 async function installRoleSession(page, role, disabledFeatures = []) {
@@ -77,7 +77,7 @@ async function installRoleSession(page, role, disabledFeatures = []) {
   });
 }
 
-test.describe("20-role direct URL and platform boundary matrix", () => {
+test.describe("Canonical dashboard-role direct URL and platform boundary matrix", () => {
   for (const role of TENANT_ROLES) {
     test(`${role} cannot open the Super Admin URL directly`, async ({ page }) => {
       await installRoleSession(page, role);
@@ -130,6 +130,7 @@ const ROLE_HOME = {
   STUDENT: "/student",
   PARENT: "/parent",
   CLUB_PRESIDENT: "/club-president",
+  STAFF: "/staff",
 };
 
 async function navigateAndWaitForIdentity(page, path) {
@@ -141,7 +142,7 @@ async function navigateAndWaitForIdentity(page, path) {
   await identityResponse;
 }
 
-test.describe("canonical dashboard ownership across all 20 roles", () => {
+test.describe("canonical dashboard ownership across all registered roles", () => {
   for (const [role, home] of Object.entries(ROLE_HOME)) {
     test(`${role} can open its own workspace by direct URL`, async ({ page }) => {
       await installRoleSession(page, role);
