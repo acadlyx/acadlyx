@@ -60,7 +60,7 @@ test("tenant CMS routes use the cms entitlement but Super Admin website editing 
   assert.ok(navigation.includes("site-content|institutionalcms"));
   assert.ok(navigation.includes('^\\/admin\\/institutional-cms'));
   assert.match(navigation, /platformManagedCms = activeRole === "SUPER_ADMIN" && itemPath === "\/site-content"/);
-  assert.match(navigation, /platformManagedCms = activeRole === "SUPER_ADMIN" && \(normalizedPath === "\\/site-content" \|\| normalizedPath === "\\/cms"\)/);
+  assert.ok(navigation.includes('platformManagedCms = activeRole === "SUPER_ADMIN" && (normalizedPath === "/site-content" || normalizedPath === "/cms")'));
   assert.match(navigation, /if \(!platformManagedCms\) \{[\s\S]*?if \(requiredTenantFeatures\.some\(\(feature\) => !tenantFeatures\.includes\(feature\)\)\) return false;/);
   assert.match(navigation, /const featureAllowed = platformManagedCms \|\| requiredFeatures\.every/);
 });
