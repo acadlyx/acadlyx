@@ -20,7 +20,7 @@ export async function downloadFinanceExport(type:"invoices"|"payments"|"receipts
 export async function financeAudit(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/audit")).data}
 
 
-export type FinanceExpenseInput = {category:string;description:string;amount:string;vendor?:string;reference?:string;spentAt:string;supportDetails?:string;supportingDocumentUrl?:string;campusId?:string;departmentId?:string};
+export type FinanceExpenseInput = {category:string;description:string;amount:string;vendor?:string;reference?:string;spentAt:string;supportDetails?:string;supportingDocumentUrl?:string;supportingDocumentFileId?:string;campusId?:string;departmentId?:string};
 export async function financeExpenses(params:Record<string,string|undefined>={}){const q=new URLSearchParams();Object.entries(params).forEach(([k,v])=>{if(v)q.set(k,v)});return(await authedFetch<{success:boolean;data:any[]}>("/finance/expenses?"+q.toString())).data}
 export async function createFinanceExpense(input:FinanceExpenseInput){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses",{method:"POST",body:JSON.stringify(input)})).data}
 export async function updateFinanceExpense(id:string,input:FinanceExpenseInput){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses/"+id,{method:"PUT",body:JSON.stringify(input)})).data}
