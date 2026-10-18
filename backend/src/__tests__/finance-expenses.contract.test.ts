@@ -46,3 +46,8 @@ test("expense updates and decisions read FOR UPDATE inside the same transaction"
  const service=read("src/services/finance.service.ts");
  assert.match(service,/visibleExpense\(institutionId,s,id,true,tx\)/);
 });
+
+test("invoice overdue filter parses textual false as false",()=>{
+ const validators=read("src/validators/finance.validators.ts");
+ assert.match(validators,/overdueOnly:z\.enum\(\["true","false"\]\)\.transform\(value=>value==="true"\)\.optional\(\)/);
+});
