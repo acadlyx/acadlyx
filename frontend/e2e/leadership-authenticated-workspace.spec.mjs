@@ -317,6 +317,45 @@ test("Institution Admin navigation does not offer Accounts-owned fee management"
   await expect(page.getByRole("heading", { name: /Fee structures/i })).toHaveCount(0);
 });
 
+test("the Accounts fee URL is blocked for every non-Accounts canonical role", async ({ page }) => {
+  const cases = [
+    ["SUPER_ADMIN", "/superadmin"], ["INSTITUTION_ADMIN", "/admin"],
+    ["CHAIRMAN", "/chairman"], ["MANAGEMENT", "/management"],
+    ["DIRECTOR", "/director"], ["DEAN", "/dean"], ["REGISTRAR", "/registrar"],
+    ["HOD", "/hod"], ["FACULTY", "/faculty"], ["ACCOUNTS", "/accounts"],
+    ["HR", "/hr"], ["ADMISSIONS", "/admissions"], ["EXAMINATION", "/examination"],
+    ["LIBRARIAN", "/library"], ["PLACEMENT", "/placements"], ["IT", "/it"],
+    ["CMS", "/site-content"], ["STUDENT", "/student"], ["PARENT", "/parent"],
+    ["CLUB_PRESIDENT", "/club-president"],
+  ];
+  const session = await installAuthenticatedSession(page, "ACCOUNTS");
+  const feeRequests = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith("/api/v1/erp/fee-heads") || path.startsWith("/api/v1/erp/fee-structures")) feeRequests.push(path);
+  });
+
+  for (const [role, home] of cases) {
+    session.user.roles = [role];
+    feeRequests.length = 0;
+    await page.goto(baseURL + "/accounts/fee-structures", { waitUntil: "networkidle" });
+    const actual = new URL(page.url()).pathname;
+    if (role === "ACCOUNTS") {
+      expect(actual).toBe("/accounts/fee-structures");
+      expect(feeRequests.length).toBeGreaterThan(0);
+    } else {
+      expect(actual === home || (role === "PARENT" && actual === "/parent/children")).toBeTruthy();
+      expect(feeRequests, role + " must not load fee data before workspace authorization").toEqual([]);
+    }
+  }
+
+  session.user.roles = ["STUDENT", "ACCOUNTS"];
+  feeRequests.length = 0;
+  await page.goto(baseURL + "/accounts/fee-structures", { waitUntil: "networkidle" });
+  expect(new URL(page.url()).pathname).toBe("/student");
+  expect(feeRequests, "Student+Accounts must keep Student workspace ownership").toEqual([]);
+});
+
 test("disabled tenant feature blocks Faculty assignment route before API effects", async ({ page }) => {
   const forbiddenRequests = [];
   page.on("request", (request) => {
