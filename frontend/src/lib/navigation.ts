@@ -28,7 +28,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|registrar|hod|faculty|student)\/course-registration(\/|$)|^\/course-registration(\/|$)/, "registration"],
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
   [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
-  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
+  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/(site-content|institutionalcms)(\/|$)/, "cms"],
   [/^\/cms(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
@@ -251,8 +251,16 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Website CMS",
     href: "/site-content",
     icon: "✦",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CMS"],
+    roles: ["SUPER_ADMIN", "CMS"],
     permissions: ["site.manage"],
+    group: "Website",
+    activeMatch: "nested",
+  },
+  {
+    label: "Institutional CMS",
+    href: "/institutionalcms",
+    icon: "✦",
+    roles: ["INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"],
     group: "Website",
     activeMatch: "nested",
   },
@@ -2249,7 +2257,12 @@ export function getNavigationForRoles(
       item.permissions.every((permission) => permissionSet.has(permission));
 
     const requiredFeatures = tenantFeaturesForNavigation(item);
-    const featureAllowed = requiredFeatures.every((feature) =>
+    const itemPath = item.href.split("?")[0].replace(/\/+$/, "") || "/";
+    // Public website CMS is a platform-owned workspace for Super Admin. It
+    // must not require a tenant subscription, because a platform account has
+    // no institution whose entitlements could be evaluated.
+    const platformManagedCms = activeRole === "SUPER_ADMIN" && itemPath === "/site-content";
+    const featureAllowed = platformManagedCms || requiredFeatures.every((feature) =>
       tenantFeatures.includes(feature),
     );
 
@@ -2375,7 +2388,8 @@ export function canAccessRoute(
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
   const requiredTenantFeatures = tenantFeaturesForPath(normalizedPath);
-  if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
+  const platformManagedCms = activeRole === "SUPER_ADMIN" && normalizedPath === "/site-content";
+  if (!platformManagedCms && requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
 
   const matchingNamespace =
     NAMESPACE_OWNERS
