@@ -17,6 +17,36 @@ export const NOTICE_MANAGEMENT_ROLES = [
   "CMS",
 ] as const;
 
+export const NOTICE_DEPARTMENT_TARGET_ROLES = [
+  "INSTITUTION_ADMIN",
+  "CHAIRMAN",
+  "DIRECTOR",
+  "DEAN",
+  "MANAGEMENT",
+  "REGISTRAR",
+  "HOD",
+] as const;
+
+export const NOTICE_DEPARTMENT_REQUIRED_ROLES = [
+  "DIRECTOR",
+  "DEAN",
+  "HOD",
+] as const;
+
+export function canTargetDepartmentWithNotice(roles: string[]): boolean {
+  const activeRole = getPrimaryRole(roles);
+  return NOTICE_DEPARTMENT_TARGET_ROLES.includes(
+    activeRole as (typeof NOTICE_DEPARTMENT_TARGET_ROLES)[number],
+  );
+}
+
+export function noticeRequiresDepartment(roles: string[]): boolean {
+  const activeRole = getPrimaryRole(roles);
+  return NOTICE_DEPARTMENT_REQUIRED_ROLES.includes(
+    activeRole as (typeof NOTICE_DEPARTMENT_REQUIRED_ROLES)[number],
+  );
+}
+
 export function canManageNotices(
   roles: string[],
   permissions: string[],
