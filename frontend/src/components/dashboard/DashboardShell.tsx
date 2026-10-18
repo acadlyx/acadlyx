@@ -104,29 +104,8 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     return () => { alive = false; };
   }, [router, pathname, embeddedInWorkspaceShell, authRetryCount]);
 
-  useEffect(() => {
-    if (embeddedInWorkspaceShell) return;
-    let alive = true;
-    void workspaceGet<{
-      data?: {
-        institution?: { name?: string; logoUrl?: string | null };
-        breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }>;
-      };
-    }>("/workspace/context").then((response) => {
-      if (!alive) return;
-      const institution = response?.data?.institution;
-      if (institution) {
-        setInstitutionBrand({
-          name: institution.name || "",
-          logoUrl: institution.logoUrl || null,
-        });
-      }
-    }).catch(() => {
-      // Workspace context/branding is supplementary. Route authorization
-      // remains governed by fresh /auth/me and backend API enforcement.
-    });
-    return () => { alive = false; };
-  }, [embeddedInWorkspaceShell]);
+  // Institutional branding is supplied by WorkspaceContextSelector, which also
+  // owns the current academic-context request and avoids a duplicate context fetch.
 
   // Prefetch only after identity/active workspace resolution. Starting this
   // request from allowedRoles before /auth/me resolves can race the page-level
