@@ -14,6 +14,7 @@ import { DocumentsScreen } from "./DocumentsScreen";
 import { AcademicRecordsScreen, supportsAcademicRecords } from "./AcademicRecordsScreen";
 import { StudentsScreen } from "./StudentsScreen";
 import { EventsScreen } from "./EventsScreen";
+import { RegistrationsScreen } from "./RegistrationsScreen";
 import type { Section as FinanceSection } from "./FinanceScreen";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { colors, radius, spacing } from "../ui/theme";
@@ -33,6 +34,7 @@ export function ModuleScreen({ route }: Props) {
   const isAcademicRecordsWorkspace = Boolean(module && supportsAcademicRecords(module.id));
   const isStudentsWorkspace = module?.id === "students";
   const isEventsWorkspace = module?.id === "events";
+  const isRegistrationsWorkspace = module?.id === "registrations";
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
@@ -41,7 +43,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -58,6 +60,7 @@ export function ModuleScreen({ route }: Props) {
   if (isAcademicRecordsWorkspace) return <AcademicRecordsScreen moduleId={module.id} />;
   if (isStudentsWorkspace) return <StudentsScreen />;
   if (isEventsWorkspace) return <EventsScreen />;
+  if (isRegistrationsWorkspace) return <RegistrationsScreen />;
 
   return <View style={styles.root}>
     <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>

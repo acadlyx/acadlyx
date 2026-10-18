@@ -493,6 +493,22 @@ test("events mobile workflow uses authorized CRUD and a bounded multipart image 
 });
 
 
+test("registrations mobile workflow covers student self-service and authorized approval lifecycle", () => {
+  const screen = read("src/screens/RegistrationsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const routes = read("../backend/src/routes/registration.routes.ts");
+  const validators = read("../backend/src/validators/registration.validators.ts");
+  assert.ok(screen.includes('"/registrations"') && screen.includes('"/registrations/mine"'));
+  assert.ok(screen.includes("/offerings/available") && screen.includes("/decision") && screen.includes("/drop"));
+  assert.ok(screen.includes("registration.submit") && screen.includes("registration.read") && screen.includes("registration.approve"));
+  assert.ok(screen.includes("workspaceKey") && screen.includes('queryKey:["registrations",user?.id,workspaceKey'));
+  assert.ok(screen.includes("Remarks are required when rejecting or requesting correction."));
+  assert.ok(routes.includes('authorize("registration.approve")') && routes.includes("service.decide") && routes.includes("service.drop"));
+  assert.ok(validators.includes("bulkDecisionSchema") && validators.includes("registerSchema"));
+  assert.ok(moduleScreen.includes('module?.id === "registrations"') && moduleScreen.includes("<RegistrationsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
