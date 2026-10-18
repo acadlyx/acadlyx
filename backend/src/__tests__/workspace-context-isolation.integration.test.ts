@@ -196,7 +196,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         select: { id: true },
       });
       await prisma.tenantFeatureEntitlement.createMany({
-        data: ["academics", "students", "assignments", "attendance", "exams", "results", "timetable", "parent_portal", "fees"].map((featureKey) => ({
+        data: ["academics", "students", "assignments", "attendance", "exams", "results", "timetable", "parent_portal", "fees", "library"].map((featureKey) => ({
           institutionId,
           subscriptionId: subscription.id,
           featureKey,
@@ -282,6 +282,8 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     const multiHodRegistrar = await createUserFixture("multi-hod-registrar", institutionA.id, ["HOD", "REGISTRAR"], tenantRolesA);
     const multiDeanAccounts = await createUserFixture("multi-dean-accounts", institutionA.id, ["DEAN", "ACCOUNTS"], tenantRolesA);
     const multiDeanHod = await createUserFixture("multi-dean-hod", institutionA.id, ["DEAN", "HOD"], tenantRolesA);
+    const multiStudentLibrarian = await createUserFixture("multi-student-librarian", institutionA.id, ["STUDENT", "LIBRARIAN"], tenantRolesA);
+    const multiStudentDirector = await createUserFixture("multi-student-director", institutionA.id, ["STUDENT", "DIRECTOR"], tenantRolesA);
     const multiChairmanDirector = await createUserFixture("multi-chairman-director", institutionA.id, ["CHAIRMAN", "DIRECTOR"], tenantRolesA);
     const multiFacultyStudent = await createUserFixture("multi-faculty-student", institutionA.id, ["FACULTY", "STUDENT"], tenantRolesA);
     const multiStudentAccounts = await createUserFixture("multi-student-accounts", institutionA.id, ["STUDENT", "ACCOUNTS"], tenantRolesA);
@@ -313,6 +315,26 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       (await request(contextPath({ departmentId: departmentA2.id }), multiDeanHod.token)).status,
       403,
       "A secondary HOD DepartmentAccess row must not broaden an effective Dean workspace",
+    );
+
+    // Secondary Librarian/Director grants must not allow the active Student
+    // workspace to enter staff-only library operations. The library feature is
+    // enabled on this fixture tenant so the result tests role isolation itself.
+    assert.equal((await request("/library/summary", multiStudentLibrarian.token)).status, 403);
+    assert.equal((await request("/library/loans", multiStudentLibrarian.token)).status, 403);
+    assert.equal((await requestWithBody("/library/loans", multiStudentLibrarian.token, "POST", {})).status, 403);
+    assert.equal((await requestWithBody("/library/books", multiStudentLibrarian.token, "POST", {})).status, 403);
+    assert.equal((await requestWithBody("/library/fines/00000000-0000-0000-0000-000000000000/waiver-request", multiStudentLibrarian.token, "POST", {})).status, 403);
+    assert.equal((await requestWithBody("/library/fines/00000000-0000-0000-0000-000000000000/waiver-approve", multiStudentDirector.token, "POST", {})).status, 403);
+
+    const otherBorrowerId = roleUsers.FACULTY.id;
+    assert.equal(
+      (await requestWithBody("/library/reservations", multiStudentLibrarian.token, "POST", {
+        bookId: "00000000-0000-0000-0000-000000000000",
+        borrowerId: otherBorrowerId,
+      })).status,
+      403,
+      "Student+Librarian must not reserve on behalf of another borrower through the self-service endpoint",
     );
 
     const studentA1 = roleUsers.STUDENT;
