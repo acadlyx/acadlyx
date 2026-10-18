@@ -137,7 +137,7 @@ test("notice writer policy is explicit, shared by API/UI, and excludes unsupport
   const frontendRoles = policyRoles(noticePolicy, "export const NOTICE_MANAGEMENT_ROLES = [", "] as const");
   assert.deepEqual(frontendRoles, backendRoles, "the publisher UI and backend must use the same writer roles");
   assert.deepEqual(backendRoles, [
-    "SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
+    "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
     "DEAN", "REGISTRAR", "HOD", "CMS",
   ]);
   assert.ok(rbac.includes('basePermissions.filter((permission) => permission !== "notices.manage")'),
