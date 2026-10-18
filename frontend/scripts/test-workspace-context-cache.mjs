@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  authorizationContextKey,
   canApplySessionResponse,
   isSessionCurrent,
   sessionScopedCacheKey,
@@ -39,4 +40,29 @@ test("the current session can apply its own latest response", () => {
   assert.equal(canApplySessionResponse(2, 2, 11, 11), true);
   assert.equal(canApplySessionResponse(2, 2, 10, 11), false);
   assert.equal(canApplySessionResponse(2, 3, 11, 11), false);
+});
+
+test("fresh authority signatures ignore ordering but detect role and feature revocation", () => {
+  const first = {
+    id: "user-a",
+    institutionId: "tenant-a",
+    roles: ["FACULTY", "HOD"],
+    permissions: ["assignments.read", "attendance.read"],
+    tenantFeatures: ["assignments", "attendance"],
+  };
+  assert.equal(authorizationContextKey(first), authorizationContextKey({
+    ...first,
+    roles: ["HOD", "FACULTY"],
+    permissions: ["attendance.read", "assignments.read"],
+    tenantFeatures: ["attendance", "assignments"],
+  }));
+  assert.notEqual(authorizationContextKey(first), authorizationContextKey({
+    ...first,
+    tenantFeatures: ["attendance"],
+  }));
+  assert.notEqual(authorizationContextKey(first), authorizationContextKey({
+    ...first,
+    permissions: ["attendance.read"],
+  }));
+  assert.equal(authorizationContextKey(null), null);
 });
