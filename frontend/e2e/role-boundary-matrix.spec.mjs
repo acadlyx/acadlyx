@@ -31,6 +31,7 @@ async function installRoleSession(page, role, disabledFeatures = []) {
       "intelligence.read", "timetable.read", "calendar.read", "registration.read", "enrollment.read", "leave.apply", "documents.read",
       ...(role === "SUPER_ADMIN" ? ["institutions.manage", "users.read", "plans.manage", "site.manage"] : []),
       ...(role === "CMS" ? ["site.manage"] : []),
+      ...(role === "LIBRARIAN" ? ["library.manage"] : []),
       ...(role === "INSTITUTION_ADMIN" ? ["institutional-cms.read", "institutional-cms.manage"] : []),
       ...(["CHAIRMAN", "MANAGEMENT", "DIRECTOR"].includes(role) ? ["institutional-cms.read", "institutional-cms.approve"] : []),
     ],
@@ -210,3 +211,24 @@ for (const role of TENANT_ROLES.filter((candidate) => candidate !== "CMS")) {
     await expect.poll(() => new URL(page.url()).pathname).not.toBe("/site-content");
   });
 }
+
+
+test("legacy Accounts fees URL redirects to the canonical fees page", async ({ page }) => {
+  await installRoleSession(page, "ACCOUNTS");
+  await navigateAndWaitForIdentity(page, "/accounts/fees");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/fees");
+});
+
+test("legacy HOD students URL redirects to the HOD workspace", async ({ page }) => {
+  await installRoleSession(page, "HOD");
+  await navigateAndWaitForIdentity(page, "/hod/students");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/hod");
+});
+
+test("Library circulation URL resolves to its protected canonical tab", async ({ page }) => {
+  await installRoleSession(page, "LIBRARIAN");
+  await navigateAndWaitForIdentity(page, "/library/circulation");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/library");
+  await expect.poll(() => new URL(page.url()).search).toBe("?tab=circulation");
+  await expect(page.getByRole("heading", { name: /Library/i }).first()).toBeVisible();
+});
