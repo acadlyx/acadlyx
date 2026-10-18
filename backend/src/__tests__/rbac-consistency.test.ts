@@ -146,6 +146,10 @@ test("institutional CMS uses dedicated tenant workflow permissions, not platform
   }
 
   assert.equal(has("SUPER_ADMIN", "site.manage"), true, "platform Website CMS retains its platform permission");
+  assert.equal(has("INSTITUTION_ADMIN", "site.manage"), false, "tenant administrators must not receive platform Website CMS permission");
+  assert.equal(has("CHAIRMAN", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
+  assert.equal(has("MANAGEMENT", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
+  assert.equal(has("DIRECTOR", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
   assert.equal(has("SUPER_ADMIN", "institutional-cms.read"), false);
   assert.equal(has("SUPER_ADMIN", "institutional-cms.manage"), false);
   assert.equal(has("SUPER_ADMIN", "institutional-cms.approve"), false);
