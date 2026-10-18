@@ -67,7 +67,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
 ];
 
-function tenantFeaturesForPath(pathname: string): string[] {
+export function tenantFeaturesForPath(pathname: string): string[] {
   const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
   return Array.from(
     new Set(
