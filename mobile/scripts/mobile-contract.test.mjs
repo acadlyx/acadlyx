@@ -471,6 +471,28 @@ test("student master and enrollment mobile workflow uses canonical scoped endpoi
 });
 
 
+test("events mobile workflow uses authorized CRUD and a bounded multipart image upload route", () => {
+  const screen = read("src/screens/EventsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const route = read("../backend/src/routes/events.routes.ts");
+  const controller = read("../backend/src/controllers/events.controller.ts");
+  const client = read("src/api/client.ts");
+  const validators = read("../backend/src/validators/events.validators.ts");
+  for (const endpoint of ['"/events"', '"/events/categories"', '"/events/media/upload"', '"/events/" + encodeURIComponent']) {
+    assert.ok(screen.includes(endpoint), "Missing event workflow endpoint " + endpoint);
+  }
+  assert.ok(screen.includes('method: "PATCH"') && screen.includes('method: "POST"') && screen.includes('method: "DELETE"'));
+  assert.ok(screen.includes("events.manage") && screen.includes("events.read") && screen.includes("workspaceKey"));
+  assert.ok(screen.includes("DocumentPicker.getDocumentAsync") && screen.includes("FormData"));
+  assert.ok(route.includes('authorize("events.manage"), imageUpload.single("file"), controller.uploadMedia'));
+  assert.ok(route.includes("fileSize: 10 * 1024 * 1024") && route.includes("files: 1"));
+  assert.ok(controller.includes("assertSafeImageUpload(req.file)") && controller.includes('module:"events-gallery"'));
+  assert.ok(client.includes("isMultipartBody") && client.includes("!isMultipartBody"));
+  assert.ok(validators.includes("createEventSchema") && validators.includes("updateEventSchema"));
+  assert.ok(moduleScreen.includes('module?.id === "events"') && moduleScreen.includes("<EventsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

@@ -121,7 +121,8 @@ async function performRequest<T>(path: string, options: ApiRequestOptions, mayRe
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
 
-  if (init.body !== undefined && init.body !== null && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const isMultipartBody = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body !== undefined && init.body !== null && !headers.has("Content-Type") && !isMultipartBody) headers.set("Content-Type", "application/json");
 
   if (auth) {
     const token = await getAccessToken();
