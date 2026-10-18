@@ -30,6 +30,7 @@ async function installRoleSession(page, role, disabledFeatures = []) {
       "operations.read", "events.read", "notices.read", "notifications.read",
       "intelligence.read", "timetable.read", "calendar.read", "registration.read", "enrollment.read", "leave.apply", "documents.read",
       ...(role === "SUPER_ADMIN" ? ["institutions.manage", "users.read", "plans.manage", "site.manage"] : []),
+      ...(role === "CMS" ? ["site.manage"] : []),
       ...(role === "INSTITUTION_ADMIN" ? ["institutional-cms.read", "institutional-cms.manage"] : []),
       ...(["CHAIRMAN", "MANAGEMENT", "DIRECTOR"].includes(role) ? ["institutional-cms.read", "institutional-cms.approve"] : []),
     ],
