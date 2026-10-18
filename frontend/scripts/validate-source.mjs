@@ -61,7 +61,7 @@ if (navigationSource.includes("tenantFeatures.length === 0") && navigationSource
 if (
   !navigationSource.includes("requiredFeatures.every((feature) =>") ||
   !navigationSource.includes("requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))") ||
-  !navigationSource.includes("function tenantFeaturesForPath(pathname: string): string[]") ||
+  !navigationSource.includes("export function tenantFeaturesForPath(pathname: string): string[]") ||
   !navigationSource.includes('[/^\\/documents(\\/|$)/, "documents"]') ||
   !navigationSource.includes('[/^\\/forms(\\/|$)/, "certificates"]') ||
   !navigationSource.includes("admissions|library|placements)\\/students")
