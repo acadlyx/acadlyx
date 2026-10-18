@@ -26,6 +26,18 @@ export function canManageLibraryCirculation(actor: AuthenticatedUser): boolean {
     && actor.permissions.includes("library.manage");
 }
 
+function assertLibrarianWorkspace(actor: AuthenticatedUser, action: string): void {
+  if (!canManageLibraryCirculation(actor)) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
+
+function assertEffectiveRole(actor: AuthenticatedUser, allowedRoles: readonly string[], action: string): void {
+  if (!allowedRoles.includes(getEffectiveWorkspaceRole(actor))) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
+
 /** Institution-wide circulation policy. Kept here so both issue and
  *  return paths compute identical numbers. */
 type LoanPolicy = {
@@ -206,7 +218,11 @@ export async function getBook(institutionId: string, id: string, actor?: Authent
   if (!book) throw new AppError("Book not found", 404);
 
   // Borrowers may inspect catalogue metadata, but not other borrowers' loans.
-  const canReadCirculation = Boolean(actor?.permissions.includes("library.read"));
+  const canReadCirculation = Boolean(
+    actor &&
+    getEffectiveWorkspaceRole(actor) === "LIBRARIAN" &&
+    actor.permissions.includes("library.read")
+  );
   if (!canReadCirculation) return { ...book, activeIssues: [] };
 
   const activeIssues = await prisma.libraryIssue.findMany({
@@ -225,6 +241,7 @@ export async function createBook(
   input: CreateBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Book management");
   if (input.isbn) {
     const clash = await prisma.libraryBook.findFirst({
       where: { institutionId, isbn: input.isbn },
@@ -289,6 +306,7 @@ export async function updateBook(
   input: UpdateBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Book management");
   const existing = await prisma.libraryBook.findFirst({
     where: { id, institutionId },
   });
@@ -405,6 +423,7 @@ export async function issueBook(
   input: IssueBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan issuance");
   const result = await prisma.$transaction(async (tx) => {
     const [borrower, policy, book] = await Promise.all([
       tx.user.findFirst({
@@ -688,6 +707,7 @@ export async function returnBook(
   input: ReturnBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan returns");
   const result = await prisma.$transaction(async (tx) => {
     // Serialize duplicate return/retry requests on the canonical loan row before computing fines or posting finance records.
     await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "library_issues" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);
@@ -924,6 +944,7 @@ export async function imposeLateReturnFine(
   issueId: string,
   meta: Meta = {}
 ) {
+    assertLibrarianWorkspace(actor, "Late-return fine assessment");
   const result = await prisma.$transaction(async (tx) => {
     const issue = await tx.libraryIssue.findFirst({
       where: { id: issueId, institutionId, status: "ISSUED" },
@@ -1120,6 +1141,7 @@ export async function renewLoan(
   input: RenewLoanInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan renewal");
   const result = await prisma.$transaction(async (tx) => {
     const loan = await tx.libraryIssue.findFirst({
       where: { id, institutionId },
@@ -1199,6 +1221,7 @@ export async function updatePolicy(
   input: LibraryPolicyInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Library policy management");
   const current = await getPolicy(institutionId);
   const next = await prisma.libraryPolicy.update({
     where: { institutionId },
@@ -1246,6 +1269,7 @@ export async function updateCopy(
   input: UpdateCopyInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Physical copy management");
   const existing = await prisma.libraryBookCopy.findFirst({ where: { id, institutionId } });
   if (!existing) throw new AppError("Physical copy not found", 404);
   if (input.status === "AVAILABLE" && existing.status !== "AVAILABLE") {
@@ -1428,6 +1452,7 @@ export async function requestFineWaiver(
   amount?: number,
   meta: Meta = {}
 ) {
+  assertEffectiveRole(actor, ["LIBRARIAN"], "Library fine waiver requests");
   if (!actor.permissions.includes("library.fines.waive.request")) {
     throw new AppError("Library fine waiver requests are not authorized", 403);
   }
@@ -1453,6 +1478,7 @@ export async function approveFineWaiver(
   reason: string,
   meta: Meta = {}
 ) {
+  assertEffectiveRole(actor, ["DIRECTOR"], "Library fine waiver approval");
   if (!actor.permissions.includes("library.fines.waive.approve")) {
     throw new AppError("Library fine waiver approval is not authorized", 403);
   }
@@ -1592,16 +1618,20 @@ export function buildLibraryFineListWhere(
   // institution-scoped fines; students can only see fines linked to their
   // own library issues. The institution predicate is retained to preserve
   // tenant isolation.
-  return {
-    institutionId,
-    ...(actor.roles.includes("STUDENT")
-      ? { issue: { borrowerId: actor.id } }
-      : {}),
-  };
+  const effectiveRole = getEffectiveWorkspaceRole(actor);
+  if (effectiveRole === "STUDENT") {
+    return { institutionId, issue: { borrowerId: actor.id } };
+  }
+  if (effectiveRole === "LIBRARIAN") return { institutionId };
+  throw new AppError("Library fines are not available in the active workspace", 403);
 }
 
 export async function listFines(institutionId: string, actor: AuthenticatedUser, pagination: PaginationParams) {
-  if (!actor.permissions.includes("library.read")) throw new AppError("Library access is not authorized", 403);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (
+    !["LIBRARIAN", "STUDENT"].includes(activeRole) ||
+    !actor.permissions.includes("library.read")
+  ) throw new AppError("Library fines are not available in the active workspace", 403);
 
   const where = buildLibraryFineListWhere(institutionId, actor);
   const [items, total] = await Promise.all([
