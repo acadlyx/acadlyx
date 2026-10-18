@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { AuthRequiredError, authedFetch, isAuthenticated } from "@/lib/auth";
+import { AuthRequiredError, authedFetch, getCurrentUser, isAuthenticated } from "@/lib/auth";
 import { decideRegistration } from "@/lib/registrationApi";
 import { listEnrollmentRequests } from "@/lib/enrollmentRequestApi";
 import { useWorkspaceContext } from "@/lib/workspaceContext";
@@ -77,8 +77,11 @@ async function getData<T>(path: string): Promise<T> {
 
 export default function HODDashboardPage({ defaultTab = "students" }: { defaultTab?: Tab } = {}) {
   const searchParams = useSearchParams();
+  const [tenantFeatures, setTenantFeatures] = useState<string[] | null>(null);
+  const hasAdmissionsFeature = tenantFeatures?.includes("admissions") ?? false;
+  const hasRegistrationFeature = tenantFeatures?.includes("registration") ?? false;
   const activeTab: Tab =
-    searchParams.get("tab") === "registrations"
+    hasRegistrationFeature && searchParams.get("tab") === "registrations"
       ? "registrations"
       : defaultTab;
 
@@ -111,6 +114,24 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setTenantFeatures([]);
+      return;
+    }
+    let mounted = true;
+    getCurrentUser()
+      .then((user) => {
+        if (mounted) setTenantFeatures(user?.tenantFeatures ?? []);
+      })
+      .catch(() => {
+        if (mounted) setTenantFeatures([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadBase = useCallback(async () => {
     const semesterResponse = await authedFetch<Paged<Semester>>(
@@ -173,6 +194,10 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   }, [semesterId, sectionId]);
 
   const loadRegistrations = useCallback(async () => {
+    if (!hasRegistrationFeature) {
+      setRegistrations([]);
+      return;
+    }
     const query = new URLSearchParams({
       pageSize: "100",
       status: "REQUESTED",
@@ -186,7 +211,7 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
     }>(`/registrations?${query.toString()}`);
 
     setRegistrations(response.data ?? []);
-  }, [semesterId, search]);
+  }, [semesterId, search, hasRegistrationFeature]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -217,10 +242,14 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   }, [loadBase]);
 
   useEffect(() => {
+    if (!hasAdmissionsFeature) {
+      setPendingEnrollmentRequests(0);
+      return;
+    }
     listEnrollmentRequests({ status: "PENDING" })
       .then((result) => setPendingEnrollmentRequests(result.total))
       .catch(() => setPendingEnrollmentRequests(0));
-  }, [semesterId]);
+  }, [semesterId, hasAdmissionsFeature]);
 
   useEffect(() => {
     if (!semesterId) return;
@@ -370,18 +399,20 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               >
                 Students & assignment
               </a>
-              <a href="/hod/enrollment-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Enrollment requests</a>
-              <a href="/hod/course-registration-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Course registrations</a>
-              <a
-                href="/hod?tab=registrations"
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                  activeTab === "registrations"
-                    ? "bg-slate-950 text-white"
-                    : "text-slate-600"
-                }`}
-              >
-                Registration approval
-              </a>
+              {hasAdmissionsFeature ? <a href="/hod/enrollment-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Enrollment requests</a> : null}
+              {hasRegistrationFeature ? <a href="/hod/course-registration-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Course registrations</a> : null}
+              {hasRegistrationFeature ? (
+                <a
+                  href="/hod?tab=registrations"
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                    activeTab === "registrations"
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600"
+                  }`}
+                >
+                  Registration approval
+                </a>
+              ) : null}
             </div>
           </div>
         </section>
@@ -401,10 +432,13 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               {students.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pending enrollments</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">{pendingEnrollmentRequests}</p>
-          </div>
+          {hasAdmissionsFeature ? (
+            <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pending enrollments</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">{pendingEnrollmentRequests}</p>
+            </div>
+  
+          ) : null}
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Courses
@@ -413,14 +447,17 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               {filteredOfferings.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Pending approvals
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {registrations.length}
-            </p>
-          </div>
+          {hasRegistrationFeature ? (
+            <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Pending approvals
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-950">
+                {registrations.length}
+              </p>
+            </div>
+  
+          ) : null}
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Selected
