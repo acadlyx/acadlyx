@@ -107,12 +107,13 @@ if (
   failures.push("src/lib/navigation.ts: Accounts fee tools must remain Accounts-owned and Management approvals must use a permission-scoped Management queue");
 }
 if (
-  !/DEAN:\s*\{[^}]*"\/notices": "\/dean\/notices"/.test(shellSource) ||
-  !/HOD:\s*\{[^}]*"\/notices": "\/hod\/notices"/.test(shellSource) ||
-  !/STUDENT:\s*\{[^}]*"\/notices": "\/student\/notices"/.test(shellSource) ||
+  !/DEAN:\s*\{[^}]*"\/notices": "\/dean\/notices"/.test(navigationSource) ||
+  !/HOD:\s*\{[^}]*"\/notices": "\/hod\/notices"/.test(navigationSource) ||
+  !/STUDENT:\s*\{[^}]*"\/notices": "\/student\/notices"/.test(navigationSource) ||
+  !navigationSource.includes("ROLE_ROUTE_OVERRIDES") ||
   !shellSource.includes("uniqueDestinations.has(destination)")
 ) {
-  failures.push("src/components/dashboard/DashboardShell.tsx: Dean, HOD and Student notice links must resolve to one workspace-owned destination");
+  failures.push("src/lib/navigation.ts and DashboardShell.tsx: Dean, HOD and Student notice links must use the canonical role-owned override table and unique destinations");
 }
 if (
   !dashboardTokensSource.includes("--acadlyx-sidebar-bg: #18392d;") ||
