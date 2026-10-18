@@ -164,7 +164,7 @@ export function RecentUpdatesPanel() {
           {failedSources.length ? <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="mt-3 min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">Retry feed</button> : null}
         </div>
       )}
-      {!loading && items.length > 0 && failedSources.length > 0 ? <p role="status" className="mt-3 text-xs text-slate-500">Some update sources were unavailable: {failedSources.join(", ")}.</p> : null}
+      {!loading && items.length > 0 && failedSources.length > 0 ? <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><span>Some update sources were unavailable: {failedSources.join(", ")}.</span><button type="button" onClick={() => setReloadKey((value) => value + 1)} className="min-h-8 rounded-lg border border-slate-300 px-3 py-1.5 font-bold text-slate-700 hover:border-emerald-500">Retry feed</button></div> : null}
     </section>
   );
 }
