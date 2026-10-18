@@ -726,6 +726,11 @@ async function tryRefresh(): Promise<boolean> {
 
   const request = Promise.resolve().then(async () => {
     try {
+      if (
+        !isSessionCurrent(requestAuthScope, authCacheScope) ||
+        getRefreshToken() !== refreshToken
+      ) return false;
+
       const res = await fetchWithTimeout(
         apiUrl("/auth/refresh"),
         {
