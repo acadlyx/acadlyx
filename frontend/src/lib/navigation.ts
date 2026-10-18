@@ -595,6 +595,13 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Import / Export",
+    href: "/director/imports",
+    icon: "⇅",
+    roles: ["DIRECTOR"],
+    group: "Administration",
+  },
+  {
     label: "Notices",
     href: "/director/notices",
     icon: "◌",
@@ -1384,6 +1391,13 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⚙",
     roles: ["IT"],
     permissions: ["operations.read"],
+    group: "Technology",
+  },
+  {
+    label: "Import / Export",
+    href: "/it/imports",
+    icon: "⇅",
+    roles: ["IT"],
     group: "Technology",
   },
 
