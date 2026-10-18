@@ -12,6 +12,21 @@ const permissions = [
 
 async function installAuthenticatedSession(page, role) {
   await page.addInitScript(() => {
+    // The suite stubs authenticated API responses at the browser request
+    // boundary. A real service worker can bypass page.route() and send these
+    // deliberately fake test tokens to the isolated API, producing false
+    // auth failures instead of testing route ownership.
+    try {
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: {
+          register: () => Promise.reject(new Error("Service workers are disabled in authenticated route fixtures")),
+          getRegistrations: () => Promise.resolve([]),
+        },
+      });
+    } catch {
+      // The fixture still works in browsers where the navigator property is immutable.
+    }
     sessionStorage.setItem("acadlyx_access_token", "browser-test-access-token");
     sessionStorage.setItem("acadlyx_refresh_token", "browser-test-refresh-token");
   });
