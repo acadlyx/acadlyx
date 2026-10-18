@@ -439,12 +439,15 @@ export async function getCurrentUser(
   }
 
   const requestAuthScope = authCacheScope;
-  let request: Promise<AuthUser>;
-  request = authedFetch<
-    ApiEnvelope<AuthUser>
-  >(
-    "/auth/me"
-  )
+  const request = Promise.resolve()
+    .then(() => {
+      // Do not even send /auth/me if credentials changed before the request
+      // started scheduling.
+      if (!isSessionCurrent(requestAuthScope, authCacheScope)) {
+        throw new Error("Session changed during identity verification. Please retry.");
+      }
+      return authedFetch<ApiEnvelope<AuthUser>>("/auth/me");
+    })
     .then((response) => {
       // Credentials can change while /auth/me is in flight. Never let the
       // previous principal overwrite cached identity for the new session.
