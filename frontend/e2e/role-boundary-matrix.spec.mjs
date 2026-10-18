@@ -9,7 +9,7 @@ const TENANT_ROLES = [
   "PARENT", "CLUB_PRESIDENT",
 ];
 
-async function installRoleSession(page, role) {
+async function installRoleSession(page, role, disabledFeatures = []) {
   await page.addInitScript(() => {
     sessionStorage.setItem("acadlyx_access_token", "role-matrix-access-token");
     sessionStorage.setItem("acadlyx_refresh_token", "role-matrix-refresh-token");
@@ -29,7 +29,9 @@ async function installRoleSession(page, role) {
       "attendance.read", "admissions.read", "placements.read", "lms.read",
       "operations.read", "events.read", "notices.read", "notifications.read",
       "intelligence.read", "timetable.read", "calendar.read",
-      ...(role === "SUPER_ADMIN" ? ["institutions.manage", "users.read", "plans.manage"] : []),
+      ...(role === "SUPER_ADMIN" ? ["institutions.manage", "users.read", "plans.manage", "site.manage"] : []),
+      ...(role === "INSTITUTION_ADMIN" ? ["institutional-cms.read", "institutional-cms.manage"] : []),
+      ...(["CHAIRMAN", "MANAGEMENT", "DIRECTOR"].includes(role) ? ["institutional-cms.read", "institutional-cms.approve"] : []),
     ],
     tenantFeatures: [
       "fees", "exams", "lms", "attendance", "placements", "admissions",
@@ -38,7 +40,7 @@ async function installRoleSession(page, role) {
       "assignments", "calendar", "operations", "registration",
       "import_export", "analytics", "promotions", "academics", "hr",
       "intelligence", "cms", "parent_portal", "library",
-    ],
+    ].filter((feature) => !disabledFeatures.includes(feature)),
   };
 
   await page.route("**/*", async (route) => {
@@ -90,3 +92,18 @@ test.describe("20-role direct URL and platform boundary matrix", () => {
     await expect.poll(() => new URL(page.url()).pathname).toBe("/superadmin");
   });
 });
+
+test("Super Admin website CMS remains platform-accessible when tenant CMS entitlement is absent", async ({ page }) => {
+  await installRoleSession(page, "SUPER_ADMIN", ["cms"]);
+  await page.goto(`${baseURL}/site-content`, { waitUntil: "domcontentloaded" });
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/site-content");
+  await expect(page.getByRole("heading", { name: "Website CMS" })).toBeVisible();
+});
+
+for (const role of ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]) {
+  test(`${role} cannot open institutional CMS when tenant cms entitlement is disabled`, async ({ page }) => {
+    await installRoleSession(page, role, ["cms"]);
+    await page.goto(`${baseURL}/admin/institutional-cms`, { waitUntil: "domcontentloaded" });
+    await expect.poll(() => new URL(page.url()).pathname).not.toBe("/admin/institutional-cms");
+  });
+}
