@@ -587,6 +587,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Placements",
+    href: "/director/placements",
+    icon: "↗",
+    roles: ["DIRECTOR"],
+    permissions: ["placements.read"],
+    group: "Academic",
+  },
+  {
     label: "Notices",
     href: "/director/notices",
     icon: "◌",
