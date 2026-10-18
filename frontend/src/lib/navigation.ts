@@ -62,6 +62,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student|admissions|library|placements)\/students(\/|$)|^\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
   [/^\/(chairman|director|dean|registrar|admissions)\/(admissions|applications)(\/|$)|^\/applications(\/|$)|^\/admissions(\/|$)/, "admissions"],
+  [/^\/student\/examinations\/(performance|results)(\/|$)/, "results"],
   [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/examinations?(\/|$)/, "exams"],
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/results?(\/|$)/, "results"],
   [/^\/(chairman|director|dean|hod|faculty|student)\/attendance(\/|$)/, "attendance"],
