@@ -178,3 +178,20 @@ test.describe("tenant feature route enforcement", () => {
     });
   }
 });
+
+const INSTITUTIONAL_CMS_OWNERS = ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"];
+for (const role of TENANT_ROLES.filter((candidate) => !INSTITUTIONAL_CMS_OWNERS.includes(candidate))) {
+  test(`${role} cannot open the tenant Institutional CMS workflow directly`, async ({ page }) => {
+    await installRoleSession(page, role);
+    await page.goto(`${baseURL}/admin/institutional-cms`, { waitUntil: "domcontentloaded" });
+    await expect.poll(() => new URL(page.url()).pathname).not.toBe("/admin/institutional-cms");
+  });
+}
+
+for (const role of TENANT_ROLES.filter((candidate) => candidate !== "CMS")) {
+  test(`${role} cannot open the platform Website CMS directly`, async ({ page }) => {
+    await installRoleSession(page, role);
+    await page.goto(`${baseURL}/site-content`, { waitUntil: "domcontentloaded" });
+    await expect.poll(() => new URL(page.url()).pathname).not.toBe("/site-content");
+  });
+}
