@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
+import { getPaymentGateway } from "./payments/gateway";
 import { deleteFile } from "./fileStorage.service";
 import { ExportFormat, ExportType, makeFile } from "./export.service";
 import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInstitutionWideFinance, getEffectiveWorkspaceRole } from "./accessScope.service";
@@ -347,10 +348,56 @@ export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:
  await audit(institutionId,a.id,"finance.refund.approve","FeeRefund",id);
  return y;
 }
-export async function processRefund(institutionId:string,a:AuthenticatedUser,id:string){
+export async function processRefund(institutionId:string,a:AuthenticatedUser,id:string,input:{externalSettlementReference?:string;confirmExternalSettlement?:boolean}={}){
   assertAccountsWorkspace(a, "Refund processing");
  if(!has(a,"fees.refund.process"))throw new AppError("Refund processing permission required",403);
  const s=await scope(institutionId,a);
+ const initial=await prisma.feeRefund.findFirst({
+  where:{id,institutionId,status:{in:["APPROVED","PROCESSING"]}},
+  include:{payment:{select:{id:true,invoiceId:true,amount:true,refundedAmount:true,method:true,provider:true,providerPaymentId:true}}},
+ });
+ if(!initial)throw new AppError("Approved or processing refund not found",404);
+ const [visibleInvoice,visiblePayment]=await Promise.all([
+  prisma.feeInvoice.findFirst({where:{id:initial.invoiceId,...invoiceWhere(s)},select:{id:true,studentId:true}}),
+  prisma.feePayment.findFirst({where:{id:initial.paymentId,...paymentWhere(s)},select:{id:true,invoiceId:true,method:true,provider:true,providerPaymentId:true}}),
+ ]);
+ if(!visibleInvoice||!visiblePayment||visiblePayment.invoiceId!==initial.invoiceId)throw new AppError("Refund is outside your financial scope",403);
+ const online=visiblePayment.method==="ONLINE"||Boolean(visiblePayment.provider);
+ let settlementReference:string|null=null;
+ if(online){
+  if(visiblePayment.provider!=="razorpay"||!visiblePayment.providerPaymentId)throw new AppError("This online payment has no supported provider refund route. The ledger has not been changed.",409);
+  const gateway=getPaymentGateway();
+  let providerRefund;
+  if(initial.status==="APPROVED"){
+   const claim=await prisma.feeRefund.updateMany({where:{id,institutionId,status:"APPROVED"},data:{status:"PROCESSING"}});
+   if(claim.count!==1)throw new AppError("Refund state changed; reload before retrying",409);
+  }
+  if(initial.status==="PROCESSING"&&initial.reference?.startsWith("razorpay_refund:")){
+   providerRefund=await gateway.getRefund(initial.reference.slice("razorpay_refund:".length));
+  }else{
+   // The gateway checks Razorpay for this stable refund receipt first, so retrying
+   // after an ambiguous network response reconciles instead of blindly duplicating.
+   providerRefund=await gateway.createRefund({paymentId:visiblePayment.providerPaymentId,amount:Number(initial.amount),reference:initial.id,notes:{institutionId,acadlyxRefundId:initial.id}});
+  }
+  if(providerRefund.paymentId!==visiblePayment.providerPaymentId||Math.abs(providerRefund.amount-Number(initial.amount))>0.009)throw new AppError("Provider refund does not match the ACADLYX payment and amount",409);
+  const providerStatus=providerRefund.status.toLowerCase();
+  if(["failed","rejected"].includes(providerStatus)){
+   await prisma.feeRefund.updateMany({where:{id,institutionId,status:"PROCESSING"},data:{status:"APPROVED",reference:null}});
+   throw new AppError("The provider reports that this refund failed. It has not been posted to the ledger; verify the provider before retrying.",409);
+  }
+  settlementReference="razorpay_refund:"+providerRefund.refundId;
+  if(providerStatus!=="processed"){
+   await prisma.feeRefund.updateMany({where:{id,institutionId,status:"PROCESSING"},data:{reference:settlementReference}});
+   return await prisma.feeRefund.findFirst({where:{id,institutionId,status:"PROCESSING"}});
+  }
+  const ready=await prisma.feeRefund.updateMany({where:{id,institutionId,status:"PROCESSING"},data:{status:"APPROVED",reference:settlementReference}});
+  if(ready.count!==1)throw new AppError("Refund state changed while provider settlement was confirmed; reload to reconcile",409);
+ }else{
+  if(initial.status!=="APPROVED")throw new AppError("Offline refund is already processing; contact Accounts to reconcile the recorded settlement",409);
+  const externalReference=String(input.externalSettlementReference||"").trim();
+  if(!input.confirmExternalSettlement||externalReference.length<3)throw new AppError("Confirm the money has actually been returned and provide the external bank/provider settlement reference before processing this offline refund.",400);
+  settlementReference="bank:"+externalReference;
+ }
  const processed = await prisma.$transaction(async tx=>{
   const candidate=await tx.feeRefund.findFirst({where:{id,institutionId,status:"APPROVED"},select:{id:true,invoiceId:true,paymentId:true}});
   if(!candidate)throw new AppError("Approved refund not found",404);
@@ -361,7 +408,7 @@ export async function processRefund(institutionId:string,a:AuthenticatedUser,id:
   const visibleInvoice=await tx.feeInvoice.findFirst({where:{id:candidate.invoiceId,...invoiceWhere(s)},select:{id:true}});
   const visiblePayment=await tx.feePayment.findFirst({where:{id:candidate.paymentId,...paymentWhere(s)},select:{id:true,invoiceId:true}});
   if(!visibleInvoice||!visiblePayment||visiblePayment.invoiceId!==candidate.invoiceId)throw new AppError("Refund request is outside your financial scope",403);
-  const claimed=await tx.feeRefund.updateMany({where:{id,institutionId,status:"APPROVED",invoiceId:candidate.invoiceId,paymentId:candidate.paymentId},data:{status:"PROCESSING"}});
+  const claimed=await tx.feeRefund.updateMany({where:{id,institutionId,status:"APPROVED",invoiceId:candidate.invoiceId,paymentId:candidate.paymentId},data:{status:"PROCESSING",...(settlementReference?{reference:settlementReference}:{})}});
   if(claimed.count!==1)throw new AppError("Refund is already being processed or is no longer approved",409);
   const r=await tx.feeRefund.findFirst({where:{id,institutionId,status:"PROCESSING",invoiceId:candidate.invoiceId,paymentId:candidate.paymentId}});
   if(!r)throw new AppError("Refund not found",404);
