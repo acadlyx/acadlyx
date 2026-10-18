@@ -116,43 +116,6 @@ test("student detail routes require students.read before dynamic namespace fallb
   const permissionEnd = accessSource.indexOf("const requiredPermission", permissionStart);
   const permissionBlock = accessSource.slice(permissionStart, permissionEnd);
   const permissionGate = accessSource.indexOf("if (requiredPermission && !permissionSet.has(requiredPermission)) return false;");
-  const dynamicFallback = accessSource.indexOf("matchingNamespace[0].split(\"/\")");
-  assert.match(permissionBlock, /\["\\/students", "students\.read"\]/,
-    "student detail routes must not rely on their dynamic namespace for read permission");
-  assert.ok(permissionGate > permissionEnd, "specific module permissions must be enforced after resolution");
-  assert.ok(dynamicFallback > permissionGate, "dynamic detail routes must not return early before permission enforcement");
-  assert.match(navigation, /\["\\/students\/\[id\]", \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"\]\]/);
-});
-
-test("notice publishing roles are explicit and shared by RBAC and backend mutations", () => {
-  const writerBlock = rbac.match(/export const NOTICE_MANAGEMENT_ROLES = \[([\\s\\S]*?)\] as const/)?.[1] ?? "";
-  const writerRoles = [...writerBlock.matchAll(/"([A-Z_]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(writerRoles, [
-    "SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
-    "DEAN", "REGISTRAR", "HOD", "CMS",
-  ]);
-  assert.match(rbac, /basePermissions\.filter\(\(permission\) => permission !== "notices\.manage"\)/,
-    "other roles must not inherit notice-write access from a shared permission bundle");
-  assert.equal((erpService.match(/assertRole\(actor, \[\.\.\.NOTICE_MANAGEMENT_ROLES\]\);/g) || []).length, 3,
-    "create, update and delete must use the same canonical writer allowlist");
-  assert.match(erpService, /assertNoticeDepartmentScope\(institutionId, actor, input\.departmentId\)/,
-    "notice creation must enforce the writer's server-derived scope");
-  assert.match(erpService, /assertNoticeDepartmentScope\(institutionId, actor, existing\.departmentId\)/,
-    "notice mutations must validate the existing notice scope");
-  assert.ok(notices.includes("canManageNotices(user.roles, user.permissions)"),
-    "publisher UI must use the shared effective-role policy");
-  assert.ok(noticePolicy.includes("NOTICE_MANAGEMENT_ROLES.includes("),
-    "publisher visibility must check the effective role against the same explicit writer policy");
-});
-
-test("student detail routes require students.read before dynamic namespace fallback", () => {
-  const accessStart = navigation.indexOf("export function canAccessRoute");
-  const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
-  const accessSource = navigation.slice(accessStart, homeStart);
-  const permissionStart = accessSource.indexOf("const namespacePermission");
-  const permissionEnd = accessSource.indexOf("const requiredPermission", permissionStart);
-  const permissionBlock = accessSource.slice(permissionStart, permissionEnd);
-  const permissionGate = accessSource.indexOf("if (requiredPermission && !permissionSet.has(requiredPermission)) return false;");
   const dynamicFallback = accessSource.indexOf("matchingNamespace[0].split(");
   assert.ok(permissionBlock.includes('["/students", "students.read"]'),
     "student detail routes must not rely on their dynamic namespace for read permission");
