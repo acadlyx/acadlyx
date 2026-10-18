@@ -1,5 +1,5 @@
 import { apiUrl, createMutationKey } from "./api";
-import { authorizationContextKey } from "./sessionScopedCache.mjs";
+import { authorizationContextKey, isSessionCurrent } from "./sessionScopedCache.mjs";
 
 const ACCESS_TOKEN_KEY =
   "acadlyx_access_token";
