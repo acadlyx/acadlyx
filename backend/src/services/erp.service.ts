@@ -1699,10 +1699,15 @@ async function assertNoticeDepartmentScope(
     return;
   }
 
-  // CMS can publish institution-wide notices in its own tenant workspace.
-  // This is a module entitlement, not permission to browse other modules'
-  // institution-wide records.
-  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) return;
+  // CMS can publish institution-wide notices in its own tenant workspace,
+  // but may not target a department unless a role with that department scope
+  // is the effective workspace. CMS entitlement alone is not department access.
+  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) {
+    if (departmentId) {
+      throw new AppError("CMS notices must be institution-wide", 403);
+    }
+    return;
+  }
 
   throw new AppError("Notice management is outside your authorized scope", 403);
 }
