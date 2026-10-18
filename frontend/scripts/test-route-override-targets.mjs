@@ -123,6 +123,28 @@ test("Dean and Club President dashboard actions stay inside declared scopes", ()
   assert.ok(!club.includes('href="/calendar"'));
 });
 
+test("every final role-owned navigation destination resolves to an app page", () => {
+  const entries = roleNavigationEntries();
+  const declaredRoles = [...new Set(entries.flatMap((entry) => entry.roles))];
+  const missing = [];
+
+  for (const entry of entries) {
+    const roles = entry.roles.length ? entry.roles : declaredRoles;
+    for (const role of roles) {
+      const destination = overrides.find((override) =>
+        override.role === role && override.source === entry.href,
+      )?.destination ?? entry.href;
+      const pathname = destination.split("?")[0].split("#")[0] || "/";
+      if (/^https?:\\/\\//i.test(pathname)) continue;
+      if (!fs.existsSync(pageForRoute(pathname))) {
+        missing.push({ role, source: entry.href, destination: pathname });
+      }
+    }
+  }
+
+  assert.deepEqual(missing, [], "Every visible final navigation destination must resolve to a real app page");
+});
+
 function routeNamespaceEntries() {
   const declaration = navigation.indexOf("const NAMESPACE_OWNERS");
   const equals = navigation.indexOf("=", declaration);
