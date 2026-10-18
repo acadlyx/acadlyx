@@ -569,6 +569,22 @@ test("operations mobile workspace provides scoped asset, facility and maintenanc
 });
 
 
+test("certificate mobile workflow implements request, issue, reject and public verification APIs", () => {
+ const screen=read("src/screens/CertificatesScreen.tsx");
+ const moduleScreen=read("src/screens/ModuleScreen.tsx");
+ const routes=read("../backend/src/routes/certificate.routes.ts");
+ const validators=read("../backend/src/validators/certificate.validators.ts");
+ assert.ok(screen.includes('"/certificates/mine"')&&screen.includes('"/certificates?page=1&pageSize=50'));
+ assert.ok(screen.includes('"/certificates/"+encodeURIComponent(id(a.row))+"/"+a.verb'));
+ assert.ok(screen.includes('"/certificates/verify/"+encodeURIComponent(number.trim())'));
+ assert.ok(screen.includes("certificates.request")&&screen.includes("certificates.read")&&screen.includes("certificates.issue"));
+ assert.ok(screen.includes("purpose.trim().length<3")&&screen.includes("Rejection remarks must contain at least three characters."));
+ assert.ok(routes.includes("service.requestCertificate")&&routes.includes("service.issueCertificate")&&routes.includes("service.rejectCertificate")&&routes.includes("service.verifyCertificate"));
+ assert.ok(validators.includes("requestCertificateSchema")&&validators.includes("issueCertificateSchema")&&validators.includes("rejectCertificateSchema"));
+ assert.ok(screen.includes("wk")&&moduleScreen.includes('module?.id === "certificates"')&&moduleScreen.includes("<CertificatesScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
