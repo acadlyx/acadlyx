@@ -1785,14 +1785,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   { label: "Placement", href: "/faculty/placements", icon: "◎", roles: ["FACULTY"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
   { label: "Placement", href: "/parent/placements", icon: "◎", roles: ["PARENT"], permissions: ["placements.read"], group: "Student", activeMatch: "nested" },
   {
-    label: "Notices",
-    href: "/superadmin/notices",
-    icon: "◌",
-    roles: ["SUPER_ADMIN"],
-    group: "Platform",
-    activeMatch: "nested",
-  },
-  {
     label: "Notifications",
     href: "/superadmin/notifications",
     icon: "◉",
