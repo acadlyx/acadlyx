@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getNotifications, listNotices, type ErpNotification, type ErpNotice } from "@/lib/erpApi";
 import { listEvents, type InstitutionalEvent } from "@/lib/eventsApi";
@@ -14,6 +15,24 @@ type UpdateItem = {
   href: string;
   unread?: boolean;
 };
+
+const WORKSPACE_QUERY_KEYS = ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"];
+
+function carryWorkspaceQuery(href: string, currentQuery: string): string {
+  const current = new URLSearchParams(currentQuery);
+  const scope = new URLSearchParams();
+  for (const key of WORKSPACE_QUERY_KEYS) {
+    const value = current.get(key);
+    if (value) scope.set(key, value);
+  }
+  if (!scope.toString()) return href;
+  const separator = href.indexOf("?");
+  const path = separator >= 0 ? href.slice(0, separator) : href;
+  const query = new URLSearchParams(separator >= 0 ? href.slice(separator + 1) : "");
+  scope.forEach((value, key) => query.set(key, value));
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
+}
 
 function safeInternalHref(value: string | null | undefined): string {
   if (value && value.startsWith("/") && !value.startsWith("//")) return value;
@@ -67,6 +86,8 @@ function eventItem(item: InstitutionalEvent): UpdateItem {
 }
 
 export function RecentUpdatesPanel() {
+  const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
   const [items, setItems] = useState<UpdateItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [failedSources, setFailedSources] = useState<string[]>([]);
@@ -127,9 +148,9 @@ export function RecentUpdatesPanel() {
           <p className="mt-1 text-sm text-slate-500">Published notices, events and your notifications from ACADLYX.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/notices" className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Notices</Link>
-          <Link href="/notifications" className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Notifications</Link>
-          <Link href="/events-gallery" className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Events</Link>
+          <Link href={carryWorkspaceQuery("/notices", currentQuery)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Notices</Link>
+          <Link href={carryWorkspaceQuery("/notifications", currentQuery)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Notifications</Link>
+          <Link href={carryWorkspaceQuery("/events-gallery", currentQuery)} className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:border-emerald-500">Events</Link>
         </div>
       </div>
 
@@ -151,7 +172,7 @@ export function RecentUpdatesPanel() {
                 <p className="mt-1 whitespace-pre-line break-words text-sm leading-5 text-slate-600">{item.description}</p>
                 <p className="mt-2 text-xs text-slate-400">{formatDate(item.date)}</p>
               </div>
-              <Link href={item.href} className="inline-flex min-h-9 shrink-0 items-center justify-center self-start rounded-lg px-3 py-2 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+              <Link href={carryWorkspaceQuery(item.href, currentQuery)} className="inline-flex min-h-9 shrink-0 items-center justify-center self-start rounded-lg px-3 py-2 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
                 View details
               </Link>
             </article>
