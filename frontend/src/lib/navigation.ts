@@ -15,20 +15,18 @@ function normalizeRoleName(role: string): string {
  * table so a rewritten sidebar URL is authorized against the same destination.
  */
 export const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/chairman/notices": "/chairman/notices", "/chairman/notifications": "/chairman/notifications", "/chairman/events-gallery": "/chairman/events-gallery" },
-  DIRECTOR: { "/reports": "/director/reports", "/examinations": "/director/examinations", "/examinations/operations": "/director/examinations/operations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery", "/placements": "/director/placements", "/obe": "/director/obe" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students", "/notices": "/dean/notices" },
-  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
-  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence", "/notices": "/hod/notices" },
-  FACULTY: { "/erp": "/faculty/operations" },
+  DEAN: { "/notices": "/dean/notices" },
+  HOD: {
+    "/timetable": "/hod/timetable",
+    "/reports": "/hod/reports",
+    "/intelligence": "/hod/intelligence",
+    "/notices": "/hod/notices",
+  },
   STUDENT: { "/notices": "/student/notices" },
   HR: { "/reports": "/hr/reports" },
-  STAFF: { "/erp": "/staff/operations" },
-  MANAGEMENT: { "/operations": "/management/operations", "/intelligence": "/management/intelligence", "/reports": "/management/reports" },
-  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },
-  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },
-  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },
-  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
+  EXAMINATION: { "/reports": "/examination/reports" },
+  ADMISSIONS: { "/reports": "/admissions/reports" },
+  LIBRARIAN: { "/reports": "/library/reports" },
 };
 
 export function roleOwnedHref(role: string | null, href: string): string {
