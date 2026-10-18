@@ -232,3 +232,27 @@
 ## Release decision
 
 **NOT PRODUCTION READY.** The placement outbox/test-fixture regressions are fixed and the real PostgreSQL ERP suite passed 239/239 on the earlier tested candidate. Fresh RBAC reconciliation is now verified by all six Playwright browser tests, and all five workflows passed on `74da4d1`. Remaining material blockers include the unresolved high-severity `node-forge@1.4.0` dependency advisory, full backend role/cross-tenant authorization acceptance, end-to-end import/export coverage, native feature parity and signed device builds/tests, and staging release acceptance. Production remains unchanged; no merge or deployment is authorized.
+
+
+## Batch 01 — Independent role, permission and workspace-isolation verification (2026-10-18)
+
+**Status: PARTIAL — do not interpret as complete authorization acceptance.** Verified against source and the exact current branch HEAD `ece48b9cb71b6c95555cbb7102c7e22077bc0f83`; no production branch writes or deployments were made.
+
+### Changes present on the implementation branch
+- Fee-structure service now checks the effective workspace role in addition to granular permissions: management is limited to Chairman/Management/Accounts, read listing to Chairman/Management/Accounts/Director, submission to the finance roles, approval/rejection to Chairman/Management/Director, and fee assignment to Accounts. Institution Admin is removed from fee-structure role grants and the RBAC regression asserts no `fees.structure.read` or `fees.structure.manage` grant.
+- Library circulation now uses the effective Librarian workspace for management operations, with explicit route-level role gates; fine lists are limited to a Student's own borrower rows or institution-scoped Librarian rows, and waiver actions have explicit role gates.
+- Added/adjusted regression coverage for multi-role Student+Librarian denial, non-Librarian Director workspace denial, role/permission checks and the library circulation detail gate. Adjusted concurrency fixture to use an actual Librarian actor for a library return.
+- Workspace context integration fixtures include the Exams feature when testing Institution Admin's role boundary, so the denial is not accidentally caused only by feature entitlement. Existing workspace integration tests exercise cross-campus department context rejection and multi-role effective-role selection.
+
+### Independent CI evidence on exact HEAD
+- ERP verification run [39111427604](https://github.com/acadlyx/acadlyx/actions/runs/39111427604): **SUCCESS** (backend and frontend jobs).
+- Production Quality run [39111427608](https://github.com/acadlyx/acadlyx/actions/runs/39111427608): **SUCCESS** — backend tests/typecheck, frontend typecheck/build, browser public/login smoke, migration validation, legacy refund compatibility, backup/restore rehearsal and 10k-student database workload all succeeded. Production deployment smoke was skipped by workflow design.
+- Frontend build run [39111427713](https://github.com/acadlyx/acadlyx/actions/runs/39111427713): **SUCCESS**.
+- Production Gate run [39111427606](https://github.com/acadlyx/acadlyx/actions/runs/39111427606): **SUCCESS**.
+- Native Mobile CI run [39111427609](https://github.com/acadlyx/acadlyx/actions/runs/39111427609): **SUCCESS** for typecheck, structural tests, Expo checks and Android/iOS JS bundle exports; this is not signed native/device validation.
+
+### Acceptance gaps still open
+- The 20-role × direct URL/navigation/API read/API mutation matrix has **not** been demonstrated end-to-end. Passing general CI is not proof that every endpoint/resource query is correctly scoped.
+- Need dedicated integration assertions for Director campus boundaries across every campus-scoped resource; Dean/HOD department boundaries across reads and mutations; Faculty teaching assignment boundaries; Student own-record boundaries; Parent linked-child boundaries; Super Admin platform-only behavior against tenant endpoints; foreign institution IDs across all services; revoked permissions/stale sessions; and disabled feature API access.
+- Need targeted frontend tests proving workspace change invalidates each relevant query family and that old-scope records cannot flash while requests race. The existing workspace transition implementation resets queries, but a full resource-family matrix has not been independently run in this batch.
+- Continue to treat production readiness as **NOT READY** until these gaps have endpoint-level test evidence and are reviewed. No full-isolation claim is made.
