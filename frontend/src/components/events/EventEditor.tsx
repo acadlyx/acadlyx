@@ -53,6 +53,7 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentQuery = searchParams.toString();
+  const contextDepartmentId = searchParams.get("departmentId") || "";
   const [event,setEvent]=useState<InstitutionalEvent|null>(null);
   const [categories,setCategories]=useState<Array<{id:string;name:string}>>([]);
   const [departments,setDepartments]=useState<Array<{id:string;name:string;code?:string}>>([]);
@@ -62,6 +63,12 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
   useEffect(()=>{ Promise.all([getEventCategories(), listDepartments(), eventId?getEvent(eventId):Promise.resolve(null)]).then(([c,d,e])=>{
     setCategories(c.data||[]);
     setDepartments(d);
+    if (!e) {
+      const selectedDepartmentId = d.some((department) => department.id === contextDepartmentId)
+        ? contextDepartmentId
+        : "";
+      setForm((current) => ({ ...current, departmentId: selectedDepartmentId }));
+    }
     if(e){
       setEvent(e.data);
       setForm({
@@ -86,7 +93,7 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
         coverFileId: e.data.coverFileId || "",
       });
     }
-  }).catch(e=>setMessage(e instanceof Error?e.message:"Unable to load event."));},[eventId]);
+  }).catch(e=>setMessage(e instanceof Error?e.message:"Unable to load event."));},[eventId,contextDepartmentId]);
 
   function set(key: keyof EventForm, value: EventForm[keyof EventForm]) { setForm((x)=>({...x,[key]:value})); }
   function jsonArray(value: string): unknown[] { try { const parsed: unknown = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
