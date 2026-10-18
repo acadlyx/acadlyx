@@ -150,7 +150,7 @@ export function ProtectedRouteBoundary({
       : "/login";
 
     router.replace(
-      destination === pathname
+      destination === route
         ? "/login"
         : destination,
     );
