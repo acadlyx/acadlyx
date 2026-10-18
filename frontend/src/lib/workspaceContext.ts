@@ -176,8 +176,12 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
   // Derive visible state synchronously from the current session and selectors.
   // On the render before useEffect runs, a result keyed to the prior selector
   // must already be hidden rather than flashing stale authorized records.
-  const data = isWorkspaceResultCurrent(dataState?.requestKey, currentRequestKey) ? dataState.value : null;
-  const error = isWorkspaceResultCurrent(errorState?.requestKey, currentRequestKey) ? errorState.message : "";
+  const data = dataState && isWorkspaceResultCurrent(dataState.requestKey, currentRequestKey)
+    ? dataState.value
+    : null;
+  const error = errorState && isWorkspaceResultCurrent(errorState.requestKey, currentRequestKey)
+    ? errorState.message
+    : "";
   const hasCurrentResult = data !== null || error.length > 0;
   return { data, loading: loading || !hasCurrentResult, error, reload: load };
 }
