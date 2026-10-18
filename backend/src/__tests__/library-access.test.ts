@@ -94,6 +94,7 @@ test("catalogue routes permit borrower-only access without exposing other borrow
   assert.ok(listStart >= 0 && detailStart > listStart && loansStart > detailStart);
   assert.match(routes.slice(listStart, detailStart), /authorizeAnyPermission\("library\.read", "library\.borrow"\)/);
   assert.match(routes.slice(detailStart, loansStart), /authorizeAnyPermission\("library\.read", "library\.borrow"\)/);
-  assert.match(service, /const canReadCirculation = Boolean\(actor\?\.permissions\.includes\("library\.read"\)\)/);
+  assert.match(service, /const canReadCirculation = Boolean\([\s\S]*?getEffectiveWorkspaceRole\(actor\) === "LIBRARIAN"[\s\S]*?actor\.permissions\.includes\("library\.read"\)/,
+    "circulation details require the effective Librarian workspace and library.read permission");
   assert.match(service, /if \(!canReadCirculation\) return \{ \.\.\.book, activeIssues: \[\] \}/);
 });
