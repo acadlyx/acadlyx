@@ -452,6 +452,25 @@ test("mobile query keys cannot share cached results across academic workspace ch
 });
 
 
+test("student master and enrollment mobile workflow uses canonical scoped endpoints", () => {
+  const screen = read("src/screens/StudentsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  const routes = read("../backend/src/routes/student.routes.ts");
+  const validators = read("../backend/src/validators/studentAdmin.validators.ts");
+  for (const endpoint of ['"/students"', '"/students/" + encodeURIComponent(selectedId) + "/enrollments"']) {
+    assert.ok(screen.includes(endpoint), "Missing student workflow endpoint " + endpoint);
+  }
+  assert.ok(screen.includes('method: "PATCH"') && screen.includes('method: "POST"'));
+  assert.ok(screen.includes("students.create") && screen.includes("students.update") && screen.includes("students.read"));
+  assert.ok(screen.includes("workspaceKey") && screen.includes("student-enrollments"));
+  assert.ok(screen.includes("password") && screen.includes("Initial password"));
+  assert.ok(screen.includes("No authorized choices are available; record IDs cannot be entered manually."));
+  assert.ok(moduleScreen.includes('module?.id === "students"') && moduleScreen.includes("<StudentsScreen />"));
+  assert.ok(routes.includes("studentAdminController.create") && routes.includes("studentAdminController.enroll"));
+  assert.ok(validators.includes("createStudentSchema") && validators.includes("enrollStudentSchema"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
