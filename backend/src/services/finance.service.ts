@@ -289,7 +289,7 @@ export async function concessions(institutionId:string,a:AuthenticatedUser){
 export async function refunds(institutionId:string,a:AuthenticatedUser){
  const s=await scope(institutionId,a);
  if(!has(a,"fees.read")&&!has(a,"fees.refund.read")&&!has(a,"fees.refund.approve")&&!has(a,"fees.refund.process"))throw new AppError("Refund visibility permission required",403);
- return prisma.feeRefund.findMany({where:{institutionId,...studentFinancialFilter(s)},orderBy:{createdAt:"desc"},take:500});
+ return prisma.feeRefund.findMany({where:{institutionId,...studentFinancialFilter(s)},include:{payment:{select:{id:true,method:true,provider:true,providerPaymentId:true}}},orderBy:{createdAt:"desc"},take:500});
 }
 export async function requestRefund(institutionId:string,a:AuthenticatedUser,paymentId:string,input:any){
   assertAccountsWorkspace(a, "Refund requests");

@@ -17,7 +17,7 @@ export const concessions=asyncHandler(async(req,res)=>res.json({success:true,dat
 export const refunds=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.refunds(requireInstitution(req),a(req))}));
 export const requestRefund=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await finance.requestRefund(requireInstitution(req),a(req),req.params.id,req.body)}));
 export const approveRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.approveRefund(requireInstitution(req),a(req),req.params.id)}));
-export const processRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.processRefund(requireInstitution(req),a(req),req.params.id)}));
+export const processRefund=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.processRefund(requireInstitution(req),a(req),req.params.id,req.body)}));
 export const transactions=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.transactions(requireInstitution(req),a(req))}));
 
 export const exportFinancial=asyncHandler(async(req,res)=>{const file=await finance.exportFinancial(requireInstitution(req),a(req),String(req.query.type) as "invoices"|"payments"|"receipts"|"transactions",String(req.query.format||"xlsx") as ExportFormat);res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});

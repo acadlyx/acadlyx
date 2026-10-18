@@ -47,3 +47,4 @@ export const financeExpenseDecisionSchema = z.object({
 });
 
 export const financeExpenseExportSchema=z.object({format:z.enum(["xlsx","csv","docx","pdf","json"]).default("xlsx")});
+export const financeRefundProcessSchema=z.object({externalSettlementReference:z.string().trim().min(3).max(200).optional(),confirmExternalSettlement:z.boolean().optional()}).strict();
