@@ -353,8 +353,8 @@ test("the Accounts fee URL is blocked for every non-Accounts canonical role", as
     } else {
       expect(actual === home || (role === "PARENT" && actual === "/parent/children")).toBeTruthy();
       expect(feeRequests, role + " must not load fee data before workspace authorization").toEqual([]);
-      await expect(rolePage.locator('a[href="/accounts/fee-structures"]')).toHaveCount(0);
-      await expect(rolePage.locator('a[href="/accounts/fee-heads"]')).toHaveCount(0);
+      await expect(page.locator('a[href="/accounts/fee-structures"]')).toHaveCount(0);
+      await expect(page.locator('a[href="/accounts/fee-heads"]')).toHaveCount(0);
     }
   }
 
