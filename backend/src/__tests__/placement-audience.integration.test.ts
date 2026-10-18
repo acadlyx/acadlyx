@@ -266,6 +266,28 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     const rescheduled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:rescheduled:` } } });
     assert.equal(rescheduled.length, 1, "retrying the same reschedule must not duplicate notifications");
     await updatePlacementVisit(institution.id, staffActor, event.id, { status: "CANCELLED" });
+    // publishDomainEvent persists the outbox row asynchronously; wait for the
+    // specific cancellation event before invoking the real consumer so this
+    // test cannot race the fire-and-forget insert and falsely report a drain.
+    let cancellationQueued = false;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      cancellationQueued = Boolean(await prisma.domainEventOutbox.findFirst({
+        where: { institutionId: institution.id, name: "placement.schedule.changed" },
+        // JSON payload matching is deliberately checked below after retrieval.
+        select: { id: true },
+      }));
+      const queuedEvents = await prisma.domainEventOutbox.findMany({
+        where: { institutionId: institution.id, name: "placement.schedule.changed" },
+        select: { id: true, payload: true },
+      });
+      cancellationQueued = queuedEvents.some((entry) => {
+        const payload = entry.payload as Record<string, unknown>;
+        return payload.eventId === event.id && payload.version === "cancelled";
+      });
+      if (cancellationQueued) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(cancellationQueued, "cancellation event must be persisted before draining");
     await drainPlacementEvents(institution.id);
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
     const scheduleEvents = await prisma.domainEventOutbox.findMany({
