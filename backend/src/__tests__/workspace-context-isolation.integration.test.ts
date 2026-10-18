@@ -829,6 +829,11 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       403,
       "Institution Admin must not mutate Assignments without an explicit assignment role grant",
     );
+    assert.equal(
+      (await requestWithBody("/erp/exams", roleUsers.INSTITUTION_ADMIN.token, "POST", {})).status,
+      403,
+      "Institution Admin must not create exams without the Examination role's operation permission",
+    );
 
     // Exercise fee-structure maker-checker through registered Express routes
     // and PostgreSQL state, not only service/source-contract tests.
