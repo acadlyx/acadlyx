@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
@@ -30,6 +30,7 @@ import {
   TimetableEntry,
   TimetableProgram,
   updateTimetableEntry,
+  type TimetableWorkspaceFilters,
 } from "@/lib/timetableApi";
 
 const DAYS = [
@@ -171,8 +172,23 @@ function groupByStart(
 }
 
 export default function TimetablePage() {
-  const router =
-    useRouter();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceQuery = searchParams.toString();
+  const workspaceFilters = useMemo<TimetableWorkspaceFilters>(() => {
+    const params = new URLSearchParams(workspaceQuery);
+    const optional = (key: string) => params.get(key) || undefined;
+    return {
+      campusId: optional("campusId"),
+      departmentId: optional("departmentId"),
+      programId: optional("programId"),
+      academicYearId: optional("academicYearId"),
+      batchId: optional("batchId"),
+      semesterId: optional("semesterId"),
+      sectionId: optional("sectionId"),
+    };
+  }, [workspaceQuery]);
 
   const [
     offerings,
@@ -259,6 +275,23 @@ export default function TimetablePage() {
     EMPTY_FORM,
   );
 
+  useEffect(() => {
+    setSelectedDepartment(workspaceFilters.departmentId || "");
+    setSelectedProgram(workspaceFilters.programId || "");
+    setSelectedSemester(workspaceFilters.semesterId || "");
+    setSelectedSection(workspaceFilters.sectionId || "");
+  }, [workspaceFilters]);
+
+  function updateWorkspaceFilters(updates: Partial<Record<keyof TimetableWorkspaceFilters, string>>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   const load =
     useCallback(
       async () => {
@@ -293,8 +326,13 @@ export default function TimetablePage() {
             programList,
           ] =
             await Promise.all([
-              listOfferings(),
-              listTimetableEntries(),
+              listOfferings({
+                campusId: workspaceFilters.campusId,
+                departmentId: workspaceFilters.departmentId,
+                semesterId: workspaceFilters.semesterId,
+                sectionId: workspaceFilters.sectionId,
+              }),
+              listTimetableEntries(workspaceFilters),
               listTimetablePrograms(),
             ]);
 
@@ -333,7 +371,7 @@ export default function TimetablePage() {
           setLoading(false);
         }
       },
-      [router],
+      [router, workspaceFilters],
     );
 
   useEffect(() => {
@@ -632,21 +670,16 @@ export default function TimetablePage() {
    */
 
   function resetFilters() {
-    setSelectedDepartment(
-      "",
-    );
-
-    setSelectedProgram(
-      "",
-    );
-
-    setSelectedSemester(
-      "",
-    );
-
-    setSelectedSection(
-      "",
-    );
+    setSelectedDepartment("");
+    setSelectedProgram("");
+    setSelectedSemester("");
+    setSelectedSection("");
+    updateWorkspaceFilters({
+      departmentId: "",
+      programId: "",
+      semesterId: "",
+      sectionId: "",
+    });
   }
 
   /*
