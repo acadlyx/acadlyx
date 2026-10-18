@@ -337,6 +337,13 @@ test("the Accounts fee URL is blocked for every non-Accounts canonical role", as
 
   for (const [role, home] of cases) {
     session.user.roles = [role];
+    // Give each role the features its workspace requires, so route ownership
+    // (not an unrelated disabled module) is what this matrix evaluates.
+    session.user.tenantFeatures = [
+      ...session.user.tenantFeatures.filter((feature) => feature !== "parent_portal" && feature !== "library"),
+      ...(role === "PARENT" ? ["parent_portal"] : []),
+      ...(role === "LIBRARIAN" ? ["library"] : []),
+    ];
     feeRequests.length = 0;
     await page.goto(baseURL + "/accounts/fee-structures", { waitUntil: "networkidle" });
     const actual = new URL(page.url()).pathname;
