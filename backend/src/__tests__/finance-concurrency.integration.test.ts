@@ -328,7 +328,7 @@ test("PostgreSQL: processed refunds are not subtracted twice from the remaining 
       where: { institutionId: f.institutionId, invoiceId: f.invoiceId },
     });
     const first = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 600, reason: "first partial refund" });
-    await processRefund(f.institutionId, f.actor, first.id);
+    await processRefund(f.institutionId, f.actor, first.id, { externalSettlementReference: "BANK-REFUND-SETTLEMENT-001", confirmExternalSettlement: true });
     const second = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 400, reason: "remaining balance refund" });
     assert.equal(second.amount.toString(), "400");
     const [refunds, persistedPayment, invoice, ledger, processAudit] = await Promise.all([
