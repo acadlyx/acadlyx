@@ -40,3 +40,7 @@ export function authorizationContextKey(user) {
     tenantFeatures: [...(user.tenantFeatures ?? [])].sort(),
   });
 }
+
+export function isWorkspaceResultCurrent(resultRequestKey, currentRequestKey) {
+  return resultRequestKey === currentRequestKey;
+}
