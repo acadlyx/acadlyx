@@ -508,6 +508,7 @@ model Campus {
 
   departments Department[]
   campusAccesses CampusAccess[]
+  calendarEvents CalendarEvent[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -2407,6 +2408,8 @@ model CalendarEvent {
   id             String        @id @default(uuid())
   institutionId  String
   institution    Institution   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  campusId       String?
+  campus         Campus?       @relation(fields: [campusId], references: [id], onDelete: SetNull)
   title          String
   description    String?
   /// HOLIDAY | EXAM | EVENT | DEADLINE | ACADEMIC
@@ -2423,6 +2426,7 @@ model CalendarEvent {
 
   @@index([institutionId, startDate])
   @@index([institutionId, endDate])
+  @@index([institutionId, campusId, startDate])
   @@index([academicYearId])
   @@map("calendar_events")
 }
