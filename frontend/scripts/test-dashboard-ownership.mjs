@@ -21,7 +21,7 @@ const siteContentRoutes = readRepo("backend/src/routes/siteContent.routes.ts");
 const cmsService = readRepo("backend/src/services/institutionalCms.service.ts");
 
 const CANONICAL_ROLES = authority
-  .match(/export const DASHBOARD_IDS = \\[([\\s\\S]*?)\\] as const/)?.[1]
+  .match(/export const DASHBOARD_IDS = \[([\s\S]*?)\] as const/)?.[1]
   ?.match(/"([^"]+)"/g)
   ?.map((role) => role.slice(1, -1)) ?? [];
 
