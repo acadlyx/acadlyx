@@ -136,11 +136,17 @@ test("notice writer policy is explicit, shared by API/UI, and excludes unsupport
 
   const backendRoles = policyRoles(rbac, "export const NOTICE_MANAGEMENT_ROLES = [", "] as const");
   const frontendRoles = policyRoles(noticePolicy, "export const NOTICE_MANAGEMENT_ROLES = [", "] as const");
+  const departmentTargetRoles = policyRoles(noticePolicy, "export const NOTICE_DEPARTMENT_TARGET_ROLES = [", "] as const");
+  const departmentRequiredRoles = policyRoles(noticePolicy, "export const NOTICE_DEPARTMENT_REQUIRED_ROLES = [", "] as const");
   assert.deepEqual(frontendRoles, backendRoles, "the publisher UI and backend must use the same writer roles");
   assert.deepEqual(backendRoles, [
     "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
     "DEAN", "REGISTRAR", "HOD", "CMS",
   ]);
+  assert.deepEqual(departmentTargetRoles, [
+    "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "DEAN", "MANAGEMENT", "REGISTRAR", "HOD",
+  ]);
+  assert.deepEqual(departmentRequiredRoles, ["DIRECTOR", "DEAN", "HOD"]);
   assert.ok(rbac.includes("const canReadTenantNotices = normalized !== \"SUPER_ADMIN\";"),
     "platform-only Super Admin must not inherit tenant notice reads");
   assert.ok(rbac.includes('permission !== "notices.manage"') && rbac.includes('permission !== "notices.read"'),
@@ -151,6 +157,14 @@ test("notice writer policy is explicit, shared by API/UI, and excludes unsupport
     "notice creation must enforce the writer's server-derived scope");
   assert.ok(erpService.includes("assertNoticeDepartmentScope(institutionId, actor, existing.departmentId)"),
     "notice mutations must validate the existing notice scope");
+  assert.ok(erpService.includes('if (activeRole === "DIRECTOR" && isDirectorScoped(actor))') &&
+    erpService.includes('if (activeRole === "DEAN" || activeRole === "HOD")'),
+    "Director, Dean, and HOD writers must be constrained to assigned departments");
+  assert.ok(erpService.includes('throw new AppError("CMS notices must be institution-wide", 403)'),
+    "CMS cannot target department records without department authority");
+  assert.ok(notices.includes("requiresDepartmentScope && !form.departmentId") &&
+    notices.includes("disabled={!canSelectDepartment}"),
+    "notice form must prevent publishing outside the effective role scope");
   assert.ok(noticePolicy.includes('permissions.includes("notices.manage")'),
     "the UI must still require the actual permission, not role ownership alone");
 });
