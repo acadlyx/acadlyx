@@ -123,8 +123,7 @@ export async function listFeeHeads(
   // Finance leadership may read shared fee-head names when their explicit
   // read permission exists; platform authority is handled separately.
   const mayReadSharedFeeHeads = [
-    "SUPER_ADMIN", "CHAIRMAN", "DIRECTOR", "DEAN", "HOD",
-    "MANAGEMENT", "REGISTRAR", "ACCOUNTS",
+    "SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS",
   ].includes(activeRole);
   if (
     !mayReadSharedFeeHeads ||
