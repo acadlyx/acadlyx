@@ -878,6 +878,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Academic",
   },
   {
+    label: "Reports",
+    href: "/registrar/reports",
+    icon: "▤",
+    roles: ["REGISTRAR"],
+    permissions: ["reports.read"],
+    group: "Administration",
+  },
+  {
     label: "Course registration",
     href: "/course-registration",
     icon: "▦",
