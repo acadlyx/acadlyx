@@ -133,6 +133,18 @@ if (!navigationSource.includes("Tenant entitlement checks run before namespace c
   failures.push("src/lib/navigation.ts: entitlement checks must precede namespace fallback to protect direct routes");
 }
 if (
+  !protectedBoundarySource.includes('state !== "unauthorized" || validatedPath !== route') ||
+  !protectedBoundarySource.includes("[pathname, route, router, state, user, validatedPath]")
+) {
+  failures.push("src/components/auth/ProtectedRouteBoundary.tsx: stale unauthorized state must not redirect a newly requested workspace before its route is verified");
+}
+if (
+  !navigationSource.includes("export function tenantFeaturesForPath(pathname: string): string[]") ||
+  !navigationSource.includes("if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;")
+) {
+  failures.push("src/lib/navigation.ts: tenant route checks must use the exported multi-feature resolver and fail closed when a required feature is disabled");
+}
+if (
   !navigationSource.includes("if (!matchingNamespace) {") ||
   !navigationSource.includes("// Protected routes fail closed unless a namespace") ||
   !navigationSource.includes('["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT"') ||
