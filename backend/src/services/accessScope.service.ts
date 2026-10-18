@@ -18,7 +18,6 @@ import { getCanonicalRoleNames } from "../config/rbac";
  * generic access to student profiles, user records, notices or other modules.
  */
 export const INSTITUTION_WIDE_ROLES = [
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "MANAGEMENT",
@@ -108,12 +107,12 @@ export function isInstitutionWideForRole(
   const activeRole = getEffectiveWorkspaceRole(actor);
   const allowedByModule: Record<typeof moduleRole, readonly string[]> = {
     // Institution Admin intentionally does not own Accounts/Fees.
-    ACCOUNTS: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
+    ACCOUNTS: ["CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
     // Institution Admin may administer admissions, but this role must not
     // grant generic finance or examination authority.
-    ADMISSIONS: ["SUPER_ADMIN", "CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
+    ADMISSIONS: ["CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
     // Institution Admin intentionally does not own Exams/Examination.
-    EXAMINATION: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
+    EXAMINATION: ["CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
   };
   return allowedByModule[moduleRole].includes(activeRole);
 }
