@@ -1,5 +1,5 @@
 import type { AuthUser } from "@/lib/auth";
-import { tenantFeatureForPath } from "@/lib/navigation";
+import { tenantFeaturesForPath } from "@/lib/navigation";
 
 export type AdminNavItem = {
   label: string;
@@ -257,9 +257,13 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
 ];
 
 function isTenantFeatureEnabled(user: AuthUser | null, href: string): boolean {
-  const feature = tenantFeatureForPath(href);
-  if (!feature) return true;
-  return Array.isArray(user?.tenantFeatures) && user.tenantFeatures.includes(feature);
+  const requiredFeatures = tenantFeaturesForPath(href);
+  if (requiredFeatures.length === 0) return true;
+
+  // Fail closed when tenant feature context is missing, and require every
+  // entitlement derived for this route rather than accidentally checking only one.
+  return Array.isArray(user?.tenantFeatures) &&
+    requiredFeatures.every((feature) => user.tenantFeatures!.includes(feature));
 }
 export function hasAny(
   user: AuthUser | null,
