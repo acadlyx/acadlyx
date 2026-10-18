@@ -6,18 +6,15 @@ import {
   getAuthCacheScope,
   subscribeAuthCacheScope,
 } from "./auth";
+import {
+  canApplySessionResponse,
+  isSessionCurrent,
+  sessionScopedCacheKey,
+} from "./sessionScopedCache.mjs";
 
 const CONTEXT_CACHE_TTL_MS = 30_000;
 const contextCache = new Map<string, { value: WorkspaceContext; expiresAt: number }>();
 const contextInflight = new Map<string, Promise<WorkspaceContext>>();
-
-function contextKey(params: Record<string, string | undefined>): string {
-  return Object.entries(params)
-    .filter(([, value]) => Boolean(value))
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
-}
 
 export function clearWorkspaceContextCache(): void {
   contextCache.clear();
@@ -30,7 +27,7 @@ async function fetchWorkspaceContext(
 ): Promise<WorkspaceContext> {
   // Context IDs alone are not an identity boundary: two users can request the
   // same selectors while having different permitted records.
-  const key = `${authScope}:${contextKey(params)}`;
+  const key = sessionScopedCacheKey(authScope, params);
   const cached = contextCache.get(key);
   const now = Date.now();
 
@@ -53,7 +50,7 @@ async function fetchWorkspaceContext(
     .then((response) => {
       // Do not let a response authenticated as a previous user populate the
       // new session's cache, even if the selector parameters are identical.
-      if (getAuthCacheScope() !== authScope) {
+      if (!isSessionCurrent(authScope, getAuthCacheScope())) {
         throw new Error("Workspace context changed during request. Please retry.");
       }
       contextCache.set(key, {
@@ -131,14 +128,22 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
       const requestParams = JSON.parse(serializedParams) as Record<string, string | undefined>;
       const value = await fetchWorkspaceContext(requestParams, requestedAuthScope);
       if (
-        requestGeneration.current !== generation ||
-        getAuthCacheScope() !== requestedAuthScope
+        !canApplySessionResponse(
+          requestedAuthScope,
+          getAuthCacheScope(),
+          generation,
+          requestGeneration.current,
+        )
       ) return;
       setData(value);
     } catch (err) {
       if (
-        requestGeneration.current !== generation ||
-        getAuthCacheScope() !== requestedAuthScope
+        !canApplySessionResponse(
+          requestedAuthScope,
+          getAuthCacheScope(),
+          generation,
+          requestGeneration.current,
+        )
       ) return;
       setError(
         err instanceof Error
@@ -147,8 +152,12 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
       );
     } finally {
       if (
-        requestGeneration.current === generation &&
-        getAuthCacheScope() === requestedAuthScope
+        canApplySessionResponse(
+          requestedAuthScope,
+          getAuthCacheScope(),
+          generation,
+          requestGeneration.current,
+        )
       ) setLoading(false);
     }
   }, [serializedParams, authScope]);
