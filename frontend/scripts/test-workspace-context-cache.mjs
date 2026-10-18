@@ -4,6 +4,7 @@ import {
   authorizationContextKey,
   canApplySessionResponse,
   isSessionCurrent,
+  isWorkspaceResultCurrent,
   sessionScopedCacheKey,
 } from "../src/lib/sessionScopedCache.mjs";
 
@@ -65,4 +66,12 @@ test("fresh authority signatures ignore ordering but detect role and feature rev
     permissions: ["attendance.read"],
   }));
   assert.equal(authorizationContextKey(null), null);
+});
+
+test("selector changes synchronously hide results and errors from prior workspace keys", () => {
+  const current = "session-4:{\"campusId\":\"campus-b\"}";
+  const prior = "session-4:{\"campusId\":\"campus-a\"}";
+  assert.equal(isWorkspaceResultCurrent(current, current), true);
+  assert.equal(isWorkspaceResultCurrent(prior, current), false);
+  assert.equal(isWorkspaceResultCurrent(undefined, current), false);
 });
