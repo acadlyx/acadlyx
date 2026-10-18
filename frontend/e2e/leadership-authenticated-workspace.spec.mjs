@@ -344,6 +344,17 @@ test("the Accounts fee URL is blocked for every non-Accounts canonical role", as
 
   for (const [role, home] of cases) {
     session.user.roles = [role];
+    // Mirror the role-specific capabilities for every simulated identity,
+    // so a denial means the Accounts route belongs to another workspace,
+    // not that the destination home lacks a fixture permission.
+    session.user.permissions = [
+      ...permissions,
+      ...(role === "STUDENT" || role === "LIBRARIAN" ? ["library.read", "library.borrow"] : []),
+      ...(role === "PARENT" ? ["parent-portal.read", "parent-links.read"] : []),
+      ...(role === "CMS" ? ["site.manage"] : []),
+      ...(role === "REGISTRAR" ? ["certificates.read", "certificates.issue"] : []),
+      ...(role === "ADMISSIONS" ? ["parent-links.read", "parent-links.manage"] : []),
+    ];
     // Give each role the features its workspace requires, so route ownership
     // (not an unrelated disabled module) is what this matrix evaluates.
     session.user.tenantFeatures = [
