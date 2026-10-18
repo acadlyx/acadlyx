@@ -630,6 +630,22 @@ test("mobile report date filters show validation instead of throwing during rend
 });
 
 
+test("institution mobile module is Super Admin gated and uses secure existing tenant logo upload", () => {
+ const screen=read("src/screens/InstitutionsScreen.tsx");
+ const moduleScreen=read("src/screens/ModuleScreen.tsx");
+ const routes=read("../backend/src/routes/institution.routes.ts");
+ const validators=read("../backend/src/validators/institution.validators.ts");
+ assert.ok(screen.includes('"/institutions?page="')&&screen.includes('"/institutions/stats"'));
+ assert.ok(screen.includes('"/institutions/"+encodeURIComponent(editingId)+"/logo"'));
+ assert.ok(screen.includes('method:"POST"')&&screen.includes('method:"PATCH"'));
+ assert.ok(screen.includes('user?.roles?.includes("SUPER_ADMIN")')&&screen.includes("institutions.manage"));
+ assert.ok(screen.includes("DocumentPicker.getDocumentAsync")&&screen.includes('form.append("file"'));
+ assert.ok(routes.includes('upload.single("file")')&&routes.includes("uploadLogo"));
+ assert.ok(validators.includes("createInstitutionSchema")&&validators.includes("updateInstitutionSchema"));
+ assert.ok(moduleScreen.includes('module?.id === "institutions"')&&moduleScreen.includes("<InstitutionsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
