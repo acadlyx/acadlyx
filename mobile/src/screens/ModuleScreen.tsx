@@ -16,6 +16,7 @@ import { StudentsScreen } from "./StudentsScreen";
 import { EventsScreen } from "./EventsScreen";
 import { RegistrationsScreen } from "./RegistrationsScreen";
 import { UsersScreen } from "./UsersScreen";
+import { FacultyScreen } from "./FacultyScreen";
 import type { Section as FinanceSection } from "./FinanceScreen";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { colors, radius, spacing } from "../ui/theme";
@@ -37,6 +38,7 @@ export function ModuleScreen({ route }: Props) {
   const isEventsWorkspace = module?.id === "events";
   const isRegistrationsWorkspace = module?.id === "registrations";
   const isUsersWorkspace = module?.id === "users";
+  const isFacultyWorkspace = module?.id === "faculty";
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const query = useQuery({
@@ -45,7 +47,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace && !isFacultyWorkspace),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -64,6 +66,7 @@ export function ModuleScreen({ route }: Props) {
   if (isEventsWorkspace) return <EventsScreen />;
   if (isRegistrationsWorkspace) return <RegistrationsScreen />;
   if (isUsersWorkspace) return <UsersScreen />;
+  if (isFacultyWorkspace) return <FacultyScreen />;
 
   return <View style={styles.root}>
     <View style={styles.heading}><Text style={styles.title}>{module.title}</Text><Text style={styles.description}>{module.description}</Text><Text style={styles.source}>API surface: {module.endpoint}</Text></View>

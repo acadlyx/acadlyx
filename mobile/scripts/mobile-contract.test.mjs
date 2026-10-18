@@ -525,6 +525,19 @@ test("user administration mobile workflow is permission-gated and uses the canon
 });
 
 
+test("faculty mobile dashboard uses the dedicated self-scoped backend surface", () => {
+ const screen = read("src/screens/FacultyScreen.tsx");
+ const moduleScreen = read("src/screens/ModuleScreen.tsx");
+ const routes = read("../backend/src/routes/faculty.routes.ts");
+ assert.ok(screen.includes('"/faculty/me/course-offerings"') && screen.includes('"/faculty/me/dashboard"'));
+ assert.ok(screen.includes("workspaceKey") && screen.includes("useWorkspaceContext"));
+ assert.ok(screen.includes('user?.roles?.includes("FACULTY")'));
+ assert.ok(screen.includes('openModule(navigation,"attendance")') && screen.includes('openModule(navigation,"assignments")'));
+ assert.ok(routes.includes('authorizeRoles("FACULTY")') && routes.includes('"/me/dashboard"') && routes.includes('"/me/course-offerings"'));
+ assert.ok(moduleScreen.includes('module?.id === "faculty"') && moduleScreen.includes("<FacultyScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
