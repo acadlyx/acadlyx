@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type RecordValue = Record<string, unknown>;
@@ -25,11 +26,13 @@ function errorText(error: unknown) { return error instanceof ApiError ? error.me
 
 export function PlacementScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const [eligibility, setEligibility] = useState<Record<string, Eligibility | undefined>>({});
   const canApply = Boolean(user?.permissions.includes("placements.apply"));
   const canManage = Boolean(user?.permissions.includes("placements.manage"));
-  const keys = ["placements", user?.id];
+  const keys = ["placements", user?.id, workspaceKey];
   const drives = useQuery({ queryKey: [...keys, "drives"], queryFn: () => apiRequest<unknown>("/placements/drives?page=1&pageSize=50"), enabled: Boolean(user?.id), staleTime: 10000 });
   const opportunities = useQuery({ queryKey: [...keys, "opportunities"], queryFn: () => apiRequest<unknown>("/placements/opportunities"), enabled: Boolean(user?.id), staleTime: 10000 });
   const offers = useQuery({ queryKey: [...keys, "offers"], queryFn: () => apiRequest<unknown>("/placements/offers"), enabled: Boolean(user?.id), staleTime: 10000 });

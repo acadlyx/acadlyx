@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection, displayValue } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Assignment = {
@@ -52,6 +53,8 @@ function recordIsReopened(submission?: Submission | null): boolean {
 
 export function AssignmentsScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canCreate = Boolean(user?.permissions.includes("assignments.create"));
   const canUpdate = Boolean(user?.permissions.includes("assignments.update"));
@@ -71,7 +74,7 @@ export function AssignmentsScreen() {
   const [feedback, setFeedback] = useState("");
 
   const assignments = useQuery({
-    queryKey: ["assignments", user?.id, search],
+    queryKey: ["assignments", user?.id, workspaceKey, search],
     queryFn: () => apiRequest<unknown>("/assignments?page=1&pageSize=50&search=" + encodeURIComponent(search)),
     enabled: Boolean(user?.id),
     staleTime: 0
@@ -83,13 +86,13 @@ export function AssignmentsScreen() {
     staleTime: 15000
   });
   const detail = useQuery({
-    queryKey: ["assignment", user?.id, selectedId],
+    queryKey: ["assignment", user?.id, workspaceKey, selectedId],
     queryFn: () => apiRequest<Assignment>("/assignments/" + encodeURIComponent(selectedId as string)),
     enabled: Boolean(user?.id && selectedId),
     staleTime: 0
   });
   const roster = useQuery({
-    queryKey: ["assignment-submissions", user?.id, selectedId],
+    queryKey: ["assignment-submissions", user?.id, workspaceKey, selectedId],
     queryFn: () => apiRequest<unknown>("/assignments/" + encodeURIComponent(selectedId as string) + "/submissions"),
     enabled: Boolean(user?.id && selectedId && canReview),
     staleTime: 0
@@ -100,11 +103,11 @@ export function AssignmentsScreen() {
   const invalidateAssignments = async (id?: string) => {
     await client.invalidateQueries({ queryKey: ["assignments", user?.id] });
     if (id) {
-      await client.invalidateQueries({ queryKey: ["assignment", user?.id, id] });
-      await client.invalidateQueries({ queryKey: ["assignment-submissions", user?.id, id] });
+      await client.invalidateQueries({ queryKey: ["assignment", user?.id] });
+      await client.invalidateQueries({ queryKey: ["assignment-submissions", user?.id] });
     }
     await client.invalidateQueries({ queryKey: ["my-work", user?.id] });
-    await client.invalidateQueries({ queryKey: ["module", user?.id, "student-assignments"] });
+    await client.invalidateQueries({ queryKey: ["module", user?.id] });
   };
 
   const createAssignment = useMutation({

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection, displayValue, safeRecordEntries } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type AdmissionStatus="SUBMITTED"|"UNDER_REVIEW"|"DOCUMENTS_PENDING"|"SELECTED"|"REJECTED"|"ENROLLED"|"WITHDRAWN";
@@ -23,7 +24,9 @@ function labelSection(s:Section){return s.code?[s.code,s.name].filter(Boolean).j
 function validDate(s:string){return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(new Date(s+"T12:00:00").valueOf());}
 
 export function AdmissionsScreen(){
- const {user}=useAuth();const client=useQueryClient();
+ const {user}=useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});const client=useQueryClient();
  const canRead=Boolean(user?.permissions.includes("admissions.read"));
  const canManage=Boolean(user?.permissions.includes("admissions.manage"));
  const canEnroll=canManage&&Boolean(user?.permissions.includes("students.create"));
@@ -35,8 +38,8 @@ export function AdmissionsScreen(){
  const [nextStatus,setNextStatus]=useState<EditableStatus>("UNDER_REVIEW");const [statusRemarks,setStatusRemarks]=useState("");
  const [idNumber,setIdNumber]=useState("");const [admissionNumber,setAdmissionNumber]=useState("");const [studentPassword,setStudentPassword]=useState("");const [semesterId,setSemesterId]=useState<string|null>(null);const [sectionId,setSectionId]=useState<string|null>(null);const [rollNumber,setRollNumber]=useState("");
 
- const list=useQuery({queryKey:["admissions",user?.id,search,filterStatus],queryFn:()=>apiRequest<unknown>("/admissions?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(filterStatus!=="ALL"?"&status="+filterStatus:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
- const detail=useQuery({queryKey:["admission",user?.id,selectedId],queryFn:()=>apiRequest<Application>("/admissions/"+encodeURIComponent(selectedId as string)),enabled:Boolean(user?.id&&canRead&&selectedId),staleTime:0});
+ const list=useQuery({queryKey:["admissions",user?.id, workspaceKey,search,filterStatus],queryFn:()=>apiRequest<unknown>("/admissions?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(filterStatus!=="ALL"?"&status="+filterStatus:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
+ const detail=useQuery({queryKey:["admission",user?.id, workspaceKey,selectedId],queryFn:()=>apiRequest<Application>("/admissions/"+encodeURIComponent(selectedId as string)),enabled:Boolean(user?.id&&canRead&&selectedId),staleTime:0});
  const programsQuery=useQuery({queryKey:["admission-programs",user?.id],queryFn:()=>apiRequest<unknown>("/programs?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
  const yearsQuery=useQuery({queryKey:["admission-years",user?.id],queryFn:()=>apiRequest<unknown>("/academic-years?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
  const semestersQuery=useQuery({queryKey:["admission-semesters",user?.id],queryFn:()=>apiRequest<unknown>("/semesters?page=1&pageSize=100"),enabled:Boolean(user?.id&&canEnroll&&enrollForm),staleTime:15000});
@@ -48,7 +51,7 @@ export function AdmissionsScreen(){
  const sections=useMemo(()=>rows<Section>(sectionsQuery.data).filter(x=>typeof x.id==="string"),[sectionsQuery.data]);
  const application=detail.data;
 
- async function invalidate(){await Promise.all([client.invalidateQueries({queryKey:["admissions",user?.id]}),client.invalidateQueries({queryKey:["admission",user?.id,selectedId]}),client.invalidateQueries({queryKey:["my-work",user?.id]})]);}
+ async function invalidate(){await Promise.all([client.invalidateQueries({queryKey:["admissions",user?.id]}),client.invalidateQueries({queryKey:["admission", user?.id]}),client.invalidateQueries({queryKey:["my-work",user?.id]})]);}
  function resetForm(){setForm(false);setFirstName("");setLastName("");setEmail("");setPhone("");setDob("");setGender("");setGuardianName("");setGuardianPhone("");setPreviousInstitution("");setPreviousPercentage("");setRemarks("");setProgramId(null);setAcademicYearId(null);}
  function beginCreate(){setSelectedId(null);resetForm();setForm(true);}
  function beginEdit(a:Application){setFirstName(a.firstName||"");setLastName(a.lastName||"");setEmail(a.email||"");setPhone(typeof a.phone==="string"?a.phone:"");setDob(typeof a.dateOfBirth==="string"?a.dateOfBirth.slice(0,10):"");setGender(typeof a.gender==="string"?a.gender:"");setGuardianName(typeof a.guardianName==="string"?a.guardianName:"");setGuardianPhone(typeof a.guardianPhone==="string"?a.guardianPhone:"");setPreviousInstitution(typeof a.previousInstitution==="string"?a.previousInstitution:"");setPreviousPercentage(typeof a.previousPercentage==="number"?String(a.previousPercentage):"");setRemarks(typeof a.remarks==="string"?a.remarks:"");setProgramId(a.programId||null);setAcademicYearId(a.academicYearId||null);setForm(true);}

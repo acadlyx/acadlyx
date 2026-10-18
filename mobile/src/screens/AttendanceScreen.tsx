@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE";
@@ -31,6 +32,8 @@ const statusChoices: AttendanceStatus[] = ["PRESENT","ABSENT","LATE"];
 
 export function AttendanceScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canRead = Boolean(user?.permissions.includes("attendance.read"));
   const canMark = Boolean(user?.permissions.includes("attendance.mark"));
@@ -54,7 +57,7 @@ export function AttendanceScreen() {
     staleTime: 15000
   });
   const detailQuery = useQuery({
-    queryKey: ["attendance-session", user?.id, selectedId],
+    queryKey: ["attendance-session", user?.id, workspaceKey, selectedId],
     queryFn: () => apiRequest<Session>("/attendance-sessions/" + encodeURIComponent(selectedId as string)),
     enabled: Boolean(user?.id && canRead && selectedId),
     staleTime: 0
@@ -80,9 +83,9 @@ export function AttendanceScreen() {
   async function invalidate() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ["attendance-sessions", user?.id] }),
-      client.invalidateQueries({ queryKey: ["attendance-session", user?.id, selectedId] }),
+      client.invalidateQueries({ queryKey: ["attendance-session", user?.id] }),
       client.invalidateQueries({ queryKey: ["my-work", user?.id] }),
-      client.invalidateQueries({ queryKey: ["module", user?.id, "student-attendance"] })
+      client.invalidateQueries({ queryKey: ["module", user?.id] })
     ]);
   }
 

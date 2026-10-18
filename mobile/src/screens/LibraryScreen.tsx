@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Book = {
@@ -33,6 +34,8 @@ function personLabel(person: Person): string {
 
 export function LibraryScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canRead = Boolean(user?.permissions.includes("library.read"));
   const canBorrow = Boolean(user?.permissions.includes("library.borrow"));
@@ -52,7 +55,7 @@ export function LibraryScreen() {
   const [borrowerSearch, setBorrowerSearch] = useState("");
 
   const booksQuery = useQuery({
-    queryKey: ["library-books", user?.id, search, availableOnly],
+    queryKey: ["library-books", user?.id, workspaceKey, search, availableOnly],
     queryFn: () => apiRequest<unknown>("/library/books?page=1&pageSize=50&search=" + encodeURIComponent(search.trim()) + "&availableOnly=" + String(availableOnly)),
     enabled: Boolean(user?.id),
     staleTime: 0
@@ -76,7 +79,7 @@ export function LibraryScreen() {
     staleTime: 0
   });
   const peopleQuery = useQuery({
-    queryKey: ["library-borrowers", user?.id, borrowerSearch],
+    queryKey: ["library-borrowers", user?.id, workspaceKey, borrowerSearch],
     queryFn: () => apiRequest<unknown>("/students?page=1&pageSize=50&search=" + encodeURIComponent(borrowerSearch.trim())),
     enabled: Boolean(user?.id && canManage && tab === "MANAGE" && form === false),
     staleTime: 15000
