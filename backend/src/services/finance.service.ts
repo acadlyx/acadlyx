@@ -131,13 +131,15 @@ export async function commandCenter(institutionId:string,a:AuthenticatedUser,inp
  for(const p of trendPayments){const key=p.paidAt.toISOString().slice(0,10);trendMap.set(key,(trendMap.get(key)||0)+Number(p.amount));}
  const trend=Array.from({length:30},(_,i)=>{const d=new Date(thirty);d.setDate(thirty.getDate()+i);const key=d.toISOString().slice(0,10);return{date:key,amount:trendMap.get(key)||0};});
  const overdueCount=await prisma.feeInvoice.count({where:{...invoiceFilter,dueDate:{lt:now},status:{in:["PENDING","PARTIALLY_PAID","OVERDUE"]}}});
+ const pendingExpenseMetrics=(has(a,"expenses.read")||has(a,"expenses.manage")||has(a,"expenses.approve"))?await pendingExpenseSummary(institutionId,s):{count:0,amount:0};
  const actions=[
+  pendingExpenseMetrics.count>0?{kind:"expenses",count:pendingExpenseMetrics.count,label:"expenses awaiting approval",href:"/accounts/expenses"}:null,
   pendingRefunds>0?{kind:"refunds",count:pendingRefunds,label:"refunds awaiting review",href:"/accounts/refunds"}:null,
   pendingConcessions>0?{kind:"concessions",count:pendingConcessions,label:"concessions awaiting approval",href:"/accounts/concessions"}:null,
   pendingInvoices>0?{kind:"invoices",count:pendingInvoices,label:"invoices awaiting payment",href:"/accounts/invoices"}:null,
   overdueCount>0?{kind:"overdue",count:overdueCount,label:"overdue accounts",href:"/accounts/dues"}:null
  ].filter(Boolean);
- return {...base,paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),todayPaymentMethods:todayMethods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),trend,recentPayments,recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount))})),actionRequired:actions,pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})),programs:departments.programs,semesters:departments.semesters};
+ return {...base,pendingExpenses:pendingExpenseMetrics.count,pendingExpenseAmount:pendingExpenseMetrics.amount,paymentMethods:methods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),todayPaymentMethods:todayMethods.map(x=>({method:x.method,amount:Number(x._sum.amount||0),count:x._count._all})),trend,recentPayments,recentInvoices:recentInvoices.map(x=>({...x,outstanding:Math.max(0,Number(x.amount)-Number(x.paidAmount))})),actionRequired:actions,pendingRefunds,pendingConcessions,pendingInvoices,overdueCount,departments:departments.departments.map((x:any)=>({...x,collectionPercentage:x.billed?x.collected/x.billed*100:0})),programs:departments.programs,semesters:departments.semesters};
 }
 
 export async function invoices(institutionId:string,a:AuthenticatedUser,input:{studentId?:string;status?:string;search?:string;page?:number;pageSize?:number}){
@@ -540,8 +542,8 @@ function assertExpenseScope(s:Scope):void {
 }
 function expenseWhere(institutionId:string,s:Scope):Prisma.Sql {
  const parts:Prisma.Sql[]=[Prisma.sql`"institutionId" = ${institutionId}`];
- if(s.departmentIds) parts.push(Prisma.sql`"departmentId" IN (${Prisma.join(s.departmentIds)})`);
- if(s.campusIds) parts.push(Prisma.sql`"campusId" IN (${Prisma.join(s.campusIds)})`);
+ if(s.departmentIds) parts.push(s.departmentIds.length?Prisma.sql`"departmentId" IN (${Prisma.join(s.departmentIds)})`:Prisma.sql`FALSE`);
+ if(s.campusIds) parts.push(s.campusIds.length?Prisma.sql`"campusId" IN (${Prisma.join(s.campusIds)})`:Prisma.sql`FALSE`);
  return Prisma.join(parts," AND ");
 }
 async function assertExpenseContext(institutionId:string,s:Scope,input:any):Promise<{campusId:string|null;departmentId:string|null}> {
@@ -644,4 +646,17 @@ export async function expenseHistory(institutionId:string,a:AuthenticatedUser,id
  const s=await scope(institutionId,a); assertExpenseScope(s);
  await visibleExpense(institutionId,s,id);
  return prisma.$queryRaw<Array<{id:string;fromStatus:string|null;toStatus:string;comment:string|null;changedById:string;createdAt:Date}>>(Prisma.sql`SELECT "id","fromStatus","toStatus","comment","changedById","createdAt" FROM "finance_expense_status_history" WHERE "institutionId"=${institutionId} AND "expenseId"=${id} ORDER BY "createdAt" DESC`);
+}
+
+async function pendingExpenseSummary(institutionId:string,s:Scope):Promise<{count:number;amount:number}> {
+ assertExpenseScope(s);
+ const rows=await prisma.$queryRaw<Array<{count:number;amount:number}>>(Prisma.sql`SELECT COUNT(*)::int AS count, COALESCE(SUM("amount"),0)::float8 AS amount FROM "finance_expenses" WHERE ${expenseWhere(institutionId,s)} AND "status"='PENDING'`);
+ return {count:Number(rows[0]?.count||0),amount:Number(rows[0]?.amount||0)};
+}
+export async function exportExpenses(institutionId:string,a:AuthenticatedUser,format:ExportFormat) {
+ if(!has(a,"expenses.export")) throw new AppError("Expense export permission required",403);
+ const items=await listExpenses(institutionId,a,{});
+ const rows=items.map(x=>({category:x.category,description:x.description,amount:Number(x.amount),vendor:x.vendor,reference:x.reference,spentAt:new Date(x.spentAt).toISOString(),campusId:x.campusId,departmentId:x.departmentId,status:x.status,supportDetails:x.supportDetails,supportingDocumentUrl:x.supportingDocumentUrl,decisionComment:x.decisionComment,createdAt:new Date(x.createdAt).toISOString(),approvedAt:x.approvedAt?new Date(x.approvedAt).toISOString():null}));
+ const file=makeFile(rows,"fees",format);
+ return {...file,filename:file.filename.replace("acadlyx-fees-","acadlyx-finance-expenses-")};
 }

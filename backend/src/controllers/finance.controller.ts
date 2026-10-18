@@ -34,3 +34,5 @@ export const createExpense=asyncHandler(async(req,res)=>res.status(201).json({su
 export const updateExpense=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.updateExpense(requireInstitution(req),a(req),req.params.id,req.body)}));
 export const decideExpense=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.decideExpense(requireInstitution(req),a(req),req.params.id,req.body)}));
 export const expenseHistory=asyncHandler(async(req,res)=>res.json({success:true,data:await finance.expenseHistory(requireInstitution(req),a(req),req.params.id)}));
+
+export const exportExpenses=asyncHandler(async(req,res)=>{const file=await finance.exportExpenses(requireInstitution(req),a(req),String(req.query.format||"xlsx") as ExportFormat);res.setHeader("Content-Type",file.contentType);res.setHeader("Content-Disposition",`attachment; filename="${file.filename}"`);res.setHeader("X-Export-Row-Count",String(file.rowCount));res.status(200).send(file.buffer)});
