@@ -6,6 +6,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 import { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -19,6 +20,8 @@ function resultTypeLabel(type: SearchResult["type"]): string {
 
 export function GlobalSearchScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [input, setInput] = useState("");
   const [queryText, setQueryText] = useState("");
@@ -29,7 +32,7 @@ export function GlobalSearchScreen() {
   }, [input]);
 
   const query = useQuery({
-    queryKey: ["global-search", user?.id, queryText],
+    queryKey: ["global-search", user?.id, workspaceKey, queryText],
     queryFn: () => apiRequest<unknown>("/search?q=" + encodeURIComponent(queryText)),
     enabled: Boolean(user?.id && queryText.length >= 2),
     staleTime: 10000,

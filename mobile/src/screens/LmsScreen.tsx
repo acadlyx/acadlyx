@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type RecordValue = Record<string, unknown>;
@@ -23,6 +24,8 @@ function Empty({ title: heading, detail }: { title: string; detail: string }) { 
 
 export function LmsScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const [search, setSearch] = useState("");
   const [courseId, setCourseId] = useState<string | null>(null);
@@ -30,8 +33,8 @@ export function LmsScreen() {
   const canManage = Boolean(user?.permissions.includes("lms.manage"));
   const canDiscuss = Boolean(user?.permissions.includes("lms.attempt")) && !user?.roles.includes("PARENT");
 
-  const catalogQuery = useQuery({ queryKey: ["lms", user?.id, "catalog", search], queryFn: () => apiRequest<unknown>("/lms/catalog?page=1&pageSize=50" + (search.trim() ? "&search=" + encodeURIComponent(search.trim()) : "")), enabled: Boolean(user?.id), staleTime: 0 });
-  const workspaceQuery = useQuery({ queryKey: ["lms", user?.id, "workspace", courseId], queryFn: () => apiRequest<Workspace>("/lms/offerings/" + encodeURIComponent(courseId || "") + "/workspace"), enabled: Boolean(user?.id && courseId), staleTime: 0 });
+  const catalogQuery = useQuery({ queryKey: ["lms", user?.id, workspaceKey, "catalog", search], queryFn: () => apiRequest<unknown>("/lms/catalog?page=1&pageSize=50" + (search.trim() ? "&search=" + encodeURIComponent(search.trim()) : "")), enabled: Boolean(user?.id), staleTime: 0 });
+  const workspaceQuery = useQuery({ queryKey: ["lms", user?.id, workspaceKey, "workspace", courseId], queryFn: () => apiRequest<Workspace>("/lms/offerings/" + encodeURIComponent(courseId || "") + "/workspace"), enabled: Boolean(user?.id && courseId), staleTime: 0 });
   const courses = useMemo(() => toCollection(catalogQuery.data).map(asRecord).filter(item => Boolean(text(item, "id"))) as Course[], [catalogQuery.data]);
   const workspace = workspaceQuery.data;
   const refresh = async () => {

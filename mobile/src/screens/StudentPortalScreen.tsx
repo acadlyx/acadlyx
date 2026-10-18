@@ -5,6 +5,7 @@ import { apiDownloadPdf, apiRequest, ApiError } from "../api/client";
 import * as Sharing from "expo-sharing";
 import { displayValue, safeRecordEntries, toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type StudentTab="OVERVIEW"|"ATTENDANCE"|"MARKS"|"RESULTS"|"ASSIGNMENTS"|"TIMETABLE";
@@ -23,14 +24,16 @@ function dateLabel(s?:string){if(!s)return "No due date";const d=new Date(s);ret
 function object(value:unknown):Record<string,unknown>{return typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Record<string,unknown>:{};}
 
 export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:StudentTab}){
- const {user}=useAuth();const client=useQueryClient();
+ const {user}=useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});const client=useQueryClient();
  const [tab,setTab]=useState<StudentTab>(initialTab);const [selectedAssignmentId,setSelectedAssignmentId]=useState<string|null>(null);const [submissionText,setSubmissionText]=useState("");
  const [downloadBusy,setDownloadBusy]=useState<string|null>(null);const [downloadError,setDownloadError]=useState("");
  useEffect(()=>{setTab(initialTab);setSelectedAssignmentId(null);setSubmissionText("");setDownloadError("");},[initialTab]);
  const canSubmit=Boolean(user?.permissions.includes("assignments.submit"));
  const current=tabs.find(t=>t.id===tab)||tabs[0];
- const query=useQuery({queryKey:["student-self-service",user?.id,tab],queryFn:()=>apiRequest<unknown>(current.endpoint),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")),staleTime:0});
- const internalMarksQuery=useQuery({queryKey:["student-self-service",user?.id,"INTERNAL_MARKS"],queryFn:()=>apiRequest<unknown>("/students/me/marks"),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")&&tab==="MARKS"),staleTime:0});
+ const query=useQuery({queryKey:["student-self-service",user?.id, workspaceKey,tab],queryFn:()=>apiRequest<unknown>(current.endpoint),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")),staleTime:0});
+ const internalMarksQuery=useQuery({queryKey:["student-self-service",user?.id, workspaceKey,"INTERNAL_MARKS"],queryFn:()=>apiRequest<unknown>("/students/me/marks"),enabled:Boolean(user?.id&&user?.roles.includes("STUDENT")&&tab==="MARKS"),staleTime:0});
  const assignments=useMemo(()=>rows<StudentAssignment>(tab==="ASSIGNMENTS"?query.data:null).filter(a=>typeof a.id==="string"),[query.data,tab]);
  const examMarks=useMemo(()=>rows<unknown>(tab==="MARKS"?query.data:null).map(object),[query.data,tab]);
  const publishedResults=useMemo(()=>rows<unknown>(tab==="RESULTS"?query.data:null).map(object),[query.data,tab]);
@@ -47,7 +50,7 @@ export function StudentPortalScreen({initialTab="OVERVIEW"}:{initialTab?:Student
   },
   onSuccess:async()=>{
    setSubmissionText("");
-   await Promise.all([client.invalidateQueries({queryKey:["student-self-service",user?.id,"ASSIGNMENTS"]}),client.invalidateQueries({queryKey:["my-work",user?.id]})]);
+   await Promise.all([client.invalidateQueries({queryKey:["student-self-service", user?.id]}),client.invalidateQueries({queryKey:["my-work",user?.id]})]);
    await query.refetch();
   }
  });

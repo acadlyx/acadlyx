@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { displayValue, recordTitle, safeRecordEntries, toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Child = { id: string; firstName?: string; lastName?: string; fullName?: string; name?: string; rollNumber?: string; admissionNumber?: string; programme?: string; [key: string]: unknown };
@@ -27,6 +28,8 @@ function collection(value: unknown): unknown[] { return toCollection(value); }
 
 export function ParentScreen() {
  const {user}=useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
  const [selectedId,setSelectedId]=useState<string|null>(null);
  const [tab,setTab]=useState<ChildTab>("OVERVIEW");
  const childList=useQuery({
@@ -39,7 +42,7 @@ export function ParentScreen() {
  const selected=kids.find(c=>c.id===selectedId)||null;
  const endpoint=tab==="OVERVIEW"?"/parent/children/"+encodeURIComponent(selectedId||""):"/parent/children/"+encodeURIComponent(selectedId||"")+childTabs.find(t=>t.id===tab)!.suffix;
  const detail=useQuery({
-  queryKey:["parent-child",user?.id,selectedId,tab],
+  queryKey:["parent-child",user?.id, workspaceKey,selectedId,tab],
   queryFn:()=>apiRequest<unknown>(endpoint+(tab==="NOTICES"?"?page=1&pageSize=30":"")),
   enabled:Boolean(user?.id&&selectedId&&selected),
   staleTime:0

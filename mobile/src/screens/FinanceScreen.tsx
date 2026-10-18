@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 export type Section = "structures" | "invoices" | "payments" | "refunds";
@@ -44,6 +45,8 @@ function studentLabel(value: unknown): string {
 
 export function FinanceScreen({ initialTab }: { initialTab?: Section }) {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const permissions = user?.permissions ?? [];
   const permissionSignature = [...permissions].sort().join("|");
@@ -74,25 +77,25 @@ export function FinanceScreen({ initialTab }: { initialTab?: Section }) {
     await client.invalidateQueries({ queryKey: ["my-work", user?.id] });
   };
   const structuresQuery = useQuery({
-    queryKey: ["finance", user?.id, "structures"],
+    queryKey: ["finance", user?.id, workspaceKey, "structures"],
     queryFn: () => apiRequest<unknown>("/erp/fee-structures"),
     enabled: Boolean(user?.id && active === "structures" && has("fees.structure.read")),
     staleTime: 0
   });
   const invoicesQuery = useQuery({
-    queryKey: ["finance", user?.id, "invoices"],
+    queryKey: ["finance", user?.id, workspaceKey, "invoices"],
     queryFn: () => apiRequest<unknown>("/finance/invoices?page=1&pageSize=25"),
     enabled: Boolean(user?.id && active === "invoices" && has("fees.read", "fees.invoice.read")),
     staleTime: 0
   });
   const paymentsQuery = useQuery({
-    queryKey: ["finance", user?.id, "payments"],
+    queryKey: ["finance", user?.id, workspaceKey, "payments"],
     queryFn: () => apiRequest<unknown>("/finance/payments"),
     enabled: Boolean(user?.id && active === "payments" && has("fees.read", "fees.payment.read")),
     staleTime: 0
   });
   const refundsQuery = useQuery({
-    queryKey: ["finance", user?.id, "refunds"],
+    queryKey: ["finance", user?.id, workspaceKey, "refunds"],
     queryFn: () => apiRequest<unknown>("/finance/refunds"),
     enabled: Boolean(user?.id && active === "refunds" && has("fees.read", "fees.refund.read", "fees.refund.approve", "fees.refund.process")),
     staleTime: 0

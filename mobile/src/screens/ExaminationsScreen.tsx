@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type RecordValue = Record<string, unknown>;
@@ -32,6 +33,8 @@ function label(record: RecordValue, fallback: string): string {
 
 export function ExaminationsScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const permissions = user?.permissions ?? [];
   const has = (...names: string[]) => names.some(name => permissions.includes(name));
@@ -50,25 +53,25 @@ export function ExaminationsScreen() {
   const [jobId, setJobId] = useState<string | null>(null);
 
   const sessionsQuery = useQuery({
-    queryKey: ["examinations", user?.id, "sessions"],
+    queryKey: ["examinations", user?.id, workspaceKey, "sessions"],
     queryFn: () => apiRequest<unknown>("/examinations/sessions?page=1&pageSize=30"),
     enabled: Boolean(user?.id && has("exams.read")),
     staleTime: 0
   });
   const sessionQuery = useQuery({
-    queryKey: ["examinations", user?.id, "session", sessionId],
+    queryKey: ["examinations", user?.id, workspaceKey, "session", sessionId],
     queryFn: () => apiRequest<unknown>("/examinations/sessions/" + encodeURIComponent(sessionId || "")),
     enabled: Boolean(user?.id && sessionId),
     staleTime: 0
   });
   const marksQuery = useQuery({
-    queryKey: ["examinations", user?.id, "marks", scheduleId],
+    queryKey: ["examinations", user?.id, workspaceKey, "marks", scheduleId],
     queryFn: () => apiRequest<unknown>("/examinations/schedules/" + encodeURIComponent(scheduleId || "") + "/marks"),
     enabled: Boolean(user?.id && scheduleId && canReadMarks),
     staleTime: 0
   });
   const jobQuery = useQuery({
-    queryKey: ["examinations", user?.id, "publication-job", jobId],
+    queryKey: ["examinations", user?.id, workspaceKey, "publication-job", jobId],
     queryFn: () => apiRequest<unknown>("/examinations/jobs/" + encodeURIComponent(jobId || "")),
     enabled: Boolean(user?.id && jobId && has("exams.read")),
     staleTime: 0
@@ -104,9 +107,9 @@ export function ExaminationsScreen() {
 
   const refreshExam = async () => {
     await Promise.all([
-      client.invalidateQueries({ queryKey: ["examinations", user?.id, "sessions"] }),
-      client.invalidateQueries({ queryKey: ["examinations", user?.id, "session", sessionId] }),
-      client.invalidateQueries({ queryKey: ["examinations", user?.id, "marks", scheduleId] }),
+      client.invalidateQueries({ queryKey: ["examinations", user?.id] }),
+      client.invalidateQueries({ queryKey: ["examinations", user?.id] }),
+      client.invalidateQueries({ queryKey: ["examinations", user?.id] }),
       client.invalidateQueries({ queryKey: ["my-work", user?.id] })
     ]);
   };
