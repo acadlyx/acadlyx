@@ -129,6 +129,9 @@ export const PERMISSIONS = [
     module: "site",
     description: "Manage public institutional website content",
   },
+  { key: "institutional-cms.read", module: "institutional-cms", description: "Read institutional branding and dashboard configuration within the authenticated tenant" },
+  { key: "institutional-cms.manage", module: "institutional-cms", description: "Create and submit institutional CMS drafts within the authenticated tenant" },
+  { key: "institutional-cms.approve", module: "institutional-cms", description: "Approve or reject submitted institutional CMS drafts within the authenticated tenant" },
 
   { key: "imports.manage", module: "imports", description: "Import institutional data" },
   { key: "people.import", module: "people", description: "Bulk import students, faculty and staff within authorized scope" },
@@ -540,6 +543,8 @@ export const ROLE_PERMISSIONS: Record<
     "users.update",
     "users.delete",
 
+    "institutional-cms.read",
+    "institutional-cms.manage",
     "students.read",
     "students.create",
     "students.update",
@@ -633,6 +638,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
@@ -657,6 +664,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   MANAGEMENT: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
@@ -673,6 +682,8 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "events.manage",
