@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { listEvents, type InstitutionalEvent } from "@/lib/eventsApi";
 
 export function EventsGalleryContent({ embedded = false, workspaceBasePath }: { embedded?: boolean; workspaceBasePath?: string }) {
+  const searchParams = useSearchParams();
+  const departmentId = searchParams.get("departmentId") || undefined;
   const [user,setUser]=useState<AuthUser|null>(null);
   const [events,setEvents]=useState<InstitutionalEvent[]>([]);
   const [busy,setBusy]=useState(true);
@@ -13,9 +16,9 @@ export function EventsGalleryContent({ embedded = false, workspaceBasePath }: { 
   const [search,setSearch]=useState("");
   const [status,setStatus]=useState("");
 
-  const load=async()=>{setBusy(true);setError("");try{const response=await listEvents({search,status:status||undefined,page:1,pageSize:24});setEvents(response.data||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load events.");}finally{setBusy(false);}};
-  useEffect(()=>{getCurrentUser({background:true}).then(setUser).catch(()=>{});void load();},[]);
-  useEffect(()=>{const t=setTimeout(()=>void load(),250);return()=>clearTimeout(t);},[status]);
+  const load=useCallback(async()=>{setBusy(true);setError("");try{const response=await listEvents({search:search.trim()||undefined,status:status||undefined,departmentId,page:1,pageSize:24});setEvents(response.data||[]);}catch(e){setError(e instanceof Error?e.message:"Unable to load events.");}finally{setBusy(false);}},[search,status,departmentId]);
+  useEffect(()=>{getCurrentUser({background:true}).then(setUser).catch(()=>{});},[]);
+  useEffect(()=>{const t=setTimeout(()=>void load(),250);return()=>clearTimeout(t);},[load]);
   const canManage=!!user?.permissions.includes("events.manage");
 
   const basePath = embedded ? "/admin/events-gallery" : workspaceBasePath || "/events-gallery";
