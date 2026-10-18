@@ -273,7 +273,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["SUPER_ADMIN", "CMS"],
     permissions: ["site.manage"],
     group: "Website",
-    activeMatch: "nested",
+    activeMatch: "exact",
   },
   {
     label: "Institutional CMS",
@@ -282,7 +282,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
     permissions: ["institutional-cms.read"],
     group: "Institution",
-    activeMatch: "nested",
+    activeMatch: "exact",
   },
 
   {
