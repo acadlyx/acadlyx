@@ -283,3 +283,12 @@ The latest implementation-branch HEAD before this tracker update was `1f1dea8ac5
 
 #### Current disposition
 **PARTIAL — NOT AUTHORIZATION-ACCEPTED.** The placement test fix has not yet received exact-HEAD CI confirmation. The broad 20-role × direct URL/navigation/API read/API mutation matrix, exhaustive foreign-tenant and foreign-academic-workspace identifier coverage, revoked-permission/stale-session tests, and complete workspace-cache race matrix remain unproven. Do not treat green generic CI or this test fix as proof of full tenant isolation. Continue after the next exact-HEAD CI run and only close this batch when those specific gaps have endpoint-level evidence.
+
+
+### Batch 01 continuation — direct URL boundary regression added (2026-10-18)
+
+- Added `frontend/e2e/role-boundary-matrix.spec.mjs` in commit `6aff2d4b4fc907e6df281d0644a8bbec44182cca`.
+- The Playwright suite attempts direct navigation to the Super Admin workspace as each of the 19 tenant roles and verifies the tenant user is redirected away; it also attempts to open the Director workspace as Super Admin and expects a redirect to the platform workspace.
+- This is a regression test for direct URL role boundaries, not proof of the entire requested matrix. It does not by itself establish role-owned navigation correctness or real API read/mutation authorization. Those must be backed by backend integration tests and browser assertions.
+- Current branch HEAD at time of writing: `6aff2d4b4fc907e6df281d0644a8bbec44182cca`. Exact-HEAD CI results for this new test are not yet available. Do not mark the full six-item request complete until CI executes the test and all required endpoint-level role/scope/cache cases are verified.
+- Protected production branch remains unchanged; no merge or deployment.
