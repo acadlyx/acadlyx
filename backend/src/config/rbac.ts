@@ -1327,11 +1327,10 @@ export function outranks(
 /**
  * Notice writing is available only to roles whose backend workflow supports
  * a concrete institutional, campus, or department scope. Everyone else,
- * including Parents, remains read-only until a safe recipient scope is modeled.
+ * including Parents and platform Super Admin, remain read-only until a tenant-scoped recipient model or active institutional role exists.
  * Keep this allowlist shared with notice mutation services.
  */
 export const NOTICE_MANAGEMENT_ROLES = [
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "DIRECTOR",
