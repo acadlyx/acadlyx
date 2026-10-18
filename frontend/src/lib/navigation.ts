@@ -9,6 +9,32 @@ function normalizeRoleName(role: string): string {
   return ROLE_ALIASES[normalized] ?? normalized;
 }
 
+/**
+ * Canonical role-owned destinations for sidebar links that start from a
+ * shared module path. The shell and the authorization guard both consume this
+ * table so a rewritten sidebar URL is authorized against the same destination.
+ */
+export const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
+  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/chairman/notices": "/chairman/notices", "/chairman/notifications": "/chairman/notifications", "/chairman/events-gallery": "/chairman/events-gallery" },
+  DIRECTOR: { "/reports": "/director/reports", "/examinations": "/director/examinations", "/examinations/operations": "/director/examinations/operations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery", "/placements": "/director/placements", "/obe": "/director/obe" },
+  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students", "/notices": "/dean/notices" },
+  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
+  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence", "/notices": "/hod/notices" },
+  FACULTY: { "/erp": "/faculty/operations" },
+  STUDENT: { "/notices": "/student/notices" },
+  HR: { "/reports": "/hr/reports" },
+  STAFF: { "/erp": "/staff/operations" },
+  MANAGEMENT: { "/operations": "/management/operations", "/intelligence": "/management/intelligence", "/reports": "/management/reports" },
+  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },
+  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },
+  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },
+  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
+};
+
+export function roleOwnedHref(role: string | null, href: string): string {
+  return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
+}
+
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   // Parent pages require Parent Portal even when a nested page also needs
   // its own feature (for example, fees or placements).
@@ -2469,7 +2495,11 @@ export function canAccessRoute(
 
   const matchingItems = ROLE_NAVIGATION
     .filter((item) => {
-      const [itemPath, itemQuery] = item.href.split("?");
+      // Resolve the same role-owned destination that DashboardShell renders.
+      // Without this step, links such as /reports -> /library/reports appear
+      // in the sidebar but their final URL is rejected by direct-route auth.
+      const targetHref = roleOwnedHref(activeRole, item.href);
+      const [itemPath, itemQuery] = targetHref.split("?");
       const href = itemPath.replace(/\/+$/, "") || "/";
       // A dashboard landing item is not blanket authorization for every
       // child URL in its namespace. Deep routes need an explicitly declared
@@ -2483,7 +2513,7 @@ export function canAccessRoute(
       }
       return true;
     })
-    .sort((a, b) => b.href.length - a.href.length);
+    .sort((a, b) => roleOwnedHref(activeRole, b.href).length - roleOwnedHref(activeRole, a.href).length);
 
   const relevantItem = matchingItems.find((item) =>
     !item.roles?.length ||
