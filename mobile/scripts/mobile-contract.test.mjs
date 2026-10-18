@@ -509,6 +509,22 @@ test("registrations mobile workflow covers student self-service and authorized a
 });
 
 
+test("user administration mobile workflow is permission-gated and uses the canonical tenant API", () => {
+ const screen = read("src/screens/UsersScreen.tsx");
+ const moduleScreen = read("src/screens/ModuleScreen.tsx");
+ const routes = read("../backend/src/routes/user.routes.ts");
+ const validators = read("../backend/src/validators/user.validators.ts");
+ assert.ok(screen.includes('"/users?page="') && screen.includes('"/users/" + encodeURIComponent'));
+ assert.ok(screen.includes('method:editingId?"PATCH":"POST"') && screen.includes('"/status"'));
+ assert.ok(screen.includes("users.read") && screen.includes("users.create") && screen.includes("users.update") && screen.includes("users.delete"));
+ assert.ok(screen.includes("departmentIds") && screen.includes("campusIds") && screen.includes("workspaceKey"));
+ assert.ok(!screen.includes('"SUPER_ADMIN"') && !screen.includes('"STUDENT"'));
+ assert.ok(routes.includes("createUserSchema") && routes.includes("updateUserSchema") && routes.includes('"/:id/status"'));
+ assert.ok(validators.includes("departmentIds") && validators.includes("campusIds"));
+ assert.ok(moduleScreen.includes('module?.id === "users"') && moduleScreen.includes("<UsersScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
