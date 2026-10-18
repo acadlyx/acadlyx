@@ -123,12 +123,11 @@ export async function listFeeHeads(
   // Finance leadership may read shared fee-head names when their explicit
   // read permission exists; platform authority is handled separately.
   const mayReadSharedFeeHeads = [
-    "SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS",
+    "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS",
   ].includes(activeRole);
   if (
     !mayReadSharedFeeHeads ||
-    (activeRole !== "SUPER_ADMIN" &&
-      !hasFeeActionPermission(actor.permissions, "readFeeStructures"))
+    !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
       "Not authorized to view fee heads",
