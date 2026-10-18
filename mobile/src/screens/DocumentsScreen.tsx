@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type DocumentRecord = { id: string; title: string; url: string; type?: string; createdAt?: string };
@@ -28,6 +29,8 @@ function asDocument(value: unknown): DocumentRecord | null {
 
 export function DocumentsScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const [openError, setOpenError] = useState("");
   const query = useQuery({
     queryKey: ["documents", user?.id],

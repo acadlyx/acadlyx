@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type EmploymentType="FULL_TIME"|"PART_TIME"|"CONTRACT"|"VISITING";
@@ -20,15 +21,17 @@ function dateInput(s?:string){if(!s)return "";const d=new Date(s);return Number.
 function validDate(s:string){return /^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(new Date(s+"T12:00:00").valueOf());}
 
 export function HRScreen(){
- const {user}=useAuth();const client=useQueryClient();
+ const {user}=useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});const client=useQueryClient();
  const canRead=Boolean(user?.permissions.includes("hr.read"));const canManage=Boolean(user?.permissions.includes("hr.manage"));
  const [search,setSearch]=useState("");const [status,setStatus]=useState<EmployeeStatus|"ALL">("ALL");const [employmentType,setEmploymentType]=useState<EmploymentType|"ALL">("ALL");
  const [editing,setEditing]=useState<Employee|null>(null);const [form,setForm]=useState(false);const [selectedUserId,setSelectedUserId]=useState<string|null>(null);const [selectedDepartmentId,setSelectedDepartmentId]=useState<string|null>(null);
  const [userSearch,setUserSearch]=useState("");const [employeeCode,setEmployeeCode]=useState("");const [designation,setDesignation]=useState("");const [joiningDate,setJoiningDate]=useState(dateInput(new Date().toISOString()));const [type,setType]=useState<EmploymentType>("FULL_TIME");const [employeeStatus,setEmployeeStatus]=useState<EmployeeStatus>("ACTIVE");
  const [qualification,setQualification]=useState("");const [address,setAddress]=useState("");const [emergencyName,setEmergencyName]=useState("");const [emergencyPhone,setEmergencyPhone]=useState("");
 
- const employeesQuery=useQuery({queryKey:["hr-employees",user?.id,search,status,employmentType],queryFn:()=>apiRequest<unknown>("/hr/employees?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(status!=="ALL"?"&status="+status:"")+(employmentType!=="ALL"?"&employmentType="+employmentType:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
- const usersQuery=useQuery({queryKey:["hr-eligible-users",user?.id,userSearch],queryFn:()=>apiRequest<unknown>("/hr/eligible-users?search="+encodeURIComponent(userSearch.trim())),enabled:Boolean(user?.id&&canManage&&form&&!editing),staleTime:15000});
+ const employeesQuery=useQuery({queryKey:["hr-employees",user?.id, workspaceKey,search,status,employmentType],queryFn:()=>apiRequest<unknown>("/hr/employees?page=1&pageSize=50"+(search.trim()?"&search="+encodeURIComponent(search.trim()):"")+(status!=="ALL"?"&status="+status:"")+(employmentType!=="ALL"?"&employmentType="+employmentType:"")),enabled:Boolean(user?.id&&canRead),staleTime:0});
+ const usersQuery=useQuery({queryKey:["hr-eligible-users",user?.id, workspaceKey,userSearch],queryFn:()=>apiRequest<unknown>("/hr/eligible-users?search="+encodeURIComponent(userSearch.trim())),enabled:Boolean(user?.id&&canManage&&form&&!editing),staleTime:15000});
  const departmentsQuery=useQuery({queryKey:["hr-departments",user?.id],queryFn:()=>apiRequest<unknown>("/departments?page=1&pageSize=100"),enabled:Boolean(user?.id&&canManage&&form),staleTime:15000});
  const employees=useMemo(()=>rows<Employee>(employeesQuery.data).filter(e=>typeof e.id==="string"),[employeesQuery.data]);
  const eligible=useMemo(()=>rows<EligibleUser>(usersQuery.data).filter(u=>typeof u.id==="string"),[usersQuery.data]);

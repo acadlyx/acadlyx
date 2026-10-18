@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Offering = { id: string; course?: { code?: string; name?: string }; section?: { name?: string }; faculty?: { firstName?: string; lastName?: string }; [key: string]: unknown };
@@ -25,6 +26,8 @@ function validTime(value: string): boolean { return /^([01]\d|2[0-3]):[0-5]\d$/.
 
 export function TimetableScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canManage = Boolean(user?.permissions.includes("timetable.manage"));
   const [editing, setEditing] = useState<Entry | null>(null);

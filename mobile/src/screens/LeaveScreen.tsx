@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type Status = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
@@ -27,7 +28,9 @@ function validDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.
 function personLabel(a?: Applicant) { return a ? [a.firstName,a.lastName].filter(Boolean).join(" ") || a.email || "Institution member" : "My request"; }
 
 export function LeaveScreen() {
- const {user}=useAuth(); const client=useQueryClient();
+ const {user}=useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {}); const client=useQueryClient();
  const canApply=Boolean(user?.permissions.includes("leave.apply"));
  const canApprove=Boolean(user?.permissions.includes("leave.approve"));
  const canRead=Boolean(user?.permissions.includes("leave.read"));
@@ -45,15 +48,15 @@ export function LeaveScreen() {
  const [editType,setEditType]=useState<LeaveType|null>(null);
 
  const typesQuery=useQuery({
-  queryKey:["leave-types",user?.id,canManage],
+  queryKey:["leave-types",user?.id, workspaceKey,canManage],
   queryFn:()=>apiRequest<unknown>(canManage?"/leave/types/manage":"/leave/types"),
   enabled:Boolean(user?.id&&canApply),
   staleTime:15000
  });
  const balancesQuery=useQuery({queryKey:["leave-balances",user?.id],queryFn:()=>apiRequest<unknown>("/leave/balances"),enabled:Boolean(user?.id&&canApply&&tab==="BALANCES"),staleTime:0});
- const mineQuery=useQuery({queryKey:["leave-mine",user?.id,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/mine?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApply&&tab==="MINE"),staleTime:0});
- const approvalsQuery=useQuery({queryKey:["leave-approvals",user?.id,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/approvals?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApprove&&tab==="APPROVALS"),staleTime:0});
- const allQuery=useQuery({queryKey:["leave-all",user?.id,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/all?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canRead&&tab==="ALL"),staleTime:0});
+ const mineQuery=useQuery({queryKey:["leave-mine",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/mine?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApply&&tab==="MINE"),staleTime:0});
+ const approvalsQuery=useQuery({queryKey:["leave-approvals",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/approvals?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canApprove&&tab==="APPROVALS"),staleTime:0});
+ const allQuery=useQuery({queryKey:["leave-all",user?.id, workspaceKey,filterStatus,selectedType],queryFn:()=>apiRequest<unknown>("/leave/requests/all?page=1&pageSize=50"+(filterStatus!=="ALL"?"&status="+filterStatus:"")+(selectedType?"&leaveTypeId="+encodeURIComponent(selectedType):"")),enabled:Boolean(user?.id&&canRead&&tab==="ALL"),staleTime:0});
  const types=useMemo(()=>rows<LeaveType>(typesQuery.data).filter(x=>typeof x.id==="string"),[typesQuery.data]);
  const mine=useMemo(()=>rows<LeaveRequest>(mineQuery.data).filter(x=>typeof x.id==="string"),[mineQuery.data]);
  const approvals=useMemo(()=>rows<LeaveRequest>(approvalsQuery.data).filter(x=>typeof x.id==="string"),[approvalsQuery.data]);

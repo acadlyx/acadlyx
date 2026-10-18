@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "../api/client";
 import { toCollection } from "../api/payload";
 import { useAuth } from "../auth/AuthProvider";
+import { useWorkspaceContext } from "../workspace/WorkspaceContextProvider";
 import { colors, radius, spacing } from "../ui/theme";
 
 type EventType = "HOLIDAY" | "EXAM" | "EVENT" | "DEADLINE" | "ACADEMIC";
@@ -33,6 +34,8 @@ function parseDateInput(value: string, endOfDay = false): string {
 
 export function CalendarScreen() {
   const { user } = useAuth();
+  const { context } = useWorkspaceContext();
+  const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canManage = Boolean(user?.permissions.includes("calendar.manage"));
   const [queryText, setQueryText] = useState("");
@@ -71,7 +74,7 @@ export function CalendarScreen() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ["calendar-events", user?.id] }),
       client.invalidateQueries({ queryKey: ["my-work", user?.id] }),
-      client.invalidateQueries({ queryKey: ["module", user?.id, "calendar"] })
+      client.invalidateQueries({ queryKey: ["module", user?.id] })
     ]);
   }
 
