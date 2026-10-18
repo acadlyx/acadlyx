@@ -853,10 +853,41 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     // head directory must not leak through direct REST due to that union.
     const accountFeeHeadRead = await request("/erp/fee-heads", roleUsers.ACCOUNTS.token);
     assert.equal(accountFeeHeadRead.status, 200, "Accounts can read the shared fee-head directory");
+
+    // Run the same real route against every canonical tenant role (Super Admin
+    // is exercised separately below). This checks both permission and effective
+    // workspace scope; a unioned secondary role must not widen the directory.
+    const sharedFeeHeadReaders = new Set(["CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]);
+    for (const roleName of TENANT_ROLES) {
+      const readResult = await request("/erp/fee-heads", roleUsers[roleName].token);
+      const expectedReadStatus = sharedFeeHeadReaders.has(roleName) ? 200 : 403;
+      assert.equal(readResult.status, expectedReadStatus, roleName + " fee-head read boundary: " + JSON.stringify(readResult.body));
+
+      const writeResult = await requestWithBody(
+        "/erp/fee-heads",
+        roleUsers[roleName].token,
+        "POST",
+        { name: "API role matrix " + roleName + " " + suffix, code: "MX-" + roleName + "-" + suffix },
+      );
+      const expectedWriteStatus = sharedFeeHeadReaders.has(roleName) ? 201 : 403;
+      assert.equal(writeResult.status, expectedWriteStatus, roleName + " fee-head mutation boundary: " + JSON.stringify(writeResult.body));
+    }
+    assert.equal((await request("/erp/fee-heads", superAdmin.token)).status, 403, "Super Admin platform-only authority must not grant tenant Accounts API access");
+    assert.equal(
+      (await requestWithBody("/erp/fee-heads", superAdmin.token, "POST", { name: "Platform catalog attempt " + suffix, code: "PL-" + suffix })).status,
+      403,
+      "Super Admin platform-only authority must not mutate a tenant fee-head catalog",
+    );
+
     const directorFeeHeadRead = await request("/erp/fee-heads", roleUsers.DIRECTOR.token);
     assert.equal(directorFeeHeadRead.status, 403, "Director may approve campus-scoped fee structures but must not enumerate the institution-wide fee-head catalog");
     const studentAccountsFeeHeadRead = await request("/erp/fee-heads", multiStudentAccounts.token);
     assert.equal(studentAccountsFeeHeadRead.status, 403, "Student+Accounts must not inherit the shared fee-head directory through a secondary Accounts grant");
+    assert.equal(
+      (await requestWithBody("/erp/fee-heads", multiStudentAccounts.token, "POST", { name: "Student Accounts attempt " + suffix, code: "SA-" + suffix })).status,
+      403,
+      "Student+Accounts must not inherit shared fee-head mutation through secondary Accounts permissions",
+    );
 
     const createdFeeStructure = await requestWithBody(
       "/erp/fee-structures",
