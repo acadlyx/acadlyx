@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboardFrame";
 import { useWorkspaceShellContext, WorkspaceShellProvider } from "./WorkspaceShellContext";
@@ -14,7 +14,19 @@ import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
 import { getErpWorkspace, getErpWorkspaceSummary } from "@/lib/erpApi";
 import { GlobalSearchBar } from "./GlobalSearchBar";
-import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
+import { WorkspaceContextSelector } from "./WorkspaceContextSelector";
+
+const WORKSPACE_QUERY_KEYS = ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"];
+
+function preserveWorkspaceQuery(href: string, workspaceQuery: string): string {
+  if (!workspaceQuery) return href;
+  const separator = href.indexOf("?");
+  const pathname = separator >= 0 ? href.slice(0, separator) : href;
+  const params = new URLSearchParams(separator >= 0 ? href.slice(separator + 1) : "");
+  new URLSearchParams(workspaceQuery).forEach((value, key) => params.set(key, value));
+  const suffix = params.toString();
+  return suffix ? `${pathname}?${suffix}` : pathname;
+}
 
 function routeIsAllowedForRole(pathname: string, _role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
   // Check the destination's own role and permission contract. Mapping a
@@ -26,6 +38,7 @@ function routeIsAllowedForRole(pathname: string, _role: string | null, roles: st
 export function DashboardShell({ title, subtitle, children, allowedRoles, forceShell = false }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[]; forceShell?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const workspaceShell = useWorkspaceShellContext();
   const embeddedInWorkspaceShell = Boolean(workspaceShell) && !forceShell;
   const cachedUser = getCachedCurrentUser();
@@ -38,9 +51,16 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   const [authCheckError, setAuthCheckError] = useState("");
   const [authRetryCount, setAuthRetryCount] = useState(0);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
-  const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const allowedRolesKey = allowedRoles?.join(",") || "";
+  const workspaceQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    for (const key of WORKSPACE_QUERY_KEYS) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
+    return params.toString();
+  }, [searchParams]);
 
   const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
 
@@ -95,7 +115,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     }>("/workspace/context").then((response) => {
       if (!alive) return;
       const institution = response?.data?.institution;
-      setWorkspaceContext({ breadcrumbs: response?.data?.breadcrumbs || [] });
       if (institution) {
         setInstitutionBrand({
           name: institution.name || "",
@@ -175,20 +194,27 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
     if (workspaceRole === "INSTITUTION_ADMIN") {
-      const base = getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group, activeMatch: item.activeMatch }));
-      const departmentItems = adminDepartments.map((department) => ({
-        id: `/admin/departments/${department.id}`,
-        label: department.name,
-        href: `/admin/departments/${department.id}`,
-        icon: "academic",
-        group: "Departments",
-      }));
-      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: COMMON_ACCOUNT_NAVIGATION.href, label: COMMON_ACCOUNT_NAVIGATION.label, href: COMMON_ACCOUNT_NAVIGATION.href, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group, activeMatch: COMMON_ACCOUNT_NAVIGATION.activeMatch }];
+      const base = getAdminNavigation(user).map((item) => {
+        const href = preserveWorkspaceQuery(item.href, workspaceQuery);
+        return { id: href, label: item.label, href, icon: item.icon, group: item.group, activeMatch: item.activeMatch };
+      });
+      const departmentItems = adminDepartments.map((department) => {
+        const href = preserveWorkspaceQuery(`/admin/departments/${department.id}`, workspaceQuery);
+        return {
+          id: href,
+          label: department.name,
+          href,
+          icon: "academic",
+          group: "Departments",
+        };
+      });
+      const accountHref = preserveWorkspaceQuery(COMMON_ACCOUNT_NAVIGATION.href, workspaceQuery);
+      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: accountHref, label: COMMON_ACCOUNT_NAVIGATION.label, href: accountHref, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group, activeMatch: COMMON_ACCOUNT_NAVIGATION.activeMatch }];
     }
     const role = workspaceRole;
     if (!role) return [];
     const roleItems = navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
-      const href = roleOwnedHref(role, item.href);
+      const href = preserveWorkspaceQuery(roleOwnedHref(role, item.href), workspaceQuery);
       return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace", activeMatch: item.activeMatch, activeQuery: item.activeQuery };
     });
     // Role-specific route rewrites happen after canonical navigation deduplication.
@@ -199,7 +225,7 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
       if (!uniqueDestinations.has(destination)) uniqueDestinations.set(destination, item);
     }
     return Array.from(uniqueDestinations.values());
-  }, [adminDepartments, user, workspaceRole]);
+  }, [adminDepartments, user, workspaceRole, workspaceQuery]);
 
   if (!embeddedInWorkspaceShell && authCheckError) {
     return (
@@ -241,6 +267,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{!pathname.startsWith("/accounts") && workspaceContext?.breadcrumbs?.length ? <WorkspaceContextHeader breadcrumbs={workspaceContext.breadcrumbs} /> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
+    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceRole !== "SUPER_ADMIN" && !pathname.startsWith("/accounts") ? <WorkspaceContextSelector onInstitutionBrand={setInstitutionBrand} /> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
   </UnifiedDashboardFrame>;
 }
