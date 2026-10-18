@@ -20,7 +20,7 @@ function carryWorkspaceQuery(href: string, currentQuery: string): string {
     const value = current.get(key);
     if (value) workspace.set(key, value);
   }
-  if (!workspace.size) return href;
+  if (!workspace.toString()) return href;
   const separator = href.indexOf("?");
   const path = separator >= 0 ? href.slice(0, separator) : href;
   const query = new URLSearchParams(separator >= 0 ? href.slice(separator + 1) : "");
