@@ -260,7 +260,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Institutional CMS",
     href: "/admin/institutional-cms",
     icon: "✦",
-    roles: ["CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
+    roles: ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
     permissions: ["institutional-cms.read"],
     group: "Institution",
     activeMatch: "nested",
