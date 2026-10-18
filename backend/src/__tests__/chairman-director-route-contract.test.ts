@@ -515,8 +515,9 @@ test("Chairman institution-wide role wins over secondary Director bindings in le
   assert.ok(intelligence.includes("getAuthorizedDepartmentIds(institutionId, actor)"), "intelligence filters must use the canonical scope resolver");
   assert.ok(exports.includes("const institutionWide = isInstitutionWide(actor)"), "exports must use the central role precedence");
   assert.ok(exports.includes("isDirectorScoped(actor)"), "a Director export must retain campus scope despite secondary broad roles");
-  assert.ok(calendar.includes("assertCalendarCampusScopeSupported(actor)"), "unscoped institution calendar APIs must reject Director access");
-  assert.ok(directorCalendar.includes('href="/director/events-gallery"') && !directorCalendar.includes("DataExportActions"), "Director calendar must route to campus-scoped event management without an unscoped export button");
+  assert.ok(calendar.includes("calendarCampusWhere") && calendar.includes("assertCanManageExistingCampusEvent"), "calendar reads and mutations must enforce server-derived campus ownership");
+  assert.ok(calendar.includes("resolveCampusForWrite") && calendar.includes("getAuthorizedCampusIds"), "calendar creation must be constrained to authorized campus IDs");
+  assert.ok(directorCalendar.includes('from "@/app/calendar/page"'), "Director calendar must use the campus-aware shared editor");
 });
 
 test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {
