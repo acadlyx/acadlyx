@@ -79,6 +79,8 @@ test("role-owned deep routes map to their canonical tenant entitlements", () => 
     ["/hod?tab=registrations", "registration"],
     ["/student/admit-cards", "exams"],
     ["/student/marks", "results"],
+    ["/student/examinations/performance", "results"],
+    ["/student/examinations/results", "results"],
     ["/student/academic", "academics"],
     ["/registrar/academic-masters", "academics"],
     ["/admin/academic-years", "academics"],
