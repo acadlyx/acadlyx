@@ -389,6 +389,25 @@ test("Android Back follows tab history and preserves stack/auth boundaries", () 
 });
 
 
+test("academic master-data modules use validated operational CRUD workflows instead of read-only discovery", () => {
+  const screen = read("src/screens/AcademicRecordsScreen.tsx");
+  const moduleScreen = read("src/screens/ModuleScreen.tsx");
+  for (const id of ["campuses", "departments", "programs", "academic-years", "batches", "semesters", "sections", "courses", "course-offerings"]) {
+    assert.ok(screen.includes(id), "Missing academic master workflow: " + id);
+  }
+  for (const permission of ["campuses.create", "departments.update", "programs.delete", "academic-years.update", "batches.create", "semesters.create", "sections.delete", "courses.create", "course-offerings.update"]) {
+    assert.ok(screen.includes(permission), "Missing permission contract: " + permission);
+  }
+  for (const operation of ['method: editing ? "PATCH" : "POST"', 'method: "DELETE"', "invalidateQueries", "Confirm", "Previous", "Next"]) {
+    if (operation === "Confirm") assert.ok(screen.includes("Alert.alert"), "Destructive changes must be confirmed.");
+    else assert.ok(screen.includes(operation), "Missing CRUD contract: " + operation);
+  }
+  assert.ok(screen.includes("Raw record IDs are not accepted"), "Relationship choices must not require manual UUID entry.");
+  assert.ok(moduleScreen.includes("supportsAcademicRecords(module.id)"));
+  assert.ok(moduleScreen.includes("!isAcademicRecordsWorkspace"), "Generic discovery must not run alongside CRUD workflows.");
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
