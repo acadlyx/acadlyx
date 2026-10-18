@@ -281,6 +281,7 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     const multiDirectorAdmin = await createUserFixture("multi-director-admin", institutionA.id, ["DIRECTOR", "INSTITUTION_ADMIN"], tenantRolesA);
     const multiHodRegistrar = await createUserFixture("multi-hod-registrar", institutionA.id, ["HOD", "REGISTRAR"], tenantRolesA);
     const multiDeanAccounts = await createUserFixture("multi-dean-accounts", institutionA.id, ["DEAN", "ACCOUNTS"], tenantRolesA);
+    const multiDeanHod = await createUserFixture("multi-dean-hod", institutionA.id, ["DEAN", "HOD"], tenantRolesA);
     const multiChairmanDirector = await createUserFixture("multi-chairman-director", institutionA.id, ["CHAIRMAN", "DIRECTOR"], tenantRolesA);
     const multiFacultyStudent = await createUserFixture("multi-faculty-student", institutionA.id, ["FACULTY", "STUDENT"], tenantRolesA);
 
@@ -297,8 +298,21 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
         { userId: roleUsers.HOD.id, departmentId: departmentA1.id, scope: "HOD" },
         { userId: multiHodRegistrar.id, departmentId: departmentA1.id, scope: "HOD" },
         { userId: multiDeanAccounts.id, departmentId: departmentA1.id, scope: "DEAN" },
+        // Same account has both roles, but each role binding is assigned a
+        // different department. Effective Dean scope must not union HOD rows.
+        { userId: multiDeanHod.id, departmentId: departmentA1.id, scope: "DEAN" },
+        { userId: multiDeanHod.id, departmentId: departmentA2.id, scope: "HOD" },
       ],
     });
+
+    const multiDeanContext = contextData(await request("/workspace/context", multiDeanHod.token));
+    assert.equal(multiDeanContext.role, "DEAN", "Dean is the effective workspace role for a multi-role Dean/HOD account");
+    assert.deepEqual(ids(multiDeanContext.children.departments), [departmentA1.id], "Dean workspace must include only DEAN-scoped DepartmentAccess rows");
+    assert.equal(
+      (await request(contextPath({ departmentId: departmentA2.id }), multiDeanHod.token)).status,
+      403,
+      "A secondary HOD DepartmentAccess row must not broaden an effective Dean workspace",
+    );
 
     const studentA1 = roleUsers.STUDENT;
     const studentA2 = await createUserFixture("student-a2", institutionA.id, ["STUDENT"], tenantRolesA);
