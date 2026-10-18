@@ -10,7 +10,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { getPrimaryRole } from "@/lib/authority";
+import { canManageNotices } from "@/lib/noticesPolicy";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
@@ -173,7 +173,7 @@ export default function NoticesPage() {
 
     try {
       const user = await getCurrentUser();
-      const manage = getPrimaryRole(user.roles) !== "STUDENT" && user.permissions.includes("notices.manage");
+      const manage = canManageNotices(user.roles, user.permissions);
 
       setCanManage(manage);
 
