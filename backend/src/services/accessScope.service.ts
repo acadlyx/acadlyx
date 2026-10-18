@@ -290,11 +290,25 @@ export async function assertCourseOfferingInScope(institutionId: string, actor: 
 export async function getManagedDepartmentIds(
   institutionId: string,
   userId: string,
-  scope: "DEAN" | "HOD",
+  requestedScope?: "DEAN" | "HOD",
 ): Promise<string[]> {
-  // DepartmentAccess rows are role-bound. Do not union HOD assignments into a
-  // Dean workspace (or Dean assignments into an HOD workspace) for multi-role
-  // accounts. Inactive/cross-tenant departments never grant live scope.
+  // DepartmentAccess rows are role-bound. If a legacy caller doesn't have the
+  // actor object available, derive its current effective role from live tenant
+  // role bindings; never fall back to a union of HOD and Dean assignments.
+  let scope = requestedScope;
+  if (!scope) {
+    const roleBindings = await prisma.userRole.findMany({
+      where: { userId, role: { institutionId } },
+      select: { role: { select: { name: true } } },
+    });
+    const effectiveRole = getEffectiveWorkspaceRole({
+      roles: roleBindings.map((binding) => binding.role.name),
+    });
+    if (effectiveRole !== "DEAN" && effectiveRole !== "HOD") return [];
+    scope = effectiveRole;
+  }
+
+  // Inactive/cross-tenant departments never grant live scope.
   const rows = await prisma.departmentAccess.findMany({
     where: { userId, scope, department: { institutionId, isActive: true } },
     select: { departmentId: true },
