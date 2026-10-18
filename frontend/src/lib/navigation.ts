@@ -113,14 +113,21 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
 ];
 
 export function tenantFeaturesForPath(pathname: string): string[] {
-  const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
-  return Array.from(
-    new Set(
-      TENANT_FEATURE_BY_ROUTE
-        .filter(([pattern]) => pattern.test(normalizedPath))
-        .map(([, feature]) => feature),
-    ),
-  );
+  const [rawPath, rawQuery] = pathname.split("?");
+  const normalizedPath = rawPath.replace(/\/+$/, "") || "/";
+  const requiredFeatures = TENANT_FEATURE_BY_ROUTE
+    .filter(([pattern]) => pattern.test(normalizedPath))
+    .map(([, feature]) => feature);
+
+  // The HOD workspace reuses /hod for its student and course-registration
+  // views. The query-backed registration view is its own protected feature;
+  // evaluate this against the full URL for both navigation and direct routes.
+  const query = new URLSearchParams(rawQuery || "");
+  if (normalizedPath === "/hod" && query.get("tab") === "registrations") {
+    requiredFeatures.push("registration");
+  }
+
+  return Array.from(new Set(requiredFeatures));
 }
 
 function tenantFeaturesForNavigation(item: NavigationItem): string[] {
@@ -2434,7 +2441,7 @@ export function canAccessRoute(
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
-  const requiredTenantFeatures = tenantFeaturesForPath(normalizedPath);
+  const requiredTenantFeatures = tenantFeaturesForPath(pathname);
   const platformManagedCms = activeRole === "SUPER_ADMIN" && normalizedPath === "/site-content";
   if (!platformManagedCms) {
     if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
