@@ -204,7 +204,7 @@ export function RoleScopedReports({
       const query = new URLSearchParams();
       if (from) query.set("from", new Date(from + "T00:00:00").toISOString());
       if (to) query.set("to", new Date(to + "T23:59:59.999").toISOString());
-      found.push({ id: "intelligence", title: "Institutional intelligence", endpoint: "/intelligence/command-center" + (query.size ? "?" + query.toString() : "") });
+      found.push({ id: "intelligence", title: "Institutional intelligence", endpoint: "/intelligence/command-center" + (query.toString() ? "?" + query.toString() : "") });
     }
     return found;
   }, [user, role, financePeriod, from, to]);
@@ -255,7 +255,7 @@ export function RoleScopedReports({
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Each report is loaded from its existing backend domain and filtered by the active server-side role, institution and academic scope. Missing or denied source data is shown as unavailable, never replaced with sample values.</p>
           <div className="mt-5 flex flex-wrap items-end gap-3">
             {permissions.some((permission) => permission === "fees.read" || permission === "fees.collection.read") ? <label className="min-w-44"><span className={label}>Finance period</span><select className={field} value={financePeriod} onChange={(event) => setFinancePeriod(event.target.value)}><option value="today">Today</option><option value="week">Last 7 days</option><option value="month">This month</option><option value="quarter">This quarter</option><option value="academic">Current academic year</option></select></label> : null}
-            {has(user as AuthUser, "intelligence.read") ? <><label><span className={label}>Intelligence from</span><input type="date" className={field} value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label><label><span className={label}>To</span><input type="date" className={field} value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label></> : null}
+            {user && has(user, "intelligence.read") ? <><label><span className={label}>Intelligence from</span><input type="date" className={field} value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label><label><span className={label}>To</span><input type="date" className={field} value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label></> : null}
             <button type="button" disabled={!readyToReport} onClick={() => refresh()} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Refresh reports</button>
           </div>
           {authError ? <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{authError}</p> : null}
