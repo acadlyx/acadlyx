@@ -2634,7 +2634,40 @@ export function canAccessRoute(
   // Permission-gated module namespaces are denied unless the authenticated
   // user actually has the module's read capability. Role ownership alone is
   // never enough to open a protected module directly by URL.
+  // Shared communication pages have role-owned aliases. Their route gate must
+  // check the actual read capability instead of treating sidebar ownership as
+  // permission to open a URL directly.
+  const ROLE_OWNED_COMMUNICATION_PREFIXES = [
+    "/admin",
+    "/chairman",
+    "/management",
+    "/director",
+    "/dean",
+    "/registrar",
+    "/hod",
+    "/faculty",
+    "/accounts",
+    "/hr",
+    "/admissions",
+    "/examination",
+    "/library",
+    "/placements",
+    "/it",
+    "/student",
+    "/parent",
+    "/club-president",
+    "/staff",
+    "/site-content",
+  ];
+  const communicationNamespacePermissions: Array<[string, string]> =
+    ROLE_OWNED_COMMUNICATION_PREFIXES.flatMap((prefix): Array<[string, string]> => [
+      [`${prefix}/notices`, "notices.read"],
+      [`${prefix}/notifications`, "notifications.read"],
+    ]);
   const namespacePermission: Array<[string, string]> = [
+    ["/notices", "notices.read"],
+    ["/notifications", "notifications.read"],
+    ...communicationNamespacePermissions,
     ["/parent/students", "parent-portal.read"],
     ["/students", "students.read"],
     ["/lms/settings", "lms.manage"],
