@@ -453,28 +453,17 @@ export default function TimetablePage() {
           }
         >();
 
-      for (
-        const offering of offerings
-      ) {
-        if (
-          offering.semester?.id
-        ) {
-          map.set(
-            offering.semester.id,
-            {
-              id: offering.semester.id,
-              name:
-                offering
-                  .semester
-                  .name ||
-                `Semester ${
-                  offering.semester
-                    .number ??
-                  ""
-                }`,
-            },
-          );
-        }
+      for (const offering of offerings) {
+        if (!offering.semester?.id) continue;
+        const programId = programIdOf(offering);
+        const program = programs.find((item) => item.id === programId);
+        if (workspaceFilters.academicYearId && offering.semester.academicYear?.id !== workspaceFilters.academicYearId) continue;
+        if (selectedDepartment && program?.department?.id !== selectedDepartment) continue;
+        if (selectedProgram && programId !== selectedProgram) continue;
+        map.set(offering.semester.id, {
+          id: offering.semester.id,
+          name: offering.semester.name || `Semester ${offering.semester.number ?? ""}`,
+        });
       }
 
       return [
@@ -484,7 +473,7 @@ export default function TimetablePage() {
           b.name,
         ),
       );
-    }, [offerings]);
+    }, [offerings, programs, selectedDepartment, selectedProgram, workspaceFilters.academicYearId]);
 
   const sections =
     useMemo(() => {
@@ -524,6 +513,10 @@ export default function TimetablePage() {
           continue;
         }
 
+        if (workspaceFilters.academicYearId && offering.semester?.academicYear?.id !== workspaceFilters.academicYearId) continue;
+        const program = programs.find((item) => item.id === programIdOf(offering));
+        if (selectedDepartment && program?.department?.id !== selectedDepartment) continue;
+
         map.set(
           offering.section.id,
           {
@@ -546,8 +539,11 @@ export default function TimetablePage() {
       );
     }, [
       offerings,
+      programs,
+      selectedDepartment,
       selectedProgram,
       selectedSemester,
+      workspaceFilters.academicYearId,
     ]);
 
   /*
@@ -587,7 +583,9 @@ export default function TimetablePage() {
                     selectedSemester) &&
                 (!selectedSection ||
                   offering.sectionId ===
-                    selectedSection)
+                    selectedSection) &&
+                (!workspaceFilters.academicYearId ||
+                  offering.semester?.academicYear?.id === workspaceFilters.academicYearId)
               );
             },
           )
@@ -607,6 +605,7 @@ export default function TimetablePage() {
         selectedProgram,
         selectedSemester,
         selectedSection,
+        workspaceFilters.academicYearId,
       ],
     );
 
