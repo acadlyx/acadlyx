@@ -2391,7 +2391,9 @@ export function canAccessRoute(
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
   const requiredTenantFeatures = tenantFeaturesForPath(normalizedPath);
   const platformManagedCms = activeRole === "SUPER_ADMIN" && normalizedPath === "/site-content";
-  if (!platformManagedCms && requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
+  if (!platformManagedCms) {
+    if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
+  }
 
   const matchingNamespace =
     NAMESPACE_OWNERS
