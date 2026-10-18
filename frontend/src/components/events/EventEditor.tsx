@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createEvent, getEvent, getEventCategories, createEventCategory, updateEvent, uploadEventMedia, addEventMedia, removeEventMedia, reorderEventMedia, type InstitutionalEvent } from "@/lib/eventsApi";
 import { listDepartments } from "@/lib/erpApi";
 
@@ -31,8 +31,28 @@ type EventForm = {
 
 
 
+const WORKSPACE_QUERY_KEYS = ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"];
+
+function withWorkspaceQuery(href: string, currentQuery: string): string {
+  const current = new URLSearchParams(currentQuery);
+  const scope = new URLSearchParams();
+  for (const key of WORKSPACE_QUERY_KEYS) {
+    const value = current.get(key);
+    if (value) scope.set(key, value);
+  }
+  if (!scope.toString()) return href;
+  const separator = href.indexOf("?");
+  const path = separator >= 0 ? href.slice(0, separator) : href;
+  const query = new URLSearchParams(separator >= 0 ? href.slice(separator + 1) : "");
+  scope.forEach((value, key) => query.set(key, value));
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
+}
+
 export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", requireDepartment = false }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
   const [event,setEvent]=useState<InstitutionalEvent|null>(null);
   const [categories,setCategories]=useState<Array<{id:string;name:string}>>([]);
   const [departments,setDepartments]=useState<Array<{id:string;name:string;code?:string}>>([]);
@@ -80,7 +100,7 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
         tags:form.tags.split(",").map((x)=>x.trim()).filter(Boolean),videoUrls:form.videoUrls.split("\n").map((x)=>x.trim()).filter(Boolean),
         organizers:jsonArray(form.organizers),speakers:jsonArray(form.speakers),publicationStatus:publish?"PUBLISHED":form.publicationStatus};
       const response=eventId?await updateEvent(eventId,payload):await createEvent(payload);
-      const saved=response.data; setEvent(saved); if(!eventId) router.replace(`${workspaceBasePath}/${saved.id}/edit`); else setMessage(publish?"Event published.":"Event saved.");
+      const saved=response.data; setEvent(saved); if(!eventId) router.replace(withWorkspaceQuery(`${workspaceBasePath}/${saved.id}/edit`,currentQuery)); else setMessage(publish?"Event published.":"Event saved.");
     }catch(e){setMessage(e instanceof Error?e.message:"Save failed.");}finally{setBusy(false);}
   }
 
@@ -96,7 +116,7 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
   return <div className="mx-auto max-w-6xl space-y-6">
     <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
       <div><p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Events & Gallery</p><h1 className="mt-2 text-2xl font-black">{eventId?"Edit event":"Create event"}</h1><p className="mt-1 text-sm text-slate-500">Publish institutional activities without leaving the dashboard workspace.</p></div>
-      <div className="flex gap-2"><button onClick={()=>router.push(workspaceBasePath)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold">Back</button><button disabled={busy} onClick={()=>save(false)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save draft</button><button disabled={busy} onClick={()=>save(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Publish</button></div>
+      <div className="flex gap-2"><button onClick={()=>router.push(withWorkspaceQuery(workspaceBasePath,currentQuery))} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold">Back</button><button disabled={busy} onClick={()=>save(false)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save draft</button><button disabled={busy} onClick={()=>save(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Publish</button></div>
     </div>
     {message&&<div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-800">{message}</div>}
     <section className="grid gap-5 lg:grid-cols-2">
