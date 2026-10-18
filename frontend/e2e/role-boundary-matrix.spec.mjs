@@ -28,7 +28,7 @@ async function installRoleSession(page, role, disabledFeatures = []) {
       "courses.read", "exams.read", "results.read", "fees.read",
       "attendance.read", "admissions.read", "placements.read", "lms.read",
       "operations.read", "events.read", "notices.read", "notifications.read",
-      "intelligence.read", "timetable.read", "calendar.read",
+      "intelligence.read", "timetable.read", "calendar.read", "registration.read", "enrollment.read", "leave.apply", "documents.read",
       ...(role === "SUPER_ADMIN" ? ["institutions.manage", "users.read", "plans.manage", "site.manage"] : []),
       ...(role === "INSTITUTION_ADMIN" ? ["institutional-cms.read", "institutional-cms.manage"] : []),
       ...(["CHAIRMAN", "MANAGEMENT", "DIRECTOR"].includes(role) ? ["institutional-cms.read", "institutional-cms.approve"] : []),
@@ -39,7 +39,7 @@ async function installRoleSession(page, role, disabledFeatures = []) {
       "notifications", "documents", "certificates", "notices",
       "assignments", "calendar", "operations", "registration",
       "import_export", "analytics", "promotions", "academics", "hr",
-      "intelligence", "cms", "parent_portal", "library",
+      "intelligence", "cms", "parent_portal", "library", "leave",
     ].filter((feature) => !disabledFeatures.includes(feature)),
   };
 
@@ -107,3 +107,73 @@ for (const role of ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]) 
     await expect.poll(() => new URL(page.url()).pathname).not.toBe("/admin/institutional-cms");
   });
 }
+ 
+const ROLE_HOME = {
+  SUPER_ADMIN: "/superadmin",
+  INSTITUTION_ADMIN: "/admin",
+  CHAIRMAN: "/chairman",
+  MANAGEMENT: "/management",
+  DIRECTOR: "/director",
+  DEAN: "/dean",
+  REGISTRAR: "/registrar",
+  HOD: "/hod",
+  FACULTY: "/faculty",
+  ACCOUNTS: "/accounts",
+  HR: "/hr",
+  ADMISSIONS: "/admissions",
+  EXAMINATION: "/examination",
+  LIBRARIAN: "/library",
+  PLACEMENT: "/placements",
+  IT: "/it",
+  CMS: "/site-content",
+  STUDENT: "/student",
+  PARENT: "/parent",
+  CLUB_PRESIDENT: "/club-president",
+};
+
+async function navigateAndWaitForIdentity(page, path) {
+  const identityResponse = page.waitForResponse((response) => {
+    try { return new URL(response.url()).pathname.endsWith("/auth/me"); }
+    catch { return false; }
+  });
+  await page.goto(`${baseURL}${path}`, { waitUntil: "domcontentloaded" });
+  await identityResponse;
+}
+
+test.describe("canonical dashboard ownership across all 20 roles", () => {
+  for (const [role, home] of Object.entries(ROLE_HOME)) {
+    test(`${role} can open its own workspace by direct URL`, async ({ page }) => {
+      await installRoleSession(page, role);
+      await navigateAndWaitForIdentity(page, home);
+      await expect.poll(() => new URL(page.url()).pathname).toBe(home);
+    });
+  }
+});
+
+const ENTITLEMENT_ROUTE_CASES = [
+  { role: "INSTITUTION_ADMIN", path: "/admin/notices", feature: "notices", home: "/admin" },
+  { role: "INSTITUTION_ADMIN", path: "/admin/placements", feature: "placements", home: "/admin" },
+  { role: "MANAGEMENT", path: "/management/placements", feature: "placements", home: "/management" },
+  { role: "REGISTRAR", path: "/registrar/placements", feature: "placements", home: "/registrar" },
+  { role: "HOD", path: "/hod/enrollment-requests", feature: "admissions", home: "/hod" },
+  { role: "HOD", path: "/hod/course-registration-requests", feature: "registration", home: "/hod" },
+  { role: "STUDENT", path: "/student/documents", feature: "documents", home: "/student" },
+  { role: "STUDENT", path: "/student/leave", feature: "leave", home: "/student" },
+];
+
+test.describe("tenant feature route enforcement", () => {
+  for (const { role, path, feature, home } of ENTITLEMENT_ROUTE_CASES) {
+    test(`${role} retains ${path} when ${feature} is enabled`, async ({ page }) => {
+      await installRoleSession(page, role);
+      await navigateAndWaitForIdentity(page, path);
+      await expect.poll(() => new URL(page.url()).pathname).toBe(path);
+    });
+
+    test(`${role} is redirected from ${path} when ${feature} is disabled`, async ({ page }) => {
+      await installRoleSession(page, role, [feature]);
+      await navigateAndWaitForIdentity(page, path);
+      await expect.poll(() => new URL(page.url()).pathname).toBe(home);
+      await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0);
+    });
+  }
+});
