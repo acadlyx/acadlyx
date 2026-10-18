@@ -168,12 +168,12 @@ export default function HODDashboardPage() {
     if (semesterId && !availableSemesters.some((semester) => semester.id === semesterId)) {
       setSemesterId("");
       setSectionId("");
-    } else if (!semesterId && availableSemesters.length) {
+    } else if (!semesterId && availableSemesters.length && activeTab !== "registrations") {
       const current =
         availableSemesters.find((semester) => semester.academicYear?.id) ?? availableSemesters[0];
       setSemesterId(current.id);
     }
-  }, [contextParams, semesterId]);
+  }, [activeTab, contextParams, semesterId]);
 
   const loadStudents = useCallback(async () => {
     const query = new URLSearchParams({
