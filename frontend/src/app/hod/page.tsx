@@ -75,7 +75,7 @@ async function getData<T>(path: string): Promise<T> {
   return response.data;
 }
 
-export default function HODDashboardPage({ defaultTab = "students" }: { defaultTab?: Tab } = {}) {
+export default function HODDashboardPage() {
   const searchParams = useSearchParams();
   const [tenantFeatures, setTenantFeatures] = useState<string[] | null>(null);
   const hasAdmissionsFeature = tenantFeatures?.includes("admissions") ?? false;
@@ -83,7 +83,7 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   const activeTab: Tab =
     hasRegistrationFeature && searchParams.get("tab") === "registrations"
       ? "registrations"
-      : defaultTab;
+      : "students";
 
   const contextParams = useMemo(
     () => ({
