@@ -32,7 +32,16 @@ async function drainPlacementEvents(institutionId: string) {
   // Keep this integration test isolated from unrelated tenants and any older
   // retryable outbox rows. The production outbox consumer remains real; only
   // the test's drain scope is narrowed to the disposable institution fixture.
-  await drainDomainEventOutbox(100, { institutionId });
+  const result = await drainDomainEventOutbox(100, { institutionId });
+  if (result.failed > 0) {
+    const failedEvents = await prisma.domainEventOutbox.findMany({
+      where: { institutionId, processedAt: null, lastError: { not: null } },
+      select: { name: true, payload: true, attempts: true, lastError: true },
+      orderBy: { createdAt: "asc" },
+      take: 20,
+    });
+    assert.equal(result.failed, 0, "placement outbox event handler failed: " + JSON.stringify(failedEvents));
+  }
 }
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
@@ -259,6 +268,20 @@ test("cohort targeting, idempotent notifications, rescheduling and cancellation 
     await updatePlacementVisit(institution.id, staffActor, event.id, { status: "CANCELLED" });
     await drainPlacementEvents(institution.id);
     assert.equal((await listPlacementVisits(institution.id, cohortActor)).length, 0, "cancelled activities must disappear from student schedules");
+    const scheduleEvents = await prisma.domainEventOutbox.findMany({
+      where: { institutionId: institution.id, name: "placement.schedule.changed" },
+      select: { payload: true, processedAt: true, lastError: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const cancellationEvent = scheduleEvents.find((entry) => {
+      const payload = entry.payload as Record<string, unknown>;
+      return payload.eventId === event.id && payload.version === "cancelled";
+    });
+    assert.ok(cancellationEvent, "cancellation must enqueue a placement.schedule.changed event");
+    assert.deepEqual((cancellationEvent.payload as Record<string, unknown>).recipientIds, [cohortStudent.id],
+      "cancellation event must preserve the published activity's verified audience");
+    assert.ok(cancellationEvent.processedAt, "cancellation event must be drained by the real outbox consumer");
+    assert.equal(cancellationEvent.lastError, null, "cancellation event must not be left in retry after an error");
     const cancelled = await prisma.notification.findMany({ where: { institutionId: institution.id, userId: cohortStudent.id, dedupeKey: { startsWith: `placement:visit:${event.id}:cancelled:` } } });
     assert.equal(cancelled.length, 1, "cancellation notification must be delivered once");
 
