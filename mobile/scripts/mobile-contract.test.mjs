@@ -554,6 +554,21 @@ test("enrollment request mobile workflow covers eligible self-service, scoped de
 });
 
 
+test("operations mobile workspace provides scoped asset, facility and maintenance lifecycle controls", () => {
+ const screen = read("src/screens/OperationsScreen.tsx");
+ const moduleScreen = read("src/screens/ModuleScreen.tsx");
+ const routes = read("../backend/src/routes/operations.routes.ts");
+ const validators = read("../backend/src/validators/coreErp.validators.ts");
+ for (const endpoint of ['/operations/summary','/operations/assets','/operations/facilities','/operations/maintenance','/operations/asset-categories']) assert.ok(screen.includes(endpoint),"Missing operations endpoint "+endpoint);
+ assert.ok(screen.includes("operations.read")&&screen.includes("operations.manage")&&screen.includes("maintenance.raise"));
+ assert.ok(screen.includes('method:editAsset?"PATCH":"POST"')&&screen.includes('method:editFacility?"PATCH":"POST"')&&screen.includes('method:editMaintenance?"PATCH":"POST"'));
+ assert.ok(screen.includes("workspaceKey")&&screen.includes("invalidateQueries"));
+ assert.ok(routes.includes("createAssetSchema")&&routes.includes("createFacilitySchema")&&routes.includes("createMaintenanceSchema")&&routes.includes('authorize("operations.manage")'));
+ assert.ok(validators.includes("createAssetSchema")&&validators.includes("updateMaintenanceSchema"));
+ assert.ok(moduleScreen.includes('module?.id === "operations"')&&moduleScreen.includes("<OperationsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
