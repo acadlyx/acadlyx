@@ -326,6 +326,18 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
     assert.equal((await requestWithBody("/library/books", multiStudentLibrarian.token, "POST", {})).status, 403);
     assert.equal((await requestWithBody("/library/fines/00000000-0000-0000-0000-000000000000/waiver-request", multiStudentLibrarian.token, "POST", {})).status, 403);
     assert.equal((await request("/library/summary", multiStudentDirector.token)).status, 403);
+    assert.equal(
+      (await request("/library/loans/mine", multiFacultyStudent.token)).status,
+      403,
+      "Faculty+Student must not inherit Student personal-loan access when Faculty is the effective workspace",
+    );
+    assert.equal(
+      (await requestWithBody("/library/reservations", multiFacultyStudent.token, "POST", {
+        bookId: "00000000-0000-0000-0000-000000000000",
+      })).status,
+      403,
+      "Faculty+Student must not reserve through a secondary Student permission",
+    );
 
     const otherBorrowerId = roleUsers.FACULTY.id;
     assert.equal(
