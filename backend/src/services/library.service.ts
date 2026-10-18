@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { round2 } from "../utils/http";
 import { recordAuditLog } from "./audit.service";
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateBookInput,
   IssueBookInput,
@@ -16,6 +17,14 @@ import {
 } from "../validators/library.validators";
 
 type Meta = { ipAddress?: string; userAgent?: string };
+
+/** Library management must come from the active Librarian workspace. A
+ * secondary Librarian role must not grant circulation-desk actions to a
+ * Student/Parent/Faculty account through the unioned permission array. */
+export function canManageLibraryCirculation(actor: AuthenticatedUser): boolean {
+  return getEffectiveWorkspaceRole(actor) === "LIBRARIAN"
+    && actor.permissions.includes("library.manage");
+}
 
 /** Institution-wide circulation policy. Kept here so both issue and
  *  return paths compute identical numbers. */
@@ -548,7 +557,7 @@ export async function reserveBook(
   const borrowerId = requestedBorrowerId ?? actor.id;
 
   /* Reserving on behalf of someone else is a circulation-desk action. */
-  if (borrowerId !== actor.id && !actor.permissions.includes("library.manage")) {
+  if (borrowerId !== actor.id && !canManageLibraryCirculation(actor)) {
     throw new AppError("You may only reserve books for yourself", 403);
   }
   await assertBorrowerInInstitution(institutionId, borrowerId);
@@ -640,7 +649,7 @@ export async function cancelReservation(
   }
   if (
     existing.borrowerId !== actor.id &&
-    !actor.permissions.includes("library.manage")
+    !canManageLibraryCirculation(actor)
   ) {
     throw new AppError("You may only cancel your own reservations", 403);
   }
@@ -1118,7 +1127,7 @@ export async function renewLoan(
     });
     if (!loan) throw new AppError("Loan not found", 404);
     if (loan.status !== "ISSUED") throw new AppError("Only active issued loans can be renewed", 422);
-    if (loan.borrowerId !== actor.id && !actor.permissions.includes("library.manage")) {
+    if (loan.borrowerId !== actor.id && !canManageLibraryCirculation(actor)) {
       throw new AppError("You may only renew your own loan", 403);
     }
     if (loan.renewalsUsed >= loan.renewalsAllowed) {
