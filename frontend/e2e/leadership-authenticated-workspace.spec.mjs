@@ -28,7 +28,14 @@ async function installAuthenticatedSession(page, role) {
     firstName: "Browser",
     lastName: role === "CHAIRMAN" ? "Chairman" : "Director",
     roles: [role],
-    permissions: role === "STUDENT" || role === "LIBRARIAN" ? [...permissions, "library.read", "library.borrow"] : permissions,
+    permissions: [
+      ...permissions,
+      ...(role === "STUDENT" || role === "LIBRARIAN" ? ["library.read", "library.borrow"] : []),
+      ...(role === "PARENT" ? ["parent-portal.read", "parent-links.read"] : []),
+      ...(role === "CMS" ? ["site.manage"] : []),
+      ...(role === "REGISTRAR" ? ["certificates.read", "certificates.issue"] : []),
+      ...(role === "ADMISSIONS" ? ["parent-links.read", "parent-links.manage"] : []),
+    ],
     // This common fixture represents a tenant that has these modules
     // enabled. Route-ownership tests must reach the role boundary, not fail
     // early because a required tenant feature was omitted from the fixture.
@@ -516,7 +523,9 @@ test("Student cannot mount the shared leadership timetable through a direct URL"
   const forbiddenRequests = [];
   page.on("request", (request) => {
     const pathname = new URL(request.url()).pathname;
-    if (pathname.includes("/timetable")) forbiddenRequests.push(request.url());
+    // Track only API effects for the shared leadership route. Next.js page
+    // chunks and RSC prefetches include /timetable in their browser URLs too.
+    if (pathname.startsWith("/api/v1/timetable")) forbiddenRequests.push(request.url());
   });
 
   await installAuthenticatedSession(page, "STUDENT");
