@@ -27,7 +27,8 @@ test("refund processing claims an approved refund exactly once inside its transa
   assert.match(process, /SELECT "id" FROM "fee_payments"[^\n]*FOR UPDATE/);
   assert.ok(process.lastIndexOf("FOR UPDATE") < process.indexOf("const visibleInvoice"));
   assert.ok(process.indexOf("const visibleInvoice") < process.indexOf("const claimed"));
-  assert.match(process, /updateMany\(\{where:\{id,institutionId,status:"APPROVED",invoiceId:candidate\.invoiceId,paymentId:candidate\.paymentId\},data:\{status:"PROCESSING"/);\n  assert.match(process, /\.\.\.\(settlementReference\?\{reference:settlementReference\}:\{\}\)/);
+  assert.match(process, /updateMany\(\{where:\{id,institutionId,status:"APPROVED",invoiceId:candidate\.invoiceId,paymentId:candidate\.paymentId\},data:\{status:"PROCESSING"/);
+  assert.match(process, /\.\.\.\(settlementReference\?\{reference:settlementReference\}:\{\}\)/);
   assert.match(process, /if\(claimed.count!==1\)/);
   assert.match(process, /type:"REFUND",reference:id/);
 });
