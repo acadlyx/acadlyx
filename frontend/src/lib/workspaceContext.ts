@@ -98,22 +98,23 @@ export type WorkspaceContext = {
 };
 
 export function useWorkspaceContext(params: Record<string, string | undefined> = {}) {
-  const [data, setData] = useState<WorkspaceContext | null>(null);
+  const [dataState, setDataState] = useState<{ requestKey: string; value: WorkspaceContext } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [errorState, setErrorState] = useState<{ requestKey: string; message: string } | null>(null);
   const [authScope, setAuthScope] = useState(() => getAuthCacheScope());
   const requestGeneration = useRef(0);
 
   const serializedParams = JSON.stringify(params);
+  const currentRequestKey = `${authScope}:${serializedParams}`;
 
   useEffect(() => subscribeAuthCacheScope(() => {
     // Immediately hide the previous account's context and invalidate any
     // pending callback before React starts the next session's request.
     requestGeneration.current += 1;
     clearWorkspaceContextCache();
-    setData(null);
+    setDataState(null);
     setLoading(true);
-    setError("");
+    setErrorState(null);
     setAuthScope(getAuthCacheScope());
   }), []);
 
@@ -121,8 +122,8 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
     const generation = ++requestGeneration.current;
     const requestedAuthScope = authScope;
     setLoading(true);
-    setData(null);
-    setError("");
+    setDataState(null);
+    setErrorState(null);
 
     try {
       const requestParams = JSON.parse(serializedParams) as Record<string, string | undefined>;
@@ -135,7 +136,7 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
           requestGeneration.current,
         )
       ) return;
-      setData(value);
+      setDataState({ requestKey: `${requestedAuthScope}:${serializedParams}`, value });
     } catch (err) {
       if (
         !canApplySessionResponse(
@@ -145,11 +146,12 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
           requestGeneration.current,
         )
       ) return;
-      setError(
-        err instanceof Error
+      setErrorState({
+        requestKey: `${requestedAuthScope}:${serializedParams}`,
+        message: err instanceof Error
           ? err.message
-          : "Unable to load workspace context."
-      );
+          : "Unable to load workspace context.",
+      });
     } finally {
       if (
         canApplySessionResponse(
@@ -170,5 +172,11 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
     };
   }, [load]);
 
-  return { data, loading, error, reload: load };
+  // Derive visible state synchronously from the current session and selectors.
+  // On the render before useEffect runs, a result keyed to the prior selector
+  // must already be hidden rather than flashing stale authorized records.
+  const data = dataState?.requestKey === currentRequestKey ? dataState.value : null;
+  const error = errorState?.requestKey === currentRequestKey ? errorState.message : "";
+  const hasCurrentResult = data !== null || error.length > 0;
+  return { data, loading: loading || !hasCurrentResult, error, reload: load };
 }
