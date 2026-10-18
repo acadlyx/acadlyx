@@ -433,7 +433,10 @@ test("Parent can reach linked-child workspace and its route remains Parent-owned
 
   await page.goto(baseURL + "/parent/children", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/parent\/children$/);
-  await expect(page.getByRole("heading", { name: "My children", exact: true })).toBeVisible();
+  // The unified workspace shell labels this navigation destination "Children";
+  // the page content separately exposes the no-linked-child empty state.
+  await expect(page.getByRole("heading", { name: "Children", exact: true })).toBeVisible();
+  await expect(page.getByText(/No students are linked to this account/i)).toBeVisible();
   await expect(page.locator('a[href="/parent/children"]')).toHaveCount(1);
   expect(pageErrors, "Parent linked-child page should not throw browser exceptions").toEqual([]);
 });
@@ -613,7 +616,9 @@ test("Admissions student list opens the existing role-authorized student profile
   await expect(page.getByText("Test Student", { exact: false })).toBeVisible();
   await page.getByRole("link", { name: /Test Student/ }).click();
   await expect(page).toHaveURL(/\/students\/browser-test-student$/);
-  await expect(page.getByRole("heading", { name: "Student Profile", exact: true })).toBeVisible();
+  // The shell header reflects the current student identity; verify the
+  // actual profile heading and admission number rendered by the page.
+  await expect(page.getByRole("heading", { name: "Test Student", exact: true })).toBeVisible();
   await expect(page.getByText("TEST-001")).toBeVisible();
 });
 
@@ -636,7 +641,10 @@ test("Parent legacy Payments URL resolves to linked-child workspace", async ({ p
   await installAuthenticatedSession(page, "PARENT");
   await page.goto(baseURL + "/payments", { waitUntil: "networkidle" });
   await expect(page).toHaveURL(/\/parent\/children$/);
-  await expect(page.getByRole("heading", { name: "My children", exact: true })).toBeVisible();
+  // The unified workspace shell labels this navigation destination "Children";
+  // the page content separately exposes the no-linked-child empty state.
+  await expect(page.getByRole("heading", { name: "Children", exact: true })).toBeVisible();
+  await expect(page.getByText(/No students are linked to this account/i)).toBeVisible();
 });
 
 test("Accounts legacy fee-receipts URL resolves to Accounts receipts", async ({ page }) => {
