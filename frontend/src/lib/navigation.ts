@@ -1139,6 +1139,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Expenses & Approvals",
+    href: "/accounts/expenses",
+    icon: "₹",
+    roles: ["ACCOUNTS"],
+    permissions: ["expenses.read"],
+    group: "Finance",
+  },
+  {
     label: "Fee Structures",
     href: "/accounts/fee-structures",
     icon: "▤",
