@@ -599,6 +599,16 @@ test("ModuleScreen routes existing catalogue modules to dedicated operational sc
 });
 
 
+test("mobile reports use live permission-gated domain APIs and workspace-scoped query keys", () => {
+ const screen=read("src/screens/ReportsScreen.tsx");
+ const moduleScreen=read("src/screens/ModuleScreen.tsx");
+ for (const endpoint of ["/finance/command-center?period=","/admissions?page=1&pageSize=1","/hr/employees?page=1&pageSize=1","/placements/metrics","/library/summary","/examinations/sessions?page=1&pageSize=1","/intelligence/command-center"]) assert.ok(screen.includes(endpoint),"Missing live report endpoint: "+endpoint);
+ assert.ok(screen.includes("workspaceKey")&&screen.includes('queryKey:["mobile-reports",user?.id,workspaceKey'));
+ assert.ok(screen.includes("fees.read")&&screen.includes("admissions.read")&&screen.includes("intelligence.read"));
+ assert.ok(moduleScreen.includes('module?.id === "reports" || module?.id === "intelligence"')&&moduleScreen.includes("<ReportsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

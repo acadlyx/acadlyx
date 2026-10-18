@@ -34,6 +34,7 @@ import { FacultyScreen } from "./FacultyScreen";
 import { EnrollmentRequestsScreen } from "./EnrollmentRequestsScreen";
 import { OperationsScreen } from "./OperationsScreen";
 import { CertificatesScreen } from "./CertificatesScreen";
+import { ReportsScreen } from "./ReportsScreen";
 import type { Section as FinanceSection } from "./FinanceScreen";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { colors, radius, spacing } from "../ui/theme";
@@ -59,6 +60,7 @@ export function ModuleScreen({ route }: Props) {
   const isEnrollmentRequestsWorkspace = module?.id === "enrollment-requests";
   const isOperationsWorkspace = module?.id === "operations";
   const isCertificatesWorkspace = module?.id === "certificates";
+  const isReportsWorkspace = module?.id === "reports" || module?.id === "intelligence";
   const isDedicatedWorkflow = Boolean(module && [
     "assignments", "notices", "timetable", "library", "calendar", "attendance",
     "leave", "hr", "admissions", "placements", "lms", "notifications",
@@ -73,7 +75,7 @@ export function ModuleScreen({ route }: Props) {
       if (!module) throw new Error("This mobile module has not been mapped.");
       return apiRequest<unknown>(module.endpoint);
     },
-    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace && !isFacultyWorkspace && !isEnrollmentRequestsWorkspace && !isOperationsWorkspace && !isCertificatesWorkspace && !isDedicatedWorkflow),
+    enabled: Boolean(user?.id && module && !isFinanceWorkspace && !isExaminationsWorkspace && !isInternalMarksWorkspace && !isDocumentsWorkspace && !isAcademicRecordsWorkspace && !isStudentsWorkspace && !isEventsWorkspace && !isRegistrationsWorkspace && !isUsersWorkspace && !isFacultyWorkspace && !isEnrollmentRequestsWorkspace && !isOperationsWorkspace && !isCertificatesWorkspace && !isDedicatedWorkflow && !isReportsWorkspace),
     staleTime: 0
   });
   const records = useMemo(() => {
@@ -96,6 +98,7 @@ export function ModuleScreen({ route }: Props) {
   if (isEnrollmentRequestsWorkspace) return <EnrollmentRequestsScreen />;
   if (isOperationsWorkspace) return <OperationsScreen />;
   if (isCertificatesWorkspace) return <CertificatesScreen />;
+  if (isReportsWorkspace) return <ReportsScreen />;
   if (module?.id === "assignments") return <AssignmentsScreen />;
   if (module?.id === "notices") return <NoticesScreen />;
   if (module?.id === "timetable") return <TimetableScreen />;
