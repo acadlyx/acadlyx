@@ -19,6 +19,7 @@ async function installAuthenticatedSession(page, role) {
   let metricRequests = 0;
   let authMeGate = null;
   let authMeFailure = null;
+  let authMeRequests = 0;
   const user = {
     id: `browser-test-${role.toLowerCase()}`,
     institutionId: "browser-test-institution",
@@ -37,11 +38,20 @@ async function installAuthenticatedSession(page, role) {
     ],
   };
 
-  await page.route("**/api/v1/**", async (route) => {
+  // Intercept at the request boundary rather than relying on a glob that
+  // may differ when NEXT_PUBLIC_API_URL changes host/port between environments.
+  // Continue all non-API browser requests unchanged; only versioned API calls
+  // receive deterministic, role-scoped fixtures in these isolated UI tests.
+  await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    if (!path.startsWith("/api/v1/")) {
+      await route.continue();
+      return;
+    }
 
     if (path.endsWith("/auth/me")) {
+      authMeRequests += 1;
       if (authMeGate) {
         const gate = authMeGate;
         authMeGate = null;
@@ -154,6 +164,7 @@ async function installAuthenticatedSession(page, role) {
 
   return {
     user,
+    authMeRequests() { return authMeRequests; },
     setAuthMeGate(gate) { authMeGate = gate; },
     setAuthMeFailure(failure) { authMeFailure = failure; },
   };
