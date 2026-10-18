@@ -163,6 +163,16 @@ const ENTITLEMENT_ROUTE_CASES = [
   { role: "STUDENT", path: "/student/leave", feature: "leave", home: "/student" },
 ];
 
+
+test("HOD query-backed registration view requires the registration entitlement", async ({ page }) => {
+  await installRoleSession(page, "HOD", ["registration"]);
+  await navigateAndWaitForIdentity(page, "/hod?tab=registrations");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/hod");
+  await expect.poll(() => new URL(page.url()).search).toBe("");
+  await expect(page.locator('a[href="/hod?tab=registrations"]')).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Registration approval" })).toHaveCount(0);
+});
+
 test.describe("tenant feature route enforcement", () => {
   for (const { role, path, feature, home } of ENTITLEMENT_ROUTE_CASES) {
     test(`${role} retains ${path} when ${feature} is enabled`, async ({ page }) => {
