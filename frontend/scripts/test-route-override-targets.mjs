@@ -35,6 +35,68 @@ test("every role-specific route override resolves to an existing app page", () =
   );
 });
 
+
+function roleNavigationEntries() {
+  const declaration = navigation.indexOf("export const ROLE_NAVIGATION");
+  const arrayStart = navigation.indexOf("= [", declaration) + 2;
+  const objects = [];
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let current = "";
+
+  for (let index = arrayStart; index < navigation.length; index += 1) {
+    const character = navigation[index];
+    if (quote) {
+      if (depth > 0) current += character;
+      if (escaped) escaped = false;
+      else if (character === "\\\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character;
+      if (depth > 0) current += character;
+      continue;
+    }
+    if (character === "{") {
+      if (depth === 0) current = "";
+      depth += 1;
+      current += character;
+      continue;
+    }
+    if (character === "}" && depth > 0) {
+      depth -= 1;
+      current += character;
+      if (depth === 0) objects.push(current);
+      continue;
+    }
+    if (depth > 0) current += character;
+    if (depth === 0 && character === "]" && index > arrayStart) break;
+  }
+
+  return objects.map((source) => ({
+    href: source.match(/href:\\s*"([^"]+)"/)?.[1],
+    roles: (source.match(/roles:\\s*\\[([^\\]]*)\\]/)?.[1] || "")
+      .match(/"([^"]+)"/g)?.map((role) => role.slice(1, -1)) || [],
+  })).filter((entry) => Boolean(entry.href));
+}
+
+test("every role override source is an owned navigation entry", () => {
+  const entries = roleNavigationEntries();
+  const stale = overrides.filter(({ role, source }) =>
+    !entries.some((entry) =>
+      entry.href === source &&
+      (!entry.roles.length || entry.roles.includes(role)),
+    ),
+  );
+  assert.deepEqual(
+    stale.map(({ role, source, destination }) => ({ role, source, destination })),
+    [],
+    "A role must not rewrite a source link it does not own in ROLE_NAVIGATION",
+  );
+});
+
 test("role-owned overrides do not rewrite destinations to unscoped generic workspace routes", () => {
   const unscoped = new Set([
     "/students", "/faculty", "/admissions", "/notices", "/notifications",
