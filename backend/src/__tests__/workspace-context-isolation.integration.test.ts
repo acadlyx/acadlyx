@@ -896,8 +896,8 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       assert.equal(disabledMutation.status, 403, "A disabled Assignments feature must block direct REST mutations before payload validation");
       assert.match(disabledMutation.body.error?.message || "", /assignments feature is not enabled/i);
 
-      const unrelatedFeatureRead = await request("/attendance-sessions", roleUsers.FACULTY.token);
-      assert.notEqual(unrelatedFeatureRead.status, 403, "Disabling Assignments must not implicitly disable Attendance");
+      const unrelatedFeatureRead = await request("/attendance-sessions?campusId=" + campusA1.id, roleUsers.FACULTY.token);
+      assert.equal(unrelatedFeatureRead.status, 200, "Disabling Assignments must not affect a Faculty member's authorized Attendance API");
     } finally {
       await prisma.tenantFeatureEntitlement.update({
         where: { institutionId_featureKey: { institutionId: institutionA.id, featureKey: "assignments" } },
