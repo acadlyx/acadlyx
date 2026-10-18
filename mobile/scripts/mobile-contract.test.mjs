@@ -538,6 +538,22 @@ test("faculty mobile dashboard uses the dedicated self-scoped backend surface", 
 });
 
 
+test("enrollment request mobile workflow covers eligible self-service, scoped decisions and real state transitions", () => {
+ const screen = read("src/screens/EnrollmentRequestsScreen.tsx");
+ const moduleScreen = read("src/screens/ModuleScreen.tsx");
+ const routes = read("../backend/src/routes/enrollmentRequest.routes.ts");
+ const validators = read("../backend/src/validators/enrollmentRequest.validators.ts");
+ assert.ok(screen.includes('"/enrollment-requests/mine"')&&screen.includes('"/enrollment-requests/eligible-contexts"'));
+ assert.ok(screen.includes('"/enrollment-requests"')&&screen.includes('"/decision"'));
+ assert.ok(screen.includes("enrollment.submit")&&screen.includes("enrollment.read")&&screen.includes("enrollment.approve"));
+ assert.ok(screen.includes("workspaceKey")&&screen.includes("selectedContext"));
+ assert.ok(screen.includes("A reason is required for rejection or correction."));
+ assert.ok(routes.includes("service.submitEnrollmentRequest")&&routes.includes("service.decideEnrollmentRequest"));
+ assert.ok(validators.includes("submitEnrollmentRequestSchema")&&validators.includes("decideEnrollmentRequestSchema"));
+ assert.ok(moduleScreen.includes('module?.id === "enrollment-requests"')&&moduleScreen.includes("<EnrollmentRequestsScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
