@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import { WorkflowStatus } from "@/components/workflow/WorkflowState";
@@ -49,6 +49,7 @@ const emptyForm = {
 
 export default function AdmissionsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -72,6 +73,23 @@ export default function AdmissionsPage() {
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
   const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowStateResult>>({});
+
+  function updateWorkspaceSelection(updates: Record<"programId" | "academicYearId", string>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    setPage(1);
+    const query = params.toString();
+    router.replace(query ? `/admissions?${query}` : "/admissions", { scroll: false });
+  }
+
+  useEffect(() => {
+    setProgramFilter(searchParams.get("programId") || "");
+    setYearFilter(searchParams.get("academicYearId") || "");
+    setPage(1);
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     try {
@@ -399,6 +417,7 @@ export default function AdmissionsPage() {
                 onChange={(e) => {
                   setPage(1);
                   setProgramFilter(e.target.value);
+                  updateWorkspaceSelection({ programId: e.target.value, academicYearId: yearFilter });
                 }}
                 className="input sm:w-56"
               >
@@ -414,6 +433,7 @@ export default function AdmissionsPage() {
                 onChange={(e) => {
                   setPage(1);
                   setYearFilter(e.target.value);
+                  updateWorkspaceSelection({ programId: programFilter, academicYearId: e.target.value });
                 }}
                 className="input sm:w-56"
               >
