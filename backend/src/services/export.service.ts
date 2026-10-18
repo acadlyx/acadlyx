@@ -219,7 +219,7 @@ const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "placement-interviews": ["PLACEMENT"],
 };
 
-async function assertExportAccess(
+export async function assertExportAccess(
   institutionId: string,
   actor: AuthenticatedUser,
   type: ExportType,

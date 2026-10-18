@@ -136,8 +136,11 @@ export const downloadExportJob = asyncHandler(async (req: Request, res: Response
   if (job.type !== JOB_TYPES.BULK_EXPORT) throw new AppError("Export job not found", 404);
   if (job.status !== "COMPLETED") throw new AppError("Export file is not ready. Current status: " + job.status, 409);
   const result = job.result && typeof job.result === "object" && !Array.isArray(job.result) ? job.result as Record<string, unknown> : {};
+  const exportType = typeof result.type === "string" ? result.type as exporter.ExportType : null;
+  if (!exportType || !exporter.EXPORT_TYPES.includes(exportType)) throw new AppError("Export job result has an invalid dataset type", 500);
+  await exporter.assertExportAccess(institutionId, req.user, exportType);
   const fileId = typeof result.fileId === "string" ? result.fileId : "";
-  const filename = typeof result.filename === "string" ? result.filename.replace(/["\\r\\n]/g, "") : "acadlyx-export";
+  const filename = typeof result.filename === "string" ? result.filename.replaceAll("\\\"","").replaceAll(String.fromCharCode(13),"").replaceAll(String.fromCharCode(10),"") : "acadlyx-export";
   if (!fileId) throw new AppError("Completed export does not contain a file artifact", 500);
   const delivery = await getFileDelivery(fileId, institutionId, true);
   const storedResponse = await fetch(delivery.url);
