@@ -117,12 +117,12 @@ export default function InstitutionalCmsPage() {
   }
 
   if (!data) {
-    return <DashboardShell title="Institutional CMS" subtitle="Institution identity and approved dashboard configuration"><div className="rounded-2xl border bg-white p-6">{error || "Loading institutional configuration…"}</div></DashboardShell>;
+    return <DashboardShell title="Institutional CMS" subtitle="Institution identity and approved dashboard configuration" allowedRoles={["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]}><div className="rounded-2xl border bg-white p-6">{error || "Loading institutional configuration…"}</div></DashboardShell>;
   }
 
   const status = data.approvalStatus;
   return (
-    <DashboardShell title="Institutional CMS" subtitle="Manage tenant branding and dashboard identity through controlled approval">
+    <DashboardShell title="Institutional CMS" subtitle="Manage tenant branding and dashboard identity through controlled approval" allowedRoles={["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]}>
       <div className="mx-auto max-w-5xl space-y-6">
         {message && <div className="rounded-xl border bg-white p-4 text-sm">{message}</div>}
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
