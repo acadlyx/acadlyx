@@ -50,7 +50,7 @@ function roleNavigationEntries() {
     if (quote) {
       if (depth > 0) current += character;
       if (escaped) escaped = false;
-      else if (character === "\\\\") escaped = true;
+      else if (character === "\\") escaped = true;
       else if (character === quote) quote = null;
       continue;
     }
@@ -76,8 +76,8 @@ function roleNavigationEntries() {
   }
 
   return objects.map((source) => ({
-    href: source.match(/href:\\s*"([^"]+)"/)?.[1],
-    roles: (source.match(/roles:\\s*\\[([^\\]]*)\\]/)?.[1] || "")
+    href: source.match(/href:\s*"([^"]+)"/)?.[1],
+    roles: (source.match(/roles:\s*\[([^\]]*)\]/)?.[1] || "")
       .match(/"([^"]+)"/g)?.map((role) => role.slice(1, -1)) || [],
   })).filter((entry) => Boolean(entry.href));
 }
