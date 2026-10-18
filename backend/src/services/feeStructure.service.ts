@@ -116,9 +116,20 @@ export async function listFeeHeads(
   actor: AuthenticatedUser,
   includeInactive = false
 ) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  // Permissions are accumulated across legacy multi-role bindings, but an
+  // unscoped fee-head directory must not become visible merely because a
+  // narrower Student/Faculty/Parent workspace also has an Accounts grant.
+  // Finance leadership may read shared fee-head names when their explicit
+  // read permission exists; platform authority is handled separately.
+  const mayReadSharedFeeHeads = [
+    "SUPER_ADMIN", "CHAIRMAN", "DIRECTOR", "DEAN", "HOD",
+    "MANAGEMENT", "REGISTRAR", "ACCOUNTS",
+  ].includes(activeRole);
   if (
-    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
-    !hasFeeActionPermission(actor.permissions, "readFeeStructures")
+    !mayReadSharedFeeHeads ||
+    (activeRole !== "SUPER_ADMIN" &&
+      !hasFeeActionPermission(actor.permissions, "readFeeStructures"))
   ) {
     throw new AppError(
       "Not authorized to view fee heads",
