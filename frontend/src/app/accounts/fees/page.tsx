@@ -1,5 +1,5 @@
-import FeesPage from "@/app/fees/page";
+import { redirect } from "next/navigation";
 
-export default function AccountsFeesPage() {
-  return <FeesPage />;
+export default function AccountsFeesRedirect(): never {
+  redirect("/fees");
 }
