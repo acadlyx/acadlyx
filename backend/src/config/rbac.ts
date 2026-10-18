@@ -1324,6 +1324,24 @@ export function outranks(
   );
 }
 
+/**
+ * Notice writing is available only to roles whose backend workflow supports
+ * a concrete institutional, campus, or department scope. Everyone else,
+ * including Parents, remains read-only until a safe recipient scope is modeled.
+ * Keep this allowlist shared with notice mutation services.
+ */
+export const NOTICE_MANAGEMENT_ROLES = [
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "CHAIRMAN",
+  "DIRECTOR",
+  "MANAGEMENT",
+  "DEAN",
+  "REGISTRAR",
+  "HOD",
+  "CMS",
+] as const;
+
 export function getRolePermissions(
   roleName: string
 ): PermissionKey[] {
@@ -1337,12 +1355,24 @@ export function getRolePermissions(
   }
 
   const basePermissions = ROLE_PERMISSIONS[normalized] ?? [];
-  // Notices are a scoped communication capability for every non-student role.
-  // Services must still constrain create/update operations to the actor's scope.
-  if (normalized === "STUDENT") return [...basePermissions, "notices.read", "notifications.read"];
-  return [...new Set<PermissionKey>([...basePermissions, "notices.read", "notices.manage", "notifications.read"])];
-}
+  const canManageNotices = NOTICE_MANAGEMENT_ROLES.includes(
+    normalized as typeof NOTICE_MANAGEMENT_ROLES[number],
+  );
+  // Avoid a permission supplied by an inherited role bundle bypassing the
+  // explicit notice-writer policy. Students and all non-writer roles are read-only.
+  const scopedBasePermissions = canManageNotices && normalized !== "STUDENT"
+    ? basePermissions
+    : basePermissions.filter((permission) => permission !== "notices.manage");
 
+  return [
+    ...new Set<PermissionKey>([
+      ...scopedBasePermissions,
+      "notices.read",
+      ...(canManageNotices && normalized !== "STUDENT" ? ["notices.manage" as PermissionKey] : []),
+      "notifications.read",
+    ]),
+  ];
+}
 export function getEffectivePermissions(
   roles: readonly string[]
 ): PermissionKey[] {
