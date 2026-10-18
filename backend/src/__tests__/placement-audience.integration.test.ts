@@ -29,18 +29,25 @@ async function createActiveStudentEnrollment(institutionId: string, userId: stri
 }
 
 async function drainPlacementEvents(institutionId: string) {
-  // Keep this integration test isolated from unrelated tenants and any older
-  // retryable outbox rows. The production outbox consumer remains real; only
-  // the test's drain scope is narrowed to the disposable institution fixture.
-  const result = await drainDomainEventOutbox(100, { institutionId });
-  if (result.failed > 0) {
+  // Drain in bounded batches until the tenant's currently eligible outbox queue
+  // is empty. One 100-event batch may not reach the event whose lifecycle is
+  // under assertion when other workflows have enqueued more work in the fixture.
+  let claimed = 0;
+  let failed = 0;
+  for (let batch = 0; batch < 25; batch += 1) {
+    const result = await drainDomainEventOutbox(100, { institutionId });
+    claimed += result.claimed;
+    failed += result.failed;
+    if (result.claimed < 100) break;
+  }
+  if (failed > 0) {
     const failedEvents = await prisma.domainEventOutbox.findMany({
       where: { institutionId, processedAt: null, lastError: { not: null } },
       select: { name: true, payload: true, attempts: true, lastError: true },
       orderBy: { createdAt: "asc" },
       take: 20,
     });
-    assert.equal(result.failed, 0, "placement outbox event handler failed: " + JSON.stringify(failedEvents));
+    assert.equal(failed, 0, "placement outbox event handler failed after claiming " + claimed + " events: " + JSON.stringify(failedEvents));
   }
 }
 
