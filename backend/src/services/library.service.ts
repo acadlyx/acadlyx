@@ -38,6 +38,15 @@ function assertEffectiveRole(actor: AuthenticatedUser, allowedRoles: readonly st
   }
 }
 
+function assertCanUsePersonalLibrary(actor: AuthenticatedUser, action: string): void {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const studentSelfService = activeRole === "STUDENT" && actor.permissions.includes("library.borrow");
+  const librarianCirculation = canManageLibraryCirculation(actor);
+  if (!studentSelfService && !librarianCirculation) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
+
 /** Institution-wide circulation policy. Kept here so both issue and
  *  return paths compute identical numbers. */
 type LoanPolicy = {
@@ -576,7 +585,9 @@ export async function reserveBook(
   const borrowerId = requestedBorrowerId ?? actor.id;
 
   /* Reserving on behalf of someone else is a circulation-desk action. */
-  if (borrowerId !== actor.id && !canManageLibraryCirculation(actor)) {
+  if (borrowerId === actor.id) {
+    assertCanUsePersonalLibrary(actor, "Personal book reservations");
+  } else if (!canManageLibraryCirculation(actor)) {
     throw new AppError("You may only reserve books for yourself", 403);
   }
   await assertBorrowerInInstitution(institutionId, borrowerId);
@@ -666,10 +677,9 @@ export async function cancelReservation(
   if (existing.status !== "RESERVED") {
     throw new AppError("Only reservations can be cancelled", 422);
   }
-  if (
-    existing.borrowerId !== actor.id &&
-    !canManageLibraryCirculation(actor)
-  ) {
+  if (existing.borrowerId === actor.id) {
+    assertCanUsePersonalLibrary(actor, "Personal reservation cancellation");
+  } else if (!canManageLibraryCirculation(actor)) {
     throw new AppError("You may only cancel your own reservations", 403);
   }
 
@@ -1378,6 +1388,7 @@ export async function listCirculation(
 }
 
 export async function listMyLoans(institutionId: string, actor: AuthenticatedUser) {
+  assertCanUsePersonalLibrary(actor, "Personal library loans");
   const rows = await prisma.libraryIssue.findMany({
     where: { institutionId, borrowerId: actor.id },
     include: issueInclude,
