@@ -1,7 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { authedFetch } from "./auth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  authedFetch,
+  getAuthCacheScope,
+  subscribeAuthCacheScope,
+} from "./auth";
 
 const CONTEXT_CACHE_TTL_MS = 30_000;
 const contextCache = new Map<string, { value: WorkspaceContext; expiresAt: number }>();
@@ -22,8 +26,11 @@ export function clearWorkspaceContextCache(): void {
 
 async function fetchWorkspaceContext(
   params: Record<string, string | undefined>,
+  authScope: number,
 ): Promise<WorkspaceContext> {
-  const key = contextKey(params);
+  // Context IDs alone are not an identity boundary: two users can request the
+  // same selectors while having different permitted records.
+  const key = `${authScope}:${contextKey(params)}`;
   const cached = contextCache.get(key);
   const now = Date.now();
 
@@ -38,11 +45,17 @@ async function fetchWorkspaceContext(
   });
 
   const suffix = query.toString();
-  const request = authedFetch<{
+  let request: Promise<WorkspaceContext>;
+  request = authedFetch<{
     success: boolean;
     data: WorkspaceContext;
   }>(`/workspace/context${suffix ? `?${suffix}` : ""}`)
     .then((response) => {
+      // Do not let a response authenticated as a previous user populate the
+      // new session's cache, even if the selector parameters are identical.
+      if (getAuthCacheScope() !== authScope) {
+        throw new Error("Workspace context changed during request. Please retry.");
+      }
       contextCache.set(key, {
         value: response.data,
         expiresAt: Date.now() + CONTEXT_CACHE_TTL_MS,
@@ -50,7 +63,8 @@ async function fetchWorkspaceContext(
       return response.data;
     })
     .finally(() => {
-      contextInflight.delete(key);
+      // A cleared/restarted request may already have replaced this entry.
+      if (contextInflight.get(key) === request) contextInflight.delete(key);
     });
 
   contextInflight.set(key, request);
@@ -90,30 +104,61 @@ export function useWorkspaceContext(params: Record<string, string | undefined> =
   const [data, setData] = useState<WorkspaceContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [authScope, setAuthScope] = useState(() => getAuthCacheScope());
+  const requestGeneration = useRef(0);
 
   const serializedParams = JSON.stringify(params);
 
-  const load = useCallback(async () => {
+  useEffect(() => subscribeAuthCacheScope(() => {
+    // Immediately hide the previous account's context and invalidate any
+    // pending callback before React starts the next session's request.
+    requestGeneration.current += 1;
+    clearWorkspaceContextCache();
+    setData(null);
     setLoading(true);
+    setError("");
+    setAuthScope(getAuthCacheScope());
+  }), []);
+
+  const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
+    const requestedAuthScope = authScope;
+    setLoading(true);
+    setData(null);
     setError("");
 
     try {
       const requestParams = JSON.parse(serializedParams) as Record<string, string | undefined>;
-      const value = await fetchWorkspaceContext(requestParams);
+      const value = await fetchWorkspaceContext(requestParams, requestedAuthScope);
+      if (
+        requestGeneration.current !== generation ||
+        getAuthCacheScope() !== requestedAuthScope
+      ) return;
       setData(value);
     } catch (err) {
+      if (
+        requestGeneration.current !== generation ||
+        getAuthCacheScope() !== requestedAuthScope
+      ) return;
       setError(
         err instanceof Error
           ? err.message
           : "Unable to load workspace context."
       );
     } finally {
-      setLoading(false);
+      if (
+        requestGeneration.current === generation &&
+        getAuthCacheScope() === requestedAuthScope
+      ) setLoading(false);
     }
-  }, [serializedParams]);
+  }, [serializedParams, authScope]);
 
   useEffect(() => {
     void load();
+    return () => {
+      // Ignore callbacks from abandoned selector requests.
+      requestGeneration.current += 1;
+    };
   }, [load]);
 
   return { data, loading, error, reload: load };
