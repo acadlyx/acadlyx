@@ -9,6 +9,12 @@ import { getDirectorCampusIds, getManagedDepartmentIds, isDirectorScoped, isInst
 type Scope={institutionId:string;studentIds?:string[];departmentIds?:string[];campusIds?:string[]};
 const has=(a:AuthenticatedUser,p:string)=>a.permissions.includes(p);
 
+function assertAccountsWorkspace(actor: AuthenticatedUser, action: string): void {
+ if (getEffectiveWorkspaceRole(actor) !== "ACCOUNTS") {
+  throw new AppError(action + " is only available in the active Accounts workspace", 403);
+ }
+}
+
 async function scope(institutionId:string,a:AuthenticatedUser):Promise<Scope>{
  const activeRole=getEffectiveWorkspaceRole(a);
 
@@ -150,6 +156,7 @@ export async function invoice(institutionId:string,a:AuthenticatedUser,id:string
 async function invoiceNo(){return `INV-${new Date().getFullYear()}-${crypto.randomUUID().slice(0,10).toUpperCase()}`}
 async function receiptNo(){return `RCT-${new Date().getFullYear()}-${crypto.randomUUID().slice(0,10).toUpperCase()}`}
 export async function createInvoice(institutionId:string,a:AuthenticatedUser,input:any){
+  assertAccountsWorkspace(a, "Invoice creation");
  if(!has(a,"fees.invoice.manage"))throw new AppError("Invoice management permission required",403);
  const s=await scope(institutionId,a);
  if(s.studentIds&&!s.studentIds.includes(input.studentId))throw new AppError("Student is outside your financial scope",403);
@@ -175,6 +182,7 @@ export async function createInvoice(institutionId:string,a:AuthenticatedUser,inp
  return invoice(institutionId,a,created.id);
 }
 export async function payment(institutionId:string,a:AuthenticatedUser,id:string,input:any){
+ assertAccountsWorkspace(a, "Payment recording");
  if(!has(a,"fees.payment.record"))throw new AppError("Payment recording permission required",403);
  const idempotencyKey=String(input.idempotencyKey??"").trim();
  if(!idempotencyKey)throw new AppError("Idempotency key is required",400);
@@ -279,6 +287,7 @@ export async function refunds(institutionId:string,a:AuthenticatedUser){
  return prisma.feeRefund.findMany({where:{institutionId,...studentFinancialFilter(s)},orderBy:{createdAt:"desc"},take:500});
 }
 export async function requestRefund(institutionId:string,a:AuthenticatedUser,paymentId:string,input:any){
+  assertAccountsWorkspace(a, "Refund requests");
  if(!has(a,"fees.refund.request"))throw new AppError("Refund request permission required",403);
  const s=await scope(institutionId,a);
  const p=await prisma.feePayment.findFirst({where:{id:paymentId,...paymentWhere(s)},select:{id:true,invoiceId:true,amount:true,refundedAmount:true,invoice:{select:{studentId:true}}}});
@@ -300,6 +309,7 @@ export async function requestRefund(institutionId:string,a:AuthenticatedUser,pay
  return x
 }
 export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:string){
+  assertAccountsWorkspace(a, "Refund approval");
  if(!has(a,"fees.refund.approve"))throw new AppError("Refund approval permission required",403);
  const s=await scope(institutionId,a);
  const y=await prisma.$transaction(async tx=>{
@@ -334,6 +344,7 @@ export async function approveRefund(institutionId:string,a:AuthenticatedUser,id:
  return y;
 }
 export async function processRefund(institutionId:string,a:AuthenticatedUser,id:string){
+  assertAccountsWorkspace(a, "Refund processing");
  if(!has(a,"fees.refund.process"))throw new AppError("Refund processing permission required",403);
  const s=await scope(institutionId,a);
  const processed = await prisma.$transaction(async tx=>{
@@ -426,6 +437,7 @@ async function applyConcessionInTransaction(tx: Prisma.TransactionClient, instit
 }
 
 export async function requestConcession(institutionId: string, a: AuthenticatedUser, invoiceId: string, input: any) {
+  assertAccountsWorkspace(a, "Concession requests");
   if (!has(a, "fees.concession.manage")) throw new AppError("Concession management permission required", 403);
   const s = await scope(institutionId, a);
   const visible = await prisma.feeInvoice.findFirst({ where: { id: invoiceId, ...invoiceWhere(s) }, select: { id: true, studentId: true } });
@@ -464,6 +476,7 @@ export async function requestConcession(institutionId: string, a: AuthenticatedU
   return x;
 }
 export async function approveConcession(institutionId: string, a: AuthenticatedUser, id: string) {
+  assertAccountsWorkspace(a, "Concession approval");
   if (!has(a, "fees.concession.approve")) throw new AppError("Concession approval permission required", 403);
   const s = await scope(institutionId, a);
   const y = await prisma.$transaction(async tx => {
@@ -491,6 +504,7 @@ export async function approveConcession(institutionId: string, a: AuthenticatedU
 }
 
 export async function cancelInvoice(institutionId:string,a:AuthenticatedUser,id:string){
+ assertAccountsWorkspace(a, "Invoice cancellation");
  if(!has(a,"fees.invoice.manage"))throw new AppError("Invoice management permission required",403);
  const s=await scope(institutionId,a);
  const result=await prisma.$transaction(async tx=>{
