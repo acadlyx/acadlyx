@@ -724,7 +724,7 @@ async function tryRefresh(): Promise<boolean> {
     return refreshRequest.promise;
   }
 
-  let request: Promise<boolean>;
+  let request: Promise<boolean> | null = null;
   request = (async () => {
     try {
       const res = await fetchWithTimeout(
@@ -766,10 +766,11 @@ async function tryRefresh(): Promise<boolean> {
       return false;
     } finally {
       // Do not clear a newer session's refresh request.
-      if (refreshRequest?.promise === request) refreshRequest = null;
+      if (request && refreshRequest?.promise === request) refreshRequest = null;
     }
   })();
 
+  if (!request) return false;
   refreshRequest = {
     authScope: requestAuthScope,
     refreshToken,
