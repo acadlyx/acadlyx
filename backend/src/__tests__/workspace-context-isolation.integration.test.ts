@@ -879,6 +879,31 @@ test("real API enforces all role scopes, multi-role precedence, revocation, dele
       "ACTIVE",
       "Approval by a distinct authorized user must transition the submitted structure to ACTIVE",
     );
+
+    // The entitlement middleware is the authoritative API boundary. Removing
+    // a feature must reject reads and mutations even for otherwise authorized
+    // roles; the unrelated Attendance entitlement must remain enabled.
+    await prisma.tenantFeatureEntitlement.update({
+      where: { institutionId_featureKey: { institutionId: institutionA.id, featureKey: "assignments" } },
+      data: { isEnabled: false },
+    });
+    try {
+      const disabledRead = await request("/assignments", roleUsers.STUDENT.token);
+      assert.equal(disabledRead.status, 403, "A disabled Assignments feature must block direct REST reads");
+      assert.match(disabledRead.body.error?.message || "", /assignments feature is not enabled/i);
+
+      const disabledMutation = await requestWithBody("/assignments", roleUsers.FACULTY.token, "POST", {});
+      assert.equal(disabledMutation.status, 403, "A disabled Assignments feature must block direct REST mutations before payload validation");
+      assert.match(disabledMutation.body.error?.message || "", /assignments feature is not enabled/i);
+
+      const unrelatedFeatureRead = await request("/attendance-sessions", roleUsers.FACULTY.token);
+      assert.notEqual(unrelatedFeatureRead.status, 403, "Disabling Assignments must not implicitly disable Attendance");
+    } finally {
+      await prisma.tenantFeatureEntitlement.update({
+        where: { institutionId_featureKey: { institutionId: institutionA.id, featureKey: "assignments" } },
+        data: { isEnabled: true },
+      });
+    }
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server?.close(() => resolve()));
