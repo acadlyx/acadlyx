@@ -2644,6 +2644,7 @@ export function canAccessRoute(
   // never enough to open a protected module directly by URL.
   const namespacePermission: Array<[string, string]> = [
     ["/parent/students", "parent-portal.read"],
+    ["/students", "students.read"],
     ["/lms/settings", "lms.manage"],
     ["/lms", "lms.read"],
     ["/obe", "obe.read"],
