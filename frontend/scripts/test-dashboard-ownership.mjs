@@ -127,6 +127,33 @@ test("persisted role grants and user permission lookup use the canonical notice 
     "platform-only role remains outside tenant notice access");
 });
 
+test("role-owned notice and notification URLs require read permissions before page access", () => {
+  const accessStart = navigation.indexOf("export function canAccessRoute");
+  const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
+  const accessSource = navigation.slice(accessStart, homeStart);
+  const permissionPolicyStart = accessSource.indexOf("const ROLE_OWNED_COMMUNICATION_PREFIXES");
+  const permissionPolicyEnd = accessSource.indexOf("const requiredPermission", permissionPolicyStart);
+  const permissionPolicy = accessSource.slice(permissionPolicyStart, permissionPolicyEnd);
+  const permissionGate = accessSource.indexOf("if (requiredPermission && !permissionSet.has(requiredPermission)) return false;");
+  assert.ok(permissionPolicyStart >= 0 && permissionPolicyEnd > permissionPolicyStart);
+  for (const root of [
+    "/admin", "/chairman", "/management", "/director", "/dean", "/registrar",
+    "/hod", "/faculty", "/accounts", "/hr", "/admissions", "/examination",
+    "/library", "/placements", "/it", "/student", "/parent", "/club-president",
+    "/staff", "/site-content",
+  ]) {
+    assert.ok(permissionPolicy.includes(`"${root}"`), root + " notice aliases must have an explicit read gate");
+  }
+  assert.ok(permissionPolicy.includes('`${prefix}/notices`, "notices.read"'),
+    "each role-owned notice URL must require notices.read");
+  assert.ok(permissionPolicy.includes('`${prefix}/notifications`, "notifications.read"'),
+    "each role-owned notification URL must require notifications.read");
+  assert.ok(permissionPolicy.includes('["/notices", "notices.read"]'));
+  assert.ok(permissionPolicy.includes('["/notifications", "notifications.read"]'));
+  assert.ok(permissionGate > permissionPolicyEnd,
+    "resolved communication permissions must be enforced before navigation fallback");
+});
+
 test("student detail routes require students.read before dynamic namespace fallback", () => {
   const accessStart = navigation.indexOf("export function canAccessRoute");
   const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
