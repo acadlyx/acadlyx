@@ -56,11 +56,11 @@ function assertApprovalAuthority(actor: AuthenticatedUser) {
 
 export async function getInstitutionalCms(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
-  if (
-    !actor.permissions.includes("institutional-cms.read") &&
-    !actor.permissions.includes("institutional-cms.manage") &&
-    !canApprove(actor)
-  ) {
+  const canRead =
+    actor.permissions.includes("institutional-cms.read") ||
+    actor.permissions.includes("institutional-cms.manage") ||
+    (canApprove(actor) && actor.permissions.includes("institutional-cms.approve"));
+  if (!canRead) {
     throw new AppError("Institutional CMS read permission is required", 403);
   }
   const existing = await prisma.institutionalCmsContent.findUnique({ where: { institutionId } });
