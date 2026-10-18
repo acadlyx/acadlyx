@@ -317,6 +317,31 @@ test("Institution Admin navigation does not offer Accounts-owned fee management"
   await expect(page.getByRole("heading", { name: /Fee structures/i })).toHaveCount(0);
 });
 
+test("disabled tenant feature blocks Faculty assignment route before API effects", async ({ page }) => {
+  const forbiddenRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/v1/assignments")) {
+      forbiddenRequests.push(request.url());
+    }
+  });
+
+  const session = await installAuthenticatedSession(page, "FACULTY");
+  // Give the test principal the relevant RBAC capabilities so this assertion
+  // isolates feature entitlement rather than failing on a missing permission.
+  session.user.permissions = [
+    ...session.user.permissions,
+    "assignments.read",
+    "assignments.create",
+    "assignments.update",
+  ];
+  session.user.tenantFeatures = session.user.tenantFeatures.filter((feature) => feature !== "assignments");
+
+  await page.goto(baseURL + "/faculty/assignments", { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/\/faculty$/);
+  await expect(page.getByRole("heading", { name: /Assignments/i })).toHaveCount(0);
+  expect(forbiddenRequests, "disabled tenant modules must not start protected API effects").toEqual([]);
+});
+
 test("Management fee approvals stay in the Management workspace after direct navigation and refresh", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
