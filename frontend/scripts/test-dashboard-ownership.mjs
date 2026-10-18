@@ -16,6 +16,7 @@ const legacyInstitutionalCms = readFrontend("app/institutionalcms/page.tsx");
 const institutionalCms = readFrontend("app/admin/institutional-cms/page.tsx");
 const notices = readFrontend("app/notices/page.tsx");
 const rbac = readRepo("backend/src/config/rbac.ts");
+const erpService = readRepo("backend/src/services/erp.service.ts");
 const cmsRoutes = readRepo("backend/src/routes/institutionalCms.routes.ts");
 const siteContentRoutes = readRepo("backend/src/routes/siteContent.routes.ts");
 const cmsService = readRepo("backend/src/services/institutionalCms.service.ts");
@@ -92,7 +93,7 @@ test("institutional CMS permissions remain separate from platform site.manage", 
 test("notices are readable across the canonical roles but student publishing stays disabled", () => {
   const readRoles = notices.match(/const READ_ROLES = \[([\s\S]*?)\];/)?.[1] ?? "";
   for (const role of CANONICAL_ROLES) assert.ok(readRoles.includes('"'+role+'"'), role + " missing from notice read audience");
-  assert.match(notices, /const manage = !user\.roles\.includes\("STUDENT"\) && user\.permissions\.includes\("notices\.manage"\)/);
+  assert.match(notices, /const manage = getPrimaryRole\(user\.roles\) !== "STUDENT" && user\.permissions\.includes\("notices\.manage"\)/);
   assert.match(notices, /listNotices\(false\)/);
   assert.match(notices, /manage \? listDepartments\(\) : Promise\.resolve\(\[\]\)/);
 });
@@ -103,6 +104,42 @@ test("route ownership fails closed and final destinations are de-duplicated", ()
   assert.match(navigation, /const merged = new Map<string, NavigationItem>\(\)/);
   assert.match(shell, /const uniqueDestinations = new Map<string, typeof roleItems\[number\]>\(\)/);
   assert.match(shell, /if \(!uniqueDestinations\.has\(destination\)\) uniqueDestinations\.set\(destination, item\)/);
+});
+
+
+test("student detail routes require students.read before dynamic namespace fallback", () => {
+  const accessStart = navigation.indexOf("export function canAccessRoute");
+  const homeStart = navigation.indexOf("export function workspaceHome", accessStart);
+  const accessSource = navigation.slice(accessStart, homeStart);
+  const permissionStart = accessSource.indexOf("const namespacePermission");
+  const permissionEnd = accessSource.indexOf("const requiredPermission", permissionStart);
+  const permissionBlock = accessSource.slice(permissionStart, permissionEnd);
+  const permissionGate = accessSource.indexOf("if (requiredPermission && !permissionSet.has(requiredPermission)) return false;");
+  const dynamicFallback = accessSource.indexOf("matchingNamespace[0].split(\"/\")");
+  assert.match(permissionBlock, /\["\\/students", "students\.read"\]/,
+    "student detail routes must not rely on their dynamic namespace for read permission");
+  assert.ok(permissionGate > permissionEnd, "specific module permissions must be enforced after resolution");
+  assert.ok(dynamicFallback > permissionGate, "dynamic detail routes must not return early before permission enforcement");
+  assert.match(navigation, /\["\\/students\/\[id\]", \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"\]\]/);
+});
+
+test("notice publishing roles are explicit and shared by RBAC and backend mutations", () => {
+  const writerBlock = rbac.match(/export const NOTICE_MANAGEMENT_ROLES = \[([\\s\\S]*?)\] as const/)?.[1] ?? "";
+  const writerRoles = [...writerBlock.matchAll(/"([A-Z_]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(writerRoles, [
+    "SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR", "MANAGEMENT",
+    "DEAN", "REGISTRAR", "HOD", "CMS",
+  ]);
+  assert.match(rbac, /basePermissions\.filter\(\(permission\) => permission !== "notices\.manage"\)/,
+    "other roles must not inherit notice-write access from a shared permission bundle");
+  assert.equal((erpService.match(/assertRole\(actor, \[\.\.\.NOTICE_MANAGEMENT_ROLES\]\);/g) || []).length, 3,
+    "create, update and delete must use the same canonical writer allowlist");
+  assert.match(erpService, /assertNoticeDepartmentScope\(institutionId, actor, input\.departmentId\)/,
+    "notice creation must enforce the writer's server-derived scope");
+  assert.match(erpService, /assertNoticeDepartmentScope\(institutionId, actor, existing\.departmentId\)/,
+    "notice mutations must validate the existing notice scope");
+  assert.match(notices, /getPrimaryRole\(user\.roles\) !== "STUDENT"/,
+    "the publisher UI must use the effective workspace role, not any-role matching");
 });
 
 test("legacy operational aliases redirect to their canonical role-owned page", () => {
