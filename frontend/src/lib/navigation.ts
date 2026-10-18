@@ -2602,9 +2602,20 @@ export function canAccessRoute(
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
   const requiredTenantFeatures = tenantFeaturesForPath(pathname);
-  const platformManagedCms = activeRole === "SUPER_ADMIN" && normalizedPath === "/site-content";
+  const platformManagedCms = activeRole === "SUPER_ADMIN" && (normalizedPath === "/site-content" || normalizedPath === "/cms");
   if (!platformManagedCms) {
     if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
+  }
+
+  // Explicit legacy aliases render no module data: authorize only the declared
+  // effective role, tenant entitlement, and any alias-specific permission.
+  // Run this before the namespace fail-closed check because aliases such as
+  // /payments and /forms intentionally have no normal data-route namespace.
+  const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath];
+  if (redirectOnlyRoles) {
+    const requiredAliasPermissions = REDIRECT_ONLY_ROUTE_PERMISSIONS[normalizedPath] ?? [];
+    if (!requiredAliasPermissions.every((permission) => permissionSet.has(permission))) return false;
+    return redirectOnlyRoles.some((role) => normalizeRoleName(role) === activeRole);
   }
 
   const matchingNamespace =
@@ -2679,16 +2690,6 @@ export function canAccessRoute(
     .filter(([prefix]) => normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"))
     .sort((a, b) => b[0].length - a[0].length)[0]?.[1];
   if (requiredPermission && !permissionSet.has(requiredPermission)) return false;
-
-  // Explicit legacy aliases have no sidebar entry of their own. They may mount
-  // only their redirect for the declared owner, after role, tenant-feature and
-  // module-permission checks above. The destination is re-authorized separately.
-  const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath];
-  if (redirectOnlyRoles) {
-    const requiredAliasPermissions = REDIRECT_ONLY_ROUTE_PERMISSIONS[normalizedPath] ?? [];
-    if (!requiredAliasPermissions.every((permission) => permissionSet.has(permission))) return false;
-    return redirectOnlyRoles.some((role) => normalizeRoleName(role) === activeRole);
-  }
 
   // Placement pages are a single role-owned workspace. Deep routes such as
   // calendar, applications, interviews and offers must not be denied merely
