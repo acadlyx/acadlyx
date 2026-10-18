@@ -28,7 +28,9 @@ async function allowedDepartmentIds(
   if (isInstitutionWide(actor)) return null;
   const activeRole = getEffectiveWorkspaceRole(actor);
   if (isDirectorScoped(actor)) return getDirectorDepartmentIds(institutionId, actor.id);
-  if (activeRole === "DEAN" || activeRole === "HOD") return getManagedDepartmentIds(institutionId, actor.id);
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    return getManagedDepartmentIds(institutionId, actor.id, activeRole);
+  }
   if (activeRole === "FACULTY") return getStaffDepartmentIds(institutionId, actor.id);
   if (activeRole === "STUDENT") return getStudentDepartmentIds(institutionId, actor.id);
   return [];
