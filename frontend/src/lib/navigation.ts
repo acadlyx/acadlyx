@@ -10,6 +10,25 @@ function normalizeRoleName(role: string): string {
 }
 
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
+  // Parent pages require Parent Portal even when a nested page also needs
+  // its own feature (for example, fees or placements).
+  [/^\/parent(\/|$)/, "parent_portal"],
+  // Tenant policy covers role-owned routes outside generic module namespaces.
+  [/^\/admin\/(academic-years|campuses|course-offerings)(\/|$)|^\/registrar\/academic-masters(\/|$)|^\/student\/academic(\/|$)/, "academics"],
+  [/^\/admin\/calendar(\/|$)/, "calendar"],
+  [/^\/(admin|student)\/documents(\/|$)/, "documents"],
+  [/^\/admin\/institutional-cms(\/|$)/, "cms"],
+  [/^\/admin\/parent-links(\/|$)/, "parent_portal"],
+  [/^\/(admin|club-president|site-content)\/notices?(\/|$)/, "notices"],
+  [/^\/(admin|club-president|site-content)\/notifications?(\/|$)/, "notifications"],
+  [/^\/(admin|management|registrar)\/placements?(\/|$)/, "placements"],
+  [/^\/(director|it)\/imports(\/|$)/, "import_export"],
+  [/^\/(admin|staff)\/operations(\/|$)/, "operations"],
+  [/^\/hod\/enrollment-requests(\/|$)|^\/student\/enrollment(\/|$)/, "admissions"],
+  [/^\/hod\/course-registration-requests(\/|$)/, "registration"],
+  [/^\/student\/admit-cards(\/|$)/, "exams"],
+  [/^\/student\/marks(\/|$)/, "results"],
+  [/^\/student\/leave(\/|$)|^\/leave-management(\/|$)|^\/(faculty|hod|director|dean|registrar|hr)\/leave(\/|$)/, "leave"],
   [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments|fee-approvals|fee-structures|fee-heads)(\/|$)/, "fees"],
   [/^\/payments(\/|$)/, "fees"],
   [/^\/parent\/children(\/|$)/, "parent_portal"],
@@ -41,7 +60,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/((student)\/)?placements?(\/|$)/, "placements"],
   [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
   [/^\/enrollment(\/|$)/, "admissions"],
-  [/^\/(hr|employees|leave-management)(\/|$)|^\/(faculty|hod|director|dean|registrar)\/leave(\/|$)/, "hr"],
+  [/^\/(hr|employees|faculty-management)(\/|$)/, "hr"],
   [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
   [/^\/lms(\/|$)/, "lms"],
   [/^\/course-registration(\/|$)|^\/student\/course-registration(\/|$)/, "registration"],
