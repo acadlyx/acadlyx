@@ -330,7 +330,7 @@ jobs:
           exit 1
       - name: Run desktop and mobile browser tests
         working-directory: frontend
-        run: npx playwright test e2e/*.spec.mjs --reporter=line
+        run: npx playwright test --config=playwright.config.mjs e2e/*.spec.mjs --reporter=line
       - name: Collect browser server logs
         if: always()
         run: |
