@@ -157,6 +157,7 @@ const ENTITLEMENT_ROUTE_CASES = [
   { role: "INSTITUTION_ADMIN", path: "/admin/placements", feature: "placements", home: "/admin" },
   { role: "MANAGEMENT", path: "/management/placements", feature: "placements", home: "/management" },
   { role: "REGISTRAR", path: "/registrar/placements", feature: "placements", home: "/registrar" },
+  { role: "DIRECTOR", path: "/director/placements", feature: "placements", home: "/director" },
   { role: "HOD", path: "/hod/enrollment-requests", feature: "admissions", home: "/hod" },
   { role: "HOD", path: "/hod/course-registration-requests", feature: "registration", home: "/hod" },
   { role: "STUDENT", path: "/student/documents", feature: "documents", home: "/student" },
