@@ -122,3 +122,91 @@ test("Dean and Club President dashboard actions stay inside declared scopes", ()
   assert.ok(club.includes('href="/events-gallery"'));
   assert.ok(!club.includes('href="/calendar"'));
 });
+
+function routeNamespaceEntries() {
+  const declaration = navigation.indexOf("const NAMESPACE_OWNERS");
+  const equals = navigation.indexOf("=", declaration);
+  const arrayStart = navigation.indexOf("[", equals);
+  const entries = [];
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let pairStart = -1;
+
+  for (let index = arrayStart; index < navigation.length; index += 1) {
+    const character = navigation[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character;
+      continue;
+    }
+    if (character === "[") {
+      if (depth === 1) pairStart = index;
+      depth += 1;
+      continue;
+    }
+    if (character === "]") {
+      depth -= 1;
+      if (depth === 1 && pairStart >= 0) {
+        const source = navigation.slice(pairStart, index + 1);
+        const prefix = source.match(/^\\[\\s*"([^"]+)"/)?.[1];
+        const secondArrayStart = source.indexOf("[", source.indexOf(","));
+        const rolesEnd = source.lastIndexOf("]");
+        const roles = secondArrayStart >= 0 && rolesEnd > secondArrayStart
+          ? [...source.slice(secondArrayStart + 1, rolesEnd).matchAll(/"([^"]+)"/g)].map((match) => match[1])
+          : [];
+        if (prefix && roles.length) entries.push({ prefix, roles });
+        pairStart = -1;
+      }
+      if (depth === 0) break;
+    }
+  }
+
+  return entries;
+}
+
+function routeMatches(pathname, prefix) {
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const prefixSegments = prefix.split("/").filter(Boolean);
+  const dynamic = prefixSegments.some((segment) => segment.startsWith("[") && segment.endsWith("]"));
+  if (dynamic) {
+    return pathSegments.length === prefixSegments.length && prefixSegments.every((segment, index) =>
+      segment.startsWith("[") && segment.endsWith("]")
+        ? Boolean(pathSegments[index])
+        : segment === pathSegments[index],
+    );
+  }
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
+test("every role-owned navigation destination matches its route-guard owner", () => {
+  const entries = roleNavigationEntries();
+  const namespaces = routeNamespaceEntries();
+  assert.ok(entries.length > 100, "Expected the real navigation registry to be inspected");
+  assert.ok(namespaces.length > 50, "Expected the declared route-owner table to be inspected");
+
+  const declaredRoles = [...new Set(entries.flatMap((entry) => entry.roles))];
+  const violations = [];
+
+  for (const entry of entries) {
+    const roles = entry.roles.length ? entry.roles : declaredRoles;
+    for (const role of roles) {
+      const destination = overrides.find((override) => override.role === role && override.source === entry.href)?.destination ?? entry.href;
+      const pathname = destination.split(/[?#]/)[0].replace(/\\/+$/, "") || "/";
+      const namespace = namespaces
+        .filter((candidate) => routeMatches(pathname, candidate.prefix))
+        .sort((left, right) => right.prefix.length - left.prefix.length)[0];
+
+      if (!namespace || !namespace.roles.includes(role)) {
+        violations.push({ role, source: entry.href, destination, matchedNamespace: namespace?.prefix, allowedRoles: namespace?.roles ?? [] });
+      }
+    }
+  }
+
+  assert.deepEqual(violations, [], "Sidebar destinations must be owned by the same canonical role as the direct-route guard");
+});
