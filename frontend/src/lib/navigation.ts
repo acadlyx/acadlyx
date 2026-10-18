@@ -2474,7 +2474,7 @@ export function canAccessRoute(
       // A dashboard landing item is not blanket authorization for every
       // child URL in its namespace. Deep routes need an explicitly declared
       // nested destination or their own owner policy.
-      if (normalizedPath !== href && (item.activeMatch === "exact" || !normalizedPath.startsWith(href + "/"))) return false;
+      if (normalizedPath !== href && (item.activeMatch === "exact" || Boolean(itemQuery) || !normalizedPath.startsWith(href + "/"))) return false;
       if (itemQuery) {
         const required = new URLSearchParams(itemQuery);
         for (const [key, value] of required.entries()) {
