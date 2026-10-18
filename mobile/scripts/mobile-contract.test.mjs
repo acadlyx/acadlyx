@@ -646,6 +646,19 @@ test("institution mobile module is Super Admin gated and uses secure existing te
 });
 
 
+test("calendar API persists campus ownership and applies role-scoped access checks", () => {
+ const schema = read("../backend/prisma/schema.prisma");
+ const service = read("../backend/src/services/calendar.service.ts");
+ const validators = read("../backend/src/validators/calendar.validators.ts");
+ const screen = read("src/screens/CalendarScreen.tsx");
+ assert.ok(schema.includes("campusId       String?") && schema.includes("calendarEvents CalendarEvent[]"));
+ assert.ok(service.includes("calendarCampusWhere") && service.includes("assertCanManageExistingCampusEvent"));
+ assert.ok(service.includes("getAuthorizedCampusIds") && service.includes("assertCampusInScope"));
+ assert.ok(validators.includes("campusId: optionalUuid"));
+ assert.ok(screen.includes('"/campuses?page=1&pageSize=100"') && screen.includes("Campus scope"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");

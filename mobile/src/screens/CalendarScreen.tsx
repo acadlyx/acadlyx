@@ -9,7 +9,8 @@ import { colors, radius, spacing } from "../ui/theme";
 
 type EventType = "HOLIDAY" | "EXAM" | "EVENT" | "DEADLINE" | "ACADEMIC";
 type Audience = "ALL" | "STUDENTS" | "FACULTY" | "STAFF";
-type CampusEvent = { id: string; title: string; description?: string | null; eventType: EventType; startDate: string; endDate: string; audience: Audience; [key: string]: unknown };
+type CampusEvent = { id: string; title: string; description?: string | null; eventType: EventType; startDate: string; endDate: string; audience: Audience; campusId?: string | null; campus?: { id: string; name: string; code: string } | null; [key: string]: unknown };
+type CampusOption = { id: string; name: string; code?: string };
 const eventTypes: EventType[] = ["EVENT", "ACADEMIC", "HOLIDAY", "EXAM", "DEADLINE"];
 const audiences: Audience[] = ["ALL", "STUDENTS", "FACULTY", "STAFF"];
 function rows(value: unknown): CampusEvent[] {
@@ -38,6 +39,8 @@ export function CalendarScreen() {
   const workspaceKey = JSON.stringify(context?.scope ?? {});
   const client = useQueryClient();
   const canManage = Boolean(user?.permissions.includes("calendar.manage"));
+  const canChooseCampus = Boolean(user?.permissions.includes("campuses.read"));
+  const institutionWide = Boolean(user?.roles.some((role) => ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR"].includes(role)));
   const [queryText, setQueryText] = useState("");
   const [editing, setEditing] = useState<CampusEvent | null>(null);
   const [form, setForm] = useState(false);
@@ -47,6 +50,18 @@ export function CalendarScreen() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [audience, setAudience] = useState<Audience>("ALL");
+  const [campusId, setCampusId] = useState("");
+
+  const campusOptionsQuery = useQuery({
+    queryKey: ["calendar-campus-options", user?.id, workspaceKey],
+    queryFn: () => apiRequest<unknown>("/campuses?page=1&pageSize=100"),
+    enabled: Boolean(user?.id && canManage && canChooseCampus),
+    staleTime: 0,
+  });
+  const campusOptions = useMemo(() => toCollection(campusOptionsQuery.data).filter((item): item is CampusOption =>
+    typeof item === "object" && item !== null && typeof (item as Record<string, unknown>).id === "string" &&
+    typeof (item as Record<string, unknown>).name === "string"
+  ).map((item) => item as CampusOption), [campusOptionsQuery.data]);
 
   const list = useQuery({
     queryKey: ["calendar-events", user?.id, workspaceKey],
@@ -61,18 +76,19 @@ export function CalendarScreen() {
   }, [list.data, queryText]);
 
   function reset() {
-    setEditing(null); setForm(false); setTitle(""); setDescription(""); setEventType("EVENT"); setStartDate(""); setEndDate(""); setAudience("ALL");
+    setEditing(null); setForm(false); setTitle(""); setDescription(""); setEventType("EVENT"); setStartDate(""); setEndDate(""); setAudience("ALL"); setCampusId("");
   }
   function create() {
-    setEditing(null); setTitle(""); setDescription(""); setEventType("EVENT"); setStartDate(""); setEndDate(""); setAudience("ALL"); setForm(true);
+    setEditing(null); setTitle(""); setDescription(""); setEventType("EVENT"); setStartDate(""); setEndDate(""); setAudience("ALL"); setCampusId(""); setForm(true);
   }
   function edit(event: CampusEvent) {
     setEditing(event); setTitle(event.title); setDescription(event.description || "");
-    setEventType(event.eventType); setStartDate(dateInput(event.startDate)); setEndDate(dateInput(event.endDate)); setAudience(event.audience || "ALL"); setForm(true);
+    setEventType(event.eventType); setStartDate(dateInput(event.startDate)); setEndDate(dateInput(event.endDate)); setAudience(event.audience || "ALL"); setCampusId(event.campusId || ""); setForm(true);
   }
   async function invalidate() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ["calendar-events", user?.id] }),
+      client.invalidateQueries({ queryKey: ["calendar-campus-options", user?.id] }),
       client.invalidateQueries({ queryKey: ["my-work", user?.id] }),
       client.invalidateQueries({ queryKey: ["module", user?.id] })
     ]);
@@ -88,7 +104,8 @@ export function CalendarScreen() {
       if (endDate < startDate) throw new Error("End date cannot be before start date.");
       const payload = {
         title: title.trim(), description: description.trim() || undefined, eventType,
-        startDate: parseDateInput(startDate), endDate: parseDateInput(endDate, true), audience
+        startDate: parseDateInput(startDate), endDate: parseDateInput(endDate, true), audience,
+        ...(campusId ? { campusId } : institutionWide ? { campusId: null } : {})
       };
       return editing
         ? apiRequest<CampusEvent>("/calendar/events/" + encodeURIComponent(editing.id), { method: "PATCH", body: JSON.stringify(payload) })
@@ -115,6 +132,12 @@ export function CalendarScreen() {
       <Text style={styles.label}>Description (optional)</Text><TextInput value={description} onChangeText={setDescription} maxLength={2000} multiline textAlignVertical="top" style={[styles.input, styles.textArea]} placeholder="Event details" placeholderTextColor={colors.textMuted} />
       <Text style={styles.label}>Event type</Text><View style={styles.options}>{eventTypes.map((v) => <Pressable key={v} onPress={() => setEventType(v)} style={[styles.option, eventType === v ? styles.optionSelected : null]}><Text style={[styles.optionText, eventType === v ? styles.optionTextSelected : null]}>{v}</Text></Pressable>)}</View>
       <Text style={styles.label}>Audience</Text><View style={styles.options}>{audiences.map((v) => <Pressable key={v} onPress={() => setAudience(v)} style={[styles.option, audience === v ? styles.optionSelected : null]}><Text style={[styles.optionText, audience === v ? styles.optionTextSelected : null]}>{v}</Text></Pressable>)}</View>
+      <Text style={styles.label}>Campus scope</Text>
+      {campusOptionsQuery.isLoading ? <Text style={styles.helper}>Loading authorized campuses…</Text> : null}
+      {campusOptionsQuery.isError ? <Text accessibilityRole="alert" style={styles.error}>Campus choices could not be loaded. Leave the selection blank only if your role has exactly one assigned campus.</Text> : null}
+      {institutionWide ? <Pressable accessibilityRole="button" accessibilityState={{ selected: !campusId }} onPress={() => setCampusId("")} style={[styles.option, !campusId ? styles.optionSelected : null]}><Text style={[styles.optionText, !campusId ? styles.optionTextSelected : null]}>Institution-wide</Text></Pressable> : null}
+      <View style={styles.options}>{campusOptions.map((campus) => <Pressable key={campus.id} accessibilityRole="button" accessibilityState={{ selected: campusId === campus.id }} onPress={() => setCampusId(campus.id)} style={[styles.option, campusId === campus.id ? styles.optionSelected : null]}><Text style={[styles.optionText, campusId === campus.id ? styles.optionTextSelected : null]}>{[campus.code, campus.name].filter(Boolean).join(" · ")}</Text></Pressable>)}</View>
+      <Text style={styles.helper}>The backend revalidates campus scope for every mutation. Unassigned legacy events remain institution-wide.</Text>
       <Text style={styles.label}>Start date (YYYY-MM-DD)</Text><TextInput value={startDate} onChangeText={setStartDate} maxLength={10} style={styles.input} placeholder="2026-11-15" placeholderTextColor={colors.textMuted} />
       <Text style={styles.label}>End date (YYYY-MM-DD)</Text><TextInput value={endDate} onChangeText={setEndDate} maxLength={10} style={styles.input} placeholder="2026-11-15" placeholderTextColor={colors.textMuted} />
       <Text style={styles.helper}>This first native editor uses institution-level audience categories. Academic-year targeting requires a scoped selector and is not guessed.</Text>
@@ -127,7 +150,7 @@ export function CalendarScreen() {
         renderItem={({ item }) => <View style={styles.card}>
           <View style={styles.cardTop}><Text style={styles.eventTitle}>{item.title}</Text><Text style={styles.typePill}>{item.eventType}</Text></View>
           <Text style={styles.date}>{dateLabel(item.startDate)}{dateInput(item.startDate) === dateInput(item.endDate) ? "" : " – " + dateLabel(item.endDate)}</Text>
-          <Text style={styles.meta}>Audience: {item.audience}</Text>
+          <Text style={styles.meta}>Audience: {item.audience} · Campus: {item.campus?.name || (item.campusId ? "Assigned campus" : "Institution-wide")}</Text>
           {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
           {canManage ? <View style={styles.actions}><Pressable onPress={() => edit(item)} style={styles.secondaryButton}><Text style={styles.secondaryText}>Edit</Text></Pressable>
             <Pressable onPress={() => Alert.alert("Delete event", "Delete this calendar event from ACADLYX?", [
