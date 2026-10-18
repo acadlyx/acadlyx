@@ -1357,16 +1357,20 @@ export function getRolePermissions(
   const canManageNotices = NOTICE_MANAGEMENT_ROLES.includes(
     normalized as typeof NOTICE_MANAGEMENT_ROLES[number],
   );
-  // Avoid a permission supplied by an inherited role bundle bypassing the
-  // explicit notice-writer policy. Students and all non-writer roles are read-only.
+  const canReadTenantNotices = normalized !== "SUPER_ADMIN";
+  // Avoid permission bundles bypassing explicit scope. Platform Super Admin is
+  // not a tenant workspace and therefore has neither tenant notice read nor write.
   const scopedBasePermissions = canManageNotices && normalized !== "STUDENT"
     ? basePermissions
-    : basePermissions.filter((permission) => permission !== "notices.manage");
+    : basePermissions.filter((permission) =>
+        permission !== "notices.manage" &&
+        (canReadTenantNotices || permission !== "notices.read"),
+      );
 
   return [
     ...new Set<PermissionKey>([
       ...scopedBasePermissions,
-      "notices.read",
+      ...(canReadTenantNotices ? ["notices.read" as PermissionKey] : []),
       ...(canManageNotices && normalized !== "STUDENT" ? ["notices.manage" as PermissionKey] : []),
       "notifications.read",
     ]),
