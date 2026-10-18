@@ -137,7 +137,7 @@ function routeNamespaceEntries() {
     const character = navigation[index];
     if (quote) {
       if (escaped) escaped = false;
-      else if (character === "\\\\") escaped = true;
+      else if (character === "\\") escaped = true;
       else if (character === quote) quote = null;
       continue;
     }
@@ -154,7 +154,7 @@ function routeNamespaceEntries() {
       depth -= 1;
       if (depth === 1 && pairStart >= 0) {
         const source = navigation.slice(pairStart, index + 1);
-        const prefix = source.match(/^\\[\\s*"([^"]+)"/)?.[1];
+        const prefix = source.match(/^\[\s*"([^"]+)"/)?.[1];
         const secondArrayStart = source.indexOf("[", source.indexOf(","));
         const rolesEnd = source.lastIndexOf("]");
         const roles = secondArrayStart >= 0 && rolesEnd > secondArrayStart
@@ -197,7 +197,7 @@ test("every role-owned navigation destination matches its route-guard owner", ()
     const roles = entry.roles.length ? entry.roles : declaredRoles;
     for (const role of roles) {
       const destination = overrides.find((override) => override.role === role && override.source === entry.href)?.destination ?? entry.href;
-      const pathname = destination.split(/[?#]/)[0].replace(/\\/+$/, "") || "/";
+      const pathname = destination.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
       const namespace = namespaces
         .filter((candidate) => routeMatches(pathname, candidate.prefix))
         .sort((left, right) => right.prefix.length - left.prefix.length)[0];
