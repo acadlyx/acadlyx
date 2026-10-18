@@ -609,6 +609,18 @@ test("mobile reports use live permission-gated domain APIs and workspace-scoped 
 });
 
 
+test("OBE mobile screen connects outcome mapping, assessments, scores and attainment APIs", () => {
+ const screen=read("src/screens/ObeScreen.tsx");
+ const moduleScreen=read("src/screens/ModuleScreen.tsx");
+ const routes=read("../backend/src/routes/obe.routes.ts");
+ for (const endpoint of ["/obe/course-offerings","/obe/assessments","/obe/policies","/obe/assessment-items/","/attainment/calculate","/mapping/"]) assert.ok(screen.includes(endpoint),"Missing OBE operation: "+endpoint);
+ assert.ok(screen.includes("obe.mapping.manage")&&screen.includes("obe.mapping.submit")&&screen.includes("obe.attainment.approve")&&screen.includes("obe.assessment.manage"));
+ assert.ok(screen.includes("workspaceKey")&&screen.includes('queryKey:["obe-offerings",user?.id,workspaceKey'));
+ assert.ok(routes.includes("replaceMappingSchema")&&routes.includes("replaceScoresSchema")&&routes.includes("calculateAttainmentSchema"));
+ assert.ok(moduleScreen.includes('module?.id === "obe"')&&moduleScreen.includes("<ObeScreen />"));
+});
+
+
 test("native finance screen binds existing backend contracts and permission-gated workflows", () => {
   const finance = read("src/screens/FinanceScreen.tsx");
   const moduleScreen = read("src/screens/ModuleScreen.tsx");
