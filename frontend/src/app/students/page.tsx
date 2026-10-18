@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { StudentManagement } from "@/components/dashboard/StudentManagement";
@@ -26,6 +27,7 @@ type StudentListResponse = {
 };
 
 export default function StudentsPage() {
+  const searchParams = useSearchParams();
   const [students, setStudents] =
     useState<StudentSummary[]>([]);
 
@@ -38,10 +40,13 @@ export default function StudentsPage() {
     void (async () => {
       try {
         const response =
-          await authedFetch<
-            StudentListResponse
-          >(
-            "/students?page=1&pageSize=12",
+          const params = new URLSearchParams({ page: "1", pageSize: "12" });
+          for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"]) {
+            const value = searchParams.get(key);
+            if (value) params.set(key, value);
+          }
+          const response = await authedFetch<StudentListResponse>(
+            `/students?${params.toString()}`,
           );
 
         if (active) {
@@ -63,7 +68,7 @@ export default function StudentsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [searchParams]);
 
   return (
     <DashboardShell
