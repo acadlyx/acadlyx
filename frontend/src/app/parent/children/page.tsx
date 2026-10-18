@@ -89,6 +89,7 @@ export default function ParentChildrenPage() {
     <DashboardShell
       title="My children"
       subtitle="Attendance, results, fees, coursework and notices"
+      allowedRoles={["PARENT"]}
     >
       <div className="mx-auto max-w-5xl space-y-6">
         {error && (

@@ -87,3 +87,10 @@ Run these in order:
 - `MAIL_ENABLED=false` means password-reset email delivery is not configured yet.
 - The current frontend authentication implementation uses browser storage for tokens and should receive a dedicated security hardening pass before a broad institutional production rollout.
 - The migration history contains a migration dated `20260921000000_core_erp_completion`. Verify the migration history against the target database before applying it to an existing database.
+
+## Online payments, expense attachments and refund settlement
+
+- Expense attachments use the existing private Cloudinary-backed `/api/v1/files` service. In Render, configure `STORAGE_PROVIDER=cloudinary` and `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`). Supported documents are private and tenant-scoped; upload limit is 25 MB.
+- Hosted student checkout is enabled only when `PAYMENT_PROVIDER=razorpay`, `PAYMENT_KEY_ID`, `PAYMENT_KEY_SECRET`, and `PAYMENT_WEBHOOK_SECRET` are configured in the backend service environment. Store these only in Render environment settings, never in Git.
+- Configure Razorpay's webhook URL as `https://<your-api-host>/api/v1/payment-webhooks/razorpay` and subscribe to `payment.captured`. ACADLYX must not settle an invoice from an authorization-only event.
+- Razorpay-collected refunds are initiated and polled against the provider API. ACADLYX reverses the financial ledger only after Razorpay reports the refund as `processed`. For offline payments, Accounts must confirm that funds have actually been returned and record the external bank/provider settlement reference before ACADLYX posts the reversal. No live charges or refunds are part of CI validation.

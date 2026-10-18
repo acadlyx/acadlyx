@@ -2,14 +2,17 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
+  getDirectorDepartmentIds,
   getManagedDepartmentIds,
   getStaffDepartmentIds,
   getStudentDepartmentIds,
+  getEffectiveWorkspaceRole,
+  isDirectorScoped,
   isInstitutionWide,
 } from "./accessScope.service";
-import { getCanonicalRoleNames } from "../config/rbac";
 
 export type WorkspaceContextInput = {
+  campusId?: string;
   departmentId?: string;
   programId?: string;
   academicYearId?: string;
@@ -23,22 +26,25 @@ async function allowedDepartmentIds(
   actor: AuthenticatedUser
 ): Promise<string[] | null> {
   if (isInstitutionWide(actor)) return null;
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
-  if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isDirectorScoped(actor)) return getDirectorDepartmentIds(institutionId, actor.id);
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    return getManagedDepartmentIds(institutionId, actor.id, activeRole);
+  }
+  if (activeRole === "FACULTY") return getStaffDepartmentIds(institutionId, actor.id);
+  if (activeRole === "STUDENT") return getStudentDepartmentIds(institutionId, actor.id);
   return [];
 }
 
-function workspaceBasePath(roles: string[]) {
-  if (roles.includes("HOD")) return "/hod";
-  if (roles.includes("FACULTY")) return "/faculty";
-  if (roles.includes("STUDENT")) return "/student";
-  if (roles.includes("INSTITUTION_ADMIN")) return "/admin";
-  if (roles.includes("REGISTRAR")) return "/registrar";
-  if (roles.includes("DEAN")) return "/dean";
-  if (roles.includes("DIRECTOR")) return "/director";
-  if (roles.includes("CHAIRMAN")) return "/chairman";
+function workspaceBasePath(activeRole: string) {
+  if (activeRole === "HOD") return "/hod";
+  if (activeRole === "FACULTY") return "/faculty";
+  if (activeRole === "STUDENT") return "/student";
+  if (activeRole === "INSTITUTION_ADMIN") return "/admin";
+  if (activeRole === "REGISTRAR") return "/registrar";
+  if (activeRole === "DEAN") return "/dean";
+  if (activeRole === "DIRECTOR") return "/director";
+  if (activeRole === "CHAIRMAN") return "/chairman";
   return "/dashboard";
 }
 
@@ -59,13 +65,18 @@ async function buildWorkspaceContext(
   input: WorkspaceContextInput = {}
 ) {
   const allowed = await allowedDepartmentIds(institutionId, actor);
-  const roles = getCanonicalRoleNames(actor.roles);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  // Preserve the user's request separately from the canonical values we later
+  // derive. In particular, a Student request must not silently ignore an
+  // attempted switch to a foreign/deleted campus or another enrollment.
+  const requestedSelection = { ...input };
+  let campusId = input.campusId;
   let departmentId = input.departmentId;
 
   if (!departmentId && allowed?.length === 1) departmentId = allowed[0];
   if (departmentId) await assertDepartmentScope(institutionId, actor, departmentId);
 
-  if (roles.includes("STUDENT")) {
+  if (activeRole === "STUDENT") {
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: { institutionId, userId: actor.id, status: "ACTIVE" },
       orderBy: { enrolledAt: "desc" },
@@ -75,35 +86,64 @@ async function buildWorkspaceContext(
         semesterId: true,
         sectionId: true,
         batchId: true,
-        program: { select: { departmentId: true } },
+        program: { select: { departmentId: true, department: { select: { campusId: true } } } },
       },
     });
 
     if (!enrollment) {
+      if (Object.values(requestedSelection).some((value) => typeof value === "string" && value.trim())) {
+        throw new AppError("No active enrollment authorizes the requested academic context", 403);
+      }
       return {
         role: "STUDENT",
         scope: {
           institutionId,
+          campusId: null,
           departmentId: null,
           programId: null,
           academicYearId: null,
           semesterId: null,
           sectionId: null,
+          batchId: null,
         },
         breadcrumbs: [],
-        children: { departments: [], programs: [], academicYears: [], semesters: [], sections: [] },
+        children: { campuses: [], departments: [], programs: [], academicYears: [], batches: [], semesters: [], sections: [] },
       };
     }
 
-    departmentId = enrollment.program.departmentId;
-    input = {
-      departmentId,
+    const canonicalSelection: WorkspaceContextInput = {
+      campusId: enrollment.program.department.campusId ?? undefined,
+      departmentId: enrollment.program.departmentId,
       programId: enrollment.programId,
       academicYearId: enrollment.academicYearId,
       semesterId: enrollment.semesterId ?? undefined,
       sectionId: enrollment.sectionId ?? undefined,
       batchId: enrollment.batchId ?? undefined,
     };
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"] as const) {
+      const requested = requestedSelection[key];
+      if (typeof requested === "string" && requested.trim() && requested !== canonicalSelection[key]) {
+        throw new AppError("Selected academic context is outside the student's active enrollment", 403);
+      }
+    }
+    departmentId = canonicalSelection.departmentId;
+    campusId = canonicalSelection.campusId;
+    input = canonicalSelection;
+  }
+
+  const campuses = await prisma.campus.findMany({
+    where: {
+      institutionId,
+      isActive: true,
+      ...(allowed ? { departments: { some: { id: { in: allowed }, isActive: true } } } : {}),
+    },
+    select: { id: true, name: true, code: true },
+    orderBy: { name: "asc" },
+  });
+
+  const requestedCampus = campusId ? campuses.find((campus) => campus.id === campusId) ?? null : null;
+  if (campusId && !requestedCampus) {
+    throw new AppError("Campus not found in your authorized institution scope", 404);
   }
 
   const departments = await prisma.department.findMany({
@@ -111,7 +151,7 @@ async function buildWorkspaceContext(
       institutionId,
       isActive: true,
       ...(allowed ? { id: { in: allowed } } : {}),
-      ...(departmentId ? { id: departmentId } : {}),
+      ...(campusId ? { campusId } : {}),
     },
     select: {
       id: true,
@@ -122,22 +162,32 @@ async function buildWorkspaceContext(
     orderBy: { name: "asc" },
   });
 
-  if (departmentId && departments.length !== 1) {
+  let selectedDepartment = departmentId
+    ? departments.find((department) => department.id === departmentId) ?? null
+    : departments.length === 1 ? departments[0] : null;
+
+  if (departmentId && !selectedDepartment) {
     throw new AppError("Department not found in your authorized institution scope", 404);
   }
-
-  const selectedDepartment = departments[0] ?? null;
+  if (!departmentId && selectedDepartment) departmentId = selectedDepartment.id;
+  let effectiveCampusId = requestedCampus?.id ?? selectedDepartment?.campus?.id ?? null;
+  let effectiveCampus = effectiveCampusId
+    ? campuses.find((campus) => campus.id === effectiveCampusId) ?? selectedDepartment?.campus ?? null
+    : null;
 
   const institutionPromise = prisma.institution.findUnique({
     where: { id: institutionId },
     select: { name: true, logoUrl: true },
   });
 
+  const contextDepartmentIds = selectedDepartment ? [selectedDepartment.id] : departments.map((department) => department.id);
+
   const programsPromise = prisma.program.findMany({
     where: {
       institutionId,
       isActive: true,
-      ...(selectedDepartment ? { departmentId: selectedDepartment.id } : {}),
+      ...(selectedDepartment ? { departmentId: selectedDepartment.id } : allowed ? { departmentId: { in: allowed } } : {}),
+      ...(campusId ? { department: { campusId } } : {}),
     },
     select: {
       id: true,
@@ -153,9 +203,14 @@ async function buildWorkspaceContext(
   const academicYearsPromise = prisma.academicYear.findMany({
     where: {
       institutionId,
-      ...(input.programId
-        ? { semesters: { some: { programId: input.programId, isActive: true } } }
-        : {}),
+      semesters: {
+        some: {
+          isActive: true,
+          ...(input.programId
+            ? { programId: input.programId }
+            : { program: { departmentId: { in: contextDepartmentIds } } }),
+        },
+      },
     },
     select: { id: true, name: true, startDate: true, endDate: true, isCurrent: true },
     orderBy: [{ isCurrent: "desc" }, { startDate: "desc" }],
@@ -165,7 +220,9 @@ async function buildWorkspaceContext(
     where: {
       institutionId,
       isActive: true,
-      ...(input.programId ? { programId: input.programId } : {}),
+      ...(input.programId
+        ? { programId: input.programId }
+        : { program: { departmentId: { in: contextDepartmentIds } } }),
       ...(input.academicYearId ? { academicYearId: input.academicYearId } : {}),
     },
     select: {
@@ -192,6 +249,10 @@ async function buildWorkspaceContext(
 
   if (input.semesterId && !selectedSemester) {
     throw new AppError("Semester is not valid for the selected academic context", 404);
+  }
+  if (selectedSemester) {
+    if (!input.programId) input.programId = selectedSemester.programId;
+    if (!input.academicYearId) input.academicYearId = selectedSemester.academicYearId;
   }
 
   const sectionsPromise = selectedSemester
@@ -229,7 +290,19 @@ async function buildWorkspaceContext(
     : null;
 
   if (input.programId && !selectedProgram) {
-    throw new AppError("Program is not valid for the selected department", 404);
+    throw new AppError("Program is not valid for the selected department or authorized scope", 404);
+  }
+  if (selectedProgram) {
+    const programDepartment = departments.find((department) => department.id === selectedProgram.departmentId) ?? null;
+    if (!programDepartment || (selectedDepartment && selectedDepartment.id !== programDepartment.id)) {
+      throw new AppError("Program is not valid for the selected department or authorized scope", 404);
+    }
+    selectedDepartment = programDepartment;
+    departmentId = programDepartment.id;
+    if (!effectiveCampusId && programDepartment.campus?.id) {
+      effectiveCampusId = programDepartment.campus.id;
+      effectiveCampus = campuses.find((campus) => campus.id === effectiveCampusId) ?? programDepartment.campus;
+    }
   }
 
   if (input.batchId && !selectedBatch) {
@@ -240,12 +313,16 @@ async function buildWorkspaceContext(
     ? academicYears.find((year) => year.id === input.academicYearId) ?? null
     : null;
 
+  if (input.academicYearId && !selectedYear) {
+    throw new AppError("Academic year is not valid for the selected academic context", 404);
+  }
+
   const institution = await institutionPromise;
 
-  const basePath = workspaceBasePath(roles);
+  const basePath = workspaceBasePath(activeRole);
   const contextHref = (extra: Record<string, string | undefined> = {}) => {
     const params = new URLSearchParams();
-    const values = { departmentId, programId: input.programId, batchId: input.batchId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId, ...extra };
+    const values = { campusId: effectiveCampusId ?? undefined, departmentId, programId: input.programId, batchId: input.batchId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId, ...extra };
     Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
     const query = params.toString();
     return query ? `${basePath}?${query}` : basePath;
@@ -253,6 +330,15 @@ async function buildWorkspaceContext(
   const breadcrumbs: Array<{ type: string; id: string; label: string; href: string }> = [
     { type: "institution", id: institutionId, label: "Institution", href: basePath },
   ];
+
+  if (effectiveCampus && effectiveCampusId) {
+    breadcrumbs.push({
+      type: "campus",
+      id: effectiveCampusId,
+      label: effectiveCampus.name,
+      href: contextHref({ campusId: effectiveCampusId, departmentId: undefined, programId: undefined, batchId: undefined, academicYearId: undefined, semesterId: undefined, sectionId: undefined }),
+    });
+  }
 
   if (selectedDepartment) {
     breadcrumbs.push({
@@ -293,9 +379,10 @@ async function buildWorkspaceContext(
       name: institution?.name ?? "",
       logoUrl: institution?.logoUrl ?? null,
     },
-    role: roles[0] ?? "UNKNOWN",
+    role: activeRole,
     scope: {
       institutionId,
+      campusId: effectiveCampusId,
       departmentId: selectedDepartment?.id ?? null,
       programId: selectedProgram?.id ?? null,
       academicYearId: selectedYear?.id ?? null,
@@ -304,46 +391,26 @@ async function buildWorkspaceContext(
       batchId: selectedBatch?.id ?? null,
     },
     breadcrumbs,
-    children: { departments, programs, academicYears, batches, semesters, sections },
+    children: {
+      campuses,
+      departments,
+      programs: selectedDepartment ? programs.filter((program) => program.departmentId === selectedDepartment?.id) : programs,
+      academicYears,
+      batches,
+      semesters,
+      sections,
+    },
   };
 }
 
 
-type WorkspaceCacheEntry = {
-  expiresAt: number;
-  value?: Awaited<ReturnType<typeof buildWorkspaceContext>>;
-  promise?: Promise<Awaited<ReturnType<typeof buildWorkspaceContext>>>;
-};
-
-const WORKSPACE_CONTEXT_CACHE_TTL_MS = 2_000;
-const workspaceContextCache = new Map<string, WorkspaceCacheEntry>();
-
-function workspaceContextCacheKey(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  input: WorkspaceContextInput,
-): string {
-  return [
-    institutionId,
-    actor.id,
-    actor.roles.slice().sort().join(","),
-    input.departmentId ?? "",
-    input.programId ?? "",
-    input.academicYearId ?? "",
-    input.semesterId ?? "",
-    input.sectionId ?? "",
-    input.batchId ?? "",
-  ].join("|");
-}
-
-export function invalidateWorkspaceContextCache(institutionId?: string): void {
-  if (!institutionId) {
-    workspaceContextCache.clear();
-    return;
-  }
-  for (const key of workspaceContextCache.keys()) {
-    if (key.startsWith(institutionId + "|")) workspaceContextCache.delete(key);
-  }
+/**
+ * Compatibility hook for services that revoke/change academic access. The
+ * workspace context is intentionally not memoized: campus/department grants
+ * and enrollment state can be revoked without changing the user's role list.
+ */
+export function invalidateWorkspaceContextCache(_institutionId?: string): void {
+  // No shared workspace-scope cache is retained.
 }
 
 export async function getWorkspaceContext(
@@ -351,30 +418,8 @@ export async function getWorkspaceContext(
   actor: AuthenticatedUser,
   input: WorkspaceContextInput = {}
 ) {
-  const key = workspaceContextCacheKey(institutionId, actor, input);
-  const now = Date.now();
-  const cached = workspaceContextCache.get(key);
-
-  if (cached?.value && cached.expiresAt > now) return cached.value;
-  if (cached?.promise) return cached.promise;
-
-  const promise = buildWorkspaceContext(institutionId, actor, input)
-    .then((value) => {
-      workspaceContextCache.set(key, {
-        value,
-        expiresAt: Date.now() + WORKSPACE_CONTEXT_CACHE_TTL_MS,
-      });
-      return value;
-    })
-    .catch((error) => {
-      workspaceContextCache.delete(key);
-      throw error;
-    });
-
-  workspaceContextCache.set(key, {
-    promise,
-    expiresAt: now + WORKSPACE_CONTEXT_CACHE_TTL_MS,
-  });
-
-  return promise;
+  // A context response is an authorization decision. Resolve CampusAccess,
+  // DepartmentAccess and enrollment state from the database on every request;
+  // role bindings can stay unchanged while grants are revoked.
+  return buildWorkspaceContext(institutionId, actor, input);
 }

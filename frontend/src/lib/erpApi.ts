@@ -85,6 +85,15 @@ export interface ErpOffering {
     id?: string;
     name?: string;
     number?: number;
+    program?: {
+      id?: string;
+      name?: string;
+      code?: string;
+    };
+    academicYear?: {
+      id?: string;
+      name?: string;
+    };
   };
 
   section?: {
@@ -478,37 +487,36 @@ export async function setUserActive(
  * ---------------------------------------------------------------------------
  */
 
-export async function listOfferings(): Promise<
-  ErpOffering[]
-> {
-  return cachedRequest(
-    "erp:offerings",
-    async () => {
-      const response =
-        await authedFetch<
-          ApiEnvelope<
-            | ErpOffering[]
-            | {
-                items: ErpOffering[];
-              }
-          >
-        >(
-          "/course-offerings?page=1&pageSize=50&isActive=true"
-        );
+export async function listOfferings(
+  filters: {
+    campusId?: string;
+    departmentId?: string;
+    semesterId?: string;
+    sectionId?: string;
+  } = {},
+): Promise<ErpOffering[]> {
+  const params = new URLSearchParams({
+    page: "1",
+    pageSize: "50",
+    isActive: "true",
+  });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  const activeFilters = Object.entries(filters).filter((entry) => Boolean(entry[1]));
+  const cacheKey = activeFilters.length
+    ? `erp:offerings:${activeFilters.map(([key, value]) => `${key}=${value}`).join(":")}`
+    : "erp:offerings";
 
-      if (
-        Array.isArray(
-          response.data
-        )
-      ) {
-        return response.data;
-      }
+  return cachedRequest(cacheKey, async () => {
+    const response = await authedFetch<
+      ApiEnvelope<ErpOffering[] | { items: ErpOffering[] }>
+    >(`/course-offerings?${query}`);
 
-      return (
-        response.data.items || []
-      );
-    }
-  );
+    if (Array.isArray(response.data)) return response.data;
+    return response.data.items || [];
+  });
 }
 
 /*

@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "ACADLYX",
+    "slug": "acadlyx-mobile",
+    "scheme": "acadlyx",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ayzent.acadlyx"
+    },
+    "android": {
+      "package": "com.ayzent.acadlyx",
+      "adaptiveIcon": {
+        "backgroundColor": "#F4EFE4"
+      }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { hashPassword } from "../utils/password";
 import {
   PERMISSIONS,
-  ROLE_PERMISSIONS,
+  getRolePermissions,
   SYSTEM_ROLE_NAMES,
 } from "../config/rbac";
 import {
@@ -138,9 +138,7 @@ export async function ensureInstitutionSystemRoles(
 
     roleRecords.set(roleName, role.id);
 
-    const desiredPermissionIds = (
-      ROLE_PERMISSIONS[roleName] ?? []
-    )
+    const desiredPermissionIds = getRolePermissions(roleName)
       .map((key) => permissionRecords.get(key))
       .filter((id): id is string => Boolean(id));
 

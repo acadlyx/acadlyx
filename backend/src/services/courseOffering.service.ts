@@ -16,6 +16,7 @@ export interface ListFilters extends PaginationParams {
   facultyId?: string;
   departmentId?: string;
   departmentIds?: string[];
+  campusId?: string;
   isActive?: boolean;
 }
 
@@ -194,7 +195,16 @@ export async function listCourseOfferings(
 ) {
   const where: Prisma.CourseOfferingWhereInput = {
     institutionId,
-    ...(filters.departmentId ? { semester: { program: { departmentId: filters.departmentId } } } : {}),
+    ...((filters.departmentId || filters.departmentIds || filters.campusId)
+      ? {
+          semester: {
+            program: {
+              ...(filters.departmentId ? { departmentId: filters.departmentId } : filters.departmentIds ? { departmentId: { in: filters.departmentIds } } : {}),
+              ...(filters.campusId ? { department: { campusId: filters.campusId } } : {}),
+            },
+          },
+        }
+      : {}),
     ...(filters.courseId ? { courseId: filters.courseId } : {}),
     ...(filters.semesterId ? { semesterId: filters.semesterId } : {}),
     ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),

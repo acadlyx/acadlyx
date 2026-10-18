@@ -14,7 +14,7 @@ import {
   workspaceHome,
 } from "@/lib/navigation";
 
-type AuthState = "checking" | "authenticated" | "unauthenticated" | "unauthorized";
+type AuthState = "checking" | "authenticated" | "unauthenticated" | "unauthorized" | "unavailable";
 
 const PUBLIC_EXACT_ROUTES = new Set([
   "/",
@@ -73,6 +73,8 @@ export function ProtectedRouteBoundary({
   const [state, setState] = useState<AuthState>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [validatedPath, setValidatedPath] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +82,7 @@ export function ProtectedRouteBoundary({
     if (isPublicRoute(pathname)) {
       setState("authenticated");
       setUser(null);
+      setVerificationError("");
       setValidatedPath(route);
       return () => {
         alive = false;
@@ -87,23 +90,26 @@ export function ProtectedRouteBoundary({
     }
 
     // Never carry a previously authorized route decision into a new path.
+    // This boundary runs before DashboardShell and is the first protected
+    // rendering gate, so it must bypass getCurrentUser's fresh-cache shortcut.
     setState("checking");
+    setVerificationError("");
     setValidatedPath(null);
 
-    getCurrentUser()
+    getCurrentUser({ force: true })
       .then((currentUser) => {
         if (!alive) return;
 
         if (!canAccessRoute(route, currentUser.roles, currentUser.permissions, currentUser.tenantFeatures || [])) {
           setState("unauthorized");
           setUser(currentUser);
-          setValidatedPath(pathname);
+          setValidatedPath(route);
           return;
         }
 
         setUser(currentUser);
         setState("authenticated");
-        setValidatedPath(pathname);
+        setValidatedPath(route);
       })
       .catch((error) => {
         if (!alive) return;
@@ -111,26 +117,31 @@ export function ProtectedRouteBoundary({
         if (error instanceof AuthRequiredError) {
           setState("unauthenticated");
           setUser(null);
-          setValidatedPath(pathname);
+          setValidatedPath(null);
           router.replace("/login");
           return;
         }
 
-        // Authentication could not be established. Fail closed rather than
-        // rendering a protected route while session state is uncertain.
-        setState("unauthenticated");
+        // A transient identity-service failure is not evidence that a cached
+        // route is unauthorized. Stay fail-closed on this destination and let
+        // the user retry verification instead of bouncing through workspace home.
         setUser(null);
-        setValidatedPath(pathname);
-        router.replace("/login");
+        setValidatedPath(null);
+        setVerificationError("We couldn't verify your current workspace permissions. Check your connection and retry.");
+        setState("unavailable");
       });
 
     return () => {
       alive = false;
     };
-  }, [pathname, route, router]);
+  }, [pathname, route, router, retryCount]);
 
   useEffect(() => {
-    if (state !== "unauthorized") {
+    // The previous route's authorization result is stale as soon as the
+    // pathname changes. Do not apply that decision to the destination while
+    // its own /auth/me validation is still pending; otherwise a legitimate
+    // redirect to the user's home can be redirected again to /login.
+    if (state !== "unauthorized" || validatedPath !== route) {
       return;
     }
 
@@ -139,14 +150,30 @@ export function ProtectedRouteBoundary({
       : "/login";
 
     router.replace(
-      destination === pathname
+      destination === route
         ? "/login"
         : destination,
     );
-  }, [pathname, route, router, state, user]);
+  }, [pathname, route, router, state, user, validatedPath]);
 
   if (isPublicRoute(pathname)) {
     return <>{children}</>;
+  }
+
+  if (state === "unavailable" && validatedPath === null) {
+    return (
+      <main role="alert" aria-live="assertive" className="mx-auto flex min-h-[45vh] max-w-2xl flex-col items-start justify-center gap-4 p-6 sm:p-8">
+        <h1 className="text-xl font-bold text-slate-900">Workspace verification unavailable</h1>
+        <p className="text-sm text-slate-600">{verificationError}</p>
+        <button
+          type="button"
+          onClick={() => setRetryCount((attempt) => attempt + 1)}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+        >
+          Retry verification
+        </button>
+      </main>
+    );
   }
 
   /*
@@ -157,7 +184,7 @@ export function ProtectedRouteBoundary({
    */
   if (
     state === "checking" ||
-    validatedPath !== pathname ||
+    validatedPath !== route ||
     state === "unauthenticated" ||
     state === "unauthorized"
   ) {

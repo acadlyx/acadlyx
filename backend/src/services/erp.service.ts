@@ -1,8 +1,9 @@
 import { prisma } from "../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AppError } from "../middleware/errorHandler";
+import { courseOfferingWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 import { AuthenticatedUser } from "../types/auth";
-import { getCanonicalRoleNames } from "../config/rbac";
+import { getCanonicalRoleNames, NOTICE_MANAGEMENT_ROLES } from "../config/rbac";
 import { recordAuditLog } from "./audit.service";
 import { getManagementWorkspace, getManagementWorkspaceSummary, getWorkspaceType } from "./managementWorkspace.service";
 import {
@@ -1698,10 +1699,15 @@ async function assertNoticeDepartmentScope(
     return;
   }
 
-  // CMS can publish institution-wide notices in its own tenant workspace.
-  // This is a module entitlement, not permission to browse other modules'
-  // institution-wide records.
-  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) return;
+  // CMS can publish institution-wide notices in its own tenant workspace,
+  // but may not target a department unless a role with that department scope
+  // is the effective workspace. CMS entitlement alone is not department access.
+  if (activeRole === "CMS" && !hasScopedWorkspaceRole(actor)) {
+    if (departmentId) {
+      throw new AppError("CMS notices must be institution-wide", 403);
+    }
+    return;
+  }
 
   throw new AppError("Notice management is outside your authorized scope", 403);
 }
@@ -1717,17 +1723,7 @@ export async function createNotice(
     expiresAt?: string;
   }
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }
@@ -2296,7 +2292,7 @@ export async function listTimetableEntries(
   filters: {
     dayOfWeek?: number;
     courseOfferingId?: string;
-  } = {}
+  } & WorkspaceContextFilterInput = {}
 ) {
   assertRole(actor, [
     "INSTITUTION_ADMIN",
@@ -2311,12 +2307,17 @@ export async function listTimetableEntries(
   ]);
 
   const offeringScope = await getOfferingReadScope(institutionId, actor);
+  const contextScope = courseOfferingWorkspaceWhere(institutionId, filters);
+  const effectiveOfferingScope: Prisma.CourseOfferingWhereInput = contextScope
+    ? { AND: [offeringScope, contextScope] }
+    : offeringScope;
+
   return prisma.timetableEntry.findMany({
     where: {
       institutionId,
       ...(filters.dayOfWeek !== undefined ? { dayOfWeek: filters.dayOfWeek } : {}),
       ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
-      ...(Object.keys(offeringScope).length ? { courseOffering: offeringScope } : {}),
+      ...(Object.keys(effectiveOfferingScope).length ? { courseOffering: effectiveOfferingScope } : {}),
     },
     include: {
       courseOffering: {
@@ -2665,17 +2666,7 @@ export async function updateNotice(
     expiresAt?: Date | null;
   }
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }
@@ -2756,17 +2747,7 @@ export async function deleteNotice(
   actor: AuthenticatedUser,
   id: string
 ) {
-  assertRole(actor, [
-    "SUPER_ADMIN",
-    "INSTITUTION_ADMIN",
-    "CHAIRMAN",
-    "DIRECTOR",
-    "MANAGEMENT",
-    "DEAN",
-    "REGISTRAR",
-    "HOD",
-    "CMS",
-  ]);
+  assertRole(actor, [...NOTICE_MANAGEMENT_ROLES]);
   if (!actor.permissions.includes("notices.manage")) {
     throw new AppError("Notice management permission is required", 403);
   }

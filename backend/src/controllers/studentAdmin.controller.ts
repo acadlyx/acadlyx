@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 
 import * as studentService from "../services/studentAdmin.service";
+import { assertCampusInScope } from "../services/accessScope.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import {
   requireAuthenticatedUser,
@@ -29,6 +30,8 @@ export const list = asyncHandler(
     const institutionId = requireInstitution(req);
     const actor = requireUser(req);
     const pagination = parsePagination(req);
+    const campusId = typeof req.query.campusId === "string" ? req.query.campusId : undefined;
+    if (campusId) await assertCampusInScope(institutionId, actor, campusId);
 
     const result =
       await studentService.listStudents(
@@ -45,6 +48,7 @@ export const list = asyncHandler(
             typeof req.query.status === "string"
               ? req.query.status
               : undefined,
+          campusId,
           academicYearId:
             typeof req.query.academicYearId === "string"
               ? req.query.academicYearId
@@ -56,6 +60,10 @@ export const list = asyncHandler(
           programId:
             typeof req.query.programId === "string"
               ? req.query.programId
+              : undefined,
+          batchId:
+            typeof req.query.batchId === "string"
+              ? req.query.batchId
               : undefined,
           semesterId:
             typeof req.query.semesterId === "string"

@@ -31,22 +31,38 @@ function merge(defaults: JsonRecord, incoming: JsonRecord): JsonRecord {
 function normalize(content: unknown) { return merge(DEFAULT_INSTITUTIONAL_CMS, isRecord(content) ? content : {}); }
 
 function assertInstitution(actor: AuthenticatedUser, institutionId: string) {
-  if (actor.roles.includes("SUPER_ADMIN")) return;
-  if (actor.institutionId !== institutionId) throw new AppError("You are not allowed to manage another institution", 403);
+  // Institutional CMS is a tenant workflow. Platform authority must never
+  // implicitly grant access to a tenant's unpublished drafts or branding.
+  if (actor.roles.includes("SUPER_ADMIN")) {
+    throw new AppError("Platform administrators cannot access tenant CMS records through the institutional workflow", 403);
+  }
+  if (!actor.institutionId || actor.institutionId !== institutionId) {
+    throw new AppError("You are not allowed to manage another institution", 403);
+  }
 }
 function assertManage(actor: AuthenticatedUser) {
-  if (!actor.permissions.includes("site.manage")) throw new AppError("Institutional CMS permission is required", 403);
+  if (!actor.permissions.includes("institutional-cms.manage")) {
+    throw new AppError("Institutional CMS draft-management permission is required", 403);
+  }
 }
 function canApprove(actor: AuthenticatedUser) {
   return actor.roles.some(role => ["CHAIRMAN", "DIRECTOR", "MANAGEMENT"].includes(role));
 }
 function assertApprovalAuthority(actor: AuthenticatedUser) {
-  if (!canApprove(actor)) throw new AppError("Institutional CMS approval authority is required", 403);
+  if (!canApprove(actor) || !actor.permissions.includes("institutional-cms.approve")) {
+    throw new AppError("Institutional CMS approval authority is required", 403);
+  }
 }
 
 export async function getInstitutionalCms(institutionId: string, actor: AuthenticatedUser) {
   assertInstitution(actor, institutionId);
-  if (!actor.permissions.includes("site.manage") && !canApprove(actor)) throw new AppError("Institutional CMS access is required", 403);
+  const canRead =
+    actor.permissions.includes("institutional-cms.read") ||
+    actor.permissions.includes("institutional-cms.manage") ||
+    (canApprove(actor) && actor.permissions.includes("institutional-cms.approve"));
+  if (!canRead) {
+    throw new AppError("Institutional CMS read permission is required", 403);
+  }
   const existing = await prisma.institutionalCmsContent.findUnique({ where: { institutionId } });
   if (!existing) return { institutionId, content: normalize({}), draftContent: null, version: 0, approvalStatus: "PUBLISHED", publishedAt: null, submittedAt: null, reviewedAt: null, rejectionReason: null };
   return { ...existing, content: normalize(existing.content), draftContent: existing.draftContent ? normalize(existing.draftContent) : null };

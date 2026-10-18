@@ -18,7 +18,6 @@ import { getCanonicalRoleNames } from "../config/rbac";
  * generic access to student profiles, user records, notices or other modules.
  */
 export const INSTITUTION_WIDE_ROLES = [
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "MANAGEMENT",
@@ -108,12 +107,12 @@ export function isInstitutionWideForRole(
   const activeRole = getEffectiveWorkspaceRole(actor);
   const allowedByModule: Record<typeof moduleRole, readonly string[]> = {
     // Institution Admin intentionally does not own Accounts/Fees.
-    ACCOUNTS: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
+    ACCOUNTS: ["CHAIRMAN", "MANAGEMENT", "REGISTRAR", "ACCOUNTS"],
     // Institution Admin may administer admissions, but this role must not
     // grant generic finance or examination authority.
-    ADMISSIONS: ["SUPER_ADMIN", "CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
+    ADMISSIONS: ["CHAIRMAN", "INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR", "ADMISSIONS"],
     // Institution Admin intentionally does not own Exams/Examination.
-    EXAMINATION: ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
+    EXAMINATION: ["CHAIRMAN", "MANAGEMENT", "REGISTRAR", "EXAMINATION"],
   };
   return allowedByModule[moduleRole].includes(activeRole);
 }
@@ -153,10 +152,95 @@ export async function getAuthorizedDepartmentIds(
     return rows.map((row) => row.id);
   }
 
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("DEAN") || roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    return getManagedDepartmentIds(institutionId, actor.id, activeRole);
+  }
+  if (activeRole === "FACULTY") return getStaffDepartmentIds(institutionId, actor.id);
   return [];
+}
+
+/**
+ * Returns active campus IDs the effective workspace can use. Director scope
+ * comes only from CampusAccess; other academic roles derive campus membership
+ * from their authorized departments or active student enrollments.
+ * null means institution-wide tenant scope, not platform-wide cross-tenant access.
+ */
+export async function getAuthorizedCampusIds(
+  institutionId: string,
+  actor: AuthenticatedUser
+): Promise<string[] | null> {
+  if (isInstitutionWide(actor)) return null;
+
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    return getDirectorCampusIds(institutionId, actor.id);
+  }
+
+  const departmentIds = activeRole === "STUDENT"
+    ? await getStudentDepartmentIds(institutionId, actor.id)
+    : await getAuthorizedDepartmentIds(institutionId, actor);
+  if (!departmentIds.length) return [];
+
+  const rows = await prisma.campus.findMany({
+    where: {
+      institutionId,
+      isActive: true,
+      departments: { some: { id: { in: departmentIds }, isActive: true } },
+    },
+    select: { id: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((row) => row.id);
+}
+
+export async function assertCampusInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  campusId: string
+): Promise<void> {
+  const campus = await prisma.campus.findFirst({
+    where: { id: campusId, institutionId, isActive: true },
+    select: { id: true },
+  });
+  if (!campus) throw new AppError("Campus not found in this institution", 404);
+
+  const allowedCampusIds = await getAuthorizedCampusIds(institutionId, actor);
+  if (allowedCampusIds !== null && !allowedCampusIds.includes(campusId)) {
+    throw new AppError("This campus is outside your authorized scope", 403);
+  }
+}
+
+export async function assertAcademicYearInScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  academicYearId: string
+): Promise<void> {
+  const year = await prisma.academicYear.findFirst({
+    where: { id: academicYearId, institutionId },
+    select: { id: true },
+  });
+  if (!year) throw new AppError("Academic year not found in this institution", 404);
+
+  if (isInstitutionWide(actor)) return;
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const allowedDepartmentIds = activeRole === "STUDENT"
+    ? await getStudentDepartmentIds(institutionId, actor.id)
+    : await getAuthorizedDepartmentIds(institutionId, actor);
+
+  if (!allowedDepartmentIds.length) {
+    throw new AppError("Academic year is outside your authorized scope", 403);
+  }
+  const scopedSemester = await prisma.semester.findFirst({
+    where: {
+      institutionId,
+      academicYearId,
+      isActive: true,
+      program: { departmentId: { in: allowedDepartmentIds } },
+    },
+    select: { id: true },
+  });
+  if (!scopedSemester) throw new AppError("Academic year is outside your authorized scope", 403);
 }
 
 export async function assertDepartmentInScope(
@@ -202,12 +286,30 @@ export async function assertCourseOfferingInScope(institutionId: string, actor: 
 
 
 
-export async function getManagedDepartmentIds(institutionId: string, userId: string): Promise<string[]> {
-  // Inactive departments are no longer part of an operational workspace.
-  // Keep the access rows for audit/history, but never grant live scope through
-  // a disabled or cross-institution department.
+export async function getManagedDepartmentIds(
+  institutionId: string,
+  userId: string,
+  requestedScope?: "DEAN" | "HOD",
+): Promise<string[]> {
+  // DepartmentAccess rows are role-bound. If a legacy caller doesn't have the
+  // actor object available, derive its current effective role from live tenant
+  // role bindings; never fall back to a union of HOD and Dean assignments.
+  let scope = requestedScope;
+  if (!scope) {
+    const roleBindings = await prisma.userRole.findMany({
+      where: { userId, role: { institutionId } },
+      select: { role: { select: { name: true } } },
+    });
+    const effectiveRole = getEffectiveWorkspaceRole({
+      roles: roleBindings.map((binding) => binding.role.name),
+    });
+    if (effectiveRole !== "DEAN" && effectiveRole !== "HOD") return [];
+    scope = effectiveRole;
+  }
+
+  // Inactive/cross-tenant departments never grant live scope.
   const rows = await prisma.departmentAccess.findMany({
-    where: { userId, department: { institutionId, isActive: true } },
+    where: { userId, scope, department: { institutionId, isActive: true } },
     select: { departmentId: true },
   });
   return Array.from(new Set(rows.map((row) => row.departmentId)));
@@ -253,7 +355,7 @@ export async function getStudentWhereScope(
   if (actor.id && isInstitutionWide(actor)) return {};
 
   if (activeRole === "DEAN" || activeRole === "HOD") {
-    const departments = await getManagedDepartmentIds(institutionId, actor.id);
+    const departments = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
     if (!departments.length) return { id: "__NO_AUTHORIZED_STUDENT_SCOPE__" };
     return {
       studentEnrollments: {
@@ -341,7 +443,11 @@ export async function getStaffDepartmentIds(institutionId: string, userId: strin
 
 export async function assertHodCanReachUser(institutionId: string, actor: AuthenticatedUser, targetUserId: string): Promise<void> {
   if (actor.id === targetUserId) return;
-  const managed = await getManagedDepartmentIds(institutionId, actor.id);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole !== "DEAN" && activeRole !== "HOD") {
+    throw new AppError("Department-scoped user access is not available for this role", 403);
+  }
+  const managed = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
   if (managed.length === 0) throw new AppError("You have no department scope assigned", 403);
 
   const roles = await getUserRoleNames(institutionId, targetUserId);
@@ -387,7 +493,7 @@ export async function assertCanViewUserRecord(
   if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
     allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
   } else if (activeRole === "DEAN" || activeRole === "HOD") {
-    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    allowedDepartmentIds = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
   } else {
     // Students, parents, placement staff, and faculty do not gain generic
     // access to other employee/user records through a general read permission.
@@ -431,7 +537,7 @@ export async function assertCanViewStudent(institutionId: string, actor: Authent
 
   if (activeRole === "DEAN" || activeRole === "HOD") {
     const [managed, studentDepartments] = await Promise.all([
-      getManagedDepartmentIds(institutionId, actor.id),
+      getManagedDepartmentIds(institutionId, actor.id, activeRole),
       getStudentDepartmentIds(institutionId, studentId),
     ]);
     if (managed.length > 0 && studentDepartments.some((id) => managed.includes(id))) return;

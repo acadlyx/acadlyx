@@ -1,0 +1,54 @@
+name: ACADLYX Native Mobile CI
+
+on:
+  pull_request:
+    branches:
+      - production-upgrade-2026-09-20
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-static-and-bundle:
+    name: Mobile typecheck, structural tests and platform bundle exports
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Align Expo-managed native package versions
+        run: npx expo install --fix
+
+      - name: Verify Expo dependency compatibility
+        run: npx expo install --check
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Structural contract tests
+        run: npm test
+
+      - name: Expo Doctor
+        run: npx expo-doctor
+
+      - name: Export Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist/android
+
+      - name: Export iOS JavaScript bundle
+        run: npx expo export --platform ios --output-dir dist/ios

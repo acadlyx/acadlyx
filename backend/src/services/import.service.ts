@@ -44,10 +44,10 @@ function text(v: any): string { return String(v ?? "").trim(); }
 function number(v: any): number { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 function bool(v: any): boolean { return [true, 1, "1", "true", "yes", "y"].includes(typeof v === "string" ? v.toLowerCase() : v); }
 function date(v: any): Date { if (v instanceof Date) return v; if (typeof v === "number") return XLSX.SSF.parse_date_code(v) ? new Date(Date.UTC(XLSX.SSF.parse_date_code(v).y, XLSX.SSF.parse_date_code(v).m - 1, XLSX.SSF.parse_date_code(v).d)) : new Date(v); const d = new Date(v); if (Number.isNaN(d.getTime())) throw new AppError(`Invalid date: ${v}`, 400); return d; }
-function normalizeRow(row: Row): Row { return Object.fromEntries(Object.entries(row).map(([k,v]) => [k.toLowerCase().replace(/[\\s_-]+/g, ""), v])); }
+function normalizeRow(row: Row): Row { return Object.fromEntries(Object.entries(row).map(([k,v]) => [k.toLowerCase().replace(/[\s_-]+/g, ""), v])); }
 
 export function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED" {
-  const raw = text(value).toUpperCase().replace(/[\\s-]+/g, "_");
+  const raw = text(value).toUpperCase().replace(/[\s-]+/g, "_");
   if (!raw) return "ACTIVE";
   const aliases: Record<string, "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN" | "TRANSFERRED"> = {
     ACTIVE: "ACTIVE",
@@ -66,8 +66,65 @@ export function normalizeStudentStatus(value: any): "ACTIVE" | "INACTIVE" | "GRA
   return normalized;
 }
 
+export function buildStudentProfileUpdateFields(input: {
+  row: Record<string, unknown>;
+  admissionNumber: string;
+  dateOfBirth: Date | null;
+  admissionDate: Date | null;
+  normalizedStatus: ReturnType<typeof normalizeStudentStatus>;
+}): Prisma.StudentProfileUpdateInput {
+  const { row, admissionNumber, dateOfBirth, admissionDate, normalizedStatus } = input;
+  const value = (key: string) => text(row[key]);
+  const hasDateOfBirth = Boolean(value("dateofbirth"));
+  const hasAdmissionDate = Boolean(value("admissiondate"));
+
+  if (hasDateOfBirth && !dateOfBirth) {
+    throw new AppError("Invalid date of birth in student import row", 400);
+  }
+  if (hasAdmissionDate && !admissionDate) {
+    throw new AppError("Invalid admission date in student import row", 400);
+  }
+
+  const update: Prisma.StudentProfileUpdateInput = { admissionNumber };
+  if (hasDateOfBirth) update.dateOfBirth = dateOfBirth!;
+  if (hasAdmissionDate) update.admissionDate = admissionDate!;
+
+  const gender = value("gender");
+  const bloodGroup = value("bloodgroup");
+  const nationality = value("nationality");
+  const address = value("address");
+  const city = value("city");
+  const state = value("state");
+  const postalCode = value("postalcode");
+  const guardianName = value("guardianname");
+  const guardianPhone = value("guardianphone");
+  const guardianEmail = value("guardianemail");
+
+  if (gender) update.gender = gender;
+  if (bloodGroup) update.bloodGroup = bloodGroup;
+  if (nationality) update.nationality = nationality;
+  if (address) update.address = address;
+  if (city) update.city = city;
+  if (state) update.state = state;
+  if (postalCode) update.postalCode = postalCode;
+  if (guardianName) update.guardianName = guardianName;
+  if (guardianPhone) update.guardianPhone = guardianPhone;
+  if (guardianEmail) update.guardianEmail = guardianEmail;
+  if (value("status")) update.status = normalizedStatus;
+  return update;
+}
+
 export function parseWorkbook(buffer: Buffer) {
-  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  // XLSX.read's Buffer auto-detection is not reliable for plain CSV upload
+  // buffers. Select binary mode for XLS/XLSX signatures and string mode for
+  // UTF-8 delimited text (including files with a leading BOM).
+  const isZipWorkbook = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+  const isOleWorkbook = buffer.length >= 8 && buffer.subarray(0, 8).equals(
+    Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+  );
+  const workbook = isZipWorkbook || isOleWorkbook
+    ? XLSX.read(buffer, { type: "buffer", cellDates: true })
+    : XLSX.read(buffer.toString("utf8").replace(/^\uFEFF/, ""), { type: "string", cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new AppError("Workbook has no sheets", 400);
   const rows = XLSX.utils.sheet_to_json<Row>(workbook.Sheets[sheetName], { defval: "" });
@@ -100,6 +157,56 @@ function assertImportPermission(actor: AuthenticatedUser, type: ImportType) {
   const requiresInstitutionScope = ["users", "faculty", "campuses", "departments", "academic-years", "notices"].includes(type);
   if (requiresInstitutionScope && !isInstitutionWide(actor) && !(type === "notices" && activeRole === "CMS")) {
     throw new AppError("This import type does not support department/campus-scoped writes", 403);
+  }
+}
+
+export async function assertPartialStudentImportScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  departmentId: string | null,
+  programId: string | null,
+  semesterId: string | null,
+  existingUserId?: string | null,
+): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (isInstitutionWide(actor) || (activeRole === "ADMISSIONS" && isInstitutionWideAdmissions(actor))) {
+    return;
+  }
+  if (!departmentId || !programId || !semesterId) {
+    throw new AppError(
+      "Scoped student imports must include a valid programme, academic year, and semester for authorization.",
+      403,
+    );
+  }
+  await assertImportDepartmentScope(institutionId, actor, departmentId);
+  if (!existingUserId) return;
+
+  const existingProfile = await prisma.studentProfile.findFirst({
+    where: { institutionId, userId: existingUserId },
+    select: { userId: true },
+  });
+  if (!existingProfile) {
+    throw new AppError("Campus/department-scoped imports cannot attach an existing non-student account.", 403);
+  }
+
+  const existingEnrollments = await prisma.studentEnrollment.findMany({
+    where: { institutionId, userId: existingUserId },
+    select: { programId: true, program: { select: { departmentId: true } } },
+  });
+  if (
+    existingEnrollments.length === 0 ||
+    existingEnrollments.some((enrollment) => enrollment.program.departmentId !== departmentId || enrollment.programId !== programId)
+  ) {
+    throw new AppError(
+      "A scoped import cannot overwrite or move a student outside the existing programme scope. Use the approved student-movement workflow.",
+      409,
+    );
+  }
+}
+
+export function assertExistingStudentImportPermission(actor: Pick<AuthenticatedUser, "permissions">): void {
+  if (!actor.permissions.includes("students.update")) {
+    throw new AppError("Updating an existing student through import requires students.update permission", 403);
   }
 }
 
@@ -136,7 +243,7 @@ async function findOrCreateRole(
   return role;
 }
 
-async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string) {
+async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, row: Row, roleName: string, allowExistingUpdate = true) {
   const email = text(row.email).toLowerCase();
   const idNumber = text(row.idnumber || row.id || row.loginid).toUpperCase();
   if (!email) throw new AppError("Every user row needs an email", 400);
@@ -153,7 +260,9 @@ async function upsertUser(tx: Prisma.TransactionClient, institutionId: string, r
     throw new AppError("New imported users require a password of at least 12 characters", 400);
   }
   const user = existing
-    ? await tx.user.update({ where: { id: existing.id }, data: { idNumber, firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
+    ? allowExistingUpdate
+      ? await tx.user.update({ where: { id: existing.id }, data: { idNumber, firstName: text(row.firstname) || existing.firstName, lastName: text(row.lastname) || existing.lastName, phone: text(row.phone) || existing.phone, isActive: row.active === "" ? existing.isActive : bool(row.active) } })
+      : existing
     : await tx.user.create({ data: { institutionId, email, idNumber, passwordHash: await hashPassword(password), firstName: text(row.firstname) || "User", lastName: text(row.lastname), phone: text(row.phone) || null } });
   await tx.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: role.id } }, update: {}, create: { userId: user.id, roleId: role.id } });
   return user;
@@ -256,6 +365,8 @@ async function processImportRow(
           const admissionNumber = text(row.admissionnumber) || text(row.rollnumber);
           if (!admissionNumber) throw new AppError("admissionNumber (or rollNumber) is required for students", 400);
           const normalizedStatus = normalizeStudentStatus(row.status);
+          const importedDateOfBirth = text(row.dateofbirth) ? date(row.dateofbirth) : null;
+          const importedAdmissionDate = text(row.admissiondate) ? date(row.admissiondate) : null;
 
           const existingProfile = await tx.studentProfile.findFirst({
             where: { institutionId, admissionNumber },
@@ -263,6 +374,21 @@ async function processImportRow(
           });
 
           const email = text(row.email).toLowerCase();
+          const existingEmailUser = email
+            ? await tx.user.findUnique({ where: { email }, select: { id: true, institutionId: true } })
+            : null;
+          if (existingEmailUser && existingEmailUser.institutionId !== institutionId) {
+            throw new AppError("The supplied email already belongs to another institution", 409);
+          }
+          const existingEmailProfile = existingEmailUser
+            ? await tx.studentProfile.findUnique({ where: { userId: existingEmailUser.id }, select: { institutionId: true, admissionNumber: true } })
+            : null;
+          if (existingEmailUser && !existingEmailProfile) {
+            throw new AppError("The supplied email belongs to an account without a student profile; use an explicit account-conversion workflow", 409);
+          }
+          if (existingEmailProfile && existingEmailProfile.admissionNumber !== admissionNumber) {
+            throw new AppError("The supplied email already belongs to a student with a different admission number", 409);
+          }
           if (existingProfile && email && existingProfile.user.email.toLowerCase() !== email) {
             throw new AppError(
               "Admission number " + admissionNumber + " is already assigned to " + existingProfile.user.email,
@@ -270,7 +396,8 @@ async function processImportRow(
             );
           }
 
-          const user = await upsertUser(tx, institutionId, row, "STUDENT");
+          if (existingProfile || existingEmailProfile) assertExistingStudentImportPermission(actor);
+          const user = await upsertUser(tx, institutionId, row, "STUDENT", actor.permissions.includes("users.update"));
           const program = await resolveProgram(tx, institutionId, row);
           await assertImportDepartmentScope(institutionId, actor, program.departmentId, true);
           if (existingProfile) {
@@ -298,8 +425,65 @@ async function processImportRow(
             );
           }
 
-          await tx.studentProfile.upsert({ where: { userId: user.id }, update: { admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : undefined, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : undefined, status: normalizedStatus }, create: { institutionId, userId: user.id, admissionNumber, dateOfBirth: text(row.dateofbirth) ? date(row.dateofbirth) : null, gender: text(row.gender) || null, bloodGroup: text(row.bloodgroup) || null, nationality: text(row.nationality) || null, address: text(row.address) || null, city: text(row.city) || null, state: text(row.state) || null, postalCode: text(row.postalcode) || null, guardianName: text(row.guardianname) || null, guardianPhone: text(row.guardianphone) || null, guardianEmail: text(row.guardianemail) || null, admissionDate: text(row.admissiondate) ? date(row.admissiondate) : null, status: normalizedStatus } });
-          await tx.studentEnrollment.upsert({ where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } }, update: { programId: program.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: normalizedStatus }, create: { institutionId, userId: user.id, programId: program.id, academicYearId: year.id, semesterId, sectionId, rollNumber: text(row.rollnumber) || null, status: normalizedStatus } });
+          await tx.studentProfile.upsert({
+            where: { userId: user.id },
+            update: buildStudentProfileUpdateFields({
+              row,
+              admissionNumber,
+              dateOfBirth: importedDateOfBirth,
+              admissionDate: importedAdmissionDate,
+              normalizedStatus,
+            }),
+            create: {
+              institutionId,
+              userId: user.id,
+              admissionNumber,
+              dateOfBirth: importedDateOfBirth,
+              gender: text(row.gender) || null,
+              bloodGroup: text(row.bloodgroup) || null,
+              nationality: text(row.nationality) || null,
+              address: text(row.address) || null,
+              city: text(row.city) || null,
+              state: text(row.state) || null,
+              postalCode: text(row.postalcode) || null,
+              guardianName: text(row.guardianname) || null,
+              guardianPhone: text(row.guardianphone) || null,
+              guardianEmail: text(row.guardianemail) || null,
+              admissionDate: importedAdmissionDate,
+              status: normalizedStatus,
+            },
+          });
+          const existingEnrollment = await tx.studentEnrollment.findUnique({
+            where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } },
+            select: { programId: true, semesterId: true, sectionId: true, rollNumber: true },
+          });
+          const compatibleEnrollment = existingEnrollment?.programId === program.id ? existingEnrollment : null;
+          const effectiveSemesterId = semesterId ?? compatibleEnrollment?.semesterId ?? null;
+          const effectiveSectionId = sectionId ?? (
+            compatibleEnrollment && compatibleEnrollment.semesterId === effectiveSemesterId
+              ? compatibleEnrollment.sectionId
+              : null
+          );
+          await tx.studentEnrollment.upsert({
+            where: { userId_academicYearId: { userId: user.id, academicYearId: year.id } },
+            update: {
+              programId: program.id,
+              semesterId: effectiveSemesterId,
+              sectionId: effectiveSectionId,
+              ...(text(row.rollnumber) ? { rollNumber: text(row.rollnumber) } : {}),
+              ...(text(row.status) ? { status: normalizedStatus } : {}),
+            },
+            create: {
+              institutionId,
+              userId: user.id,
+              programId: program.id,
+              academicYearId: year.id,
+              semesterId: effectiveSemesterId,
+              sectionId: effectiveSectionId,
+              rollNumber: text(row.rollnumber) || null,
+              status: normalizedStatus,
+            },
+          });
         } else if (type === "faculty") {
           await upsertUser(tx, institutionId, row, "FACULTY");
         } else if (type === "departments") {
@@ -488,6 +672,41 @@ export async function commit(
   return result;
 }
 
+export type ImportJobReuseDisposition =
+  | "new-job"
+  | "reuse-same-request"
+  | "different-owner"
+  | "different-request"
+  | "invalid-payload";
+
+export function classifyImportJobReuse(input: {
+  jobPayload: unknown;
+  jobCreatorId: string | null;
+  uploadedFileId: string;
+  actorId: string;
+  type: ImportType;
+  mode: "partial" | "atomic";
+}): ImportJobReuseDisposition {
+  const { jobPayload, jobCreatorId, uploadedFileId, actorId, type, mode } = input;
+  if (!jobPayload || typeof jobPayload !== "object" || Array.isArray(jobPayload)) {
+    return "invalid-payload";
+  }
+
+  const payload = jobPayload as Record<string, unknown>;
+  if (
+    typeof payload.fileId !== "string" ||
+    typeof payload.importType !== "string" ||
+    (payload.mode !== "partial" && payload.mode !== "atomic")
+  ) {
+    return "invalid-payload";
+  }
+
+  if (payload.fileId === uploadedFileId) return "new-job";
+  if (jobCreatorId !== actorId) return "different-owner";
+  if (payload.importType !== type || payload.mode !== mode) return "different-request";
+  return "reuse-same-request";
+}
+
 export async function enqueueImport(
   buffer: Buffer,
   type: ImportType,
@@ -503,15 +722,47 @@ export async function enqueueImport(
     mimeType: options.mimeType, ownerId: actor.id, referenceId: digest,
     visibility: "private", resourceType: "raw",
   });
+  const mode = options.mode === "partial" ? "partial" : "atomic";
   try {
     const job = await enqueueJob({
       institutionId, type: JOB_TYPES.BULK_IMPORT,
-      payload: { fileId: stored.id, importType: type, mode: options.mode === "partial" ? "partial" : "atomic" },
+      payload: { fileId: stored.id, importType: type, mode },
       createdById: actor.id, maxAttempts: 3, priority: 30,
       idempotencyKey: "BULK_IMPORT:" + type + ":" + digest,
     });
+    const reuse = classifyImportJobReuse({
+      jobPayload: job.payload,
+      jobCreatorId: job.createdById,
+      uploadedFileId: stored.id,
+      actorId: actor.id,
+      type,
+      mode,
+    });
+    if (reuse !== "new-job") {
+      // enqueueJob may return an existing idempotent job after we have already
+      // uploaded a new private file. Delete the unused upload before returning
+      // or raising a conflict so retries do not create orphaned tenant files.
+      await deleteFile(stored.id, institutionId);
+      if (reuse === "different-owner") {
+        throw new AppError(
+          "An identical import is already associated with another account. Ask that account owner to check its status before retrying.",
+          409,
+        );
+      }
+      if (reuse === "different-request") {
+        throw new AppError(
+          "An identical import already exists with a different import type or mode. Check the existing job before retrying.",
+          409,
+        );
+      }
+      if (reuse === "invalid-payload") {
+        throw new AppError("The existing import job cannot be safely reused. Contact support before retrying.", 500);
+      }
+      return { jobId: job.id, status: job.status, type, mode };
+    }
+
     await prisma.fileAsset.update({ where: { id: stored.id }, data: { referenceId: job.id } });
-    return { jobId: job.id, status: job.status, type, mode: options.mode === "partial" ? "partial" : "atomic" };
+    return { jobId: job.id, status: job.status, type, mode };
   } catch (error) {
     await deleteFile(stored.id, institutionId).catch(() => undefined);
     throw error;

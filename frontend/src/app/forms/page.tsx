@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
+import { RoleRedirect } from "@/components/navigation/RoleRedirect";
 
-/**
- * This route used to render a static demo module. The real workflow
- * lives at /certificates, so the path now redirects there instead of
- * presenting a second, disconnected surface.
- */
-export default function Page(): never {
-  redirect("/certificates");
+export default function FormsLegacyRoute() {
+  return (
+    <RoleRedirect
+      destinations={{ REGISTRAR: "/certificates" }}
+      title="Opening the authorized Registrar forms workspace…"
+    />
+  );
 }

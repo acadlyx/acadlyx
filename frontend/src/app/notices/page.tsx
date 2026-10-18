@@ -7,9 +7,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { canManageNotices, canTargetDepartmentWithNotice, noticeRequiresDepartment } from "@/lib/noticesPolicy";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
   AuthRequiredError,
@@ -23,7 +24,6 @@ import {
 } from "@/lib/erpApi";
 
 const READ_ROLES = [
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
   "CHAIRMAN",
   "DIRECTOR",
@@ -110,6 +110,9 @@ function noticeAccent(audience?: string) {
 
 export default function NoticesPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const contextDepartmentId = searchParams.get("departmentId") || "";
 
   const [notices, setNotices] = useState<ErpNotice[]>([]);
   const [departments, setDepartments] = useState<
@@ -118,6 +121,8 @@ export default function NoticesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canSelectDepartment, setCanSelectDepartment] = useState(false);
+  const [requiresDepartmentScope, setRequiresDepartmentScope] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showPublisher, setShowPublisher] = useState(false);
@@ -130,6 +135,13 @@ export default function NoticesPage() {
     expiresAt: "",
   });
 
+  const visibleNotices = useMemo(
+    () => contextDepartmentId
+      ? notices.filter((notice) => !notice.departmentId || notice.departmentId === contextDepartmentId)
+      : notices,
+    [notices, contextDepartmentId],
+  );
+
   const departmentNameById = useMemo(() => {
     const map = new Map<string, string>();
 
@@ -140,19 +152,39 @@ export default function NoticesPage() {
     return map;
   }, [departments]);
 
+  useEffect(() => {
+    const departmentId = departments.some((department) => department.id === contextDepartmentId)
+      ? contextDepartmentId
+      : "";
+    setForm((current) => ({ ...current, departmentId }));
+  }, [contextDepartmentId, departments]);
+
+  function changeDepartmentScope(departmentId: string) {
+    setForm((current) => ({ ...current, departmentId }));
+    const params = new URLSearchParams(searchParams.toString());
+    if (departmentId) params.set("departmentId", departmentId);
+    else params.delete("departmentId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
       const user = await getCurrentUser();
-      const manage = !user.roles.includes("STUDENT") && user.permissions.includes("notices.manage");
+      const manage = canManageNotices(user.roles, user.permissions);
+      const allowDepartmentTargeting = manage && canTargetDepartmentWithNotice(user.roles);
+      const requireDepartmentTarget = manage && noticeRequiresDepartment(user.roles);
 
       setCanManage(manage);
+      setCanSelectDepartment(allowDepartmentTargeting);
+      setRequiresDepartmentScope(requireDepartmentTarget);
 
       const [noticeList, departmentList] = await Promise.all([
         listNotices(false),
-        manage ? listDepartments() : Promise.resolve([]),
+        allowDepartmentTargeting ? listDepartments() : Promise.resolve([]),
       ]);
 
       setNotices(noticeList);
@@ -182,6 +214,14 @@ export default function NoticesPage() {
 
     if (!form.title.trim() || !form.body.trim()) {
       setError("Title and message are required.");
+      return;
+    }
+    if (requiresDepartmentScope && !form.departmentId) {
+      setError("Select a department in your assigned campus or department scope.");
+      return;
+    }
+    if (!canSelectDepartment && form.departmentId) {
+      setError("This workspace can publish institution-wide notices only.");
       return;
     }
 
@@ -252,7 +292,7 @@ export default function NoticesPage() {
                   Available notices
                 </p>
                 <p className="mt-1 text-2xl font-black text-slate-900">
-                  {loading ? "—" : notices.length}
+                  {loading ? "—" : visibleNotices.length}
                 </p>
               </div>
 
@@ -361,22 +401,33 @@ export default function NoticesPage() {
                   </span>
                   <select
                     value={form.departmentId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        departmentId: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    disabled={!canSelectDepartment}
+                    required={requiresDepartmentScope}
+                    onChange={(event) => changeDepartmentScope(event.target.value)}
+                    aria-describedby="notice-department-scope-help"
+                    className="w-full rounded-[13px] border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                   >
-                    <option value="">All departments</option>
-                    {departments.map((department) => (
+                    <option value="" disabled={requiresDepartmentScope}>
+                      {requiresDepartmentScope
+                        ? "Select an assigned department"
+                        : canSelectDepartment
+                          ? "All departments"
+                          : "Institution-wide only"}
+                    </option>
+                    {canSelectDepartment ? departments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.name}
                         {department.code ? ` (${department.code})` : ""}
                       </option>
-                    ))}
+                    )) : null}
                   </select>
+                  <p id="notice-department-scope-help" className="mt-1 text-xs leading-5 text-slate-500">
+                    {requiresDepartmentScope
+                      ? "This role must publish within an assigned campus or department."
+                      : canSelectDepartment
+                        ? "Choose an authorized department or publish institution-wide."
+                        : "CMS publishing is institution-wide; department targeting requires an assigned institutional role."}
+                  </p>
                 </label>
 
                 <label>
@@ -422,7 +473,7 @@ export default function NoticesPage() {
                 <div className="mt-2 h-3 w-1/2 rounded bg-slate-100" />
               </div>
             ))
-          ) : notices.length === 0 ? (
+          ) : visibleNotices.length === 0 ? (
             <div className="rounded-[24px] border border-dashed border-slate-300 bg-white p-10 text-center">
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-[15px] bg-slate-100 text-slate-500">
                 ◌
@@ -435,7 +486,7 @@ export default function NoticesPage() {
               </p>
             </div>
           ) : (
-            notices.map((notice) => (
+            visibleNotices.map((notice) => (
               <article
                 key={notice.id}
                 className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_7px_24px_rgba(20,32,50,0.035)] sm:p-6"

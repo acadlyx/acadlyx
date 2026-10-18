@@ -5,6 +5,7 @@ import { claimNextJob, completeJob, cancelClaimedJob, failJob, heartbeatJob, rec
 import { getJobHandler } from "./jobs/registry";
 import "./jobs/handlers/admitCard.handler";
 import "./jobs/handlers/import.handler";
+import "./jobs/handlers/export.handler";
 import "./jobs/handlers/result.handler";
 import "./jobs/handlers/marksheet.handler";
 

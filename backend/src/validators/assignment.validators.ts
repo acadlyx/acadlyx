@@ -25,6 +25,13 @@ export const listAssignmentsQuerySchema = z.object({
   search: z.string().trim().optional(),
   courseOfferingId: z.string().uuid().optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
+  campusId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  programId: z.string().uuid().optional(),
+  academicYearId: z.string().uuid().optional(),
+  batchId: z.string().uuid().optional(),
+  semesterId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
 });
 
 export const submitAssignmentSchema = z.object({

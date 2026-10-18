@@ -56,7 +56,7 @@ test("Executive dashboards stay sidebar-centric and every leadership destination
   assert.ok(!director.includes("/director/examinations/operations"), "Director dashboard should rely on the sidebar, not duplicate action cards");
   assert.ok(!director.includes('["Campus students","/students"]'), "Director must not route to the global student page");
   assert.ok(!director.includes('["Admissions","/admissions"]'), "Director must not route to global admissions");
-  assert.ok(!navigation.includes('label: "Institutional CMS"'), "leadership sidebars must not expose Institutional CMS");
+  assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?roles: \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"\],[\s\S]*?permissions: \["institutional-cms.read"\]/, "Institutional CMS must be restricted to authorized institutional roles");
   assert.ok(!navigation.includes('href: "/calendar"'), "Director must not be routed into the unscoped generic calendar");
 });
 
@@ -79,11 +79,20 @@ test("Chairman legacy fee-approval route redirects to the direct publication wor
 test("Director fee approvals have a dedicated page and backend program/semester scope enforcement", () => {
   const page = readFileSync(join(frontend, "director/fee-approvals/page.tsx"), "utf8");
   const dashboard = readFileSync(join(frontend, "../components/dashboard/DirectorDashboard.tsx"), "utf8");
+  const queue = readFileSync(join(frontend, "../components/accounts/FeeStructureApprovalQueue.tsx"), "utf8");
   const feeService = readFileSync(join(process.cwd(), "src/services/feeStructure.service.ts"), "utf8");
   const rbac = readFileSync(join(process.cwd(), "src/config/rbac.ts"), "utf8");
 
-  assert.ok(page.includes('allowedRoles={["DIRECTOR"]}'), "approval page must be Director-only");
+  // Role enforcement belongs to the shared queue, which is used by Director
+  // and Management with different scope contracts. Keep the role prop and
+  // the component's effective-role/permission guard in sync.
+  assert.ok(page.includes('role="DIRECTOR"'), "approval page must configure the shared queue for the Director workspace");
+  assert.ok(page.includes('scope="campus"'), "Director approval page must be campus-scoped");
   assert.ok(page.includes("assigned campus scope"), "page must explain the campus boundary");
+  assert.ok(queue.includes("allowedRoles={[role]}"), "the shared approval queue must bind its shell to the configured role");
+  assert.ok(queue.includes("getPrimaryRole(user.roles) !== role"), "the shared queue must deny secondary-role access when the effective role differs");
+  assert.ok(queue.includes('!user.permissions.includes("fees.structure.approve")'), "approvals require the explicit permission");
+  assert.ok(queue.includes('!user.permissions.includes("fees.structure.read")'), "the queue also requires read permission");
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
   assert.ok(navigation.includes('href: "/director/fee-approvals"'), "Director may retain campus fee approval workflow in the sidebar");
   assert.ok(!dashboard.includes('["Campus fee approvals", "/director/fee-approvals"]'), "Director dashboard should not duplicate approval workflow shortcuts");
@@ -463,7 +472,7 @@ test("Chairman and Director have dedicated notice, notification and events route
     }
   }
   const navigation = readFileSync(join(frontend, "../lib/navigation.ts"), "utf8");
-  assert.ok(!navigation.includes('label: "Institutional CMS"'));
+  assert.match(navigation, /label: "Institutional CMS",[\s\S]*?href: "\/admin\/institutional-cms",[\s\S]*?roles: \["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"\],[\s\S]*?permissions: \["institutional-cms.read"\]/, "Institutional CMS must be restricted to authorized institutional roles");
   assert.ok(navigation.includes('href: "/chairman/events-gallery"'));
   assert.ok(navigation.includes('href: "/director/events-gallery"'));
 });
@@ -506,8 +515,9 @@ test("Chairman institution-wide role wins over secondary Director bindings in le
   assert.ok(intelligence.includes("getAuthorizedDepartmentIds(institutionId, actor)"), "intelligence filters must use the canonical scope resolver");
   assert.ok(exports.includes("const institutionWide = isInstitutionWide(actor)"), "exports must use the central role precedence");
   assert.ok(exports.includes("isDirectorScoped(actor)"), "a Director export must retain campus scope despite secondary broad roles");
-  assert.ok(calendar.includes("assertCalendarCampusScopeSupported(actor)"), "unscoped institution calendar APIs must reject Director access");
-  assert.ok(directorCalendar.includes('href="/director/events-gallery"') && !directorCalendar.includes("DataExportActions"), "Director calendar must route to campus-scoped event management without an unscoped export button");
+  assert.ok(calendar.includes("calendarCampusWhere") && calendar.includes("assertCanManageExistingCampusEvent"), "calendar reads and mutations must enforce server-derived campus ownership");
+  assert.ok(calendar.includes("resolveCampusForWrite") && calendar.includes("getAuthorizedCampusIds"), "calendar creation must be constrained to authorized campus IDs");
+  assert.ok(directorCalendar.includes('from "@/app/calendar/page"'), "Director calendar must use the campus-aware shared editor");
 });
 
 test("Director Events & Gallery listing and mutations stay within assigned campus departments", () => {

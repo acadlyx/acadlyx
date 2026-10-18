@@ -19,14 +19,24 @@ const STRUCTURE_STATUSES = [
 type FeeStructureStatus =
   (typeof STRUCTURE_STATUSES)[number];
 
-function assertCanManageFees(
-  actor: AuthenticatedUser
+function assertEffectiveFeeWorkspaceRole(
+  actor: AuthenticatedUser,
+  allowedRoles: readonly string[],
+  message: string,
 ): void {
+  if (!allowedRoles.includes(getEffectiveWorkspaceRole(actor))) {
+    throw new AppError(message, 403);
+  }
+}
+
+function assertCanManageFees(actor: AuthenticatedUser): void {
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["CHAIRMAN", "MANAGEMENT", "ACCOUNTS"],
+    "Fee-structure management is not available in the active workspace",
+  );
   if (!hasFeeActionPermission(actor.permissions, "manageFeeStructures")) {
-    throw new AppError(
-      "You are not authorized to manage fee structures",
-      403
-    );
+    throw new AppError("You are not authorized to manage fee structures", 403);
   }
 }
 
@@ -116,8 +126,17 @@ export async function listFeeHeads(
   actor: AuthenticatedUser,
   includeInactive = false
 ) {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  // Permissions are accumulated across legacy multi-role bindings, but an
+  // unscoped fee-head directory must not become visible merely because a
+  // narrower Student/Faculty/Parent workspace also has an Accounts grant.
+  // Finance leadership may read shared fee-head names when their explicit
+  // read permission exists; platform authority is handled separately.
+  const mayReadSharedFeeHeads = [
+    "CHAIRMAN", "MANAGEMENT", "ACCOUNTS",
+  ].includes(activeRole);
   if (
-    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
+    !mayReadSharedFeeHeads ||
     !hasFeeActionPermission(actor.permissions, "readFeeStructures")
   ) {
     throw new AppError(
@@ -551,14 +570,13 @@ export async function listFeeStructures(
     semesterId?: string;
   }
 ) {
-  if (
-    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
-    !hasFeeActionPermission(actor.permissions, "readFeeStructures")
-  ) {
-    throw new AppError(
-      "Not authorized to view fee structures",
-      403
-    );
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["CHAIRMAN", "MANAGEMENT", "ACCOUNTS", "DIRECTOR"],
+    "Fee-structure administration is not available in the active workspace",
+  );
+  if (!hasFeeActionPermission(actor.permissions, "readFeeStructures")) {
+    throw new AppError("Not authorized to view fee structures", 403);
   }
 
   const conditions: Prisma.Sql[] = [
@@ -1007,6 +1025,11 @@ export async function submitFeeStructureForApproval(
   actor: AuthenticatedUser,
   structureId: string
 ) {
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["CHAIRMAN", "MANAGEMENT", "ACCOUNTS"],
+    "Fee-structure submission is not available in the active workspace",
+  );
   if (!actor.permissions.includes("fees.structure.manage")) {
     throw new AppError("Fee structure management is not authorized", 403);
   }
@@ -1079,6 +1102,11 @@ export async function approveFeeStructure(
   actor: AuthenticatedUser,
   structureId: string
 ) {
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
+    "Fee-structure approval is not available in the active workspace",
+  );
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure approval is not authorized", 403);
   }
@@ -1121,6 +1149,11 @@ export async function rejectFeeStructure(
   structureId: string,
   reason: string
 ) {
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
+    "Fee-structure rejection is not available in the active workspace",
+  );
   if (!actor.permissions.includes("fees.structure.approve")) {
     throw new AppError("Fee structure rejection is not authorized", 403);
   }
@@ -1167,6 +1200,11 @@ export async function assignFeeStructure(
   structureId: string,
   requestedStudentIds?: string[]
 ) {
+  assertEffectiveFeeWorkspaceRole(
+    actor,
+    ["ACCOUNTS"],
+    "Fee assignment is only available in the Accounts workspace",
+  );
   if (!actor.permissions.includes("fees.assign")) {
     throw new AppError("Fee assignment is not authorized", 403);
   }

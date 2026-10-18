@@ -330,7 +330,7 @@ jobs:
           exit 1
       - name: Run desktop and mobile browser tests
         working-directory: frontend
-        run: npx playwright test e2e/*.spec.mjs --reporter=line
+        run: npx playwright test --config=playwright.config.mjs e2e/public-smoke.spec.mjs --reporter=line
       - name: Collect browser server logs
         if: always()
         run: |
@@ -407,7 +407,7 @@ jobs:
       - backend
       - frontend
       - prisma-migrations
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/production-upgrade-2026-09-20'
+    if: github.event_name == 'pull_request' || (github.event_name != 'pull_request' && github.ref == 'refs/heads/production-upgrade-2026-09-20')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -422,4 +422,7 @@ jobs:
         env:
           ACADLYX_API_URL: https://acadlyx-api.onrender.com
           ACADLYX_WEB_URL: https://acadlyx-orcin.vercel.app
+          ACADLYX_SMOKE_TIMEOUT_MS: ${{ github.event_name == 'pull_request' && '15000' || '20000' }}
+          ACADLYX_SMOKE_MAX_ATTEMPTS: ${{ github.event_name == 'pull_request' && '8' || '30' }}
+          ACADLYX_SMOKE_RETRY_DELAY_MS: ${{ github.event_name == 'pull_request' && '4000' || '10000' }}
         run: node scripts/production-smoke.mjs

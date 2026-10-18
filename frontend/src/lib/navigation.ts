@@ -9,11 +9,60 @@ function normalizeRoleName(role: string): string {
   return ROLE_ALIASES[normalized] ?? normalized;
 }
 
+/**
+ * Canonical role-owned destinations for sidebar links that start from a
+ * shared module path. The shell and the authorization guard both consume this
+ * table so a rewritten sidebar URL is authorized against the same destination.
+ */
+export const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
+  DEAN: { "/notices": "/dean/notices" },
+  HOD: {
+    "/timetable": "/hod/timetable",
+    "/reports": "/hod/reports",
+    "/intelligence": "/hod/intelligence",
+    "/notices": "/hod/notices",
+  },
+  STUDENT: { "/notices": "/student/notices" },
+  HR: { "/reports": "/hr/reports" },
+  EXAMINATION: { "/reports": "/examination/reports" },
+  REGISTRAR: { "/reports": "/registrar/reports" },
+  ADMISSIONS: { "/reports": "/admissions/reports" },
+  LIBRARIAN: { "/reports": "/library/reports" },
+};
+
+export function roleOwnedHref(role: string | null, href: string): string {
+  return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
+}
+
 const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
-  [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments)(\/|$)/, "fees"],
-  [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student)\/students(\/|$)|^\/students(\/|$)/, "students"],
+  [/^\/accounts\/fees(\/|$)/, "fees"],
+  [/^\/faculty\/operations(\/|$)/, "academics"],
+  // Parent pages require Parent Portal even when a nested page also needs
+  // its own feature (for example, fees or placements).
+  [/^\/parent(\/|$)/, "parent_portal"],
+  // Tenant policy covers role-owned routes outside generic module namespaces.
+  [/^\/admin\/(academic-years|campuses|course-offerings)(\/|$)|^\/registrar\/academic-masters(\/|$)|^\/student\/academic(\/|$)/, "academics"],
+  [/^\/admin\/calendar(\/|$)/, "calendar"],
+  [/^\/(admin|student)\/documents(\/|$)/, "documents"],
+  [/^\/admin\/institutional-cms(\/|$)/, "cms"],
+  [/^\/admin\/parent-links(\/|$)/, "parent_portal"],
+  [/^\/(admin|club-president|site-content)\/notices?(\/|$)/, "notices"],
+  [/^\/(admin|club-president|site-content)\/notifications?(\/|$)/, "notifications"],
+  [/^\/(admin|management|registrar)\/placements?(\/|$)/, "placements"],
+  [/^\/(director|it)\/imports(\/|$)/, "import_export"],
+  [/^\/(admin|staff)\/operations(\/|$)/, "operations"],
+  [/^\/hod\/enrollment-requests(\/|$)|^\/student\/enrollment(\/|$)/, "admissions"],
+  [/^\/hod\/course-registration-requests(\/|$)/, "registration"],
+  [/^\/student\/admit-cards(\/|$)/, "exams"],
+  [/^\/student\/marks(\/|$)/, "results"],
+  [/^\/student\/leave(\/|$)|^\/leave-management(\/|$)|^\/(faculty|hod|director|dean|registrar|hr)\/leave(\/|$)/, "leave"],
+  [/^\/(chairman|director|dean|hod|registrar|management|parent|accounts)\/(fees|payments|fee-approvals|fee-structures|fee-heads)(\/|$)/, "fees"],
+  [/^\/payments(\/|$)/, "fees"],
+  [/^\/parent\/children(\/|$)/, "parent_portal"],
+  [/^\/(chairman|director|dean|hod|registrar|management|accounts|hr|parent|student|admissions|library|placements)\/students(\/|$)|^\/students(\/|$)/, "students"],
   [/^\/(chairman|director|dean|hod|registrar|management|hr|accounts)\/faculty(\/|$)|^\/faculty(\/|$)/, "faculty"],
   [/^\/(chairman|director|dean|registrar|admissions)\/(admissions|applications)(\/|$)|^\/applications(\/|$)|^\/admissions(\/|$)/, "admissions"],
+  [/^\/student\/examinations\/(performance|results)(\/|$)/, "results"],
   [/^\/(chairman|director|dean|hod|registrar|faculty|student)\/examinations?(\/|$)/, "exams"],
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent)\/results?(\/|$)/, "results"],
   [/^\/(chairman|director|dean|hod|faculty|student)\/attendance(\/|$)/, "attendance"],
@@ -26,7 +75,8 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|registrar|hod|faculty|student)\/course-registration(\/|$)|^\/course-registration(\/|$)/, "registration"],
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
   [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
-  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
+  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/(site-content|institutionalcms)(\/|$)/, "cms"],
+  [/^\/cms(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
@@ -37,7 +87,8 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/((student)\/)?library(\/|$)/, "library"],
   [/^\/((student)\/)?placements?(\/|$)/, "placements"],
   [/^\/((student)\/)?admissions?(\/|$)|^\/applications(\/|$)/, "admissions"],
-  [/^\/(hr|employees|leave-management)(\/|$)|^\/(faculty|hod|director|dean|registrar)\/leave(\/|$)/, "hr"],
+  [/^\/enrollment(\/|$)/, "admissions"],
+  [/^\/(hr|employees|faculty-management)(\/|$)/, "hr"],
   [/^\/((student)\/)?timetable(\/|$)/, "timetable"],
   [/^\/lms(\/|$)/, "lms"],
   [/^\/course-registration(\/|$)|^\/student\/course-registration(\/|$)/, "registration"],
@@ -52,7 +103,8 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|parent)\/calendar(\/|$)|^\/calendar(\/|$)/, "calendar"],
   [/^\/admin\/imports(\/|$)|^\/imports(\/|$)|^\/exports(\/|$)/, "import_export"],
-  [/^\/documents(\/|$)|^\/forms(\/|$)/, "documents"],
+  [/^\/documents(\/|$)/, "documents"],
+  [/^\/forms(\/|$)/, "certificates"],
   [/^\/operations(\/|$)|^\/(chairman|director|dean|hod|management|it)\/operations(\/|$)/, "operations"],
   [/^\/analytics(\/|$)/, "analytics"],
   [/^\/promotions?(\/|$)|^\/student-promotion(\/|$)/, "promotions"],
@@ -62,13 +114,26 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|hod|registrar|faculty|student|parent|accounts|hr|admissions|examination|placements|library|it|management|staff)\/notifications?(\/|$)|^\/notifications?(\/|$)/, "notifications"],
 ];
 
-export function tenantFeatureForPath(pathname: string): string | null {
-  const normalizedPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
-  return TENANT_FEATURE_BY_ROUTE.find(([pattern]) => pattern.test(normalizedPath))?.[1] ?? null;
+export function tenantFeaturesForPath(pathname: string): string[] {
+  const [rawPath, rawQuery] = pathname.split("?");
+  const normalizedPath = rawPath.replace(/\/+$/, "") || "/";
+  const requiredFeatures = TENANT_FEATURE_BY_ROUTE
+    .filter(([pattern]) => pattern.test(normalizedPath))
+    .map(([, feature]) => feature);
+
+  // The HOD workspace reuses /hod for its student and course-registration
+  // views. The query-backed registration view is its own protected feature;
+  // evaluate this against the full URL for both navigation and direct routes.
+  const query = new URLSearchParams(rawQuery || "");
+  if (normalizedPath === "/hod" && query.get("tab") === "registrations") {
+    requiredFeatures.push("registration");
+  }
+
+  return Array.from(new Set(requiredFeatures));
 }
 
-function tenantFeatureForNavigation(item: NavigationItem): string | null {
-  return tenantFeatureForPath(item.href);
+function tenantFeaturesForNavigation(item: NavigationItem): string[] {
+  return tenantFeaturesForPath(item.href);
 }
 
 
@@ -78,6 +143,8 @@ export type NavigationItem = {
   icon?: string;
   roles?: string[];
   permissions?: PermissionKey[];
+  /** Require at least one listed permission when the workspace contains per-action capabilities. */
+  anyPermissions?: PermissionKey[];
   group?: string;
   children?: NavigationItem[];
   /** Route matching strategy for active state. Nested is boundary-safe; exact is exact-only. */
@@ -240,10 +307,19 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Website CMS",
     href: "/site-content",
     icon: "✦",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CMS"],
+    roles: ["SUPER_ADMIN", "CMS"],
     permissions: ["site.manage"],
     group: "Website",
-    activeMatch: "nested",
+    activeMatch: "exact",
+  },
+  {
+    label: "Institutional CMS",
+    href: "/admin/institutional-cms",
+    icon: "✦",
+    roles: ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
+    permissions: ["institutional-cms.read"],
+    group: "Institution",
+    activeMatch: "exact",
   },
 
   {
@@ -255,6 +331,70 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Administration",
   },
    {
+    label: "Academic years",
+    href: "/admin/academic-years",
+    icon: "calendar",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["academic-years.read"],
+    group: "Academics",
+  },
+  {
+    label: "Programs",
+    href: "/admin/programs",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["programs.read"],
+    group: "Academics",
+  },
+  {
+    label: "Semesters",
+    href: "/admin/semesters",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["semesters.read"],
+    group: "Academics",
+  },
+  {
+    label: "Sections",
+    href: "/admin/sections",
+    icon: "people",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["sections.read"],
+    group: "Academics",
+  },
+  {
+    label: "Courses",
+    href: "/admin/courses",
+    icon: "document",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["courses.read"],
+    group: "Academics",
+  },
+  {
+    label: "Course offerings",
+    href: "/admin/course-offerings",
+    icon: "academic",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["course-offerings.read"],
+    group: "Academics",
+  },
+  {
+    label: "Documents",
+    href: "/admin/documents",
+    icon: "document",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["documents.read"],
+    group: "Institution",
+  },
+  {
+    label: "Parent links",
+    href: "/admin/parent-links",
+    icon: "people",
+    roles: ["INSTITUTION_ADMIN"],
+    permissions: ["parent-links.read"],
+    group: "Institution",
+  },
+  {
     label: "People",
     href: "/admin/users",
     icon: "♙",
@@ -426,6 +566,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Oversight",
   },
   {
+    label: "Expense approvals",
+    href: "/chairman/fees/expenses",
+    icon: "✓",
+    roles: ["CHAIRMAN"],
+    permissions: ["expenses.read"],
+    group: "Finance",
+  },
+  {
     label: "Financial oversight",
     href: "/chairman/fees",
     icon: "₹",
@@ -458,6 +606,20 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Import review",
+    href: "/director/imports",
+    icon: "download",
+    roles: ["DIRECTOR"],
+    anyPermissions: [
+      "users.create", "students.create", "campuses.create", "departments.create",
+      "programs.create", "academic-years.create", "semesters.create", "sections.create",
+      "courses.create", "course-offerings.create", "exams.manage", "marks.enter",
+      "attendance.mark", "fees.manage", "fees.pay", "notices.manage",
+      "timetable.manage", "parent-links.manage",
+    ],
+    group: "Campus Operations",
+  },
+  {
     label: "Examination operations",
     href: "/director/examinations/operations",
     icon: "◉",
@@ -465,6 +627,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     permissions: ["exams.read"],
     group: "Academic",
     activeMatch: "nested",
+  },
+  {
+    label: "Expense approvals",
+    href: "/director/fees/expenses",
+    icon: "✓",
+    roles: ["DIRECTOR"],
+    permissions: ["expenses.read"],
+    group: "Finance",
   },
   {
     label: "Fee structures",
@@ -480,7 +650,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     href: "/director/fee-approvals",
     icon: "✓",
     roles: ["DIRECTOR"],
-    permissions: ["fees.structure.approve"],
+    permissions: ["fees.structure.read", "fees.structure.approve"],
     group: "Finance",
     activeMatch: "nested",
   },
@@ -514,6 +684,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "▤",
     roles: ["DIRECTOR"],
     permissions: ["admissions.read"],
+    group: "Academic",
+  },
+  {
+    label: "Placements",
+    href: "/director/placements",
+    icon: "↗",
+    roles: ["DIRECTOR"],
+    permissions: ["placements.read"],
     group: "Academic",
   },
   {
@@ -579,6 +757,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["DEAN"],
     permissions: ["departments.read"],
     group: "Academic",
+  },
+  {
+    label: "Academic operations",
+    href: "/dean/operations",
+    icon: "academic",
+    roles: ["DEAN"],
+    permissions: ["operations.read"],
+    group: "Academic Leadership",
   },
   {
     label: "Outcome Based Education",
@@ -654,6 +840,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Reports",
+    href: "/reports",
+    icon: "chart",
+    roles: ["REGISTRAR"],
+    permissions: ["reports.read"],
+    group: "Reports",
+  },
+  {
     label: "Students",
     href: "/registrar/students",
     icon: "◎",
@@ -665,7 +859,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Admissions",
     href: "/admissions",
     icon: "▤",
-    roles: ["REGISTRAR"],
+    roles: ["REGISTRAR", "ADMISSIONS"],
     permissions: ["admissions.read"],
     group: "Academic",
   },
@@ -684,6 +878,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["REGISTRAR"],
     permissions: ["academic-years.read"],
     group: "Academic",
+  },
+  {
+    label: "Reports",
+    href: "/registrar/reports",
+    icon: "▤",
+    roles: ["REGISTRAR"],
+    permissions: ["reports.read"],
+    group: "Administration",
   },
   {
     label: "Course registration",
@@ -709,6 +911,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     icon: "⌂",
     roles: ["HOD"],
     group: "Workspace",
+  },
+  {
+    label: "Department operations",
+    href: "/hod/operations",
+    icon: "settings",
+    roles: ["HOD"],
+    permissions: ["operations.read"],
+    group: "Department",
   },
   {
     label: "Enrollment Requests",
@@ -849,6 +1059,14 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Teaching operations",
+    href: "/faculty/operations",
+    icon: "academic",
+    roles: ["FACULTY"],
+    permissions: ["courses.read"],
+    group: "Teaching",
+  },
+  {
     label: "My courses",
     href: "/faculty/courses",
     icon: "▦",
@@ -937,10 +1155,18 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
+    label: "Expenses & Approvals",
+    href: "/accounts/expenses",
+    icon: "₹",
+    roles: ["ACCOUNTS"],
+    permissions: ["expenses.read"],
+    group: "Finance",
+  },
+  {
     label: "Fee Structures",
     href: "/accounts/fee-structures",
     icon: "▤",
-    roles: ["SUPER_ADMIN", "MANAGEMENT", "ACCOUNTS"],
+    roles: ["ACCOUNTS"],
     permissions: ["fees.structure.read"],
     group: "Fee Management",
   },
@@ -948,7 +1174,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Fee Heads",
     href: "/accounts/fee-heads",
     icon: "▤",
-    roles: ["SUPER_ADMIN", "MANAGEMENT", "ACCOUNTS"],
+    roles: ["ACCOUNTS"],
     permissions: ["fees.structure.read"],
     group: "Fee Management",
   },
@@ -1076,10 +1302,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/admissions/students",
     icon: "◎",
     roles: ["ADMISSIONS"],
-    permissions: ["students.read"],
+    permissions: ["students.read", "admissions.read"],
     group: "Admissions",
   },
   {
@@ -1168,10 +1394,10 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Students",
-    href: "/students",
+    href: "/library/students",
     icon: "◎",
     roles: ["LIBRARIAN"],
-    permissions: ["students.read"],
+    permissions: ["students.read", "library.read"],
     group: "Circulation",
   },
   {
@@ -1484,6 +1710,23 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
 
   {
+    label: "Profile",
+    href: "/parent/profile",
+    icon: "user",
+    roles: ["PARENT"],
+    permissions: ["parent-portal.read"],
+    group: "Family",
+  },
+  {
+    label: "Children",
+    href: "/parent/children",
+    icon: "people",
+    roles: ["PARENT"],
+    group: "Student",
+    activeMatch: "nested",
+  },
+
+  {
     label: "Overview",
     href: "/parent",
     activeMatch: "exact",
@@ -1500,6 +1743,24 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     roles: ["CLUB_PRESIDENT"],
     group: "Workspace",
   },
+  {
+    label: "Expense approvals",
+    href: "/management/fees/expenses",
+    icon: "✓",
+    roles: ["MANAGEMENT"],
+    permissions: ["expenses.read"],
+    group: "Finance",
+  },
+  {
+    label: "Fee structure approvals",
+    href: "/management/fee-approvals",
+    icon: "✓",
+    roles: ["MANAGEMENT"],
+    permissions: ["fees.structure.read", "fees.structure.approve"],
+    group: "Finance",
+    activeMatch: "nested",
+  },
+
   {
     label: "Overview",
     href: "/management",
@@ -1555,14 +1816,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   { label: "Placement", href: "/hod/placements", icon: "◎", roles: ["HOD"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
   { label: "Placement", href: "/faculty/placements", icon: "◎", roles: ["FACULTY"], permissions: ["placements.read"], group: "Academic", activeMatch: "nested" },
   { label: "Placement", href: "/parent/placements", icon: "◎", roles: ["PARENT"], permissions: ["placements.read"], group: "Student", activeMatch: "nested" },
-  {
-    label: "Notices",
-    href: "/superadmin/notices",
-    icon: "◌",
-    roles: ["SUPER_ADMIN"],
-    group: "Platform",
-    activeMatch: "nested",
-  },
   {
     label: "Notifications",
     href: "/superadmin/notifications",
@@ -1838,11 +2091,36 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
 ].filter((item): item is NavigationItem => Boolean(item));
 
 const NAMESPACE_OWNERS: Array<[string, string[]]> = [
-  ["/admin/institutional-cms", ["INSTITUTION_ADMIN", "CHAIRMAN", "DIRECTOR"]],
+  ["/admissions/reports", ["ADMISSIONS"]],
+  ["/admissions/students", ["ADMISSIONS"]],
+  ["/admissions", ["ADMISSIONS", "REGISTRAR"]],
+  ["/library/reports", ["LIBRARIAN"]],
+  ["/library/students", ["LIBRARIAN"]],
+  ["/club", ["CLUB_PRESIDENT"]],
+  ["/cms", ["SUPER_ADMIN", "CMS"]],
+  ["/enrollment", ["ADMISSIONS"]],
+  ["/erp", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "DIRECTOR", "MANAGEMENT", "HOD", "STAFF", "FACULTY", "PARENT", "STUDENT"]],
+  ["/faculty-management", ["HR"]],
+  ["/forms", ["REGISTRAR"]],
+  ["/institution-settings", ["INSTITUTION_ADMIN"]],
+  ["/institutionalcms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]],
+  ["/lms/settings", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "HOD", "FACULTY"]],
+  ["/lms/reports", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "HOD", "FACULTY"]],
+  ["/lms/parent", ["PARENT"]],
+  ["/lms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "EXAMINATION", "STUDENT", "PARENT", "HOD", "FACULTY"]],
+  ["/my-work", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/profile", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/today", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS", "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT", "CLUB_PRESIDENT", "STAFF"]],
+  ["/user-deletion-approvals", ["INSTITUTION_ADMIN"]],
+  ["/fees/receipts", ["ACCOUNTS"]],
+  ["/fees/collections", ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"]],
+
+  ["/admin/institutional-cms", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"]],
   ["/superadmin", ["SUPER_ADMIN"]],
   ["/admin", ["INSTITUTION_ADMIN"]],
   ["/student", ["STUDENT"]],
   ["/faculty", ["FACULTY"]],
+  ["/parent/students/[studentId]", ["PARENT"]],
   ["/parent", ["PARENT"]],
   ["/chairman", ["CHAIRMAN"]],
   ["/director", ["DIRECTOR"]],
@@ -1864,13 +2142,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/placements",
-    [
-      "PLACEMENT",
-      "STUDENT",
-    ],
-  ],
+  ["/placements", ["PLACEMENT"]],
 
   ["/it", ["IT"]],
   ["/staff", ["STAFF"]],
@@ -1891,18 +2163,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/timetable",
-    [
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-      "HOD",
-      "FACULTY",
-      "STUDENT",
-      "PARENT",
-    ],
-  ],
+  ["/timetable", ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD", "FACULTY"]],
 
   [
     "/reports",
@@ -1926,21 +2187,8 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ["CHAIRMAN", "DIRECTOR", "DEAN", "HOD"],
   ],
 
-  [
-    "/students",
-    [
-      "SUPER_ADMIN",
-      "INSTITUTION_ADMIN",
-      "CHAIRMAN",
-      "MANAGEMENT",
-      "DIRECTOR",
-      "DEAN",
-      "REGISTRAR",
-      "HOD",
-      "FACULTY",
-      "PLACEMENT",
-    ],
-  ],
+  ["/students/[id]", ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR", "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "PLACEMENT"]],
+  ["/students", ["INSTITUTION_ADMIN"]],
 
   ["/user-management", ["INSTITUTION_ADMIN"]],
 
@@ -2023,16 +2271,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/admissions",
-    [
-      "ADMISSIONS",
-      "REGISTRAR",
-      "CHAIRMAN",
-      "DIRECTOR",
-      "DEAN",
-    ],
-  ],
+  ["/admissions", ["ADMISSIONS"]],
 
   [
     "/applications",
@@ -2118,17 +2357,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
     ],
   ],
 
-  [
-    "/academics",
-    [
-      "INSTITUTION_ADMIN",
-      "DEAN",
-      "REGISTRAR",
-      "HOD",
-      "FACULTY",
-      "STUDENT",
-    ],
-  ],
+  ["/academics", ["DEAN"]],
 
   ["/employees", ["HR"]],
 
@@ -2238,14 +2467,21 @@ export function getNavigationForRoles(
       item.roles.length === 0 ||
       item.roles.some((role) => normalizeRoleName(role) === activeRole);
 
-    const permissionAllowed =
-      !item.permissions ||
-      item.permissions.length === 0 ||
-      item.permissions.every((permission) => permissionSet.has(permission));
+    const permissionAllowed = item.anyPermissions?.length
+      ? item.anyPermissions.some((permission) => permissionSet.has(permission))
+      : !item.permissions ||
+        item.permissions.length === 0 ||
+        item.permissions.every((permission) => permissionSet.has(permission));
 
-    const feature = tenantFeatureForNavigation(item);
-    const featureAllowed =
-      !feature || tenantFeatures.includes(feature);
+    const requiredFeatures = tenantFeaturesForNavigation(item);
+    const itemPath = item.href.split("?")[0].replace(/\/+$/, "") || "/";
+    // Public website CMS is a platform-owned workspace for Super Admin. It
+    // must not require a tenant subscription, because a platform account has
+    // no institution whose entitlements could be evaluated.
+    const platformManagedCms = activeRole === "SUPER_ADMIN" && itemPath === "/site-content";
+    const featureAllowed = platformManagedCms || requiredFeatures.every((feature) =>
+      tenantFeatures.includes(feature),
+    );
 
     return roleAllowed && permissionAllowed && featureAllowed;
   });
@@ -2314,6 +2550,61 @@ export function navigationForUser(
   );
 }
 
+function namespaceMatchesPath(pathname: string, prefix: string): boolean {
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const prefixSegments = prefix.split("/").filter(Boolean);
+  const hasDynamicSegment = prefixSegments.some(
+    (segment) => segment.startsWith("[") && segment.endsWith("]"),
+  );
+
+  if (hasDynamicSegment) {
+    return prefixSegments.length === pathSegments.length &&
+      prefixSegments.every((segment, index) =>
+        segment.startsWith("[") && segment.endsWith("]")
+          ? pathSegments[index].length > 0
+          : pathSegments[index] === segment,
+      );
+  }
+
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
+const REDIRECT_ONLY_ROUTE_ROLES: Record<string, string[]> = {
+  "/club": ["CLUB_PRESIDENT"],
+  "/cms": ["SUPER_ADMIN", "CMS"],
+  "/enrollment": ["ADMISSIONS"],
+  "/forms": ["REGISTRAR"],
+  "/institution-settings": ["INSTITUTION_ADMIN"],
+  "/institutionalcms": ["INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR"],
+  "/payments": ["ACCOUNTS", "STUDENT", "PARENT"],
+  "/fees/receipts": ["ACCOUNTS"],
+  "/accounts/fees": ["ACCOUNTS"],
+  "/chairman/fee-approvals": ["CHAIRMAN"],
+  "/hod/students": ["HOD"],
+  "/library/circulation": ["LIBRARIAN"],
+  "/student/admit-cards": ["STUDENT"],
+  "/student/marks": ["STUDENT"],
+  "/student/results": ["STUDENT"],
+  "/superadmin/audit": ["SUPER_ADMIN"],
+  "/superadmin/institutions": ["SUPER_ADMIN"],
+  "/superadmin/plans": ["SUPER_ADMIN"],
+  "/superadmin/users": ["SUPER_ADMIN"],
+};
+
+const REDIRECT_ONLY_ROUTE_PERMISSIONS: Record<string, string[]> = {
+  "/accounts/fees": ["fees.read"],
+  "/chairman/fee-approvals": ["fees.structure.read"],
+  "/hod/students": ["students.read"],
+  "/library/circulation": ["library.manage"],
+  "/student/admit-cards": ["exams.read"],
+  "/student/marks": ["marks.read"],
+  "/student/results": ["results.read"],
+  "/superadmin/audit": ["audit.read"],
+  "/superadmin/institutions": ["institutions.manage"],
+  "/superadmin/plans": ["plans.manage"],
+  "/superadmin/users": ["users.read"],
+};
+
 export function canAccessRoute(
   pathname: string,
   roles: string[],
@@ -2330,21 +2621,38 @@ export function canAccessRoute(
 
   const activeRole = getPrimaryRole(roles);
 
+  // This URL is a redirect-only legacy alias, not the Operations workspace.
+  // Allow only the effective Director role to reach its redirect even when the
+  // tenant's separate Operations feature is disabled; /director is authorized
+  // normally after navigation, and this route serves no operational data.
+  if (normalizedPath === "/director/operations") return activeRole === "DIRECTOR";
+  // Chairman Operations is a redirect-only compatibility route, not the
+  // Operations feature itself, so it serves no operational data.
+  if (normalizedPath === "/chairman/operations") return activeRole === "CHAIRMAN";
+
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
-  const tenantFeature = tenantFeatureForPath(normalizedPath);
-  if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
+  const requiredTenantFeatures = tenantFeaturesForPath(pathname);
+  const platformManagedCms = activeRole === "SUPER_ADMIN" && (normalizedPath === "/site-content" || normalizedPath === "/cms");
+  if (!platformManagedCms) {
+    if (requiredTenantFeatures.some((feature) => !tenantFeatures.includes(feature))) return false;
+  }
+
+  // Explicit legacy aliases render no module data: authorize only the declared
+  // effective role, tenant entitlement, and any alias-specific permission.
+  // Run this before the namespace fail-closed check because aliases such as
+  // /payments and /forms intentionally have no normal data-route namespace.
+  const redirectOnlyRoles = REDIRECT_ONLY_ROUTE_ROLES[normalizedPath];
+  if (redirectOnlyRoles) {
+    const requiredAliasPermissions = REDIRECT_ONLY_ROUTE_PERMISSIONS[normalizedPath] ?? [];
+    if (!requiredAliasPermissions.every((permission) => permissionSet.has(permission))) return false;
+    return redirectOnlyRoles.some((role) => normalizeRoleName(role) === activeRole);
+  }
 
   const matchingNamespace =
     NAMESPACE_OWNERS
-      .filter(
-        ([prefix]) =>
-          normalizedPath === prefix ||
-          normalizedPath.startsWith(
-            `${prefix}/`,
-          ),
-      )
+      .filter(([prefix]) => namespaceMatchesPath(normalizedPath, prefix))
       .sort(
         (a, b) =>
           b[0].length -
@@ -2352,7 +2660,9 @@ export function canAccessRoute(
       )[0];
 
   if (!matchingNamespace) {
-    return true;
+    // Protected routes fail closed unless a namespace (including a specific
+    // legacy alias/shared workspace) explicitly declares their owner roles.
+    return false;
   }
 
   const [, allowedRoles] =
@@ -2367,7 +2677,44 @@ export function canAccessRoute(
   // Permission-gated module namespaces are denied unless the authenticated
   // user actually has the module's read capability. Role ownership alone is
   // never enough to open a protected module directly by URL.
+  // Shared communication pages have role-owned aliases. Their route gate must
+  // check the actual read capability instead of treating sidebar ownership as
+  // permission to open a URL directly.
+  const ROLE_OWNED_COMMUNICATION_PREFIXES = [
+    "/admin",
+    "/chairman",
+    "/management",
+    "/director",
+    "/dean",
+    "/registrar",
+    "/hod",
+    "/faculty",
+    "/accounts",
+    "/hr",
+    "/admissions",
+    "/examination",
+    "/library",
+    "/placements",
+    "/it",
+    "/student",
+    "/parent",
+    "/club-president",
+    "/staff",
+    "/site-content",
+  ];
+  const communicationNamespacePermissions: Array<[string, string]> =
+    ROLE_OWNED_COMMUNICATION_PREFIXES.flatMap((prefix): Array<[string, string]> => [
+      [`${prefix}/notices`, "notices.read"],
+      [`${prefix}/notifications`, "notifications.read"],
+    ]);
   const namespacePermission: Array<[string, string]> = [
+    ["/notices", "notices.read"],
+    ["/notifications", "notifications.read"],
+    ...communicationNamespacePermissions,
+    ["/parent/students", "parent-portal.read"],
+    ["/students", "students.read"],
+    ["/lms/settings", "lms.manage"],
+    ["/lms", "lms.read"],
     ["/obe", "obe.read"],
     ["/examination", "exams.read"],
   ];
@@ -2385,9 +2732,16 @@ export function canAccessRoute(
 
   const matchingItems = ROLE_NAVIGATION
     .filter((item) => {
-      const [itemPath, itemQuery] = item.href.split("?");
+      // Resolve the same role-owned destination that DashboardShell renders.
+      // Without this step, links such as /reports -> /library/reports appear
+      // in the sidebar but their final URL is rejected by direct-route auth.
+      const targetHref = roleOwnedHref(activeRole, item.href);
+      const [itemPath, itemQuery] = targetHref.split("?");
       const href = itemPath.replace(/\/+$/, "") || "/";
-      if (normalizedPath !== href && !normalizedPath.startsWith(href + "/")) return false;
+      // A dashboard landing item is not blanket authorization for every
+      // child URL in its namespace. Deep routes need an explicitly declared
+      // nested destination or their own owner policy.
+      if (normalizedPath !== href && (item.activeMatch === "exact" || Boolean(itemQuery) || !normalizedPath.startsWith(href + "/"))) return false;
       if (itemQuery) {
         const required = new URLSearchParams(itemQuery);
         for (const [key, value] of required.entries()) {
@@ -2396,7 +2750,7 @@ export function canAccessRoute(
       }
       return true;
     })
-    .sort((a, b) => b.href.length - a.href.length);
+    .sort((a, b) => roleOwnedHref(activeRole, b.href).length - roleOwnedHref(activeRole, a.href).length);
 
   const relevantItem = matchingItems.find((item) =>
     !item.roles?.length ||
@@ -2404,12 +2758,27 @@ export function canAccessRoute(
   );
 
   if (!relevantItem) {
+    // Explicit dynamic namespace entries represent detail routes whose page
+    // contract authorizes owner roles even when no sidebar item targets an ID.
+    // Keep the match exact to the declared route shape; arbitrary nested paths
+    // and unknown protected routes remain denied.
+    if (
+      matchingNamespace[0].split("/").some(
+        (segment) => segment.startsWith("[") && segment.endsWith("]"),
+      )
+    ) {
+      return true;
+    }
+
     const protectedNamespace = NAMESPACE_OWNERS.some(([prefix]) =>
-      normalizedPath === prefix || normalizedPath.startsWith(prefix + "/"),
+      namespaceMatchesPath(normalizedPath, prefix),
     );
     return !protectedNamespace;
   }
 
+  if (relevantItem.anyPermissions?.length) {
+    return relevantItem.anyPermissions.some((permission) => permissionSet.has(permission));
+  }
   return (
     !relevantItem.permissions?.length ||
     relevantItem.permissions.every((permission) => permissionSet.has(permission))

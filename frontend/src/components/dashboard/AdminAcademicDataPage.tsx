@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
@@ -243,9 +243,11 @@ function valueForField(row: Row | null, field: Field): string | boolean {
 
 export default function AdminAcademicDataPage({ module }: { module: ModuleKey }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [departmentId, setDepartmentId] = useState("");
   const [campusId, setCampusId] = useState("");
   const [programId, setProgramId] = useState("");
+  const [academicYearId, setAcademicYearId] = useState("");
   const [semesterId, setSemesterId] = useState("");
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -304,7 +306,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     try {
       const [currentUser, response] = await Promise.all([
         getCurrentUser({ force: true }),
-        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}${module === "semesters" && programId ? `&programId=${encodeURIComponent(programId)}` : ""}${module === "sections" && semesterId ? `&semesterId=${encodeURIComponent(semesterId)}` : ""}`),
+        authedFetch<{ data: unknown; meta?: { total?: number; totalPages?: number } }>(`${config.endpoint}?page=${page}&pageSize=50${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ""}${departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ""}${module === "departments" && campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}${module === "semesters" && programId ? `&programId=${encodeURIComponent(programId)}` : ""}${module === "semesters" && academicYearId ? `&academicYearId=${encodeURIComponent(academicYearId)}` : ""}${module === "sections" && semesterId ? `&semesterId=${encodeURIComponent(semesterId)}` : ""}`),
       ]);
       setUser(currentUser);
       setRows(normalizeRows(response.data));
@@ -320,9 +322,16 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     } finally {
       setLoading(false);
     }
-  }, [config.endpoint, departmentId, campusId, programId, semesterId, loadLookups, page, router, searchQuery, module]);
+  }, [config.endpoint, departmentId, campusId, programId, academicYearId, semesterId, loadLookups, page, router, searchQuery, module]);
 
-  useEffect(() => { const params = new URLSearchParams(window.location.search); setDepartmentId(params.get("departmentId") || ""); setCampusId(params.get("campusId") || ""); setProgramId(params.get("programId") || ""); setSemesterId(params.get("semesterId") || ""); setPage(1); }, []);
+  useEffect(() => {
+    setDepartmentId(searchParams.get("departmentId") || "");
+    setCampusId(searchParams.get("campusId") || "");
+    setProgramId(searchParams.get("programId") || "");
+    setAcademicYearId(searchParams.get("academicYearId") || "");
+    setSemesterId(searchParams.get("semesterId") || "");
+    setPage(1);
+  }, [searchParams]);
   useEffect(() => { const timer = window.setTimeout(() => { setSearchQuery(search.trim()); setPage(1); }, 250); return () => window.clearTimeout(timer); }, [search]);
   useEffect(() => { void load(); }, [load]);
 
@@ -332,6 +341,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
     if (departmentId && (module === "programs" || module === "courses")) next.departmentId = departmentId;
     if (campusId && module === "departments") next.campusId = campusId;
     if (programId && module === "semesters") next.programId = programId;
+    if (academicYearId && module === "semesters") next.academicYearId = academicYearId;
     if (semesterId && module === "sections") next.semesterId = semesterId;
     setForm(next);
     setNotice("");
@@ -497,6 +507,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
               ...(["programs", "courses", "semesters", "sections", "course-offerings"].includes(module) && departmentId ? { departmentId } : {}),
               ...(module === "departments" && campusId ? { campusId } : {}),
               ...(module === "semesters" && programId ? { programId } : {}),
+              ...(module === "semesters" && academicYearId ? { academicYearId } : {}),
               ...(module === "sections" && semesterId ? { semesterId } : {}),
             }}
             currentPage={{ page, pageSize: 50 }}

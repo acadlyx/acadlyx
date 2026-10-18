@@ -4,6 +4,7 @@ import * as erp from "../services/erp.service";
 import { asyncHandler } from "../utils/asyncHandler";
 import { requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
+import { assertWorkspaceContextFilters, readWorkspaceContextFilters } from "../utils/workspaceScopeFilters";
 
 function actor(req: Request) {
   if (!req.user) {
@@ -50,11 +51,14 @@ export const workspaceSummary = asyncHandler(async (req, res) => {
 export const timetableList = asyncHandler(async (req, res) => {
   const institutionId = requireInstitution(req);
   const user = actor(req);
+  const contextFilters = readWorkspaceContextFilters(req.query as Record<string, unknown>);
+  await assertWorkspaceContextFilters(institutionId, user, contextFilters);
 
   const data = await erp.listTimetableEntries(
     institutionId,
     user,
     {
+      ...contextFilters,
       dayOfWeek:
         req.query.dayOfWeek === undefined
           ? undefined

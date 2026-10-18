@@ -1,5 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
+import fs from "node:fs";
+import path from "node:path";
 import { subscribeDomainEvent, publishDomainEvent } from "../services/domainEvent.service";
 
 async function waitFor(check: () => boolean, timeoutMs = 1000) {
@@ -19,9 +21,12 @@ test("domain events fan out to exact and wildcard subscribers without sharing mu
     received.push("*:" + event.name);
   });
 
+  // This is a subscriber fan-out unit test, not a persistence integration
+  // test. Leave tenant/actor foreign keys null rather than inventing IDs that
+  // cannot exist in the database; PostgreSQL persistence is covered separately.
   publishDomainEvent("test.enterprise", {
-    institutionId: "institution-a",
-    actorId: "actor-a",
+    institutionId: null,
+    actorId: null,
     payload: { resourceId: "resource-a" },
   });
 
@@ -30,4 +35,14 @@ test("domain events fan out to exact and wildcard subscribers without sharing mu
 
   unsubscribe();
   wildcard();
+});
+
+test("outbox claim uses a lease while handlers run", () => {
+  const source = fs.readFileSync(path.join(process.cwd(), "src/services/domainEvent.service.ts"), "utf8");
+  const start = source.indexOf("async function claimOutboxEvent(");
+  const end = source.indexOf("\nexport async function drainDomainEventOutbox(", start);
+  assert.ok(start >= 0 && end > start, "Expected the claim query block");
+  const claim = source.slice(start, end);
+  assert.ok(claim.includes("make_interval(mins => 5)"), "Claim should install a five-minute lease.");
+  assert.ok(claim.includes("institutionFilter"), "Claim should support institution-scoped draining for isolated tests.");
 });

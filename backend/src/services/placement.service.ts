@@ -2321,7 +2321,7 @@ export async function updatePlacementVisit(
   return updated;
 }
 
-export async function listPlacementStudents(institutionId: string, actor: AuthenticatedUser, options: { search?: string; page?: number; pageSize?: number; campusId?: string; departmentId?: string; programId?: string; batchId?: string; semesterId?: string; academicYearId?: string } = {}) {
+export async function listPlacementStudents(institutionId: string, actor: AuthenticatedUser, options: { search?: string; page?: number; pageSize?: number; campusId?: string; departmentId?: string; programId?: string; batchId?: string; semesterId?: string; sectionId?: string; academicYearId?: string } = {}) {
   assertInstitution(actor, institutionId);
   await assertPlacementEntitlement(institutionId);
   if (!actor.permissions.includes("placements.read")) throw new AppError("Placement access is not permitted.", 403);
@@ -2340,7 +2340,7 @@ export async function listPlacementStudents(institutionId: string, actor: Authen
       { idNumber: { contains: options.search, mode: "insensitive" } },
     ] });
   }
-  if (options.campusId || options.departmentId || options.programId || options.batchId || options.semesterId || options.academicYearId) {
+  if (options.campusId || options.departmentId || options.programId || options.batchId || options.semesterId || options.sectionId || options.academicYearId) {
     filters.push({
       studentEnrollments: {
         some: {
@@ -2349,6 +2349,7 @@ export async function listPlacementStudents(institutionId: string, actor: Authen
           ...(options.programId ? { programId: options.programId } : {}),
           ...(options.batchId ? { batchId: options.batchId } : {}),
           ...(options.semesterId ? { semesterId: options.semesterId } : {}),
+          ...(options.sectionId ? { sectionId: options.sectionId } : {}),
           ...(options.academicYearId ? { academicYearId: options.academicYearId } : {}),
           ...(options.departmentId || options.campusId ? {
             program: {

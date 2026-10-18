@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 const read = (path) => readFileSync(resolve(process.cwd(), path), "utf8");
 const studentRoute = read("src/app/student/library/page.tsx");
+const dashboardShell = read("src/components/dashboard/DashboardShell.tsx");
+const protectedBoundary = read("src/components/auth/ProtectedRouteBoundary.tsx");
 const studentModule = read("src/components/student/StudentSelfServiceModule.tsx");
 const navigation = read("src/lib/navigation.ts");
 const auth = read("src/lib/auth.ts");
@@ -35,6 +37,22 @@ assert.match(api, /authedFetch/,
 assert.ok(auth.includes("tenantFeatures?: string[]") && auth.includes("export async function getCurrentUser"),
   "the current-user authentication flow must expose tenant entitlements");
 
+assert.ok(dashboardShell.includes("const [routeAuthReady, setRouteAuthReady] = useState(false);"),
+  "cached RBAC data must not mark a protected route as authorization-ready");
+assert.ok(dashboardShell.includes("const reconcile = getCurrentUser({ force: true });"),
+  "DashboardShell must wait for fresh /auth/me permissions instead of accepting a background cache hit");
+assert.ok(dashboardShell.includes("Workspace verification unavailable") && dashboardShell.includes("Retry verification"),
+  "a failed permission revalidation must fail closed with a recoverable retry state");
+
+assert.ok(protectedBoundary.includes("getCurrentUser({ force: true })"),
+  "the global protected-route boundary must revalidate /auth/me rather than authorize a new path from cached RBAC");
+assert.ok(protectedBoundary.includes('type AuthState = "checking" | "authenticated" | "unauthenticated" | "unauthorized" | "unavailable";'),
+  "transient identity failures must be tracked separately from confirmed unauthorized access");
+assert.ok(protectedBoundary.includes("Workspace verification unavailable") && protectedBoundary.includes("Retry verification"),
+  "the global auth boundary must keep protected content hidden and offer retry when /auth/me is temporarily unavailable");
+assert.ok(protectedBoundary.includes("validatedPath !== route"),
+  "the global auth boundary must bind its authorization result to the complete route contract");
+
 assert.match(backendRoutes, /router\.use\(authenticate, requireFeature\("library"\)\)/,
   "all Library API routes must retain authentication and tenant entitlement checks");
 assert.match(backendRoutes, /"\/books",[\s\S]*?authorize\("library\.read"\)/,
@@ -48,10 +66,12 @@ assert.match(rbac, /STUDENT:\s*\[[\s\S]*?"library\.read",[\s\S]*?"library\.borro
 assert.doesNotMatch(rbac.match(/STUDENT:\s*\[([\s\S]*?)\n\s*\],/)?.[1] ?? "",
   /"library\.manage"|"library\.fines\.waive\.(?:request|approve)/,
   "students must not receive librarian management or fine-waiver authority");
-assert.match(libraryService, /buildLibraryFineListWhere[\s\S]*?issue:\s*\{\s*borrowerId:\s*actor\.id\s*\}/,
-  "student fine queries must be scoped to their own borrower ID");
-assert.match(libraryService, /institutionId,[\s\S]*?actor\.roles\.includes\("STUDENT"\)/,
-  "student fine queries must retain institution isolation");
+assert.match(libraryService, /buildLibraryFineListWhere[\s\S]*?effectiveRole === "STUDENT"[\s\S]*?return \{ institutionId, issue: \{ borrowerId: actor\.id \} \}/,
+  "student fine queries must use effective Student workspace and scope to their own borrower ID");
+assert.match(libraryService, /if \(effectiveRole === "LIBRARIAN"\) return \{ institutionId \}/,
+  "institution-wide fine lists must be available only in the effective Librarian workspace");
+assert.match(libraryService, /Library fines are not available in the active workspace/,
+  "non-student/non-librarian workspaces must fail closed for library fines");
 assert.match(entitlementService, /if \(!entitlement \|\| !entitlement\.isEnabled\)/,
   "disabled or missing library entitlements must remain denied");
 
