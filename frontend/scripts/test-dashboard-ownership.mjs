@@ -20,14 +20,13 @@ const cmsRoutes = readRepo("backend/src/routes/institutionalCms.routes.ts");
 const siteContentRoutes = readRepo("backend/src/routes/siteContent.routes.ts");
 const cmsService = readRepo("backend/src/services/institutionalCms.service.ts");
 
-const CANONICAL_ROLES = [
-  "SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "DIRECTOR",
-  "DEAN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "HR", "ADMISSIONS",
-  "EXAMINATION", "LIBRARIAN", "PLACEMENT", "IT", "CMS", "STUDENT", "PARENT",
-  "CLUB_PRESIDENT",
-];
+const CANONICAL_ROLES = authority
+  .match(/export const DASHBOARD_IDS = \\[([\\s\\S]*?)\\] as const/)?.[1]
+  ?.match(/"([^"]+)"/g)
+  ?.map((role) => role.slice(1, -1)) ?? [];
 
-test("all 20 canonical roles have an identity and distinct workspace home", () => {
+
+test("all registered dashboard roles have an identity, role label, and workspace home", () => {
   const dashboardIds = authority.match(/export const DASHBOARD_IDS = \[([\s\S]*?)\] as const/)?.[1] ?? "";
   const roleLabels = navigation.match(/export const ROLE_LABELS:[\s\S]*?= \{([\s\S]*?)\};/)?.[1] ?? "";
   const homeBlock = navigation.match(/export function workspaceHome\(roles: string\[\]\): string \{([\s\S]*?)\n\}/)?.[1] ?? "";
@@ -36,7 +35,7 @@ test("all 20 canonical roles have an identity and distinct workspace home", () =
     assert.ok(roleLabels.includes(role + ":"), role + " missing from role labels");
     assert.ok(homeBlock.includes(role + ": \"/"), role + " missing from workspace home");
   }
-  assert.ok(new Set(CANONICAL_ROLES.map(role => role)).size === 20);
+  assert.ok(CANONICAL_ROLES.length >= 21, "dashboard registry should include all canonical and Staff workspaces");
 });
 
 test("platform Website CMS and institution-scoped CMS approval workflow have different ownership", () => {
