@@ -68,8 +68,14 @@ if (
 ) {
   failures.push("src/lib/navigation.ts: navigation and direct-route guards must enforce every matching module and student-workflow tenant feature");
 }
-if (!adminNavigationSource.includes("isTenantFeatureEnabled") || !adminNavigationSource.includes("unique.has(destination)")) {
-  failures.push("src/lib/adminNavigation.ts: institution-admin navigation must enforce tenant features and deduplicate destinations");
+if (
+  !adminNavigationSource.includes('import { tenantFeaturesForPath } from "@/lib/navigation"') ||
+  adminNavigationSource.includes("tenantFeatureForPath") ||
+  !adminNavigationSource.includes("requiredFeatures.every((feature) => user.tenantFeatures!.includes(feature))") ||
+  !adminNavigationSource.includes("isTenantFeatureEnabled") ||
+  !adminNavigationSource.includes("unique.has(destination)")
+) {
+  failures.push("src/lib/adminNavigation.ts: use the current multi-feature route entitlement contract, fail closed when entitlements are absent, and deduplicate destinations");
 }
 if (
   /label: "Fee Structures",\s*href: "\/accounts\/fee-structures"/.test(adminNavigationSource) ||
