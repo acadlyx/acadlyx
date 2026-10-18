@@ -598,14 +598,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     group: "Workspace",
   },
   {
-    label: "Campus calendar",
-    href: "/director/calendar",
-    icon: "calendar",
-    roles: ["DIRECTOR"],
-    permissions: ["calendar.read"],
-    group: "Campus Operations",
-  },
-  {
     label: "Import review",
     href: "/director/imports",
     icon: "download",
