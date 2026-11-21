@@ -53,8 +53,7 @@ function assertCanManageFees(actor: AuthenticatedUser): void {
 
 function assertCanReadBillingDesk(actor: AuthenticatedUser): void {
   const activeRole = getEffectiveWorkspaceRole(actor);
-  if (activeRole === "CHAIRMAN") return;
-  if (activeRole === "ACCOUNTS" && isInstitutionWideFinance(actor)) return;
+  if (isInstitutionWideFinance(actor)) return;
   if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) return;
   throw new AppError("Financial records are outside your active workspace", 403);
 }
