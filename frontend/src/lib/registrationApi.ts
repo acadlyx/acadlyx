@@ -55,8 +55,8 @@ export interface Registration {
     };
     section: { id: string; name: string; capacity: number | null };
     faculty: { id: string; firstName: string; lastName: string } | null;
-    withdrawalRequests: Array<{ id: string; status: "PENDING"; reason: string; requestedAt: string }>;
   };
+  withdrawalRequests: Array<{ id: string; status: "PENDING"; reason: string; requestedAt: string }>;
 }
 
 export interface EnrollmentContext {
