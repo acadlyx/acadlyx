@@ -4,8 +4,8 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { hashPassword } from "../utils/password";
-import { getCanonicalRoleNames } from "../config/rbac";
-import { getManagedDepartmentIds, isInstitutionWide } from "./accessScope.service";
+import { getEffectiveWorkspaceRole, isInstitutionWide } from "./accessScope.service";
+import { getManagedDepartmentIds } from "./accessScope.service";
 
 export const PEOPLE_IMPORT_TYPES = ["students", "faculty", "staff"] as const;
 export type PeopleImportType = typeof PEOPLE_IMPORT_TYPES[number];
@@ -97,7 +97,7 @@ async function scopeFor(
     return null;
   }
 
-  if (getCanonicalRoleNames(actor.roles).includes("HOD")) {
+  if (getEffectiveWorkspaceRole(actor) === "HOD") {
     const ids = await getManagedDepartmentIds(institutionId, actor.id);
 
     if (!ids.length) {
