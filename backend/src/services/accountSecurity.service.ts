@@ -11,6 +11,7 @@ import {
   verifyTotp,
 } from "../utils/totp";
 import { recordAuditLog } from "./audit.service";
+import { getEffectiveWorkspaceRole, isInstitutionWide } from "./accessScope.service";
 import { sendEmail } from "./email.service";
 
 /**
@@ -108,12 +109,37 @@ export async function clearFailedLogins(userId: string): Promise<void> {
 }
 
 /** Administrative unlock. */
+async function assertAdminSecurityTargetScope(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  userId: string,
+): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "INSTITUTION_ADMIN" && isInstitutionWide(actor)) return;
+
+  if (activeRole === "HR") {
+    const employee = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        institutionId,
+        employeeProfile: { isNot: null },
+      },
+      select: { id: true },
+    });
+    if (employee) return;
+    throw new AppError("HR account security actions are limited to employee records in this institution", 403);
+  }
+
+  throw new AppError("You are not authorized to administer account security in the active workspace", 403);
+}
+
 export async function unlockAccount(
   institutionId: string,
   actor: AuthenticatedUser,
   userId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  await assertAdminSecurityTargetScope(institutionId, actor, userId);
   const target = await prisma.user.findFirst({
     where: { id: userId, institutionId },
     select: { id: true },
@@ -673,6 +699,7 @@ export async function adminIssueResetToken(
   userId: string,
   meta: { ipAddress?: string; userAgent?: string }
 ) {
+  await assertAdminSecurityTargetScope(institutionId, actor, userId);
   const target = await prisma.user.findFirst({
     where: { id: userId, institutionId },
     select: { id: true, email: true },
