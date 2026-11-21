@@ -371,6 +371,7 @@ jobs:
       ACADLYX_RECOVERY_CONFIRM_DISPOSABLE: "YES"
       ACADLYX_RESTORE_DATABASE: acadlyx_restore_ci
       ACADLYX_RECOVERY_OUTPUT: recovery-results.json
+      ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -380,15 +381,11 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - name: Install PostgreSQL client tools
+      - name: Verify PostgreSQL 16 service client tools
         run: |
-          sudo apt-get update
-          # Ubuntu runner images do not guarantee the PGDG versioned package
-          # repository. Install the distribution-supported client package;
-          # pg_dump/pg_restore remain compatible with the PostgreSQL 16 service.
-          sudo apt-get install -y postgresql-client
-          pg_dump --version
-          pg_restore --version
+          test -n "$ACADLYX_RECOVERY_PG_CONTAINER"
+          docker exec "$ACADLYX_RECOVERY_PG_CONTAINER" pg_dump --version
+          docker exec "$ACADLYX_RECOVERY_PG_CONTAINER" pg_restore --version
       - name: Install
         run: npm ci
       - name: Prisma generate

@@ -30,7 +30,42 @@ let restored: PrismaClient | null = null;
 let institutionId: string | null = null;
 
 function pg(command: string, args: string[]): void {
-  execFileSync(command, args, { env: pgEnv, stdio: "pipe" });
+  const clientContainer = process.env.ACADLYX_RECOVERY_PG_CONTAINER;
+  if (!clientContainer) {
+    execFileSync(command, args, { env: pgEnv, stdio: "pipe" });
+    return;
+  }
+
+  // Use the matching postgres:16 service image's bundled client binaries.
+  // This avoids runner/PGDG client version drift when restoring a PG16 dump.
+  execFileSync(
+    "docker",
+    [
+      "exec",
+      "--env", `PGHOST=${pgEnv.PGHOST}`,
+      "--env", `PGPORT=${pgEnv.PGPORT}`,
+      "--env", `PGUSER=${pgEnv.PGUSER}`,
+      "--env", `PGPASSWORD=${pgEnv.PGPASSWORD}`,
+      clientContainer,
+      command,
+      ...args,
+    ],
+    { env: process.env, stdio: "pipe" }
+  );
+
+  // pg_dump writes its custom-format artifact inside the service container;
+  // copy the file to the runner so stat(), upload-artifact and cleanup work.
+  if (command === "pg_dump") {
+    const fileIndex = args.indexOf("--file");
+    if (fileIndex < 0 || !args[fileIndex + 1]) {
+      throw new Error("pg_dump must specify --file for the recovery rehearsal");
+    }
+    const containerPath = args[fileIndex + 1];
+    execFileSync("docker", ["cp", `${clientContainer}:${containerPath}`, containerPath], {
+      env: process.env,
+      stdio: "pipe",
+    });
+  }
 }
 
 async function cleanupSource(): Promise<void> {
