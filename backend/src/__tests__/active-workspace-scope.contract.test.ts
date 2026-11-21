@@ -23,6 +23,22 @@ test("workspace context derives Director departments from CampusAccess and Dean/
   assert.match(workspace, /getManagedDepartmentIds\(institutionId, actor\.id\)/);
 });
 
+test("all academic context selectors inherit the authorized department set", () => {
+  const programStart = workspace.indexOf("const programsPromise = prisma.program.findMany(");
+  const yearStart = workspace.indexOf("const academicYearsPromise = prisma.academicYear.findMany(");
+  const semesterStart = workspace.indexOf("const semestersPromise = prisma.semester.findMany(");
+  const batchStart = workspace.indexOf("const batchesPromise = input.programId");
+  assert.ok(programStart >= 0 && yearStart > programStart && semesterStart > yearStart && batchStart > semesterStart);
+  const programQuery = workspace.slice(programStart, yearStart);
+  const yearQuery = workspace.slice(yearStart, semesterStart);
+  const semesterQuery = workspace.slice(semesterStart, batchStart);
+  const batchQuery = workspace.slice(batchStart, workspace.indexOf("const [sections, batches]", batchStart));
+  assert.match(programQuery, /allowed !== null.*departmentId: \{ in: allowed \}/s);
+  assert.match(yearQuery, /allowed !== null.*program: \{ departmentId: \{ in: allowed \} \}/s);
+  assert.match(semesterQuery, /allowed !== null.*program: \{ departmentId: \{ in: allowed \} \}/s);
+  assert.match(batchQuery, /allowed !== null.*program: \{ departmentId: \{ in: allowed \} \}/s);
+});
+
 test("My Work branches use a single active role rather than unioning secondary role bindings", () => {
   assert.match(myWork, /const activeRole = getEffectiveWorkspaceRole\(actor\)/);
   assert.doesNotMatch(myWork, /actor\.roles\[0\]/);
