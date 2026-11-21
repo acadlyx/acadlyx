@@ -312,47 +312,57 @@ export async function createCourseOffering(
     await assertFacultyEligible(institutionId, input.facultyId);
   }
 
-  if (
-    input.capacity !== undefined &&
-    input.capacity !== null
-  ) {
-    const section = await prisma.section.findFirst({
-      where: {
-        id: input.sectionId,
-        institutionId,
-      },
-      select: { capacity: true },
+  return prisma.$transaction(async (tx) => {
+    // Serialize against section-capacity edits so a concurrently created
+    // offering cannot inherit a stale, larger section limit.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "sections"
+      WHERE "id" = ${input.sectionId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+
+    const section = await tx.section.findFirst({
+      where: { id: input.sectionId, institutionId, isActive: true },
+      select: { id: true, capacity: true },
     });
-    if (section && section.capacity !== null &&
-        input.capacity > section.capacity) {
+    if (!section) throw new AppError("Course offering section is not active in this institution", 409);
+
+    if (
+      input.capacity !== undefined &&
+      input.capacity !== null &&
+      section.capacity !== null &&
+      input.capacity > section.capacity
+    ) {
       throw new AppError(
         "Offering capacity cannot exceed the section capacity",
         400
       );
     }
-  }
 
-  const existing = await prisma.courseOffering.findFirst({
-    where: {
-      institutionId,
-      courseId: input.courseId,
-      semesterId: input.semesterId,
-      sectionId: input.sectionId,
-    },
-  });
-  if (existing) {
-    throw new AppError(
-      "This course is already offered in this semester/section",
-      409
-    );
-  }
+    const existing = await tx.courseOffering.findFirst({
+      where: {
+        institutionId,
+        courseId: input.courseId,
+        semesterId: input.semesterId,
+        sectionId: input.sectionId,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new AppError(
+        "This course is already offered in this semester/section",
+        409
+      );
+    }
 
-  return prisma.courseOffering.create({
-    data: {
-      institutionId,
-      ...input,
-    },
-    include,
+    return tx.courseOffering.create({
+      data: {
+        institutionId,
+        ...input,
+      },
+      include,
+    });
   });
 }
 
