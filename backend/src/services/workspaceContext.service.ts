@@ -3,8 +3,11 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import {
   getManagedDepartmentIds,
+  getDirectorDepartmentIds,
   getStaffDepartmentIds,
   getStudentDepartmentIds,
+  getEffectiveWorkspaceRole,
+  isDirectorScoped,
   isInstitutionWide,
 } from "./accessScope.service";
 import { getCanonicalRoleNames } from "../config/rbac";
@@ -22,24 +25,39 @@ async function allowedDepartmentIds(
   institutionId: string,
   actor: AuthenticatedUser
 ): Promise<string[] | null> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
   if (isInstitutionWide(actor)) return null;
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("HOD")) return getManagedDepartmentIds(institutionId, actor.id);
-  if (roles.includes("FACULTY")) return getStaffDepartmentIds(institutionId, actor.id);
-  if (roles.includes("STUDENT")) return getStudentDepartmentIds(institutionId, actor.id);
+
+  // Director authority is campus-derived; do not infer it from an ordinary
+  // department-access binding or from a secondary role.
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    return getDirectorDepartmentIds(institutionId, actor.id);
+  }
+  if (activeRole === "DEAN" || activeRole === "HOD") {
+    return getManagedDepartmentIds(institutionId, actor.id);
+  }
+  if (activeRole === "FACULTY") {
+    return getStaffDepartmentIds(institutionId, actor.id);
+  }
+  if (activeRole === "STUDENT") {
+    return getStudentDepartmentIds(institutionId, actor.id);
+  }
   return [];
 }
 
-function workspaceBasePath(roles: string[]) {
-  if (roles.includes("HOD")) return "/hod";
-  if (roles.includes("FACULTY")) return "/faculty";
-  if (roles.includes("STUDENT")) return "/student";
-  if (roles.includes("INSTITUTION_ADMIN")) return "/admin";
-  if (roles.includes("REGISTRAR")) return "/registrar";
-  if (roles.includes("DEAN")) return "/dean";
-  if (roles.includes("DIRECTOR")) return "/director";
-  if (roles.includes("CHAIRMAN")) return "/chairman";
-  return "/dashboard";
+function workspaceBasePath(activeRole: string) {
+  const paths: Record<string, string> = {
+    CHAIRMAN: "/chairman",
+    DIRECTOR: "/director",
+    DEAN: "/dean",
+    HOD: "/hod",
+    FACULTY: "/faculty",
+    STUDENT: "/student",
+    INSTITUTION_ADMIN: "/admin",
+    REGISTRAR: "/registrar",
+    MANAGEMENT: "/chairman",
+  };
+  return paths[activeRole] ?? "/dashboard";
 }
 
 async function assertDepartmentScope(
@@ -59,13 +77,13 @@ async function buildWorkspaceContext(
   input: WorkspaceContextInput = {}
 ) {
   const allowed = await allowedDepartmentIds(institutionId, actor);
-  const roles = getCanonicalRoleNames(actor.roles);
+  const activeRole = getEffectiveWorkspaceRole(actor);
   let departmentId = input.departmentId;
 
   if (!departmentId && allowed?.length === 1) departmentId = allowed[0];
   if (departmentId) await assertDepartmentScope(institutionId, actor, departmentId);
 
-  if (roles.includes("STUDENT")) {
+  if (activeRole === "STUDENT") {
     const enrollment = await prisma.studentEnrollment.findFirst({
       where: { institutionId, userId: actor.id, status: "ACTIVE" },
       orderBy: { enrolledAt: "desc" },
@@ -242,7 +260,7 @@ async function buildWorkspaceContext(
 
   const institution = await institutionPromise;
 
-  const basePath = workspaceBasePath(roles);
+  const basePath = workspaceBasePath(activeRole);
   const contextHref = (extra: Record<string, string | undefined> = {}) => {
     const params = new URLSearchParams();
     const values = { departmentId, programId: input.programId, batchId: input.batchId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId, ...extra };
@@ -293,7 +311,7 @@ async function buildWorkspaceContext(
       name: institution?.name ?? "",
       logoUrl: institution?.logoUrl ?? null,
     },
-    role: roles[0] ?? "UNKNOWN",
+    role: activeRole === "UNASSIGNED" ? "UNKNOWN" : activeRole,
     scope: {
       institutionId,
       departmentId: selectedDepartment?.id ?? null,
