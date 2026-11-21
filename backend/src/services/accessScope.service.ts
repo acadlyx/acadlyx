@@ -53,9 +53,10 @@ export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): bool
   // Specialist module bindings must not turn a multi-role account into a
   // generic institution-wide directory actor. Institution Admin still wins
   // the dashboard/module context over a secondary specialist binding.
-  const hasSecondarySpecialistBinding = [
+  const specialistBindings = new Set<string>([
     "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "HR", "LIBRARIAN", "IT", "CMS",
-  ].some((role) => roles.includes(role));
+  ]);
+  const hasSecondarySpecialistBinding = roles.some((role) => specialistBindings.has(role));
   if (activeRole === "INSTITUTION_ADMIN" && hasSecondarySpecialistBinding) return false;
   return INSTITUTION_WIDE_ROLES.includes(activeRole);
 }
