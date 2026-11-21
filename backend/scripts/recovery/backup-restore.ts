@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { stat, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { performance } from "node:perf_hooks";
 import { PrismaClient } from "@prisma/client";
 
@@ -55,7 +56,7 @@ function pg(command: string, args: string[]): void {
     if (!sourcePath) {
       throw new Error("pg_restore must specify the backup artifact to restore");
     }
-    restoreContainerPath = `/tmp/${path.basename(sourcePath)}`;
+    restoreContainerPath = `/tmp/${basename(sourcePath)}`;
     execFileSync("docker", ["cp", sourcePath, `${clientContainer}:${restoreContainerPath}`], {
       env: process.env,
       stdio: "pipe",
