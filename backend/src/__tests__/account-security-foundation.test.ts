@@ -64,3 +64,15 @@ test("password reset issuance and completion atomically claim one active token",
   assert.ok(reset.indexOf("tx.passwordResetToken.updateMany") < reset.indexOf("tx.user.updateMany"));
   assert.match(reset, /tx\.refreshToken\.updateMany/);
 });
+
+
+test("administrative password reset never returns emailed reset credentials", () => {
+  const source = readFileSync(join(process.cwd(), "src/services/accountSecurity.service.ts"), "utf8");
+  const start = source.indexOf("export async function adminIssueResetToken(");
+  const end = source.indexOf("\nexport const passwordResetTtlMinutes", start);
+  assert.ok(start >= 0 && end > start);
+  const adminIssue = source.slice(start, end);
+  assert.match(adminIssue, /emailDeliveryConfigured: env\.emailProvider !== "disabled"/);
+  assert.match(adminIssue, /return env\.emailProvider === "disabled"/);
+  assert.match(adminIssue, /\?\s*issue\s*:\s*\{ expiresAt: issue\.expiresAt \}/);
+});
