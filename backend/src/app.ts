@@ -83,6 +83,17 @@ import globalSearchRoutes from "./routes/globalSearch.routes";
 import workflowRoutes from "./routes/workflow.routes";
 import placementRoutes from "./routes/placement.routes";
 
+function isAllowedCorsOrigin(origin: string): boolean {
+  const normalizedOrigin = origin.trim().replace(/\\/+$/, "");
+  if (env.corsOrigins.includes(normalizedOrigin) || env.frontendUrl === normalizedOrigin) {
+    return true;
+  }
+
+  // Vercel creates a new immutable hostname for each project preview.
+  // Restrict the dynamic allowance to this ACADLYX project, never *.vercel.app.
+  return /^https:\/\/acadlyx-[a-z0-9-]+-acadlyx-6683\\.vercel\\.app$/.test(normalizedOrigin);
+}
+
 export function createApp(): Application {
   const app: Application = express();
 
@@ -129,16 +140,8 @@ export function createApp(): Application {
           return;
         }
 
-        const normalizedOrigin = origin.replace(/\/+$/, "");
-
-        // CORS_ORIGIN remains the explicit allow-list. FRONTEND_URL is
-        // also a trusted exact origin so deployments do not fail preflight
-        // when the canonical frontend URL is configured separately.
-        const allowedOrigins = new Set([
-          ...env.corsOrigins,
-          env.frontendUrl,
-        ]);
-        if (allowedOrigins.has(normalizedOrigin)) {
+        // Exact configured origins and this project's preview hostnames only.
+        if (isAllowedCorsOrigin(origin)) {
           callback(null, true);
           return;
         }
