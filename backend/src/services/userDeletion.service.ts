@@ -871,10 +871,7 @@ export async function listPermanentDeletionRequests(
         target_user_id:
           string | null;
 
-        target_first_name:
-          string;
-
-        target_last_name:
+        target_name:
           string;
 
         target_email:
@@ -886,10 +883,7 @@ export async function listPermanentDeletionRequests(
         requester_user_id:
           string | null;
 
-        requester_first_name:
-          string;
-
-        requester_last_name:
+        requester_name:
           string;
 
         requester_email:
@@ -901,10 +895,7 @@ export async function listPermanentDeletionRequests(
         approver_user_id:
           string | null;
 
-        approver_first_name:
-          string | null;
-
-        approver_last_name:
+        approver_name:
           string | null;
 
         approver_email:
