@@ -213,6 +213,9 @@ export function errorHandler(
     {
       requestId: res.locals.requestId,
       errorName: err.name,
+      ...(err.message.startsWith("CORS origin not allowed:")
+        ? { rejectedOrigin: err.message.slice("CORS origin not allowed:".length).trim() }
+        : {}),
       ...(prismaCode ? { prismaCode } : {}),
       // Production responses remain sanitized, but restricted server logs must
       // retain the actual 5xx cause and stack so incidents can be diagnosed.
