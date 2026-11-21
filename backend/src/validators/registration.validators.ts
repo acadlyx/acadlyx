@@ -7,6 +7,7 @@ export const REGISTRATION_STATUSES = [
   "REJECTED",
   "NEEDS_CORRECTION",
   "DROPPED",
+  "WITHDRAWN",
 ] as const;
 
 export const registrationListQuery = z.object({
@@ -55,6 +56,20 @@ export const bulkDecisionSchema = z.object({
 
 export const dropSchema = z.object({
   reason: optionalText(500),
+});
+
+
+export const withdrawalRequestSchema = z.object({
+  reason: z.string().trim().min(5).max(500),
+});
+
+export const withdrawalDecisionSchema = z.object({
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  decisionNote: optionalText(500),
+}).superRefine((value, ctx) => {
+  if (value.decision === "REJECTED" && !value.decisionNote) {
+    ctx.addIssue({ code: "custom", path: ["decisionNote"], message: "A reason is required when rejecting a withdrawal request" });
+  }
 });
 
 export const bulkAssignCoursesSchema = z.object({

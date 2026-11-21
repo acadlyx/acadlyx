@@ -22,3 +22,49 @@ export function hasCapacityForReservations(
 ): boolean {
   return capacity === null || (Number.isInteger(capacity) && capacity >= reservedCount);
 }
+
+
+export type RegistrationCalendar = {
+  registrationOpensAt?: Date | null;
+  registrationClosesAt?: Date | null;
+  addDropDeadline?: Date | null;
+  withdrawalDeadline?: Date | null;
+  exceptionalWithdrawalAllowed?: boolean;
+  exceptionalWithdrawalStartsAt?: Date | null;
+  exceptionalWithdrawalEndsAt?: Date | null;
+};
+
+export function isWithinConfiguredWindow(now: Date, opensAt?: Date | null, closesAt?: Date | null): boolean {
+  return (!opensAt || now >= opensAt) && (!closesAt || now <= closesAt);
+}
+
+export function isRegistrationAllowed(
+  now: Date,
+  policy: Pick<RegistrationCalendar, "registrationOpensAt" | "registrationClosesAt">,
+  manualOpen: boolean
+): boolean {
+  return manualOpen && isWithinConfiguredWindow(now, policy.registrationOpensAt, policy.registrationClosesAt);
+}
+
+export function isAddDropAllowed(
+  now: Date,
+  policy: Pick<RegistrationCalendar, "addDropDeadline">,
+  manualOpen: boolean
+): boolean {
+  return policy.addDropDeadline ? now <= policy.addDropDeadline : manualOpen;
+}
+
+export function isWithdrawalRequestAllowed(
+  now: Date,
+  policy: Pick<RegistrationCalendar, "withdrawalDeadline" | "exceptionalWithdrawalAllowed" | "exceptionalWithdrawalStartsAt" | "exceptionalWithdrawalEndsAt">
+): boolean {
+  const normalWindowOpen = Boolean(policy.withdrawalDeadline && now <= policy.withdrawalDeadline);
+  const exceptionalWindowOpen = Boolean(
+    policy.exceptionalWithdrawalAllowed &&
+    policy.exceptionalWithdrawalStartsAt &&
+    policy.exceptionalWithdrawalEndsAt &&
+    now >= policy.exceptionalWithdrawalStartsAt &&
+    now <= policy.exceptionalWithdrawalEndsAt
+  );
+  return normalWindowOpen || exceptionalWindowOpen;
+}

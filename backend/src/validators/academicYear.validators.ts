@@ -68,11 +68,6 @@ export const updateAcademicYearSchema = z
     if (data.withdrawalDeadline && data.addDropDeadline && data.withdrawalDeadline < data.addDropDeadline) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Withdrawal deadline cannot precede add/drop deadline", path: ["withdrawalDeadline"] });
     }
-    if (data.exceptionalWithdrawalAllowed && data.exceptionalWithdrawalStartsAt === undefined && data.exceptionalWithdrawalEndsAt === undefined) {
-      // The service merges partial updates with stored calendar settings.
-    } else if (data.exceptionalWithdrawalAllowed && (!data.exceptionalWithdrawalStartsAt || !data.exceptionalWithdrawalEndsAt)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exceptional withdrawal requires both opening and closing dates", path: ["exceptionalWithdrawalStartsAt"] });
-    }
     if (data.exceptionalWithdrawalStartsAt && data.exceptionalWithdrawalEndsAt && data.exceptionalWithdrawalStartsAt >= data.exceptionalWithdrawalEndsAt) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exceptional withdrawal close must be after opening", path: ["exceptionalWithdrawalEndsAt"] });
     }
