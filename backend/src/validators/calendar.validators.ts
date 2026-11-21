@@ -17,6 +17,7 @@ export const calendarListQuery = z.object({
   to: z.coerce.date().optional(),
   eventType: z.enum(EVENT_TYPES).optional(),
   academicYearId: z.string().uuid().optional(),
+  campusId: z.string().uuid().optional(),
   audience: z.enum(AUDIENCES).optional(),
 });
 
@@ -28,6 +29,7 @@ export const createEventSchema = z
     startDate: z.coerce.date(),
     endDate: z.coerce.date(),
     academicYearId: optionalUuid,
+    campusId: optionalUuid,
     audience: z.enum(AUDIENCES).default("ALL"),
   })
   .refine((value) => value.endDate >= value.startDate, {
@@ -43,6 +45,7 @@ export const updateEventSchema = z
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
     academicYearId: optionalUuid,
+    campusId: optionalUuid,
     audience: z.enum(AUDIENCES).optional(),
   })
   .refine(

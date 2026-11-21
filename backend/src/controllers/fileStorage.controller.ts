@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { AppError } from "../middleware/errorHandler";
+import { prisma } from "../lib/prisma";
+import { assertCanViewStudent } from "../services/accessScope.service";
+import { assertExpenseAttachmentAccessible } from "../services/finance.service";
 import { requireInstitution } from "../utils/requireInstitution";
 import {
   deleteFile,
@@ -25,6 +28,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   lms: ["lms.manage", "lms.grade"],
   library: ["library.manage"],
   operations: ["operations.manage"],
+  expenses: ["expenses.read", "expenses.manage", "expenses.approve"],
 };
 
 const BLOCKED_MIME_TYPES = new Set([
@@ -37,11 +41,10 @@ const BLOCKED_MIME_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function assertModuleAccess(req: Request, module: string): void {
+export function assertModuleAccess(req: Request, module: string, requiredPermission?: string): void {
   if (!req.user) throw new AppError("Authentication required", 401);
-  if (req.user.roles.includes("SUPER_ADMIN")) return;
 
-  const permissions = MODULE_PERMISSIONS[module];
+  const permissions = requiredPermission ? [requiredPermission] : MODULE_PERMISSIONS[module];
   if (!permissions) {
     throw new AppError("Unsupported storage module", 400);
   }
@@ -60,7 +63,7 @@ function resourceTypeFor(mimeType: string): "image" | "video" | "raw" {
 export const upload = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const module = typeof req.body?.module === "string" ? req.body.module.trim().toLowerCase() : "";
-  assertModuleAccess(req, module);
+  assertModuleAccess(req, module, module === "expenses" ? "expenses.manage" : undefined);
 
   if (!req.file) throw new AppError("File is required", 400);
   if (BLOCKED_MIME_TYPES.has(req.file.mimetype)) {
@@ -97,12 +100,36 @@ export const get = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const result = await getFileDelivery(req.params.id, institutionId, req.query.download === "true");
 
-  if (!req.user?.roles.includes("SUPER_ADMIN")) {
+  {
+    const actor = req.user!;
+    if (result.file.module === "expenses") {
+      await assertExpenseAttachmentAccessible(institutionId, actor, result.file.id);
+    }
     const modulePermissions = MODULE_PERMISSIONS[result.file.module] ?? ["documents.read"];
-    const canRead = modulePermissions.some((permission) => req.user!.permissions.includes(permission));
-    const isOwner = result.file.ownerId === req.user!.id;
+    const canRead = modulePermissions.some((permission) => actor.permissions.includes(permission));
+    const isOwner = result.file.ownerId === actor.id;
     const publicSiteAsset = result.file.module === "site" && result.file.visibility === "public";
-    if (!publicSiteAsset && !canRead && !isOwner) {
+    let canReadReferencedStudentDocument = false;
+
+    // Generic documents.read must not expose another campus/department's
+    // private student asset by guessing a FileAsset UUID. Resolve the referenced
+    // student and apply the same backend record-scope guard used by the portals.
+    if (result.file.module === "documents" && result.file.referenceId) {
+      const referencedStudent = await prisma.user.findFirst({
+        where: {
+          id: result.file.referenceId,
+          institutionId,
+          userRoles: { some: { role: { name: "STUDENT" } } },
+        },
+        select: { id: true },
+      });
+      if (referencedStudent) {
+        await assertCanViewStudent(institutionId, actor, referencedStudent.id);
+        canReadReferencedStudentDocument = actor.permissions.includes("documents.read");
+      }
+    }
+
+    if (!publicSiteAsset && !canRead && !isOwner && !canReadReferencedStudentDocument) {
       throw new AppError("You are not allowed to access this file", 403);
     }
   }
@@ -123,7 +150,11 @@ export const get = async (req: Request, res: Response): Promise<void> => {
 export const remove = async (req: Request, res: Response): Promise<void> => {
   const institutionId = requireInstitution(req);
   const result = await getFileDelivery(req.params.id, institutionId);
-  assertModuleAccess(req, result.file.module);
+  assertModuleAccess(req, result.file.module, result.file.module === "expenses" ? "expenses.manage" : undefined);
+  if (result.file.module === "expenses" && result.file.referenceId) {
+    await assertExpenseAttachmentAccessible(institutionId, req.user!, result.file.id);
+    throw new AppError("An attached expense document must be replaced from the expense form so its record and audit context stay linked.", 409);
+  }
   await deleteFile(req.params.id, institutionId);
   res.json({ success: true, data: { id: req.params.id, deleted: true } });
 };

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { AuthRequiredError, authedFetch, isAuthenticated } from "@/lib/auth";
+import { AuthRequiredError, authedFetch, getCurrentUser, isAuthenticated } from "@/lib/auth";
 import { decideRegistration } from "@/lib/registrationApi";
 import { listEnrollmentRequests } from "@/lib/enrollmentRequestApi";
 import { useWorkspaceContext } from "@/lib/workspaceContext";
@@ -75,18 +75,24 @@ async function getData<T>(path: string): Promise<T> {
   return response.data;
 }
 
-export default function HODDashboardPage({ defaultTab = "students" }: { defaultTab?: Tab } = {}) {
+export default function HODDashboardPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const [tenantFeatures, setTenantFeatures] = useState<string[] | null>(null);
+  const hasAdmissionsFeature = tenantFeatures?.includes("admissions") ?? false;
+  const hasRegistrationFeature = tenantFeatures?.includes("registration") ?? false;
   const activeTab: Tab =
-    searchParams.get("tab") === "registrations"
+    hasRegistrationFeature && searchParams.get("tab") === "registrations"
       ? "registrations"
-      : defaultTab;
+      : "students";
 
   const contextParams = useMemo(
     () => ({
+      campusId: searchParams.get("campusId") || undefined,
       departmentId: searchParams.get("departmentId") || undefined,
       programId: searchParams.get("programId") || undefined,
       academicYearId: searchParams.get("academicYearId") || undefined,
+      batchId: searchParams.get("batchId") || undefined,
       semesterId: searchParams.get("semesterId") || undefined,
       sectionId: searchParams.get("sectionId") || undefined,
     }),
@@ -102,8 +108,8 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [pendingEnrollmentRequests, setPendingEnrollmentRequests] = useState(0);
 
-  const [semesterId, setSemesterId] = useState("");
-  const [sectionId, setSectionId] = useState("");
+  const [semesterId, setSemesterId] = useState(() => searchParams.get("semesterId") || "");
+  const [sectionId, setSectionId] = useState(() => searchParams.get("sectionId") || "");
   const [search, setSearch] = useState("");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [selectedOfferings, setSelectedOfferings] = useState<string[]>([]);
@@ -112,20 +118,62 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
 
-  const loadBase = useCallback(async () => {
-    const semesterResponse = await authedFetch<Paged<Semester>>(
-      "/semesters?pageSize=100"
-    );
-    setSemesters(semesterResponse.data ?? []);
+  function updateWorkspaceQuery(updates: Record<"semesterId" | "sectionId", string>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const query = params.toString();
+    router.replace(query ? `/hod?${query}` : "/hod", { scroll: false });
+  }
 
-    if (!semesterId && semesterResponse.data?.length) {
+  useEffect(() => {
+    setSemesterId(searchParams.get("semesterId") || "");
+    setSectionId(searchParams.get("sectionId") || "");
+    setSelectedStudents([]);
+    setSelectedOfferings([]);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setTenantFeatures([]);
+      return;
+    }
+    let mounted = true;
+    getCurrentUser({ force: true })
+      .then((user) => {
+        if (mounted) setTenantFeatures(user?.tenantFeatures ?? []);
+      })
+      .catch(() => {
+        if (mounted) setTenantFeatures([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const loadBase = useCallback(async () => {
+    const query = new URLSearchParams({ pageSize: "100" });
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId"] as const) {
+      const value = contextParams[key];
+      if (value) query.set(key, value);
+    }
+    const semesterResponse = await authedFetch<Paged<Semester>>(
+      `/semesters?${query.toString()}`
+    );
+    const availableSemesters = semesterResponse.data ?? [];
+    setSemesters(availableSemesters);
+
+    if (semesterId && !availableSemesters.some((semester) => semester.id === semesterId)) {
+      setSemesterId("");
+      setSectionId("");
+    } else if (!semesterId && availableSemesters.length && activeTab !== "registrations") {
       const current =
-        semesterResponse.data.find(
-          (semester) => semester.academicYear?.id
-        ) ?? semesterResponse.data[0];
+        availableSemesters.find((semester) => semester.academicYear?.id) ?? availableSemesters[0];
       setSemesterId(current.id);
     }
-  }, [semesterId]);
+  }, [activeTab, contextParams, semesterId]);
 
   const loadStudents = useCallback(async () => {
     const query = new URLSearchParams({
@@ -133,6 +181,10 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
       status: "ACTIVE",
     });
 
+    for (const key of ["campusId", "departmentId", "programId", "academicYearId", "batchId"] as const) {
+      const value = contextParams[key];
+      if (value) query.set(key, value);
+    }
     if (semesterId) query.set("semesterId", semesterId);
     if (sectionId) query.set("sectionId", sectionId);
     if (search.trim()) query.set("search", search.trim());
@@ -141,7 +193,7 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
       `/students?${query.toString()}`
     );
     setStudents(response.data ?? []);
-  }, [semesterId, sectionId, search]);
+  }, [semesterId, sectionId, search, contextParams]);
 
   const loadSectionsAndOfferings = useCallback(async () => {
     if (!semesterId) {
@@ -173,6 +225,10 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   }, [semesterId, sectionId]);
 
   const loadRegistrations = useCallback(async () => {
+    if (!hasRegistrationFeature) {
+      setRegistrations([]);
+      return;
+    }
     const query = new URLSearchParams({
       pageSize: "100",
       status: "REQUESTED",
@@ -186,7 +242,7 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
     }>(`/registrations?${query.toString()}`);
 
     setRegistrations(response.data ?? []);
-  }, [semesterId, search]);
+  }, [semesterId, search, hasRegistrationFeature]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -217,10 +273,14 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
   }, [loadBase]);
 
   useEffect(() => {
+    if (!hasAdmissionsFeature) {
+      setPendingEnrollmentRequests(0);
+      return;
+    }
     listEnrollmentRequests({ status: "PENDING" })
       .then((result) => setPendingEnrollmentRequests(result.total))
       .catch(() => setPendingEnrollmentRequests(0));
-  }, [semesterId]);
+  }, [semesterId, hasAdmissionsFeature]);
 
   useEffect(() => {
     if (!semesterId) return;
@@ -370,18 +430,20 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               >
                 Students & assignment
               </a>
-              <a href="/hod/enrollment-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Enrollment requests</a>
-              <a href="/hod/course-registration-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Course registrations</a>
-              <a
-                href="/hod?tab=registrations"
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                  activeTab === "registrations"
-                    ? "bg-slate-950 text-white"
-                    : "text-slate-600"
-                }`}
-              >
-                Registration approval
-              </a>
+              {hasAdmissionsFeature ? <a href="/hod/enrollment-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Enrollment requests</a> : null}
+              {hasRegistrationFeature ? <a href="/hod/course-registration-requests" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600">Course registrations</a> : null}
+              {hasRegistrationFeature ? (
+                <a
+                  href="/hod?tab=registrations"
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                    activeTab === "registrations"
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600"
+                  }`}
+                >
+                  Registration approval
+                </a>
+              ) : null}
             </div>
           </div>
         </section>
@@ -401,10 +463,13 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               {students.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pending enrollments</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">{pendingEnrollmentRequests}</p>
-          </div>
+          {hasAdmissionsFeature ? (
+            <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pending enrollments</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">{pendingEnrollmentRequests}</p>
+            </div>
+  
+          ) : null}
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Courses
@@ -413,14 +478,17 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
               {filteredOfferings.length}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Pending approvals
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {registrations.length}
-            </p>
-          </div>
+          {hasRegistrationFeature ? (
+            <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Pending approvals
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-950">
+                {registrations.length}
+              </p>
+            </div>
+  
+          ) : null}
           <div className="rounded-2xl border border-[#dfd4c4] bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Selected
@@ -438,10 +506,12 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
                 <select
                   value={semesterId}
                   onChange={(event) => {
-                    setSemesterId(event.target.value);
+                    const value = event.target.value;
+                    setSemesterId(value);
                     setSectionId("");
                     setSelectedStudents([]);
                     setSelectedOfferings([]);
+                    updateWorkspaceQuery({ semesterId: value, sectionId: "" });
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none"
                 >
@@ -460,9 +530,11 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
                 <select
                   value={sectionId}
                   onChange={(event) => {
-                    setSectionId(event.target.value);
+                    const value = event.target.value;
+                    setSectionId(value);
                     setSelectedStudents([]);
                     setSelectedOfferings([]);
+                    updateWorkspaceQuery({ semesterId, sectionId: value });
                   }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none"
                 >
@@ -647,7 +719,12 @@ export default function HODDashboardPage({ defaultTab = "students" }: { defaultT
 
                 <select
                   value={semesterId}
-                  onChange={(event) => setSemesterId(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSemesterId(value);
+                    setSectionId("");
+                    updateWorkspaceQuery({ semesterId: value, sectionId: "" });
+                  }}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
                 >
                   <option value="">All semesters</option>

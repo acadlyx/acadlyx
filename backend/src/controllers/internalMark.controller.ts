@@ -4,6 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../utils/asyncHandler";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { requireInstitution } from "../utils/requireInstitution";
+import { assertWorkspaceContextFilters, readWorkspaceContextFilters } from "../utils/workspaceScopeFilters";
 import { EnterMarksInput } from "../validators/internalMark.validators";
 
 function requireUser(req: Request) {
@@ -30,9 +31,12 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     (req.query.courseOfferingId as string | undefined) || undefined;
   const studentId = (req.query.studentId as string | undefined) || undefined;
   const component = (req.query.component as string | undefined) || undefined;
+  const contextFilters = readWorkspaceContextFilters(req.query as Record<string, unknown>);
+  await assertWorkspaceContextFilters(institutionId, user, contextFilters);
 
   const { items, total } = await marksService.listMarks(institutionId, user, {
     ...pagination,
+    ...contextFilters,
     courseOfferingId,
     studentId,
     component,

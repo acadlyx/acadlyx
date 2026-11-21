@@ -115,3 +115,45 @@ test("institution administration does not receive examination write authority by
   assert.equal(permissions.has("exams.manage"), false);
   assert.equal(permissions.has("exams.approve"), false);
 });
+
+
+test("HOD receives scoped batch read without batch mutation authority", () => {
+  const hodPermissions = new Set(ROLE_PERMISSIONS.HOD ?? []);
+
+  assert.equal(hodPermissions.has("batches.read"), true);
+  assert.equal(hodPermissions.has("batches.create"), false);
+  assert.equal(hodPermissions.has("batches.update"), false);
+  assert.equal(hodPermissions.has("batches.delete"), false);
+});
+
+test("institutional CMS uses dedicated tenant workflow permissions, not platform website grants", () => {
+  const catalog = new Set<string>(PERMISSIONS.map((permission) => permission.key));
+  for (const permission of ["institutional-cms.read", "institutional-cms.manage", "institutional-cms.approve"]) {
+    assert.ok(catalog.has(permission), "Missing institutional CMS permission " + permission);
+  }
+
+  const has = (role: SystemRoleName, permission: PermissionKey) =>
+    (ROLE_PERMISSIONS[role] ?? []).includes(permission);
+
+  assert.equal(has("INSTITUTION_ADMIN", "institutional-cms.read"), true);
+  assert.equal(has("INSTITUTION_ADMIN", "institutional-cms.manage"), true);
+  assert.equal(has("INSTITUTION_ADMIN", "institutional-cms.approve"), false);
+
+  for (const role of ["CHAIRMAN", "MANAGEMENT", "DIRECTOR"] as const) {
+    assert.equal(has(role, "institutional-cms.read"), true, role + " must read tenant CMS drafts");
+    assert.equal(has(role, "institutional-cms.approve"), true, role + " must review submitted CMS changes");
+    assert.equal(has(role, "institutional-cms.manage"), false, role + " must not edit the submitter draft by default");
+  }
+
+  assert.equal(has("SUPER_ADMIN", "site.manage"), true, "platform Website CMS retains its platform permission");
+  assert.equal(has("INSTITUTION_ADMIN", "site.manage"), false, "tenant administrators must not receive platform Website CMS permission");
+  assert.equal(has("CHAIRMAN", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
+  assert.equal(has("MANAGEMENT", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
+  assert.equal(has("DIRECTOR", "site.manage"), false, "institution leadership must not inherit platform Website CMS permission");
+  assert.equal(has("SUPER_ADMIN", "institutional-cms.read"), false);
+  assert.equal(has("SUPER_ADMIN", "institutional-cms.manage"), false);
+  assert.equal(has("SUPER_ADMIN", "institutional-cms.approve"), false);
+  assert.equal(has("CMS", "site.manage"), true, "CMS users retain public website editing");
+  assert.equal(has("CMS", "institutional-cms.manage"), false, "public website editors cannot edit tenant drafts");
+  assert.equal(has("CMS", "institutional-cms.approve"), false, "public website editors cannot approve tenant drafts");
+});

@@ -129,6 +129,9 @@ export const PERMISSIONS = [
     module: "site",
     description: "Manage public institutional website content",
   },
+  { key: "institutional-cms.read", module: "institutional-cms", description: "Read institutional branding and dashboard configuration within the authenticated tenant" },
+  { key: "institutional-cms.manage", module: "institutional-cms", description: "Create and submit institutional CMS drafts within the authenticated tenant" },
+  { key: "institutional-cms.approve", module: "institutional-cms", description: "Approve or reject submitted institutional CMS drafts within the authenticated tenant" },
 
   { key: "imports.manage", module: "imports", description: "Import institutional data" },
   { key: "people.import", module: "people", description: "Bulk import students, faculty and staff within authorized scope" },
@@ -204,6 +207,10 @@ export const PERMISSIONS = [
 
   { key: "results.read", module: "exams", description: "View examination results within scope" },
 
+  { key: "expenses.read", module: "fees", description: "View institution expenses within authorized campus or department scope" },
+  { key: "expenses.manage", module: "fees", description: "Create and edit unapproved expenses" },
+  { key: "expenses.approve", module: "fees", description: "Approve or reject pending expenses with comments" },
+  { key: "expenses.export", module: "fees", description: "Export authorized expense reports" },
   { key: "fees.read", module: "fees", description: "View fee records within scope" },
   { key: "fees.collection.read", module: "fees", description: "View authorized fee collection summaries" },
   { key: "fees.structure.read", module: "fees", description: "View fee structures and heads" },
@@ -524,14 +531,13 @@ export const ROLE_PERMISSIONS: Record<
     "placements.read",
     ...EVENTS_READ,
     "events.manage",
-    "fees.structure.read",
-    "fees.structure.manage",
     /*
      * Institution-wide administrative role.
      *
      * Institution Admin manages the institution's people,
-     * academic structure, institutional configuration and
-     * examination operations.
+     * academic structure and institutional configuration.
+     * Fees, assignments and examination operations remain
+     * separately entitled / role-owned capabilities.
      *
      * Platform-only permissions remain excluded.
      */
@@ -541,6 +547,8 @@ export const ROLE_PERMISSIONS: Record<
     "users.update",
     "users.delete",
 
+    "institutional-cms.read",
+    "institutional-cms.manage",
     "students.read",
     "students.create",
     "students.update",
@@ -634,11 +642,16 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
+    "expenses.export",
     "fees.structure.read",
     "fees.structure.manage",
     "fees.structure.approve",
@@ -658,11 +671,16 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   MANAGEMENT: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
+    "expenses.export",
     "fees.structure.read",
     "fees.structure.manage",
     "fees.structure.approve",
@@ -674,12 +692,17 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "institutional-cms.read",
+    "institutional-cms.approve",
     "placements.read",
     ...EVENTS_READ,
     "events.manage",
     "fees.collection.read",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.approve",
+    "expenses.export",
     "obe.read", "obe.programme-outcomes.manage", "obe.reports.read", "obe.attainment.approve",
     ...LEADERSHIP_READ,
 
@@ -846,6 +869,7 @@ export const ROLE_PERMISSIONS: Record<
     "departments.read",
     "programs.read",
     "academic-years.read",
+    "batches.read",
     "semesters.read",
     "sections.read",
     "sections.update",
@@ -964,6 +988,9 @@ export const ROLE_PERMISSIONS: Record<
     "fees.refund.process",
     "fees.reports.read",
     "fees.reports.export",
+    "expenses.read",
+    "expenses.manage",
+    "expenses.export",
 
     "fees.read",
     "fees.manage",
@@ -1313,6 +1340,23 @@ export function outranks(
   );
 }
 
+/**
+ * Notice writing is available only to roles whose backend workflow supports
+ * a concrete institutional, campus, or department scope. Everyone else,
+ * including Parents and platform Super Admin, remain read-only until a tenant-scoped recipient model or active institutional role exists.
+ * Keep this allowlist shared with notice mutation services.
+ */
+export const NOTICE_MANAGEMENT_ROLES = [
+  "INSTITUTION_ADMIN",
+  "CHAIRMAN",
+  "DIRECTOR",
+  "MANAGEMENT",
+  "DEAN",
+  "REGISTRAR",
+  "HOD",
+  "CMS",
+] as const;
+
 export function getRolePermissions(
   roleName: string
 ): PermissionKey[] {
@@ -1326,12 +1370,28 @@ export function getRolePermissions(
   }
 
   const basePermissions = ROLE_PERMISSIONS[normalized] ?? [];
-  // Notices are a scoped communication capability for every non-student role.
-  // Services must still constrain create/update operations to the actor's scope.
-  if (normalized === "STUDENT") return [...basePermissions, "notices.read", "notifications.read"];
-  return [...new Set<PermissionKey>([...basePermissions, "notices.read", "notices.manage", "notifications.read"])];
-}
+  const canManageNotices = NOTICE_MANAGEMENT_ROLES.includes(
+    normalized as typeof NOTICE_MANAGEMENT_ROLES[number],
+  );
+  const canReadTenantNotices = normalized !== "SUPER_ADMIN";
+  // Avoid permission bundles bypassing explicit scope. Platform Super Admin is
+  // not a tenant workspace and therefore has neither tenant notice read nor write.
+  const scopedBasePermissions = canManageNotices && normalized !== "STUDENT"
+    ? basePermissions
+    : basePermissions.filter((permission) =>
+        permission !== "notices.manage" &&
+        (canReadTenantNotices || permission !== "notices.read"),
+      );
 
+  return [
+    ...new Set<PermissionKey>([
+      ...scopedBasePermissions,
+      ...(canReadTenantNotices ? ["notices.read" as PermissionKey] : []),
+      ...(canManageNotices && normalized !== "STUDENT" ? ["notices.manage" as PermissionKey] : []),
+      "notifications.read",
+    ]),
+  ];
+}
 export function getEffectivePermissions(
   roles: readonly string[]
 ): PermissionKey[] {

@@ -20,6 +20,14 @@ export interface GatewayVerification {
   verified: boolean;
 }
 
+export interface GatewayRefund {
+  provider: string;
+  refundId: string;
+  paymentId: string;
+  amount: number;
+  status: string;
+}
+
 export interface GatewayWebhookPayment {
   provider: string;
   paymentId: string;
@@ -46,6 +54,8 @@ export interface PaymentGateway {
     signature: string;
     amount: number;
   }): Promise<GatewayVerification>;
+  createRefund(input: { paymentId: string; amount: number; reference: string; notes?: Record<string,string> }): Promise<GatewayRefund>;
+  getRefund(refundId: string): Promise<GatewayRefund>;
   verifyWebhook(rawBody: string, signature: string): boolean;
   parseWebhook(rawBody: string): Promise<GatewayWebhookPayment | null>;
 }
@@ -77,6 +87,14 @@ class ManualGateway implements PaymentGateway {
 
   async verifyCallback(): Promise<GatewayVerification> {
     throw new AppError("No online payment provider is configured", 503);
+  }
+
+  async createRefund(): Promise<GatewayRefund> {
+    throw new AppError("Manual-payment refunds must be reconciled against the institution bank settlement before finalizing", 503);
+  }
+
+  async getRefund(): Promise<GatewayRefund> {
+    throw new AppError("No online refund provider is configured", 503);
   }
 
   verifyWebhook(): boolean {
@@ -239,6 +257,53 @@ class HmacGateway implements PaymentGateway {
     };
   }
 
+
+  async createRefund(input: { paymentId: string; amount: number; reference: string; notes?: Record<string,string> }): Promise<GatewayRefund> {
+    if (!this.isConfigured) requireCredentials(this.name);
+    if (this.name !== "razorpay") throw new AppError(`Online refunds are not implemented for provider "${this.name}"`, 503);
+    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new AppError("Refund amount must be greater than zero", 400);
+
+    // The stable receipt plus finance reference lets reconciliation locate a refund
+    // if the provider accepts a request but the network drops the response.
+    const receipt = input.reference.slice(0, 40);
+    const existing = await this.razorpayGet<{items?:Array<{id?:string;payment_id?:string;amount?:number;status?:string;receipt?:string}>}>(
+      `payments/${encodeURIComponent(input.paymentId)}/refunds?count=100`
+    );
+    const prior = (existing.items || []).find(item => item.receipt === receipt);
+    if (prior?.id && prior.payment_id === input.paymentId && prior.amount === Math.round(input.amount * 100)) {
+      return {provider:"razorpay",refundId:prior.id,paymentId:input.paymentId,amount:prior.amount/100,status:prior.status||"pending"};
+    }
+
+    const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(input.paymentId)}/refund`, {
+      method: "POST",
+      headers: { Authorization: this.authorizationHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: Math.round(input.amount * 100),
+        receipt,
+        notes: { ...(input.notes || {}), acadlyxRefundReference: input.reference },
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "provider error");
+      throw new AppError(`Razorpay refund request failed: ${detail.slice(0,300)}`, 502);
+    }
+    const data = await response.json() as {id?:string;payment_id?:string;amount?:number;status?:string;receipt?:string};
+    if (!data.id || data.payment_id !== input.paymentId || data.amount !== Math.round(input.amount * 100) || data.receipt !== receipt || !data.status) {
+      throw new AppError("Razorpay returned a refund that does not match the requested payment and amount", 502);
+    }
+    return {provider:"razorpay",refundId:data.id,paymentId:data.payment_id,amount:data.amount/100,status:data.status};
+  }
+
+  async getRefund(refundId: string): Promise<GatewayRefund> {
+    if (!this.isConfigured) requireCredentials(this.name);
+    if (this.name !== "razorpay") throw new AppError(`Online refund reconciliation is not implemented for provider "${this.name}"`, 503);
+    const data = await this.razorpayGet<{id?:string;payment_id?:string;amount?:number;status?:string}>(`refunds/${encodeURIComponent(refundId)}`);
+    if (!data.id || !data.payment_id || typeof data.amount !== "number" || !data.status) {
+      throw new AppError("Razorpay returned an invalid refund status", 502);
+    }
+    return {provider:"razorpay",refundId:data.id,paymentId:data.payment_id,amount:data.amount/100,status:data.status};
+  }
+
   verifyWebhook(rawBody: string, signature: string): boolean {
     if (!this.webhookSecret) return false;
     return safeEqual(this.signature(rawBody, this.webhookSecret), signature);
@@ -268,7 +333,7 @@ class HmacGateway implements PaymentGateway {
       throw new AppError("Invalid payment webhook payload", 400);
     }
 
-    if (!["payment.captured", "payment.authorized"].includes(body.event || "")) {
+    if (body.event !== "payment.captured") {
       return null;
     }
 

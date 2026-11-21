@@ -4,7 +4,7 @@ import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { recordAuditLog } from "./audit.service";
-import { isDirectorScoped } from "./accessScope.service";
+import { assertCampusInScope, getAuthorizedCampusIds, isDirectorScoped } from "./accessScope.service";
 import {
   CreateEventInput,
   UpdateEventInput,
@@ -15,16 +15,36 @@ type Meta = { ipAddress?: string; userAgent?: string };
 const AUDIENCE_ALL = ["ALL", "STUDENTS", "FACULTY", "STAFF"] as const;
 
 /**
- * CalendarEvent has no campus ownership field. Until it does, the Director
- * workspace must not read or mutate institution-wide calendar records.
- * Campus-specific event management remains available through Events & Gallery.
+ * Campus ownership is explicit. Institution-wide roles may manage tenant-wide
+ * records; other workspaces are filtered to server-derived campus assignments.
+ * Directors never see unassigned legacy events because that would cross campus boundaries.
  */
-function assertCalendarCampusScopeSupported(actor: AuthenticatedUser): void {
-  if (isDirectorScoped(actor)) {
-    throw new AppError(
-      "Campus calendar records are not yet campus-scoped. Use Events & Gallery for assigned-campus events.",
-      409,
-    );
+async function calendarCampusWhere(institutionId: string, actor: AuthenticatedUser): Promise<Prisma.CalendarEventWhereInput> {
+  const allowed = await getAuthorizedCampusIds(institutionId, actor);
+  if (allowed === null) return {};
+  if (isDirectorScoped(actor)) return { campusId: { in: allowed } };
+  return { OR: [{ campusId: null }, { campusId: { in: allowed } }] };
+}
+
+async function resolveCampusForWrite(institutionId: string, actor: AuthenticatedUser, requested?: string | null): Promise<string | null> {
+  const allowed = await getAuthorizedCampusIds(institutionId, actor);
+  if (allowed === null) {
+    if (requested) await assertCampusInScope(institutionId, actor, requested);
+    return requested || null;
+  }
+  if (!requested) {
+    if (allowed.length === 1) return allowed[0];
+    if (allowed.length === 0) throw new AppError("No active campus is assigned to this calendar workspace.", 403);
+    throw new AppError("Choose one of your assigned campuses before saving this calendar event.", 422);
+  }
+  await assertCampusInScope(institutionId, actor, requested);
+  return requested;
+}
+
+async function assertCanManageExistingCampusEvent(institutionId: string, actor: AuthenticatedUser, campusId: string | null): Promise<void> {
+  const allowed = await getAuthorizedCampusIds(institutionId, actor);
+  if (allowed !== null && (!campusId || !allowed.includes(campusId))) {
+    throw new AppError("This calendar event is outside your assigned campus scope.", 403);
   }
 }
 
@@ -56,6 +76,7 @@ export function visibleAudiences(actor: AuthenticatedUser): string[] {
 
 const include = {
   academicYear: { select: { id: true, name: true } },
+  campus: { select: { id: true, name: true, code: true } },
 } satisfies Prisma.CalendarEventInclude;
 
 export async function listEvents(
@@ -68,10 +89,12 @@ export async function listEvents(
     eventType?: string;
     academicYearId?: string;
     audience?: string;
+    campusId?: string;
     search?: string;
   }
 ) {
-  assertCalendarCampusScopeSupported(actor);
+  const campusWhere = await calendarCampusWhere(institutionId, actor);
+  if (filters.campusId) await assertCampusInScope(institutionId, actor, filters.campusId);
   const allowed = visibleAudiences(actor);
   const audienceFilter =
     filters.audience && allowed.includes(filters.audience)
@@ -79,7 +102,9 @@ export async function listEvents(
       : allowed;
 
   const where: Prisma.CalendarEventWhereInput = {
+    ...campusWhere,
     institutionId,
+    ...(filters.campusId ? { campusId: filters.campusId } : {}),
     audience: { in: audienceFilter },
     ...(filters.eventType ? { eventType: filters.eventType } : {}),
     ...(filters.academicYearId
@@ -113,9 +138,10 @@ export async function getUpcoming(
   actor: AuthenticatedUser,
   limit = 10
 ) {
-  assertCalendarCampusScopeSupported(actor);
+  const campusWhere = await calendarCampusWhere(institutionId, actor);
   return prisma.calendarEvent.findMany({
     where: {
+      ...campusWhere,
       institutionId,
       audience: { in: visibleAudiences(actor) },
       endDate: { gte: new Date() },
@@ -144,12 +170,13 @@ export async function createEvent(
   input: CreateEventInput,
   meta: Meta
 ) {
-  assertCalendarCampusScopeSupported(actor);
+  const campusId = await resolveCampusForWrite(institutionId, actor, input.campusId);
   await assertAcademicYear(institutionId, input.academicYearId);
 
   const event = await prisma.calendarEvent.create({
     data: {
       institutionId,
+      campusId,
       title: input.title,
       description: input.description ?? null,
       eventType: input.eventType,
@@ -168,7 +195,7 @@ export async function createEvent(
     action: "calendar.event.create",
     entityType: "CalendarEvent",
     entityId: event.id,
-    metadata: { title: event.title, eventType: event.eventType },
+    metadata: { title: event.title, eventType: event.eventType, campusId: event.campusId },
     ...meta,
   });
 
@@ -182,11 +209,12 @@ export async function updateEvent(
   input: UpdateEventInput,
   meta: Meta
 ) {
-  assertCalendarCampusScopeSupported(actor);
   const existing = await prisma.calendarEvent.findFirst({
     where: { id, institutionId },
   });
   if (!existing) throw new AppError("Event not found", 404);
+  await assertCanManageExistingCampusEvent(institutionId, actor, existing.campusId);
+  const campusId = input.campusId === undefined ? existing.campusId : await resolveCampusForWrite(institutionId, actor, input.campusId);
 
   const startDate = input.startDate ?? existing.startDate;
   const endDate = input.endDate ?? existing.endDate;
@@ -204,6 +232,7 @@ export async function updateEvent(
       startDate: input.startDate,
       endDate: input.endDate,
       academicYearId: input.academicYearId,
+      campusId,
       audience: input.audience,
     },
     include,
@@ -228,12 +257,12 @@ export async function deleteEvent(
   id: string,
   meta: Meta
 ) {
-  assertCalendarCampusScopeSupported(actor);
   const existing = await prisma.calendarEvent.findFirst({
     where: { id, institutionId },
-    select: { id: true, title: true },
+    select: { id: true, title: true, campusId: true },
   });
   if (!existing) throw new AppError("Event not found", 404);
+  await assertCanManageExistingCampusEvent(institutionId, actor, existing.campusId);
 
   await prisma.calendarEvent.delete({ where: { id } });
 
@@ -243,7 +272,7 @@ export async function deleteEvent(
     action: "calendar.event.delete",
     entityType: "CalendarEvent",
     entityId: id,
-    metadata: { title: existing.title },
+    metadata: { title: existing.title, campusId: existing.campusId },
     ...meta,
   });
 

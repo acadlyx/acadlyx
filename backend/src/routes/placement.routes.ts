@@ -92,7 +92,7 @@ const interviewParticipantUpdate = z.object({
   resultStatus: z.string().trim().min(2).max(40).optional(),
   feedback: z.string().max(5000).nullable().optional(),
 });
-const studentListQuery = z.object({ search: z.string().trim().max(120).optional(), page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).optional(), campusId: z.string().uuid().optional(), departmentId: z.string().uuid().optional(), programId: z.string().uuid().optional(), batchId: z.string().uuid().optional(), semesterId: z.string().uuid().optional(), academicYearId: z.string().uuid().optional() });
+const studentListQuery = z.object({ search: z.string().trim().max(120).optional(), page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).optional(), campusId: z.string().uuid().optional(), departmentId: z.string().uuid().optional(), programId: z.string().uuid().optional(), batchId: z.string().uuid().optional(), semesterId: z.string().uuid().optional(), sectionId: z.string().uuid().optional(), academicYearId: z.string().uuid().optional() });
 const certificationCreate = z.object({ name: z.string().trim().min(2).max(200), issuer: z.string().max(200).optional(), issuedAt: z.string().datetime().optional(), credentialUrl: z.string().url().optional() });
 const projectCreate = z.object({ title: z.string().trim().min(2).max(200), description: z.string().max(5000).optional(), technologies: z.array(z.string().trim().min(1).max(80)).max(50).optional(), projectUrl: z.string().url().optional() });
 const resumeCreate = z.object({ url: z.string().url(), fileName: z.string().max(255).optional() });

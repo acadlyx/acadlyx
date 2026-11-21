@@ -1,4 +1,5 @@
 import { apiUrl, createMutationKey } from "./api";
+import { authorizationContextKey, isSessionCurrent } from "./sessionScopedCache.mjs";
 
 const ACCESS_TOKEN_KEY =
   "acadlyx_access_token";
@@ -136,7 +137,11 @@ let currentUserRequest:
   | null = null;
 
 let refreshRequest:
-  | Promise<boolean>
+  | {
+      authScope: number;
+      refreshToken: string;
+      promise: Promise<boolean>;
+    }
   | null = null;
 
 /*
@@ -168,6 +173,18 @@ function getInflightMap(): Map<string, Promise<unknown>> {
  * the access token itself.
  */
 let authCacheScope = 0;
+const authCacheScopeListeners = new Set<() => void>();
+
+function notifyAuthCacheScopeChanged(): void {
+  // A faulty subscriber must not block other caches from invalidating.
+  for (const listener of authCacheScopeListeners) {
+    try {
+      listener();
+    } catch {
+      // Authentication state changes must not depend on UI listener success.
+    }
+  }
+}
 
 export type LoginResult =
   | {
@@ -278,7 +295,8 @@ export function getRefreshToken():
 }
 
 export function setTokens(
-  tokens: AuthTokens
+  tokens: AuthTokens,
+  options: { preserveSession?: boolean } = {},
 ): void {
   if (!isBrowser()) {
     return;
@@ -303,8 +321,14 @@ export function setTokens(
     tokens.refreshToken
   );
 
-  invalidateUserCache();
-  authCacheScope += 1;
+  // Refresh-token rotation replaces credentials for the same principal.
+  // It must not invalidate identity/context requests that are part of that
+  // refresh retry; account login/MFA flows keep the default invalidation.
+  if (!options.preserveSession) {
+    invalidateUserCache();
+    authCacheScope += 1;
+    notifyAuthCacheScopeChanged();
+  }
 }
 
 export function clearTokens(): void {
@@ -325,10 +349,22 @@ export function clearTokens(): void {
 
   invalidateUserCache();
   authCacheScope += 1;
+  notifyAuthCacheScopeChanged();
 }
 
 export function getAuthCacheScope(): number {
   return authCacheScope;
+}
+
+/**
+ * Subscribe to credential/session transitions to invalidate ephemeral data
+ * immediately instead of waiting for feature-cache TTLs to expire.
+ */
+export function subscribeAuthCacheScope(listener: () => void): () => void {
+  authCacheScopeListeners.add(listener);
+  return () => {
+    authCacheScopeListeners.delete(listener);
+  };
 }
 
 /*
@@ -408,34 +444,49 @@ export async function getCurrentUser(
     return currentUserRequest;
   }
 
-  currentUserRequest =
-    authedFetch<
-      ApiEnvelope<AuthUser>
-    >(
-      "/auth/me"
-    )
-      .then(
-        (response) => {
-          const user =
-            validateUser(
-              response.data
-            );
+  const requestAuthScope = authCacheScope;
+  const request = Promise.resolve()
+    .then(() => {
+      // Do not even send /auth/me if credentials changed before the request
+      // started scheduling.
+      if (!isSessionCurrent(requestAuthScope, authCacheScope)) {
+        throw new Error("Session changed during identity verification. Please retry.");
+      }
+      return authedFetch<ApiEnvelope<AuthUser>>("/auth/me");
+    })
+    .then((response) => {
+      // Credentials can change while /auth/me is in flight. Never let the
+      // previous principal overwrite cached identity for the new session.
+      if (!isSessionCurrent(requestAuthScope, authCacheScope)) {
+        throw new Error("Session changed during identity verification. Please retry.");
+      }
 
-          cachedUser =
-            user;
+      const previousAuthorization = authorizationContextKey(cachedUser);
+      const user = validateUser(response.data);
 
-          cachedUserAt =
-            Date.now();
+      cachedUser = user;
+      cachedUserAt = Date.now();
 
-          return user;
-        }
-      )
-      .finally(() => {
-        currentUserRequest =
-          null;
-      });
+      // Roles, permissions and tenant features can be revoked server-side
+      // without rotating a browser token. Invalidate dependent caches when
+      // a fresh /auth/me changes the effective authorization context.
+      if (
+        previousAuthorization !== null &&
+        previousAuthorization !== authorizationContextKey(user)
+      ) {
+        authCacheScope += 1;
+        notifyAuthCacheScopeChanged();
+      }
 
-  return currentUserRequest;
+      return user;
+    })
+    .finally(() => {
+      // An older request must never clear a newer session's in-flight pointer.
+      if (currentUserRequest === request) currentUserRequest = null;
+    });
+
+  currentUserRequest = request;
+  return request;
 }
 
 async function refreshCurrentUserInBackground():
@@ -669,72 +720,75 @@ export async function logout():
   }
 }
 
-async function tryRefresh():
-  Promise<boolean> {
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  const requestAuthScope = authCacheScope;
   if (
-    refreshRequest
+    refreshRequest &&
+    refreshRequest.authScope === requestAuthScope &&
+    refreshRequest.refreshToken === refreshToken
   ) {
-    return refreshRequest;
+    return refreshRequest.promise;
   }
 
-  const refreshToken =
-    getRefreshToken();
+  const request = Promise.resolve().then(async () => {
+    try {
+      if (
+        !isSessionCurrent(requestAuthScope, authCacheScope) ||
+        getRefreshToken() !== refreshToken
+      ) return false;
 
-  if (!refreshToken) {
-    return false;
-  }
+      const res = await fetchWithTimeout(
+        apiUrl("/auth/refresh"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        },
+        REFRESH_TIMEOUT_MS,
+      );
 
-  refreshRequest =
-    (async () => {
-      try {
-        const res =
-          await fetchWithTimeout(
-            apiUrl(
-              "/auth/refresh"
-            ),
-            {
-              method: "POST",
+      // The refresh response is bound to the credentials it was sent with.
+      // A late 401/network failure must not clear a newly signed-in account,
+      // and a late success must not install its old account's tokens.
+      if (
+        !isSessionCurrent(requestAuthScope, authCacheScope) ||
+        getRefreshToken() !== refreshToken
+      ) return false;
 
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify({
-                refreshToken,
-              }),
-            },
-            REFRESH_TIMEOUT_MS
-          );
-
-        if (
-          !res.ok
-        ) {
-          clearTokens();
-          return false;
-        }
-
-        const body =
-          (await res.json()) as
-            ApiEnvelope<{
-              tokens: AuthTokens;
-            }>;
-
-        setTokens(
-          body.data.tokens
-        );
-
-        return true;
-      } catch {
+      if (!res.ok) {
         clearTokens();
         return false;
-      } finally {
-        refreshRequest =
-          null;
       }
-    })();
 
-  return refreshRequest;
+      const body = await res.json() as ApiEnvelope<{ tokens: AuthTokens }>;
+      if (
+        !isSessionCurrent(requestAuthScope, authCacheScope) ||
+        getRefreshToken() !== refreshToken
+      ) return false;
+
+      setTokens(body.data.tokens, { preserveSession: true });
+      return true;
+    } catch {
+      if (
+        isSessionCurrent(requestAuthScope, authCacheScope) &&
+        getRefreshToken() === refreshToken
+      ) clearTokens();
+      return false;
+    } finally {
+      // Do not clear a newer session's refresh request.
+      if (refreshRequest?.promise === request) refreshRequest = null;
+    }
+  });
+
+  refreshRequest = {
+    authScope: requestAuthScope,
+    refreshToken,
+    promise: request,
+  };
+  return request;
 }
 
 /*

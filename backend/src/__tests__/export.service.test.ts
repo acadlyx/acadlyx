@@ -3,6 +3,7 @@ import test from "node:test";
 import * as XLSX from "xlsx";
 import { createCsv, createDocx, createPdf } from "../services/exportDocuments.service";
 import { computeExportInvoiceBalance, makeFile } from "../services/export.service";
+import { exportJobSchema } from "../validators/export.validators";
 
 test("XLSX export is non-empty and parseable", () => {
   const file = makeFile([{ id: "1", name: "Student", active: true }], "students", "xlsx");
@@ -82,4 +83,16 @@ test("placement activity schedule exports support every advertised document form
       assert.ok(file.buffer.length > 0, `${type} ${format} export should be non-empty`);
     }
   }
+});
+
+
+test("background export job options validate formats, selections and bounded filters", () => {
+  assert.deepEqual(exportJobSchema.parse({ format: "csv", selection: "selected", ids: ["row-1"] }), {
+    format: "csv", selection: "selected", ids: ["row-1"],
+  });
+  assert.deepEqual(exportJobSchema.parse({}), { format: "xlsx", selection: "all-filtered" });
+  assert.equal(exportJobSchema.safeParse({ selection: "selected" }).success, false);
+  assert.equal(exportJobSchema.safeParse({ selection: "all-filtered", ids: ["row-1"] }).success, false);
+  assert.equal(exportJobSchema.safeParse({ format: "exe" }).success, false);
+  assert.equal(exportJobSchema.safeParse({ filters: { search: "x".repeat(201) } }).success, false);
 });

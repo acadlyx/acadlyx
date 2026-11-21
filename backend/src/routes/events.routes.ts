@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import * as controller from "../controllers/events.controller";
 import { authenticate } from "../middleware/authenticate";
 import { authorize } from "../middleware/authorize";
@@ -8,6 +9,10 @@ import { idParams } from "../validators/common";
 import { eventListQuery, createEventSchema, updateEventSchema, categorySchema, mediaSchema } from "../validators/events.validators";
 
 const router=Router();
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
 router.use(authenticate, requireFeature("cms"));
 router.get("/",authorize("events.read"),validateQuery(eventListQuery),controller.list);
 router.get("/categories",authorize("events.read"),controller.categories);
@@ -16,7 +21,7 @@ router.post("/",authorize("events.manage"),validateBody(createEventSchema),contr
 router.patch("/:id",authorize("events.manage"),validateParams(idParams),validateBody(updateEventSchema),controller.update);
 router.delete("/media/:mediaId",authorize("events.manage"),controller.removeMedia);
 router.delete("/:id",authorize("events.manage"),validateParams(idParams),controller.remove);
-router.post("/media/upload",authorize("events.manage"),controller.uploadMedia);
+router.post("/media/upload", authorize("events.manage"), imageUpload.single("file"), controller.uploadMedia);
 router.post("/:id/media",authorize("events.manage"),validateParams(idParams),validateBody(mediaSchema),controller.addMedia);
 router.post("/:id/media/reorder",authorize("events.manage"),validateParams(idParams),controller.reorderMedia);
 router.post("/categories",authorize("events.manage"),validateBody(categorySchema),controller.createCategory);

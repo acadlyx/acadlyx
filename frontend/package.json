@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "validate:source": "node scripts/validate-source.mjs && node scripts/test-placement-auth.mjs && node scripts/test-library-access.mjs && node scripts/test-student-ui-integrity.mjs && node scripts/test-finance-access.mjs"
+    "validate:source": "node scripts/validate-source.mjs && node --test scripts/test-workspace-context-cache.mjs && node scripts/test-placement-auth.mjs && node scripts/test-library-access.mjs && node scripts/test-student-ui-integrity.mjs && node scripts/test-finance-access.mjs && node scripts/test-import-workflow.mjs && node --test scripts/test-dashboard-ownership.mjs && node --test scripts/test-tenant-route-policy.mjs && node --test scripts/test-route-override-targets.mjs"
   },
   "dependencies": {
     "next": "15.5.25",

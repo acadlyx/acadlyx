@@ -6,6 +6,7 @@ export default function Page() {
       role="LIBRARIAN"
       title="Library Students"
       subtitle="Student access records within authorised scope"
+      detailBasePath={null}
     />
   );
 }

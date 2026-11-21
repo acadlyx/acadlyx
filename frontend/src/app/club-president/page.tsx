@@ -72,15 +72,15 @@ export default function ClubPresidentPage() {
             </div>
 
             <Link
-              href="/calendar"
+              href="/events-gallery"
               className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md"
             >
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
                 Available workspace tool
               </p>
-              <h2 className="mt-2 font-bold text-slate-900">Club calendar</h2>
+              <h2 className="mt-2 font-bold text-slate-900">Events &amp; Gallery</h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Open the calendar using the permissions assigned to this responsibility.
+                View institutional events and gallery content permitted to this role.
               </p>
             </Link>
           </div>

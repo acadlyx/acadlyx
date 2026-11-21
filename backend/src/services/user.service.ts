@@ -6,7 +6,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
 import { ensureInstitutionSystemRoles } from "./institution.service";
 import {
-  ROLE_PERMISSIONS,
+  getRolePermissions,
   SYSTEM_ROLE_NAMES,
 } from "../config/rbac";
 import {
@@ -1423,6 +1423,5 @@ export function getSystemRolePermissionKeys(
   roleName: string
 ): string[] {
   if (!SYSTEM_ROLE_SET.has(roleName)) return [];
-  const role = roleName as keyof typeof ROLE_PERMISSIONS;
-  return [...(ROLE_PERMISSIONS[role] ?? [])];
+  return getRolePermissions(roleName);
 }

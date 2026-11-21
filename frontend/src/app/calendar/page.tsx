@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import {
@@ -15,11 +15,13 @@ import {
   AcademicYearOption,
   Audience,
   CalendarEvent,
+  CampusOption,
   EVENT_TYPES,
   EventType,
   createEvent,
   deleteEvent,
   listAcademicYearOptions,
+  listCampusOptions,
   listEvents,
   updateEvent,
 } from "@/lib/calendarApi";
@@ -42,12 +44,15 @@ const emptyForm = {
   endDate: "",
   audience: "ALL" as Audience,
   academicYearId: "",
+  campusId: "",
 };
 
 const day = (value: string) => new Date(value).toLocaleDateString();
 
 export default function CalendarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [academicYearFilter, setAcademicYearFilter] = useState(() => searchParams.get("academicYearId") || "");
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
@@ -55,6 +60,8 @@ export default function CalendarPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [years, setYears] = useState<AcademicYearOption[]>([]);
+  const [campuses, setCampuses] = useState<CampusOption[]>([]);
+  const [campusFilter, setCampusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -71,29 +78,40 @@ export default function CalendarPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const canManage = user?.permissions.includes("calendar.manage") ?? false;
+  const roles = user?.roles ?? [];
+  const institutionWide = roles.includes("CHAIRMAN") || (!roles.some((role) => ["DIRECTOR", "DEAN", "HOD", "FACULTY", "STUDENT", "PARENT", "PLACEMENT"].includes(role)) && roles.some((role) => ["INSTITUTION_ADMIN", "MANAGEMENT", "REGISTRAR"].includes(role)));
 
   const load = useCallback(async () => {
     try {
       const me = await getCurrentUser();
       setUser(me);
 
-      const [list, yearOptions] = await Promise.all([
+      const [list, yearOptions, campusOptions] = await Promise.all([
         listEvents({
           page,
           search: search || undefined,
           eventType: eventType || undefined,
           audience: audience || undefined,
+          academicYearId: academicYearFilter || undefined,
+          campusId: campusFilter || undefined,
           from: from || undefined,
           to: to || undefined,
         }),
         me.permissions.includes("calendar.manage")
           ? listAcademicYearOptions().catch(() => [])
           : Promise.resolve([]),
+        me.permissions.includes("calendar.manage") && me.permissions.includes("campuses.read")
+          ? listCampusOptions().catch(() => [])
+          : Promise.resolve([]),
+        me.permissions.includes("calendar.manage") && me.permissions.includes("campuses.read")
+          ? listCampusOptions().catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setEvents(list.items);
       setTotalPages(list.meta.totalPages);
       setYears(yearOptions);
+      setCampuses(campusOptions);
       setState("ready");
     } catch (err) {
       if (err instanceof AuthRequiredError) {
@@ -105,7 +123,16 @@ export default function CalendarPage() {
       );
       setState("error");
     }
-  }, [page, search, eventType, audience, from, to, router]);
+  }, [page, search, eventType, audience, academicYearFilter, campusFilter, from, to, router]);
+
+  useEffect(() => {
+    const selectedYear = searchParams.get("academicYearId") || "";
+    setAcademicYearFilter(selectedYear);
+    setPage(1);
+    if (!editingId) {
+      setForm((current) => ({ ...current, academicYearId: selectedYear }));
+    }
+  }, [searchParams, editingId]);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -127,6 +154,7 @@ export default function CalendarPage() {
       endDate: event.endDate.slice(0, 10),
       audience: event.audience,
       academicYearId: event.academicYearId ?? "",
+       campusId: event.campusId ?? "",
     });
   }
 
@@ -151,6 +179,7 @@ export default function CalendarPage() {
         endDate: form.endDate,
         audience: form.audience,
         academicYearId: form.academicYearId || undefined,
+         ...(form.campusId ? { campusId: form.campusId } : institutionWide ? { campusId: null } : {}),
       };
       if (editingId) {
         await updateEvent(editingId, payload);
@@ -204,7 +233,7 @@ export default function CalendarPage() {
       subtitle="Holidays, examinations, deadlines and events"
     >
       <main className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
-        <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
+        <DataExportActions type="calendar-events" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(eventType ? { eventType } : {}), ...(audience ? { audience } : {}), ...(academicYearFilter ? { academicYearId: academicYearFilter } : {}), ...(from ? { dateFrom: from } : {}), ...(to ? { dateTo: to } : {}) }} compact />
         <section className="flex flex-wrap items-end gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <input
             value={search}
@@ -230,6 +259,12 @@ export default function CalendarPage() {
               </option>
             ))}
           </select>
+          {campuses.length > 0 && (
+            <select aria-label="Filter by campus" value={campusFilter} onChange={(e) => { setPage(1); setCampusFilter(e.target.value); }} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="">All authorized campuses</option>
+              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code} · {campus.name}</option>)}
+            </select>
+          )}
           {canManage && (
             <select
               value={audience}
@@ -277,7 +312,7 @@ export default function CalendarPage() {
               onClick={() => {
                 setShowForm((v) => !v);
                 setEditingId(null);
-                setForm(emptyForm);
+                setForm({ ...emptyForm, academicYearId: academicYearFilter });
                 setFormError("");
               }}
               className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white"
@@ -346,6 +381,15 @@ export default function CalendarPage() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-600">Campus</span>
+              <select value={form.campusId} onChange={(e) => setForm((prev) => ({ ...prev, campusId: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2">
+                {institutionWide && <option value="">Institution-wide</option>}
+                {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.code} · {campus.name}</option>)}
+                {!institutionWide && <option value="">Auto-assign if only one campus is authorized</option>}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">Campus scope is validated by the server on every mutation.</span>
             </label>
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-600">

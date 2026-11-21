@@ -219,7 +219,7 @@ const MODULE_EXPORT_ROLES: Partial<Record<ExportType, readonly string[]>> = {
   "placement-interviews": ["PLACEMENT"],
 };
 
-async function assertExportAccess(
+export async function assertExportAccess(
   institutionId: string,
   actor: AuthenticatedUser,
   type: ExportType,
@@ -586,6 +586,7 @@ export async function exportData(
   type: ExportType,
   format: ExportFormat,
   options: ExportRequestOptions = {},
+  allowLarge = false,
 ) {
   if (!EXPORT_TYPES.includes(type)) throw new AppError("Unsupported export type: " + type, 400);
   if (!["xlsx", "csv", "docx", "pdf", "json"].includes(format)) throw new AppError("Format must be xlsx, csv, docx, pdf, or json", 400);
@@ -1027,7 +1028,7 @@ export async function exportData(
 
   const finalRows = applyExportOptions(rows, type, options);
   const inlineLimit = format === "pdf" || format === "docx" ? 10000 : 50000;
-  if (finalRows.length > inlineLimit) {
+  if (!allowLarge && finalRows.length > inlineLimit) {
     throw new AppError(
       "This export matches " + finalRows.length.toLocaleString() +
       " rows, above the synchronous " + inlineLimit.toLocaleString() +

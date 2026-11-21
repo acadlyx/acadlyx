@@ -46,7 +46,10 @@ router.use(authenticate);
 
 router.get(
   "/me/summary",
-  requireFeature("notices"),
+  // This first-paint KPI endpoint deliberately excludes the notices query.
+  // Tenant entitlement for notices must not gate core leadership dashboards.
+  // Authorization and leadership role/scope checks still run in the middleware
+  // and getManagementWorkspaceSummary service.
   authorize("notifications.read"),
   controller.workspaceSummary
 );

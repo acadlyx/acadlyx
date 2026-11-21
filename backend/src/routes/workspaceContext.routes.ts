@@ -17,6 +17,7 @@ router.get(
       requireInstitution(req),
       actor,
       {
+        campusId: typeof req.query.campusId === "string" ? req.query.campusId : undefined,
         departmentId: typeof req.query.departmentId === "string" ? req.query.departmentId : undefined,
         programId: typeof req.query.programId === "string" ? req.query.programId : undefined,
         academicYearId: typeof req.query.academicYearId === "string" ? req.query.academicYearId : undefined,

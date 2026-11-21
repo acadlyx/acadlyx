@@ -129,9 +129,16 @@ test("PostgreSQL: simultaneous library returns create one fine and one linked fi
       },
     });
     const input = { condition: "RETURNED" as const, waiveFine: false };
+    // This fixture actor also drives finance-concurrency cases as Accounts;
+    // model a genuine active Librarian for the library-specific return action.
+    const libraryActor: AuthenticatedUser = {
+      ...f.actor,
+      roles: ["LIBRARIAN"],
+      permissions: [...f.actor.permissions, "library.manage", "library.read"],
+    };
     const results = await Promise.allSettled([
-      returnLibraryBook(f.institutionId, f.actor, issue.id, input, {}),
-      returnLibraryBook(f.institutionId, f.actor, issue.id, input, {}),
+      returnLibraryBook(f.institutionId, libraryActor, issue.id, input, {}),
+      returnLibraryBook(f.institutionId, libraryActor, issue.id, input, {}),
     ]);
     assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
     assert.equal(results.filter(x => x.status === "rejected").length, 1);
@@ -321,7 +328,7 @@ test("PostgreSQL: processed refunds are not subtracted twice from the remaining 
       where: { institutionId: f.institutionId, invoiceId: f.invoiceId },
     });
     const first = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 600, reason: "first partial refund" });
-    await processRefund(f.institutionId, f.actor, first.id);
+    await processRefund(f.institutionId, f.actor, first.id, { externalSettlementReference: "BANK-REFUND-SETTLEMENT-001", confirmExternalSettlement: true });
     const second = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 400, reason: "remaining balance refund" });
     assert.equal(second.amount.toString(), "400");
     const [refunds, persistedPayment, invoice, ledger, processAudit] = await Promise.all([

@@ -1,5 +1,5 @@
-import HODDashboardPage from "@/app/hod/page";
+import { redirect } from "next/navigation";
 
-export default function HodStudentsPage() {
-  return <HODDashboardPage defaultTab="students" />;
+export default function HODStudentsRedirect(): never {
+  redirect("/hod");
 }

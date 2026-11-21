@@ -1328,9 +1328,10 @@ export async function decideRefund(
   if (["PROCESSED", "REJECTED"].includes(refund.status)) {
     throw new AppError("This refund has already been finalised", 409);
   }
+  if(input.status==="PROCESSED") throw new AppError("Direct PROCESSED transitions are disabled. Use the Finance refund settlement workflow so provider or bank settlement is verified first.",409);
   const validTransition =
     (refund.status === "REQUESTED" && (input.status === "APPROVED" || input.status === "REJECTED")) ||
-    (refund.status === "APPROVED" && (input.status === "PROCESSED" || input.status === "REJECTED"));
+    (refund.status === "APPROVED" && input.status === "REJECTED");
   if (!validTransition) {
     throw new AppError("Invalid refund state transition", 409);
   }

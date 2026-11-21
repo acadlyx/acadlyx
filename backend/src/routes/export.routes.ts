@@ -2,6 +2,9 @@ import { Router, Request, Response, NextFunction } from "express";
 
 import { authenticate } from "../middleware/authenticate";
 import * as controller from "../controllers/export.controller";
+import { validateBody, validateParams } from "../middleware/validate";
+import { idParams } from "../validators/common";
+import { exportJobSchema } from "../validators/export.validators";
 import { requireFeature } from "../middleware/requireFeature";
 import { authorize } from "../middleware/authorize";
 import type { PermissionKey } from "../config/rbac";
@@ -90,11 +93,17 @@ router.use(
 
 // Attendance has a dedicated scoped exporter. It must be registered before /:type.
 router.get("/attendance/options", authorize("attendance.read"), controller.attendanceOptions);
+router.get("/jobs/:id", validateParams(idParams), controller.getExportJob);
+router.post("/jobs/:id/cancel", validateParams(idParams), controller.cancelExportJob);
+router.get("/jobs/:id/download", validateParams(idParams), controller.downloadExportJob);
 router.get(
   "/attendance",
   authorize("attendance.read"),
   controller.attendanceExport,
 );
+
+// Background exports use the same dataset-specific permission map and durable worker queue.
+router.post("/:type/jobs", authorizeExportType, validateBody(exportJobSchema), controller.enqueueExportJob);
 
 // Remaining exports require the permission for the exported domain.
 router.get("/:type", authorizeExportType, controller.exportData);

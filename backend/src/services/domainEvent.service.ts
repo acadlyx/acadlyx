@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 export interface DomainEvent<T = Record<string, unknown>> {
@@ -28,7 +29,11 @@ export interface OutboxDrainResult {
   failed: number;
 }
 
-async function claimOutboxEvent() {
+async function claimOutboxEvent(institutionId?: string) {
+  // Claims commit before handlers finish. Use nextAttemptAt as a short lease so
+  // another worker cannot claim this row while the first handler is running.
+  // A crashed worker's event becomes eligible again when the lease expires.
+  const institutionFilter = institutionId ? Prisma.sql`AND "institutionId" = ${institutionId}` : Prisma.empty;
   const rows = await prisma.$queryRaw<Array<{
     id: string;
     institutionId: string | null;
@@ -40,11 +45,13 @@ async function claimOutboxEvent() {
   }>>`
     UPDATE "domain_event_outbox"
     SET "attempts" = "attempts" + 1,
-        "lastAttemptAt" = CURRENT_TIMESTAMP
+        "lastAttemptAt" = CURRENT_TIMESTAMP,
+        "nextAttemptAt" = CURRENT_TIMESTAMP + make_interval(mins => 5)
     WHERE "id" = (
       SELECT "id"
       FROM "domain_event_outbox"
       WHERE "processedAt" IS NULL
+        ${institutionFilter}
         AND "attempts" < 10
         AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP)
       ORDER BY "nextAttemptAt" NULLS FIRST, "createdAt" ASC
@@ -56,14 +63,14 @@ async function claimOutboxEvent() {
   return rows[0] ?? null;
 }
 
-export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainResult> {
+export async function drainDomainEventOutbox(limit = 25, options: { institutionId?: string } = {}): Promise<OutboxDrainResult> {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 100));
   let claimed = 0;
   let processed = 0;
   let failed = 0;
 
   for (let i = 0; i < safeLimit; i += 1) {
-    const row = await claimOutboxEvent();
+    const row = await claimOutboxEvent(options.institutionId);
     if (!row) break;
     claimed += 1;
 

@@ -19,6 +19,7 @@ export const listCoursesQuerySchema = z.object({
   page: z.string().optional(),
   pageSize: z.string().optional(),
   search: z.string().trim().optional(),
+  campusId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
   isActive: z.enum(["true", "false"]).optional(),
 });

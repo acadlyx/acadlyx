@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
+import { RoleRedirect } from "@/components/navigation/RoleRedirect";
 
-/**
- * This route used to render a static demo module. The real workflow
- * lives at /admissions, so the path now redirects there instead of
- * presenting a second, disconnected surface.
- */
-export default function Page(): never {
-  redirect("/admissions");
+export default function EnrollmentLegacyRoute() {
+  return (
+    <RoleRedirect
+      destinations={{ ADMISSIONS: "/admissions" }}
+      title="Opening Admissions…"
+    />
+  );
 }

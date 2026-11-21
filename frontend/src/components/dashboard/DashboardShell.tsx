@@ -2,35 +2,38 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { UnifiedDashboardFrame, DashboardNavigationItem } from "./UnifiedDashboardFrame";
 import { useWorkspaceShellContext, WorkspaceShellProvider } from "./WorkspaceShellContext";
 import { InstitutionalCmsProvider } from "./InstitutionalCmsContext";
 import { AuthRequiredError, AuthUser, getCachedCurrentUser, getCurrentUser, logout } from "@/lib/auth";
 import { getPrimaryRole, normalizeRole } from "@/lib/authority";
-import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION } from "@/lib/navigation";
+import { canAccessRoute, navigationForUser, ROLE_LABELS, workspaceHome, COMMON_ACCOUNT_NAVIGATION, roleOwnedHref } from "@/lib/navigation";
 import { getAdminNavigation } from "@/lib/adminNavigation";
 import { workspaceGet } from "@/lib/workspaceCache";
 import { getErpWorkspace, getErpWorkspaceSummary } from "@/lib/erpApi";
 import { GlobalSearchBar } from "./GlobalSearchBar";
-import { WorkspaceContextHeader } from "./WorkspaceContextHeader";
+import { WorkspaceContextSelector } from "./WorkspaceContextSelector";
+import { MyWorkSummaryPanel } from "./MyWorkSummaryPanel";
+import { RecentUpdatesPanel } from "./RecentUpdatesPanel";
 
-const ROLE_ROUTE_OVERRIDES: Record<string, Record<string, string>> = {
-  CHAIRMAN: { "/reports": "/chairman/reports", "/examinations": "/chairman/examinations", "/fees": "/chairman/fees", "/fees/structures": "/chairman/fees/structures", "/fees/collections": "/chairman/fees/collections", "/students": "/chairman/students", "/chairman/notices": "/chairman/notices", "/chairman/notifications": "/chairman/notifications", "/chairman/events-gallery": "/chairman/events-gallery" },
-  DIRECTOR: { "/reports": "/director/reports", "/examinations": "/director/examinations", "/examinations/operations": "/director/examinations/operations", "/fees": "/director/fees", "/fees/collections": "/director/fees/collections", "/students": "/director/students", "/intelligence": "/director/intelligence", "/admissions": "/director/admissions", "/notices": "/director/notices", "/notifications": "/director/notifications", "/events-gallery": "/director/events-gallery", "/placements": "/director/placements", "/obe": "/director/obe" },
-  DEAN: { "/reports": "/dean/reports", "/erp": "/dean/operations", "/examinations": "/dean/examinations", "/fees": "/dean/fees", "/fees/collections": "/dean/fees", "/students": "/dean/students" },
-  REGISTRAR: { "/reports": "/registrar/reports", "/erp": "/registrar/academic-masters", "/students": "/registrar/students" },
-  HOD: { "/erp": "/hod/operations", "/fees": "/hod/fees", "/fees/collections": "/hod/fees", "/attendance": "/hod/attendance", "/students": "/hod/students", "/timetable": "/hod/timetable", "/reports": "/hod/reports", "/intelligence": "/hod/intelligence" },
-  FACULTY: { "/erp": "/faculty/operations" },
-  HR: { "/reports": "/hr/reports" },
-  STAFF: { "/erp": "/staff/operations" },
-  MANAGEMENT: { "/operations": "/management/operations", "/intelligence": "/management/intelligence", "/reports": "/management/reports" },
-  EXAMINATION: { "/examinations": "/examination", "/reports": "/examination/reports" },  ADMISSIONS: { "/reports": "/admissions/reports", "/students": "/admissions/students" },  LIBRARIAN: { "/reports": "/library/reports", "/students": "/library/students" },  PLACEMENT: { "/reports": "/placements/reports", "/students": "/placements/students" },
-};
+const WORKSPACE_QUERY_KEYS = ["campusId", "departmentId", "programId", "academicYearId", "batchId", "semesterId", "sectionId"];
+const ROLE_DASHBOARD_HOME_PATHS = new Set([
+  "/admin", "/chairman", "/management", "/director", "/dean", "/registrar",
+  "/hod", "/faculty", "/accounts", "/hr", "/admissions", "/examination",
+  "/library", "/placements", "/it", "/site-content", "/student", "/parent",
+  "/club-president",
+]);
 
-function roleOwnedHref(role: string | null, href: string): string {
-  return ROLE_ROUTE_OVERRIDES[role || ""]?.[href] || href;
+function preserveWorkspaceQuery(href: string, workspaceQuery: string): string {
+  if (!workspaceQuery) return href;
+  const separator = href.indexOf("?");
+  const pathname = separator >= 0 ? href.slice(0, separator) : href;
+  const params = new URLSearchParams(separator >= 0 ? href.slice(separator + 1) : "");
+  new URLSearchParams(workspaceQuery).forEach((value, key) => params.set(key, value));
+  const suffix = params.toString();
+  return suffix ? `${pathname}?${suffix}` : pathname;
 }
 
 function routeIsAllowedForRole(pathname: string, _role: string | null, roles: string[], permissions: string[], tenantFeatures: string[]): boolean {
@@ -43,6 +46,7 @@ function routeIsAllowedForRole(pathname: string, _role: string | null, roles: st
 export function DashboardShell({ title, subtitle, children, allowedRoles, forceShell = false }: { title: string; subtitle?: string; children: ReactNode; allowedRoles?: string[]; forceShell?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const workspaceShell = useWorkspaceShellContext();
   const embeddedInWorkspaceShell = Boolean(workspaceShell) && !forceShell;
   const cachedUser = getCachedCurrentUser();
@@ -50,58 +54,66 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   // A cached user is useful for instant rendering, but must never be the
   // final authorization decision. Permissions/entitlements can change after
   // RBAC sync, so route guards wait for one fresh /auth/me reconciliation.
-  const [routeAuthReady, setRouteAuthReady] = useState(Boolean(cachedUser));
+  const [routeAuthReady, setRouteAuthReady] = useState(false);
+  const [verifiedPathname, setVerifiedPathname] = useState<string | null>(null);
+  const [authCheckError, setAuthCheckError] = useState("");
+  const [authRetryCount, setAuthRetryCount] = useState(0);
   const [institutionBrand, setInstitutionBrand] = useState<{ name: string; logoUrl: string | null }>({ name: "", logoUrl: null });
-  const [workspaceContext, setWorkspaceContext] = useState<{ breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }> } | null>(null);
   const [adminDepartments, setAdminDepartments] = useState<Array<{ id: string; name: string; code?: string }>>([]);
   const allowedRolesKey = allowedRoles?.join(",") || "";
+  const workspaceQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    for (const key of WORKSPACE_QUERY_KEYS) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
+    return params.toString();
+  }, [searchParams]);
 
   const workspaceRole = useMemo(() => user ? getPrimaryRole(user.roles) : null, [user]);
 
   useEffect(() => {
     if (embeddedInWorkspaceShell) return;
     let alive = true;
+    const requestedPathname = pathname;
+    setRouteAuthReady(false);
+    setAuthCheckError("");
+
     const cached = getCachedCurrentUser();
     if (cached) setUser(cached);
 
-    const reconcile = cached
-      ? getCurrentUser({ background: true })
-      : getCurrentUser();
-
-    // Workspace context is independent of /auth/me. Start both requests at
-    // the same time so the shell doesn't add a serial network/database trip
-    // before loading breadcrumbs and institution branding.
-    void workspaceGet<{
-      data?: {
-        institution?: { name?: string; logoUrl?: string | null };
-        breadcrumbs?: Array<{ type: string; id: string; label: string; href: string }>;
-      };
-    }>("/workspace/context").then((response) => {
-      if (!alive) return;
-      const institution = response?.data?.institution;
-      setWorkspaceContext({ breadcrumbs: response?.data?.breadcrumbs || [] });
-      if (institution) {
-        setInstitutionBrand({
-          name: institution.name || "",
-          logoUrl: institution.logoUrl || null,
-        });
-      }
-    }).catch(() => {
-      // Workspace context/branding is supplementary. Route authorization
-      // still waits for /auth/me and the backend enforces every API scope.
-    });
+    // Authorization is tied to the destination pathname. A previously
+    // verified user's permissions must never authorize a different route
+    // after client navigation until a fresh /auth/me response is available.
+    // The render gate and route guard also compare verifiedPathname so the
+    // previous path's state cannot redirect the new path during the effect gap.
+    const reconcile = getCurrentUser({ force: true });
 
     reconcile.then((current) => {
       if (!alive) return;
       setUser(current);
+      setVerifiedPathname(requestedPathname);
+      setAuthCheckError("");
       setRouteAuthReady(true);
     }).catch((error) => {
       if (!alive) return;
-      setRouteAuthReady(true);
-      if (error instanceof AuthRequiredError) router.replace("/login");
+      if (error instanceof AuthRequiredError) {
+        setUser(null);
+        setVerifiedPathname(null);
+        router.replace("/login");
+        return;
+      }
+      // Fail closed on stale authorization while remaining recoverable when
+      // the identity service is temporarily unavailable.
+      setVerifiedPathname(null);
+      setAuthCheckError("We couldn't verify your current workspace permissions. Check your connection and retry.");
+      setRouteAuthReady(false);
     });
     return () => { alive = false; };
-  }, [router, embeddedInWorkspaceShell]);
+  }, [router, pathname, embeddedInWorkspaceShell, authRetryCount]);
+
+  // Institutional branding is supplied by WorkspaceContextSelector, which also
+  // owns the current academic-context request and avoids a duplicate context fetch.
 
   // Prefetch only after identity/active workspace resolution. Starting this
   // request from allowedRoles before /auth/me resolves can race the page-level
@@ -151,7 +163,10 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   }, [router, user, allowedRolesKey, embeddedInWorkspaceShell]);
 
   useEffect(() => {
-    if (!user || !routeAuthReady) return;
+    // Do not evaluate route authorization with a cache verified for a different
+    // pathname. The reconciliation effect will unlock this guard only after
+    // the current destination's /auth/me request has completed successfully.
+    if (!user || !routeAuthReady || (!embeddedInWorkspaceShell && verifiedPathname !== pathname)) return;
     const roles = user.roles?.length ? user.roles : allowedRoles || [];
     const primaryRole = getPrimaryRole(roles);
     if (allowedRoles?.length &&
@@ -161,25 +176,32 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
     }
     if (embeddedInWorkspaceShell) return;
     if (!routeIsAllowedForRole(pathname, primaryRole, roles, user.permissions || [], user.tenantFeatures || [])) router.replace(workspaceHome(roles));
-  }, [pathname, router, user, routeAuthReady, allowedRolesKey, embeddedInWorkspaceShell]);
+  }, [pathname, router, user, routeAuthReady, verifiedPathname, allowedRolesKey, embeddedInWorkspaceShell]);
 
   const navigation = useMemo<DashboardNavigationItem[]>(() => {
     if (!user) return [];
     if (workspaceRole === "INSTITUTION_ADMIN") {
-      const base = getAdminNavigation(user).map((item) => ({ id: item.href, label: item.label, href: item.href, icon: item.icon, group: item.group, activeMatch: item.activeMatch }));
-      const departmentItems = adminDepartments.map((department) => ({
-        id: `/admin/departments/${department.id}`,
-        label: department.name,
-        href: `/admin/departments/${department.id}`,
-        icon: "academic",
-        group: "Departments",
-      }));
-      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: COMMON_ACCOUNT_NAVIGATION.href, label: COMMON_ACCOUNT_NAVIGATION.label, href: COMMON_ACCOUNT_NAVIGATION.href, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group, activeMatch: COMMON_ACCOUNT_NAVIGATION.activeMatch }];
+      const base = getAdminNavigation(user).map((item) => {
+        const href = preserveWorkspaceQuery(item.href, workspaceQuery);
+        return { id: href, label: item.label, href, icon: item.icon, group: item.group, activeMatch: item.activeMatch };
+      });
+      const departmentItems = adminDepartments.map((department) => {
+        const href = preserveWorkspaceQuery(`/admin/departments/${department.id}`, workspaceQuery);
+        return {
+          id: href,
+          label: department.name,
+          href,
+          icon: "academic",
+          group: "Departments",
+        };
+      });
+      const accountHref = preserveWorkspaceQuery(COMMON_ACCOUNT_NAVIGATION.href, workspaceQuery);
+      return [...base.filter((item) => item.group !== "Academic structure"), ...departmentItems, { id: accountHref, label: COMMON_ACCOUNT_NAVIGATION.label, href: accountHref, icon: COMMON_ACCOUNT_NAVIGATION.icon, group: COMMON_ACCOUNT_NAVIGATION.group, activeMatch: COMMON_ACCOUNT_NAVIGATION.activeMatch }];
     }
     const role = workspaceRole;
     if (!role) return [];
     const roleItems = navigationForUser({ roles: [role], permissions: user.permissions || [], tenantFeatures: user.tenantFeatures || [] }).map((item) => {
-      const href = roleOwnedHref(role, item.href);
+      const href = preserveWorkspaceQuery(roleOwnedHref(role, item.href), workspaceQuery);
       return { id: href, label: item.label, href, icon: item.icon, group: item.group || "Workspace", activeMatch: item.activeMatch, activeQuery: item.activeQuery };
     });
     // Role-specific route rewrites happen after canonical navigation deduplication.
@@ -190,9 +212,25 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
       if (!uniqueDestinations.has(destination)) uniqueDestinations.set(destination, item);
     }
     return Array.from(uniqueDestinations.values());
-  }, [adminDepartments, user, workspaceRole]);
+  }, [adminDepartments, user, workspaceRole, workspaceQuery]);
 
-  if (!user) {
+  if (!embeddedInWorkspaceShell && authCheckError) {
+    return (
+      <main role="alert" aria-live="assertive" className="mx-auto flex min-h-[40vh] max-w-2xl flex-col items-start justify-center gap-4 p-6 sm:p-8">
+        <h1 className="text-xl font-bold text-slate-900">Workspace verification unavailable</h1>
+        <p className="text-sm text-slate-600">{authCheckError}</p>
+        <button
+          type="button"
+          onClick={() => setAuthRetryCount((attempt) => attempt + 1)}
+          className="acadlyx-button acadlyx-button-primary"
+        >
+          Retry verification
+        </button>
+      </main>
+    );
+  }
+
+  if (!user || (!embeddedInWorkspaceShell && (!routeAuthReady || verifiedPathname !== pathname))) {
     return (
       <div role="status" aria-live="polite" className="min-h-[40vh] animate-pulse p-6 sm:p-8">
         <span className="sr-only">Loading your secure workspace…</span>
@@ -216,6 +254,6 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
   if (embeddedInWorkspaceShell) return <>{children}</>;
 
   return <UnifiedDashboardFrame title={title} subtitle={subtitle} navigation={navigation} userName={`${user.firstName} ${user.lastName}`.trim() || "Workspace"} institutionName={institutionBrand.name} logoUrl="/branding/acadlyx-logo.png" institutionLogoUrl={institutionBrand.logoUrl} userRole={role ? ROLE_LABELS[role] || role.replace(/_/g, " ") : undefined} onSignOut={signOut}>
-    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{!pathname.startsWith("/accounts") && workspaceContext?.breadcrumbs?.length ? <WorkspaceContextHeader breadcrumbs={workspaceContext.breadcrumbs} /> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
+    <WorkspaceShellProvider kind="dashboard"><InstitutionalCmsProvider><a href="#acadlyx-main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Skip to main content</a><main id="acadlyx-main-content" tabIndex={-1} className="acadlyx-workspace-content min-w-0 outline-none"><GlobalSearchBar />{workspaceRole !== "SUPER_ADMIN" && !pathname.startsWith("/accounts") ? <WorkspaceContextSelector onInstitutionBrand={setInstitutionBrand} /> : null}{workspaceRole !== "SUPER_ADMIN" && ROLE_DASHBOARD_HOME_PATHS.has(pathname) ? <><MyWorkSummaryPanel /><RecentUpdatesPanel /></> : null}{children}</main></InstitutionalCmsProvider></WorkspaceShellProvider>
   </UnifiedDashboardFrame>;
 }

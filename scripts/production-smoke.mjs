@@ -21,9 +21,21 @@ const targets = [
   },
 ];
 
-const timeoutMs = 20_000;
-const maxAttempts = 30;
-const retryDelayMs = 10_000;
+function positiveIntegerEnvironment(name, fallback) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return value;
+}
+
+// PR runs probe live endpoints read-only with bounded retries; protected-branch
+// runs retain the longer retry budget used to ride out a production cold start.
+const timeoutMs = positiveIntegerEnvironment("ACADLYX_SMOKE_TIMEOUT_MS", 20_000);
+const maxAttempts = positiveIntegerEnvironment("ACADLYX_SMOKE_MAX_ATTEMPTS", 30);
+const retryDelayMs = positiveIntegerEnvironment("ACADLYX_SMOKE_RETRY_DELAY_MS", 10_000);
 
 async function verifyTarget(target) {
   let lastError = null;

@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "../types/auth";
 import { PaginationParams } from "../utils/pagination";
 import { round2 } from "../utils/http";
 import { recordAuditLog } from "./audit.service";
+import { getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateBookInput,
   IssueBookInput,
@@ -16,6 +17,35 @@ import {
 } from "../validators/library.validators";
 
 type Meta = { ipAddress?: string; userAgent?: string };
+
+/** Library management must come from the active Librarian workspace. A
+ * secondary Librarian role must not grant circulation-desk actions to a
+ * Student/Parent/Faculty account through the unioned permission array. */
+export function canManageLibraryCirculation(actor: AuthenticatedUser): boolean {
+  return getEffectiveWorkspaceRole(actor) === "LIBRARIAN"
+    && actor.permissions.includes("library.manage");
+}
+
+function assertLibrarianWorkspace(actor: AuthenticatedUser, action: string): void {
+  if (!canManageLibraryCirculation(actor)) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
+
+function assertEffectiveRole(actor: AuthenticatedUser, allowedRoles: readonly string[], action: string): void {
+  if (!allowedRoles.includes(getEffectiveWorkspaceRole(actor))) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
+
+function assertCanUsePersonalLibrary(actor: AuthenticatedUser, action: string): void {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const studentSelfService = activeRole === "STUDENT" && actor.permissions.includes("library.borrow");
+  const librarianCirculation = canManageLibraryCirculation(actor);
+  if (!studentSelfService && !librarianCirculation) {
+    throw new AppError(action + " is not available in the active workspace", 403);
+  }
+}
 
 /** Institution-wide circulation policy. Kept here so both issue and
  *  return paths compute identical numbers. */
@@ -197,7 +227,11 @@ export async function getBook(institutionId: string, id: string, actor?: Authent
   if (!book) throw new AppError("Book not found", 404);
 
   // Borrowers may inspect catalogue metadata, but not other borrowers' loans.
-  const canReadCirculation = Boolean(actor?.permissions.includes("library.read"));
+  const canReadCirculation = Boolean(
+    actor &&
+    getEffectiveWorkspaceRole(actor) === "LIBRARIAN" &&
+    actor.permissions.includes("library.read")
+  );
   if (!canReadCirculation) return { ...book, activeIssues: [] };
 
   const activeIssues = await prisma.libraryIssue.findMany({
@@ -216,6 +250,7 @@ export async function createBook(
   input: CreateBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Book management");
   if (input.isbn) {
     const clash = await prisma.libraryBook.findFirst({
       where: { institutionId, isbn: input.isbn },
@@ -280,6 +315,7 @@ export async function updateBook(
   input: UpdateBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Book management");
   const existing = await prisma.libraryBook.findFirst({
     where: { id, institutionId },
   });
@@ -396,6 +432,7 @@ export async function issueBook(
   input: IssueBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan issuance");
   const result = await prisma.$transaction(async (tx) => {
     const [borrower, policy, book] = await Promise.all([
       tx.user.findFirst({
@@ -548,7 +585,9 @@ export async function reserveBook(
   const borrowerId = requestedBorrowerId ?? actor.id;
 
   /* Reserving on behalf of someone else is a circulation-desk action. */
-  if (borrowerId !== actor.id && !actor.permissions.includes("library.manage")) {
+  if (borrowerId === actor.id) {
+    assertCanUsePersonalLibrary(actor, "Personal book reservations");
+  } else if (!canManageLibraryCirculation(actor)) {
     throw new AppError("You may only reserve books for yourself", 403);
   }
   await assertBorrowerInInstitution(institutionId, borrowerId);
@@ -638,10 +677,9 @@ export async function cancelReservation(
   if (existing.status !== "RESERVED") {
     throw new AppError("Only reservations can be cancelled", 422);
   }
-  if (
-    existing.borrowerId !== actor.id &&
-    !actor.permissions.includes("library.manage")
-  ) {
+  if (existing.borrowerId === actor.id) {
+    assertCanUsePersonalLibrary(actor, "Personal reservation cancellation");
+  } else if (!canManageLibraryCirculation(actor)) {
     throw new AppError("You may only cancel your own reservations", 403);
   }
 
@@ -679,6 +717,7 @@ export async function returnBook(
   input: ReturnBookInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan returns");
   const result = await prisma.$transaction(async (tx) => {
     // Serialize duplicate return/retry requests on the canonical loan row before computing fines or posting finance records.
     await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "library_issues" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`);
@@ -915,6 +954,7 @@ export async function imposeLateReturnFine(
   issueId: string,
   meta: Meta = {}
 ) {
+    assertLibrarianWorkspace(actor, "Late-return fine assessment");
   const result = await prisma.$transaction(async (tx) => {
     const issue = await tx.libraryIssue.findFirst({
       where: { id: issueId, institutionId, status: "ISSUED" },
@@ -1111,6 +1151,7 @@ export async function renewLoan(
   input: RenewLoanInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Loan renewal");
   const result = await prisma.$transaction(async (tx) => {
     const loan = await tx.libraryIssue.findFirst({
       where: { id, institutionId },
@@ -1118,7 +1159,7 @@ export async function renewLoan(
     });
     if (!loan) throw new AppError("Loan not found", 404);
     if (loan.status !== "ISSUED") throw new AppError("Only active issued loans can be renewed", 422);
-    if (loan.borrowerId !== actor.id && !actor.permissions.includes("library.manage")) {
+    if (loan.borrowerId !== actor.id && !canManageLibraryCirculation(actor)) {
       throw new AppError("You may only renew your own loan", 403);
     }
     if (loan.renewalsUsed >= loan.renewalsAllowed) {
@@ -1190,6 +1231,7 @@ export async function updatePolicy(
   input: LibraryPolicyInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Library policy management");
   const current = await getPolicy(institutionId);
   const next = await prisma.libraryPolicy.update({
     where: { institutionId },
@@ -1237,6 +1279,7 @@ export async function updateCopy(
   input: UpdateCopyInput,
   meta: Meta
 ) {
+    assertLibrarianWorkspace(actor, "Physical copy management");
   const existing = await prisma.libraryBookCopy.findFirst({ where: { id, institutionId } });
   if (!existing) throw new AppError("Physical copy not found", 404);
   if (input.status === "AVAILABLE" && existing.status !== "AVAILABLE") {
@@ -1345,6 +1388,7 @@ export async function listCirculation(
 }
 
 export async function listMyLoans(institutionId: string, actor: AuthenticatedUser) {
+  assertCanUsePersonalLibrary(actor, "Personal library loans");
   const rows = await prisma.libraryIssue.findMany({
     where: { institutionId, borrowerId: actor.id },
     include: issueInclude,
@@ -1419,6 +1463,7 @@ export async function requestFineWaiver(
   amount?: number,
   meta: Meta = {}
 ) {
+  assertEffectiveRole(actor, ["LIBRARIAN"], "Library fine waiver requests");
   if (!actor.permissions.includes("library.fines.waive.request")) {
     throw new AppError("Library fine waiver requests are not authorized", 403);
   }
@@ -1444,6 +1489,7 @@ export async function approveFineWaiver(
   reason: string,
   meta: Meta = {}
 ) {
+  assertEffectiveRole(actor, ["DIRECTOR"], "Library fine waiver approval");
   if (!actor.permissions.includes("library.fines.waive.approve")) {
     throw new AppError("Library fine waiver approval is not authorized", 403);
   }
@@ -1583,16 +1629,20 @@ export function buildLibraryFineListWhere(
   // institution-scoped fines; students can only see fines linked to their
   // own library issues. The institution predicate is retained to preserve
   // tenant isolation.
-  return {
-    institutionId,
-    ...(actor.roles.includes("STUDENT")
-      ? { issue: { borrowerId: actor.id } }
-      : {}),
-  };
+  const effectiveRole = getEffectiveWorkspaceRole(actor);
+  if (effectiveRole === "STUDENT") {
+    return { institutionId, issue: { borrowerId: actor.id } };
+  }
+  if (effectiveRole === "LIBRARIAN") return { institutionId };
+  throw new AppError("Library fines are not available in the active workspace", 403);
 }
 
 export async function listFines(institutionId: string, actor: AuthenticatedUser, pagination: PaginationParams) {
-  if (!actor.permissions.includes("library.read")) throw new AppError("Library access is not authorized", 403);
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (
+    !["LIBRARIAN", "STUDENT"].includes(activeRole) ||
+    !actor.permissions.includes("library.read")
+  ) throw new AppError("Library fines are not available in the active workspace", 403);
 
   const where = buildLibraryFineListWhere(institutionId, actor);
   const [items, total] = await Promise.all([

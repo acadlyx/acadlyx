@@ -8,6 +8,7 @@ import { getCourseOfferingRosterIds } from "../utils/academicRoster";
 import { EnterMarksInput } from "../validators/internalMark.validators";
 import { recordAuditLog } from "./audit.service";
 import { getDirectorDepartmentIds, getManagedDepartmentIds, isInstitutionWideExamination, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { courseOfferingWorkspaceWhere, studentEnrollmentWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 
 export async function enterMarks(institutionId: string, user: AuthenticatedUser, input: EnterMarksInput) {
   const offering = await loadCourseOfferingOrThrow(institutionId, input.courseOfferingId);
@@ -28,11 +29,11 @@ export async function enterMarks(institutionId: string, user: AuthenticatedUser,
   return prisma.internalMark.findMany({ where: { courseOfferingId: input.courseOfferingId, component: input.component }, include: { student: { select: { id: true, firstName: true, lastName: true } } } });
 }
 
-export interface ListFilters extends PaginationParams { courseOfferingId?: string; studentId?: string; component?: string; }
+export interface ListFilters extends PaginationParams, WorkspaceContextFilterInput { courseOfferingId?: string; studentId?: string; component?: string; }
 
 export async function listMarks(institutionId: string, user: AuthenticatedUser, filters: ListFilters) {
   const effectiveRole = getEffectiveWorkspaceRole(user);
-  const where: Prisma.InternalMarkWhereInput = {
+  let where: Prisma.InternalMarkWhereInput = {
     institutionId,
     ...(filters.courseOfferingId ? { courseOfferingId: filters.courseOfferingId } : {}),
     ...(filters.studentId ? { studentId: filters.studentId } : {}),
@@ -53,6 +54,18 @@ export async function listMarks(institutionId: string, user: AuthenticatedUser, 
     where.courseOffering = { facultyId: user.id };
   } else {
     throw new AppError("Marks list is not available for this role", 403);
+  }
+
+  const contextOfferingWhere = courseOfferingWorkspaceWhere(institutionId, filters);
+  if (contextOfferingWhere) {
+    where = { AND: [where, { courseOffering: contextOfferingWhere }] };
+  }
+  if (filters.batchId) {
+    // The selected batch identifies each mark's student as well as the
+    // section's offerings; never return another batch's students' marks from
+    // a shared section.
+    const enrollmentWhere = studentEnrollmentWorkspaceWhere(institutionId, filters);
+    where = { AND: [where, { student: { studentEnrollments: { some: enrollmentWhere } } }] };
   }
 
   const [items, total] = await Promise.all([

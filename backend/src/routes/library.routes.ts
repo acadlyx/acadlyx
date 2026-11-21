@@ -1,7 +1,9 @@
-import { Router } from "express";
+import { NextFunction, Request, Response, Router } from "express";
 import { authenticate } from "../middleware/authenticate";
 import { authorize, authorizeAnyPermission, authorizeWorkflow } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
+import { AppError } from "../middleware/errorHandler";
+import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 import {
   validateBody,
   validateParams,
@@ -34,11 +36,28 @@ import {
 
 const router = Router();
 
+function requireEffectiveWorkspaceRole(...allowedRoles: string[]) {
+  const allowed = new Set(allowedRoles);
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      next(new AppError("Authentication required", 401));
+      return;
+    }
+    const activeRole = getEffectiveWorkspaceRole(req.user);
+    if (!allowed.has(activeRole)) {
+      next(new AppError("This operation is not available in the active workspace", 403));
+      return;
+    }
+    next();
+  };
+}
+
 router.use(authenticate, requireFeature("library"));
 
 router.get(
   "/summary",
   authorize("library.read"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   asyncHandler(async (req, res) =>
     sendOk(res, await service.getLibrarySummary(requireInstitution(req)))
   )
@@ -81,6 +100,7 @@ router.get(
 router.post(
   "/books",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateBody(createBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -99,6 +119,7 @@ router.post(
 router.patch(
   "/books/:id",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   validateBody(updateBookSchema),
   asyncHandler(async (req, res) =>
@@ -118,6 +139,7 @@ router.patch(
 router.get(
   "/copies",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateQuery(z.object({
     ...pageQuery,
     bookId: z.string().uuid().optional(),
@@ -138,6 +160,7 @@ router.get(
 router.patch(
   "/copies/:id",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   validateBody(updateCopySchema),
   asyncHandler(async (req, res) => sendOk(res, await service.updateCopy(
@@ -148,12 +171,14 @@ router.patch(
 router.get(
   "/policy",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   asyncHandler(async (req, res) => sendOk(res, await service.getPolicy(requireInstitution(req))))
 );
 
 router.patch(
   "/policy",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateBody(libraryPolicySchema),
   asyncHandler(async (req, res) => sendOk(res, await service.updatePolicy(
     requireInstitution(req), requireAuthenticatedUser(req), req.body, auditMeta(req)
@@ -163,6 +188,7 @@ router.patch(
 router.get(
   "/loans/mine",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   asyncHandler(async (req, res) =>
     sendOk(
       res,
@@ -177,6 +203,7 @@ router.get(
 router.get(
   "/loans",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateQuery(circulationListQuery),
   asyncHandler(async (req, res) => {
     const pagination = parsePagination(req);
@@ -202,6 +229,7 @@ router.get(
 router.post(
   "/loans",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateBody(issueBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -220,6 +248,7 @@ router.post(
 router.post(
   "/loans/:id/renew",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   validateBody(renewLoanSchema),
   asyncHandler(async (req, res) => sendOk(res, await service.renewLoan(
@@ -230,6 +259,7 @@ router.post(
 router.post(
   "/loans/:id/impose-late-fine",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   asyncHandler(async (req, res) => {
     sendOk(
@@ -247,6 +277,7 @@ router.post(
 router.post(
   "/loans/:id/return",
   authorizeWorkflow("library.manage"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   validateBody(returnBookSchema),
   asyncHandler(async (req, res) =>
@@ -266,6 +297,7 @@ router.post(
 router.post(
   "/reservations",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   validateBody(reserveBookSchema),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -285,6 +317,7 @@ router.post(
 router.post(
   "/reservations/:id/cancel",
   authorize("library.borrow"),
+  requireEffectiveWorkspaceRole("STUDENT"),
   validateParams(idParams),
   asyncHandler(async (req, res) =>
     sendOk(
@@ -313,6 +346,7 @@ router.get(
 router.post(
   "/fines/:id/waiver-request",
   authorizeWorkflow("library.fines.waive.request"),
+  requireEffectiveWorkspaceRole("LIBRARIAN"),
   validateParams(idParams),
   validateBody(fineWaiverRequestSchema),
   asyncHandler(async (req, res) => {
@@ -327,6 +361,7 @@ router.post(
 router.post(
   "/fines/:id/waiver-approve",
   authorizeWorkflow("library.fines.waive.approve"),
+  requireEffectiveWorkspaceRole("DIRECTOR"),
   validateParams(idParams),
   validateBody(fineWaiverApprovalSchema),
   asyncHandler(async (req, res) => {

@@ -77,7 +77,7 @@ test(
 
       // This executes the real PostgreSQL outbox consumer and registered
       // placement notification handler; no mocked API response is involved.
-      await drainDomainEventOutbox(1);
+      await drainDomainEventOutbox(1, { institutionId: institution.id });
 
       const persistedEvent = await prisma.domainEventOutbox.findUnique({
         where: { id: event.id },
@@ -105,7 +105,7 @@ test(
         where: { id: event.id },
         data: { processedAt: null, attempts: 0, lastError: null, nextAttemptAt: null },
       });
-      await drainDomainEventOutbox(1);
+      await drainDomainEventOutbox(1, { institutionId: institution.id });
       const afterReplay = await prisma.notification.count({
         where: { institutionId: institution.id, userId: student.id, dedupeKey },
       });

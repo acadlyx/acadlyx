@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
@@ -30,6 +30,7 @@ import {
   TimetableEntry,
   TimetableProgram,
   updateTimetableEntry,
+  type TimetableWorkspaceFilters,
 } from "@/lib/timetableApi";
 
 const DAYS = [
@@ -171,8 +172,23 @@ function groupByStart(
 }
 
 export default function TimetablePage() {
-  const router =
-    useRouter();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const workspaceQuery = searchParams.toString();
+  const workspaceFilters = useMemo<TimetableWorkspaceFilters>(() => {
+    const params = new URLSearchParams(workspaceQuery);
+    const optional = (key: string) => params.get(key) || undefined;
+    return {
+      campusId: optional("campusId"),
+      departmentId: optional("departmentId"),
+      programId: optional("programId"),
+      academicYearId: optional("academicYearId"),
+      batchId: optional("batchId"),
+      semesterId: optional("semesterId"),
+      sectionId: optional("sectionId"),
+    };
+  }, [workspaceQuery]);
 
   const [
     offerings,
@@ -259,6 +275,23 @@ export default function TimetablePage() {
     EMPTY_FORM,
   );
 
+  useEffect(() => {
+    setSelectedDepartment(workspaceFilters.departmentId || "");
+    setSelectedProgram(workspaceFilters.programId || "");
+    setSelectedSemester(workspaceFilters.semesterId || "");
+    setSelectedSection(workspaceFilters.sectionId || "");
+  }, [workspaceFilters]);
+
+  function updateWorkspaceFilters(updates: Partial<Record<keyof TimetableWorkspaceFilters, string>>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   const load =
     useCallback(
       async () => {
@@ -293,9 +326,17 @@ export default function TimetablePage() {
             programList,
           ] =
             await Promise.all([
-              listOfferings(),
-              listTimetableEntries(),
-              listTimetablePrograms(),
+              listOfferings({
+                campusId: workspaceFilters.campusId,
+                departmentId: workspaceFilters.departmentId,
+                semesterId: workspaceFilters.semesterId,
+                sectionId: workspaceFilters.sectionId,
+              }),
+              listTimetableEntries(workspaceFilters),
+              listTimetablePrograms({
+                campusId: workspaceFilters.campusId,
+                departmentId: workspaceFilters.departmentId,
+              }),
             ]);
 
           setOfferings(
@@ -333,7 +374,7 @@ export default function TimetablePage() {
           setLoading(false);
         }
       },
-      [router],
+      [router, workspaceFilters],
     );
 
   useEffect(() => {
@@ -412,28 +453,17 @@ export default function TimetablePage() {
           }
         >();
 
-      for (
-        const offering of offerings
-      ) {
-        if (
-          offering.semester?.id
-        ) {
-          map.set(
-            offering.semester.id,
-            {
-              id: offering.semester.id,
-              name:
-                offering
-                  .semester
-                  .name ||
-                `Semester ${
-                  offering.semester
-                    .number ??
-                  ""
-                }`,
-            },
-          );
-        }
+      for (const offering of offerings) {
+        if (!offering.semester?.id) continue;
+        const programId = programIdOf(offering);
+        const program = programs.find((item) => item.id === programId);
+        if (workspaceFilters.academicYearId && offering.semester.academicYear?.id !== workspaceFilters.academicYearId) continue;
+        if (selectedDepartment && program?.department?.id !== selectedDepartment) continue;
+        if (selectedProgram && programId !== selectedProgram) continue;
+        map.set(offering.semester.id, {
+          id: offering.semester.id,
+          name: offering.semester.name || `Semester ${offering.semester.number ?? ""}`,
+        });
       }
 
       return [
@@ -443,7 +473,7 @@ export default function TimetablePage() {
           b.name,
         ),
       );
-    }, [offerings]);
+    }, [offerings, programs, selectedDepartment, selectedProgram, workspaceFilters.academicYearId]);
 
   const sections =
     useMemo(() => {
@@ -483,6 +513,10 @@ export default function TimetablePage() {
           continue;
         }
 
+        if (workspaceFilters.academicYearId && offering.semester?.academicYear?.id !== workspaceFilters.academicYearId) continue;
+        const program = programs.find((item) => item.id === programIdOf(offering));
+        if (selectedDepartment && program?.department?.id !== selectedDepartment) continue;
+
         map.set(
           offering.section.id,
           {
@@ -505,8 +539,11 @@ export default function TimetablePage() {
       );
     }, [
       offerings,
+      programs,
+      selectedDepartment,
       selectedProgram,
       selectedSemester,
+      workspaceFilters.academicYearId,
     ]);
 
   /*
@@ -546,7 +583,9 @@ export default function TimetablePage() {
                     selectedSemester) &&
                 (!selectedSection ||
                   offering.sectionId ===
-                    selectedSection)
+                    selectedSection) &&
+                (!workspaceFilters.academicYearId ||
+                  offering.semester?.academicYear?.id === workspaceFilters.academicYearId)
               );
             },
           )
@@ -566,6 +605,7 @@ export default function TimetablePage() {
         selectedProgram,
         selectedSemester,
         selectedSection,
+        workspaceFilters.academicYearId,
       ],
     );
 
@@ -632,21 +672,16 @@ export default function TimetablePage() {
    */
 
   function resetFilters() {
-    setSelectedDepartment(
-      "",
-    );
-
-    setSelectedProgram(
-      "",
-    );
-
-    setSelectedSemester(
-      "",
-    );
-
-    setSelectedSection(
-      "",
-    );
+    setSelectedDepartment("");
+    setSelectedProgram("");
+    setSelectedSemester("");
+    setSelectedSection("");
+    updateWorkspaceFilters({
+      departmentId: "",
+      programId: "",
+      semesterId: "",
+      sectionId: "",
+    });
   }
 
   /*
@@ -866,7 +901,7 @@ export default function TimetablePage() {
         "FACULTY",
       ]}
     >
-      <div className="mx-auto max-w-7xl px-4 pt-4"><DataExportActions type="timetable" filters={{ ...(selectedProgram ? { programId: selectedProgram } : {}), ...(selectedSemester ? { semesterId: selectedSemester } : {}), ...(selectedSection ? { sectionId: selectedSection } : {}), ...(selectedDepartment ? { departmentId: selectedDepartment } : {}) }} compact /></div>
+      <div className="mx-auto max-w-7xl px-4 pt-4"><DataExportActions type="timetable" filters={{ ...(workspaceFilters.campusId ? { campusId: workspaceFilters.campusId } : {}), ...(selectedDepartment ? { departmentId: selectedDepartment } : {}), ...(selectedProgram ? { programId: selectedProgram } : {}), ...(workspaceFilters.academicYearId ? { academicYearId: workspaceFilters.academicYearId } : {}), ...(workspaceFilters.batchId ? { batchId: workspaceFilters.batchId } : {}), ...(selectedSemester ? { semesterId: selectedSemester } : {}), ...(selectedSection ? { sectionId: selectedSection } : {}) }} compact /></div>
       <div className="space-y-5 pb-10">
         {/* HEADER */}
         <section className="rounded-[24px] border border-[#dfe7ee] bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-6">
@@ -957,17 +992,17 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedDepartment(
-                    event.target.value,
-                  );
-
-                  setSelectedProgram(
-                    "",
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedDepartment(value);
+                  setSelectedProgram("");
+                  setSelectedSemester("");
+                  setSelectedSection("");
+                  updateWorkspaceFilters({
+                    departmentId: value,
+                    programId: "",
+                    semesterId: "",
+                    sectionId: "",
+                  });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1008,13 +1043,15 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedProgram(
-                    event.target.value,
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedProgram(value);
+                  setSelectedSemester("");
+                  setSelectedSection("");
+                  updateWorkspaceFilters({
+                    programId: value,
+                    semesterId: "",
+                    sectionId: "",
+                  });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1058,13 +1095,10 @@ export default function TimetablePage() {
                 onChange={(
                   event,
                 ) => {
-                  setSelectedSemester(
-                    event.target.value,
-                  );
-
-                  setSelectedSection(
-                    "",
-                  );
+                  const value = event.target.value;
+                  setSelectedSemester(value);
+                  setSelectedSection("");
+                  updateWorkspaceFilters({ semesterId: value, sectionId: "" });
                 }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
@@ -1102,13 +1136,11 @@ export default function TimetablePage() {
                 value={
                   selectedSection
                 }
-                onChange={(
-                  event,
-                ) =>
-                  setSelectedSection(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedSection(value);
+                  updateWorkspaceFilters({ sectionId: value });
+                }}
                 className="w-full rounded-xl border border-[#d9e2ea] bg-white px-3 py-2.5 text-sm font-semibold text-[#26354b] outline-none focus:border-[#2864e8]"
               >
                 <option value="">

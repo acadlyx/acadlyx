@@ -1,5 +1,5 @@
 import type { AuthUser } from "@/lib/auth";
-import { tenantFeatureForPath } from "@/lib/navigation";
+import { tenantFeaturesForPath } from "@/lib/navigation";
 
 export type AdminNavItem = {
   label: string;
@@ -165,6 +165,17 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
+    label: "Institutional CMS",
+    href: "/admin/institutional-cms",
+    icon: "document",
+    group: "Institution",
+    description: "Draft tenant branding and dashboard copy for leadership approval.",
+    read: ["institutional-cms.read"],
+    create: ["institutional-cms.manage"],
+    update: ["institutional-cms.manage"],
+  },
+
+  {
     label: "Notices",
     href: "/admin/notices",
     icon: "notice",
@@ -226,17 +237,6 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
   },
 
   {
-    label: "Fee Structures",
-    href: "/accounts/fee-structures",
-    icon: "settings",
-    group: "Finance",
-    description: "View and configure institutional fee structures within assigned permissions.",
-    read: ["fees.structure.read"],
-    create: ["fees.structure.manage"],
-    update: ["fees.structure.manage"],
-  },
-
-  {
     label: "Events & Gallery",
     href: "/admin/events-gallery",
     icon: "calendar",
@@ -268,9 +268,13 @@ export const INSTITUTION_ADMIN_NAV: readonly AdminNavItem[] = [
 ];
 
 function isTenantFeatureEnabled(user: AuthUser | null, href: string): boolean {
-  const feature = tenantFeatureForPath(href);
-  if (!feature) return true;
-  return Array.isArray(user?.tenantFeatures) && user.tenantFeatures.includes(feature);
+  const requiredFeatures = tenantFeaturesForPath(href);
+  if (requiredFeatures.length === 0) return true;
+
+  // Fail closed when tenant feature context is missing, and require every
+  // entitlement derived for this route rather than accidentally checking only one.
+  return Array.isArray(user?.tenantFeatures) &&
+    requiredFeatures.every((feature) => user.tenantFeatures!.includes(feature));
 }
 export function hasAny(
   user: AuthUser | null,

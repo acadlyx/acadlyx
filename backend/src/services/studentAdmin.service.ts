@@ -8,7 +8,7 @@ import { hashPassword } from "../utils/password";
 import { recordAuditLog } from "./audit.service";
 import { assertTenantQuota } from "./entitlement.service";
 import { classifyStudentEnrollmentState } from "../utils/studentEnrollmentState";
-import { getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
+import { assertAcademicYearInScope, assertCampusInScope, assertDepartmentInScope, assertProgramInScope, assertSectionInScope, assertSemesterInScope, getStudentWhereScope, getManagedDepartmentIds, getDirectorDepartmentIds, isInstitutionWide, isInstitutionWideAdmissions, isDirectorScoped, getEffectiveWorkspaceRole } from "./accessScope.service";
 import {
   CreateStudentInput,
   EnrollStudentInput,
@@ -463,79 +463,107 @@ async function assertStudentListContext(
   institutionId: string,
   actor: AuthenticatedUser,
   params: {
+    campusId?: string;
     academicYearId?: string;
     departmentId?: string;
     programId?: string;
+    batchId?: string;
     semesterId?: string;
     sectionId?: string;
   }
 ) {
-  const department = params.departmentId
-    ? await prisma.department.findFirst({ where: { id: params.departmentId, institutionId, isActive: true }, select: { id: true } })
-    : null;
+  const [campus, department, program, year, semester, section, batch] = await Promise.all([
+    params.campusId
+      ? prisma.campus.findFirst({ where: { id: params.campusId, institutionId, isActive: true }, select: { id: true } })
+      : null,
+    params.departmentId
+      ? prisma.department.findFirst({ where: { id: params.departmentId, institutionId, isActive: true }, select: { id: true, campusId: true } })
+      : null,
+    params.programId
+      ? prisma.program.findFirst({ where: { id: params.programId, institutionId, isActive: true }, select: { id: true, departmentId: true, department: { select: { campusId: true } } } })
+      : null,
+    params.academicYearId
+      ? prisma.academicYear.findFirst({ where: { id: params.academicYearId, institutionId }, select: { id: true } })
+      : null,
+    params.semesterId
+      ? prisma.semester.findFirst({ where: { id: params.semesterId, institutionId, isActive: true }, select: { id: true, programId: true, academicYearId: true, program: { select: { departmentId: true, department: { select: { campusId: true } } } } } })
+      : null,
+    params.sectionId
+      ? prisma.section.findFirst({ where: { id: params.sectionId, institutionId, isActive: true }, select: { id: true, semesterId: true, semester: { select: { programId: true, academicYearId: true, program: { select: { departmentId: true, department: { select: { campusId: true } } } } } } } })
+      : null,
+    params.batchId
+      ? prisma.batch.findFirst({ where: { id: params.batchId, institutionId, isActive: true }, select: { id: true, programId: true, program: { select: { departmentId: true, department: { select: { campusId: true } } } } } })
+      : null,
+  ]);
+
+  if (params.campusId && !campus) throw new AppError("Selected campus is not available in this institution", 404);
   if (params.departmentId && !department) throw new AppError("Selected department is not available in this institution", 404);
-
-  const scope = await getStudentWhereScope(institutionId, actor);
-  if (params.departmentId) {
-    const probe = await prisma.user.findFirst({
-      where: {
-        institutionId,
-        userRoles: { some: { role: { name: "STUDENT", institutionId } } },
-        studentEnrollments: { some: { program: { departmentId: params.departmentId }, ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}), ...(params.programId ? { programId: params.programId } : {}), ...(params.semesterId ? { semesterId: params.semesterId } : {}), ...(params.sectionId ? { sectionId: params.sectionId } : {}) } },
-        ...scope,
-      },
-      select: { id: true },
-    });
-    if (!probe) throw new AppError("Selected department or academic context is outside your authorized scope", 403);
-  }
-
-  const program = params.programId
-    ? await prisma.program.findFirst({
-        where: { id: params.programId, institutionId, isActive: true },
-        select: { id: true, departmentId: true },
-      })
-    : null;
   if (params.programId && !program) throw new AppError("Selected program is not available in this institution", 404);
+  if (params.academicYearId && !year) throw new AppError("Selected academic year is not available in this institution", 404);
+  if (params.semesterId && !semester) throw new AppError("Selected semester is not available in this institution", 404);
+  if (params.sectionId && !section) throw new AppError("Selected section is not available in this institution", 404);
+  if (params.batchId && !batch) throw new AppError("Selected batch is not available in this institution", 404);
 
-  if (program && !params.departmentId) {
-    const probe = await prisma.user.findFirst({
+  if (params.campusId) await assertCampusInScope(institutionId, actor, params.campusId);
+  if (params.departmentId) await assertDepartmentInScope(institutionId, actor, params.departmentId);
+  if (params.programId) await assertProgramInScope(institutionId, actor, params.programId);
+  if (params.academicYearId) await assertAcademicYearInScope(institutionId, actor, params.academicYearId);
+  if (params.semesterId) await assertSemesterInScope(institutionId, actor, params.semesterId);
+  if (params.sectionId) await assertSectionInScope(institutionId, actor, params.sectionId);
+  if (batch) await assertProgramInScope(institutionId, actor, batch.programId);
+
+  if (program && department && program.departmentId !== department.id) {
+    throw new AppError("Selected program does not belong to the selected department", 400);
+  }
+  if (campus && program && program.department.campusId !== params.campusId) {
+    throw new AppError("Selected program does not belong to the selected campus", 400);
+  }
+  if (campus && department && department.campusId !== params.campusId) {
+    throw new AppError("Selected department does not belong to the selected campus", 400);
+  }
+
+  if (semester && section && section.semesterId !== semester.id) {
+    throw new AppError("Selected section does not belong to the selected semester", 400);
+  }
+  if (program && year) {
+    const matchingSemester = await prisma.semester.findFirst({
       where: {
         institutionId,
-        userRoles: { some: { role: { name: "STUDENT", institutionId } } },
-        studentEnrollments: {
-          some: {
-            programId: program.id,
-            ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
-            ...(params.semesterId ? { semesterId: params.semesterId } : {}),
-            ...(params.sectionId ? { sectionId: params.sectionId } : {}),
-          },
-        },
-        ...scope,
+        programId: program.id,
+        academicYearId: year.id,
+        isActive: true,
       },
       select: { id: true },
     });
-    if (!probe) throw new AppError("Selected academic context is outside your authorized scope", 403);
+    if (!matchingSemester) {
+      throw new AppError("Selected academic year does not contain an active semester for the selected program", 400);
+    }
   }
 
-  const semester = params.semesterId
-    ? await prisma.semester.findFirst({
-        where: { id: params.semesterId, institutionId, isActive: true },
-        select: { id: true, programId: true, academicYearId: true },
-      })
-    : null;
-  if (params.semesterId && !semester) throw new AppError("Selected semester is not available in this institution", 404);
-  if (semester && program && semester.programId !== program.id) throw new AppError("Selected semester does not belong to the selected program", 400);
-  if (semester && params.academicYearId && semester.academicYearId !== params.academicYearId) throw new AppError("Selected semester does not belong to the selected academic year", 400);
-
-  if (params.academicYearId) {
-    const year = await prisma.academicYear.findFirst({ where: { id: params.academicYearId, institutionId }, select: { id: true } });
-    if (!year) throw new AppError("Selected academic year is not available in this institution", 404);
+  const semesterProgramId = semester?.programId ?? section?.semester.programId;
+  const semesterYearId = semester?.academicYearId ?? section?.semester.academicYearId;
+  const semesterDepartmentId = semester?.program.departmentId ?? section?.semester.program.departmentId;
+  const semesterCampusId = semester?.program.department.campusId ?? section?.semester.program.department.campusId;
+  if (semesterProgramId && params.programId && semesterProgramId !== params.programId) {
+    throw new AppError("Selected semester or section does not belong to the selected program", 400);
   }
-
-  if (params.sectionId) {
-    const section = await prisma.section.findFirst({ where: { id: params.sectionId, institutionId, isActive: true }, select: { id: true, semesterId: true } });
-    if (!section) throw new AppError("Selected section is not available in this institution", 404);
-    if (semester && section.semesterId !== semester.id) throw new AppError("Selected section does not belong to the selected semester", 400);
+  if (semesterYearId && params.academicYearId && semesterYearId !== params.academicYearId) {
+    throw new AppError("Selected semester or section does not belong to the selected academic year", 400);
+  }
+  if (semesterDepartmentId && department && semesterDepartmentId !== department.id) {
+    throw new AppError("Selected semester or section does not belong to the selected department", 400);
+  }
+  if (semesterCampusId && campus && semesterCampusId !== params.campusId) {
+    throw new AppError("Selected semester or section does not belong to the selected campus", 400);
+  }
+  if (batch && params.programId && batch.programId !== params.programId) {
+    throw new AppError("Selected batch does not belong to the selected program", 400);
+  }
+  if (batch && department && batch.program.departmentId !== department.id) {
+    throw new AppError("Selected batch does not belong to the selected department", 400);
+  }
+  if (batch && campus && batch.program.department.campusId !== params.campusId) {
+    throw new AppError("Selected batch does not belong to the selected campus", 400);
   }
 }
 
@@ -547,9 +575,11 @@ export async function listStudents(
     pageSize: number;
     search?: string;
     status?: string;
+    campusId?: string;
     academicYearId?: string;
     departmentId?: string;
     programId?: string;
+    batchId?: string;
     semesterId?: string;
     sectionId?: string;
   }
@@ -570,15 +600,21 @@ export async function listStudents(
   if (serverEnrollmentPredicate) enrollmentPredicates.push(serverEnrollmentPredicate);
 
   const hasRequestedAcademicFilter = Boolean(
-    params.departmentId || params.academicYearId || params.programId ||
-    params.semesterId || params.sectionId
+    params.campusId || params.departmentId || params.academicYearId || params.programId ||
+    params.batchId || params.semesterId || params.sectionId
   );
   if (hasRequestedAcademicFilter) {
     enrollmentPredicates.push({
       institutionId,
-      ...(params.departmentId ? { program: { departmentId: params.departmentId } } : {}),
+      ...((params.campusId || params.departmentId) ? {
+        program: {
+          ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+          ...(params.campusId ? { department: { campusId: params.campusId } } : {}),
+        },
+      } : {}),
       ...(params.academicYearId ? { academicYearId: params.academicYearId } : {}),
       ...(params.programId ? { programId: params.programId } : {}),
+      ...(params.batchId ? { batchId: params.batchId } : {}),
       ...(params.semesterId ? { semesterId: params.semesterId } : {}),
       ...(params.sectionId ? { sectionId: params.sectionId } : {}),
     });

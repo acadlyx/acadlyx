@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import DataExportActions from "@/components/dashboard/DataExportActions";
 import { AuthRequiredError, isAuthenticated } from "@/lib/auth";
@@ -43,6 +43,7 @@ const emptyForm = {
 
 export default function HrPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [state, setState] = useState<ViewState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -68,6 +69,20 @@ export default function HrPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [actionError, setActionError] = useState("");
+
+  function updateWorkspaceDepartment(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set("departmentId", value);
+    else params.delete("departmentId");
+    setPage(1);
+    const query = params.toString();
+    router.replace(query ? `/hr?${query}` : "/hr", { scroll: false });
+  }
+
+  useEffect(() => {
+    setDepartmentFilter(searchParams.get("departmentId") || "");
+    setPage(1);
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     try {
@@ -356,6 +371,7 @@ export default function HrPage() {
                 onChange={(e) => {
                   setPage(1);
                   setDepartmentFilter(e.target.value);
+                  updateWorkspaceDepartment(e.target.value);
                 }}
                 className="input sm:w-64"
               >

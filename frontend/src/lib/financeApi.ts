@@ -18,3 +18,21 @@ export async function financeAssignStructure(id:string){return (await authedFetc
 export async function downloadFinanceExport(type:"invoices"|"payments"|"receipts"|"transactions",format:"xlsx"|"csv"|"docx"|"pdf"|"json"="xlsx"){const x=await authedDownload(`/finance/export?type=${type}&format=${format}`);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
 
 export async function financeAudit(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/audit")).data}
+
+
+export type FinanceExpenseInput = {category:string;description:string;amount:string;vendor?:string;reference?:string;spentAt:string;supportDetails?:string;supportingDocumentUrl?:string;supportingDocumentFileId?:string;campusId?:string;departmentId?:string};
+export async function financeExpenses(params:Record<string,string|undefined>={}){const q=new URLSearchParams();Object.entries(params).forEach(([k,v])=>{if(v)q.set(k,v)});return(await authedFetch<{success:boolean;data:any[]}>("/finance/expenses?"+q.toString())).data}
+export async function createFinanceExpense(input:FinanceExpenseInput){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses",{method:"POST",body:JSON.stringify(input)})).data}
+export async function updateFinanceExpense(id:string,input:FinanceExpenseInput){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses/"+id,{method:"PUT",body:JSON.stringify(input)})).data}
+export async function decideFinanceExpense(id:string,decision:"APPROVED"|"REJECTED",comment:string){return(await authedFetch<{success:boolean;data:any}>("/finance/expenses/"+id+"/decision",{method:"POST",body:JSON.stringify({decision,comment})})).data}
+export async function financeExpenseHistory(id:string){return(await authedFetch<{success:boolean;data:any[]}>("/finance/expenses/"+id+"/history")).data}
+
+export async function downloadFinanceExpenses(format:"xlsx"|"csv"|"docx"|"pdf"|"json"="xlsx"){const x=await authedDownload("/finance/expenses/export?format="+format);const url=URL.createObjectURL(x.blob);const a=document.createElement("a");a.href=url;a.download=x.filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+
+export async function financeRecordPayment(id:string,input:{amount:string;method:string;reference?:string;notes?:string;idempotencyKey:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/payments",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeRequestConcession(id:string,input:{amount:string;type:string;reason:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/concessions",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeRequestRefund(paymentId:string,input:{amount:string;reason:string}){return(await authedFetch<{success:boolean;data:any}>("/finance/payments/"+paymentId+"/refunds",{method:"POST",body:JSON.stringify(input)})).data}
+export async function financeApproveConcession(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/concessions/"+id+"/approve",{method:"POST",body:JSON.stringify({})})).data}
+export async function financeApproveRefund(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/refunds/"+id+"/approve",{method:"POST",body:JSON.stringify({})})).data}
+export async function financeProcessRefund(id:string,input?:{externalSettlementReference?:string;confirmExternalSettlement?:boolean}){return(await authedFetch<{success:boolean;data:any}>("/finance/refunds/"+id+"/process",{method:"POST",body:JSON.stringify(input||{})})).data}
+export async function financeCancelInvoice(id:string){return(await authedFetch<{success:boolean;data:any}>("/finance/invoices/"+id+"/cancel",{method:"POST",body:JSON.stringify({})})).data}

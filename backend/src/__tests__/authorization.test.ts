@@ -21,6 +21,9 @@ import type { PermissionKey } from "../config/rbac";
 import { AppError } from "../middleware/errorHandler";
 import {
   getEffectivePermissions,
+  getRolePermissions,
+  NOTICE_MANAGEMENT_ROLES,
+  SYSTEM_ROLE_NAMES,
   isPlatformPermission,
   outranks,
   hasPermission,
@@ -140,6 +143,39 @@ describe("tenant isolation", () => {
         ),
       (error: unknown) => error instanceof AppError
     );
+  });
+});
+
+describe("notice permission policy", () => {
+  test("tenant notice reads are available to institutional roles but not platform-only Super Admin", () => {
+    for (const role of SYSTEM_ROLE_NAMES) {
+      const permissions = getRolePermissions(role);
+      assert.equal(
+        permissions.includes("notices.read"),
+        role !== "SUPER_ADMIN",
+        `${role} tenant notice-read grant must match its authority domain`,
+      );
+    }
+  });
+
+  test("only explicit scoped writers receive notice management permission", () => {
+    const writers = new Set<string>(NOTICE_MANAGEMENT_ROLES);
+    assert.equal(writers.has("SUPER_ADMIN"), false);
+    assert.equal(writers.has("STUDENT"), false);
+    assert.equal(writers.has("PARENT"), false);
+    for (const role of SYSTEM_ROLE_NAMES) {
+      assert.equal(
+        getRolePermissions(role).includes("notices.manage"),
+        writers.has(role),
+        `${role} notice-write permission must match the canonical writer policy`,
+      );
+    }
+  });
+
+  test("student remains read-only even when role permissions are recomputed", () => {
+    assert.equal(getEffectivePermissions(["STUDENT"]).includes("notices.read"), true);
+    assert.equal(getEffectivePermissions(["STUDENT"]).includes("notices.manage"), false);
+    assert.equal(getEffectivePermissions(["PARENT"]).includes("notices.manage"), false);
   });
 });
 

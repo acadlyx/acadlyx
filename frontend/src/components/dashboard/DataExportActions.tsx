@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExportFormat, ExportOptions, ExportType, exportData, printExport } from "@/lib/dataTransferApi";
+import { BackgroundExportJob, cancelExportJob as requestExportCancellation, ExportFormat, ExportOptions, ExportType, exportData, printExport } from "@/lib/dataTransferApi";
 
 export interface DataExportActionsProps {
   type: ExportType | ExportType[];
@@ -23,6 +23,7 @@ export default function DataExportActions({
   const [selection, setSelection] = useState<"all-filtered" | "current-page" | "selected">("all-filtered");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeJob, setActiveJob] = useState<BackgroundExportJob | null>(null);
 
   const options = (): ExportOptions => ({
     selection,
@@ -34,10 +35,14 @@ export default function DataExportActions({
   async function run(format: ExportFormat | "print") {
     setBusy(true);
     setMessage("");
+    setActiveJob(null);
     try {
       const requestOptions = options();
       if (format === "print") await printExport(activeType, requestOptions);
-      else await exportData(activeType, format, requestOptions);
+      else await exportData(activeType, format, requestOptions, (job) => {
+        setActiveJob(job);
+        setMessage("Background export " + job.status.toLowerCase().replace(/_/g, " ") + " · " + job.processed.toLocaleString() + (job.total ? " / " + job.total.toLocaleString() + " records" : " records queued"));
+      });
       setMessage(format === "print" ? "Print view opened." : "Export downloaded.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Export failed.");
@@ -90,6 +95,23 @@ export default function DataExportActions({
           Print
         </button>
       </div>
+      {activeJob && !["COMPLETED", "PARTIAL", "FAILED", "CANCELLED"].includes(activeJob.status) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p role="status" aria-live="polite" className="text-xs text-slate-600">
+            Export job {activeJob.status.toLowerCase().replace(/_/g, " ")} · {activeJob.processed.toLocaleString()}{activeJob.total ? " / " + activeJob.total.toLocaleString() : ""} records processed
+          </p>
+          <button type="button" disabled={activeJob.status === "CANCEL_REQUESTED"} onClick={() => {
+            void requestExportCancellation(activeJob.jobId).then((job) => {
+              setActiveJob(job);
+              setMessage("Export cancellation " + job.status.toLowerCase().replace(/_/g, " ") + ".");
+            }).catch((error: unknown) => {
+              setMessage(error instanceof Error ? error.message : "Could not request export cancellation.");
+            });
+          }} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold text-slate-700 disabled:opacity-50">
+            {activeJob.status === "CANCEL_REQUESTED" ? "Cancelling…" : "Cancel export"}
+          </button>
+        </div>
+      )}
       {message && <p role="status" className="mt-2 text-xs text-slate-600">{message}</p>}
     </section>
   );

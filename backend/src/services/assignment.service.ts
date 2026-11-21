@@ -11,6 +11,7 @@ import {
 } from "../utils/courseOfferingAccess";
 import { PaginationParams } from "../utils/pagination";
 import { getCourseOfferingRoster, getStudentCourseOfferingIds, assertStudentEnrolledInCourseOffering } from "../utils/academicRoster";
+import { courseOfferingWorkspaceWhere, WorkspaceContextFilterInput } from "../utils/workspaceScopeFilters";
 import {
   CreateAssignmentInput,
   ReviewSubmissionInput,
@@ -51,7 +52,7 @@ const assignmentInclude = {
   },
 } satisfies Prisma.AssignmentInclude;
 
-export interface ListFilters extends PaginationParams {
+export interface ListFilters extends PaginationParams, WorkspaceContextFilterInput {
   search?: string;
   courseOfferingId?: string;
   status?: "DRAFT" | "PUBLISHED";
@@ -100,6 +101,13 @@ export async function listAssignments(
   } else {
     // Do not fall back to a student's personal enrolments for arbitrary roles.
     where = { ...where, courseOfferingId: { in: [] } };
+  }
+
+  const contextOfferingWhere = courseOfferingWorkspaceWhere(institutionId, filters);
+  if (contextOfferingWhere) {
+    // Preserve the independent role-owned restriction (assigned faculty,
+    // scoped academic lead, enrolled student or institution-wide role).
+    where = { AND: [where, { courseOffering: contextOfferingWhere }] };
   }
 
   const [items, total] = await Promise.all([
