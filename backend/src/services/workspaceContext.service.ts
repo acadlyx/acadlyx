@@ -166,6 +166,7 @@ async function buildWorkspaceContext(
     where: {
       institutionId,
       isActive: true,
+      ...(allowed !== null ? { departmentId: { in: allowed } } : {}),
       ...(selectedDepartment ? { departmentId: selectedDepartment.id } : {}),
     },
     select: {
@@ -182,8 +183,16 @@ async function buildWorkspaceContext(
   const academicYearsPromise = prisma.academicYear.findMany({
     where: {
       institutionId,
-      ...(input.programId
-        ? { semesters: { some: { programId: input.programId, isActive: true } } }
+      ...(input.programId || allowed !== null
+        ? {
+            semesters: {
+              some: {
+                isActive: true,
+                ...(input.programId ? { programId: input.programId } : {}),
+                ...(allowed !== null ? { program: { departmentId: { in: allowed } } } : {}),
+              },
+            },
+          }
         : {}),
     },
     select: { id: true, name: true, startDate: true, endDate: true, isCurrent: true },
@@ -194,6 +203,7 @@ async function buildWorkspaceContext(
     where: {
       institutionId,
       isActive: true,
+      ...(allowed !== null ? { program: { departmentId: { in: allowed } } } : {}),
       ...(input.programId ? { programId: input.programId } : {}),
       ...(input.academicYearId ? { academicYearId: input.academicYearId } : {}),
     },
@@ -233,7 +243,12 @@ async function buildWorkspaceContext(
 
   const batchesPromise = input.programId
     ? prisma.batch.findMany({
-        where: { institutionId, programId: input.programId, isActive: true },
+        where: {
+          institutionId,
+          programId: input.programId,
+          isActive: true,
+          ...(allowed !== null ? { program: { departmentId: { in: allowed } } } : {}),
+        },
         select: { id: true, name: true, code: true, programId: true, admissionYear: true, completionYear: true },
         orderBy: { admissionYear: "desc" },
       })
