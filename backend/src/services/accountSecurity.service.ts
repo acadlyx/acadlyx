@@ -470,28 +470,40 @@ export async function requestPasswordReset(
     return {};
   }
 
-  // One live token at a time: a new request invalidates the previous.
-  await prisma.passwordResetToken.updateMany({
-    where: { userId: user.id, usedAt: null },
-    data: { usedAt: new Date() },
-  });
-
   const token = randomBytes(32).toString("hex");
   const expiresAt = minutesFromNow(RESET_TOKEN_TTL_MINUTES);
+  const issued = await prisma.$transaction(async (tx) => {
+    // Serialize reset issuance per user so only the most recent link stays live.
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "users" WHERE "id" = ${user.id} FOR UPDATE
+    `;
+    if (!locked.length) return null;
+    const current = await tx.user.findFirst({
+      where: { id: user.id, isActive: true },
+      select: { id: true, email: true, institutionId: true },
+    });
+    if (!current) return null;
 
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: sha256(token),
-      expiresAt,
-      requestedIp: meta.ipAddress,
-      userAgent: meta.userAgent,
-    },
+    await tx.passwordResetToken.updateMany({
+      where: { userId: current.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    await tx.passwordResetToken.create({
+      data: {
+        userId: current.id,
+        tokenHash: sha256(token),
+        expiresAt,
+        requestedIp: meta.ipAddress,
+        userAgent: meta.userAgent,
+      },
+    });
+    return current;
   });
 
+  if (!issued) return {};
   await recordAuditLog({
-    institutionId: user.institutionId,
-    userId: user.id,
+    institutionId: issued.institutionId,
+    userId: issued.id,
     action: "auth.password_reset_requested",
     metadata: { outcome: "token_issued", expiresAt },
     ...meta,
@@ -500,7 +512,7 @@ export async function requestPasswordReset(
   if (env.emailProvider !== "disabled") {
     const resetUrl = `${env.frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
     await sendEmail({
-      to: email.trim().toLowerCase(),
+      to: issued.email.trim().toLowerCase(),
       subject: "Reset your ACADLYX password",
       text: `Use this link to reset your ACADLYX password. It expires in ${RESET_TOKEN_TTL_MINUTES} minutes: ${resetUrl}`,
       html: `<p>Use this link to reset your ACADLYX password.</p><p><a href="${resetUrl}">Reset password</a></p><p>This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p>`,
@@ -509,7 +521,6 @@ export async function requestPasswordReset(
 
   return { token, expiresAt };
 }
-
 /**
  * Completes a reset. Beyond setting the new password this revokes every
  * refresh token and pending MFA challenge for the account, so any
