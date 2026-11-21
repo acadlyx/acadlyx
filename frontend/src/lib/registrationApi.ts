@@ -44,6 +44,8 @@ export interface Registration {
       academicYear: {
         id: string;
         name: string;
+        startDate: string;
+        endDate: string;
         registrationOpensAt: string | null;
         registrationClosesAt: string | null;
         addDropDeadline: string | null;

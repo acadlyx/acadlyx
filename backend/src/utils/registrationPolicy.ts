@@ -28,6 +28,7 @@ export type RegistrationCalendar = {
   registrationOpensAt?: Date | null;
   registrationClosesAt?: Date | null;
   addDropDeadline?: Date | null;
+  startDate?: Date | null;
   withdrawalDeadline?: Date | null;
   exceptionalWithdrawalAllowed?: boolean;
   exceptionalWithdrawalStartsAt?: Date | null;
@@ -56,9 +57,13 @@ export function isAddDropAllowed(
 
 export function isWithdrawalRequestAllowed(
   now: Date,
-  policy: Pick<RegistrationCalendar, "withdrawalDeadline" | "exceptionalWithdrawalAllowed" | "exceptionalWithdrawalStartsAt" | "exceptionalWithdrawalEndsAt">
+  policy: Pick<RegistrationCalendar, "startDate" | "withdrawalDeadline" | "exceptionalWithdrawalAllowed" | "exceptionalWithdrawalStartsAt" | "exceptionalWithdrawalEndsAt">
 ): boolean {
-  const normalWindowOpen = Boolean(policy.withdrawalDeadline && now <= policy.withdrawalDeadline);
+  const normalWindowOpen = Boolean(
+    policy.withdrawalDeadline &&
+    (!policy.startDate || now >= policy.startDate) &&
+    now <= policy.withdrawalDeadline
+  );
   const exceptionalWindowOpen = Boolean(
     policy.exceptionalWithdrawalAllowed &&
     policy.exceptionalWithdrawalStartsAt &&

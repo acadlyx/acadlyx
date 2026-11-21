@@ -8,6 +8,8 @@ import {
 } from "../validators/academicYear.validators";
 
 function validateRegistrationCalendar(settings: {
+  startDate?: Date;
+  endDate?: Date;
   registrationOpensAt?: Date | null;
   registrationClosesAt?: Date | null;
   addDropDeadline?: Date | null;
@@ -16,7 +18,12 @@ function validateRegistrationCalendar(settings: {
   exceptionalWithdrawalStartsAt?: Date | null;
   exceptionalWithdrawalEndsAt?: Date | null;
 }) {
-  const { registrationOpensAt: opens, registrationClosesAt: closes, addDropDeadline, withdrawalDeadline, exceptionalWithdrawalAllowed, exceptionalWithdrawalStartsAt: exceptionalStart, exceptionalWithdrawalEndsAt: exceptionalEnd } = settings;
+  const { startDate, endDate, registrationOpensAt: opens, registrationClosesAt: closes, addDropDeadline, withdrawalDeadline, exceptionalWithdrawalAllowed, exceptionalWithdrawalStartsAt: exceptionalStart, exceptionalWithdrawalEndsAt: exceptionalEnd } = settings;
+  if (opens && startDate && opens < startDate) throw new AppError("Registration cannot open before the academic year starts", 400);
+  if (closes && endDate && closes > endDate) throw new AppError("Registration cannot close after the academic year ends", 400);
+  if (addDropDeadline && endDate && addDropDeadline > endDate) throw new AppError("Add/drop deadline cannot be after the academic year ends", 400);
+  if (withdrawalDeadline && startDate && withdrawalDeadline < startDate) throw new AppError("Withdrawal deadline cannot precede the academic year start", 400);
+  if (withdrawalDeadline && endDate && withdrawalDeadline > endDate) throw new AppError("Withdrawal deadline cannot be after the academic year ends", 400);
   if (opens && closes && opens >= closes) {
     throw new AppError("Registration close must be after registration opening", 400);
   }

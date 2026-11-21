@@ -55,6 +55,8 @@ const include = {
         academicYear: { select: {
         id: true,
         name: true,
+        startDate: true,
+        endDate: true,
         registrationOpensAt: true,
         registrationClosesAt: true,
         addDropDeadline: true,
@@ -524,6 +526,17 @@ export async function drop(
         AND "institutionId" = ${institutionId}
       FOR UPDATE
     `);
+    const fresh = await tx.courseRegistration.findFirst({
+      where: { id, institutionId, studentId: actor.id },
+      include,
+    });
+    if (!fresh || fresh.status !== "REQUESTED") {
+      throw new AppError("The registration is no longer pending and cannot be cancelled", 409);
+    }
+    if (!isAddDropAllowed(new Date(), fresh.courseOffering.semester.academicYear, fresh.courseOffering.registrationOpen)) {
+      throw new AppError("The institution's add/drop deadline passed before the cancellation was committed", 409);
+    }
+
     const changed = await tx.courseRegistration.updateMany({
       where: {
         id,
@@ -1310,10 +1323,13 @@ export async function requestWithdrawal(
     `);
     const fresh = await tx.courseRegistration.findFirst({
       where: { id: registrationId, institutionId, studentId: actor.id },
-      select: { id: true, status: true },
+      include,
     });
     if (!fresh || fresh.status !== "APPROVED") {
       throw new AppError("The approved registration changed before the withdrawal request was recorded", 409);
+    }
+    if (!isWithdrawalRequestAllowed(new Date(), fresh.courseOffering.semester.academicYear)) {
+      throw new AppError("The institution's withdrawal window closed before the request was committed", 409);
     }
     const pending = await tx.courseWithdrawalRequest.findFirst({
       where: { institutionId, registrationId, status: "PENDING" },
@@ -1356,6 +1372,26 @@ export async function requestWithdrawal(
     },
     ...meta,
   });
+  const reviewers = await prisma.employeeProfile.findMany({
+    where: {
+      institutionId,
+      departmentId: existing.courseOffering.course.departmentId,
+      status: "ACTIVE",
+      user: { userRoles: { some: { role: { name: { in: ["HOD", "DEAN"] }, institutionId } } },
+    },
+    select: { userId: true },
+  });
+  await Promise.all(
+    Array.from(new Set(reviewers.map((reviewer) => reviewer.userId))).map((userId) =>
+      notifyUser(
+        institutionId,
+        userId,
+        "Course withdrawal awaiting review",
+        `${existing.student.firstName} ${existing.student.lastName} submitted a formal withdrawal request for ${existing.courseOffering.course.code}.`,
+        "/hod/course-registration-requests"
+      )
+    )
+  );
   await notifyUser(
     institutionId,
     actor.id,
