@@ -115,3 +115,19 @@ test("institution administration does not receive examination write authority by
   assert.equal(permissions.has("exams.manage"), false);
   assert.equal(permissions.has("exams.approve"), false);
 });
+
+test("institutional CMS approvals use an explicit permission grant", () => {
+  const has = (role: SystemRoleName, permission: PermissionKey) =>
+    (ROLE_PERMISSIONS[role] ?? []).includes(permission);
+
+  assert.equal(has("CHAIRMAN", "site.approve"), true);
+  assert.equal(has("MANAGEMENT", "site.approve"), true);
+  assert.equal(has("DIRECTOR", "site.approve"), true);
+  assert.equal(has("INSTITUTION_ADMIN", "site.approve"), false);
+  assert.equal(has("DEAN", "site.approve"), false);
+
+  const servicePath = path.join(ROOT, "backend", "src", "services", "institutionalCms.service.ts");
+  const service = fs.readFileSync(servicePath, "utf8");
+  assert.match(service, /actor\.permissions\.includes\("site\.approve"\)/);
+  assert.doesNotMatch(service, /\["CHAIRMAN",\s*"DIRECTOR",\s*"MANAGEMENT"\]/);
+});
