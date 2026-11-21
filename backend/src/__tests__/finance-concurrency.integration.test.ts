@@ -3,7 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../app";
 import { prisma } from "../lib/prisma";
-import { invoices, payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
+import { approveRefund, invoices, payment as recordPayment, processRefund, requestConcession, requestRefund } from "../services/finance.service";
 import { returnBook as returnLibraryBook } from "../services/library.service";
 import type { AuthenticatedUser } from "../types/auth";
 
@@ -14,6 +14,7 @@ type Fixture = {
   studentId: string;
   invoiceId: string;
   actor: AuthenticatedUser;
+  approver: AuthenticatedUser;
 };
 
 async function fixture(): Promise<Fixture> {
@@ -22,7 +23,7 @@ async function fixture(): Promise<Fixture> {
     data: { name: "Finance concurrency integration", slug: `finance-concurrency-${suffix}` },
   });
   try {
-    const [student, actor] = await Promise.all([
+    const [student, actor, approver] = await Promise.all([
       prisma.user.create({
         data: {
           institutionId: institution.id,
@@ -41,6 +42,16 @@ async function fixture(): Promise<Fixture> {
           passwordHash: "integration-test-only",
           firstName: "Integration",
           lastName: "Accounts",
+        },
+      }),
+      prisma.user.create({
+        data: {
+          institutionId: institution.id,
+          email: `chairman-${suffix}@integration.invalid`,
+          idNumber: `CH-${suffix}`,
+          passwordHash: "integration-test-only",
+          firstName: "Integration",
+          lastName: "Approver",
         },
       }),
     ]);
@@ -72,9 +83,15 @@ async function fixture(): Promise<Fixture> {
           "fees.concession.manage",
           "fees.concession.approve",
           "fees.refund.request",
-          "fees.refund.approve",
           "fees.refund.process",
         ],
+      },
+      approver: {
+        id: approver.id,
+        institutionId: institution.id,
+        email: approver.email,
+        roles: ["CHAIRMAN"],
+        permissions: ["fees.read", "fees.refund.approve"],
       },
     };
   } catch (error) {
@@ -321,7 +338,10 @@ test("PostgreSQL: processed refunds are not subtracted twice from the remaining 
       where: { institutionId: f.institutionId, invoiceId: f.invoiceId },
     });
     const first = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 600, reason: "first partial refund" });
-    await processRefund(f.institutionId, f.actor, first.id);
+    await approveRefund(f.institutionId, f.approver, first.id);
+    await processRefund(f.institutionId, f.actor, first.id, {
+      externalSettlementReference: `BANK-REFUND-${first.id}`,
+    });
     const second = await requestRefund(f.institutionId, f.actor, payment.id, { amount: 400, reason: "remaining balance refund" });
     assert.equal(second.amount.toString(), "400");
     const [refunds, persistedPayment, invoice, ledger, processAudit] = await Promise.all([
