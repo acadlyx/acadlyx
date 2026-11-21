@@ -148,21 +148,26 @@ export async function createMfaChallenge(
   userId: string,
   ipAddress?: string
 ): Promise<{ challengeToken: string; expiresAt: Date }> {
-  // A fresh sign-in supersedes any pending challenge for this user.
-  await prisma.mfaChallenge.deleteMany({
-    where: { userId, consumedAt: null },
-  });
-
   const challengeToken = randomBytes(32).toString("hex");
   const expiresAt = minutesFromNow(MFA_CHALLENGE_TTL_MINUTES);
 
-  await prisma.mfaChallenge.create({
-    data: {
-      userId,
-      challengeHash: sha256(challengeToken),
-      expiresAt,
-      ipAddress,
-    },
+  // Serialize challenge replacement per account so simultaneous sign-ins
+  // cannot leave more than one live MFA challenge for the same user.
+  await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "users" WHERE "id" = ${userId} FOR UPDATE
+    `;
+    if (!locked.length) throw new AppError("User was not found", 404);
+
+    await tx.mfaChallenge.deleteMany({ where: { userId, consumedAt: null } });
+    await tx.mfaChallenge.create({
+      data: {
+        userId,
+        challengeHash: sha256(challengeToken),
+        expiresAt,
+        ipAddress,
+      },
+    });
   });
 
   return { challengeToken, expiresAt };
@@ -170,97 +175,130 @@ export async function createMfaChallenge(
 
 /**
  * Consumes a challenge with either a TOTP code or a recovery code.
- * Returns the user id the challenge belongs to; the caller then issues
- * real tokens.
+ * A per-user row lock serializes challenge consumption and recovery-code
+ * claims; the challenge itself is also conditionally marked consumed.
  */
 export async function consumeMfaChallenge(
   challengeToken: string,
   code: string,
   meta: { ipAddress?: string; userAgent?: string }
 ): Promise<string> {
-  const challenge = await prisma.mfaChallenge.findUnique({
+  const invalid = () => new AppError("Invalid or expired verification code", 401);
+  const candidate = await prisma.mfaChallenge.findUnique({
     where: { challengeHash: sha256(challengeToken) },
-    include: {
-      user: {
-        select: {
-          id: true,
-          institutionId: true,
-          mfaSecret: true,
-          mfaEnabled: true,
+    select: { id: true, userId: true },
+  });
+  if (!candidate) throw invalid();
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Lock the user first; challenge creation uses the same lock order.
+    const lockedUser = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "users" WHERE "id" = ${candidate.userId} FOR UPDATE
+    `;
+    if (!lockedUser.length) return { status: "invalid" as const };
+
+    const challenge = await tx.mfaChallenge.findUnique({
+      where: { id: candidate.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            institutionId: true,
+            isActive: true,
+            mfaSecret: true,
+            mfaEnabled: true,
+          },
         },
       },
-    },
-  });
-
-  const invalid = () => new AppError("Invalid or expired verification code", 401);
-
-  if (!challenge || challenge.consumedAt || challenge.expiresAt < new Date()) {
-    throw invalid();
-  }
-  if (challenge.attempts >= MFA_MAX_ATTEMPTS) {
-    await prisma.mfaChallenge.update({
-      where: { id: challenge.id },
-      data: { consumedAt: new Date() },
     });
-    throw new AppError(
-      "Too many verification attempts. Sign in again.",
-      429
-    );
-  }
-  if (!challenge.user.mfaEnabled || !challenge.user.mfaSecret) {
-    throw invalid();
-  }
-
-  const totpValid = verifyTotp(challenge.user.mfaSecret, code);
-  let recoveryUsed = false;
-
-  if (!totpValid) {
-    // Fall back to a single-use recovery code.
-    const recovery = await prisma.mfaRecoveryCode.findFirst({
-      where: {
-        userId: challenge.user.id,
-        usedAt: null,
-        codeHash: sha256(code.trim().toUpperCase()),
-      },
-      select: { id: true },
-    });
-    if (!recovery) {
-      await prisma.mfaChallenge.update({
-        where: { id: challenge.id },
-        data: { attempts: { increment: 1 } },
-      });
-      await recordAuditLog({
-        institutionId: challenge.user.institutionId,
-        userId: challenge.user.id,
-        action: "auth.mfa_failed",
-        ...meta,
-      });
-      throw invalid();
+    const now = new Date();
+    if (!challenge || challenge.challengeHash !== sha256(challengeToken) ||
+        challenge.consumedAt || challenge.expiresAt <= now || !challenge.user.isActive) {
+      return { status: "invalid" as const };
     }
-    await prisma.mfaRecoveryCode.update({
-      where: { id: recovery.id },
-      data: { usedAt: new Date() },
-    });
-    recoveryUsed = true;
-  }
 
-  await prisma.mfaChallenge.update({
-    where: { id: challenge.id },
-    data: { consumedAt: new Date() },
+    if (challenge.attempts >= MFA_MAX_ATTEMPTS) {
+      await tx.mfaChallenge.updateMany({
+        where: { id: challenge.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      return { status: "locked" as const, userId: challenge.user.id, institutionId: challenge.user.institutionId };
+    }
+    if (!challenge.user.mfaEnabled || !challenge.user.mfaSecret) {
+      return { status: "invalid" as const };
+    }
+
+    const totpValid = verifyTotp(challenge.user.mfaSecret, code);
+    let method: "totp" | "recovery_code" = "totp";
+
+    if (!totpValid) {
+      const recovery = await tx.mfaRecoveryCode.findFirst({
+        where: {
+          userId: challenge.user.id,
+          usedAt: null,
+          codeHash: sha256(code.trim().toUpperCase()),
+        },
+        select: { id: true },
+      });
+      if (!recovery) {
+        const nextAttempts = challenge.attempts + 1;
+        await tx.mfaChallenge.updateMany({
+          where: { id: challenge.id, consumedAt: null, expiresAt: { gt: now } },
+          data: {
+            attempts: { increment: 1 },
+            ...(nextAttempts >= MFA_MAX_ATTEMPTS ? { consumedAt: now } : {}),
+          },
+        });
+        return {
+          status: nextAttempts >= MFA_MAX_ATTEMPTS ? "locked" as const : "failed" as const,
+          userId: challenge.user.id,
+          institutionId: challenge.user.institutionId,
+        };
+      }
+
+      const recoveryClaim = await tx.mfaRecoveryCode.updateMany({
+        where: { id: recovery.id, userId: challenge.user.id, usedAt: null },
+        data: { usedAt: now },
+      });
+      if (recoveryClaim.count !== 1) return { status: "invalid" as const };
+      method = "recovery_code";
+    }
+
+    const challengeClaim = await tx.mfaChallenge.updateMany({
+      where: { id: challenge.id, consumedAt: null, expiresAt: { gt: now } },
+      data: { consumedAt: now },
+    });
+    if (challengeClaim.count !== 1) throw invalid();
+
+    return {
+      status: "success" as const,
+      userId: challenge.user.id,
+      institutionId: challenge.user.institutionId,
+      method,
+    };
   });
+
+  if (result.status === "locked") {
+    if (result.userId) {
+      await recordAuditLog({ institutionId: result.institutionId, userId: result.userId, action: "auth.mfa_failed", metadata: { outcome: "locked" }, ...meta });
+    }
+    throw new AppError("Too many verification attempts. Sign in again.", 429);
+  }
+  if (result.status === "failed") {
+    await recordAuditLog({ institutionId: result.institutionId, userId: result.userId, action: "auth.mfa_failed", ...meta });
+    throw invalid();
+  }
+  if (result.status !== "success") throw invalid();
 
   await recordAuditLog({
-    institutionId: challenge.user.institutionId,
-    userId: challenge.user.id,
+    institutionId: result.institutionId,
+    userId: result.userId,
     action: "auth.mfa_verified",
-    metadata: { method: recoveryUsed ? "recovery_code" : "totp" },
+    metadata: { method: result.method },
     ...meta,
   });
-
-  return challenge.user.id;
+  return result.userId;
 }
-
-// ==========================================================
 // MFA ENROLMENT
 // ==========================================================
 
@@ -486,36 +524,40 @@ export async function resetPassword(
     where: { tokenHash: sha256(token) },
     include: { user: { select: { id: true, institutionId: true, isActive: true } } },
   });
-
-  if (
-    !record ||
-    record.usedAt ||
-    record.expiresAt < new Date() ||
-    !record.user.isActive
-  ) {
+  const now = new Date();
+  if (!record || record.usedAt || record.expiresAt <= now || !record.user.isActive) {
     throw new AppError("This reset link is invalid or has expired", 400);
   }
 
   const passwordHash = await hashPassword(newPassword);
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: record.user.id },
+    // Atomic compare-and-set: one concurrent request can claim the token.
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    if (claimed.count !== 1) {
+      throw new AppError("This reset link is invalid or has expired", 400);
+    }
+
+    const updatedUser = await tx.user.updateMany({
+      where: { id: record.user.id, isActive: true },
       data: {
         passwordHash,
-        passwordChangedAt: new Date(),
+        passwordChangedAt: now,
         mustChangePassword: false,
         failedLoginAttempts: 0,
         lockedUntil: null,
       },
     });
-    await tx.passwordResetToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    });
+    if (updatedUser.count !== 1) {
+      throw new AppError("This reset link is invalid or has expired", 400);
+    }
+
     await tx.refreshToken.updateMany({
       where: { userId: record.user.id, revokedAt: null },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: now },
     });
     await tx.mfaChallenge.deleteMany({ where: { userId: record.user.id } });
   });
@@ -527,7 +569,6 @@ export async function resetPassword(
     metadata: { sessionsRevoked: true },
     ...meta,
   });
-
   return { reset: true };
 }
 
