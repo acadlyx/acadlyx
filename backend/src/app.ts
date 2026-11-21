@@ -83,7 +83,7 @@ import globalSearchRoutes from "./routes/globalSearch.routes";
 import workflowRoutes from "./routes/workflow.routes";
 import placementRoutes from "./routes/placement.routes";
 
-function isAllowedCorsOrigin(origin: string): boolean {
+export function isAllowedCorsOrigin(origin: string): boolean {
   const normalizedOrigin = origin.trim().replace(/\/+$/, "");
   if (env.corsOrigins.includes(normalizedOrigin) || env.frontendUrl === normalizedOrigin) {
     return true;
