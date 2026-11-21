@@ -1459,6 +1459,74 @@ export async function decideRefund(
   });
   return requireTenantRow(prisma, "fee_refunds", institutionId, refundId, "Refund");
 }
+/**
+ * Lists refund requests for the active financial workspace. All reads are
+ * tenant-scoped; Director/Accounts visibility is further constrained to the
+ * departments/students already permitted by the billing scope helpers.
+ */
+export async function listRefunds(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  pagination: PaginationParams,
+  filters: { status?: string }
+) {
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`r."institutionId" = ${institutionId}`,
+  ];
+  assertCanReadBillingDesk(actor);
+  await addBillingStudentScopeCondition(conditions, "r", institutionId, actor);
+  if (filters.status) {
+    conditions.push(Prisma.sql`r."status" = ${filters.status}`);
+  }
+  const where = andWhere(conditions);
+
+  const [items, totalRows] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{
+        id: string;
+        paymentId: string;
+        invoiceId: string;
+        studentId: string;
+        amount: number;
+        reason: string;
+        status: string;
+        reference: string | null;
+        createdAt: Date;
+        approvedAt: Date | null;
+        processedAt: Date | null;
+        studentName: string;
+        receiptNumber: string | null;
+      }>
+    >(Prisma.sql`
+      SELECT r."id", r."paymentId", r."invoiceId", r."studentId",
+             r."amount", r."reason", r."status", r."reference",
+             r."createdAt", r."approvedAt", r."processedAt",
+             u."firstName" || ' ' || u."lastName" AS "studentName",
+             p."receiptNumber"
+      FROM "fee_refunds" r
+      JOIN "users" u
+        ON u."id" = r."studentId"
+       AND u."institutionId" = r."institutionId"
+      JOIN "fee_payments" p
+        ON p."id" = r."paymentId"
+       AND p."institutionId" = r."institutionId"
+      ${where}
+      ORDER BY r."createdAt" DESC
+      LIMIT ${pagination.take} OFFSET ${pagination.skip}
+    `),
+    prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS "count"
+      FROM "fee_refunds" r
+      JOIN "users" u
+        ON u."id" = r."studentId"
+       AND u."institutionId" = r."institutionId"
+      ${where}
+    `),
+  ]);
+
+  return { items, total: Number(totalRows[0]?.count ?? 0) };
+}
+
 // ==========================================================
 // RECONCILIATION
 // ==========================================================
