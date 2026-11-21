@@ -52,9 +52,21 @@ function workspaceBasePath(activeRole: string) {
     HOD: "/hod",
     FACULTY: "/faculty",
     STUDENT: "/student",
+    PARENT: "/parent",
     INSTITUTION_ADMIN: "/admin",
+    MANAGEMENT: "/management",
     REGISTRAR: "/registrar",
-    MANAGEMENT: "/chairman",
+    ACCOUNTS: "/accounts",
+    HR: "/hr",
+    ADMISSIONS: "/admissions",
+    EXAMINATION: "/examination",
+    PLACEMENT: "/placements",
+    LIBRARIAN: "/library",
+    IT: "/it",
+    CMS: "/cms",
+    CLUB_PRESIDENT: "/club-president",
+    STAFF: "/staff",
+    SUPER_ADMIN: "/superadmin",
   };
   return paths[activeRole] ?? "/dashboard";
 }
