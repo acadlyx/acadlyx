@@ -15,3 +15,10 @@ export function canStudentCancelRegistration(status: string): boolean {
 export function canStudentResubmitRegistration(status: string): boolean {
   return status === "NEEDS_CORRECTION";
 }
+
+export function hasCapacityForReservations(
+  capacity: number | null,
+  reservedCount: number
+): boolean {
+  return capacity === null || (Number.isInteger(capacity) && capacity >= reservedCount);
+}

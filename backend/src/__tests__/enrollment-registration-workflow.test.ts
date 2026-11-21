@@ -6,6 +6,7 @@ import { bulkDecisionSchema, registerSchema } from "../validators/registration.v
 import {
   canStudentCancelRegistration,
   canStudentResubmitRegistration,
+  hasCapacityForReservations,
   isSeatReservingRegistrationStatus,
 } from "../utils/registrationPolicy";
 
@@ -53,4 +54,11 @@ test("only correction-required registrations may be resubmitted in place", () =>
   assert.equal(canStudentResubmitRegistration("APPROVED"), false);
   assert.equal(canStudentResubmitRegistration("REJECTED"), false);
   assert.equal(canStudentResubmitRegistration("DROPPED"), false);
+});
+
+test("capacity reductions cannot exceed the seat reservations", () => {
+  assert.equal(hasCapacityForReservations(null, 25), true);
+  assert.equal(hasCapacityForReservations(25, 25), true);
+  assert.equal(hasCapacityForReservations(24, 25), false);
+  assert.equal(hasCapacityForReservations(0, 0), true);
 });
