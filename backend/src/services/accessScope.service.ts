@@ -48,10 +48,15 @@ const SCOPED_ROLES = [
 ] as const;
 
 export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): boolean {
-  // Only the active workspace determines generic institution-wide scope.
-  // A secondary Registrar/Institution Admin/Management binding must not
-  // widen an active Accounts, Admissions, Examination, HR, or scoped role.
+  const roles = getCanonicalRoleNames(actor.roles);
   const activeRole = getEffectiveWorkspaceRole(actor);
+  // Specialist module bindings must not turn a multi-role account into a
+  // generic institution-wide directory actor. Institution Admin still wins
+  // the dashboard/module context over a secondary specialist binding.
+  const hasSecondarySpecialistBinding = [
+    "ACCOUNTS", "ADMISSIONS", "EXAMINATION", "HR", "LIBRARIAN", "IT", "CMS",
+  ].some((role) => roles.includes(role));
+  if (activeRole === "INSTITUTION_ADMIN" && hasSecondarySpecialistBinding) return false;
   return INSTITUTION_WIDE_ROLES.includes(activeRole);
 }
 
@@ -80,6 +85,8 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
   "STUDENT",
   "PARENT",
   "PLACEMENT",
+  "INSTITUTION_ADMIN",
+  "SUPER_ADMIN",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
@@ -89,8 +96,6 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
   "CMS",
   "CLUB_PRESIDENT",
   "STAFF",
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
   "MANAGEMENT",
   "REGISTRAR",
 ] as const;
