@@ -24,6 +24,7 @@ import {
   recordOfflinePayment,
   requestRefund,
 } from "@/lib/billingApi";
+import { financeProcessRefund } from "@/lib/financeApi";
 
 /**
  * Fee collection desk.
@@ -61,6 +62,7 @@ export default function FeesPage() {
 
   const canApprove = permissions.includes("fees.approve");
   const canCollect = permissions.includes("fees.pay");
+  const canProcessRefund = permissions.includes("fees.refund.process");
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -421,26 +423,23 @@ export default function FeesPage() {
                           disabled={busy}
                           onClick={() =>
                             run(async () => {
-                              await decideRefund(String(refund.id), {
-                                status: "PROCESSED",
-                              });
+                              await decideRefund(String(refund.id), { status: "APPROVED" });
                               setRefunds((await listRefunds({ page: 1 })).items);
-                              setNotice("Refund processed");
+                              setNotice("Refund approved. Accounts must record the settlement after funds are returned.");
                             })
                           }
                           className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white"
                         >
-                          Process
+                          Approve
                         </button>
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() =>
                             run(async () => {
-                              await decideRefund(String(refund.id), {
-                                status: "REJECTED",
-                              });
+                              await decideRefund(String(refund.id), { status: "REJECTED" });
                               setRefunds((await listRefunds({ page: 1 })).items);
+                              setNotice("Refund rejected");
                             })
                           }
                           className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600"
@@ -448,6 +447,24 @@ export default function FeesPage() {
                           Reject
                         </button>
                       </div>
+                    )}
+                    {canProcessRefund && refund.status === "APPROVED" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          run(async () => {
+                            const reference = window.prompt("Enter the external bank or payment settlement reference after the refund has actually been sent.");
+                            if (!reference?.trim()) return;
+                            await financeProcessRefund(String(refund.id), reference.trim());
+                            setRefunds((await listRefunds({ page: 1 })).items);
+                            setNotice("Refund settlement recorded");
+                          })
+                        }
+                        className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        Confirm settlement
+                      </button>
                     )}
                   </li>
                 ))}
