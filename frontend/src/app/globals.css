@@ -1093,3 +1093,12 @@ a[class*="bg-white"][class*="text-white"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Public website: keep the experience completely static. */
+.public-site,
+.public-site * {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
