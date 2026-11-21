@@ -29,7 +29,20 @@ test("refund processing claims an approved refund exactly once inside its transa
   assert.ok(process.indexOf("const visibleInvoice") < process.indexOf("const claimed"));
   assert.match(process, /updateMany\(\{where:\{id,institutionId,status:"APPROVED",invoiceId:candidate\.invoiceId,paymentId:candidate\.paymentId\},data:\{status:"PROCESSING"\}\}\)/);
   assert.match(process, /if\(claimed.count!==1\)/);
-  assert.match(process, /type:"REFUND",reference:id/);
+  assert.match(process, /externalSettlementReference/);
+  assert.match(process, /getEffectiveWorkspaceRole\(a\) !== "ACCOUNTS"/);
+  assert.match(process, /Online provider refunds are not enabled/);
+  assert.match(process, /reference:externalReference/);
+});
+
+test("refunds stay pending until separately approved and external settlement is recorded by Accounts", () => {
+  const request = source.slice(source.indexOf("export async function requestRefund("), source.indexOf("export async function approveRefund("));
+  assert.match(request, /status:"REQUESTED",requestedById:a\.id,approvedById:null,approvedAt:null/);
+  const approve = source.slice(source.indexOf("export async function approveRefund("), source.indexOf("export async function processRefund("));
+  assert.match(approve, /candidate\.requestedById===a\.id/);
+  const process = source.slice(source.indexOf("export async function processRefund("), source.indexOf("export async function transactions("));
+  assert.match(process, /externalSettlementReference/);
+  assert.match(process, /status:"PROCESSED".*reference:externalReference/);
 });
 
 test("payment idempotency is rechecked under the invoice lock and rejects key reuse across invoices or payloads", () => {
