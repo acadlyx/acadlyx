@@ -743,13 +743,14 @@ function RegistrationView() {
   }
 
   async function drop(id: string) {
+    if (!window.confirm("Cancel this pending course registration request?")) return;
     setBusy(true);
     setError("");
     try {
       await dropRegistration(id);
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Registration could not be dropped.");
+      setError(reason instanceof Error ? reason.message : "Registration request could not be cancelled.");
     } finally {
       setBusy(false);
     }
@@ -785,10 +786,12 @@ function RegistrationView() {
                 <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
                 {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
               </div>
-              {item.status === "REQUESTED" || item.status === "APPROVED" ? (
+              {item.status === "REQUESTED" && item.courseOffering.registrationOpen ? (
                 <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
-                  {busy ? "Working…" : "Drop"}
+                  {busy ? "Working…" : "Cancel request"}
                 </button>
+              ) : item.status === "APPROVED" ? (
+                <span className="text-xs text-slate-500">Withdrawal requires the institution's formal approval process.</span>
               ) : null}
             </div>
           )}

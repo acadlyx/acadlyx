@@ -62,7 +62,11 @@ export async function getMyEnrollmentWorkflow(institutionId: string, actor: Auth
   const [current, pending] = await Promise.all([
     getCurrentEnrollment(institutionId, actor.id),
     prisma.studentEnrollmentRequest.findFirst({
-      where: { institutionId, studentId: actor.id, status: { in: ["PENDING", "NEEDS_CORRECTION"] } },
+      where: {
+        institutionId,
+        studentId: actor.id,
+        academicYear: { isCurrent: true },
+      },
       include: requestInclude,
       orderBy: { createdAt: "desc" },
     }),
@@ -70,7 +74,9 @@ export async function getMyEnrollmentWorkflow(institutionId: string, actor: Auth
 
   if (current) return { state: "APPROVED", enrollment: current, request: null, eligibleContexts: [] };
 
-  const eligibleContexts = await listEligibleContexts(institutionId, actor.id);
+  const eligibleContexts = !pending || pending.status === "NEEDS_CORRECTION"
+    ? await listEligibleContexts(institutionId, actor.id)
+    : [];
   return {
     state: pending?.status ?? "NOT_STARTED",
     enrollment: null,
@@ -90,6 +96,12 @@ export async function listEligibleContexts(institutionId: string, studentId: str
     select: { id: true, name: true },
   });
   if (!currentYear) return [];
+
+  const existingRequest = await prisma.studentEnrollmentRequest.findUnique({
+    where: { studentId_academicYearId: { studentId, academicYearId: currentYear.id } },
+    select: { status: true },
+  });
+  if (existingRequest && existingRequest.status !== "NEEDS_CORRECTION") return [];
 
   const admission = await prisma.admissionApplication.findFirst({
     where: {
@@ -175,6 +187,18 @@ export async function submitEnrollmentRequest(
   const current = await getCurrentEnrollment(institutionId, actor.id);
   if (current) throw new AppError("You already have an active enrollment for the current academic year", 409);
 
+  const existing = await prisma.studentEnrollmentRequest.findUnique({
+    where: { studentId_academicYearId: { studentId: actor.id, academicYearId: input.academicYearId } },
+  });
+  if (existing && existing.status !== "NEEDS_CORRECTION") {
+    throw new AppError(
+      existing.status === "PENDING"
+        ? "Your enrollment request is already pending; it cannot be silently edited."
+        : `Your enrollment request is already ${existing.status}. Historical decisions cannot be overwritten; contact the academic office.`,
+      409
+    );
+  }
+
   const eligible = await listEligibleContexts(institutionId, actor.id);
   const match = eligible.find((x) =>
     x.program.id === input.programId &&
@@ -186,36 +210,88 @@ export async function submitEnrollmentRequest(
 
   await validateRequestContext(institutionId, input);
 
-  const request = await prisma.studentEnrollmentRequest.upsert({
-    where: { studentId_academicYearId: { studentId: actor.id, academicYearId: input.academicYearId } },
-    create: {
-      institutionId, studentId: actor.id, requestedById: actor.id,
-      programId: input.programId, academicYearId: input.academicYearId, semesterId: input.semesterId,
-      sectionId: input.sectionId ?? null, status: "PENDING",
-    },
-    update: {
-      programId: input.programId, semesterId: input.semesterId, sectionId: input.sectionId ?? null,
-      requestedById: actor.id, status: "PENDING", decidedById: null, decidedAt: null,
-      rejectionReason: null, correctionNote: null,
-    },
-    include: requestInclude,
-  });
+  let request: import("@prisma/client").StudentEnrollmentRequestGetPayload<{ include: typeof requestInclude }> | null = null;
+  if (existing) {
+    const changed = await prisma.studentEnrollmentRequest.updateMany({
+      where: {
+        id: existing.id,
+        institutionId,
+        studentId: actor.id,
+        status: "NEEDS_CORRECTION",
+      },
+      data: {
+        programId: input.programId,
+        semesterId: input.semesterId,
+        sectionId: input.sectionId ?? null,
+        requestedById: actor.id,
+        status: "PENDING",
+        // Preserve the prior reviewer, decision timestamp and correction note.
+      },
+    });
+    if (changed.count !== 1) throw new AppError("Enrollment request changed while it was being corrected. Refresh and try again.", 409);
+    request = await prisma.studentEnrollmentRequest.findFirst({
+      where: { id: existing.id, institutionId },
+      include: requestInclude,
+    });
+  } else {
+    try {
+      request = await prisma.studentEnrollmentRequest.create({
+        data: {
+          institutionId,
+          studentId: actor.id,
+          requestedById: actor.id,
+          programId: input.programId,
+          academicYearId: input.academicYearId,
+          semesterId: input.semesterId,
+          sectionId: input.sectionId ?? null,
+          status: "PENDING",
+        },
+        include: requestInclude,
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === "P2002") {
+        throw new AppError("An enrollment request for this academic year already exists. Refresh to review its status.", 409);
+      }
+      throw error;
+    }
+  }
+  if (!request) throw new AppError("Enrollment request could not be loaded after submission", 500);
 
   const managed = await prisma.employeeProfile.findMany({
     where: {
-      institutionId, departmentId: match.program.departmentId, status: "ACTIVE",
+      institutionId,
+      departmentId: match.program.departmentId,
+      status: "ACTIVE",
       user: { userRoles: { some: { role: { name: "HOD", institutionId } } } },
     },
     select: { userId: true },
   });
   await Promise.all(managed.map((hod) =>
-    notify(institutionId, hod.userId, "New enrollment request", `${actor.roles.includes("STUDENT") ? "A student" : "A user"} submitted an academic enrollment request.`, "/hod/enrollment-requests")
+    notify(
+      institutionId,
+      hod.userId,
+      existing ? "Enrollment request resubmitted" : "New enrollment request",
+      existing
+        ? "A student resubmitted an academic enrollment request after correction."
+        : "A student submitted an academic enrollment request.",
+      "/hod/enrollment-requests"
+    )
   ));
 
   await recordAuditLog({
-    institutionId, userId: actor.id, action: "enrollment.request.submit",
-    entityType: "StudentEnrollmentRequest", entityId: request.id,
-    metadata: { programId: input.programId, academicYearId: input.academicYearId, semesterId: input.semesterId, sectionId: input.sectionId ?? null },
+    institutionId,
+    userId: actor.id,
+    action: existing ? "enrollment.request.resubmit" : "enrollment.request.submit",
+    entityType: "StudentEnrollmentRequest",
+    entityId: request.id,
+    metadata: {
+      programId: input.programId,
+      academicYearId: input.academicYearId,
+      semesterId: input.semesterId,
+      sectionId: input.sectionId ?? null,
+      previousState: existing?.status ?? null,
+      newState: "PENDING",
+    },
   });
   return request;
 }
@@ -260,58 +336,109 @@ async function decideOne(
 ) {
   const existing = await prisma.studentEnrollmentRequest.findFirst({ where: { id, institutionId }, include: requestInclude });
   if (!existing) throw new AppError("Enrollment request not found", 404);
-  if (existing.status !== "PENDING") throw new AppError("Only pending enrollment requests can be decided", 422);
+  if (existing.status !== "PENDING") throw new AppError("Only pending enrollment requests can be decided", 409);
   if (actor.roles.includes("STUDENT") || !actor.permissions.includes("enrollment.approve")) throw new AppError("You are not authorized to decide enrollment requests", 403);
 
   await validateRequestContext(institutionId, existing);
   const managed = actor.roles.includes("HOD") ? await getManagedDepartmentIds(institutionId, actor.id) : null;
   if (managed && !managed.includes(existing.program.departmentId)) throw new AppError("This enrollment request is outside your department scope", 403);
 
-  if (decision === "APPROVED") {
-    const result = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.studentEnrollmentRequest.findFirst({ where: { id, institutionId }, include: requestInclude });
-      if (!fresh || fresh.status !== "PENDING") throw new AppError("Enrollment request is no longer pending", 409);
-      const existingEnrollment = await tx.studentEnrollment.findUnique({ where: { userId_academicYearId: { userId: fresh.studentId, academicYearId: fresh.academicYearId } } });
-      if (existingEnrollment?.status === "ACTIVE") throw new AppError("Student already has an active enrollment for this academic year", 409);
-      const activeCurrent = await tx.studentEnrollment.findFirst({ where: { institutionId, userId: fresh.studentId, status: "ACTIVE", academicYear: { isCurrent: true } } });
-      if (activeCurrent) throw new AppError("Student already has an active current-year enrollment", 409);
-      const enrollment = await tx.studentEnrollment.upsert({
-        where: { userId_academicYearId: { userId: fresh.studentId, academicYearId: fresh.academicYearId } },
-        create: {
-          institutionId, userId: fresh.studentId, programId: fresh.programId, academicYearId: fresh.academicYearId,
-          semesterId: fresh.semesterId, sectionId: fresh.sectionId, status: "ACTIVE",
-        },
-        update: {
-          programId: fresh.programId, semesterId: fresh.semesterId, sectionId: fresh.sectionId, status: "ACTIVE",
-        },
-      });
-      const updated = await tx.studentEnrollmentRequest.update({
-        where: { id },
-        data: { status: "APPROVED", decidedById: actor.id, decidedAt: new Date(), rejectionReason: null, correctionNote: null },
-        include: requestInclude,
-      });
-      return { updated, enrollment };
+  const result = await prisma.$transaction(async (tx) => {
+    const changed = await tx.studentEnrollmentRequest.updateMany({
+      where: { id, institutionId, status: "PENDING" },
+      data: {
+        status: decision,
+        decidedById: actor.id,
+        decidedAt: new Date(),
+        ...(decision === "REJECTED"
+          ? { rejectionReason: reason || "Enrollment request rejected" }
+          : {}),
+        ...(decision === "NEEDS_CORRECTION"
+          ? { correctionNote: reason || "Please correct the enrollment request" }
+          : {}),
+      },
     });
-    await notify(institutionId, existing.studentId, "Enrollment approved", "Your academic enrollment has been approved.", "/student/enrollment");
-    await recordAuditLog({ institutionId, userId: actor.id, action: "enrollment.request.approve", entityType: "StudentEnrollmentRequest", entityId: id, metadata: { previousState: "PENDING", newState: "APPROVED", studentId: existing.studentId } });
-    return result;
-  }
+    if (changed.count !== 1) {
+      throw new AppError("This enrollment request has already been decided by another action", 409);
+    }
 
-  const status = decision === "REJECTED" ? "REJECTED" : "NEEDS_CORRECTION";
-  const updated = await prisma.studentEnrollmentRequest.update({
-    where: { id },
-    data: {
-      status, decidedById: actor.id, decidedAt: new Date(),
-      rejectionReason: decision === "REJECTED" ? (reason || "Enrollment request rejected") : null,
-      correctionNote: decision === "NEEDS_CORRECTION" ? (reason || "Please correct the enrollment request") : null,
-    },
-    include: requestInclude,
+    let enrollment = null;
+    if (decision === "APPROVED") {
+      const existingEnrollment = await tx.studentEnrollment.findUnique({
+        where: {
+          userId_academicYearId: {
+            userId: existing.studentId,
+            academicYearId: existing.academicYearId,
+          },
+        },
+      });
+      if (existingEnrollment) {
+        throw new AppError(
+          "A historical enrollment already exists for this academic year. Use the authorised student movement/reinstatement workflow instead of overwriting it.",
+          409
+        );
+      }
+      const activeCurrent = await tx.studentEnrollment.findFirst({
+        where: {
+          institutionId,
+          userId: existing.studentId,
+          status: "ACTIVE",
+          academicYear: { isCurrent: true },
+        },
+      });
+      if (activeCurrent) throw new AppError("Student already has an active current-year enrollment", 409);
+
+      enrollment = await tx.studentEnrollment.create({
+        data: {
+          institutionId,
+          userId: existing.studentId,
+          programId: existing.programId,
+          academicYearId: existing.academicYearId,
+          semesterId: existing.semesterId,
+          sectionId: existing.sectionId,
+          status: "ACTIVE",
+        },
+      });
+    }
+
+    const updated = await tx.studentEnrollmentRequest.findFirst({
+      where: { id, institutionId },
+      include: requestInclude,
+    });
+    if (!updated) throw new AppError("Enrollment request not found after decision", 404);
+    return { updated, enrollment };
   });
-  await notify(institutionId, existing.studentId, decision === "REJECTED" ? "Enrollment rejected" : "Enrollment needs correction",
-    decision === "REJECTED" ? (reason || "Your enrollment request was rejected.") : (reason || "Please correct your enrollment request."),
-    "/student/enrollment");
-  await recordAuditLog({ institutionId, userId: actor.id, action: `enrollment.request.${decision.toLowerCase()}`, entityType: "StudentEnrollmentRequest", entityId: id, metadata: { previousState: "PENDING", newState: status, studentId: existing.studentId, reason: reason ?? null } });
-  return updated;
+
+  await notify(
+    institutionId,
+    existing.studentId,
+    decision === "APPROVED"
+      ? "Enrollment approved"
+      : decision === "REJECTED"
+        ? "Enrollment rejected"
+        : "Enrollment needs correction",
+    decision === "APPROVED"
+      ? "Your academic enrollment has been approved."
+      : decision === "REJECTED"
+        ? (reason || "Your enrollment request was rejected.")
+        : (reason || "Please correct your enrollment request."),
+    "/student/enrollment"
+  );
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: `enrollment.request.${decision.toLowerCase()}`,
+    entityType: "StudentEnrollmentRequest",
+    entityId: id,
+    metadata: {
+      previousState: "PENDING",
+      newState: decision,
+      studentId: existing.studentId,
+      reason: reason ?? null,
+      enrollmentId: result.enrollment?.id ?? null,
+    },
+  });
+  return result.updated;
 }
 
 export async function decideEnrollmentRequest(

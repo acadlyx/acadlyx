@@ -16,6 +16,11 @@ import {
   OfferingCapacityInput,
   RegisterInput,
 } from "../validators/registration.validators";
+import {
+  REGISTRATION_SEAT_RESERVING_STATUSES,
+  canStudentCancelRegistration,
+  canStudentResubmitRegistration,
+} from "../utils/registrationPolicy";
 
 type Meta = { ipAddress?: string; userAgent?: string };
 
@@ -59,7 +64,12 @@ function seatLimit(offering: {
 
 async function activeEnrollment(institutionId: string, studentId: string) {
   const enrollment = await prisma.studentEnrollment.findFirst({
-    where: { institutionId, userId: studentId, status: "ACTIVE" },
+    where: {
+      institutionId,
+      userId: studentId,
+      status: "ACTIVE",
+      academicYear: { isCurrent: true },
+    },
     orderBy: { enrolledAt: "desc" },
     include: {
       program: { select: { id: true, name: true, departmentId: true } },
@@ -103,18 +113,18 @@ export async function listAvailableOfferings(
     isActive: true,
     ...(semesterId ? { semesterId } : {}),
     ...(enrollment.sectionId ? { sectionId: enrollment.sectionId } : {}),
-    course: { departmentId: enrollment.program.departmentId },
-    ...(filters.electivesOnly ? { isElective: true } : {}),
-    ...(filters.search
-      ? {
-          course: {
+    course: {
+      departmentId: enrollment.program.departmentId,
+      ...(filters.search
+        ? {
             OR: [
               { name: { contains: filters.search, mode: "insensitive" } },
               { code: { contains: filters.search, mode: "insensitive" } },
             ],
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
+    ...(filters.electivesOnly ? { isElective: true } : {}),
   };
 
   const [offerings, total, existing] = await Promise.all([
@@ -129,7 +139,13 @@ export async function listAvailableOfferings(
         semester: { select: { id: true, name: true } },
         section: { select: { id: true, name: true, capacity: true } },
         faculty: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { registrations: { where: { status: "APPROVED" } } } },
+        _count: {
+          select: {
+            registrations: {
+              where: { status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] } },
+            },
+          },
+        },
       },
       orderBy: { course: { code: "asc" } },
       skip: pagination.skip,
@@ -140,13 +156,19 @@ export async function listAvailableOfferings(
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        courseOffering: { semesterId: enrollment.semesterId ?? undefined },
       },
-      select: { courseOfferingId: true, status: true },
+      orderBy: { updatedAt: "desc" },
+      select: { status: true, courseOffering: { select: { courseId: true } } },
     }),
   ]);
 
-  const held = new Map(existing.map((row) => [row.courseOfferingId, row.status]));
+  // Keep historical decisions visible: dropped/rejected courses must not
+  // silently reappear as unattempted offerings in the same semester.
+  const held = new Map<string, string>();
+  for (const row of existing) {
+    if (!held.has(row.courseOffering.courseId)) held.set(row.courseOffering.courseId, row.status);
+  }
 
   return {
     total,
@@ -165,7 +187,7 @@ export async function listAvailableOfferings(
         capacity: limit,
         seatsTaken: taken,
         seatsLeft: limit === null ? null : Math.max(0, limit - taken),
-        myStatus: held.get(offering.id) ?? null,
+        myStatus: held.get(offering.course.id) ?? null,
       };
     }),
   };
@@ -182,7 +204,7 @@ export async function getMyRegistrationSummary(
   });
 
   const active = rows.filter((row) =>
-    ["REQUESTED", "APPROVED"].includes(row.status)
+    REGISTRATION_SEAT_RESERVING_STATUSES.includes(row.status as "REQUESTED" | "APPROVED")
   );
   const credits = active.reduce(
     (sum, row) => sum + row.courseOffering.course.credits,
@@ -230,7 +252,17 @@ export async function register(
 
   const enrollment = await activeEnrollment(institutionId, studentId);
 
-  const registration = await prisma.$transaction(async (tx) => {
+  const { registration, previousState } = await prisma.$transaction(async (tx) => {
+    // Serialize seat reservations for this offering. All paths that reserve,
+    // approve, assign or change capacity use this same row lock.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "course_offerings"
+      WHERE "id" = ${input.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+
     const offering = await tx.courseOffering.findFirst({
       where: { id: input.courseOfferingId, institutionId, isActive: true },
       select: {
@@ -250,8 +282,6 @@ export async function register(
       throw new AppError("Registration is closed for this offering", 409);
     }
 
-    /* A student may only register inside the semester they are enrolled
-       in — cross-semester registration corrupts attendance and results. */
     if (!enrollment.semesterId || offering.semesterId !== enrollment.semesterId) {
       throw new AppError("This offering belongs to a different semester than your enrollment", 422);
     }
@@ -270,17 +300,24 @@ export async function register(
         },
       },
     });
-    if (existing && ["REQUESTED", "APPROVED"].includes(existing.status)) {
-      throw new AppError("Already registered for this course offering", 409);
+
+    if (existing && !canStudentResubmitRegistration(existing.status)) {
+      if (["REQUESTED", "APPROVED"].includes(existing.status)) {
+        throw new AppError("Already registered for this course offering", 409);
+      }
+      throw new AppError(
+        "This course has a previous registration decision. Contact the authorised academic office for a permitted reopening; the historical record cannot be reused.",
+        409
+      );
     }
 
-    /* Duplicate course guard: the same course must not be taken twice in
-       one semester through two different sections. */
+    // A course can be attempted only once per semester, even if its previous
+    // offering-specific record was rejected or dropped.
     const sameCourse = await tx.courseRegistration.findFirst({
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        ...(existing ? { id: { not: existing.id } } : {}),
         courseOffering: {
           courseId: offering.course.id,
           semesterId: offering.semesterId,
@@ -289,17 +326,14 @@ export async function register(
       select: { id: true },
     });
     if (sameCourse) {
-      throw new AppError(
-        `Already registered for ${offering.course.code} this semester`,
-        409
-      );
+      throw new AppError(`A previous registration already exists for ${offering.course.code} this semester`, 409);
     }
 
     const active = await tx.courseRegistration.findMany({
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
         courseOffering: { semesterId: offering.semesterId },
       },
       select: { courseOffering: { select: { course: { select: { credits: true } } } } },
@@ -317,53 +351,52 @@ export async function register(
 
     const limit = seatLimit(offering);
     if (limit !== null) {
-      const taken = await tx.courseRegistration.count({
+      const reserved = await tx.courseRegistration.count({
         where: {
           courseOfferingId: offering.id,
-          status: { in: ["REQUESTED", "APPROVED"] },
+          status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
         },
       });
-      if (taken >= limit) {
-        throw new AppError("This course offering is full", 409);
-      }
+      if (reserved >= limit) throw new AppError("This course offering is full", 409);
     }
 
-    if (existing) {
-      /* Re-registering after a drop reuses the row the unique index owns. */
-      return tx.courseRegistration.update({
-        where: { id: existing.id },
-        data: {
-          status: "REQUESTED",
-          decidedById: null,
-          decidedAt: null,
-          remarks: null,
-        },
-        include,
-      });
-    }
+    const saved = existing
+      ? await tx.courseRegistration.update({
+          where: { id: existing.id },
+          // Preserve the previous reviewer, decision timestamp and correction
+          // remarks. The audit log below records this new attempt separately.
+          data: { status: "REQUESTED" },
+          include,
+        })
+      : await tx.courseRegistration.create({
+          data: {
+            institutionId,
+            studentId,
+            courseOfferingId: offering.id,
+            status: "REQUESTED",
+          },
+          include,
+        });
 
-    return tx.courseRegistration.create({
-      data: {
-        institutionId,
-        studentId,
-        courseOfferingId: offering.id,
-        status: "REQUESTED",
-      },
-      include,
-    });
+    return { registration: saved, previousState: existing?.status ?? null };
   });
 
-  const departmentId = registration.courseOffering.course.departmentId;
+    const departmentId = registration.courseOffering.course.departmentId;
   const hods = await prisma.employeeProfile.findMany({ where: { institutionId, departmentId, status: "ACTIVE", user: { userRoles: { some: { role: { name: "HOD", institutionId } } } } }, select: { userId: true } });
   await Promise.all(hods.map((hod) => notifyUser(institutionId, hod.userId, "New course registration request", "A student submitted a course registration request for your department.", "/hod/course-registration-requests")));
 
   await recordAuditLog({
     institutionId,
     userId: actor.id,
-    action: "registration.request",
+    action: previousState ? "registration.correction_resubmit" : "registration.request",
     entityType: "CourseRegistration",
     entityId: registration.id,
-    metadata: { studentId, courseOfferingId: input.courseOfferingId },
+    metadata: {
+      studentId,
+      courseOfferingId: input.courseOfferingId,
+      previousState,
+      newState: "REQUESTED",
+    },
     ...meta,
   });
 
@@ -383,34 +416,60 @@ export async function drop(
   });
   if (!existing) throw new AppError("Registration not found", 404);
 
-  if (
-    existing.studentId !== actor.id &&
-    !actor.permissions.includes("registration.approve")
-  ) {
-    throw new AppError("You may only drop your own registrations", 403);
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT" || existing.studentId !== actor.id) {
+    throw new AppError("Only the student in the active Student workspace may cancel their own pending request", 403);
   }
-  if (!["REQUESTED", "APPROVED"].includes(existing.status)) {
-    throw new AppError("This registration is no longer active", 422);
+  if (!canStudentCancelRegistration(existing.status)) {
+    throw new AppError(
+      "Only a pending course registration may be cancelled directly. Approved courses require the institution's formal withdrawal process.",
+      409
+    );
+  }
+  if (!existing.courseOffering.registrationOpen) {
+    throw new AppError("The offering is closed; direct cancellation is no longer permitted. Contact the academic office.", 409);
   }
 
-  const dropped = await prisma.courseRegistration.update({
-    where: { id },
-    data: {
-      status: "DROPPED",
-      decidedById: actor.id,
-      decidedAt: new Date(),
-      remarks: reason ?? null,
-    },
-    include,
+  const dropped = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${existing.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const changed = await tx.courseRegistration.updateMany({
+      where: {
+        id,
+        institutionId,
+        studentId: actor.id,
+        status: "REQUESTED",
+      },
+      data: {
+        status: "DROPPED",
+        decidedById: actor.id,
+        decidedAt: new Date(),
+        remarks: reason ?? null,
+      },
+    });
+    if (changed.count !== 1) {
+      throw new AppError("This registration changed while you were cancelling it. Refresh and review its current status.", 409);
+    }
+    const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
+    if (!saved) throw new AppError("Registration not found", 404);
+    return saved;
   });
 
   await recordAuditLog({
     institutionId,
     userId: actor.id,
-    action: "registration.drop",
+    action: "registration.pending_cancel",
     entityType: "CourseRegistration",
     entityId: id,
-    metadata: { studentId: existing.studentId, reason },
+    metadata: {
+      studentId: existing.studentId,
+      previousState: "REQUESTED",
+      newState: "DROPPED",
+      reason: reason ?? null,
+    },
     ...meta,
   });
 
@@ -431,7 +490,7 @@ export async function decide(
   });
   if (!existing) throw new AppError("Registration not found", 404);
   if (existing.status !== "REQUESTED") {
-    throw new AppError("Only pending registrations can be decided", 422);
+    throw new AppError("Only pending registrations can be decided", 409);
   }
   await assertApproverScope(
     institutionId,
@@ -449,41 +508,64 @@ export async function decide(
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${existing.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+
     if (decision === "APPROVED") {
-      const offering = await tx.courseOffering.findUniqueOrThrow({
-        where: { id: existing.courseOfferingId },
-        select: {
-          capacity: true,
-          section: { select: { capacity: true } },
-        },
+      const offering = await tx.courseOffering.findFirst({
+        where: { id: existing.courseOfferingId, institutionId },
+        select: { capacity: true, section: { select: { capacity: true } } },
       });
+      if (!offering) throw new AppError("Course offering not found", 404);
       const limit = seatLimit(offering);
       if (limit !== null) {
-        const approved = await tx.courseRegistration.count({
+        // REQUESTED already reserves this seat. Approval changes the state,
+        // not the number of seats reserved.
+        const reserved = await tx.courseRegistration.count({
           where: {
             courseOfferingId: existing.courseOfferingId,
-            status: "APPROVED",
+            status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
           },
         });
-        if (approved >= limit) {
-          throw new AppError("Course offering is already full", 409);
-        }
+        if (reserved > limit) throw new AppError("Course offering has exceeded its configured capacity", 409);
       }
     }
 
-    return tx.courseRegistration.update({
-      where: { id },
+    const changed = await tx.courseRegistration.updateMany({
+      where: { id, institutionId, status: "REQUESTED" },
       data: {
         status: decision,
         decidedById: actor.id,
         decidedAt: new Date(),
         remarks: remarks ?? null,
       },
-      include,
     });
+    if (changed.count !== 1) {
+      throw new AppError("This registration has already been decided by another action", 409);
+    }
+
+    const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
+    if (!saved) throw new AppError("Registration not found", 404);
+    return saved;
   });
 
-  await notifyUser(institutionId, existing.studentId, decision === "APPROVED" ? "Course registration approved" : decision === "REJECTED" ? "Course registration rejected" : "Course registration needs correction", decision === "APPROVED" ? "Your course registration was approved." : (remarks ?? "Please review and update your course registration."), "/student/course-registration");
+  await notifyUser(
+    institutionId,
+    existing.studentId,
+    decision === "APPROVED"
+      ? "Course registration approved"
+      : decision === "REJECTED"
+        ? "Course registration rejected"
+        : "Course registration needs correction",
+    decision === "APPROVED"
+      ? "Your course registration was approved."
+      : (remarks ?? "Please review and update your course registration."),
+    "/student/course-registration"
+  );
 
   await recordAuditLog({
     institutionId,
@@ -491,14 +573,17 @@ export async function decide(
     action: `registration.${decision.toLowerCase()}`,
     entityType: "CourseRegistration",
     entityId: id,
-    metadata: { studentId: existing.studentId, remarks },
+    metadata: {
+      studentId: existing.studentId,
+      previousState: "REQUESTED",
+      newState: decision,
+      remarks: remarks ?? null,
+    },
     ...meta,
   });
 
   return updated;
 }
-
-
 
 export async function bulkRegister(
   institutionId: string,
@@ -794,6 +879,15 @@ export async function bulkAssignCourses(
   }
 
   const results = await prisma.$transaction(async (tx) => {
+    // Lock offerings in deterministic order to prevent overbooking and
+    // deadlocks across concurrent bulk assignments.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "institutionId" = ${institutionId}
+        AND "id" IN (${Prisma.join(courseOfferingIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
     const assigned: Prisma.CourseRegistrationGetPayload<{ include: typeof include }>[] = [];
 
     for (const studentId of studentIds) {
@@ -814,12 +908,17 @@ export async function bulkAssignCourses(
           assigned.push(existing);
           continue;
         }
+        if (existing && existing.status !== "REQUESTED") {
+          throw new AppError(
+            `Cannot bulk-assign ${offering.course.code}: the student's historical registration is ${existing.status}. Use an authorised reopening workflow instead.`,
+            409
+          );
+        }
 
         const duplicateCourse = await tx.courseRegistration.findFirst({
           where: {
             institutionId,
             studentId,
-            status: { in: ["REQUESTED", "APPROVED"] },
             id: existing ? { not: existing.id } : undefined,
             courseOffering: {
               courseId: offering.course.id,
@@ -840,7 +939,7 @@ export async function bulkAssignCourses(
           where: {
             institutionId,
             studentId,
-            status: { in: ["REQUESTED", "APPROVED"] },
+            status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
             id: existing ? { not: existing.id } : undefined,
             courseOffering: { semesterId: offering.semesterId },
           },
@@ -865,15 +964,15 @@ export async function bulkAssignCourses(
 
         const limit = seatLimit(offering);
         if (limit !== null) {
-          const approvedCount = await tx.courseRegistration.count({
+          const reservedCount = await tx.courseRegistration.count({
             where: {
               courseOfferingId,
-              status: "APPROVED",
+              status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
               ...(existing ? { id: { not: existing.id } } : {}),
             },
           });
 
-          if (approvedCount >= limit) {
+          if (reservedCount >= limit) {
             throw new AppError(
               `Course offering ${offering.course.code} is already full`,
               409
@@ -882,16 +981,21 @@ export async function bulkAssignCourses(
         }
 
         const saved = existing
-          ? await tx.courseRegistration.update({
-              where: { id: existing.id },
-              data: {
-                status: "APPROVED",
-                decidedById: actor.id,
-                decidedAt: new Date(),
-                remarks: "Assigned and approved by HOD",
-              },
-              include,
-            })
+          ? await (async () => {
+              const changed = await tx.courseRegistration.updateMany({
+                where: { id: existing.id, institutionId, status: "REQUESTED" },
+                data: {
+                  status: "APPROVED",
+                  decidedById: actor.id,
+                  decidedAt: new Date(),
+                  remarks: "Assigned and approved by HOD",
+                },
+              });
+              if (changed.count !== 1) throw new AppError("Registration changed during bulk assignment", 409);
+              const refreshed = await tx.courseRegistration.findFirst({ where: { id: existing.id, institutionId }, include });
+              if (!refreshed) throw new AppError("Registration not found after assignment", 404);
+              return refreshed;
+            })()
           : await tx.courseRegistration.create({
               data: {
                 institutionId,
@@ -947,33 +1051,58 @@ export async function updateOfferingCapacity(
   if (!offering) throw new AppError("Course offering not found", 404);
   await assertApproverScope(institutionId, actor, offering.course.departmentId);
 
-  if (input.capacity !== undefined && input.capacity !== null) {
-    const approved = await prisma.courseRegistration.count({
-      where: { courseOfferingId, status: "APPROVED" },
-    });
-    if (input.capacity < approved) {
-      throw new AppError(
-        `${approved} students are already approved; capacity cannot be lower`,
-        422
-      );
-    }
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
 
-  const updated = await prisma.courseOffering.update({
-    where: { id: courseOfferingId },
-    data: {
-      ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
-      ...(input.registrationOpen !== undefined
-        ? { registrationOpen: input.registrationOpen }
-        : {}),
-      ...(input.isElective !== undefined ? { isElective: input.isElective } : {}),
-    },
-    select: {
-      id: true,
-      capacity: true,
-      registrationOpen: true,
-      isElective: true,
-    },
+    const fresh = await tx.courseOffering.findFirst({
+      where: { id: courseOfferingId, institutionId },
+      select: {
+        id: true,
+        capacity: true,
+        section: { select: { capacity: true } },
+      },
+    });
+    if (!fresh) throw new AppError("Course offering not found", 404);
+
+    const effectiveLimit = input.capacity !== undefined
+      ? (input.capacity ?? fresh.section.capacity)
+      : (fresh.capacity ?? fresh.section.capacity);
+
+    if (effectiveLimit !== null) {
+      const reserved = await tx.courseRegistration.count({
+        where: {
+          courseOfferingId,
+          institutionId,
+          status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
+        },
+      });
+      if (effectiveLimit < reserved) {
+        throw new AppError(
+          `${reserved} pending/approved registrations already reserve seats; capacity cannot be reduced below this number.`,
+          422
+        );
+      }
+    }
+
+    return tx.courseOffering.update({
+      where: { id: courseOfferingId },
+      data: {
+        ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+        ...(input.registrationOpen !== undefined ? { registrationOpen: input.registrationOpen } : {}),
+        ...(input.isElective !== undefined ? { isElective: input.isElective } : {}),
+      },
+      select: {
+        id: true,
+        capacity: true,
+        registrationOpen: true,
+        isElective: true,
+      },
+    });
   });
 
   await recordAuditLog({
