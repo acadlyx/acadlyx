@@ -66,13 +66,13 @@ const include = {
         exceptionalWithdrawalEndsAt: true,
       } },
       } },
-      withdrawalRequests: {
-        where: { status: "PENDING" },
-        select: { id: true, status: true, reason: true, requestedAt: true },
-      },
       section: { select: { id: true, name: true, capacity: true } },
       faculty: { select: { id: true, firstName: true, lastName: true } },
     },
+  },
+  withdrawalRequests: {
+    where: { status: "PENDING" },
+    select: { id: true, status: true, reason: true, requestedAt: true },
   },
 } satisfies Prisma.CourseRegistrationInclude;
 
