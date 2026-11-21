@@ -629,18 +629,22 @@ export async function bulkDecideRegistrations(
     throw new AppError("The active workspace cannot decide course registrations", 403);
   }
   const unique = [...new Set(ids)];
-  const results: { id: string; status: "APPROVED" | "SKIPPED"; reason?: string }[] = [];
+  const results: {
+    id: string;
+    status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED";
+    reason?: string;
+  }[] = [];
   for (const id of unique) {
     try {
       await decide(institutionId, actor, id, decision, remarks, meta);
-      results.push({ id, status: "APPROVED" });
+      results.push({ id, status: decision });
     } catch (error) {
       results.push({ id, status: "SKIPPED", reason: error instanceof Error ? error.message : "Unable to process request" });
     }
   }
   return {
     requested: unique.length,
-    processed: results.filter((r) => r.status === "APPROVED").length,
+    processed: results.filter((r) => r.status !== "SKIPPED").length,
     skipped: results.filter((r) => r.status === "SKIPPED").length,
     results,
   };

@@ -115,12 +115,12 @@ export async function bulkDecideRegistrations(
   registrationIds: string[],
   decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
   remarks?: string
-): Promise<{ requested: number; processed: number; skipped: number; results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }> }> {
+): Promise<{ requested: number; processed: number; skipped: number; results: Array<{ id: string; status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED"; reason?: string }> }> {
   const res = await authedFetch<Envelope<{
     requested: number;
     processed: number;
     skipped: number;
-    results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }>;
+    results: Array<{ id: string; status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED"; reason?: string }>;
   }>>("/registrations/bulk-decision", {
     method: "POST",
     body: JSON.stringify({ registrationIds, decision, remarks }),
