@@ -600,7 +600,7 @@ export async function requestPermanentDeletion(
         SELECT id
         FROM user_deletion_requests
         WHERE target_user_id =
-          ${target.id}::uuid
+          ${target.id}
           AND status = 'PENDING'
         LIMIT 1
       `,
@@ -640,12 +640,12 @@ export async function requestPermanentDeletion(
       )
       VALUES (
         ${id}::uuid,
-        ${target.institutionId}::uuid,
-        ${target.id}::uuid,
+        ${target.institutionId},
+        ${target.id},
         ${[target.firstName, target.lastName].filter(Boolean).join(" ")},
         ${target.email},
         ${targetRoleName},
-        ${actorRecord.id}::uuid,
+        ${actorRecord.id},
         ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
         ${actorRecord.email},
         ${requesterRole},
@@ -858,7 +858,7 @@ export async function listPermanentDeletionRequests(
       ? Prisma.sql`TRUE`
       : Prisma.sql`
           institution_id =
-          ${actorRecord.institutionId}::uuid
+          ${actorRecord.institutionId}
         `;
 
   const rows =
@@ -949,7 +949,7 @@ export async function listPermanentDeletionRequests(
               r.target_rank
             AND r.requester_user_id
               IS DISTINCT FROM
-              ${actor.id}::uuid
+              ${actor.id}
           ) AS can_approve
 
         FROM user_deletion_requests r
@@ -958,7 +958,7 @@ export async function listPermanentDeletionRequests(
 
           AND (
             r.requester_user_id =
-              ${actor.id}::uuid
+              ${actor.id}
 
             OR (
               r.status = 'PENDING'
@@ -1189,7 +1189,7 @@ export async function approvePermanentDeletion(
               status = 'APPROVED',
 
               approver_user_id =
-                ${actor.id}::uuid,
+                ${actor.id},
 
               approver_name =
                 ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
@@ -1384,7 +1384,7 @@ export async function rejectPermanentDeletion(
         status = 'REJECTED',
 
         approver_user_id =
-          ${actor.id}::uuid,
+          ${actor.id},
 
         approver_name =
           ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
