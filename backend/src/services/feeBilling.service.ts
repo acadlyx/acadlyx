@@ -751,86 +751,84 @@ export async function listInvoices(
   pagination: PaginationParams,
   filters: { studentId?: string; departmentId?: string; status?: string; overdueOnly?: boolean; search?: string }
 ) {
-  const conditions: Prisma.Sql[] = [
-    Prisma.sql`i."institutionId" = ${institutionId}`,
-  ];
-
-  if (filters.departmentId) {
-    const canonicalRoles = getCanonicalRoleNames(actor.roles);
-    if (canonicalRoles.includes("HOD")) {
-      const managed = await getManagedDepartmentIds(institutionId, actor.id);
-      if (!managed.includes(filters.departmentId)) {
-        throw new AppError("This department is outside your authorized scope", 403);
-      }
-    } else if (!isInstitutionWide(actor) && !actor.permissions.includes("fees.manage")) {
-      throw new AppError("You are not authorized to filter fee records by department", 403);
-    }
-
-    const department = await prisma.department.findFirst({
-      where: {
-        id: filters.departmentId,
-        institutionId,
-      },
-      select: { id: true },
-    });
-    if (!department) {
-      throw new AppError("Department not found in this institution", 404);
-    }
-
-    conditions.push(
-      Prisma.sql`EXISTS (
-        SELECT 1
-        FROM "student_enrollments" e
-        JOIN "programs" p ON p."id" = e."programId"
-        WHERE e."institutionId" = ${institutionId}
-          AND e."userId" = i."studentId"
-          AND p."departmentId" = ${filters.departmentId}
-      )`
-    );
-  } else if (getCanonicalRoleNames(actor.roles).includes("HOD")) {
-    const managed = await getManagedDepartmentIds(institutionId, actor.id);
-    if (managed.length === 0) {
-      throw new AppError("You have no department scope assigned", 403);
-    }
-    conditions.push(
-      Prisma.sql`EXISTS (
-        SELECT 1
-        FROM "student_enrollments" e
-        JOIN "programs" p ON p."id" = e."programId"
-        WHERE e."institutionId" = ${institutionId}
-          AND e."userId" = i."studentId"
-          AND p."departmentId" IN (${Prisma.join(managed)})
-      )`
-    );
-  }
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const conditions: Prisma.Sql[] = [Prisma.sql`i."institutionId" = ${institutionId}`];
+  const isFinanceWide = activeRole === "CHAIRMAN" || isInstitutionWideFinance(actor);
 
   if (filters.studentId) {
     await assertCanViewStudent(institutionId, actor, filters.studentId);
     conditions.push(Prisma.sql`i."studentId" = ${filters.studentId}`);
-  } else if (!actor.permissions.includes("fees.manage") && !isInstitutionWide(actor)) {
-    // Students and parents without billing rights only see their own.
+  } else if (activeRole === "STUDENT") {
     conditions.push(Prisma.sql`i."studentId" = ${actor.id}`);
+  } else if (activeRole === "PARENT") {
+    const linkedStudents = await prisma.parentStudentLink.findMany({
+      where: { institutionId, parentId: actor.id },
+      select: { studentId: true },
+    });
+    const studentIds = Array.from(new Set(linkedStudents.map((row) => row.studentId)));
+    if (!studentIds.length) conditions.push(Prisma.sql`FALSE`);
+    else conditions.push(Prisma.sql`i."studentId" IN (${Prisma.join(studentIds)})`);
+  } else if (activeRole === "DIRECTOR" || activeRole === "DEAN" || activeRole === "HOD") {
+    const departmentIds = activeRole === "DIRECTOR"
+      ? await getDirectorDepartmentIds(institutionId, actor.id)
+      : await getManagedDepartmentIds(institutionId, actor.id);
+    if (!departmentIds.length) {
+      conditions.push(Prisma.sql`FALSE`);
+    } else {
+      if (filters.departmentId && !departmentIds.includes(filters.departmentId)) {
+        throw new AppError("This department is outside your authorized scope", 403);
+      }
+      const departmentFilter = filters.departmentId
+        ? Prisma.sql`AND p."departmentId" = ${filters.departmentId}`
+        : Prisma.sql`AND p."departmentId" IN (${Prisma.join(departmentIds)})`;
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "student_enrollments" e
+        JOIN "programs" p
+          ON p."id" = e."programId"
+         AND p."institutionId" = ${institutionId}
+        WHERE e."institutionId" = ${institutionId}
+          AND e."userId" = i."studentId"
+          AND e."status" = 'ACTIVE'
+          ${departmentFilter}
+      )`);
+    }
+  } else if (isFinanceWide) {
+    if (filters.departmentId) {
+      const department = await prisma.department.findFirst({
+        where: { id: filters.departmentId, institutionId },
+        select: { id: true },
+      });
+      if (!department) throw new AppError("Department not found in this institution", 404);
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "student_enrollments" e
+        JOIN "programs" p
+          ON p."id" = e."programId"
+         AND p."institutionId" = ${institutionId}
+        WHERE e."institutionId" = ${institutionId}
+          AND e."userId" = i."studentId"
+          AND e."status" = 'ACTIVE'
+          AND p."departmentId" = ${filters.departmentId}
+      )`);
+    }
+  } else {
+    throw new AppError("Financial records are outside your active workspace", 403);
   }
 
   if (filters.status) conditions.push(Prisma.sql`i."status" = ${filters.status}`);
   if (filters.overdueOnly) {
-    conditions.push(
-      Prisma.sql`i."dueDate" < CURRENT_TIMESTAMP AND i."paidAmount" < i."amount" AND i."cancelledAt" IS NULL`
-    );
+    conditions.push(Prisma.sql`i."dueDate" < CURRENT_TIMESTAMP AND i."paidAmount" < (i."amount" + i."lateFeeAmount") AND i."cancelledAt" IS NULL`);
   }
   if (filters.search) {
     const like = `%${filters.search}%`;
-    conditions.push(
-      Prisma.sql`(i."title" ILIKE ${like} OR i."invoiceNumber" ILIKE ${like}
-        OR u."firstName" ILIKE ${like} OR u."lastName" ILIKE ${like})`
-    );
+    conditions.push(Prisma.sql`(i."title" ILIKE ${like} OR i."invoiceNumber" ILIKE ${like}
+      OR u."firstName" ILIKE ${like} OR u."lastName" ILIKE ${like})`);
   }
   const where = andWhere(conditions);
 
   const [items, totalRows, totals] = await Promise.all([
-    prisma.$queryRaw<
-      Array<InvoiceRow & { studentName: string; outstanding: number }>
-    >(Prisma.sql`
+    prisma.$queryRaw<Array<InvoiceRow & { studentName: string; outstanding: number }>>(Prisma.sql`
       SELECT i.*, u."firstName" || ' ' || u."lastName" AS "studentName",
              GREATEST(0, i."amount" + i."lateFeeAmount" - i."paidAmount")::float AS "outstanding"
       FROM "fee_invoices" i
@@ -843,9 +841,7 @@ export async function listInvoices(
       SELECT COUNT(*)::bigint AS "count"
       FROM "fee_invoices" i JOIN "users" u ON u."id" = i."studentId" ${where}
     `),
-    prisma.$queryRaw<
-      Array<{ billed: number | null; collected: number | null; outstanding: number | null }>
-    >(Prisma.sql`
+    prisma.$queryRaw<Array<{ billed: number | null; collected: number | null; outstanding: number | null }>>(Prisma.sql`
       SELECT SUM(i."amount" + i."lateFeeAmount")::float AS "billed",
              SUM(i."paidAmount")::float AS "collected",
              SUM(GREATEST(0, i."amount" + i."lateFeeAmount" - i."paidAmount"))::float AS "outstanding"
@@ -863,7 +859,6 @@ export async function listInvoices(
     },
   };
 }
-
 export async function getInvoice(
   institutionId: string,
   actor: AuthenticatedUser,
