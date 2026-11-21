@@ -110,17 +110,19 @@ test("Director financial records and payment aggregates retain institution, enro
   assert.ok(studentFinancialFilter.includes(campusEnrollmentPredicate), "financial aggregates must retain the same campus predicate");
 });
 
-test("refund decisions use an atomic state transition claim before financial posting", () => {
+test("legacy refund decisions are scope-checked and cannot settle funds", () => {
   const service = read("src/services/feeBilling.service.ts");
   const start = service.indexOf("export async function decideRefund(");
   const end = service.indexOf("\nexport async function listRefunds(", start);
   assert.ok(start >= 0 && end > start);
   const decide = service.slice(start, end);
-  assert.match(decide, /const validTransition\s*=/);
-  assert.match(decide, /refund\.status === "REQUESTED"[^;]*input\.status === "APPROVED"[^;]*input\.status === "REJECTED"/s);
-  assert.match(decide, /const claimed = await tx\.\$executeRaw[\s\S]*?AND "status" = \$\{refund\.status\}[\s\S]*?if \(claimed !== 1\)/);
-  assert.match(decide, /FROM "fee_payments"[\s\S]*?FOR UPDATE/);
-  assert.match(decide, /FROM "fee_invoices"[\s\S]*?FOR UPDATE/);
+  assert.match(decide, /await assertCanViewFinancialStudent\(institutionId, actor, refund\.studentId\)/);
+  assert.match(decide, /input\.status === "PROCESSED"/);
+  assert.match(decide, /Refund settlement must use the Finance settlement workflow/);
+  assert.match(decide, /AND "status" = 'REQUESTED'/);
+  assert.match(decide, /refund\.requestedById === actor\.id/);
+  assert.doesNotMatch(decide, /UPDATE "fee_payments"/);
+  assert.doesNotMatch(decide, /UPDATE "fee_invoices"/);
 });
 
 test("settled payment processing locks the invoice and rejects amounts over the outstanding balance", () => {
