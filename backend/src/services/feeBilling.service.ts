@@ -996,6 +996,9 @@ async function settlePayment(
     if (!invoice) {
       throw new AppError("Invoice was not found in this institution", 404);
     }
+    if (actor) {
+      await assertCanViewStudent(institutionId, actor, invoice.studentId);
+    }
     if (invoice.cancelledAt) {
       throw new AppError("This invoice has been cancelled", 409);
     }
@@ -1351,7 +1354,7 @@ export async function requestRefund(
       FROM "fee_refunds"
       WHERE "paymentId" = ${payment.id}
         AND "institutionId" = ${institutionId}
-        AND "status" IN ('REQUESTED', 'APPROVED', 'PROCESSED')
+        AND "status" IN ('REQUESTED', 'APPROVED')
     `);
     const reservedRefunds = Number(reservedRefundRows[0]?.total ?? 0);
     const refundable = round2(payment.amount - payment.refundedAmount - reservedRefunds);
@@ -1398,99 +1401,37 @@ export async function decideRefund(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanApproveMoney(actor);
-
   const refund = await requireTenantRow<{
     id: string;
     paymentId: string;
+    studentId: string;
     amount: number;
     status: string;
     requestedById: string;
   }>(prisma, "fee_refunds", institutionId, refundId, "Refund");
 
-  if (["PROCESSED", "REJECTED"].includes(refund.status)) {
-    throw new AppError("This refund has already been finalised", 409);
+  await assertCanViewStudent(institutionId, actor, refund.studentId);
+  if (input.status === "PROCESSED") {
+    throw new AppError(`Refund settlement must use the Finance settlement workflow after the funds have actually been returned`, 409);
   }
-  const validTransition =
-    (refund.status === "REQUESTED" && (input.status === "APPROVED" || input.status === "REJECTED")) ||
-    (refund.status === "APPROVED" && (input.status === "PROCESSED" || input.status === "REJECTED"));
-  if (!validTransition) {
+  if (refund.status !== "REQUESTED" || !["APPROVED", "REJECTED"].includes(input.status)) {
     throw new AppError("Invalid refund state transition", 409);
   }
-  if (refund.requestedById === actor.id && !isInstitutionWide(actor)) {
-    throw new AppError(
-      "A refund cannot be approved by the person who raised it",
-      403
-    );
+  if (refund.requestedById === actor.id) {
+    throw new AppError("A refund cannot be approved or rejected by the person who raised it", 403);
   }
 
-  await prisma.$transaction(async (tx) => {
-    const claimed = await tx.$executeRaw`
-      UPDATE "fee_refunds"
-      SET "status" = ${input.status}, "approvedById" = ${actor.id},
-          "reference" = ${input.reference ?? null},
-          "processedById" = CASE WHEN ${input.status} = 'PROCESSED' THEN ${actor.id} ELSE NULL END,
-          "processedAt" = CASE WHEN ${input.status} = 'PROCESSED'
-            THEN CURRENT_TIMESTAMP ELSE NULL END
-      WHERE "id" = ${refundId}
-        AND "institutionId" = ${institutionId}
-        AND "status" = ${refund.status}
-    `;
-    if (claimed !== 1) {
-      throw new AppError("Refund state changed; reload before retrying", 409);
-    }
-
-    if (input.status !== "PROCESSED") return;
-
-    const payments = await tx.$queryRaw<
-      Array<{ id: string; invoiceId: string; amount: number; refundedAmount: number }>
-    >(Prisma.sql`
-      SELECT "id", "invoiceId", "amount", "refundedAmount"
-      FROM "fee_payments"
-      WHERE "id" = ${refund.paymentId} AND "institutionId" = ${institutionId}
-      FOR UPDATE
-    `);
-    const payment = payments[0];
-    if (!payment) throw new AppError("Payment was not found", 404);
-
-    const newRefunded = round2(payment.refundedAmount + refund.amount);
-    if (newRefunded > payment.amount + 0.009) {
-      throw new AppError("Refund exceeds the original payment", 409);
-    }
-
-    await tx.$executeRaw`
-      UPDATE "fee_payments"
-      SET "refundedAmount" = ${newRefunded},
-          "status" = ${newRefunded >= payment.amount - 0.009 ? "REFUNDED" : "PARTIALLY_REFUNDED"}
-      WHERE "id" = ${payment.id}
-    `;
-
-    const invoices = await tx.$queryRaw<InvoiceRow[]>(Prisma.sql`
-      SELECT * FROM "fee_invoices"
-      WHERE "id" = ${payment.invoiceId} AND "institutionId" = ${institutionId}
-      FOR UPDATE
-    `);
-    const invoice = invoices[0];
-    if (!invoice) throw new AppError("Invoice was not found", 404);
-
-    const paidAmount = round2(Math.max(0, invoice.paidAmount - refund.amount));
-    const refundedAmount = round2(invoice.refundedAmount + refund.amount);
-
-    await tx.$executeRaw`
-      UPDATE "fee_invoices"
-      SET "paidAmount" = ${paidAmount}, "refundedAmount" = ${refundedAmount},
-          "status" = ${paidAmount <= 0 ? "PENDING" : "PARTIALLY_PAID"}
-      WHERE "id" = ${invoice.id}
-    `;
-
-    await tx.notification.create({
-      data: {
-        institutionId,
-        userId: invoice.studentId,
-        title: "Refund processed",
-        body: `A refund of ${refund.amount.toFixed(2)} has been processed.`,
-      },
-    });
-  });
+  const claimed = await prisma.$executeRaw`
+    UPDATE "fee_refunds"
+    SET "status" = ${input.status},
+        "approvedById" = ${actor.id},
+        "reference" = ${input.reference ?? null},
+        "approvedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${refundId}
+      AND "institutionId" = ${institutionId}
+      AND "status" = 'REQUESTED'
+  `;
+  if (claimed !== 1) throw new AppError("Refund state changed; reload before retrying", 409);
 
   await recordAuditLog({
     institutionId,
@@ -1501,56 +1442,8 @@ export async function decideRefund(
     metadata: { amount: refund.amount, reference: input.reference },
     ...meta,
   });
-
   return requireTenantRow(prisma, "fee_refunds", institutionId, refundId, "Refund");
 }
-
-export async function listRefunds(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  pagination: PaginationParams,
-  filters: { status?: string }
-) {
-  assertCanManageFees(actor);
-  assertCanReadBillingDesk(actor);
-  const conditions: Prisma.Sql[] = [
-    Prisma.sql`r."institutionId" = ${institutionId}`,
-  ];
-  await addBillingStudentScopeCondition(conditions, "r", institutionId, actor);
-  if (filters.status) conditions.push(Prisma.sql`r."status" = ${filters.status}`);
-  const where = andWhere(conditions);
-
-  const [items, totalRows] = await Promise.all([
-    prisma.$queryRaw<
-      Array<{
-        id: string;
-        amount: number;
-        reason: string;
-        status: string;
-        createdAt: Date;
-        receiptNumber: string | null;
-        studentName: string;
-      }>
-    >(Prisma.sql`
-      SELECT r."id", r."amount", r."reason", r."status", r."reference",
-             r."createdAt", r."processedAt", p."receiptNumber",
-             u."firstName" || ' ' || u."lastName" AS "studentName"
-      FROM "fee_refunds" r
-      JOIN "fee_payments" p ON p."id" = r."paymentId"
-      JOIN "fee_invoices" i ON i."id" = p."invoiceId"
-      JOIN "users" u ON u."id" = i."studentId"
-      ${where}
-      ORDER BY r."createdAt" DESC
-      LIMIT ${pagination.take} OFFSET ${pagination.skip}
-    `),
-    prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS "count" FROM "fee_refunds" r ${where}
-    `),
-  ]);
-
-  return { items, total: Number(totalRows[0]?.count ?? 0) };
-}
-
 // ==========================================================
 // RECONCILIATION
 // ==========================================================
