@@ -7,6 +7,7 @@ import { andWhere } from "../utils/sqlScope";
 import {
   getManagedDepartmentIds,
   getDirectorDepartmentIds,
+  getEffectiveWorkspaceRole,
   isInstitutionWide,
   isDirectorScoped,
 } from "./accessScope.service";
@@ -207,17 +208,15 @@ export async function searchUsers(
   roles?: string[]
 ): Promise<DirectoryOption[]> {
   if (!actor.permissions.includes("users.read")) {
-    throw new AppError(
-      "You are not authorized to look up users",
-      403
-    );
+    throw new AppError("You are not authorized to look up users", 403);
   }
 
   const like = requireSearch(search);
-
+  const activeRole = getEffectiveWorkspaceRole(actor);
   const conditions: Prisma.Sql[] = [
-    Prisma.sql`u."institutionId" = ${institutionId}`,
+    Prisma.sql`u."institutionId" = ${institutionId}` ,
     Prisma.sql`u."isActive" = TRUE`,
+    Prisma.sql`u."deletedAt" IS NULL`,
     Prisma.sql`(
       u."firstName" ILIKE ${like}
       OR u."lastName" ILIKE ${like}
@@ -225,63 +224,98 @@ export async function searchUsers(
     )`,
   ];
 
-  if (roles && roles.length > 0) {
-    conditions.push(
-      Prisma.sql`EXISTS (
-        SELECT 1
-        FROM "user_roles" ur
-        JOIN "roles" r
-          ON r."id" = ur."roleId"
-        WHERE ur."userId" = u."id"
-          AND r."name" IN (${Prisma.join(roles)})
-      )`
-    );
+  if (!isInstitutionWide(actor)) {
+    if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+      const scopedDepartments = await getDirectorDepartmentIds(institutionId, actor.id);
+      if (!scopedDepartments.length) return [];
+      conditions.push(Prisma.sql`(
+        EXISTS (
+          SELECT 1 FROM "student_enrollments" e
+          JOIN "programs" p ON p."id" = e."programId" AND p."institutionId" = ${institutionId}
+          WHERE e."institutionId" = ${institutionId} AND e."userId" = u."id"
+            AND e."status" = 'ACTIVE' AND p."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+        OR EXISTS (
+          SELECT 1 FROM "employee_profiles" ep
+          WHERE ep."institutionId" = ${institutionId} AND ep."userId" = u."id"
+            AND ep."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+        OR EXISTS (
+          SELECT 1 FROM "course_offerings" co
+          JOIN "courses" c ON c."id" = co."courseId" AND c."institutionId" = ${institutionId}
+          WHERE co."institutionId" = ${institutionId} AND co."facultyId" = u."id"
+            AND co."isActive" = TRUE AND c."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+      )`);
+    } else if (activeRole === "DEAN" || activeRole === "HOD") {
+      const scopedDepartments = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
+      if (!scopedDepartments.length) return [];
+      conditions.push(Prisma.sql`(
+        EXISTS (
+          SELECT 1 FROM "student_enrollments" e
+          JOIN "programs" p ON p."id" = e."programId" AND p."institutionId" = ${institutionId}
+          WHERE e."institutionId" = ${institutionId} AND e."userId" = u."id"
+            AND e."status" = 'ACTIVE' AND p."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+        OR EXISTS (
+          SELECT 1 FROM "employee_profiles" ep
+          WHERE ep."institutionId" = ${institutionId} AND ep."userId" = u."id"
+            AND ep."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+        OR EXISTS (
+          SELECT 1 FROM "course_offerings" co
+          JOIN "courses" c ON c."id" = co."courseId" AND c."institutionId" = ${institutionId}
+          WHERE co."institutionId" = ${institutionId} AND co."facultyId" = u."id"
+            AND co."isActive" = TRUE AND c."departmentId" IN (${Prisma.join(scopedDepartments)})
+        )
+      )`);
+    } else if (activeRole === "HR" || activeRole === "EXAMINATION") {
+      // Specialist workspaces may search staff for their operational workflows,
+      // but a secondary users.read grant does not expose the full user directory.
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "employee_profiles" ep
+        WHERE ep."institutionId" = ${institutionId} AND ep."userId" = u."id"
+      )`);
+    } else {
+      return [];
+    }
   }
 
-  const rows = await prisma.$queryRaw<
-    Array<{
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      roleNames: string | null;
-    }>
-  >(Prisma.sql`
-    SELECT
-      u."id",
-      u."firstName",
-      u."lastName",
-      u."email",
+  if (roles && roles.length > 0) {
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1
+      FROM "user_roles" ur
+      JOIN "roles" r ON r."id" = ur."roleId"
+      WHERE ur."userId" = u."id" AND r."name" IN (${Prisma.join(roles)})
+    )`);
+  }
+
+  const rows = await prisma.$queryRaw<Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    roleNames: string | null;
+  }>>(Prisma.sql`
+    SELECT u."id", u."firstName", u."lastName", u."email",
       (
-        SELECT STRING_AGG(
-          r."name",
-          ', '
-        )
+        SELECT STRING_AGG(r."name", ', ')
         FROM "user_roles" ur
-        JOIN "roles" r
-          ON r."id" = ur."roleId"
+        JOIN "roles" r ON r."id" = ur."roleId"
         WHERE ur."userId" = u."id"
       ) AS "roleNames"
     FROM "users" u
     ${andWhere(conditions)}
-    ORDER BY
-      u."firstName" ASC,
-      u."lastName" ASC
+    ORDER BY u."firstName" ASC, u."lastName" ASC
     LIMIT ${MAX_RESULTS}
   `);
 
   return rows.map((row) => ({
     id: row.id,
     label: `${row.firstName} ${row.lastName}`,
-    hint: [
-      row.email,
-      row.roleNames,
-    ]
-      .filter(Boolean)
-      .join(" · "),
+    hint: [row.email, row.roleNames].filter(Boolean).join(" · "),
   }));
 }
-
 /**
  * Course offerings within the caller's academic scope.
  *
