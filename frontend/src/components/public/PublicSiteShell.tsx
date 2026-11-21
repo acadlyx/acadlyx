@@ -97,7 +97,9 @@ function merge(base: any, incoming: any): any {
 export function PublicSiteShell({ children, onLogin }: { children: ReactNode; onLogin?: () => void }) {
   const content = usePublicSiteContent();
   const [mobileNav, setMobileNav] = useState(false);
-  if (!content._ready) return <main className="public-site min-h-screen bg-white" aria-busy="true" />;\n\n  const navigation = (content.navigation || fallback.navigation).filter((item) =>
+  if (!content._ready) return <main className="public-site min-h-screen bg-white" aria-busy="true" />;
+
+  const navigation = (content.navigation || fallback.navigation).filter((item) =>
     ["/", "/about", "/contact"].includes(item.href),
   );
 
