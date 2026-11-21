@@ -38,7 +38,7 @@ function assertManage(actor: AuthenticatedUser) {
   if (!actor.permissions.includes("site.manage")) throw new AppError("Institutional CMS permission is required", 403);
 }
 function canApprove(actor: AuthenticatedUser) {
-  return actor.roles.some(role => ["CHAIRMAN", "DIRECTOR", "MANAGEMENT"].includes(role));
+  return actor.permissions.includes("site.approve");
 }
 function assertApprovalAuthority(actor: AuthenticatedUser) {
   if (!canApprove(actor)) throw new AppError("Institutional CMS approval authority is required", 403);
