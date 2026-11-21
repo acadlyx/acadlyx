@@ -73,3 +73,16 @@ export function isWithdrawalRequestAllowed(
   );
   return normalWindowOpen || exceptionalWindowOpen;
 }
+
+export const REGISTRATION_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
+  REQUESTED: ["APPROVED", "REJECTED", "NEEDS_CORRECTION", "DROPPED"],
+  NEEDS_CORRECTION: ["REQUESTED"],
+  APPROVED: ["WITHDRAWN"],
+  REJECTED: [],
+  DROPPED: [],
+  WITHDRAWN: [],
+};
+
+export function canTransitionRegistrationState(from: string, to: string): boolean {
+  return REGISTRATION_TRANSITIONS[from]?.includes(to) ?? false;
+}

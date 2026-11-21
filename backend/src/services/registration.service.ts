@@ -20,6 +20,7 @@ import {
   REGISTRATION_SEAT_RESERVING_STATUSES,
   canStudentCancelRegistration,
   canStudentResubmitRegistration,
+  canTransitionRegistrationState,
   isRegistrationAllowed,
   isAddDropAllowed,
   isWithdrawalRequestAllowed,
@@ -387,7 +388,7 @@ export async function register(
       },
     });
 
-    if (existing && !canStudentResubmitRegistration(existing.status)) {
+    if (existing && (!canStudentResubmitRegistration(existing.status) || !canTransitionRegistrationState(existing.status, "REQUESTED"))) {
       if (["REQUESTED", "APPROVED"].includes(existing.status)) {
         throw new AppError("Already registered for this course offering", 409);
       }
@@ -590,8 +591,8 @@ export async function decide(
     include,
   });
   if (!existing) throw new AppError("Registration not found", 404);
-  if (existing.status !== "REQUESTED") {
-    throw new AppError("Only pending registrations can be decided", 409);
+  if (!canTransitionRegistrationState(existing.status, decision)) {
+    throw new AppError("This registration state does not permit the requested decision", 409);
   }
   await assertApproverScope(
     institutionId,

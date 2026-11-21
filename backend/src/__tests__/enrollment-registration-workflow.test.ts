@@ -8,6 +8,7 @@ import {
   canStudentResubmitRegistration,
   hasCapacityForReservations,
   isSeatReservingRegistrationStatus,
+  canTransitionRegistrationState,
   isRegistrationAllowed,
   isAddDropAllowed,
   isWithdrawalRequestAllowed,
@@ -92,4 +93,17 @@ test("formal withdrawal requires a configured normal or exceptional window", () 
     exceptionalWithdrawalEndsAt: new Date("2026-06-12T00:00:00.000Z"),
   }), true);
   assert.equal(isWithdrawalRequestAllowed(new Date("2026-06-11T00:00:00.000Z"), {}), false);
+});
+
+test("registration transition matrix rejects silent reactivation and invalid decisions", () => {
+  assert.equal(canTransitionRegistrationState("REQUESTED", "APPROVED"), true);
+  assert.equal(canTransitionRegistrationState("REQUESTED", "REJECTED"), true);
+  assert.equal(canTransitionRegistrationState("REQUESTED", "NEEDS_CORRECTION"), true);
+  assert.equal(canTransitionRegistrationState("REQUESTED", "DROPPED"), true);
+  assert.equal(canTransitionRegistrationState("NEEDS_CORRECTION", "REQUESTED"), true);
+  assert.equal(canTransitionRegistrationState("APPROVED", "WITHDRAWN"), true);
+  assert.equal(canTransitionRegistrationState("APPROVED", "DROPPED"), false);
+  assert.equal(canTransitionRegistrationState("DROPPED", "REQUESTED"), false);
+  assert.equal(canTransitionRegistrationState("REJECTED", "REQUESTED"), false);
+  assert.equal(canTransitionRegistrationState("WITHDRAWN", "REQUESTED"), false);
 });
