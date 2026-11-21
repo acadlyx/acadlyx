@@ -262,6 +262,13 @@ export async function register(
         AND "institutionId" = ${institutionId}
       FOR UPDATE
     `);
+    // Serialize each student's semester credit checks across different offerings.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" = ${studentId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
 
     const offering = await tx.courseOffering.findFirst({
       where: { id: input.courseOfferingId, institutionId, isActive: true },
@@ -381,7 +388,7 @@ export async function register(
     return { registration: saved, previousState: existing?.status ?? null };
   });
 
-    const departmentId = registration.courseOffering.course.departmentId;
+  const departmentId = registration.courseOffering.course.departmentId;
   const hods = await prisma.employeeProfile.findMany({ where: { institutionId, departmentId, status: "ACTIVE", user: { userRoles: { some: { role: { name: "HOD", institutionId } } } } }, select: { userId: true } });
   await Promise.all(hods.map((hod) => notifyUser(institutionId, hod.userId, "New course registration request", "A student submitted a course registration request for your department.", "/hod/course-registration-requests")));
 
@@ -793,7 +800,11 @@ export async function bulkAssignCourses(
         firstName: true,
         lastName: true,
         studentEnrollments: {
-          where: { institutionId, status: "ACTIVE" },
+          where: {
+            institutionId,
+            status: "ACTIVE",
+            academicYear: { isCurrent: true },
+          },
           orderBy: { enrolledAt: "desc" },
           take: 1,
           select: {
@@ -885,6 +896,15 @@ export async function bulkAssignCourses(
       SELECT "id" FROM "course_offerings"
       WHERE "institutionId" = ${institutionId}
         AND "id" IN (${Prisma.join(courseOfferingIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
+    // Match the student-row lock used by self-service registration so
+    // bulk assignment cannot race an individual semester credit check.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "institutionId" = ${institutionId}
+        AND "id" IN (${Prisma.join(studentIds)})
       ORDER BY "id"
       FOR UPDATE
     `);

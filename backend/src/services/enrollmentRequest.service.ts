@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { AuthenticatedUser } from "../types/auth";
@@ -210,7 +211,7 @@ export async function submitEnrollmentRequest(
 
   await validateRequestContext(institutionId, input);
 
-  let request: import("@prisma/client").StudentEnrollmentRequestGetPayload<{ include: typeof requestInclude }> | null = null;
+  let request: Prisma.StudentEnrollmentRequestGetPayload<{ include: typeof requestInclude }> | null = null;
   if (existing) {
     const changed = await prisma.studentEnrollmentRequest.updateMany({
       where: {
@@ -362,7 +363,7 @@ async function decideOne(
       throw new AppError("This enrollment request has already been decided by another action", 409);
     }
 
-    let enrollment = null;
+    let enrollmentId: string | null = null;
     if (decision === "APPROVED") {
       const existingEnrollment = await tx.studentEnrollment.findUnique({
         where: {
@@ -388,7 +389,7 @@ async function decideOne(
       });
       if (activeCurrent) throw new AppError("Student already has an active current-year enrollment", 409);
 
-      enrollment = await tx.studentEnrollment.create({
+      const enrollment = await tx.studentEnrollment.create({
         data: {
           institutionId,
           userId: existing.studentId,
@@ -399,6 +400,7 @@ async function decideOne(
           status: "ACTIVE",
         },
       });
+      enrollmentId = enrollment.id;
     }
 
     const updated = await tx.studentEnrollmentRequest.findFirst({
@@ -406,7 +408,7 @@ async function decideOne(
       include: requestInclude,
     });
     if (!updated) throw new AppError("Enrollment request not found after decision", 404);
-    return { updated, enrollment };
+    return { updated, enrollmentId };
   });
 
   await notify(
@@ -435,7 +437,7 @@ async function decideOne(
       newState: decision,
       studentId: existing.studentId,
       reason: reason ?? null,
-      enrollmentId: result.enrollment?.id ?? null,
+      enrollmentId: result.enrollmentId,
     },
   });
   return result.updated;
@@ -454,19 +456,18 @@ export async function bulkDecideEnrollmentRequests(
 ) {
   if (!actor.permissions.includes("enrollment.approve") || actor.roles.includes("STUDENT")) throw new AppError("You are not authorized to approve enrollment requests", 403);
   const unique = [...new Set(ids)];
-  const results: { id: string; status: "APPROVED" | "SKIPPED" | "FAILED"; reason?: string }[] = [];
+  const results: { id: string; status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED"; reason?: string }[] = [];
   for (const id of unique) {
     try {
-      const updated = await decideOne(institutionId, actor, id, decision, reason);
-      results.push({ id, status: "APPROVED" });
-      void updated;
+      await decideOne(institutionId, actor, id, decision, reason);
+      results.push({ id, status: decision });
     } catch (error) {
       results.push({ id, status: "SKIPPED", reason: error instanceof Error ? error.message : "Unable to process request" });
     }
   }
   return {
     requested: unique.length,
-    processed: results.filter((r) => r.status === "APPROVED").length,
+    processed: results.filter((r) => r.status !== "SKIPPED").length,
     skipped: results.filter((r) => r.status === "SKIPPED").length,
     results,
   };
