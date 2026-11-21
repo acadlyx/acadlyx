@@ -145,6 +145,7 @@ model Institution {
   libraryLoanRenewals LibraryLoanRenewal[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
+  courseWithdrawalRequests CourseWithdrawalRequest[]
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
@@ -314,6 +315,8 @@ model User {
   libraryIssues LibraryIssue[] @relation("LibraryBorrower")
   libraryFines LibraryFine[] @relation("LibraryFineStudent")
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
+  courseWithdrawalRequests CourseWithdrawalRequest[] @relation("CourseWithdrawalRequestStudent")
+  courseWithdrawalRequestsDecided CourseWithdrawalRequest[] @relation("CourseWithdrawalRequestDecidedBy")
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
   enrollmentRequestsRequested StudentEnrollmentRequest[] @relation("EnrollmentRequestRequester")
   enrollmentRequestsDecided StudentEnrollmentRequest[] @relation("EnrollmentRequestDecider")
@@ -588,6 +591,15 @@ model AcademicYear {
   startDate DateTime
   endDate   DateTime
   isCurrent Boolean  @default(false)
+
+  /// Server-enforced student registration calendar for this academic year.
+  registrationOpensAt DateTime?
+  registrationClosesAt DateTime?
+  addDropDeadline DateTime?
+  withdrawalDeadline DateTime?
+  exceptionalWithdrawalAllowed Boolean @default(false)
+  exceptionalWithdrawalStartsAt DateTime?
+  exceptionalWithdrawalEndsAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2435,8 +2447,9 @@ model CourseRegistration {
   student          User           @relation("RegistrationStudent", fields: [studentId], references: [id], onDelete: Cascade)
   courseOfferingId String
   courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
-  /// REQUESTED | APPROVED | REJECTED | DROPPED
+  /// REQUESTED | APPROVED | REJECTED | DROPPED | WITHDRAWN
   status           String         @default("REQUESTED")
+  withdrawalRequests CourseWithdrawalRequest[]
   decidedById      String?
   decidedAt        DateTime?
   remarks          String?
@@ -2448,6 +2461,33 @@ model CourseRegistration {
   @@index([studentId, status])
   @@index([courseOfferingId])
   @@map("course_registrations")
+}
+
+model CourseWithdrawalRequest {
+  id             String            @id @default(uuid())
+  institutionId  String
+  institution    Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  registrationId String
+  registration   CourseRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        User              @relation("CourseWithdrawalRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  attemptNumber  Int
+  reason         String
+  /// PENDING | APPROVED | REJECTED
+  status         String            @default("PENDING")
+  requestedAt    DateTime          @default(now())
+  decidedById    String?
+  decidedBy      User?             @relation("CourseWithdrawalRequestDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([registrationId, attemptNumber])
+  @@index([institutionId, status, requestedAt])
+  @@index([registrationId, status])
+  @@index([studentId, status])
+  @@map("course_withdrawal_requests")
 }
 
 model StudentMovementRequest {
