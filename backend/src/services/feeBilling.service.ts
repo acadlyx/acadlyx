@@ -420,6 +420,18 @@ export async function generateInvoicesFromStructure(
     if (structure.semesterId) {
       conditions.push(Prisma.sql`e."semesterId" = ${structure.semesterId}`);
     }
+    if (getEffectiveWorkspaceRole(actor) === "DIRECTOR" && isDirectorScoped(actor)) {
+      const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+      if (!allowedDepartmentIds.length) {
+        throw new AppError("You have no campus scope assigned for fee assignment", 403);
+      }
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "programs" p
+        WHERE p."id" = e."programId"
+          AND p."institutionId" = ${institutionId}
+          AND p."departmentId" IN (${Prisma.join(allowedDepartmentIds)})
+      )`);
+    }
     const rows = await prisma.$queryRaw<{ userId: string }[]>(Prisma.sql`
       SELECT DISTINCT e."userId" FROM "student_enrollments" e
       ${andWhere(conditions)}
@@ -432,10 +444,33 @@ export async function generateInvoicesFromStructure(
       where: { institutionId, id: { in: studentIds }, isActive: true, userRoles: { some: { role: { name: "STUDENT" } } } },
     });
     if (valid !== studentIds.length) {
-      throw new AppError(
-        "One or more students are not in this institution",
-        404
-      );
+      throw new AppError("One or more students are not valid members of this institution", 404);
+    }
+
+    const enrollmentWhere: Prisma.StudentEnrollmentWhereInput = {
+      institutionId,
+      userId: { in: studentIds },
+      status: "ACTIVE",
+      ...(structure.academicYearId ? { academicYearId: structure.academicYearId } : {}),
+      ...(structure.programId ? { programId: structure.programId } : {}),
+      ...(structure.semesterId ? { semesterId: structure.semesterId } : {}),
+    };
+    if (getEffectiveWorkspaceRole(actor) === "DIRECTOR" && isDirectorScoped(actor)) {
+      const allowedDepartmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+      if (!allowedDepartmentIds.length) {
+        throw new AppError("You have no campus scope assigned for fee assignment", 403);
+      }
+      enrollmentWhere.program = { departmentId: { in: allowedDepartmentIds } };
+    }
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: enrollmentWhere,
+      select: { userId: true },
+      distinct: ["userId"],
+    });
+    const eligibleStudents = new Set(enrollments.map((row) => row.userId));
+    const ineligibleStudentIds = studentIds.filter((studentId) => !eligibleStudents.has(studentId));
+    if (ineligibleStudentIds.length) {
+      throw new AppError(`Every selected student must have an active enrollment matching this fee structure and your authorized campus scope`, 403);
     }
   }
 
