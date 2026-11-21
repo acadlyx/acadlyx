@@ -59,6 +59,28 @@ function assertCanReadBillingDesk(actor: AuthenticatedUser): void {
   throw new AppError("Financial records are outside your active workspace", 403);
 }
 
+async function assertCanViewFinancialStudent(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  studentId: string,
+): Promise<void> {
+  // Accounts/Management/Registrar/Chairman have institution-wide financial
+  // scope, but the target must still be a real student in this tenant.
+  if (isInstitutionWideFinance(actor)) {
+    const student = await prisma.user.findFirst({
+      where: {
+        id: studentId,
+        institutionId,
+        userRoles: { some: { role: { name: "STUDENT" } } },
+      },
+      select: { id: true },
+    });
+    if (!student) throw new AppError("Student not found in this institution", 404);
+    return;
+  }
+  await assertCanViewStudent(institutionId, actor, studentId);
+}
+
 async function addBillingStudentScopeCondition(
   conditions: Prisma.Sql[],
   alias: "c" | "r",
@@ -149,7 +171,7 @@ export async function listConcessions(
     Prisma.sql`c."institutionId" = ${institutionId}`,
   ];
   if (filters.studentId) {
-    await assertCanViewStudent(institutionId, actor, filters.studentId);
+    await assertCanViewFinancialStudent(institutionId, actor, filters.studentId);
     conditions.push(Prisma.sql`c."studentId" = ${filters.studentId}`);
   } else {
     assertCanReadBillingDesk(actor);
@@ -204,7 +226,7 @@ export async function createConcession(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanManageFees(actor);
-  await assertCanViewStudent(institutionId, actor, input.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, input.studentId);
 
   if (!input.amount && !input.percentage) {
     throw new AppError("Provide either an amount or a percentage", 400);
@@ -279,7 +301,7 @@ export async function decideConcession(
     studentId: string;
     requestedById: string;
   }>(prisma, "fee_concessions", institutionId, concessionId, "Concession");
-  await assertCanViewStudent(institutionId, actor, concession.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, concession.studentId);
 
   if (concession.status !== "PENDING") {
     throw new AppError("This concession has already been decided", 409);
@@ -756,7 +778,7 @@ export async function listInvoices(
   const isFinanceWide = activeRole === "CHAIRMAN" || isInstitutionWideFinance(actor);
 
   if (filters.studentId) {
-    await assertCanViewStudent(institutionId, actor, filters.studentId);
+    await assertCanViewFinancialStudent(institutionId, actor, filters.studentId);
     conditions.push(Prisma.sql`i."studentId" = ${filters.studentId}`);
   } else if (activeRole === "STUDENT") {
     conditions.push(Prisma.sql`i."studentId" = ${actor.id}`);
@@ -871,7 +893,7 @@ export async function getInvoice(
     invoiceId,
     "Invoice"
   );
-  await assertCanViewStudent(institutionId, actor, invoice.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
 
   const payments = await prisma.$queryRaw<
     Array<{
@@ -919,7 +941,7 @@ export async function cancelInvoice(
     const current = rows[0];
     if (!current) throw new AppError("Invoice was not found in this institution", 404);
 
-    await assertCanViewStudent(institutionId, actor, current.studentId);
+    await assertCanViewFinancialStudent(institutionId, actor, current.studentId);
     if (current.paidAmount > 0) {
       throw new AppError("An invoice with payments cannot be cancelled. Refund the payments first.", 409);
     }
@@ -992,7 +1014,7 @@ async function settlePayment(
       throw new AppError("Invoice was not found in this institution", 404);
     }
     if (actor) {
-      await assertCanViewStudent(institutionId, actor, invoice.studentId);
+      await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
     }
     if (invoice.cancelledAt) {
       throw new AppError("This invoice has been cancelled", 409);
@@ -1137,7 +1159,7 @@ export async function createPaymentOrder(
     invoiceId,
     "Invoice"
   );
-  await assertCanViewStudent(institutionId, actor, invoice.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
 
   const outstanding = outstandingOf(invoice);
   if (outstanding <= 0) {
@@ -1175,7 +1197,7 @@ export async function confirmPaymentOrder(
     input.invoiceId,
     "Invoice"
   );
-  await assertCanViewStudent(institutionId, actor, invoice.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
 
   const gateway = getPaymentGateway();
   const verification = await gateway.verifyCallback({
@@ -1266,7 +1288,7 @@ export async function getReceipt(
     payment.invoiceId,
     "Invoice"
   );
-  await assertCanViewStudent(institutionId, actor, invoice.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
 
   const student = await prisma.user.findUniqueOrThrow({
     where: { id: invoice.studentId },
@@ -1342,7 +1364,7 @@ export async function requestRefund(
       payment.invoiceId,
       "Invoice"
     );
-    await assertCanViewStudent(institutionId, actor, invoice.studentId);
+    await assertCanViewFinancialStudent(institutionId, actor, invoice.studentId);
 
     const reservedRefundRows = await tx.$queryRaw<Array<{ total: number | null }>>(Prisma.sql`
       SELECT COALESCE(SUM("amount"), 0)::float AS "total"
@@ -1405,7 +1427,7 @@ export async function decideRefund(
     requestedById: string;
   }>(prisma, "fee_refunds", institutionId, refundId, "Refund");
 
-  await assertCanViewStudent(institutionId, actor, refund.studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, refund.studentId);
   if (input.status === "PROCESSED") {
     throw new AppError(`Refund settlement must use the Finance settlement workflow after the funds have actually been returned`, 409);
   }
@@ -1634,7 +1656,7 @@ export async function getStudentFeeSummary(
   actor: AuthenticatedUser,
   studentId: string
 ) {
-  await assertCanViewStudent(institutionId, actor, studentId);
+  await assertCanViewFinancialStudent(institutionId, actor, studentId);
 
   const invoices = await prisma.$queryRaw<
     Array<InvoiceRow & { outstanding: number }>
