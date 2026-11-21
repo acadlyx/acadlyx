@@ -76,3 +76,18 @@ test("administrative password reset never returns emailed reset credentials", ()
   assert.match(adminIssue, /return env\.emailProvider === "disabled"/);
   assert.match(adminIssue, /\?\s*issue\s*:\s*\{ expiresAt: issue\.expiresAt \}/);
 });
+
+
+test("HR account-security administration is restricted to employee records", () => {
+  const source = readFileSync(join(process.cwd(), "src/services/accountSecurity.service.ts"), "utf8");
+  const start = source.indexOf("async function assertAdminSecurityTargetScope(");
+  const end = source.indexOf("\nexport async function unlockAccount(", start);
+  assert.ok(start >= 0 && end > start);
+  const guard = source.slice(start, end);
+  assert.match(guard, /getEffectiveWorkspaceRole\(actor\)/);
+  assert.match(guard, /activeRole === "INSTITUTION_ADMIN" && isInstitutionWide\(actor\)/);
+  assert.match(guard, /activeRole === "HR"/);
+  assert.match(guard, /employeeProfile: \{ isNot: null \}/);
+  assert.match(guard, /HR account security actions are limited to employee records/);
+  assert.match(source, /assertAdminSecurityTargetScope\(institutionId, actor, userId\)/g);
+});
