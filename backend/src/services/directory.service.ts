@@ -248,7 +248,7 @@ export async function searchUsers(
         )
       )`);
     } else if (activeRole === "DEAN" || activeRole === "HOD") {
-      const scopedDepartments = await getManagedDepartmentIds(institutionId, actor.id, activeRole);
+      const scopedDepartments = await getManagedDepartmentIds(institutionId, actor.id);
       if (!scopedDepartments.length) return [];
       conditions.push(Prisma.sql`(
         EXISTS (
