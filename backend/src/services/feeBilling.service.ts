@@ -25,7 +25,6 @@ import {
 import { recordAuditLog } from "./audit.service";
 import { assertFeeApprovalAuthority } from "./workflowAuthority.service";
 import { getPaymentGateway, paymentCurrency } from "./payments/gateway";
-import { getCanonicalRoleNames } from "../config/rbac";
 
 /**
  * Fee billing.
