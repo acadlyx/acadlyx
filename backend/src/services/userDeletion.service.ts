@@ -624,13 +624,11 @@ export async function requestPermanentDeletion(
         id,
         institution_id,
         target_user_id,
-        target_first_name,
-        target_last_name,
+        target_name,
         target_email,
         target_role,
         requester_user_id,
-        requester_first_name,
-        requester_last_name,
+        requester_name,
         requester_email,
         requester_role,
         requester_rank,
@@ -644,13 +642,11 @@ export async function requestPermanentDeletion(
         ${id}::uuid,
         ${target.institutionId}::uuid,
         ${target.id}::uuid,
-        ${target.firstName},
-        ${target.lastName},
+        ${[target.firstName, target.lastName].filter(Boolean).join(" ")},
         ${target.email},
         ${targetRoleName},
         ${actorRecord.id}::uuid,
-        ${actorRecord.firstName},
-        ${actorRecord.lastName},
+        ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
         ${actorRecord.email},
         ${requesterRole},
         ${requesterRank},
@@ -717,26 +713,31 @@ export async function requestPermanentDeletion(
   };
 }
 
+function splitDisplayName(value: string): { firstName: string; lastName: string } {
+  const normalized = value.trim().replace(/\\s+/g, " ");
+  const separator = normalized.indexOf(" ");
+  return separator < 0
+    ? { firstName: normalized, lastName: "" }
+    : { firstName: normalized.slice(0, separator), lastName: normalized.slice(separator + 1) };
+}
+
 function mapRequest(
   row: {
     id: string;
     institution_id: string | null;
     target_user_id: string | null;
 
-    target_first_name: string;
-    target_last_name: string;
+    target_name: string;
     target_email: string;
     target_role: string;
 
     requester_user_id: string | null;
-    requester_first_name: string;
-    requester_last_name: string;
+    requester_name: string;
     requester_email: string;
     requester_role: string;
 
     approver_user_id: string | null;
-    approver_first_name: string | null;
-    approver_last_name: string | null;
+    approver_name: string | null;
     approver_email: string | null;
     approver_role: string | null;
 
@@ -765,11 +766,9 @@ function mapRequest(
       id:
         row.target_user_id,
 
-      firstName:
-        row.target_first_name,
+      firstName: splitDisplayName(row.target_name).firstName,
 
-      lastName:
-        row.target_last_name,
+      lastName: splitDisplayName(row.target_name).lastName,
 
       email:
         row.target_email,
@@ -782,11 +781,9 @@ function mapRequest(
       id:
         row.requester_user_id,
 
-      firstName:
-        row.requester_first_name,
+      firstName: splitDisplayName(row.requester_name).firstName,
 
-      lastName:
-        row.requester_last_name,
+      lastName: splitDisplayName(row.requester_name).lastName,
 
       email:
         row.requester_email,
@@ -801,13 +798,9 @@ function mapRequest(
             id:
               row.approver_user_id,
 
-            firstName:
-              row.approver_first_name ??
-              "",
+            firstName: splitDisplayName(row.approver_name ?? "").firstName,
 
-            lastName:
-              row.approver_last_name ??
-              "",
+            lastName: splitDisplayName(row.approver_name ?? "").lastName,
 
             email:
               row.approver_email ??
@@ -941,18 +934,15 @@ export async function listPermanentDeletionRequests(
           r.id,
           r.institution_id,
           r.target_user_id,
-          r.target_first_name,
-          r.target_last_name,
+          r.target_name,
           r.target_email,
           r.target_role,
           r.requester_user_id,
-          r.requester_first_name,
-          r.requester_last_name,
+          r.requester_name,
           r.requester_email,
           r.requester_role,
           r.approver_user_id,
-          r.approver_first_name,
-          r.approver_last_name,
+          r.approver_name,
           r.approver_email,
           r.approver_role,
           r.status,
@@ -1042,12 +1032,6 @@ export async function approvePermanentDeletion(
               target_user_id:
                 string | null;
 
-              target_first_name:
-                string;
-
-              target_last_name:
-                string;
-
               target_email:
                 string;
 
@@ -1072,8 +1056,7 @@ export async function approvePermanentDeletion(
                 id,
                 institution_id,
                 target_user_id,
-                target_first_name,
-                target_last_name,
+
                 target_email,
                 target_role,
                 requester_user_id,
@@ -1217,11 +1200,8 @@ export async function approvePermanentDeletion(
               approver_user_id =
                 ${actor.id}::uuid,
 
-              approver_first_name =
-                ${actorRecord.firstName},
-
-              approver_last_name =
-                ${actorRecord.lastName},
+              approver_name =
+                ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
 
               approver_email =
                 ${actorRecord.email},
@@ -1415,11 +1395,8 @@ export async function rejectPermanentDeletion(
         approver_user_id =
           ${actor.id}::uuid,
 
-        approver_first_name =
-          ${actorRecord.firstName},
-
-        approver_last_name =
-          ${actorRecord.lastName},
+        approver_name =
+          ${[actorRecord.firstName, actorRecord.lastName].filter(Boolean).join(" ")},
 
         approver_email =
           ${actorRecord.email},
