@@ -86,7 +86,7 @@ async function addBillingStudentScopeCondition(
   actor: AuthenticatedUser,
 ): Promise<void> {
   const activeRole = getEffectiveWorkspaceRole(actor);
-  if (activeRole === "CHAIRMAN" || (activeRole === "ACCOUNTS" && isInstitutionWideFinance(actor))) return;
+  if (isInstitutionWideFinance(actor)) return;
   if (activeRole !== "DIRECTOR" || !isDirectorScoped(actor)) {
     throw new AppError("Financial records are outside your active workspace", 403);
   }
