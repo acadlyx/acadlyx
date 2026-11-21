@@ -279,6 +279,7 @@ export async function decideConcession(
     studentId: string;
     requestedById: string;
   }>(prisma, "fee_concessions", institutionId, concessionId, "Concession");
+  await assertCanViewStudent(institutionId, actor, concession.studentId);
 
   if (concession.status !== "PENDING") {
     throw new AppError("This concession has already been decided", 409);
@@ -912,30 +913,36 @@ export async function cancelInvoice(
   meta: { ipAddress?: string; userAgent?: string }
 ) {
   assertCanApproveMoney(actor);
-  const invoice = await requireTenantRow<InvoiceRow>(
-    prisma,
-    "fee_invoices",
-    institutionId,
-    invoiceId,
-    "Invoice"
-  );
 
-  if (invoice.paidAmount > 0) {
-    throw new AppError(
-      "An invoice with payments cannot be cancelled. Refund the payments first.",
-      409
-    );
-  }
-  if (invoice.cancelledAt) {
-    throw new AppError("This invoice is already cancelled", 409);
-  }
+  const invoice = await prisma.$transaction(async (tx) => {
+    // Payment settlement and cancellation serialize on the same invoice row.
+    const rows = await tx.$queryRaw<InvoiceRow[]>(Prisma.sql`
+      SELECT * FROM "fee_invoices"
+      WHERE "id" = ${invoiceId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const current = rows[0];
+    if (!current) throw new AppError("Invoice was not found in this institution", 404);
 
-  await prisma.$executeRaw`
-    UPDATE "fee_invoices"
-    SET "status" = 'CANCELLED', "cancelledAt" = CURRENT_TIMESTAMP,
-        "notes" = ${reason}
-    WHERE "id" = ${invoiceId} AND "institutionId" = ${institutionId}
-  `;
+    await assertCanViewStudent(institutionId, actor, current.studentId);
+    if (current.paidAmount > 0) {
+      throw new AppError("An invoice with payments cannot be cancelled. Refund the payments first.", 409);
+    }
+    if (current.cancelledAt) throw new AppError("This invoice is already cancelled", 409);
+
+    const changed = await tx.$executeRaw`
+      UPDATE "fee_invoices"
+      SET "status" = 'CANCELLED', "cancelledAt" = CURRENT_TIMESTAMP, "notes" = ${reason}
+      WHERE "id" = ${invoiceId}
+        AND "institutionId" = ${institutionId}
+        AND "paidAmount" = 0
+        AND "cancelledAt" IS NULL
+    `;
+    if (changed !== 1) {
+      throw new AppError("Invoice changed while cancellation was being processed; reload and retry", 409);
+    }
+    return current;
+  });
 
   await recordAuditLog({
     institutionId,
@@ -949,7 +956,6 @@ export async function cancelInvoice(
 
   return getInvoice(institutionId, actor, invoiceId);
 }
-
 // ==========================================================
 // PAYMENTS + RECEIPTS
 // ==========================================================
@@ -1338,6 +1344,7 @@ export async function requestRefund(
       payment.invoiceId,
       "Invoice"
     );
+    await assertCanViewStudent(institutionId, actor, invoice.studentId);
 
     const reservedRefundRows = await tx.$queryRaw<Array<{ total: number | null }>>(Prisma.sql`
       SELECT COALESCE(SUM("amount"), 0)::float AS "total"
