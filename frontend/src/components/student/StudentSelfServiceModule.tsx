@@ -35,6 +35,7 @@ import {
   listAvailableOfferings,
   bulkRegisterForOfferings,
   dropRegistration,
+  requestWithdrawalForRegistration,
 } from "@/lib/registrationApi";
 import {
   LeaveBalance,
@@ -755,6 +756,21 @@ function RegistrationView() {
     }
   }
 
+  async function requestWithdrawal(id: string) {
+    const reason = window.prompt("Reason for requesting course withdrawal (minimum 5 characters):")?.trim();
+    if (!reason || reason.length < 5) return;
+    setBusy(true);
+    setError("");
+    try {
+      await requestWithdrawalForRegistration(id, reason);
+      await load();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Withdrawal request could not be submitted.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!mine) return <Empty>Loading your registration…</Empty>;
 
   const selectedCredits = offerings.filter((o) => selected.includes(o.id)).reduce((sum, o) => sum + o.course.credits, 0);
@@ -785,12 +801,22 @@ function RegistrationView() {
                 <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
                 {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
               </div>
-              {item.status === "REQUESTED" && item.courseOffering.registrationOpen ? (
+              {item.status === "REQUESTED" && (
+                item.courseOffering.semester.academicYear.addDropDeadline
+                  ? Date.now() <= new Date(item.courseOffering.semester.academicYear.addDropDeadline).getTime()
+                  : item.courseOffering.registrationOpen
+              ) ? (
                 <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
                   {busy ? "Working…" : "Cancel request"}
                 </button>
               ) : item.status === "APPROVED" ? (
-                <span className="text-xs text-slate-500">Withdrawal requires the institution&apos;s formal approval process.</span>
+                item.withdrawalRequests.some((request) => request.status === "PENDING") ? (
+                  <span className="text-xs text-amber-700">Withdrawal request pending academic review.</span>
+                ) : (
+                  <button type="button" disabled={busy} onClick={() => void requestWithdrawal(item.id)} className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800">
+                    {busy ? "Working…" : "Request withdrawal"}
+                  </button>
+                )
               ) : null}
             </div>
           )}
