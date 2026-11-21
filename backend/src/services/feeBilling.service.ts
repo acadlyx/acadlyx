@@ -16,7 +16,11 @@ import {
 import {
   assertCanViewStudent,
   getManagedDepartmentIds,
+  getDirectorDepartmentIds,
+  getEffectiveWorkspaceRole,
+  isDirectorScoped,
   isInstitutionWide,
+  isInstitutionWideFinance,
 } from "./accessScope.service";
 import { recordAuditLog } from "./audit.service";
 import { assertFeeApprovalAuthority } from "./workflowAuthority.service";
@@ -40,15 +44,50 @@ import { getCanonicalRoleNames } from "../config/rbac";
  *  - Receipt and invoice numbers are gap-free per tenant per year.
  */
 
-const BILLING_ROLES = [
-  "DIRECTOR",
-  "ACCOUNTS",
-];
-
 function assertCanManageFees(actor: AuthenticatedUser): void {
-  if (actor.roles.some((role) => BILLING_ROLES.includes(role))) return;
-  if (actor.permissions.includes("fees.manage")) return;
-  throw new AppError("You are not authorized to manage fees", 403);
+  // Fee administration belongs to the active Accounts workspace. A secondary
+  // Accounts binding must not override a narrower active workspace.
+  if (getEffectiveWorkspaceRole(actor) === "ACCOUNTS" && isInstitutionWideFinance(actor)) return;
+  throw new AppError("You are not authorized to manage fees in the active workspace", 403);
+}
+
+function assertCanReadBillingDesk(actor: AuthenticatedUser): void {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "CHAIRMAN") return;
+  if (activeRole === "ACCOUNTS" && isInstitutionWideFinance(actor)) return;
+  if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) return;
+  throw new AppError("Financial records are outside your active workspace", 403);
+}
+
+async function addBillingStudentScopeCondition(
+  conditions: Prisma.Sql[],
+  alias: "c" | "r",
+  institutionId: string,
+  actor: AuthenticatedUser,
+): Promise<void> {
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  if (activeRole === "CHAIRMAN" || (activeRole === "ACCOUNTS" && isInstitutionWideFinance(actor))) return;
+  if (activeRole !== "DIRECTOR" || !isDirectorScoped(actor)) {
+    throw new AppError("Financial records are outside your active workspace", 403);
+  }
+
+  const departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+  if (!departmentIds.length) {
+    conditions.push(Prisma.sql`FALSE`);
+    return;
+  }
+
+  const studentColumn = alias === "c" ? Prisma.sql`c."studentId"` : Prisma.sql`r."studentId"`;
+  conditions.push(Prisma.sql`${studentColumn} IN (
+    SELECT e."userId"
+    FROM "student_enrollments" e
+    JOIN "programs" p
+      ON p."id" = e."programId"
+     AND p."institutionId" = ${institutionId}
+    WHERE e."institutionId" = ${institutionId}
+      AND e."status" = 'ACTIVE'
+      AND p."departmentId" IN (${Prisma.join(departmentIds)})
+  )`);
 }
 
 function assertCanApproveMoney(actor: AuthenticatedUser): void {
@@ -113,7 +152,8 @@ export async function listConcessions(
     await assertCanViewStudent(institutionId, actor, filters.studentId);
     conditions.push(Prisma.sql`c."studentId" = ${filters.studentId}`);
   } else {
-    assertCanManageFees(actor);
+    assertCanReadBillingDesk(actor);
+    await addBillingStudentScopeCondition(conditions, "c", institutionId, actor);
   }
   if (filters.status) conditions.push(Prisma.sql`c."status" = ${filters.status}`);
   const where = andWhere(conditions);
@@ -1430,9 +1470,11 @@ export async function listRefunds(
   filters: { status?: string }
 ) {
   assertCanManageFees(actor);
+  assertCanReadBillingDesk(actor);
   const conditions: Prisma.Sql[] = [
     Prisma.sql`r."institutionId" = ${institutionId}`,
   ];
+  await addBillingStudentScopeCondition(conditions, "r", institutionId, actor);
   if (filters.status) conditions.push(Prisma.sql`r."status" = ${filters.status}`);
   const where = andWhere(conditions);
 
