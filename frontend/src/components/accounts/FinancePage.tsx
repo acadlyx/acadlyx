@@ -31,7 +31,7 @@ const nav:{key:View;label:string;group:string;permission?:string}[]=[
 function Card({children,className=""}:{children:React.ReactNode;className?:string}){return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`}>{children}</section>}
 function SectionTitle({title,subtitle,href}:{title:string;subtitle?:string;href?:string}){return <div className="flex items-start justify-between gap-4"><div><h2 className="text-sm font-black uppercase tracking-[.12em] text-slate-900">{title}</h2>{subtitle&&<p className="mt-1 text-xs text-slate-500">{subtitle}</p>}</div>{href&&<Link href={href} className="shrink-0 text-xs font-black text-emerald-700 hover:underline">View all</Link>}</div>}
 
-export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"], workspaceTitle = "ACADLYX Finance", workspaceSubtitle = "Accounts & Financial Management"}:{view:View; allowedRoles?: string[]; workspaceTitle?: string; workspaceSubtitle?: string}){
+export default function FinancePage({view, allowedRoles = ["SUPER_ADMIN", "CHAIRMAN", "MANAGEMENT", "ACCOUNTS"], workspaceTitle = "ACADLYX Finance", workspaceSubtitle = "Accounts & Financial Management"}:{view:View; allowedRoles?: string[]; workspaceTitle?: string; workspaceSubtitle?: string}){
  const [permissions,setPermissions]=useState<string[]>(()=>getCachedCurrentUser()?.permissions||[]);
  useEffect(()=>{let active=true;void getCurrentUser({force:true}).then(current=>{if(active)setPermissions(current.permissions||[])}).catch(()=>{});return()=>{active=false}},[]);
  const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
