@@ -9,6 +9,7 @@ export async function financeReceipts(){return (await authedFetch<{success:boole
 export async function financeCollections(){return (await authedFetch<{success:boolean;data:{departments:any[]}}>("/finance/collections")).data;}
 export async function financeConcessions(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/concessions")).data;}
 export async function financeRefunds(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/refunds")).data;}
+export async function financeProcessRefund(id:string,externalSettlementReference:string){return (await authedFetch<{success:boolean;data:any}>(`/finance/refunds/${id}/process`,{method:"POST",body:JSON.stringify({externalSettlementReference})})).data;}
 export async function financeTransactions(){return (await authedFetch<{success:boolean;data:any[]}>("/finance/transactions")).data;}
 
 export async function financeStructures(){return (await authedFetch<{success:boolean;data:any[]}>("/erp/fee-structures")).data;}
