@@ -93,6 +93,77 @@ function assertSafeFile(input: StorageUploadInput): void {
   if (!input.folder.startsWith("acadlyx/")) throw new AppError("Invalid storage folder", 400);
 }
 
+/**
+ * Validate the actual payload before handing it to an external storage
+ * provider. Multipart Content-Type is supplied by the client and is not a
+ * trustworthy indication of the uploaded bytes.
+ */
+export function assertUploadContentMatchesMime(buffer: Buffer, mimeType: string): void {
+  const isZip = buffer.length >= 4 &&
+    (buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])) ||
+      buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x05, 0x06])) ||
+      buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x07, 0x08])));
+  let matches = false;
+
+  switch (mimeType) {
+    case "image/jpeg":
+      matches = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+      break;
+    case "image/png":
+      matches = buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      break;
+    case "image/webp":
+      matches = buffer.length >= 12 &&
+        buffer.toString("ascii", 0, 4) === "RIFF" &&
+        buffer.toString("ascii", 8, 12) === "WEBP";
+      break;
+    case "image/gif":
+      matches = buffer.length >= 6 && ["GIF87a", "GIF89a"].includes(buffer.toString("ascii", 0, 6));
+      break;
+    case "image/avif":
+      matches = buffer.length >= 12 &&
+        buffer.toString("ascii", 4, 8) === "ftyp" &&
+        ["avif", "avis"].includes(buffer.toString("ascii", 8, 12));
+      break;
+    case "application/pdf":
+      matches = buffer.length >= 5 && buffer.toString("ascii", 0, 5) === "%PDF-";
+      break;
+    case "application/zip":
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      matches = isZip;
+      break;
+    case "application/vnd.ms-excel":
+      matches = buffer.length >= 8 &&
+        buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+      break;
+    case "video/mp4":
+      matches = buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp";
+      break;
+    case "audio/mpeg":
+      matches = buffer.length >= 3 && (
+        buffer.toString("ascii", 0, 3) === "ID3" ||
+        (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0)
+      );
+      break;
+    case "text/plain":
+    case "text/csv": {
+      try {
+        new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+        matches = !buffer.includes(0);
+      } catch {
+        matches = false;
+      }
+      break;
+    }
+    default:
+      matches = false;
+  }
+
+  if (!matches) {
+    throw new AppError("Uploaded file content does not match its declared MIME type", 415);
+  }
+}
+
 export function buildTenantFolder(institutionId: string, module: string, ownerId?: string): string {
   if (!institutionId || !/^[A-Za-z0-9_-]+$/.test(institutionId)) {
     throw new AppError("Invalid institution identifier", 400);
@@ -127,6 +198,7 @@ export async function storeFile(input: {
   const allowed = MODULE_MIME_ALLOWLIST[input.module];
   if (!allowed) throw new AppError("Unsupported storage module", 400);
   validateAllowedMime(input.mimeType, allowed);
+  assertUploadContentMatchesMime(input.buffer, input.mimeType);
   let previous: { id: string; provider: string; publicId: string; resourceType: string } | null = null;
   if (input.replaceFileId) {
     previous = await prisma.fileAsset.findFirst({
