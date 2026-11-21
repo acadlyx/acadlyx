@@ -383,7 +383,12 @@ jobs:
       - name: Install PostgreSQL client tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
+          # Ubuntu runner images do not guarantee the PGDG versioned package
+          # repository. Install the distribution-supported client package;
+          # pg_dump/pg_restore remain compatible with the PostgreSQL 16 service.
+          sudo apt-get install -y postgresql-client
+          pg_dump --version
+          pg_restore --version
       - name: Install
         run: npm ci
       - name: Prisma generate
