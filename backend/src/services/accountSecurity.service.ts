@@ -689,10 +689,16 @@ export async function adminIssueResetToken(
     action: "auth.admin_password_reset_issued",
     entityType: "User",
     entityId: userId,
+    metadata: { emailDeliveryConfigured: env.emailProvider !== "disabled" },
     ...meta,
   });
 
-  return issue;
+  // A reset credential must never be disclosed to an administrator when
+  // an email delivery channel is configured. The user receives the link
+  // directly; only explicit local/no-mail recovery may return the token.
+  return env.emailProvider === "disabled"
+    ? issue
+    : { expiresAt: issue.expiresAt };
 }
 
 export const passwordResetTtlMinutes = RESET_TOKEN_TTL_MINUTES;
