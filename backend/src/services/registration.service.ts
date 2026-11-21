@@ -1377,7 +1377,7 @@ export async function requestWithdrawal(
       institutionId,
       departmentId: existing.courseOffering.course.departmentId,
       status: "ACTIVE",
-      user: { userRoles: { some: { role: { name: { in: ["HOD", "DEAN"] }, institutionId } } },
+      user: { userRoles: { some: { role: { name: { in: ["HOD", "DEAN"] }, institutionId } } } },
     },
     select: { userId: true },
   });
