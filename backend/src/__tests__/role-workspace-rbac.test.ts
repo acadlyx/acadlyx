@@ -7,6 +7,7 @@ import {
   normalizeRoleName,
   ROLE_PERMISSIONS,
 } from "../config/rbac";
+import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 
 test("MANAGEMENT is a distinct canonical role", () => {
   assert.ok(SYSTEM_ROLE_NAMES.includes("MANAGEMENT"));
@@ -45,4 +46,17 @@ test("Director workspace KPI queries derive department filters from assigned act
   );
   assert.match(directorCampusScope, /scope: "DIRECTOR"/);
   assert.match(directorCampusScope, /campus: \{ institutionId, isActive: true \}/);
+});
+
+
+test("people import department scope follows the active workspace, not a secondary HOD role", () => {
+  const actor = { roles: ["DIRECTOR", "HOD"] } as any;
+  assert.equal(getEffectiveWorkspaceRole(actor), "DIRECTOR");
+
+  const source = fs.readFileSync(
+    path.resolve(process.cwd(), "src/services/peopleImport.service.ts"),
+    "utf8",
+  );
+  assert.match(source, /getEffectiveWorkspaceRole\(actor\) === "HOD"/);
+  assert.doesNotMatch(source, /getCanonicalRoleNames/);
 });
