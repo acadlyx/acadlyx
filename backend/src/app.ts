@@ -136,7 +136,7 @@ export function createApp(): Application {
         // when the canonical frontend URL is configured separately.
         const allowedOrigins = new Set([
           ...env.corsOrigins,
-          env.frontendUrl.replace(/\\/+$/, ""),
+          env.frontendUrl,
         ]);
         if (allowedOrigins.has(normalizedOrigin)) {
           callback(null, true);
