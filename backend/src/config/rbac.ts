@@ -129,6 +129,11 @@ export const PERMISSIONS = [
     module: "site",
     description: "Manage public institutional website content",
   },
+  {
+    key: "site.approve",
+    module: "site",
+    description: "Approve or reject submitted institutional website changes",
+  },
 
   { key: "imports.manage", module: "imports", description: "Import institutional data" },
   { key: "people.import", module: "people", description: "Bulk import students, faculty and staff within authorized scope" },
@@ -634,6 +639,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CHAIRMAN: [
+    "site.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
@@ -658,6 +664,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   MANAGEMENT: [
+    "site.approve",
     "placements.read",
     ...EVENTS_READ,
     "fees.collection.read",
@@ -674,6 +681,7 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   DIRECTOR: [
+    "site.approve",
     "placements.read",
     ...EVENTS_READ,
     "events.manage",
