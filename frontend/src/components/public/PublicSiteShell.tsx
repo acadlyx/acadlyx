@@ -62,7 +62,7 @@ export function PublicSiteShell({ children, onLogin }: { children: ReactNode; on
   );
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
+    <main className="public-site min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-6 px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-3" onClick={() => setMobileNav(false)}>
