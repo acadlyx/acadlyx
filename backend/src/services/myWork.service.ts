@@ -1,5 +1,11 @@
 import { prisma } from "../lib/prisma";
 import { AuthenticatedUser } from "../types/auth";
+import {
+  getDirectorDepartmentIds,
+  getEffectiveWorkspaceRole,
+  getManagedDepartmentIds,
+  isInstitutionWideFinance,
+} from "./accessScope.service";
 
 export type WorkPriority = "critical" | "high" | "normal";
 
@@ -29,10 +35,11 @@ const MANAGEMENT_ROLES = new Set([
   "DEAN",
   "REGISTRAR",
   "INSTITUTION_ADMIN",
+  "MANAGEMENT",
 ]);
 
-function hasRole(actor: AuthenticatedUser, role: string): boolean {
-  return actor.roles.some((value) => value.toUpperCase() === role);
+function hasPermission(actor: AuthenticatedUser, ...permissions: string[]): boolean {
+  return permissions.some((permission) => actor.permissions.includes(permission));
 }
 
 export async function getMyWork(
@@ -42,6 +49,37 @@ export async function getMyWork(
   const items: WorkItem[] = [];
   let completed = 0;
   let pending = 0;
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  const departmentScoped = ["DIRECTOR", "DEAN", "HOD"].includes(activeRole);
+  const departmentIds = activeRole === "DIRECTOR"
+    ? await getDirectorDepartmentIds(institutionId, actor.id)
+    : activeRole === "DEAN" || activeRole === "HOD"
+      ? await getManagedDepartmentIds(institutionId, actor.id)
+      : [];
+  const studentEnrollmentScope = departmentScoped
+    ? {
+        studentEnrollments: {
+          some: {
+            institutionId,
+            status: "ACTIVE",
+            program: {
+              institutionId,
+              departmentId: { in: departmentIds },
+            },
+          },
+        },
+      }
+    : {};
+  const facultyOfferingScope = departmentScoped
+    ? {
+        facultyCourseOfferings: {
+          some: {
+            institutionId,
+            course: { departmentId: { in: departmentIds } },
+          },
+        },
+      }
+    : {};
 
   const unreadNotifications = await prisma.notification.count({
     where: { institutionId, userId: actor.id, readAt: null },
@@ -58,7 +96,7 @@ export async function getMyWork(
     });
   }
 
-  if (hasRole(actor, "FACULTY")) {
+  if (activeRole === "FACULTY") {
     const [pendingAttendance, pendingReviews, upcomingExams] =
       await Promise.all([
         prisma.attendanceSession.count({
@@ -118,14 +156,7 @@ export async function getMyWork(
     }
   }
 
-  if (hasRole(actor, "HOD")) {
-    const departmentIds = (
-      await prisma.departmentAccess.findMany({
-        where: { userId: actor.id },
-        select: { departmentId: true },
-      })
-    ).map((row) => row.departmentId);
-
+  if (["DIRECTOR", "DEAN", "HOD"].includes(activeRole)) {
     if (departmentIds.length) {
       const [attendance, marks] = await Promise.all([
         prisma.attendanceSession.count({
@@ -149,29 +180,29 @@ export async function getMyWork(
 
       if (attendance) {
         items.push({
-          id: "hod-attendance",
+          id: "department-attendance",
           title: "Department attendance pending",
           count: attendance,
           priority: "high",
-          href: "/hod/operations",
+          href: activeRole === "DIRECTOR" ? "/director/operations" : activeRole === "DEAN" ? "/dean/operations" : "/hod/operations",
           detail: "Faculty attendance submissions are incomplete.",
         });
       }
 
       if (marks) {
         items.push({
-          id: "hod-marks",
+          id: "department-marks",
           title: "Department marks records",
           count: marks,
           priority: "normal",
-          href: "/hod/examinations",
+          href: activeRole === "DIRECTOR" ? "/director/examinations" : activeRole === "DEAN" ? "/dean/examinations" : "/hod/examinations",
           detail: "Open the department examination workspace to review marks.",
         });
       }
     }
   }
 
-  if (hasRole(actor, "ACCOUNTS")) {
+  if (activeRole === "ACCOUNTS") {
     const overdue = await prisma.feeInvoice.count({
       where: {
         institutionId,
@@ -192,7 +223,7 @@ export async function getMyWork(
     }
   }
 
-  if (hasRole(actor, "HR")) {
+  if (activeRole === "HR") {
     const pending = await prisma.leaveRequest.count({
       where: { institutionId, status: "PENDING" },
     });
@@ -209,7 +240,7 @@ export async function getMyWork(
     }
   }
 
-  if (hasRole(actor, "ADMISSIONS")) {
+  if (activeRole === "ADMISSIONS") {
     const pending = await prisma.admissionApplication.count({
       where: {
         institutionId,
@@ -229,7 +260,7 @@ export async function getMyWork(
     }
   }
 
-  if (hasRole(actor, "EXAMINATION")) {
+  if (activeRole === "EXAMINATION") {
     const [upcoming, resultRows] = await Promise.all([
       prisma.exam.count({
         where: { institutionId, examDate: { gte: new Date() } },
@@ -260,7 +291,7 @@ export async function getMyWork(
     }
   }
 
-  if (hasRole(actor, "STUDENT")) {
+  if (activeRole === "STUDENT") {
     const [assignments, exams, fees, submittedAssignments, paidFees, enrollments, pendingRegistrations] = await Promise.all([
       prisma.assignment.count({
         where: {
@@ -333,13 +364,34 @@ export async function getMyWork(
     }
   }
 
-  if (MANAGEMENT_ROLES.has(actor.roles[0]?.toUpperCase() || "")) {
+  if (MANAGEMENT_ROLES.has(activeRole)) {
+    const canReadFinance = isInstitutionWideFinance(actor) ||
+      (departmentScoped && hasPermission(actor, "fees.read", "fees.collection.read"));
+    const canReadAdmissions = hasPermission(actor, "admissions.read", "admissions.manage", "applications.read", "applications.manage");
+    const financialStudentScope = departmentScoped
+      ? {
+          student: {
+            studentEnrollments: {
+              some: {
+                institutionId,
+                status: "ACTIVE",
+                program: {
+                  institutionId,
+                  departmentId: { in: departmentIds },
+                },
+              },
+            },
+          },
+        }
+      : {};
+
     const [students, faculty, overdue, pendingAdmissions] = await Promise.all([
       prisma.user.count({
         where: {
           institutionId,
           isActive: true,
           userRoles: { some: { role: { name: "STUDENT" } } },
+          ...studentEnrollmentScope,
         },
       }),
       prisma.user.count({
@@ -347,21 +399,28 @@ export async function getMyWork(
           institutionId,
           isActive: true,
           userRoles: { some: { role: { name: "FACULTY" } } },
+          ...facultyOfferingScope,
         },
       }),
-      prisma.feeInvoice.count({
-        where: {
-          institutionId,
-          dueDate: { lt: new Date() },
-          status: { notIn: ["PAID", "CANCELLED", "REFUNDED"] },
-        },
-      }),
-      prisma.admissionApplication.count({
-        where: {
-          institutionId,
-          status: { in: ["SUBMITTED", "UNDER_REVIEW", "DOCUMENTS_PENDING"] },
-        },
-      }),
+      canReadFinance
+        ? prisma.feeInvoice.count({
+            where: {
+              institutionId,
+              dueDate: { lt: new Date() },
+              status: { notIn: ["PAID", "CANCELLED", "REFUNDED"] },
+              ...financialStudentScope,
+            },
+          })
+        : Promise.resolve(0),
+      canReadAdmissions
+        ? prisma.admissionApplication.count({
+            where: {
+              institutionId,
+              status: { in: ["SUBMITTED", "UNDER_REVIEW", "DOCUMENTS_PENDING"] },
+              ...(departmentScoped ? { program: { departmentId: { in: departmentIds } } } : {}),
+            },
+          })
+        : Promise.resolve(0),
     ]);
 
     if (overdue) {
