@@ -48,12 +48,11 @@ const SCOPED_ROLES = [
 ] as const;
 
 export function isInstitutionWide(actor: Pick<AuthenticatedUser, "roles">): boolean {
-  const roles = getCanonicalRoleNames(actor.roles);
-  if (roles.includes("CHAIRMAN")) return true;
-  if (roles.some((role) => SCOPED_ROLES.includes(role as typeof SCOPED_ROLES[number]))) {
-    return false;
-  }
-  return roles.some((role) => INSTITUTION_WIDE_ROLES.includes(role));
+  // Only the active workspace determines generic institution-wide scope.
+  // A secondary Registrar/Institution Admin/Management binding must not
+  // widen an active Accounts, Admissions, Examination, HR, or scoped role.
+  const activeRole = getEffectiveWorkspaceRole(actor);
+  return INSTITUTION_WIDE_ROLES.includes(activeRole);
 }
 
 /**
