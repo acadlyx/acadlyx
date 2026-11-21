@@ -10,7 +10,6 @@ import {
   isDirectorScoped,
   isInstitutionWide,
 } from "./accessScope.service";
-import { getCanonicalRoleNames } from "../config/rbac";
 
 export type WorkspaceContextInput = {
   departmentId?: string;
