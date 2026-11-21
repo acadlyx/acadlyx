@@ -131,7 +131,14 @@ export function createApp(): Application {
 
         const normalizedOrigin = origin.replace(/\/+$/, "");
 
-        if (env.corsOrigins.includes(normalizedOrigin)) {
+        // CORS_ORIGIN remains the explicit allow-list. FRONTEND_URL is
+        // also a trusted exact origin so deployments do not fail preflight
+        // when the canonical frontend URL is configured separately.
+        const allowedOrigins = new Set([
+          ...env.corsOrigins,
+          env.frontendUrl.replace(/\\/+$/, ""),
+        ]);
+        if (allowedOrigins.has(normalizedOrigin)) {
           callback(null, true);
           return;
         }
