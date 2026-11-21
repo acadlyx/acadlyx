@@ -84,14 +84,14 @@ import workflowRoutes from "./routes/workflow.routes";
 import placementRoutes from "./routes/placement.routes";
 
 function isAllowedCorsOrigin(origin: string): boolean {
-  const normalizedOrigin = origin.trim().replace(/\\/+$/, "");
+  const normalizedOrigin = origin.trim().replace(/\/+$/, "");
   if (env.corsOrigins.includes(normalizedOrigin) || env.frontendUrl === normalizedOrigin) {
     return true;
   }
 
   // Vercel creates a new immutable hostname for each project preview.
   // Restrict the dynamic allowance to this ACADLYX project, never *.vercel.app.
-  return /^https:\/\/acadlyx-[a-z0-9-]+-acadlyx-6683\\.vercel\\.app$/.test(normalizedOrigin);
+  return /^https:\/\/acadlyx-[a-z0-9-]+-acadlyx-6683\.vercel\.app$/.test(normalizedOrigin);
 }
 
 export function createApp(): Application {
