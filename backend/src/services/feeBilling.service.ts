@@ -1524,7 +1524,10 @@ export async function listRefunds(
     `),
   ]);
 
-  return { items, total: Number(totalRows[0]?.count ?? 0) };
+  return {
+    items: items.map((item) => ({ ...item, amount: Number(item.amount) })),
+    total: Number(totalRows[0]?.count ?? 0),
+  };
 }
 
 // ==========================================================
