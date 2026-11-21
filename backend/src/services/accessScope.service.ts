@@ -80,10 +80,6 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
   "STUDENT",
   "PARENT",
   "PLACEMENT",
-  "SUPER_ADMIN",
-  "INSTITUTION_ADMIN",
-  "MANAGEMENT",
-  "REGISTRAR",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
@@ -93,6 +89,10 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
   "CMS",
   "CLUB_PRESIDENT",
   "STAFF",
+  "SUPER_ADMIN",
+  "INSTITUTION_ADMIN",
+  "MANAGEMENT",
+  "REGISTRAR",
 ] as const;
 
 export function getEffectiveWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">): string {

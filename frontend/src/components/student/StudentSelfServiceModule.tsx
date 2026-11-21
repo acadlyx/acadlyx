@@ -33,7 +33,6 @@ import {
   MyRegistrationSummary,
   getMyRegistrations,
   listAvailableOfferings,
-  registerForOffering,
   bulkRegisterForOfferings,
   dropRegistration,
 } from "@/lib/registrationApi";
@@ -791,7 +790,7 @@ function RegistrationView() {
                   {busy ? "Working…" : "Cancel request"}
                 </button>
               ) : item.status === "APPROVED" ? (
-                <span className="text-xs text-slate-500">Withdrawal requires the institution's formal approval process.</span>
+                <span className="text-xs text-slate-500">Withdrawal requires the institution&apos;s formal approval process.</span>
               ) : null}
             </div>
           )}
