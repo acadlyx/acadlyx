@@ -268,7 +268,10 @@ class HmacGateway implements PaymentGateway {
       throw new AppError("Invalid payment webhook payload", 400);
     }
 
-    if (!["payment.captured", "payment.authorized"].includes(body.event || "")) {
+    // Only captured funds may settle an ACADLYX invoice. An authorized
+    // payment is not yet a successful collection and must never be posted
+    // to the finance ledger as SUCCESS.
+    if (body.event !== "payment.captured") {
       return null;
     }
 
@@ -277,7 +280,8 @@ class HmacGateway implements PaymentGateway {
       !payment?.id ||
       !payment.order_id ||
       typeof payment.amount !== "number" ||
-      !payment.currency
+      !payment.currency ||
+      payment.status !== "captured"
     ) {
       throw new AppError("Payment webhook is missing required payment fields", 400);
     }
