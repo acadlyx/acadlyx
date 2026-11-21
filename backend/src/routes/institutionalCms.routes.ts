@@ -10,6 +10,6 @@ router.use(requireFeature("cms"));
 router.get("/", controller.get);
 router.put("/", authorize("site.manage"), controller.update);
 router.post("/submit", authorize("site.manage"), controller.submit);
-router.post("/approve", controller.approve);
-router.post("/reject", controller.reject);
+router.post("/approve", authorize("site.approve"), controller.approve);
+router.post("/reject", authorize("site.approve"), controller.reject);
 export default router;
