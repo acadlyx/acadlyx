@@ -714,7 +714,7 @@ export async function requestPermanentDeletion(
 }
 
 function splitDisplayName(value: string): { firstName: string; lastName: string } {
-  const normalized = value.trim().replace(/\\s+/g, " ");
+  const normalized = value.trim().replace(/\s+/g, " ");
   const separator = normalized.indexOf(" ");
   return separator < 0
     ? { firstName: normalized, lastName: "" }
