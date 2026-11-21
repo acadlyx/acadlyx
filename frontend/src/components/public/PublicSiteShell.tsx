@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 
 export interface PublicSiteContent {
@@ -13,6 +13,7 @@ export interface PublicSiteContent {
   sections: any;
   contact: { email: string; phone: string; address: string; website: string };
   footer: { text: string };
+  _ready?: boolean;
 }
 
 const fallback: PublicSiteContent = {
@@ -27,20 +28,59 @@ const fallback: PublicSiteContent = {
   sections: { stats: [], features: [], roles: [] },
   contact: { email: "", phone: "", address: "", website: "" },
   footer: { text: "" },
+  _ready: false,
 };
 
+type PublicSiteSnapshot = PublicSiteContent & { _ready: boolean };
+
+let publicSiteSnapshot: PublicSiteSnapshot = { ...fallback, _ready: false };
+let publicSiteRequest: Promise<void> | null = null;
+const publicSiteListeners = new Set<() => void>();
+
+function subscribePublicSite(listener: () => void) {
+  publicSiteListeners.add(listener);
+  return () => publicSiteListeners.delete(listener);
+}
+
+function getPublicSiteSnapshot() {
+  return publicSiteSnapshot;
+}
+
+function notifyPublicSiteListeners() {
+  publicSiteListeners.forEach((listener) => listener());
+}
+
+function ensurePublicSiteContent() {
+  if (publicSiteRequest) return;
+
+  const slug = process.env.NEXT_PUBLIC_PUBLIC_SITE_SLUG || "aimt";
+  publicSiteRequest = apiFetch<{ data: { content: PublicSiteContent } }>(
+    `/site-content/public?slug=${encodeURIComponent(slug)}`,
+  )
+    .then((response) => {
+      publicSiteSnapshot = {
+        ...merge(fallback, response?.data?.content || fallback),
+        _ready: true,
+      };
+    })
+    .catch(() => {
+      // Show the small local default only after the backend request has failed.
+      publicSiteSnapshot = { ...fallback, _ready: true };
+    })
+    .finally(notifyPublicSiteListeners);
+}
+
 export function usePublicSiteContent() {
-  const [content, setContent] = useState<PublicSiteContent>(fallback);
+  const content = useSyncExternalStore(
+    subscribePublicSite,
+    getPublicSiteSnapshot,
+    getPublicSiteSnapshot,
+  );
+
   useEffect(() => {
-    let active = true;
-    const slug = process.env.NEXT_PUBLIC_PUBLIC_SITE_SLUG || "aimt";
-    apiFetch<{ data: { content: PublicSiteContent } }>(`/site-content/public?slug=${encodeURIComponent(slug)}`)
-      .then((response) => {
-        if (active && response?.data?.content) setContent(merge(fallback, response.data.content));
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+    ensurePublicSiteContent();
   }, []);
+
   return content;
 }
 
@@ -57,7 +97,7 @@ function merge(base: any, incoming: any): any {
 export function PublicSiteShell({ children, onLogin }: { children: ReactNode; onLogin?: () => void }) {
   const content = usePublicSiteContent();
   const [mobileNav, setMobileNav] = useState(false);
-  const navigation = (content.navigation || fallback.navigation).filter((item) =>
+  if (!content._ready) return <main className="public-site min-h-screen bg-white" aria-busy="true" />;\n\n  const navigation = (content.navigation || fallback.navigation).filter((item) =>
     ["/", "/about", "/contact"].includes(item.href),
   );
 
