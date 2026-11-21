@@ -295,8 +295,6 @@ export async function register(
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
 
-  const enrollment = await activeEnrollment(institutionId, studentId);
-
   const { registration, previousState } = await prisma.$transaction(async (tx) => {
     // Serialize seat reservations for this offering. All paths that reserve,
     // approve, assign or change capacity use this same row lock.
@@ -314,6 +312,24 @@ export async function register(
         AND "institutionId" = ${institutionId}
       FOR UPDATE
     `);
+
+    const enrollment = await tx.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: studentId,
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: { enrolledAt: "desc" },
+      select: {
+        id: true,
+        academicYearId: true,
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    if (!enrollment) throw new AppError("No active current-year enrollment found for this student", 422);
 
     const offering = await tx.courseOffering.findFirst({
       where: { id: input.courseOfferingId, institutionId, isActive: true },
@@ -570,15 +586,6 @@ export async function decide(
     existing.courseOffering.course.departmentId
   );
 
-  const enrollment = await activeEnrollment(institutionId, existing.studentId);
-  if (
-    enrollment.semesterId !== existing.courseOffering.semester.id ||
-    enrollment.sectionId !== existing.courseOffering.section.id ||
-    enrollment.program.departmentId !== existing.courseOffering.course.departmentId
-  ) {
-    throw new AppError("The student's current academic enrollment no longer matches this course offering", 422);
-  }
-
   const updated = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id" FROM "course_offerings"
@@ -586,6 +593,34 @@ export async function decide(
         AND "institutionId" = ${institutionId}
       FOR UPDATE
     `);
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" = ${existing.studentId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const currentEnrollment = await tx.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: existing.studentId,
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: { enrolledAt: "desc" },
+      select: {
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    if (
+      !currentEnrollment ||
+      currentEnrollment.semesterId !== existing.courseOffering.semester.id ||
+      currentEnrollment.sectionId !== existing.courseOffering.section.id ||
+      currentEnrollment.program.departmentId !== existing.courseOffering.course.departmentId
+    ) {
+      throw new AppError("The student's current academic enrollment no longer matches this course offering", 422);
+    }
 
     if (decision === "APPROVED") {
       const offering = await tx.courseOffering.findFirst({
@@ -933,46 +968,6 @@ export async function bulkAssignCourses(
   }
 
   const studentById = new Map(students.map((student) => [student.id, student]));
-  const offeringById = new Map(offerings.map((offering) => [offering.id, offering]));
-
-  for (const studentId of studentIds) {
-    const student = studentById.get(studentId)!;
-    const enrollment = student.studentEnrollments[0];
-
-    if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
-      throw new AppError(
-        `${student.firstName} ${student.lastName} has no active semester/section enrollment`,
-        422
-      );
-    }
-
-    for (const courseOfferingId of courseOfferingIds) {
-      const offering = offeringById.get(courseOfferingId)!;
-      if (!isRegistrationAllowed(new Date(), offering.semester.academicYear, offering.registrationOpen)) {
-        throw new AppError(
-          `Registration is not open for ${offering.course.code} under the institution's academic-year policy.`,
-          409
-        );
-      }
-
-      if (
-        enrollment.semesterId !== offering.semesterId ||
-        enrollment.sectionId !== offering.sectionId
-      ) {
-        throw new AppError(
-          `${student.firstName} ${student.lastName} is not enrolled in the semester/section for ${offering.course.code}`,
-          422
-        );
-      }
-
-      if (enrollment.program?.departmentId !== offering.course.departmentId) {
-        throw new AppError(
-          `${student.firstName} ${student.lastName} is outside the department scope of ${offering.course.code}`,
-          403
-        );
-      }
-    }
-  }
 
   const results = await prisma.$transaction(async (tx) => {
     // Lock offerings in deterministic order to prevent overbooking and
@@ -993,11 +988,72 @@ export async function bulkAssignCourses(
       ORDER BY "id"
       FOR UPDATE
     `);
+    const currentEnrollments = await tx.studentEnrollment.findMany({
+      where: {
+        institutionId,
+        userId: { in: studentIds },
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: [{ userId: "asc" }, { enrolledAt: "desc" }],
+      select: {
+        userId: true,
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    const enrollmentByStudent = new Map<string, (typeof currentEnrollments)[number]>();
+    for (const enrollment of currentEnrollments) {
+      if (!enrollmentByStudent.has(enrollment.userId)) enrollmentByStudent.set(enrollment.userId, enrollment);
+    }
+    const freshOfferings = await tx.courseOffering.findMany({
+      where: { institutionId, id: { in: courseOfferingIds }, isActive: true },
+      select: {
+        id: true,
+        semesterId: true,
+        sectionId: true,
+        capacity: true,
+        registrationOpen: true,
+        course: { select: { id: true, code: true, credits: true, departmentId: true } },
+        semester: { select: { academicYear: { select: {
+          registrationOpensAt: true,
+          registrationClosesAt: true,
+          addDropDeadline: true,
+          withdrawalDeadline: true,
+          exceptionalWithdrawalAllowed: true,
+          exceptionalWithdrawalStartsAt: true,
+          exceptionalWithdrawalEndsAt: true,
+        } } } },
+        section: { select: { capacity: true } },
+      },
+    });
+    if (freshOfferings.length !== courseOfferingIds.length) {
+      throw new AppError("One or more course offerings changed or became inactive during assignment", 409);
+    }
+    const offeringById = new Map(freshOfferings.map((offering) => [offering.id, offering]));
+    const assignmentTime = new Date();
     const assigned: Prisma.CourseRegistrationGetPayload<{ include: typeof include }>[] = [];
 
     for (const studentId of studentIds) {
       for (const courseOfferingId of courseOfferingIds) {
         const offering = offeringById.get(courseOfferingId)!;
+        if (!isRegistrationAllowed(assignmentTime, offering.semester.academicYear, offering.registrationOpen)) {
+          throw new AppError(`Registration is not open for ${offering.course.code} under the institution's academic-year policy.`, 409);
+        }
+        const enrollment = enrollmentByStudent.get(studentId);
+        if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} has no active current-year semester/section enrollment`, 422);
+        }
+        if (enrollment.semesterId !== offering.semesterId || enrollment.sectionId !== offering.sectionId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} is not enrolled in the semester/section for ${offering.course.code}`, 422);
+        }
+        if (enrollment.program.departmentId !== offering.course.departmentId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} is outside the department scope of ${offering.course.code}`, 403);
+        }
 
         const existing = await tx.courseRegistration.findUnique({
           where: {
