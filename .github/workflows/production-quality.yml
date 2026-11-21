@@ -371,7 +371,6 @@ jobs:
       ACADLYX_RECOVERY_CONFIRM_DISPOSABLE: "YES"
       ACADLYX_RESTORE_DATABASE: acadlyx_restore_ci
       ACADLYX_RECOVERY_OUTPUT: recovery-results.json
-      ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -382,6 +381,8 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - name: Verify PostgreSQL 16 service client tools
+        env:
+          ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           test -n "$ACADLYX_RECOVERY_PG_CONTAINER"
           docker exec "$ACADLYX_RECOVERY_PG_CONTAINER" pg_dump --version
@@ -393,6 +394,8 @@ jobs:
       - name: Apply migrations
         run: npx prisma migrate deploy
       - name: Run backup, restore, and integrity reconciliation
+        env:
+          ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: npm run test:backup-restore
       - name: Preserve recovery evidence
         if: always()

@@ -38,6 +38,32 @@ function pg(command: string, args: string[]): void {
 
   // Use the matching postgres:16 service image's bundled client binaries.
   // This avoids runner/PGDG client version drift when restoring a PG16 dump.
+  const containerArgs = [...args];
+  let restoreContainerPath: string | undefined;
+
+  if (command === "pg_dump") {
+    const fileIndex = containerArgs.indexOf("--file");
+    if (fileIndex < 0 || !containerArgs[fileIndex + 1]) {
+      throw new Error("pg_dump must specify --file for the recovery rehearsal");
+    }
+    // pg_dump writes inside the service container; the artifact is copied
+    // back below after the command finishes.
+  } else if (command === "pg_restore") {
+    const sourcePath = [...containerArgs].reverse().find((arg) =>
+      !arg.startsWith("-") && /\.(?:dump|backup|sql)$/i.test(arg)
+    );
+    if (!sourcePath) {
+      throw new Error("pg_restore must specify the backup artifact to restore");
+    }
+    restoreContainerPath = `/tmp/${path.basename(sourcePath)}`;
+    execFileSync("docker", ["cp", sourcePath, `${clientContainer}:${restoreContainerPath}`], {
+      env: process.env,
+      stdio: "pipe",
+    });
+    const sourceIndex = containerArgs.lastIndexOf(sourcePath);
+    containerArgs[sourceIndex] = restoreContainerPath;
+  }
+
   execFileSync(
     "docker",
     [
@@ -48,20 +74,22 @@ function pg(command: string, args: string[]): void {
       "--env", `PGPASSWORD=${pgEnv.PGPASSWORD}`,
       clientContainer,
       command,
-      ...args,
+      ...containerArgs,
     ],
     { env: process.env, stdio: "pipe" }
   );
 
-  // pg_dump writes its custom-format artifact inside the service container;
-  // copy the file to the runner so stat(), upload-artifact and cleanup work.
   if (command === "pg_dump") {
-    const fileIndex = args.indexOf("--file");
-    if (fileIndex < 0 || !args[fileIndex + 1]) {
-      throw new Error("pg_dump must specify --file for the recovery rehearsal");
-    }
-    const containerPath = args[fileIndex + 1];
+    const fileIndex = containerArgs.indexOf("--file");
+    const containerPath = containerArgs[fileIndex + 1];
     execFileSync("docker", ["cp", `${clientContainer}:${containerPath}`, containerPath], {
+      env: process.env,
+      stdio: "pipe",
+    });
+  }
+
+  if (restoreContainerPath) {
+    execFileSync("docker", ["exec", clientContainer, "rm", "-f", restoreContainerPath], {
       env: process.env,
       stdio: "pipe",
     });
