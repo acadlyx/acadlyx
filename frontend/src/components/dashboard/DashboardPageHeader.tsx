@@ -10,7 +10,7 @@ export function DashboardPageHeader({
   breadcrumbs = [],
   actions,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description?: string;
   breadcrumbs?: DashboardPageBreadcrumb[];
