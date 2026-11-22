@@ -903,6 +903,8 @@ model StudentEnrollmentRequest {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  history StudentEnrollmentRequestHistory[]
+
   @@unique([studentId, academicYearId])
   @@index([institutionId, status, createdAt])
   @@index([institutionId, programId, academicYearId, semesterId, status])
@@ -2453,6 +2455,7 @@ model CourseRegistration {
   courseOffering   CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
   /// REQUESTED | APPROVED | REJECTED | DROPPED | WITHDRAWN
   status           String         @default("REQUESTED")
+  history CourseRegistrationHistory[]
   withdrawalRequests CourseWithdrawalRequest[]
   decidedById      String?
   decidedAt        DateTime?
@@ -2492,6 +2495,43 @@ model CourseWithdrawalRequest {
   @@index([registrationId, status])
   @@index([studentId, status])
   @@map("course_withdrawal_requests")
+}
+
+
+model CourseRegistrationHistory {
+  id             String             @id @default(uuid())
+  institutionId  String
+  registrationId String
+  registration   CourseRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  actorId        String
+  action         String
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  occurredAt     DateTime           @default(now())
+  metadata       Json?
+
+  @@index([institutionId, registrationId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@map("course_registration_history")
+}
+
+model StudentEnrollmentRequestHistory {
+  id             String                   @id @default(uuid())
+  institutionId  String
+  requestId      String
+  request        StudentEnrollmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actorId        String
+  action         String
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  occurredAt     DateTime                 @default(now())
+  metadata       Json?
+
+  @@index([institutionId, requestId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@map("student_enrollment_request_history")
 }
 
 model StudentMovementRequest {

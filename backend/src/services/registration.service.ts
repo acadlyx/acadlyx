@@ -23,6 +23,7 @@ import {
   canTransitionRegistrationState,
   isRegistrationAllowed,
   isAddDropAllowed,
+  isStudentCancellationAllowed,
   isWithdrawalRequestAllowed,
 } from "../utils/registrationPolicy";
 
@@ -465,6 +466,19 @@ export async function register(
           include,
         });
 
+    await tx.courseRegistrationHistory.create({
+      data: {
+        institutionId,
+        registrationId: saved.id,
+        actorId: actor.id,
+        action: existing ? "STUDENT_RESUBMITTED_CORRECTION" : "STUDENT_SUBMITTED",
+        previousStatus: existing?.status ?? null,
+        newStatus: "REQUESTED",
+        reason: existing?.remarks ?? null,
+        metadata: { courseOfferingId: offering.id },
+      },
+    });
+
     return { registration: saved, previousState: existing?.status ?? null };
   });
 
@@ -503,21 +517,39 @@ export async function drop(
   });
   if (!existing) throw new AppError("Registration not found", 404);
 
-  if (getEffectiveWorkspaceRole(actor) !== "STUDENT" || existing.studentId !== actor.id) {
-    throw new AppError("Only the student in the active Student workspace may cancel their own pending request", 403);
+  const selfService =
+    existing.studentId === actor.id &&
+    getEffectiveWorkspaceRole(actor) === "STUDENT";
+
+  if (selfService) {
+    if (!canStudentCancelRegistration(existing.status)) {
+      throw new AppError(
+        "Students may only cancel a pending request. Approved courses require a formal withdrawal request.",
+        409
+      );
+    }
+    if (!isStudentCancellationAllowed(
+      new Date(),
+      existing.courseOffering.semester.academicYear,
+      existing.courseOffering.registrationOpen
+    )) {
+      throw new AppError("The institution's add/drop deadline has passed or has not been configured", 409);
+    }
+  } else {
+    if (!actor.permissions.includes("registration.withdrawal.override")) {
+      throw new AppError("Administrative withdrawal override permission is required", 403);
+    }
+    await assertApproverScope(institutionId, actor, existing.courseOffering.course.departmentId);
+    if (!reason || reason.trim().length < 5) {
+      throw new AppError("An administrative override reason of at least 5 characters is required", 400);
+    }
+    if (!["REQUESTED", "APPROVED"].includes(existing.status)) {
+      throw new AppError("Only requested or approved registrations can be overridden", 409);
+    }
   }
-  if (!canStudentCancelRegistration(existing.status)) {
-    throw new AppError(
-      "Only a pending course registration may be cancelled directly. Approved courses require the institution's formal withdrawal process.",
-      409
-    );
-  }
-  if (!isAddDropAllowed(
-    new Date(),
-    existing.courseOffering.semester.academicYear,
-    existing.courseOffering.registrationOpen
-  )) {
-    throw new AppError("The institution's add/drop deadline has passed. Contact the academic office for an authorised exception.", 409);
+
+  if (!canTransitionRegistrationState(existing.status, "DROPPED")) {
+    throw new AppError("This registration cannot transition to DROPPED", 409);
   }
 
   const dropped = await prisma.$transaction(async (tx) => {
@@ -528,13 +560,17 @@ export async function drop(
       FOR UPDATE
     `);
     const fresh = await tx.courseRegistration.findFirst({
-      where: { id, institutionId, studentId: actor.id },
+      where: { id, institutionId },
       include,
     });
-    if (!fresh || fresh.status !== "REQUESTED") {
-      throw new AppError("The registration is no longer pending and cannot be cancelled", 409);
+    if (!fresh || fresh.status !== existing.status || (selfService && fresh.studentId !== actor.id)) {
+      throw new AppError("The registration changed before the withdrawal could be committed", 409);
     }
-    if (!isAddDropAllowed(new Date(), fresh.courseOffering.semester.academicYear, fresh.courseOffering.registrationOpen)) {
+    if (selfService && !isStudentCancellationAllowed(
+      new Date(),
+      fresh.courseOffering.semester.academicYear,
+      fresh.courseOffering.registrationOpen
+    )) {
       throw new AppError("The institution's add/drop deadline passed before the cancellation was committed", 409);
     }
 
@@ -542,8 +578,8 @@ export async function drop(
       where: {
         id,
         institutionId,
-        studentId: actor.id,
-        status: "REQUESTED",
+        status: existing.status,
+        ...(selfService ? { studentId: actor.id } : {}),
       },
       data: {
         status: "DROPPED",
@@ -553,28 +589,38 @@ export async function drop(
       },
     });
     if (changed.count !== 1) {
-      throw new AppError("This registration changed while you were cancelling it. Refresh and review its current status.", 409);
+      throw new AppError("Registration state changed concurrently; refresh and retry", 409);
     }
-    const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
-    if (!saved) throw new AppError("Registration not found", 404);
+
+    const saved = await tx.courseRegistration.findUniqueOrThrow({ where: { id }, include });
+    await tx.courseRegistrationHistory.create({
+      data: {
+        institutionId,
+        registrationId: id,
+        actorId: actor.id,
+        action: selfService ? "STUDENT_CANCELLED_PENDING" : "ADMINISTRATIVE_WITHDRAWAL_OVERRIDE",
+        previousStatus: existing.status,
+        newStatus: "DROPPED",
+        reason: reason ?? null,
+      },
+    });
     return saved;
   });
 
   await recordAuditLog({
     institutionId,
     userId: actor.id,
-    action: "registration.pending_cancel",
+    action: selfService ? "registration.cancel_pending" : "registration.withdrawal_override",
     entityType: "CourseRegistration",
     entityId: id,
     metadata: {
       studentId: existing.studentId,
-      previousState: "REQUESTED",
-      newState: "DROPPED",
+      previousStatus: existing.status,
+      newStatus: "DROPPED",
       reason: reason ?? null,
     },
     ...meta,
   });
-
   return dropped;
 }
 
@@ -671,6 +717,17 @@ export async function decide(
 
     const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
     if (!saved) throw new AppError("Registration not found", 404);
+    await tx.courseRegistrationHistory.create({
+      data: {
+        institutionId,
+        registrationId: id,
+        actorId: actor.id,
+        action: `STAFF_${decision}`,
+        previousStatus: "REQUESTED",
+        newStatus: decision,
+        reason: remarks ?? null,
+      },
+    });
     return saved;
   });
 
@@ -1304,6 +1361,12 @@ export async function requestWithdrawal(
   if (getEffectiveWorkspaceRole(actor) !== "STUDENT") {
     throw new AppError("Only the active Student workspace may request course withdrawal", 403);
   }
+  if (!actor.permissions.includes("registration.withdrawal.request")) {
+    throw new AppError("Course withdrawal request permission is required", 403);
+  }
+  if (!reason || reason.trim().length < 5) {
+    throw new AppError("A withdrawal reason of at least 5 characters is required", 400);
+  }
   const existing = await prisma.courseRegistration.findFirst({
     where: { id: registrationId, institutionId, studentId: actor.id },
     include,
@@ -1342,7 +1405,7 @@ export async function requestWithdrawal(
       orderBy: { attemptNumber: "desc" },
       select: { attemptNumber: true },
     });
-    return tx.courseWithdrawalRequest.create({
+    const saved = await tx.courseWithdrawalRequest.create({
       data: {
         institutionId,
         registrationId,
@@ -1356,6 +1419,19 @@ export async function requestWithdrawal(
         registration: { include },
       },
     });
+    await tx.courseRegistrationHistory.create({
+      data: {
+        institutionId,
+        registrationId,
+        actorId: actor.id,
+        action: "STUDENT_REQUESTED_WITHDRAWAL",
+        previousStatus: "APPROVED",
+        newStatus: "APPROVED",
+        reason: reason.trim(),
+        metadata: { withdrawalRequestId: saved.id },
+      },
+    });
+    return saved;
   });
 
   await recordAuditLog({
@@ -1445,6 +1521,9 @@ export async function decideWithdrawal(
   decisionNote: string | undefined,
   meta: Meta
 ) {
+  if (!actor.permissions.includes("registration.withdrawal.approve")) {
+    throw new AppError("Course withdrawal approval permission is required", 403);
+  }
   const existing = await prisma.courseWithdrawalRequest.findFirst({
     where: { id: requestId, institutionId },
     include: {
@@ -1490,6 +1569,18 @@ export async function decideWithdrawal(
         throw new AppError("The course registration is no longer approved; withdrawal was not applied", 409);
       }
     }
+    await tx.courseRegistrationHistory.create({
+      data: {
+        institutionId,
+        registrationId: existing.registrationId,
+        actorId: actor.id,
+        action: decision === "APPROVED" ? "STAFF_APPROVED_WITHDRAWAL" : "STAFF_REJECTED_WITHDRAWAL",
+        previousStatus: "APPROVED",
+        newStatus: decision === "APPROVED" ? "WITHDRAWN" : "APPROVED",
+        reason: decisionNote ?? existing.reason,
+        metadata: { withdrawalRequestId: requestId },
+      },
+    });
     const refreshed = await tx.courseWithdrawalRequest.findFirst({
       where: { id: requestId, institutionId },
       include: {
