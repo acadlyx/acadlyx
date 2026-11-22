@@ -17,8 +17,8 @@
   --acadlyx-danger-surface: #fef2f2;
   --acadlyx-info: #1d4ed8;
   --acadlyx-info-surface: #eff6ff;
-  --acadlyx-focus-ring: #1d4ed8;
-  --acadlyx-focus-ring-on-dark: #93c5fd;
+  --acadlyx-focus-ring: #315c4a;
+  --acadlyx-focus-ring-on-dark: #e8c69a;
 
   --acadlyx-background: #eee7dc;
   --acadlyx-surface: #fbf8f2;
@@ -98,8 +98,8 @@ button:disabled {
 }
 
 ::selection {
-  background: #dbeafe;
-  color: #1e3a8a;
+  background: #e7eee8;
+  color: #244638;
 }
 
 @layer components {
@@ -275,7 +275,7 @@ button:disabled {
 
   .acadlyx-table th,
   .acadlyx-table td {
-    border-bottom: 1px solid #e8eef5;
+    border-bottom: 1px solid #e7dfd4;
     padding: 13px 14px;
     vertical-align: middle;
   }
@@ -327,11 +327,11 @@ a[class~="hover:bg-slate-800"]:hover {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #c4d0dd;
+  background: #c9bca9;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #aab8c8;
+  background: #aa9a86;
 }
 
 @keyframes acadlyx-shimmer {
@@ -380,19 +380,9 @@ a[class~="hover:bg-slate-800"]:hover {
 
   box-shadow:
     14px 0 0
-      rgba(
-        37,
-        99,
-        235,
-        0.35
-      ),
+      rgba(49, 92, 74, 0.30),
     28px 0 0
-      rgba(
-        37,
-        99,
-        235,
-        0.16
-      );
+      rgba(49, 92, 74, 0.14);
 
   animation:
     acadlyx-dots
@@ -1122,3 +1112,38 @@ a[class*="bg-white"][class*="text-white"] {
 .acadlyx-button-primary,.acadlyx-button-secondary,.acadlyx-button-danger,.acadlyx-button{font-weight:650;letter-spacing:0}
 .acadlyx-button-primary:hover,.acadlyx-button-secondary:hover,.acadlyx-button-danger:hover{box-shadow:none;transform:none}
 @media(max-width:767px){.acadlyx-route-header-main{align-items:stretch;flex-direction:column}.acadlyx-route-actions{justify-content:flex-start}}
+
+
+/* Keep legacy primary actions on the ACADLYX brand without recoloring status
+   chips, informational labels, charts or non-interactive blue states. */
+button[class~="bg-blue-600"],
+a[class~="bg-blue-600"],
+[role="button"][class~="bg-blue-600"],
+button[class~="bg-indigo-600"],
+a[class~="bg-indigo-600"],
+[role="button"][class~="bg-indigo-600"],
+button[class~="bg-violet-600"],
+a[class~="bg-violet-600"],
+[role="button"][class~="bg-violet-600"],
+button[class~="bg-sky-600"],
+a[class~="bg-sky-600"],
+[role="button"][class~="bg-sky-600"] {
+  background-color: var(--acadlyx-primary) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+}
+button[class~="hover:bg-blue-700"]:hover,
+a[class~="hover:bg-blue-700"]:hover,
+[role="button"][class~="hover:bg-blue-700"]:hover,
+button[class~="hover:bg-indigo-700"]:hover,
+a[class~="hover:bg-indigo-700"]:hover,
+[role="button"][class~="hover:bg-indigo-700"]:hover,
+button[class~="hover:bg-violet-700"]:hover,
+a[class~="hover:bg-violet-700"]:hover,
+[role="button"][class~="hover:bg-violet-700"]:hover,
+button[class~="hover:bg-sky-700"]:hover,
+a[class~="hover:bg-sky-700"]:hover,
+[role="button"][class~="hover:bg-sky-700"]:hover {
+  background-color: var(--acadlyx-primary-dark) !important;
+  color: #ffffff !important;
+}
