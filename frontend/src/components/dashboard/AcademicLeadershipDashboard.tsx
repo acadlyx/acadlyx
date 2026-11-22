@@ -297,24 +297,14 @@ export function AcademicLeadershipDashboard({
       subtitle="Department academic leadership, faculty coordination and student oversight"
       allowedRoles={[role]}
     >
-      <div className="space-y-6">
+      <div className="acadlyx-content-dashboard space-y-6">
         <section className="rounded-3xl bg-slate-950 p-6 text-white shadow-sm sm:p-8">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            Department leadership
-          </p>
-
           <div className="mt-3 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
               <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
                 Academic operations under your scope
               </h1>
 
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                Review the departments assigned to you, coordinate
-                faculty and course offerings, monitor students, and
-                access only the workflows that belong to the HOD
-                workspace.
-              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -336,6 +326,9 @@ export function AcademicLeadershipDashboard({
             </div>
           </div>
         </section>
+        <div role="note" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+          Review the departments assigned to you, coordinate faculty and course offerings, monitor students, and access only the workflows that belong to the HOD workspace.
+        </div>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Stat

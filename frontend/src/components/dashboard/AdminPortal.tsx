@@ -130,20 +130,12 @@ export function AdminPortal() {
       subtitle="People, academic structure and institutional operations"
       allowedRoles={["INSTITUTION_ADMIN"]}
     >
-    <div className="mx-auto w-full max-w-[1500px] space-y-5 pb-10">
+    <div className="acadlyx-content-dashboard space-y-5 pb-10">
       <section className="relative overflow-hidden rounded-xl border border-[#315c4a] bg-[#244638] p-6 text-white shadow-none sm:p-8">
         <div className="relative">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#dce9df]">
-            Institution command center
-          </p>
-
-          <h1 className="mt-4 max-w-4xl text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="max-w-4xl text-2xl font-semibold tracking-tight sm:text-3xl">
             Your institution workspace, organized by responsibility.
           </h1>
-
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
-            Use the sections below to access authorized administrative functions without leaving your workspace.
-          </p>
 
           <div className="mt-6 flex flex-wrap gap-2.5">
             <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white/90">
