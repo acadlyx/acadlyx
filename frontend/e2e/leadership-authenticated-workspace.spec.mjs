@@ -68,7 +68,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   await installAuthenticatedSession(page, "DIRECTOR");
 
   await page.goto(baseURL + "/director", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Director Dashboard", exact: true })).toBeVisible();
 
   // Exercise the shared mobile workspace drawer and its keyboard lifecycle.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -110,7 +110,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
 test("authenticated Chairman workspace keeps institution-wide navigation role-owned", async ({ page }) => {
   await installAuthenticatedSession(page, "CHAIRMAN");
   await page.goto(baseURL + "/chairman", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Chairman", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chairman Dashboard", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/chairman/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/chairman/students");
   await expect(page.locator('a[href="/chairman/fees"]')).toHaveCount(1);
