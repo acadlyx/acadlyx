@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { isNavigationItemActive } from "@/lib/navigation";
@@ -65,7 +65,7 @@ function flatten(items: DashboardNavigationItem[]): DashboardNavigationItem[] {
 
 function Brand({ logoUrl, institutionLogoUrl, collapsed }: { logoUrl?: string | null; institutionLogoUrl?: string | null; collapsed: boolean }) {
   return <div className={collapsed ? "flex justify-center" : "flex items-center gap-2.5"}>
-    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">{logoUrl ? <img src={logoUrl} alt="ACADLYX logo" className="h-full w-full object-contain" /> : <span className="font-black text-blue-600">A</span>}</div>
+    <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">{logoUrl ? <img src={logoUrl} alt="ACADLYX logo" className="h-full w-full object-contain" /> : <span className="font-black text-[#315c4a]">A</span>}</div>
     {!collapsed && <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">{institutionLogoUrl ? <img src={institutionLogoUrl} alt="Institution logo" className="h-full w-full object-contain" /> : <span className="text-[10px] font-black text-slate-500">IN</span>}</div>}
   </div>;
 }
@@ -84,6 +84,8 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(false);
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
   const [menu, setMenu] = useState(false);
 
   const groups = useMemo(() => {
@@ -96,15 +98,53 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
 
   useEffect(() => {
     if (!mobile) return;
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobile(false);
+    const focusableSelector = 'a[href]:not([aria-disabled="true"]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const focusDrawer = () => {
+      const drawer = mobileDrawerRef.current;
+      if (!drawer) return;
+      const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(focusableSelector));
+      (focusable[0] || drawer).focus();
     };
-    window.addEventListener("keydown", handleKeyDown);
+    const focusTimer = window.setTimeout(focusDrawer, 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobile(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const drawer = mobileDrawerRef.current;
+      if (!drawer) return;
+      const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(focusableSelector));
+      if (!focusable.length) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
     return () => {
+      window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      if (mobileTriggerRef.current?.isConnected) mobileTriggerRef.current.focus();
     };
   }, [mobile]);
 
@@ -112,19 +152,19 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
   const shellStyle = { "--sidebar-width": collapsed ? "var(--acadlyx-sidebar-width-collapsed)" : "var(--acadlyx-sidebar-width-expanded)" } as CSSProperties;
 
   return <div className="acadlyx-dashboard-root min-h-screen" data-sidebar-collapsed={collapsed} style={shellStyle}>
-    <aside className="acadlyx-dashboard-sidebar fixed inset-y-0 left-0 hidden flex-col overflow-hidden border-r p-3 shadow-[4px_0_18px_rgba(15,23,42,0.12)] lg:flex">
+    <aside className="acadlyx-dashboard-sidebar fixed inset-y-0 left-0 hidden flex-col overflow-hidden border-r p-3 shadow-none lg:flex">
       <div className="flex h-14 shrink-0 items-center justify-center"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={collapsed} /></div>
       <nav aria-label="Workspace navigation" className="acadlyx-dashboard-navigation mt-5 min-h-0 flex-1 overflow-y-auto space-y-5 pb-3 pr-1">
         {groups.map(([group, items]) => <div key={group}>{!collapsed && <p className="acadlyx-sidebar-group-label mb-2 px-2 text-[9px] font-black uppercase tracking-[0.18em]">{group}</p>}<div className="space-y-1">{items.map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} collapsed={collapsed} />)}</div></div>)}
       </nav>
-      <div className="shrink-0 border-t border-slate-700/70 pt-3"><button type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-600/70 bg-slate-800 px-3 text-xs font-black text-slate-100 hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"><SvgIcon name="chevron" className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />{!collapsed && "Collapse"}</button></div>
+      <div className="shrink-0 border-t border-slate-700/70 pt-3"><button type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-600/70 bg-slate-800 px-3 text-xs font-black text-slate-100 hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8c69a]"><SvgIcon name="chevron" className={`h-4 w-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />{!collapsed && "Collapse"}</button></div>
     </aside>
 
-    {mobile && <div className="fixed inset-0 z-[500] bg-slate-950/60 lg:hidden" role="presentation" onClick={() => setMobile(false)}><aside role="dialog" aria-modal="true" aria-label="Mobile workspace navigation" className="flex h-[100dvh] w-[min(86vw,300px)] flex-col overflow-hidden border-r border-slate-700 bg-[var(--acadlyx-sidebar-bg)] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex h-14 shrink-0 items-center justify-between"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false}/><button type="button" onClick={() => setMobile(false)} aria-label="Close navigation" className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/20"><span className="text-xl leading-none">×</span></button></div><nav className="acadlyx-dashboard-navigation mt-6 min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">{groups.flatMap(([, items]) => items).map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} collapsed={false} onNavigate={() => setMobile(false)} />)}</nav></aside></div>}
+    {mobile && <div className="fixed inset-0 z-[500] bg-slate-950/60 lg:hidden" role="presentation" onClick={() => setMobile(false)}><aside id="workspace-mobile-navigation" ref={mobileDrawerRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Mobile workspace navigation" className="flex h-[100dvh] w-[min(86vw,300px)] flex-col overflow-hidden border-r border-slate-700 bg-[var(--acadlyx-sidebar-bg)] p-4 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex h-14 shrink-0 items-center justify-between"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false}/><button type="button" onClick={() => setMobile(false)} aria-label="Close navigation" className="grid min-h-11 min-w-11 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/20"><span className="text-xl leading-none">×</span></button></div><nav className="acadlyx-dashboard-navigation mt-6 min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">{groups.flatMap(([, items]) => items).map((item) => <NavigationLink key={`${item.href}-${item.label}`} item={item} pathname={pathname} collapsed={false} onNavigate={() => setMobile(false)} />)}</nav></aside></div>}
 
     <div className="acadlyx-dashboard-main min-w-0 max-w-full overflow-x-clip transition-[margin] duration-200">
-      <header className="acadlyx-dashboard-header sticky top-0 z-40 min-w-0 border-b shadow-[0_1px_12px_rgba(51,45,36,0.07)] backdrop-blur-xl"><div className="flex min-h-[72px] min-w-0 items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setMobile(true)} aria-label="Open navigation" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#d8d0c4] bg-[#f5efe4] text-slate-800 hover:bg-[#ebe4d8] lg:hidden"><SvgIcon name="menu" /></button><div className="hidden shrink-0 lg:block"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false} /></div><div className="min-w-0"><h1 className="acadlyx-shell-title truncate">{title || "ACADLYX"}</h1>{institutionName ? <p className="truncate text-[11px] font-bold text-slate-700" title={institutionName}>{institutionName}</p> : null}{subtitle && subtitle !== institutionName ? <p className="hidden truncate text-[10px] font-medium text-slate-500 sm:block">{subtitle}</p> : null}</div></div>
-        <div className="relative shrink-0"><button type="button" onClick={() => setMenu((value) => !value)} aria-expanded={menu} aria-haspopup="menu" aria-label="Open profile menu" data-open={menu} className="acadlyx-profile-button flex max-w-[calc(100vw-4.5rem)] items-center gap-2 rounded-xl border border-transparent px-2 py-1.5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-600 text-xs font-black text-white ring-2 ring-blue-100">{initials}</span><span className="hidden min-w-0 text-left sm:block"><b className="block max-w-40 truncate text-xs">{userName || "User"}</b><span className="block max-w-40 truncate text-[10px] font-semibold text-slate-600">{userRole || "Account"}</span></span></button>{menu && <div role="menu" className="absolute right-2 top-12 z-[1000] w-[min(15rem,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl"><Link role="menuitem" href="/profile" onClick={() => setMenu(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-50"><span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700"><SvgIcon name="profile" /></span><span><span className="block">My Profile</span><span className="block text-[10px] font-medium text-slate-500">View your complete profile</span></span></Link><div className="my-1 border-t border-slate-100"/><button role="menuitem" type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50"><SvgIcon name="logout" />Logout</button></div>}</div>
+      <header className="acadlyx-dashboard-header sticky top-0 z-40 min-w-0 border-b shadow-none"><div className="flex min-h-[72px] min-w-0 items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6"><div className="flex min-w-0 items-center gap-3"><button type="button" ref={mobileTriggerRef} onClick={() => setMobile(true)} aria-label="Open navigation" aria-controls="workspace-mobile-navigation" aria-expanded={mobile} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border border-[#d8d0c4] bg-[#f5efe4] text-slate-800 hover:bg-[#ebe4d8] lg:hidden"><SvgIcon name="menu" /></button><div className="hidden shrink-0 lg:block"><Brand logoUrl={logoUrl} institutionLogoUrl={institutionLogoUrl} collapsed={false} /></div><div className="min-w-0"><h1 className="acadlyx-shell-title truncate">{title || "ACADLYX"}</h1>{institutionName ? <p className="truncate text-[11px] font-bold text-slate-700" title={institutionName}>{institutionName}</p> : null}{subtitle && subtitle !== institutionName ? <p className="hidden truncate text-[10px] font-medium text-slate-500 sm:block">{subtitle}</p> : null}</div></div>
+        <div className="relative shrink-0"><button type="button" onClick={() => setMenu((value) => !value)} aria-expanded={menu} aria-haspopup="menu" aria-label="Open profile menu" data-open={menu} className="acadlyx-profile-button flex max-w-[calc(100vw-4.5rem)] items-center gap-2 rounded-xl border border-transparent px-2 py-1.5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#315c4a] text-xs font-semibold text-white ring-2 ring-[#dce7de]">{initials}</span><span className="hidden min-w-0 text-left sm:block"><b className="block max-w-40 truncate text-xs">{userName || "User"}</b><span className="block max-w-40 truncate text-[10px] font-semibold text-slate-600">{userRole || "Account"}</span></span></button>{menu && <div role="menu" className="absolute right-2 top-12 z-[1000] w-[min(15rem,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl"><Link role="menuitem" href="/profile" onClick={() => setMenu(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-50"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#edf3ee] text-[#315c4a]"><SvgIcon name="profile" /></span><span><span className="block">My Profile</span><span className="block text-[10px] font-medium text-slate-500">View your complete profile</span></span></Link><div className="my-1 border-t border-slate-100"/><button role="menuitem" type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50"><SvgIcon name="logout" />Logout</button></div>}</div>
       </div></header>
       <main className="min-h-[calc(100vh-72px)] min-w-0 max-w-full overflow-x-clip p-3 sm:p-6 lg:p-8">{children}</main>
     </div>

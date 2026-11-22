@@ -391,9 +391,9 @@ export function LeadershipDashboard({
       allowedRoles={[role]}
     >
       <div className="mx-auto w-full max-w-7xl space-y-6">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-6 py-8 text-white sm:px-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-300">
+        <section className="border-b border-slate-200 pb-6">
+          <div className="border-l-4 border-[#b38a59] bg-[#1b3027] px-6 py-7 text-white sm:px-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#e8c69a]">
               {meta.eyebrow}
             </p>
 

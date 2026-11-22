@@ -31,7 +31,7 @@
   --acadlyx-muted: #5b534a;
   --acadlyx-subtle: #746b61;
   --acadlyx-on-primary: #ffffff;
-  --acadlyx-font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  --acadlyx-font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, "Nirmala UI", "Mangal", "Noto Sans Devanagari", ui-sans-serif, system-ui, sans-serif;
   --acadlyx-font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 
   --acadlyx-radius-sm: 8px;
@@ -1146,4 +1146,79 @@ a[class~="hover:bg-sky-700"]:hover,
 [role="button"][class~="hover:bg-sky-700"]:hover {
   background-color: var(--acadlyx-primary-dark) !important;
   color: #ffffff !important;
+}
+
+
+/* Devanagari content receives native system fallbacks without a remote font request. */
+:lang(hi),
+:lang(hi) input,
+:lang(hi) textarea,
+:lang(hi) select {
+  font-family: "Nirmala UI", "Mangal", "Noto Sans Devanagari", var(--acadlyx-font-sans);
+}
+
+/* Shared workspace text links follow the existing institutional primary. */
+.acadlyx-dashboard-root a.text-blue-600,
+.acadlyx-dashboard-root button.text-blue-600,
+.acadlyx-dashboard-root a.hover\:text-blue-700:hover,
+.acadlyx-dashboard-root button.hover\:text-blue-700:hover {
+  color: var(--acadlyx-primary) !important;
+}
+
+@media (max-width: 767px) {
+  .acadlyx-dashboard-root,
+  .acadlyx-dashboard-main,
+  .acadlyx-dashboard-main > main {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .acadlyx-dashboard-main > main {
+    padding-inline: clamp(10px, 3.2vw, 14px);
+  }
+
+  .acadlyx-dashboard-main .acadlyx-table-wrap,
+  .acadlyx-dashboard-main [data-horizontal-scroll] {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .acadlyx-dashboard-main table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .acadlyx-dashboard-main :where(.grid, .flex) > * {
+    min-width: 0;
+  }
+
+  .acadlyx-dashboard-main :where(input, select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .acadlyx-dashboard-root button,
+  .acadlyx-dashboard-root a[role="button"] {
+    min-height: 44px;
+  }
+
+  .acadlyx-dashboard-main [role="dialog"] {
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .acadlyx-dashboard-main > main {
+    padding-inline: 10px;
+  }
+
+  .acadlyx-dashboard-main .acadlyx-page-header {
+    padding-bottom: 16px;
+  }
 }

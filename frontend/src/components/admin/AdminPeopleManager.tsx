@@ -84,8 +84,6 @@ const CATEGORIES: Array<{
     label: "Students",
     description:
       "Student records, enrolments, guardians and academic history.",
-    color:
-      "from-blue-600 to-indigo-600",
   },
 
   {
@@ -93,8 +91,6 @@ const CATEGORIES: Array<{
     label: "Faculty",
     description:
       "Teaching accounts, contact details and account status.",
-    color:
-      "from-violet-600 to-fuchsia-600",
   },
 
   {
@@ -102,8 +98,6 @@ const CATEGORIES: Array<{
     label: "Administrators",
     description:
       "Institution administrators responsible for the tenant workspace.",
-    color:
-      "from-cyan-600 to-blue-600",
   },
 
   {
@@ -111,8 +105,6 @@ const CATEGORIES: Array<{
     label: "Leadership",
     description:
       "Chairman, director, dean, registrar and HOD accounts.",
-    color:
-      "from-amber-500 to-orange-600",
   },
 
   {
@@ -120,8 +112,6 @@ const CATEGORIES: Array<{
     label: "Operations",
     description:
       "Accounts, HR, admissions, examinations, library, placement and IT.",
-    color:
-      "from-emerald-600 to-teal-600",
   },
 
   {
@@ -129,8 +119,6 @@ const CATEGORIES: Array<{
     label: "Parents",
     description:
       "Parent accounts linked to the institution's students.",
-    color:
-      "from-rose-500 to-pink-600",
   },
 ];
 
@@ -1253,62 +1241,25 @@ function AdminPeopleManagerContent() {
             </p>
           </section>
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {CATEGORIES.map(
-              (item) => (
-                <Link
-                  key={item.key}
-                  href={
-                    item.key ===
-                    "students"
-                      ? "/admin/students"
-                      : `/admin/users?category=${item.key}`
-                  }
-                  className="group relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
-                >
-                  <div
-                    className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${item.color}`}
-                  />
-
-                  <div className="flex items-start justify-between">
-                    <span className="grid h-12 w-12 place-items-center rounded-[17px] bg-slate-100 text-lg font-black text-slate-700">
-                      {item.label[0]}
-                    </span>
-
-                    <span className="rounded-full bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-500">
-                      {loading
-                        ? "—"
-                        : counts[
-                            item.key
-                          ]}
-                    </span>
-                  </div>
-
-                  <p className="mt-5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    {item.key}
-                  </p>
-
-                  <h2 className="mt-1 text-xl font-black text-slate-950">
-                    {item.label}
-                  </h2>
-
-                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-slate-500">
-                    {item.description}
-                  </p>
-
-                  <div className="mt-5 flex justify-between text-sm font-extrabold text-blue-600">
-                    <span>
-                      Open{" "}
-                      {item.label.toLowerCase()}
-                    </span>
-
-                    <span className="transition group-hover:translate-x-1">
-                      →
-                    </span>
-                  </div>
-                </Link>
-              ),
-            )}
+          <section aria-label="People categories" className="mt-2 divide-y divide-[#ddd3c4] border-y border-[#ddd3c4]">
+            {CATEGORIES.map((item) => (
+              <Link
+                key={item.key}
+                href={item.key === "students" ? "/admin/students" : `/admin/users?category=${item.key}`}
+                aria-label={`Open ${item.label} people directory`}
+                className="group flex min-w-0 items-center justify-between gap-5 py-5 pl-3 pr-2 transition-colors hover:bg-[#f6f1e8] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#315c4a]"
+              >
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-[#315c4a]">{item.key}</p>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-900">{item.label}</h2>
+                  <p className="mt-1 max-w-[68ch] text-sm leading-6 text-slate-600">{item.description}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="min-w-9 text-right text-sm font-semibold tabular-nums text-slate-700">{loading ? "—" : counts[item.key]}</span>
+                  <span className="text-xs font-semibold text-[#315c4a]">Open <span aria-hidden="true">→</span></span>
+                </div>
+              </Link>
+            ))}
           </section>
 
           {canCreate &&

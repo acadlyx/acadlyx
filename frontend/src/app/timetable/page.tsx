@@ -1394,7 +1394,7 @@ export default function TimetablePage() {
 
         {/* EDITOR MODAL */}
         {modalOpen ? (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4 ">
             <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[24px] border border-[#dfe7ee] bg-white shadow-2xl">
               <div className="flex items-start justify-between border-b border-[#e8edf2] px-5 py-4 sm:px-6">
                 <div>

@@ -100,7 +100,7 @@ export function StudentPlacementSchedule() {
   const hasItems = drives.length > 0 || interviews.length > 0 || assessments.length > 0 || visits.length > 0;
 
   return (
-    <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-5 shadow-sm sm:p-6">
+    <section className="border-y border-[#ddd3c4] bg-[var(--acadlyx-surface)] px-0 py-5 sm:py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Career & recruitment</p>
