@@ -111,18 +111,13 @@ export default function StudentAttendancePage() {
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
-            Academics
-          </p>
+          
 
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
             My attendance
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
-            A clear view of your attendance
-            before it becomes a problem.
-          </p>
+          
         </section>
 
         {error && (
