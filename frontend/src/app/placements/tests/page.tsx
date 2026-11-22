@@ -202,12 +202,13 @@ export default function PlacementTestsPage() {
 
   return (
     <PlacementTeamShell>
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border bg-white p-6">
-          <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Placement operations</p>
+          
           <h1 className="mt-2 text-3xl font-black text-slate-950">Tests & Assessments</h1>
-          <p className="mt-2 text-sm text-slate-600">Schedule company assessments, assign candidates, and keep participation linked to the placement drive.</p>
+          
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Schedule company assessments, assign candidates, and keep participation linked to the placement drive.</div>
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         <form onSubmit={create} onChange={() => setAudiencePreview(null)} className="grid gap-4 rounded-3xl border bg-white p-6 md:grid-cols-2">
           <h2 className="text-lg font-black text-slate-950 md:col-span-2">Schedule an assessment</h2>

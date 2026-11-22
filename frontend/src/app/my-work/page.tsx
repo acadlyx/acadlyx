@@ -40,15 +40,13 @@ export default function MyWorkPage() {
       title="My Work"
       subtitle="One action-oriented view of everything that needs your attention"
     >
-      <main className="mx-auto max-w-6xl space-y-6 pb-10">
+      <main className="acadlyx-content-standard space-y-6 pb-10">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Action center</p>
+          
           <div className="mt-2 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <h1 className="text-3xl font-black tracking-tight text-slate-950">What needs your attention?</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                My Work is generated from live ACADLYX records. It is not a manually maintained task list.
-              </p>
+              
             </div>
             <button
               type="button"

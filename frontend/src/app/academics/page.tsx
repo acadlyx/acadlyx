@@ -82,23 +82,20 @@ export default function AcademicsPage() {
       subtitle="Departments, programmes and course offerings"
       allowedRoles={["DEAN"]}
     >
-      <div className="space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
-            Academic leadership
-          </p>
+          
 
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
             Academic structure
           </h1>
 
-          <p className="mt-2 max-w-2xl text-sm text-slate-500">
-            A read-only view of the institution&apos;s academic
+          
+        </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">A read-only view of the institution&apos;s academic
             configuration
             {currentYear ? ` for ${currentYear.name}` : ""}. Changes are
-            made by institutional administration.
-          </p>
-        </section>
+            made by institutional administration.</div>
 
         {state === "loading" && (
           <div className="grid gap-4 lg:grid-cols-3">
