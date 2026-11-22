@@ -84,7 +84,7 @@ function CommandCenter({d,period,setPeriod,can}:{d:any;period:Period;setPeriod:(
  const departments=d.departments||[];
  return <div className="space-y-5">
   <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-   <div><h1 className="text-3xl font-black tracking-tight text-slate-950">Financial Command Center</h1><p className="mt-2 text-xs font-semibold text-slate-500">Authorized financial scope · Last refreshed {new Date().toLocaleTimeString()}</p></div>
+   <div><h1 className="text-3xl font-black tracking-tight text-slate-950">Financial Command Center</h1><div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">Authorized financial scope</span><span className="text-xs font-semibold text-slate-500">Last refreshed {new Date().toLocaleTimeString()}</span></div></div>
    <div className="flex flex-wrap gap-2">{(["today","week","month","quarter","academic"] as Period[]).map(x=><button key={x} onClick={()=>setPeriod(x)} className={`rounded-xl border px-3 py-2 text-xs font-black capitalize ${period===x?"border-slate-950 bg-slate-950 text-white":"border-slate-200 bg-white text-slate-600"}`}>{x}</button>)}</div>
   </header>
 

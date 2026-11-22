@@ -20,11 +20,12 @@ export default function StudentFinancePage(){
  },[]);
 
  return <DashboardShell title="Fees & Payments" subtitle="Your invoices, payments and receipts" allowedRoles={["STUDENT"]}>
-  {loading ? <main className="min-h-[60vh] p-6 text-center text-sm text-slate-500">Loading your financial records…</main> :
-   error ? <main className="min-h-[60vh] p-6 text-center text-red-700">{error}</main> :
+  {loading ? <main className="acadlyx-content-standard min-h-[60vh] space-y-5"><h1 className="acadlyx-page-title">Fees & Payments</h1><div className="p-6 text-sm text-slate-500">Loading your financial records…</div></main> :
+   error ? <main className="acadlyx-content-standard min-h-[60vh] space-y-5"><h1 className="acadlyx-page-title">Fees & Payments</h1><div role="alert" className="rounded-xl bg-red-50 p-6 text-red-700">{error}</div></main> :
    <main className="acadlyx-content-standard min-w-0 space-y-5">
     <div className="w-full">
      <header className="mb-5"><h1 className="text-2xl font-black text-slate-950">Fees & Payments</h1></header>
+     <div role="note" className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Only your own financial records are available here.</div>
      <div className="grid gap-4 sm:grid-cols-3">
       <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Outstanding</p><p className="mt-2 text-2xl font-black">{money(d.o.outstanding)}</p></div>
       <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Overdue</p><p className="mt-2 text-2xl font-black">{money(d.o.overdue)}</p></div>
