@@ -200,17 +200,13 @@ export function AdminPortal() {
                   </p>
 
                   <p className="mt-3 text-3xl font-black tracking-[-0.04em]">
-                    {new Intl.NumberFormat(
-                      "en-IN",
-                    ).format(
-                      typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key])
-                        ? data.stats[key]
-                        : Number.NaN,
-                    )}
+                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key])
+                      ? data.stats[key].toLocaleString("en-IN")
+                      : "—"}
                   </p>
 
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Institution-scoped records
+                  <p className="mt-1 text-xs text-slate-500">
+                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key]) ? "Institution-scoped records" : "Not reported"}
                   </p>
                 </div>
               ),
