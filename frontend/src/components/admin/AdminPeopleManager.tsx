@@ -77,7 +77,6 @@ const CATEGORIES: Array<{
   key: Category;
   label: string;
   description: string;
-  color: string;
 }> = [
   {
     key: "students",
