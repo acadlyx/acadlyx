@@ -28,10 +28,28 @@ const ICONS: Record<string, string> = {
   logout: "M10 17l5-5-5-5M15 12H3M21 19V5a2 2 0 0 0-2-2h-5",
   menu: "M4 7h16M4 12h16M4 17h16",
   chevron: "m9 18 6-6-6-6",
+  finance: "M3 6.5h18v11H3zM3 10h18M7 14h4M17 14h1M6 3.5h12",
+  exam: "M7 3.5h10a2 2 0 0 1 2 2v15H5v-15a2 2 0 0 1 2-2ZM8 9h8M8 13h3M8 17l2 2 5-5",
+  admissions: "M4 4h16v16H4zM8 8h8M8 12h8M8 16h4M16 15v5M13.5 17.5h5",
+  placement: "M3 8h18v12H3zM8 8V5h8v3M3 12h18M10 12v2h4v-2",
+  hr: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0M18 4h3M19.5 2.5v3",
+  technology: "M4 5h16v11H4zM2 20h20M9 16v4M15 16v4M8 9h8M8 12h5",
+  cms: "M4 4h16v16H4zM7 8h10M7 12h6M7 16h10M16 11l2 2-2 2",
+  community: "M12 3 14.4 8.5 20.5 9l-4.5 4 1.2 6-5.2-3-5.2 3 1.2-6-4.5-4 6.1-.5z",
+  analytics: "M4 20V11M10 20V4M16 20v-7M22 20H2",
 };
 
 function iconKey(item: DashboardNavigationItem) {
   const text = `${item.label} ${item.icon || ""}`.toLowerCase();
+  if (/finance|fees?|payments?|invoice|refund|expense|accounts?/.test(text)) return "finance";
+  if (/examin|assessment|results?|grades?|marks?/.test(text)) return "exam";
+  if (/admission|applicants?|enrol+/.test(text)) return "admissions";
+  if (/placement|career|recruit|job opening|offers?|companies/.test(text)) return "placement";
+  if (/human resources|\bhr\b|payroll|leave management|employees?/.test(text)) return "hr";
+  if (/technology|\bit\b|servers?|integrations?|support tickets?|devices?|infrastructure/.test(text)) return "technology";
+  if (/\bcms\b|site content|website|pages? and content/.test(text)) return "cms";
+  if (/events?|gallery|clubs?|societies|activities/.test(text)) return "community";
+  if (/analytics|intelligence|insights|performance reports/.test(text)) return "analytics";
   if (/overview|dashboard|platform/.test(text)) return "dashboard";
   if (/user|people|parent|section|faculty|staff/.test(text)) return "people";
   if (/student/.test(text)) return "student";
