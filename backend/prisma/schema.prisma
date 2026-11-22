@@ -2057,11 +2057,13 @@ model DomainEventOutbox {
   lastAttemptAt DateTime?
   lockedAt      DateTime?
   lockToken     String?
+  deadLetteredAt DateTime?
   createdAt     DateTime @default(now())
 
   @@index([institutionId, createdAt])
   @@index([processedAt, createdAt])
   @@index([processedAt, lockedAt, nextAttemptAt, createdAt])
+  @@index([deadLetteredAt, createdAt])
   @@index([name, processedAt, createdAt])
   @@map("domain_event_outbox")
 }

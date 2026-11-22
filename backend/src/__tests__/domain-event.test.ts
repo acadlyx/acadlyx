@@ -12,6 +12,7 @@ test("domain events fan out to exact and wildcard subscribers without sharing mu
   });
 
   await dispatchDomainEvent({
+    id: "event-test-1",
     name: "test.enterprise",
     occurredAt: new Date().toISOString(),
     institutionId: null,

@@ -30,6 +30,19 @@ async function notify(event:DomainEvent) {
     case "lms.discussion.created": title="Course discussion"; body="A new message was posted in your course discussion."; break;
     default: return;
   }
-  await prisma.notification.createMany({data:ids.map(userId=>({institutionId:event.institutionId as string,userId,title,body}))});
+  await prisma.notification.createMany({
+    data: ids.map((userId) => ({
+      institutionId: event.institutionId as string,
+      userId,
+      title,
+      body,
+      // A worker may crash after insertion but before acknowledging the outbox
+      // row. The event/recipient key makes that retry idempotent.
+      dedupeKey: `lms:${event.id}:${userId}`,
+    })),
+    skipDuplicates: true,
+  });
 }
-subscribeDomainEvent("*",event=>{void notify(event).catch(()=>undefined);});
+// Return the promise to the outbox dispatcher so failures are retried rather
+// than silently acknowledging events whose notifications were not persisted.
+subscribeDomainEvent("*", notify);

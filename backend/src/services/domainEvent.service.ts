@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { logger } from "../utils/logger";
 
 export interface DomainEvent<T = Record<string, unknown>> {
+  id: string;
   name: string;
   occurredAt: string;
   institutionId: string | null;
@@ -51,6 +52,7 @@ async function claimOutboxEvent() {
       SELECT "id"
       FROM "domain_event_outbox"
       WHERE "processedAt" IS NULL
+        AND "deadLetteredAt" IS NULL
         AND "attempts" < 10
         AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP)
         AND ("lockedAt" IS NULL OR "lockedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes')
@@ -85,6 +87,7 @@ export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainRes
     claimed += 1;
 
     const event: DomainEvent = {
+      id: row.id,
       name: row.name,
       occurredAt: row.occurredAt.toISOString(),
       institutionId: row.institutionId,
@@ -113,10 +116,19 @@ export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainRes
         data: {
           lastError: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
           nextAttemptAt: row.attempts < 10 ? new Date(Date.now() + delayMs) : null,
+          deadLetteredAt: row.attempts >= 10 ? new Date() : null,
           lockedAt: null,
           lockToken: null,
         },
       }).catch(() => undefined);
+      if (row.attempts >= 10) {
+        logger.error("Domain event moved to dead-letter state after retry exhaustion", {
+          eventId: row.id,
+          name: row.name,
+          institutionId: row.institutionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -132,6 +144,7 @@ export function publishDomainEvent<T extends Record<string, unknown>>(
   },
 ): void {
   const event: DomainEvent<T> = {
+    id: randomUUID(),
     name,
     occurredAt: new Date().toISOString(),
     institutionId: context.institutionId ?? null,
@@ -141,6 +154,7 @@ export function publishDomainEvent<T extends Record<string, unknown>>(
 
   void prisma.domainEventOutbox.create({
     data: {
+      id: event.id,
       institutionId: event.institutionId,
       actorId: event.actorId,
       name: event.name,
