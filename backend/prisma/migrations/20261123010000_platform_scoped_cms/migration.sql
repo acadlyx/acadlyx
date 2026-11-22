@@ -88,6 +88,13 @@ BEGIN
       SELECT 1 FROM "users" u
       WHERE u."id" = ur."userId" AND u."institutionId" IS NULL
     )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM "user_roles" mixed_ur
+      INNER JOIN "roles" other_role ON other_role."id" = mixed_ur."roleId"
+      WHERE mixed_ur."userId" = ur."userId"
+        AND other_role."name" <> 'CMS'
+    )
   ON CONFLICT ("userId", "roleId") DO NOTHING;
 
   -- Mixed-role tenant accounts keep their tenant roles but lose the

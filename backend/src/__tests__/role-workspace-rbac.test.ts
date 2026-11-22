@@ -72,6 +72,7 @@ test("CMS is a platform-scoped role rather than an institution role", () => {
   assert.equal(isPlatformRole("CMS"), true);
   assert.equal(isPlatformRole("SUPER_ADMIN"), true);
   assert.equal(isPlatformRole("INSTITUTION_ADMIN"), false);
+  assert.equal(getEffectiveWorkspaceRole({ roles: ["CMS"] }), "CMS");
   assert.deepEqual(ROLE_PERMISSIONS.CMS, ["site.manage"]);
   assert.deepEqual(getRolePermissions("CMS"), ["site.manage"]);
 });
