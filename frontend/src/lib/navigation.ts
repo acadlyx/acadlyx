@@ -2335,6 +2335,10 @@ export function canAccessRoute(
   // omitted from NAMESPACE_OWNERS cannot bypass the feature gate.
   const tenantFeature = tenantFeatureForPath(normalizedPath);
   if (tenantFeature && !tenantFeatures.includes(tenantFeature)) return false;
+  // Legacy redirect-only page: allow only the Director identity through the
+  // global client route gate so the page can redirect to /director. No data
+  // view or API operation is exposed at this alias.
+  if (normalizedPath === "/director/operations") return activeRole === "DIRECTOR";
 
   const matchingNamespace =
     NAMESPACE_OWNERS
