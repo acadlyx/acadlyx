@@ -16,8 +16,11 @@ export function isRegistrationAllowed(now: Date, policy: Pick<RegistrationCalend
 }
 
 export function isStudentCancellationAllowed(now: Date, policy: Pick<RegistrationCalendar, "registrationOpensAt" | "registrationClosesAt" | "addDropDeadline">, offeringOpen: boolean): boolean {
-  const deadline = policy.addDropDeadline ?? policy.registrationClosesAt ?? null;
-  return Boolean(deadline && now <= deadline && offeringOpen && (!policy.registrationOpensAt || now >= policy.registrationOpensAt));
+  if (policy.registrationOpensAt && now < policy.registrationOpensAt) return false;
+  // An explicit add/drop date is authoritative and must not be shortened
+  // by the separate offering-registration toggle.
+  if (policy.addDropDeadline) return now <= policy.addDropDeadline;
+  return Boolean(offeringOpen && policy.registrationClosesAt && now <= policy.registrationClosesAt);
 }
 
 export function isWithdrawalRequestAllowed(now: Date, policy: Pick<RegistrationCalendar, "startDate" | "withdrawalDeadline" | "exceptionalWithdrawalAllowed" | "exceptionalWithdrawalStartsAt" | "exceptionalWithdrawalEndsAt">): boolean {

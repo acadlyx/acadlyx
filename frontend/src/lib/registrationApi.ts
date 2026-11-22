@@ -53,16 +53,16 @@ export interface Registration {
         exceptionalWithdrawalEndsAt: string | null;
       };
     };
-    withdrawalRequests: Array<{
-      id: string;
-      reason: string;
-      status: "PENDING" | "APPROVED" | "REJECTED";
-      requestedAt: string;
-      decisionNote: string | null;
-    }>;
     section: { id: string; name: string; capacity: number | null };
     faculty: { id: string; firstName: string; lastName: string } | null;
   };
+  withdrawalRequests: Array<{
+    id: string;
+    reason: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    requestedAt: string;
+    decisionNote: string | null;
+  }>;
 }
 
 export interface EnrollmentContext {

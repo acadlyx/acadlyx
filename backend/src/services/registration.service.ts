@@ -68,19 +68,19 @@ const include = {
           },
         },
       },
-      withdrawalRequests: {
-        select: {
-          id: true,
-          reason: true,
-          status: true,
-          requestedAt: true,
-          decisionNote: true,
-        },
-        orderBy: { requestedAt: "desc" },
-      },
       section: { select: { id: true, name: true, capacity: true } },
       faculty: { select: { id: true, firstName: true, lastName: true } },
     },
+  },
+  withdrawalRequests: {
+    select: {
+      id: true,
+      reason: true,
+      status: true,
+      requestedAt: true,
+      decisionNote: true,
+    },
+    orderBy: { requestedAt: "desc" },
   },
 } satisfies Prisma.CourseRegistrationInclude;
 

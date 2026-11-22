@@ -739,13 +739,10 @@ function RegistrationView() {
   function canCancelPending(item: MyRegistrationSummary["items"][number]): boolean {
     const policy = item.courseOffering.semester.academicYear;
     const now = Date.now();
-    const deadline = policy.addDropDeadline ?? policy.registrationClosesAt;
-    return Boolean(
-      item.courseOffering.registrationOpen &&
-      deadline &&
-      now <= new Date(deadline).getTime() &&
-      (!policy.registrationOpensAt || now >= new Date(policy.registrationOpensAt).getTime())
-    );
+    const opensAt = policy.registrationOpensAt ? new Date(policy.registrationOpensAt).getTime() : null;
+    if (opensAt !== null && now < opensAt) return false;
+    if (policy.addDropDeadline) return now <= new Date(policy.addDropDeadline).getTime();
+    return Boolean(item.courseOffering.registrationOpen && policy.registrationClosesAt && now <= new Date(policy.registrationClosesAt).getTime());
   }
 
   function canRequestWithdrawal(item: MyRegistrationSummary["items"][number]): boolean {
@@ -773,16 +770,19 @@ function RegistrationView() {
     try {
       const result = await bulkRegisterForOfferings(selected);
       setSelected([]);
-      if (result.skipped > 0) {
-        const reasons = result.results
-          .filter((entry) => entry.status === "SKIPPED")
-          .map((entry) => entry.reason)
-          .filter((reason): reason is string => Boolean(reason));
-        setError(reasons.length
-          ? `Some courses were not submitted: ${reasons.slice(0, 3).join("; ")}`
-          : "Some selected courses could not be submitted. Review their current status and eligibility.");
-      }
+      const warning = result.skipped > 0
+        ? (() => {
+            const reasons = result.results
+              .filter((entry) => entry.status === "SKIPPED")
+              .map((entry) => entry.reason)
+              .filter((reason): reason is string => Boolean(reason));
+            return reasons.length
+              ? `Some courses were not submitted: ${reasons.slice(0, 3).join("; ")}`
+              : "Some selected courses could not be submitted. Review their current status and eligibility.";
+          })()
+        : "";
       await load();
+      if (warning) setError(warning);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Registration could not be submitted.");
     } finally {
