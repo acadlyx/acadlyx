@@ -43,8 +43,19 @@ export default function HODCourseRegistrationRequestsPage() {
     try{if(ids.length===1)await decideRegistration(ids[0],decision,remarks);else {const r=await bulkDecideRegistrations(ids,decision,remarks);setResult({processed:r.processed,skipped:r.skipped});}await load();}catch(e){setError(e instanceof Error?e.message:"Unable to process registrations.");}finally{setBusy(false);}
   }
   async function decideWithdrawal(id:string, decision:"APPROVED"|"REJECTED"){
-    const decisionNote=decision==="REJECTED" ? window.prompt("Reason for rejecting this withdrawal request:")?.trim() : undefined;
-    if(decision==="REJECTED"&&!decisionNote)return;
+    const decisionNote=decision==="REJECTED"
+      ? window.prompt("Reason for rejecting this withdrawal request (minimum 5 characters):")?.trim()
+      : undefined;
+    if(decision==="REJECTED"&&(!decisionNote||decisionNote.length<5)){
+      setError("A rejection reason of at least 5 characters is required.");
+      return;
+    }
+    const confirmed=window.confirm(
+      decision==="APPROVED"
+        ? "Approve this course withdrawal? The course will leave the active registration roster."
+        : "Reject this course withdrawal request?"
+    );
+    if(!confirmed)return;
     setBusy(true);setError("");
     try{await decideWithdrawalRequest(id,decision,decisionNote);await load();}
     catch(e){setError(e instanceof Error?e.message:"Unable to decide withdrawal request.");}

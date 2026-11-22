@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ROLE_PERMISSIONS } from "../config/rbac";
 import { decideEnrollmentRequestSchema } from "../validators/enrollmentRequest.validators";
-import { bulkDecisionSchema, registerSchema } from "../validators/registration.validators";
+import { bulkDecisionSchema, registerSchema, registrationListQuery, availableOfferingsQuery, withdrawalRequestSchema, withdrawalDecisionSchema } from "../validators/registration.validators";
 import {
   canStudentCancelRegistration,
   canStudentResubmitRegistration,
@@ -12,6 +12,7 @@ import {
   isRegistrationAllowed,
   isAddDropAllowed,
   isWithdrawalRequestAllowed,
+  isStudentCancellationAllowed,
 } from "../utils/registrationPolicy";
 
 test("student/HOD enrollment permissions are separated", () => {
@@ -103,6 +104,53 @@ test("registration transition matrix rejects silent reactivation and invalid dec
   assert.equal(canTransitionRegistrationState("NEEDS_CORRECTION", "REQUESTED"), true);
   assert.equal(canTransitionRegistrationState("APPROVED", "WITHDRAWN"), true);
   assert.equal(canTransitionRegistrationState("APPROVED", "DROPPED"), false);
+  assert.equal(canTransitionRegistrationState("DROPPED", "REQUESTED"), false);
+  assert.equal(canTransitionRegistrationState("REJECTED", "REQUESTED"), false);
+  assert.equal(canTransitionRegistrationState("WITHDRAWN", "REQUESTED"), false);
+});
+
+
+test("withdrawal permissions stay separate from ordinary registration permissions", () => {
+  assert.ok(ROLE_PERMISSIONS.STUDENT.includes("registration.withdrawal.request"));
+  assert.ok(!ROLE_PERMISSIONS.STUDENT.includes("registration.withdrawal.approve"));
+  assert.ok(ROLE_PERMISSIONS.HOD.includes("registration.withdrawal.approve"));
+  assert.ok(ROLE_PERMISSIONS.DEAN.includes("registration.withdrawal.approve"));
+  assert.ok(ROLE_PERMISSIONS.REGISTRAR.includes("registration.withdrawal.approve"));
+  assert.ok(ROLE_PERMISSIONS.DIRECTOR.includes("registration.withdrawal.override"));
+});
+
+test("registration search query validators retain and trim search terms", () => {
+  const list = registrationListQuery.safeParse({ search: "  algorithms " });
+  assert.equal(list.success, true);
+  if (list.success) assert.equal(list.data.search, "algorithms");
+  const offerings = availableOfferingsQuery.safeParse({ search: " CS-101 " });
+  assert.equal(offerings.success, true);
+  if (offerings.success) assert.equal(offerings.data.search, "CS-101");
+});
+
+test("formal withdrawal requires a meaningful reason and rejection note", () => {
+  assert.equal(withdrawalRequestSchema.safeParse({ reason: "Need to change course" }).success, true);
+  assert.equal(withdrawalRequestSchema.safeParse({ reason: "bad" }).success, false);
+  assert.equal(withdrawalDecisionSchema.safeParse({ decision: "REJECTED" }).success, false);
+  assert.equal(withdrawalDecisionSchema.safeParse({ decision: "REJECTED", decisionNote: "No" }).success, false);
+  assert.equal(withdrawalDecisionSchema.safeParse({ decision: "REJECTED", decisionNote: "Prerequisite not met" }).success, true);
+  assert.equal(withdrawalDecisionSchema.safeParse({ decision: "APPROVED" }).success, true);
+});
+
+test("student cancellation windows fail closed without configured close policy", () => {
+  const now = new Date("2026-09-10T12:00:00Z");
+  assert.equal(isStudentCancellationAllowed(now, {}, true), false);
+  assert.equal(isStudentCancellationAllowed(now, {
+    registrationOpensAt: new Date("2026-09-01T00:00:00Z"),
+    registrationClosesAt: new Date("2026-09-15T00:00:00Z"),
+  }, true), true);
+  assert.equal(isStudentCancellationAllowed(now, {
+    addDropDeadline: new Date("2026-09-05T00:00:00Z"),
+  }, true), false);
+});
+
+test("only authorised staff may use the explicit administrative withdrawal transition", () => {
+  assert.equal(canTransitionRegistrationState("APPROVED", "DROPPED"), true);
   assert.equal(canTransitionRegistrationState("DROPPED", "REQUESTED"), false);
   assert.equal(canTransitionRegistrationState("REJECTED", "REQUESTED"), false);
   assert.equal(canTransitionRegistrationState("WITHDRAWN", "REQUESTED"), false);
