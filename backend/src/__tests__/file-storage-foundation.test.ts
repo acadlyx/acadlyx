@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildTenantFolder,
+  deleteExternalBeforeMetadata,
   validateAllowedMime,
 } from "../services/fileStorage.service";
 
@@ -34,4 +35,29 @@ test("storage MIME validation rejects unapproved types", () => {
   assert.doesNotThrow(() =>
     validateAllowedMime("application/pdf", ["application/pdf", "image/png"]),
   );
+});
+
+
+test("storage metadata is deleted only after provider cleanup succeeds", async () => {
+  const calls: string[] = [];
+  await deleteExternalBeforeMetadata(
+    async () => { calls.push("provider"); },
+    async () => { calls.push("metadata"); },
+  );
+  assert.deepEqual(calls, ["provider", "metadata"]);
+});
+
+test("failed provider cleanup preserves storage metadata for retry", async () => {
+  const calls: string[] = [];
+  await assert.rejects(
+    deleteExternalBeforeMetadata(
+      async () => {
+        calls.push("provider");
+        throw new Error("provider unavailable");
+      },
+      async () => { calls.push("metadata"); },
+    ),
+    /provider unavailable/,
+  );
+  assert.deepEqual(calls, ["provider"]);
 });

@@ -2,6 +2,7 @@ import { env } from "../config/env";
 import { open, stat } from "fs/promises";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
+import { logger } from "../utils/logger";
 import { cloudinaryProvider } from "../storage/cloudinary.provider";
 import {
   FileStorageProvider,
@@ -173,6 +174,18 @@ export function buildTenantFolder(institutionId: string, module: string, ownerId
   return `acadlyx/${institutionId}/${safeModule}${safeOwner}`;
 }
 
+/**
+ * Keep the database record available for retry until the remote object has
+ * actually been removed. Provider delete operations must be idempotent.
+ */
+export async function deleteExternalBeforeMetadata(
+  deleteExternal: () => Promise<unknown>,
+  deleteMetadata: () => Promise<unknown>,
+): Promise<void> {
+  await deleteExternal();
+  await deleteMetadata();
+}
+
 export async function storeFile(input: {
   institutionId: string;
   module: string;
@@ -250,16 +263,28 @@ export async function storeFile(input: {
   }
 
   if (previous) {
-    await prisma.fileAsset.delete({ where: { id: previous.id } });
     try {
-      if (previous.provider === env.storageProvider) {
-        await provider().delete({
-          publicId: previous.publicId,
-          resourceType: previous.resourceType,
-        });
+      if (previous.provider !== env.storageProvider) {
+        throw new Error(`Previous file belongs to unsupported provider: ${previous.provider}`);
       }
-    } catch {
-      // Metadata replacement succeeds even if provider cleanup temporarily fails.
+      await deleteExternalBeforeMetadata(
+        () => provider().delete({
+          publicId: previous!.publicId,
+          resourceType: previous!.resourceType,
+        }),
+        async () => {
+          await prisma.fileAsset.delete({ where: { id: previous!.id } });
+        },
+      );
+    } catch (error) {
+      // Keep the old metadata so failed provider cleanup remains discoverable
+      // and can be retried instead of creating an untracked external object.
+      logger.error("Unable to clean up replaced storage object; metadata retained", {
+        fileId: previous.id,
+        institutionId: input.institutionId,
+        provider: previous.provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -338,13 +363,24 @@ export async function deleteFile(fileId: string, institutionId: string): Promise
   });
   if (!file) throw new AppError("File not found", 404);
 
-  await prisma.fileAsset.delete({ where: { id: file.id } });
+  if (file.provider !== env.storageProvider) {
+    throw new AppError("This file belongs to an unsupported storage provider; metadata was retained.", 503);
+  }
   try {
-    if (file.provider === env.storageProvider) {
-      await provider().delete({ publicId: file.publicId, resourceType: file.resourceType });
-    }
-  } catch {
-    // Keep deletion idempotent. A reconciliation process can retry provider cleanup.
+    await deleteExternalBeforeMetadata(
+      () => provider().delete({ publicId: file.publicId, resourceType: file.resourceType }),
+      async () => {
+        await prisma.fileAsset.delete({ where: { id: file.id } });
+      },
+    );
+  } catch (error) {
+    logger.error("Unable to delete external storage object; metadata retained for retry", {
+      fileId: file.id,
+      institutionId,
+      provider: file.provider,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new AppError("File deletion failed. Its record was preserved so the operation can be retried.", 502);
   }
 }
 
