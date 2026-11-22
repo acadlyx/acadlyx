@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { ModalPortal } from "@/components/ui/ModalPortal";
 import { getPrimaryRole } from "@/lib/authority";
 import {
   AuthRequiredError,
@@ -225,8 +226,8 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4">
-      <div role="dialog" aria-modal="true" aria-label={title} className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-none">
+    <ModalPortal layer="base" label={title} onBackdropClick={onClose} className="bg-slate-950/50">
+      <div className="my-auto max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-none">
         <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
           <h2 className="text-lg font-semibold text-slate-950">
             {title}
@@ -243,7 +244,7 @@ function Modal({
 
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 

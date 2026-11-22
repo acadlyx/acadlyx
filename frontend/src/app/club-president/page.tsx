@@ -46,9 +46,9 @@ export default function ClubPresidentPage() {
       allowedRoles={["CLUB_PRESIDENT"]}
     >
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-6 py-8 text-white sm:px-8">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
+        <section className="border-b border-slate-200 pb-6">
+          <div className="border-l-4 border-[#b38a59] bg-[#1b3027] px-6 py-7 text-white sm:px-8">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e8c69a]">
               Student club workspace
             </p>
             <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
@@ -61,7 +61,7 @@ export default function ClubPresidentPage() {
           </div>
 
           <div className="grid gap-4 p-6 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="border-b border-slate-200 bg-transparent py-5">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
                 Authority boundary
               </p>
@@ -73,7 +73,7 @@ export default function ClubPresidentPage() {
 
             <Link
               href="/calendar"
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md"
+              className="border-b border-slate-200 py-5 transition-colors hover:bg-[#f6f1e8]"
             >
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
                 Available workspace tool
