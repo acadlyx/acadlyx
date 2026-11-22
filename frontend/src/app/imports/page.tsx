@@ -76,13 +76,14 @@ export default function ImportsPage() {
 
   return (
     <DashboardShell title="Data Import & Export" subtitle="Bulk ERP data operations" allowedRoles={["INSTITUTION_ADMIN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "EXAMINATION", "HR"]}>
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         {authError ? <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{authError}</section> : null}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">No database access required</p>
+          
           <h1 className="mt-2 text-2xl font-bold text-slate-950">Excel / CSV Data Center</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Use human/business identifiers such as codes, names, academic-year labels, admission numbers and emails. Database UUIDs are resolved internally by ACADLYX.</p>
+          
         </section>
+      <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Use human/business identifiers such as codes, names, academic-year labels, admission numbers and emails. Database UUIDs are resolved internally by ACADLYX.</div>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-5 md:grid-cols-[260px_1fr]">
             <div>

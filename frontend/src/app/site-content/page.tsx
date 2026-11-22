@@ -130,9 +130,9 @@ export default function SiteContentPage() {
 
           <Card title="Hero">
             <div className="space-y-4">
-              <Field label="Eyebrow" value={data.hero.eyebrow} onChange={(v) => set("hero.eyebrow", v)} />
+              
               <Field label="Title" value={data.hero.title} onChange={(v) => set("hero.title", v)} />
-              <TextArea label="Description" value={data.hero.description} onChange={(v) => set("hero.description", v)} />
+              
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Primary CTA label" value={data.hero.primaryCtaLabel} onChange={(v) => set("hero.primaryCtaLabel", v)} />
                 <Field label="Primary CTA href" value={data.hero.primaryCtaHref} onChange={(v) => set("hero.primaryCtaHref", v)} />
@@ -190,16 +190,16 @@ export default function SiteContentPage() {
 }
 
 function Header({ busy, save, message }: { busy: boolean; save: () => void; message: string }) {
-  return <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Public website control</p><h1 className="mt-2 text-2xl font-black">100% CMS-driven external site</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage the landing page, About, Team, Contact, navigation, visuals and public copy from this workspace.</p>{message ? <p className="mt-3 text-sm font-bold text-blue-700">{message}</p> : null}</div><button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button></div>;
+  return <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-black">100% CMS-driven external site</h1>{message ? <p className="mt-3 text-sm font-bold text-blue-700">{message}</p> : null}</div><button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button></div>;
 }
 
 function PageEditor({ title, data, set, upload, imageKey }: { title: string; data: CmsPage; set: (key: string, value: string) => void; upload?: (event: ChangeEvent<HTMLInputElement>) => void; imageKey?: string }) {
-  return <Card title={title}><div className="grid gap-4 lg:grid-cols-2"><Field label="Eyebrow" value={data.eyebrow} onChange={(v) => set("eyebrow", v)} /><Field label="Title" value={data.title} onChange={(v) => set("title", v)} /><div className="lg:col-span-2"><TextArea label="Description" value={data.description} onChange={(v) => set("description", v)} /></div>{imageKey ? <ImageField label="Page image" value={imageKey === "imageUrl" ? (data.imageUrl ?? "") : ""} onChange={(v) => set(imageKey, v)} upload={upload} /> : null}</div></Card>;
+  return <Card title={title}><div className="grid gap-4 lg:grid-cols-2"><Field label="Title" value={data.title} onChange={(v) => set("title", v)} /><div className="lg:col-span-2"></div>{imageKey ? <ImageField label="Page image" value={imageKey === "imageUrl" ? (data.imageUrl ?? "") : ""} onChange={(v) => set(imageKey, v)} upload={upload} /> : null}</div></Card>;
 }
 
 function CollectionPageEditor({ title, data, set, setItem, add, remove, upload }: { title: string; data: CmsCollectionPage; set: (key: string, value: string) => void; setItem: (index: number, key: string, value: string) => void; add: () => void; remove: (index: number) => void; upload: (index: number, event: ChangeEvent<HTMLInputElement>) => void }) {
   return <Card title={title}>
-    <div className="grid gap-4 lg:grid-cols-2"><Field label="Eyebrow" value={data.eyebrow} onChange={(value) => set("eyebrow", value)} /><Field label="Title" value={data.title} onChange={(value) => set("title", value)} /><div className="lg:col-span-2"><TextArea label="Description" value={data.description} onChange={(value) => set("description", value)} /></div></div>
+    <div className="grid gap-4 lg:grid-cols-2"><Field label="Title" value={data.title} onChange={(value) => set("title", value)} /><div className="lg:col-span-2"></div></div>
     <div className="mt-5 space-y-4">{(data.items || []).map((item, index) => <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
       <div className="flex items-center justify-between"><b className="text-sm">Item {index + 1}</b><button type="button" onClick={() => remove(index)} className="text-xs font-bold text-red-600">Remove</button></div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2"><Field label="Name / title" value={item.title} onChange={(value) => setItem(index, "title", value)} /><Field label="Category / date" value={item.meta} onChange={(value) => setItem(index, "meta", value)} /><div className="lg:col-span-2"><TextArea label="Description" value={item.description} onChange={(value) => setItem(index, "description", value)} /></div><ImageField label="Image or logo" value={item.imageUrl} onChange={(value) => setItem(index, "imageUrl", value)} upload={(event) => upload(index, event)} /><Field label="Website / article link" value={item.linkUrl} onChange={(value) => setItem(index, "linkUrl", value)} /></div>
@@ -215,7 +215,7 @@ function TeamEditor({ data, set, setMember, add, remove, upload }: { data: CmsTe
 function TextGroup({ prefix, title, data, set }: { prefix: string; title: string; data: CmsSections; set: (path: string, value: string) => void }) {
   const key = prefix.split(".").pop();
   const source = data as unknown as Record<string, string | string[]>;
-  return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Eyebrow", "Title", "Description"].map((label) => { const actual = label === "Eyebrow" ? `${key}Eyebrow` : label === "Title" ? `${key}Title` : `${key}Description`; const value = typeof source[actual] === "string" ? source[actual] : ""; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
+  return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Title", "Description"].map((label) => { const actual = label === "Title" ? `${key}Title` : `${key}Description`; const value = typeof source[actual] === "string" ? source[actual] : ""; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-black text-slate-950">{title}</h2><div className="mt-5">{children}</div></section>; }
