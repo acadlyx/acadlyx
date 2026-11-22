@@ -85,11 +85,9 @@ export function RoleScopedStudents({
 
   return (
     <DashboardShell title={title} subtitle={subtitle} allowedRoles={[role]}>
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">{role} workspace</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Students</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{subtitle}</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Students</h1>
         </section>
 
         <form onSubmit={submitSearch} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row">

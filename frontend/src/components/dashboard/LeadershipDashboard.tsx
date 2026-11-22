@@ -390,13 +390,9 @@ export function LeadershipDashboard({
       subtitle={meta.subtitle}
       allowedRoles={[role]}
     >
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div className="acadlyx-content-dashboard space-y-6">
         <section className="border-b border-slate-200 pb-6">
           <div className="border-l-4 border-[#b38a59] bg-[#1b3027] px-6 py-7 text-white sm:px-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#e8c69a]">
-              {meta.eyebrow}
-            </p>
-
             <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
               {meta.title}
             </h1>

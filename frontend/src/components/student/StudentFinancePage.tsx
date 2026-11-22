@@ -22,9 +22,9 @@ export default function StudentFinancePage(){
  return <DashboardShell title="Fees & Payments" subtitle="Your invoices, payments and receipts" allowedRoles={["STUDENT"]}>
   {loading ? <main className="min-h-[60vh] p-6 text-center text-sm text-slate-500">Loading your financial records…</main> :
    error ? <main className="min-h-[60vh] p-6 text-center text-red-700">{error}</main> :
-   <main className="min-w-0 bg-[#f6f0e5] p-4 sm:p-6">
-    <div className="mx-auto max-w-6xl">
-     <header className="mb-5"><p className="text-xs font-black uppercase tracking-[.18em] text-slate-500">My Finance</p><h1 className="text-2xl font-black text-slate-950">Fees & Payments</h1><p className="text-sm text-slate-500">Only your own financial records are available here.</p></header>
+   <main className="acadlyx-content-standard min-w-0 space-y-5">
+    <div className="w-full">
+     <header className="mb-5"><h1 className="text-2xl font-black text-slate-950">Fees & Payments</h1></header>
      <div className="grid gap-4 sm:grid-cols-3">
       <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Outstanding</p><p className="mt-2 text-2xl font-black">{money(d.o.outstanding)}</p></div>
       <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Overdue</p><p className="mt-2 text-2xl font-black">{money(d.o.overdue)}</p></div>
