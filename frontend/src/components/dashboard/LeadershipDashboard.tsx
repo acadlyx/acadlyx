@@ -266,7 +266,7 @@ function formatValue(
   key: string,
 ): string {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "0";
+    return "—";
   }
 
   if (key === "totalInvoiced") {

@@ -122,14 +122,14 @@ export function PlacementDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Active opportunities", metrics?.opportunities ?? 0],
-            ["Applications", metrics?.applications ?? 0],
-            ["Offered", metrics?.status.OFFERED ?? 0],
-            ["Success rate", (metrics?.applicationSuccessRate ?? 0) + "%"],
+            ["Active opportunities", metrics?.opportunities],
+            ["Applications", metrics?.applications],
+            ["Offered", metrics?.status?.OFFERED],
+            ["Success rate", metrics?.applicationSuccessRate === undefined ? undefined : metrics.applicationSuccessRate + "%"],
           ].map(([label, value]) => (
-            <article key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm">
+            <article key={String(label)} className="border-b border-r border-slate-200 bg-white px-4 py-5">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-              <p className="mt-2 text-3xl font-black text-slate-950">{loading ? "—" : value}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-950">{loading || value === undefined ? "—" : value}</p><p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : value === undefined ? "Not reported" : "Reported by placement service"}</p>
             </article>
           ))}
         </section>
