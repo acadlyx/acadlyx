@@ -8,12 +8,10 @@ interface SectionHeaderProps {
   eyebrow?: string;
 }
 
-export function SectionHeader({ title, subtitle, action, eyebrow }: SectionHeaderProps) {
+export function SectionHeader({ title, action }: SectionHeaderProps) {
   return (
     <PageHeader
-      eyebrow={eyebrow}
       title={title}
-      description={subtitle}
       actions={action}
     />
   );
