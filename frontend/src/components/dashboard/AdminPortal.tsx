@@ -131,15 +131,15 @@ export function AdminPortal() {
       allowedRoles={["INSTITUTION_ADMIN"]}
     >
     <div className="mx-auto w-full max-w-[1500px] space-y-5 pb-10">
-      <section className="relative overflow-hidden rounded-xl bg-[#244638] p-6 text-white shadow-none sm:p-9">
-        <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-[#315c4a]/10" />
+      <section className="relative overflow-hidden rounded-[32px] bg-[#07111f] p-6 text-white shadow-[0_25px_80px_rgba(15,23,42,.18)] sm:p-9">
+        <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-blue-500/25 blur-3xl" />
 
         <div className="relative">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#dce9df]">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-200">
             Institution command center
           </p>
 
-          <h1 className="mt-4 max-w-4xl text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-[-0.045em] sm:text-5xl">
             Your institution workspace, organized by responsibility.
           </h1>
 
@@ -193,20 +193,25 @@ export function AdminPortal() {
               ([label, key]) => (
                 <div
                   key={key}
-                  className="relative overflow-hidden border-b border-r border-slate-200 bg-white px-4 py-5"
+                  className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm"
                 >
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
                     {label}
                   </p>
 
                   <p className="mt-3 text-3xl font-black tracking-[-0.04em]">
-                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key])
-                      ? data.stats[key].toLocaleString("en-IN")
-                      : "—"}
+                    {new Intl.NumberFormat(
+                      "en-IN",
+                    ).format(
+                      Number(
+                        data?.stats[key] ||
+                          0,
+                      ),
+                    )}
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-500">
-                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key]) ? "Institution-scoped records" : "Not reported"}
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Institution-scoped records
                   </p>
                 </div>
               ),
