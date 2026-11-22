@@ -465,12 +465,10 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
   };
 
   return (
-    <DashboardShell title={config.title} subtitle="Institution-scoped academic structure" allowedRoles={["INSTITUTION_ADMIN"]}>
-      <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
+    <DashboardShell title={config.title} allowedRoles={["INSTITUTION_ADMIN"]}>
+      <main className="acadlyx-content-table space-y-5">
         <DashboardPageHeader
-          eyebrow={departmentId ? "Department workspace" : campusId ? "Campus workspace" : programId ? "Program workspace" : semesterId ? "Semester workspace" : "Academic structure"}
           title={config.title}
-          description={loading ? "Loading institution-scoped records…" : `${total.toLocaleString("en-IN")} records · Page ${page} of ${totalPages}`}
           breadcrumbs={departmentId ? [
             { label: "Admin", href: "/admin" },
             { label: String(lookupData.departments.find((item) => item.id === departmentId)?.name || "Department"), href: `/admin/departments/${encodeURIComponent(departmentId)}` },
@@ -651,7 +649,7 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
                 }}
               />
             ) : (
-              <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
+              <div className="acadlyx-data-table-wrap"><table className="min-w-full text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="px-4 py-3 font-black text-slate-600">Record</th>
               {config.columns.map((field) => <th key={field} className="px-4 py-3 font-black capitalize text-slate-600">{field.replace(/([A-Z])/g, " $1")}</th>)}
               {(canUpdate || canDelete) ? <th className="px-4 py-3 text-right font-black text-slate-600">Manage</th> : null}

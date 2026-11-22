@@ -1492,14 +1492,11 @@ export function StudentSelfServiceModule({
   return (
     <DashboardShell
       title={meta.title}
-      subtitle={meta.subtitle}
       allowedRoles={["STUDENT"]}
     >
-      <main className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
+      <main className="acadlyx-content-standard space-y-5">
         <DashboardPageHeader
-          eyebrow="Student workspace"
           title={meta.title}
-          description={meta.subtitle}
           breadcrumbs={[{ label: "Student dashboard", href: "/student" }, { label: meta.title }]}
         />
 
