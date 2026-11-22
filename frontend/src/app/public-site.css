@@ -296,3 +296,110 @@
     animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
   }
 }
+
+
+.public-capabilities {
+  display: grid;
+  width: min(100%, 1240px);
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(36px, 7vw, 96px);
+  margin: 0 auto;
+  border-top: 1px solid var(--public-border);
+  padding: clamp(56px, 7vw, 88px) clamp(18px, 4vw, 48px);
+}
+.public-capabilities-intro {
+  position: sticky;
+  top: 28px;
+  align-self: start;
+  max-width: 460px;
+}
+.public-capabilities-intro h2,
+.public-roles-copy h2 {
+  margin: 0;
+  font-size: clamp(30px, 3.6vw, 42px);
+  line-height: 1.1;
+}
+.public-capabilities-intro > p:last-child,
+.public-roles-copy > p:last-child {
+  margin: 15px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.public-capability-list {
+  margin: 0;
+  border-top: 1px solid var(--public-border);
+  padding: 0;
+  list-style: none;
+}
+.public-capability-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 17px;
+  border-bottom: 1px solid var(--public-border);
+  padding: 19px 0 20px;
+}
+.public-capability-number {
+  padding-top: 3px;
+  color: #8a7b69;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.public-capability-meta {
+  margin: 0 0 5px;
+  color: var(--public-brand) !important;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+.public-capability-row h3 {
+  margin: 0;
+  color: var(--public-ink);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.public-capability-row p:last-child {
+  max-width: 68ch;
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.public-roles-section {
+  display: grid;
+  width: min(100%, 1240px);
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
+  gap: clamp(36px, 7vw, 96px);
+  margin: 0 auto;
+  border-top: 1px solid var(--public-border);
+  padding: clamp(48px, 6vw, 72px) clamp(18px, 4vw, 48px) clamp(64px, 7vw, 88px);
+}
+.public-roles-copy { max-width: 460px; }
+.public-roles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 22px;
+  margin: 0;
+  border-top: 1px solid var(--public-border);
+  padding: 0;
+  list-style: none;
+}
+.public-roles-list li {
+  min-height: 48px;
+  border-bottom: 1px solid var(--public-border);
+  padding: 14px 0;
+  color: #4e473e;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .public-capabilities,
+  .public-roles-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 25px;
+    padding: 52px 18px 62px;
+  }
+  .public-capabilities-intro { position: static; }
+  .public-roles-list { gap: 0 18px; }
+}

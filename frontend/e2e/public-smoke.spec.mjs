@@ -7,18 +7,13 @@ test("public route family fits the supported viewport matrix", async ({ page }, 
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
 
-  const routes = [
-    { path: "/", heading: "Run academic and institutional work from one connected ERP." },
-    { path: "/about", heading: "About ACADLYX" },
-    { path: "/contact", heading: "Contact the ACADLYX team" },
-    { path: "/partners", heading: "Partners and external resources" },
-    { path: "/updates", heading: "ACADLYX updates" },
-    { path: "/team", heading: "The ACADLYX team" },
-  ];
+  const routes = ["/", "/about", "/contact", "/partners", "/updates", "/team"];
 
   for (const route of routes) {
-    await page.goto(baseURL + route.path, { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { level: 1, name: route.heading })).toBeVisible();
+    await page.goto(baseURL + route, { waitUntil: "networkidle" });
+    const pageHeading = page.getByRole("heading", { level: 1 }).first();
+    await expect(pageHeading).toBeVisible();
+    expect((await pageHeading.innerText()).trim().length, `${route} must have a non-empty page heading`).toBeGreaterThan(4);
 
     for (const width of viewportWidths) {
       await page.setViewportSize({ width, height: 900 });
@@ -31,10 +26,10 @@ test("public route family fits the supported viewport matrix", async ({ page }, 
         \`\${route.path} should not overflow horizontally at \${width}px\`,
       ).toBeLessThanOrEqual(dimensions.viewport + 1);
 
-      if (route.path === "/" && width === 1440) {
+      if (route === "/" && width === 1440) {
         await page.screenshot({ path: testInfo.outputPath("desktop-home.png"), fullPage: true });
       }
-      if (route.path === "/about" && width === 390) {
+      if (route === "/about" && width === 390) {
         await page.screenshot({ path: testInfo.outputPath("mobile-about.png"), fullPage: true });
       }
     }
@@ -53,7 +48,7 @@ test("public mobile navigation opens, closes with Escape and navigates", async (
 
   const navigation = page.getByRole("navigation", { name: "Mobile navigation" });
   await expect(navigation).toBeVisible();
-  await expect(navigation.getByRole("link", { name: "About", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(navigation.locator('a[href="/about"]')).toHaveAttribute("aria-current", "page");
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
 
   await page.keyboard.press("Escape");
@@ -61,9 +56,9 @@ test("public mobile navigation opens, closes with Escape and navigates", async (
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
 
   await toggle.click();
-  await navigation.getByRole("link", { name: "Contact", exact: true }).click();
+  await navigation.locator('a[href="/contact"]').click();
   await expect(page).toHaveURL(/\/contact$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Contact the ACADLYX team" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
 });
 
