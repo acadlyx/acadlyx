@@ -36,9 +36,7 @@ export default function HomePage() {
       {loginOpen ? (
         <section className="public-login-layout" aria-label="Sign in to ACADLYX">
           <div className="public-login-intro">
-            <p className="public-eyebrow">ACADLYX workspace</p>
             <h1>Access the work assigned to your role.</h1>
-            <p>Sign in to open your institutional workspace. Available areas and records follow your assigned access.</p>
           </div>
           <div className="public-login-form-wrap">
             <div className="public-login-heading">
@@ -54,15 +52,9 @@ export default function HomePage() {
         <>
           <section className="public-home-hero">
             <div className="public-home-copy">
-              <p className="public-eyebrow">
-                {content.hero?.eyebrow || "EDUCATION ERP & INSTITUTIONAL OPERATIONS"}
-              </p>
               <h1 className="public-home-title">
                 {content.hero?.title || "Coordinate admissions, academics, finance and student services in one ERP."}
               </h1>
-              <p className="public-home-description">
-                {content.hero?.description || "ACADLYX connects enrolment, academic delivery, fees and payments, examinations, learning, library and placements through role-scoped institutional workflows."}
-              </p>
               <div className="public-home-actions">
                 <button type="button" onClick={() => setLoginOpen(true)} className="public-primary-action">
                   {content.hero?.primaryCtaLabel || "Sign in to ACADLYX"}
@@ -105,16 +97,14 @@ export default function HomePage() {
           {features.length ? (
             <section className="public-capabilities">
               <header className="public-capabilities-intro">
-                <p className="public-eyebrow">{content.sections.capabilitiesEyebrow || "Capabilities"}</p>
                 <h2>{content.sections.capabilitiesTitle || "Operational workflows connected across the institution."}</h2>
                 <p>{content.sections.capabilitiesDescription || "Explore the workflows available in the ACADLYX education ERP."}</p>
               </header>
               <ol className="public-capability-list">
-                {features.map((feature: { eyebrow?: string; title?: string; text?: string }, index: number) => (
+                {features.map((feature: { title?: string; text?: string }, index: number) => (
                   <li key={(feature.title || "capability") + "-" + index} className="public-capability-row">
                     <span className="public-capability-number">{String(index + 1).padStart(2, "0")}</span>
                     <div>
-                      {feature.eyebrow ? <p className="public-capability-meta">{feature.eyebrow}</p> : null}
                       {feature.title ? <h3>{feature.title}</h3> : null}
                       {feature.text ? <p>{feature.text}</p> : null}
                     </div>
@@ -127,7 +117,6 @@ export default function HomePage() {
           {roles.length ? (
             <section className="public-roles-section">
               <div className="public-roles-copy">
-                <p className="public-eyebrow">{content.sections.rolesEyebrow || "Workspaces"}</p>
                 <h2>{content.sections.rolesTitle || "Workspaces shaped around each responsibility."}</h2>
                 <p>{content.sections.rolesDescription || "Navigation and available actions follow each account's assigned role and institutional scope."}</p>
               </div>

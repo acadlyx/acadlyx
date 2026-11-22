@@ -20,9 +20,7 @@ export default function PartnersPage() {
     <PublicSiteShell>
       <section className="public-page-section">
         <header className="public-page-intro">
-          <p className="public-eyebrow">{page.eyebrow || "Published information"}</p>
           <h1>{page.title || "Partners and external resources"}</h1>
-          <p>{page.description || "Partner information published by the website team."}</p>
         </header>
         {items.length ? (
           <div className="public-editorial-list">

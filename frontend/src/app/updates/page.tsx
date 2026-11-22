@@ -20,9 +20,7 @@ export default function UpdatesPage() {
     <PublicSiteShell>
       <section className="public-page-section">
         <header className="public-page-intro">
-          <p className="public-eyebrow">{page.eyebrow || "News and notices"}</p>
           <h1>{page.title || "ACADLYX updates"}</h1>
-          <p>{page.description || "Published announcements and platform updates."}</p>
         </header>
         {items.length ? (
           <div className="public-editorial-list public-update-list">

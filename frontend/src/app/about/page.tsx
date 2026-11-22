@@ -6,15 +6,12 @@ export default function AboutPage() {
   const content = usePublicSiteContent();
   const page = content.pages.about || {};
   const title = page.title || "About ACADLYX";
-  const description = page.description || "ACADLYX is an education ERP for coordinating academic, administrative and student-facing work through connected institutional workflows.";
 
   return (
     <PublicSiteShell>
       <section className="public-page-section public-about-layout">
         <div className="public-page-intro">
-          <p className="public-eyebrow">{page.eyebrow || "The platform"}</p>
           <h1>{title}</h1>
-          <p>{description}</p>
         </div>
         {page.imageUrl ? (
           <figure className="public-about-image">
