@@ -94,6 +94,17 @@ export function ProtectedRouteBoundary({
       .then((currentUser) => {
         if (!alive) return;
 
+        // This legacy URL is redirect-only. Resolve it in the auth boundary,
+        // before mounting the nested dashboard shell and its legacy client
+        // redirect component. Only the Director workspace may follow it.
+        if (pathname === "/director/operations" && workspaceHome(currentUser.roles) === "/director") {
+          setUser(currentUser);
+          setState("checking");
+          setValidatedPath(null);
+          router.replace("/director");
+          return;
+        }
+
         if (!canAccessRoute(route, currentUser.roles, currentUser.permissions, currentUser.tenantFeatures || [])) {
           setState("unauthorized");
           setUser(currentUser);

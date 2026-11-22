@@ -122,16 +122,21 @@ test("placement workspace routes load with scoped authenticated session", async 
   page.on("pageerror", error => pageErrors.push(error.message));
   await installAuthenticatedSession(page, "PLACEMENT");
 
-  for (const [path, heading] of [
-    ["/placements/calendar", "Placement Calendar"],
-    ["/placements/applications", "Placement Applications"],
-    ["/placements/offers", "Placement Offers"],
-    ["/placements/drives", "Placement Drives"],
-    ["/placements/openings", "Job Openings"],
-    ["/placements/reports", "Placement Intelligence"],
-  ]) {
+  const routes = [
+    ["/placements/calendar", "label", "Search schedule"],
+    ["/placements/applications", "label", "Search applicants"],
+    ["/placements/offers", "label", "Search offers"],
+    ["/placements/drives", "label", "Search drives"],
+    ["/placements/openings", "heading", "Create job opening"],
+    ["/placements/reports", "heading", "Placement data exports"],
+  ];
+
+  for (const [path, locatorType, visibleText] of routes) {
     await page.goto(baseURL + path, { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+    const pageAnchor = locatorType === "label"
+      ? page.getByLabel(visibleText, { exact: true })
+      : page.getByRole("heading", { name: visibleText, exact: true });
+    await expect(pageAnchor).toBeVisible();
   }
   expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);
 });
