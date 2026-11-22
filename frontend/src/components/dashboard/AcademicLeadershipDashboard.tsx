@@ -70,7 +70,7 @@ function numberValue(
     }
   }
 
-  return 0;
+  return null;
 }
 
 function asPeople(value: unknown): Person[] {
@@ -103,7 +103,7 @@ function Stat({
   detail,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   detail: string;
 }) {
   return (
@@ -113,11 +113,11 @@ function Stat({
       </p>
 
       <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-        {value.toLocaleString("en-IN")}
+        {value === null ? "—" : value.toLocaleString("en-IN")}
       </p>
 
       <p className="mt-2 text-xs leading-5 text-slate-500">
-        {detail}
+        {value === null ? "Not reported by the workspace service." : detail}
       </p>
     </article>
   );
