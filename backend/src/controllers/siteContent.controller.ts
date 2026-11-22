@@ -1,9 +1,7 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { storeFile } from "../services/fileStorage.service";
+import { storePlatformFile } from "../services/fileStorage.service";
 import * as site from "../services/siteContent.service";
 import { asyncHandler } from "../utils/asyncHandler";
-import { requireInstitution } from "../utils/requireInstitution";
 import { AppError } from "../middleware/errorHandler";
 import { assertSafeImageUpload } from "../utils/imageUpload";
 
@@ -25,16 +23,14 @@ function assertCanManageSiteContent(
     );
   }
 
-  const isSuperAdmin =
-    req.user.roles.includes("SUPER_ADMIN");
+  const isPlatformCmsUser =
+    req.user.institutionId === null &&
+    req.user.roles.some((role) => role === "SUPER_ADMIN" || role === "CMS");
 
   const hasSiteManagePermission =
     req.user.permissions.includes("site.manage");
 
-  if (
-    !isSuperAdmin &&
-    !hasSiteManagePermission
-  ) {
+  if (!isPlatformCmsUser || !hasSiteManagePermission) {
     throw new AppError(
       "You are not allowed to manage website content",
       403
@@ -47,72 +43,15 @@ function assertCanManageSiteContent(
  *
  * This endpoint does not require authentication.
  *
- * It accepts either:
- *
- * ?institutionId=<id>
- *
- * or:
- *
- * ?slug=<institution-slug>
- *
- * Only the institution identifier and published website content
- * are returned.
+ * The platform-owned document is independent of tenant records.
  */
 export const publicContent = asyncHandler(
   async (
-    req: Request,
+    _req: Request,
     res: Response
   ) => {
-    const institutionId =
-      typeof req.query.institutionId === "string"
-        ? req.query.institutionId
-        : undefined;
-
-    const institutionSlug =
-      typeof req.query.slug === "string"
-        ? req.query.slug
-        : undefined;
-
-    if (
-      !institutionId &&
-      !institutionSlug
-    ) {
-      throw new AppError(
-        "institutionId or slug is required",
-        400
-      );
-    }
-
-    const institution =
-      institutionId
-        ? await prisma.institution.findUnique({
-            where: {
-              id: institutionId,
-            },
-            select: {
-              id: true,
-            },
-          })
-        : await prisma.institution.findUnique({
-            where: {
-              slug: institutionSlug!,
-            },
-            select: {
-              id: true,
-            },
-          });
-
-    if (!institution) {
-      throw new AppError(
-        "Institution not found",
-        404
-      );
-    }
-
-    const content =
-      await site.getPublicSiteContent(
-        institution.id
-      );
+    // The ACADLYX public site is platform-owned and does not resolve a tenant.
+    const content = await site.getPublicSiteContent();
 
     res.json({
       success: true,
@@ -131,14 +70,7 @@ export const get = asyncHandler(
   ) => {
     assertCanManageSiteContent(req);
 
-    const institutionId =
-      requireInstitution(req);
-
-    const content =
-      await site.getSiteContent(
-        institutionId,
-        req.user!
-      );
+    const content = await site.getSiteContent(req.user!);
 
     res.json({
       success: true,
@@ -157,19 +89,8 @@ export const update = asyncHandler(
   ) => {
     assertCanManageSiteContent(req);
 
-    const institutionId =
-      requireInstitution(req);
-
-    const content =
-      req.body?.content ??
-      req.body;
-
-    const updated =
-      await site.updateSiteContent(
-        institutionId,
-        req.user!,
-        content
-      );
+    const content = req.body?.content ?? req.body;
+    const updated = await site.updateSiteContent(req.user!, content);
 
     res.json({
       success: true,
@@ -186,16 +107,13 @@ export const update = asyncHandler(
 export const upload = asyncHandler(
   async (req: Request, res: Response) => {
     assertCanManageSiteContent(req);
-    const institutionId = requireInstitution(req);
-
     if (!req.file) {
       throw new AppError("Image file is required", 400);
     }
 
     assertSafeImageUpload(req.file);
 
-    const stored = await storeFile({
-      institutionId,
+    const stored = await storePlatformFile({
       module: "site",
       buffer: req.file.buffer,
       filename: req.file.originalname,

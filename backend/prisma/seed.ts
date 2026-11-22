@@ -15,6 +15,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
 import {
   PERMISSIONS as CANON_PERMISSIONS,
+  PLATFORM_ROLES,
   ROLE_PERMISSIONS as CANON_ROLE_PERMISSIONS,
 } from "../src/config/rbac";
 
@@ -87,7 +88,7 @@ async function main() {
   // --- Roles + RolePermissions ---
   const roleRecords = new Map<string, string>(); // name -> id
   for (const [roleName, permKeys] of Object.entries(ROLE_PERMISSIONS)) {
-    const isPlatformRole = roleName === "SUPER_ADMIN";
+    const isPlatformRole = PLATFORM_ROLES.includes(roleName as (typeof PLATFORM_ROLES)[number]);
     const institutionId = isPlatformRole ? null : aimt.id;
 
     let role = await prisma.role.findFirst({

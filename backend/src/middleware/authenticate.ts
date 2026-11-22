@@ -2,7 +2,7 @@
 import { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { AccessTokenPayload } from "../types/auth";
-import { getCanonicalRoleNames, getEffectivePermissions } from "../config/rbac";
+import { getCanonicalRoleNames, getEffectivePermissions, isPlatformRole } from "../config/rbac";
 import { verifyAccessToken } from "../utils/jwt";
 import { AppError } from "./errorHandler";
 import { isActiveRefreshSession } from "../utils/refreshSession";
@@ -11,7 +11,7 @@ import { isActiveRefreshSession } from "../utils/refreshSession";
  * Resolve the effective tenant context from the database.
  *
  * Rules:
- * - SUPER_ADMIN is platform-level and must remain institutionId = null.
+ * - Platform roles (SUPER_ADMIN and CMS) must remain institutionId = null.
  * - Institution-scoped roles must belong to exactly one institution.
  * - For legacy/broken accounts where user.institutionId is null but the
  *   institution-scoped role already identifies the tenant, use that role
@@ -27,25 +27,23 @@ function resolveInstitutionContext(
     };
   }>
 ): string | null {
-  const hasSuperAdmin = roleBindings.some(
-    ({ role }) => role.name === "SUPER_ADMIN"
-  );
+  const hasPlatformRole = roleBindings.some(({ role }) => isPlatformRole(role.name));
 
-  if (hasSuperAdmin) {
+  if (hasPlatformRole) {
     if (storedInstitutionId !== null) {
       throw new AppError(
-        "SUPER_ADMIN must be a platform-level account",
+        "Platform-scoped users must have institutionId = null",
         403
       );
     }
 
     const hasInstitutionScopedRole = roleBindings.some(
-      ({ role }) => role.name !== "SUPER_ADMIN" && role.institutionId !== null
+      ({ role }) => !isPlatformRole(role.name)
     );
 
     if (hasInstitutionScopedRole) {
       throw new AppError(
-        "SUPER_ADMIN cannot also be bound to an institution-scoped role",
+        "Platform-scoped users cannot also be bound to institution-scoped roles",
         403
       );
     }

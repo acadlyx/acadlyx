@@ -6,6 +6,7 @@ import {
   PERMISSIONS,
   ROLE_PERMISSIONS,
   SYSTEM_ROLE_NAMES,
+  PLATFORM_ROLES,
 } from "../config/rbac";
 import {
   CreateInstitutionInput,
@@ -93,7 +94,7 @@ export async function ensureInstitutionSystemRoles(
   const roleRecords = new Map<string, string>();
 
   for (const roleName of SYSTEM_ROLE_NAMES) {
-    if (roleName === "SUPER_ADMIN") {
+    if (PLATFORM_ROLES.includes(roleName as (typeof PLATFORM_ROLES)[number])) {
       continue;
     }
 
@@ -695,4 +696,48 @@ export async function getPlatformStats() {
     faculty,
     departments,
   };
+}
+
+
+/** Ensure one system role that belongs to the platform rather than a tenant. */
+export async function ensurePlatformSystemRole(
+  tx: Prisma.TransactionClient,
+  roleName: (typeof PLATFORM_ROLES)[number],
+): Promise<string> {
+  const permissionRecords = await ensurePermissionCatalog(tx);
+  let role = await tx.role.findFirst({
+    where: { institutionId: null, name: roleName },
+    select: { id: true, isSystem: true },
+  });
+  if (!role) {
+    role = await tx.role.create({
+      data: {
+        institutionId: null,
+        name: roleName,
+        isSystem: true,
+        description: `${roleName.replace(/_/g, " ")} platform role`,
+      },
+      select: { id: true, isSystem: true },
+    });
+  } else if (!role.isSystem) {
+    role = await tx.role.update({
+      where: { id: role.id },
+      data: { isSystem: true },
+      select: { id: true, isSystem: true },
+    });
+  }
+
+  const desiredIds = (ROLE_PERMISSIONS[roleName] ?? [])
+    .map((key) => permissionRecords.get(key))
+    .filter((id): id is string => Boolean(id));
+  await tx.rolePermission.deleteMany({
+    where: { roleId: role.id, ...(desiredIds.length ? { permissionId: { notIn: desiredIds } } : {}) },
+  });
+  if (desiredIds.length) {
+    await tx.rolePermission.createMany({
+      data: desiredIds.map((permissionId) => ({ roleId: role!.id, permissionId })),
+      skipDuplicates: true,
+    });
+  }
+  return role.id;
 }
