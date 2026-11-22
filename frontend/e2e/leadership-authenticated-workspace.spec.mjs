@@ -69,6 +69,27 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
 
   await page.goto(baseURL + "/director", { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
+
+  // Exercise the shared mobile workspace drawer and its keyboard lifecycle.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileMenu = page.getByRole("button", { name: "Open navigation" });
+  await mobileMenu.click();
+  const drawer = page.getByRole("dialog", { name: "Mobile workspace navigation" });
+  await expect(drawer).toBeVisible();
+  expect(await drawer.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+
+  for (const width of [320, 360, 375, 390, 430, 768, 1024, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const dimensions = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.document, `Director workspace overflow at ${width}px`).toBeLessThanOrEqual(dimensions.viewport + 1);
+  }
+
   await expect(page.getByRole("alert").filter({ hasText: "Campus metrics are" })).toContainText("temporarily unavailable");
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/director/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/director/students");
