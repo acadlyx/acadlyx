@@ -132,7 +132,7 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Events & Gallery",
     href: "/events-gallery",
     icon: "◫",
-    roles: ["MANAGEMENT","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
+    roles: ["MANAGEMENT","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"],
     permissions: ["events.read"],
     group: "Institution",
     activeMatch: "nested",
@@ -1861,7 +1861,7 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
   ["/imports", ["INSTITUTION_ADMIN", "REGISTRAR", "HOD", "FACULTY", "ACCOUNTS", "EXAMINATION", "HR"]],
   ["/examination", ["EXAMINATION"]],
   ["/site-content", ["SUPER_ADMIN", "CMS"]],
-  ["/events-gallery", ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","CMS","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"]],
+  ["/events-gallery", ["CHAIRMAN","MANAGEMENT","DIRECTOR","DEAN","REGISTRAR","HOD","FACULTY","ACCOUNTS","HR","ADMISSIONS","EXAMINATION","LIBRARIAN","PLACEMENT","IT","STUDENT","PARENT","CLUB_PRESIDENT","STAFF"]],
 
   [
     "/operations",
@@ -2147,7 +2147,6 @@ const NAMESPACE_OWNERS: Array<[string, string[]]> = [
       "LIBRARIAN",
       "PLACEMENT",
       "IT",
-      "CMS",
       "STUDENT",
       "PARENT",
       "CLUB_PRESIDENT",

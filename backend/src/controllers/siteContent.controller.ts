@@ -59,18 +59,7 @@ export const publicContent = asyncHandler(
     req: Request,
     res: Response
   ) => {
-    const institutionId =
-      typeof req.query.institutionId === "string"
-        ? req.query.institutionId
-        : undefined;
-
-    const institutionSlug =
-      typeof req.query.slug === "string"
-        ? req.query.slug
-        : undefined;
-
-    // Legacy institutionId/slug query parameters are ignored. Public website
-    // content is a platform singleton and no longer depends on a tenant.
+    // The ACADLYX public site is platform-owned and does not resolve a tenant.
     const content = await site.getPublicSiteContent();
 
     res.json({
