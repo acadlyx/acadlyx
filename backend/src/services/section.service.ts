@@ -128,14 +128,37 @@ export async function updateSection(
       },
     });
     if (nameTaken) {
-      throw new AppError(
-        `A section named "${input.name}" already exists for this semester`,
-        409
-      );
+      throw new AppError(`A section named "${input.name}" already exists for this semester`, 409);
     }
   }
 
-  return prisma.section.update({ where: { id }, data: input, include });
+  if (input.capacity === undefined || input.capacity === null) {
+    return prisma.section.update({ where: { id }, data: input, include });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "sections" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`;
+    const enrolledCount = await tx.studentEnrollment.count({
+      where: { institutionId, sectionId: id, status: "ACTIVE" },
+    });
+    const registrationRows = await tx.courseRegistration.findMany({
+      where: {
+        institutionId,
+        status: { in: ["REQUESTED", "APPROVED"] },
+        courseOffering: { sectionId: id },
+      },
+      select: { studentId: true },
+      distinct: ["studentId"],
+    });
+    const reservedStudents = Math.max(enrolledCount, registrationRows.length);
+    if (input.capacity < reservedStudents) {
+      throw new AppError(
+        `Section capacity cannot be reduced below ${reservedStudents} actively enrolled/reserved students`,
+        409
+      );
+    }
+    return tx.section.update({ where: { id }, data: input, include });
+  });
 }
 
 /** Soft delete — preserves history for any CourseOffering referencing this section. */

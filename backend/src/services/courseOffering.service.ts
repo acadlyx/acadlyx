@@ -359,40 +359,7 @@ export async function updateCourseOffering(
 ) {
   const current = await getCourseOfferingById(institutionId, id);
 
-  if (input.facultyId) {
-    await assertFacultyEligible(institutionId, input.facultyId);
-  }
-
-  if (input.capacity !== undefined && input.capacity !== null) {
-    const section = await prisma.section.findFirst({
-      where: {
-        id: current.sectionId,
-        institutionId,
-      },
-      select: { capacity: true },
-    });
-    if (section && section.capacity !== null &&
-        input.capacity > section.capacity) {
-      throw new AppError(
-        "Offering capacity cannot exceed the section capacity",
-        400
-      );
-    }
-
-    const registrationCount = await prisma.courseRegistration.count({
-      where: {
-        courseOfferingId: id,
-        status: "ACTIVE",
-      },
-    });
-
-    if (input.capacity < registrationCount) {
-      throw new AppError(
-        "Offering capacity cannot be lower than its current registrations",
-        409
-      );
-    }
-  }
+  if (input.facultyId) await assertFacultyEligible(institutionId, input.facultyId);
 
   if (
     (input.isActive === true && !current.isActive) ||
@@ -406,15 +373,38 @@ export async function updateCourseOffering(
     );
   }
 
-  const data = {
-    ...input,
-    ...(input.isActive === false ? { registrationOpen: false } : {}),
-  };
+  return prisma.$transaction(async (tx) => {
+    // Match registration writes: offering first, then section.
+    await tx.$queryRaw`SELECT "id" FROM "course_offerings" WHERE "id" = ${id} AND "institutionId" = ${institutionId} FOR UPDATE`;
+    if (input.capacity !== undefined && input.capacity !== null) {
+      await tx.$queryRaw`SELECT "id" FROM "sections" WHERE "id" = ${current.sectionId} AND "institutionId" = ${institutionId} FOR UPDATE`;
+      const section = await tx.section.findFirst({
+        where: { id: current.sectionId, institutionId },
+        select: { capacity: true },
+      });
+      if (section && section.capacity !== null && input.capacity > section.capacity) {
+        throw new AppError("Offering capacity cannot exceed the section capacity", 422);
+      }
 
-  return prisma.courseOffering.update({
-    where: { id },
-    data,
-    include,
+      const reserved = await tx.courseRegistration.count({
+        where: {
+          courseOfferingId: id,
+          status: { in: ["REQUESTED", "APPROVED"] },
+        },
+      });
+      if (input.capacity < reserved) {
+        throw new AppError(
+          `${reserved} pending/approved registrations currently reserve seats; capacity cannot be lower`,
+          409
+        );
+      }
+    }
+
+    const data = {
+      ...input,
+      ...(input.isActive === false ? { registrationOpen: false } : {}),
+    };
+    return tx.courseOffering.update({ where: { id }, data, include });
   });
 }
 
