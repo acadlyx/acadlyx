@@ -68,11 +68,12 @@ export default function DeletedUsersPage() {
 
   return (
     <DashboardShell title="Deleted Users" subtitle="90-day recovery workspace for soft-deleted accounts.">
-      <main className="acadlyx-page-container acadlyx-workspace-content">
+      <main className="acadlyx-page-container acadlyx-workspace-content acadlyx-content-standard">
         <header className="acadlyx-page-header">
-          <div><p className="acadlyx-eyebrow">USER LIFECYCLE</p><h1 className="acadlyx-page-title">Deleted Users</h1><p className="acadlyx-page-description">Deleted accounts remain recoverable for 90 days. Protected institutional records are never cascade-deleted.</p></div>
+          <div><h1 className="acadlyx-page-title">Deleted Users</h1></div>
           <div className="acadlyx-page-actions"><Link href="/admin/users" className="acadlyx-button-secondary">Active users</Link></div>
         </header>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Deleted accounts remain recoverable for 90 days. Protected institutional records are never cascade-deleted.</div>
         <section className="acadlyx-section-card mb-5">
           <div className="acadlyx-card-content flex flex-col gap-3 sm:flex-row">
             <input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void load(); }} placeholder="Search name or email" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm"/>

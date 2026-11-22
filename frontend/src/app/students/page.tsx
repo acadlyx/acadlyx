@@ -84,20 +84,13 @@ export default function StudentsPage() {
                 ← People
               </Link>
 
-              <p className="mt-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#2864e8]">
-                Student master
-              </p>
+              
 
               <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-[#152238] sm:text-4xl">
                 Students
               </h1>
 
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#718298]">
-                Create and maintain complete student
-                records. Each student has one master
-                profile, academic history and family
-                relationship layer.
-              </p>
+              
             </div>
 
             <div className="rounded-[18px] border border-[#d7e4f7] bg-white px-4 py-3 text-xs font-black text-[#2864e8]">
@@ -105,6 +98,10 @@ export default function StudentsPage() {
             </div>
           </div>
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Create and maintain complete student
+                records. Each student has one master
+                profile, academic history and family
+                relationship layer.</div>
 
         <section className="rounded-[26px] border border-[#dfe7ef] bg-white p-5 shadow-[0_8px_28px_rgba(25,45,75,0.035)]">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
