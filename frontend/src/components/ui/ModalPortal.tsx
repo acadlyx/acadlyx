@@ -93,11 +93,13 @@ export function ModalPortal({
   layer = "base",
   className = "",
   onBackdropClick,
+  label = "Dialog",
 }: {
   children: ReactNode;
   layer?: ModalLayer;
   className?: string;
   onBackdropClick?: () => void;
+  label?: string;
 }) {
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const [stackIndex, setStackIndex] = useState(0);
@@ -215,6 +217,9 @@ export function ModalPortal({
     <div
       ref={containerRef}
       tabIndex={-1}
+      role={layer === "toast" ? "status" : "dialog"}
+      aria-modal={layer === "toast" ? undefined : true}
+      aria-label={label}
       className={`fixed inset-0 flex h-[100dvh] w-screen items-start justify-center overflow-y-auto overscroll-contain bg-slate-950/45 p-4 sm:p-6 ${className}`}
       style={style}
       onMouseDown={handleBackdrop}

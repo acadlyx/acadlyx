@@ -5,6 +5,7 @@ on:
     branches:
       - production-upgrade-2026-09-20
       - stabilization-platform-2026-10-09
+      - website-anti-ai-design-overhaul-2026-11-23
   pull_request:
     branches:
       - production-upgrade-2026-09-20
@@ -28,4 +29,5 @@ jobs:
       - run: npm ci
       - run: npm run validate:source
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm run build

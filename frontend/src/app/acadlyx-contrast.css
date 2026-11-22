@@ -144,11 +144,14 @@
   color: #fecaca !important;
 }
 
-/* Strong keyboard focus for the authenticated shell. */
+/* Warm high-contrast keyboard focus on dark and light shell surfaces. */
 .acadlyx-app-shell aside a:focus-visible,
-.acadlyx-app-shell aside button:focus-visible,
+.acadlyx-app-shell aside button:focus-visible {
+  outline: 2px solid #e8c69a !important;
+  outline-offset: 2px;
+}
 .acadlyx-app-shell header button:focus-visible,
 .acadlyx-app-shell header a:focus-visible {
-  outline: 2px solid #1d4ed8 !important;
+  outline: 2px solid #315c4a !important;
   outline-offset: 2px;
 }

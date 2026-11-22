@@ -14,33 +14,31 @@ const DEFAULT_SITE_CONTENT = {
   pages: {
     about: {
       eyebrow: "ABOUT ACADLYX",
-      title: "A connected operating layer for modern institutions.",
-      description: "ACADLYX brings academic, administrative and institutional workflows into one permission-aware environment.",
+      title: "How ACADLYX supports institutional workflows.",
+      description: "Coordinate admissions, academic delivery, fees and payments, assessments, learning, library and placements through role-scoped workspaces. Each account sees the data and actions assigned to its responsibility.",
       imageUrl: "",
     },
     team: {
       eyebrow: "OUR TEAM",
-      title: "People building institutional technology.",
-      description: "Meet the people responsible for product, engineering, delivery and institutional success.",
-      members: [
-        { name: "ACADLYX Team", role: "Product & Engineering", bio: "Building secure education technology for institutions.", imageUrl: "" },
-      ],
+      title: "ACADLYX team profiles",
+      description: "Profiles appear here only when added and published by an authorized site administrator.",
+      members: [],
     },
     partners: {
       eyebrow: "OUR PARTNERS",
-      title: "Institutional partnerships",
+      title: "Published partner information",
       description: "Partner information published by the institution.",
       items: [],
     },
     updates: {
       eyebrow: "UPDATES",
-      title: "Latest updates",
+      title: "ACADLYX updates",
       description: "News and announcements published by the institution.",
       items: [],
     },
     contact: {
       eyebrow: "CONTACT",
-      title: "Start a conversation with ACADLYX.",
+      title: "Contact the ACADLYX team.",
       description: "Use the institution's published contact details to reach the team.",
     },
   },
@@ -56,13 +54,13 @@ const DEFAULT_SITE_CONTENT = {
 
   hero: {
     eyebrow: "EDUCATION ERP & INSTITUTIONAL OPERATIONS",
-    title: "One platform for the entire institution.",
+    title: "Admissions, academics and finance in one institutional workspace.",
     description:
-      "ACADLYX connects academic administration, student experience, faculty workflows, institutional operations and intelligence in one secure education ERP.",
-    primaryCtaLabel: "Access ACADLYX",
+      "ACADLYX connects enrolment, academic delivery, fees and payments, examinations, learning, library and placements through role-scoped institutional workflows.",
+    primaryCtaLabel: "Sign in to ACADLYX",
     primaryCtaHref: "/login",
-    secondaryCtaLabel: "Explore platform",
-    secondaryCtaHref: "#platform",
+    secondaryCtaLabel: "About the platform",
+    secondaryCtaHref: "/about",
     dashboardImageUrl: "",
     dashboardCaption:
       "A connected view of institutional operations.",
@@ -91,7 +89,7 @@ const DEFAULT_SITE_CONTENT = {
 
     capabilitiesEyebrow: "CAPABILITIES",
     capabilitiesTitle:
-      "ERP functionality without the ERP clutter.",
+      "Operational workflows connected across the institution.",
     capabilitiesDescription:
       "Each capability is designed around a real institutional workflow, with permissions and data boundaries built into the experience.",
 
@@ -152,7 +150,7 @@ const DEFAULT_SITE_CONTENT = {
 
     ctaEyebrow: "ACADLYX",
     ctaTitle:
-      "Bring the institution into one connected workspace.",
+      "Open your ACADLYX workspace.",
     ctaDescription:
       "Sign in to continue to the ACADLYX workspace available to your account.",
     ctaLabel: "Sign in to ACADLYX",

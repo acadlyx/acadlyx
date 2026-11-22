@@ -1,4 +1,59 @@
 "use client";
-import Image from "next/image";
+
 import { PublicSiteShell, usePublicSiteContent } from "@/components/public/PublicSiteShell";
-export default function TeamPage(){const c=usePublicSiteContent();const p=c.pages.team;return <PublicSiteShell><section className="mx-auto max-w-7xl px-5 py-20 sm:px-8"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{p.eyebrow}</p><h1 className="mt-4 text-5xl font-black tracking-tight">{p.title}</h1><p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">{p.description}</p><div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">{(p.members||[]).map((m:any)=><article key={m.name+m.role} className="rounded-[28px] border border-slate-900/10 bg-white p-6 shadow-sm"><div className="grid h-24 w-24 place-items-center overflow-hidden rounded-3xl bg-[#efe5d4]">{m.imageUrl?<img src={m.imageUrl} alt={m.name} className="h-full w-full object-cover"/>:<Image src={c.brand.logoUrl||"/branding/acadlyx-logo.png"} alt={m.name} width={48} height={48} className="h-12 w-12 object-contain"/>}</div><h2 className="mt-6 text-xl font-black">{m.name}</h2><p className="mt-1 text-xs font-black uppercase tracking-widest text-blue-600">{m.role}</p><p className="mt-4 text-sm leading-6 text-slate-600">{m.bio}</p></article>)}</div></section></PublicSiteShell>}
+
+type TeamMember = {
+  name: string;
+  role: string;
+  bio: string;
+  imageUrl?: string;
+};
+
+export default function TeamPage() {
+  const content = usePublicSiteContent();
+  const page = content.pages.team || {};
+  const members: TeamMember[] = Array.isArray(page.members) ? page.members : [];
+
+  return (
+    <PublicSiteShell>
+      <section className="public-page-section">
+        <header className="public-page-intro">
+          <p className="public-eyebrow">{page.eyebrow || "People"}</p>
+          <h1>{page.title || "The ACADLYX team"}</h1>
+          <p>{page.description || "Profiles published by the website team."}</p>
+        </header>
+        {members.length ? (
+          <div className="public-team-list">
+            {members.map((member, index) => {
+              const initials = (member.name || "")
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase();
+              return (
+                <article key={member.name + "-" + index} className="public-team-row">
+                  <div className="public-team-photo">
+                    {member.imageUrl ? (
+                      <img src={member.imageUrl} alt={member.name} />
+                    ) : (
+                      <span aria-hidden="true">{initials || "—"}</span>
+                    )}
+                  </div>
+                  <div className="public-team-copy">
+                    <h2>{member.name}</h2>
+                    <p className="public-team-role">{member.role}</p>
+                    <p>{member.bio}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="public-empty-message">No team profiles have been published.</p>
+        )}
+      </section>
+    </PublicSiteShell>
+  );
+}

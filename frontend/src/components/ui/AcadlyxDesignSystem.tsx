@@ -7,7 +7,7 @@ export function PageContainer({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`acadlyx-page-container ${className}`}>{children}</div>;
+  return <div className={"acadlyx-page-container " + className}>{children}</div>;
 }
 
 export function PageHeader({
@@ -46,12 +46,11 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="acadlyx-empty-state">
-      <div className="acadlyx-empty-icon" aria-hidden="true">—</div>
+    <section className="acadlyx-empty-state" aria-label={title}>
       <h2>{title}</h2>
       <p>{description}</p>
       {action ? <div className="acadlyx-empty-action">{action}</div> : null}
-    </div>
+    </section>
   );
 }
 
@@ -98,7 +97,8 @@ export function Button({
     <button
       {...props}
       disabled={loading || props.disabled}
-      className={`acadlyx-button acadlyx-button-${variant} ${className}`}
+      aria-busy={loading || undefined}
+      className={"acadlyx-button acadlyx-button-" + variant + " " + className}
     >
       {loading ? <span className="acadlyx-button-spinner" aria-hidden="true" /> : null}
       {children}
@@ -118,10 +118,10 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={`acadlyx-card acadlyx-section-card ${className}`}>
+    <section className={"acadlyx-card acadlyx-section-card " + className}>
       {title || action ? (
         <header className="acadlyx-card-header">
-          {title ? <h2>{title}</h2> : <span />}
+          {title ? <h2>{title}</h2> : <span aria-hidden="true" />}
           {action}
         </header>
       ) : null}

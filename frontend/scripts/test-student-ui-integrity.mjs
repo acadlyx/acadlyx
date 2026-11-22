@@ -20,7 +20,9 @@ const semesterValidator = read("../backend/src/validators/semester.validators.ts
 const departmentService = read("../backend/src/services/department.service.ts");
 const departmentValidator = read("../backend/src/validators/department.validators.ts");
 
-assert.match(sharedHeader, /text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl/);
+assert.match(sharedHeader, /acadlyx-route-header/, "shared page headings should use the open editorial header layout");
+assert.match(sharedHeader, /acadlyx-route-title/, "shared page titles should use the semantic route title token");
+assert.match(sharedHeader, /acadlyx-route-description/, "shared page descriptions should use the bounded reading-width token");
 assert.match(selfService, /DashboardPageHeader/);
 assert.match(examinations, /DashboardPageHeader/);
 for (const module of ["library", "registration", "leave"]) {

@@ -1,3 +1,34 @@
 "use client";
+
 import { PublicSiteShell, usePublicSiteContent } from "@/components/public/PublicSiteShell";
-export default function ContactPage(){const c=usePublicSiteContent();const p=c.pages.contact;return <PublicSiteShell><section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{p.eyebrow}</p><h1 className="mt-4 max-w-3xl text-5xl font-black tracking-tight">{p.title}</h1><p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">{p.description}</p><div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{[["Email",c.contact.email],["Phone",c.contact.phone],["Address",c.contact.address],["Website",c.contact.website]].map(([label,value])=><div key={label} className="rounded-3xl border border-slate-900/10 bg-white p-6"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p><p className="mt-3 text-sm font-bold text-slate-700 break-words">{value||"—"}</p></div>)}</div></section></PublicSiteShell>}
+
+export default function ContactPage() {
+  const content = usePublicSiteContent();
+  const page = content.pages.contact || {};
+  const details = [
+    { label: "Email", value: content.contact.email },
+    { label: "Phone", value: content.contact.phone },
+    { label: "Address", value: content.contact.address },
+    { label: "Website", value: content.contact.website },
+  ];
+
+  return (
+    <PublicSiteShell>
+      <section className="public-page-section">
+        <header className="public-page-intro">
+          <p className="public-eyebrow">{page.eyebrow || "Contact"}</p>
+          <h1>{page.title || "Contact the ACADLYX team"}</h1>
+          <p>{page.description || "Use the published institutional contact details below to reach the team."}</p>
+        </header>
+        <dl className="public-contact-list">
+          {details.map((detail) => (
+            <div className="public-contact-row" key={detail.label}>
+              <dt>{detail.label}</dt>
+              <dd>{detail.value || "Not published"}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </PublicSiteShell>
+  );
+}
