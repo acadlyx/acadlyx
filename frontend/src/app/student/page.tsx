@@ -85,10 +85,10 @@ export default function StudentDashboardPage() {
 function StudentDashboardContent({ data, workflow }: { data: StudentDashboardData; workflow: (MyEnrollmentWorkflow & { registrations: MyRegistrationSummary }) | null }) {
   const { student, program, section, todaysClasses, assignments, announcements, upcomingEvents, academicHealth, academicRisk, recommendations, attendancePercentage } = data;
 
-  return <div className="space-y-6">
+  return <div className="acadlyx-content-dashboard space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div><p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">Student workspace</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{greeting()}, {student.firstName}</h1><p className="mt-2 text-sm text-slate-500">{program?.name || "No program on record"}{section ? ` · Semester ${section.semester.number} · Section ${section.name}` : ""}</p></div>
+        <div><h1 className="text-3xl font-bold tracking-tight text-slate-950">{greeting()}, {student.firstName}</h1><p className="mt-2 text-sm text-slate-500">{program?.name || "No program on record"}{section ? ` · Semester ${section.semester.number} · Section ${section.name}` : ""}</p></div>
         <div className="flex flex-wrap gap-2">
           <Link href="/student/admit-cards" className="inline-flex w-fit items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700">Admit Cards</Link>
           <Link href="/student/timetable" className="inline-flex w-fit items-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">View my week →</Link>

@@ -173,12 +173,8 @@ export default function ParentDashboardPage() {
   return (
     <DashboardShell title="Parent Workspace" subtitle="Your child’s academic progress" allowedRoles={["PARENT"]}><div className="w-full pb-10">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="acadlyx-content-standard flex items-center justify-between gap-4 py-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-              ACADLYX
-            </p>
-
             <h1 className="mt-1 text-lg font-bold text-slate-900">
               Parent Portal
             </h1>
@@ -194,14 +190,10 @@ export default function ParentDashboardPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="acadlyx-content-dashboard space-y-6 py-6">
         <section className="rounded-3xl bg-slate-950 p-6 text-white shadow-sm sm:p-8">
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
-              <p className="text-sm font-medium text-slate-400">
-                Welcome back
-              </p>
-
               <h2 className="mt-2 text-3xl font-bold tracking-tight">
                 {data.parent.firstName}{" "}
                 {data.parent.lastName}

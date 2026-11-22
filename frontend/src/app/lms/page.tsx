@@ -173,7 +173,7 @@ export default function LmsPage() {
   if (booting || catalogLoading) {
     return (
       <DashboardShell title="LMS" subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
-        <div className="mx-auto max-w-7xl">
+        <div className="acadlyx-content-standard space-y-5"><h1 className="acadlyx-page-title">LMS</h1>
           <section role="status" className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-bold text-slate-600">Loading your LMS...</p>
           </section>
@@ -185,7 +185,7 @@ export default function LmsPage() {
   if (!permissions.includes("lms.read") || accessDenied) {
     return (
       <DashboardShell title="LMS" subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
-        <div className="mx-auto max-w-3xl">
+        <div className="acadlyx-content-detail space-y-5"><h1 className="acadlyx-page-title">LMS</h1>
           <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <h2 className="text-xl font-black text-slate-950">LMS access is not assigned to your role</h2>
             <p className="mt-2 text-sm text-slate-600">You don&apos;t have access to this LMS workspace.</p>
@@ -197,7 +197,7 @@ export default function LmsPage() {
 
   return (
     <DashboardShell title={workspaceTitle} subtitle="Learning, teaching, assessment and progress connected to ACADLYX academic records.">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6"><h1 className="acadlyx-page-title">{workspaceTitle}</h1>
         <section className="grid gap-4 md:grid-cols-4">
           {[
             ["Workspace", workspaceTitle],
