@@ -11,9 +11,7 @@ export function PageContainer({
 }
 
 export function PageHeader({
-  eyebrow,
   title,
-  description,
   actions,
   breadcrumb,
 }: {
@@ -27,9 +25,7 @@ export function PageHeader({
     <header className="acadlyx-page-header">
       <div className="min-w-0">
         {breadcrumb ? <div className="acadlyx-breadcrumb">{breadcrumb}</div> : null}
-        {eyebrow ? <p className="acadlyx-eyebrow">{eyebrow}</p> : null}
         <h1 className="acadlyx-page-title">{title}</h1>
-        {description ? <p className="acadlyx-page-description">{description}</p> : null}
       </div>
       {actions ? <div className="acadlyx-page-actions">{actions}</div> : null}
     </header>

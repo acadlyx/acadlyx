@@ -4,13 +4,11 @@ import Link from "next/link";
 export type DashboardPageBreadcrumb = { label: string; href?: string };
 
 export function DashboardPageHeader({
-  eyebrow,
   title,
-  description,
   breadcrumbs = [],
   actions,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description?: string;
   breadcrumbs?: DashboardPageBreadcrumb[];
@@ -34,9 +32,7 @@ export function DashboardPageHeader({
       ) : null}
       <div className="acadlyx-route-header-main">
         <div className="min-w-0">
-          {eyebrow ? <p className="acadlyx-route-eyebrow">{eyebrow}</p> : null}
           <h1 className="acadlyx-route-title">{title}</h1>
-          {description ? <p className="acadlyx-route-description">{description}</p> : null}
         </div>
         {actions ? <div className="acadlyx-route-actions">{actions}</div> : null}
       </div>

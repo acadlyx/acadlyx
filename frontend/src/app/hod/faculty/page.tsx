@@ -92,19 +92,16 @@ export default function HodFacultyPage() {
       subtitle="Faculty teaching within your authorised department scope"
       allowedRoles={["HOD"]}
     >
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
-            HOD workspace
-          </p>
+          
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
             Faculty
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Faculty are derived from active course offerings returned for the
-            authenticated HOD scope. No institution-wide HR or Accounts data is exposed here.
-          </p>
+          
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Faculty are derived from active course offerings returned for the
+            authenticated HOD scope. No institution-wide HR or Accounts data is exposed here.</div>
 
         {error ? (
           <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">

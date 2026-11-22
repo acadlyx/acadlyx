@@ -9,15 +9,12 @@ export default function DirectorCalendarPage() {
       title="Campus calendar"
       subtitle="Campus-scoped event management for your assigned campuses."
     >
-      <main className="acadlyx-page-container acadlyx-workspace-content">
+      <main className="acadlyx-page-container acadlyx-workspace-content acadlyx-content-standard">
         <header className="acadlyx-page-header">
           <div>
-            <p className="acadlyx-eyebrow">DIRECTOR WORKSPACE</p>
+            
             <h1 className="acadlyx-page-title">Campus calendar</h1>
-            <p className="acadlyx-page-description">
-              Calendar records currently belong to the institution rather than an assigned campus.
-              This page will not show or change institution-wide calendar records from a Director workspace.
-            </p>
+            
           </div>
         </header>
         <section className="acadlyx-section-card p-6" aria-labelledby="campus-calendar-scope-title">

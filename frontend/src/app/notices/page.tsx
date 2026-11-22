@@ -231,19 +231,13 @@ export default function NoticesPage() {
         <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                Communication centre
-              </p>
+              
 
               <h1 className="mt-1 text-2xl font-black tracking-[-0.035em] text-slate-900">
                 Notices
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                View notices available to this account. Department-specific
-                notices are filtered by the server according to your academic
-                or institutional scope.
-              </p>
+              
             </div>
 
             <div className="flex items-center gap-3">

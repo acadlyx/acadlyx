@@ -32,12 +32,9 @@ export function DetailDrawer({
       >
         <header className="flex min-h-[92px] shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#315c4a]">
-              {eyebrow}
-            </p>
             <h2
               id="acadlyx-detail-drawer-title"
-              className="mt-1 break-words font-serif text-xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-2xl"
+              className="break-words font-serif text-xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-2xl"
             >
               {title}
             </h2>

@@ -169,20 +169,13 @@ export default function StudentTimetablePage() {
         <section className="print-hidden rounded-[24px] border border-[#dfe7ee] bg-white p-5 shadow-[0_8px_28px_rgba(20,32,50,0.04)] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2864e8]">
-                Academics
-              </p>
+              
 
               <h1 className="mt-1 text-2xl font-black tracking-[-0.035em] text-[#172033]">
                 My weekly timetable
               </h1>
 
-              <p className="mt-2 text-sm leading-6 text-[#718298]">
-                Your schedule is generated
-                from the classes assigned
-                to your current enrollment
-                and section.
-              </p>
+              
             </div>
 
             <div className="flex gap-2">

@@ -28,12 +28,10 @@ const date = (v?: string | null) => {
 };
 
 function Shell({ view, children }: { view: View; children: React.ReactNode }) {
-  return <DashboardShell title="Examinations" subtitle="Your examination registration, admit cards, performance and results" allowedRoles={["STUDENT"]}>
-    <div className="mx-auto max-w-6xl space-y-5 pb-10">
+  return <DashboardShell title="Examinations" allowedRoles={["STUDENT"]}>
+    <div className="acadlyx-content-standard space-y-5 pb-10">
       <DashboardPageHeader
-        eyebrow="Student workspace"
         title="Examinations"
-        description="Your examination registration, admit cards, performance and published results."
         breadcrumbs={[{ label: "Student dashboard", href: "/student" }, { label: "Examinations" }]}
       />
       <nav className="flex flex-wrap gap-2" aria-label="Examination sections">

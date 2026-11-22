@@ -198,8 +198,7 @@ export default function MyProfilePage() {
             </label>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-400">My profile</p>
-            <h1 className="mt-1 text-2xl font-black text-slate-950">{user.firstName} {user.lastName}</h1>
+            <h1 className="text-2xl font-black text-slate-950">{user.firstName} {user.lastName}</h1>
             <p className="mt-1 text-sm font-medium text-slate-500">{user.idNumber} · {user.email}</p>
           </div>
           <div className="sm:ml-auto flex flex-wrap gap-2">

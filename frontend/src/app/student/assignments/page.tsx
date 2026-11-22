@@ -111,9 +111,7 @@ export default function StudentAssignmentsPage() {
     >
       <div className="space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
-            Academics
-          </p>
+          
 
           <div className="mt-2 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
@@ -121,11 +119,7 @@ export default function StudentAssignmentsPage() {
                 My assignments
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
-                View upcoming work and open
-                each assignment when you are
-                ready.
-              </p>
+              
             </div>
 
             <Link

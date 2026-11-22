@@ -10,19 +10,16 @@ export default function HodAttendancePage() {
       subtitle="Department-scoped attendance reporting"
       allowedRoles={["HOD"]}
     >
-      <div className="mx-auto w-full max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
-            HOD workspace
-          </p>
+          
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
             Attendance
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Review and export attendance within the authenticated HOD department scope.
-            The backend remains the final authority for every record and filter.
-          </p>
+          
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Review and export attendance within the authenticated HOD department scope.
+            The backend remains the final authority for every record and filter.</div>
         <AttendanceExportPanel />
       </div>
     </DashboardShell>

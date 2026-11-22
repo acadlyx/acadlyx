@@ -18,9 +18,7 @@ export default function TeamPage() {
     <PublicSiteShell>
       <section className="public-page-section">
         <header className="public-page-intro">
-          <p className="public-eyebrow">{page.eyebrow || "People"}</p>
           <h1>{page.title || "The ACADLYX team"}</h1>
-          <p>{page.description || "Profiles published by the website team."}</p>
         </header>
         {members.length ? (
           <div className="public-team-list">

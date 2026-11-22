@@ -96,14 +96,13 @@ export default function CompleteImportedStudentsPage() {
 
   return (
     <DashboardShell title="Complete Imported Students" subtitle="Imported records can be used now and completed later">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="acadlyx-content-detail space-y-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Import successful</p>
+          
           <h1 className="mt-2 text-2xl font-black text-slate-950">Complete missing student information</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Missing columns did not block the import. Fill what you have now, save it, or use Upload Anyway / Finish Later and complete these students from their normal profiles.
-          </p>
+          
         </section>
+      <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Missing columns did not block the import. Fill what you have now, save it, or use Upload Anyway / Finish Later and complete these students from their normal profiles.</div>
 
         {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading imported students…</div> : null}
 

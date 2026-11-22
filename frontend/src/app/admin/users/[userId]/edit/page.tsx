@@ -109,9 +109,10 @@ export default function AdminEditUserPage({ params }: { params: Promise<{ userId
 
   return (
     <DashboardShell title="Edit user" subtitle="Update account details and the role's authorized scope.">
-      <main className="acadlyx-page-container acadlyx-workspace-content">
+      <main className="acadlyx-page-container acadlyx-workspace-content acadlyx-content-standard">
         <div className="mb-5"><Link href={`/admin/users/${userId}`} className="text-sm font-semibold text-indigo-700">← User details</Link></div>
-        <header className="acadlyx-page-header"><div><p className="acadlyx-eyebrow">USER MANAGEMENT</p><h1 className="acadlyx-page-title">Edit user</h1><p className="acadlyx-page-description">Role and scope changes are checked by the backend and recorded by the user-management workflow.</p></div></header>
+        <header className="acadlyx-page-header"><div><h1 className="acadlyx-page-title">Edit user</h1></div></header>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Role and scope changes are checked by the backend and recorded by the user-management workflow.</div>
         {error ? <div role="alert" className="acadlyx-error-state mb-5">{error}</div> : null}
         {!user ? <div className="acadlyx-loading-state">{error ? "User could not be loaded." : "Loading user…"}</div> : (
           <form onSubmit={submit} className="acadlyx-section-card">

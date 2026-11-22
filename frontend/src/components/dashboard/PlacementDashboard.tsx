@@ -108,15 +108,11 @@ export function PlacementDashboard() {
 
   return (
     <DashboardShell title={isStudent ? "My Placement" : "Placement Workspace"} subtitle={isStudent ? "Eligible opportunities and your application progress" : "Employer opportunities, applications and placement outcomes"} allowedRoles={["PLACEMENT", "STUDENT"]}>
-      <div className="mx-auto min-w-0 max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-700">Career services</p>
-              <h1 className="mt-2 break-words text-2xl font-black sm:text-3xl text-slate-950">Placement Command Center</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                {isStudent ? "Your placement opportunities and application history are scoped to your own student record. Eligibility and application actions are enforced by the server." : "This workspace is connected to the institutional placement opportunity and application records. Every application transition is server-authorized and audited."}
-              </p>
+              <h1 className="break-words text-2xl font-black sm:text-3xl text-slate-950">Placement Command Center</h1>
             </div>
             <button onClick={() => void load()} className="min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-bold text-slate-800 sm:w-auto" disabled={loading}>Refresh</button>
           </div>
@@ -126,14 +122,14 @@ export function PlacementDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Active opportunities", metrics?.opportunities ?? 0],
-            ["Applications", metrics?.applications ?? 0],
-            ["Offered", metrics?.status.OFFERED ?? 0],
-            ["Success rate", (metrics?.applicationSuccessRate ?? 0) + "%"],
+            ["Active opportunities", metrics?.opportunities],
+            ["Applications", metrics?.applications],
+            ["Offered", metrics?.status?.OFFERED],
+            ["Success rate", metrics?.applicationSuccessRate === undefined ? undefined : metrics.applicationSuccessRate + "%"],
           ].map(([label, value]) => (
-            <article key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm">
+            <article key={String(label)} className="border-b border-r border-slate-200 bg-white px-4 py-5">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-              <p className="mt-2 text-3xl font-black text-slate-950">{loading ? "—" : value}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-950">{loading || value === undefined ? "—" : value}</p><p className="mt-1 text-xs text-slate-500">{loading ? "Loading" : value === undefined ? "Not reported" : "Reported by placement service"}</p>
             </article>
           ))}
         </section>

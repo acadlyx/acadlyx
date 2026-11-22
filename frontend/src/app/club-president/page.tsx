@@ -48,16 +48,11 @@ export default function ClubPresidentPage() {
       <div className="space-y-6">
         <section className="border-b border-slate-200 pb-6">
           <div className="border-l-4 border-[#b38a59] bg-[#1b3027] px-6 py-7 text-white sm:px-8">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e8c69a]">
-              Student club workspace
-            </p>
+            
             <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
               Club President
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              This workspace is reserved for the single Club President responsibility.
-              Club authority is separate from academic, finance, HR, admissions and institutional administration.
-            </p>
+            
           </div>
 
           <div className="grid gap-4 p-6 sm:grid-cols-2">
@@ -85,6 +80,8 @@ export default function ClubPresidentPage() {
             </Link>
           </div>
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">This workspace is reserved for the single Club President responsibility.
+              Club authority is separate from academic, finance, HR, admissions and institutional administration.</div>
 
         {!allowed ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

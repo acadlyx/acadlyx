@@ -15,12 +15,13 @@ const links = [
 export default function DeanOperationsPage() {
   return (
     <DashboardShell title="Dean Operations" subtitle="Academic and institutional oversight" allowedRoles={["DEAN"]}>
-      <main className="mx-auto w-full max-w-7xl space-y-6">
+      <main className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Dean workspace</p>
+          
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Academic Operations</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Dean-level academic responsibilities are surfaced as separate destinations rather than a shared generic operations page.</p>
+          
         </section>
+        <div role="note" className="my-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Dean-level academic responsibilities are surfaced as separate destinations rather than a shared generic operations page.</div>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {links.map(([label, href]) => (
             <Link key={href} href={href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">

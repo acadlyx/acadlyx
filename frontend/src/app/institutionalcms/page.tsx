@@ -64,12 +64,12 @@ export default function InstitutionalCmsPage() {
 
   return (
     <DashboardShell title="Institutional CMS" subtitle="Control institutional dashboard branding and copy" allowedRoles={["INSTITUTION_ADMIN", "MANAGEMENT", "DIRECTOR", "CMS"]}>
-      <div className="mx-auto max-w-7xl space-y-5">
+      <div className="acadlyx-content-standard space-y-5">
         <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Dashboard content control</p>
-            <h1 className="mt-2 text-2xl font-black text-slate-950">Institutional CMS</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Edit the words, labels and tenant branding used throughout authenticated workspaces. Structure and permissions remain controlled by the application.</p>
+            
+            <h1 className="text-2xl font-black text-slate-950">Institutional CMS</h1>
+            
           </div>
           <button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button>
         </div>

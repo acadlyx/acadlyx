@@ -234,9 +234,7 @@ export default function ChairmanExaminationOperationsPage() {
         <header className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">EXAMINATION OPERATIONS</p>
               <h1 className="mt-2 text-3xl font-black">Examination Command Center</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Start with the examination, then operate its scope, subjects, schedule, rooms, invigilators, admit cards, attendance, marks, results and approvals.</p>
             </div>
             <button onClick={() => void load()} disabled={busy || loading} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">Refresh</button>
           </div>

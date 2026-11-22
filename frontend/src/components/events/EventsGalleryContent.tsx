@@ -21,9 +21,9 @@ export function EventsGalleryContent({ embedded = false, workspaceBasePath }: { 
   const basePath = embedded ? "/admin/events-gallery" : workspaceBasePath || "/events-gallery";
   const directorWorkspace = basePath.startsWith("/director/");
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="acadlyx-content-standard space-y-6">
       <header className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Institutional events and gallery</p><h1 className="mt-2 text-3xl font-black text-slate-950">Events & Gallery</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Manage events, announcements/posts, publication status and event photography from one institutional workspace.</p></div>
+        <div><h1 className="text-3xl font-black text-slate-950">Events & Gallery</h1></div>
         {canManage&&<Link href={`${basePath}/new`} className="rounded-xl bg-blue-600 px-5 py-3 text-center text-sm font-black text-white">+ Create Event</Link>}
       </header>
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row"><input value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&void load()} placeholder="Search events or posts…" className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900"/>{canManage&&<select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900"><option value="">All status</option><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select>}<button onClick={()=>void load()} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold">Search</button></section>
