@@ -4,8 +4,7 @@ import { useCallback,useEffect,useMemo,useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardShell } from "./DashboardShell";
 import { AuthRequiredError,AuthUser,getCachedCurrentUser,getCurrentUser } from "@/lib/auth";
-import { hasAnyPermission } from "@/lib/authorization";
-import { ROLE_NAVIGATION } from "./dashboardNavigation";
+import { getNavigationForRoles, type NavigationItem } from "@/lib/navigation";
 
 export function ITDashboard(){
   const router=useRouter();
@@ -29,10 +28,14 @@ export function ITDashboard(){
 
   const groups=useMemo(()=>{
     if(!user)return [];
-    return ROLE_NAVIGATION.IT.map(group=>({
-      ...group,
-      items:group.items.filter(item=>!item.permissions?.length||hasAnyPermission(user,item.permissions)),
-    })).filter(group=>group.items.length>0);
+    const items=getNavigationForRoles(["IT"],user.permissions??[],user.tenantFeatures??[]);
+    return items.reduce<Array<{label:string;items:NavigationItem[]}>>((result,item)=>{
+      const label=item.group||"Workspace";
+      const existing=result.find(group=>group.label===label);
+      if(existing) existing.items.push(item);
+      else result.push({label,items:[item]});
+      return result;
+    },[]);
   },[user]);
 
   return <DashboardShell title="IT Workspace" subtitle="Technology operations, platform support and service administration" allowedRoles={["IT"]}>
