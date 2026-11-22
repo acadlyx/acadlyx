@@ -93,9 +93,9 @@ export function EventEditor({ eventId, workspaceBasePath = "/events-gallery", re
   async function removeMedia(id:string){if(!event)return;setBusy(true);try{await removeEventMedia(id);const refreshed=await getEvent(event.id);setEvent(refreshed.data);}catch(e){setMessage(e instanceof Error?e.message:"Remove failed.");}finally{setBusy(false);}}
   async function moveMedia(index:number,direction:number){if(!event)return;const ids=event.media.map(x=>x.id);const next=index+direction;if(next<0||next>=ids.length)return;[ids[index],ids[next]]=[ids[next],ids[index]];setBusy(true);try{await reorderEventMedia(event.id,ids);const refreshed=await getEvent(event.id);setEvent(refreshed.data);}finally{setBusy(false);}}
 
-  return <div className="mx-auto max-w-6xl space-y-6">
+  return <div className="acadlyx-content-standard space-y-6">
     <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Events & Gallery</p><h1 className="mt-2 text-2xl font-black">{eventId?"Edit event":"Create event"}</h1><p className="mt-1 text-sm text-slate-500">Publish institutional activities without leaving the dashboard workspace.</p></div>
+      <div><h1 className="text-2xl font-black">{eventId?"Edit event":"Create event"}</h1></div>
       <div className="flex gap-2"><button onClick={()=>router.push(workspaceBasePath)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold">Back</button><button disabled={busy} onClick={()=>save(false)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save draft</button><button disabled={busy} onClick={()=>save(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Publish</button></div>
     </div>
     {message&&<div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-800">{message}</div>}
