@@ -43,20 +43,11 @@ function assertCanManageSiteContent(
  *
  * This endpoint does not require authentication.
  *
- * It accepts either:
- *
- * ?institutionId=<id>
- *
- * or:
- *
- * ?slug=<institution-slug>
- *
- * Only the institution identifier and published website content
- * are returned.
+ * The platform-owned document is independent of tenant records.
  */
 export const publicContent = asyncHandler(
   async (
-    req: Request,
+    _req: Request,
     res: Response
   ) => {
     // The ACADLYX public site is platform-owned and does not resolve a tenant.
