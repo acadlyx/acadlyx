@@ -246,13 +246,11 @@ export default function PlacementTeamWorkspace() {
 
   return (
     <PlacementTeamShell>
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Career services · Operations</p>
-              <h1 className="mt-2 text-3xl font-black text-slate-950">Placement Command Center</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Manage recruitment across the connected drive, candidate, schedule, offer and communication workflows. Student-facing changes are processed from authoritative placement records and the database event outbox.</p>
+                            <h1 className="mt-2 text-3xl font-black text-slate-950">Placement Command Center</h1>
             </div>
             <div className="flex flex-wrap gap-2">
               <DataExportActions type={["placement-companies", "placement-drives", "placement-openings", "placement-applications", "placement-offers"]} compact />

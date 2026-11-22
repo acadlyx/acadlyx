@@ -834,18 +834,10 @@ export default function SuperAdminPage() {
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                Platform control center
-              </p>
-
               <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                 Super Admin
               </h1>
 
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                Manage institutions, platform users and tenant
-                entitlements from one global workspace.
-              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">

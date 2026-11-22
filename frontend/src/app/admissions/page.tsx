@@ -210,16 +210,9 @@ export default function AdmissionsPage() {
         <DataExportActions type="admission-applications" filters={{ ...(search.trim() ? { search: search.trim() } : {}), ...(status ? { status } : {}), ...(programFilter ? { programId: programFilter } : {}), ...(yearFilter ? { academicYearId: yearFilter } : {}) }} compact />
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
-              Admissions
-            </p>
             <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
               Admission Management
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-              Live application data for this institution — review, move through the
-              selection pipeline, and enroll applicants.
-            </p>
           </div>
           {userPermissions.includes("admissions.manage") ? (
             <button
