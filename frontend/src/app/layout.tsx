@@ -5,6 +5,7 @@ import "./acadlyx-contrast.css";
 import "./acadlyx-responsive.css";
 import "./acadlyx-dashboard-tokens.css";
 import "./acadlyx-modal-responsive.css";
+import "./public-site.css";
 import { ProtectedRouteBoundary } from "@/components/auth/ProtectedRouteBoundary";
 import { PersistentDashboardRoute } from "@/components/dashboard/PersistentDashboardRoute";
 import { ResponsiveNavigationGuard } from "@/components/system/ResponsiveNavigationGuard";

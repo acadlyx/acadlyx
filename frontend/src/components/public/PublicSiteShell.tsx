@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 export interface PublicSiteContent {
@@ -21,9 +22,20 @@ const fallback: PublicSiteContent = {
   navigation: [
     { label: "Home", href: "/" },
     { label: "About", href: "/about" },
+    { label: "Partners", href: "/partners" },
+    { label: "Updates", href: "/updates" },
+    { label: "Team", href: "/team" },
     { label: "Contact", href: "/contact" },
   ],
-  hero: { eyebrow: "", title: "", description: "", primaryCtaLabel: "Sign in", primaryCtaHref: "/", secondaryCtaLabel: "", secondaryCtaHref: "" },
+  hero: {
+    eyebrow: "",
+    title: "",
+    description: "",
+    primaryCtaLabel: "Sign in",
+    primaryCtaHref: "/",
+    secondaryCtaLabel: "",
+    secondaryCtaHref: "",
+  },
   pages: { about: {}, team: { members: [] }, partners: { items: [] }, updates: { items: [] }, contact: {} },
   sections: { stats: [], features: [], roles: [] },
   contact: { email: "", phone: "", address: "", website: "" },
@@ -55,7 +67,7 @@ function ensurePublicSiteContent() {
 
   const slug = process.env.NEXT_PUBLIC_PUBLIC_SITE_SLUG || "aimt";
   publicSiteRequest = apiFetch<{ data: { content: PublicSiteContent } }>(
-    `/site-content/public?slug=${encodeURIComponent(slug)}`,
+    "/site-content/public?slug=" + encodeURIComponent(slug),
   )
     .then((response) => {
       publicSiteSnapshot = {
@@ -64,7 +76,7 @@ function ensurePublicSiteContent() {
       };
     })
     .catch(() => {
-      // Show the small local default only after the backend request has failed.
+      // Fall back only when the public CMS endpoint is unavailable.
       publicSiteSnapshot = { ...fallback, _ready: true };
     })
     .finally(notifyPublicSiteListeners);
@@ -94,57 +106,142 @@ function merge(base: any, incoming: any): any {
   return result;
 }
 
+const PUBLIC_PATHS = new Set(["/", "/about", "/contact", "/partners", "/updates", "/team"]);
+
 export function PublicSiteShell({ children, onLogin }: { children: ReactNode; onLogin?: () => void }) {
   const content = usePublicSiteContent();
+  const pathname = usePathname() || "/";
   const [mobileNav, setMobileNav] = useState(false);
-  if (!content._ready) return <main className="public-site min-h-screen bg-white" aria-busy="true" />;
 
-  const navigation = (content.navigation || fallback.navigation).filter((item) =>
-    ["/", "/about", "/contact"].includes(item.href),
-  );
+  useEffect(() => {
+    if (!mobileNav) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNav(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileNav]);
+
+  useEffect(() => {
+    setMobileNav(false);
+  }, [pathname]);
+
+  if (!content._ready) {
+    return (
+      <main
+        className="public-site public-site-loading min-h-screen"
+        aria-busy="true"
+        aria-label="Loading ACADLYX website"
+      />
+    );
+  }
+
+  const configured = Array.isArray(content.navigation) ? content.navigation : fallback.navigation;
+  const seen = new Set<string>();
+  const navigation = configured.filter((item) => {
+    if (!item || typeof item.label !== "string" || !item.label.trim()) return false;
+    if (!PUBLIC_PATHS.has(item.href) || seen.has(item.href)) return false;
+    seen.add(item.href);
+    return true;
+  });
+  const visibleNavigation = navigation.length ? navigation : fallback.navigation;
 
   return (
-    <main className="public-site min-h-screen bg-white text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-6 px-5 sm:px-8">
-          <Link href="/" className="flex items-center gap-3" onClick={() => setMobileNav(false)}>
-            <Image src={content.brand.logoUrl || "/branding/acadlyx-logo.png"} alt={content.brand.siteName} width={40} height={40} className="h-9 w-9 object-contain" priority />
-            <span className="text-base font-semibold tracking-tight text-slate-950">{content.brand.siteName}</span>
+    <main className="public-site min-h-screen">
+      <header className="public-site-header">
+        <div className="public-site-header-inner">
+          <Link href="/" className="public-site-brand" onClick={() => setMobileNav(false)}>
+            <Image
+              src={content.brand.logoUrl || "/branding/acadlyx-logo.png"}
+              alt=""
+              width={44}
+              height={44}
+              className="public-site-brand-logo"
+              priority
+            />
+            <span className="public-site-brand-copy">
+              <strong>{content.brand.siteName || "ACADLYX"}</strong>
+              <small>{content.brand.tagline || "Education ERP"}</small>
+            </span>
           </Link>
 
-          <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
-            {navigation.map((item) => (
-              <Link key={item.href} href={item.href} className="text-sm font-medium text-slate-600 hover:text-slate-950">
+          <nav className="public-site-nav" aria-label="Main navigation">
+            {visibleNavigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+                className="public-site-nav-link"
+              >
                 {item.label}
               </Link>
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="public-site-header-actions">
             {onLogin ? (
-              <button type="button" onClick={onLogin} className="hidden rounded-md bg-[#315c4a] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#244638] md:inline-flex">Sign in</button>
+              <button type="button" onClick={onLogin} className="public-site-login">
+                Sign in
+              </button>
             ) : null}
-            <button type="button" aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} onClick={() => setMobileNav((open) => !open)} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 md:hidden">
+            <button
+              type="button"
+              aria-label={mobileNav ? "Close navigation" : "Open navigation"}
+              aria-expanded={mobileNav}
+              aria-controls="public-mobile-navigation"
+              onClick={() => setMobileNav((open) => !open)}
+              className="public-site-menu-button"
+            >
               {mobileNav ? "Close" : "Menu"}
             </button>
           </div>
         </div>
+
         {mobileNav ? (
-          <nav className="grid gap-1 border-t border-slate-200 px-5 py-3 md:hidden" aria-label="Mobile navigation">
-            {navigation.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setMobileNav(false)} className="py-2 text-sm font-medium text-slate-700">{item.label}</Link>
+          <nav id="public-mobile-navigation" className="public-site-mobile-nav" aria-label="Mobile navigation">
+            {visibleNavigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+                onClick={() => setMobileNav(false)}
+                className="public-site-mobile-link"
+              >
+                {item.label}
+              </Link>
             ))}
-            {onLogin ? <button type="button" onClick={() => { setMobileNav(false); onLogin(); }} className="py-2 text-left text-sm font-semibold text-[#315c4a]">Sign in</button> : null}
+            {onLogin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileNav(false);
+                  onLogin();
+                }}
+                className="public-site-mobile-login"
+              >
+                Sign in to ACADLYX
+              </button>
+            ) : null}
           </nav>
         ) : null}
       </header>
 
       {children}
 
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span>{content.brand.siteName}</span>
-          <span>A product of <a href="https://ayzent-solutions.vercel.app/" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-700 hover:underline">Ayzent Solutions</a></span>
+      <footer className="public-site-footer">
+        <div className="public-site-footer-inner">
+          <div>
+            <strong>{content.brand.siteName || "ACADLYX"}</strong>
+            <p>{content.footer.text || content.brand.tagline || "Education ERP"}</p>
+          </div>
+          <a
+            href="https://ayzent-solutions.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="public-site-credit"
+          >
+            Built by Ayzent Solutions
+          </a>
         </div>
       </footer>
     </main>
