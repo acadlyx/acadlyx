@@ -4,10 +4,12 @@ import { AppError } from "../middleware/errorHandler";
 import { hashPassword } from "../utils/password";
 import { AuthenticatedUser } from "../types/auth";
 import { recordAuditLog } from "./audit.service";
-import { ensureInstitutionSystemRoles } from "./institution.service";
+import { ensureInstitutionSystemRoles, ensurePlatformSystemRole } from "./institution.service";
 import {
   ROLE_PERMISSIONS,
   SYSTEM_ROLE_NAMES,
+  isPlatformRole,
+  PLATFORM_ROLES,
 } from "../config/rbac";
 import {
   CreateUserInput,
@@ -98,11 +100,14 @@ async function getRoleForUser(
     return role;
   }
 
-  if (!institutionId && roleName === "SUPER_ADMIN") {
-    throw new AppError(
-      "SUPER_ADMIN role is not initialized",
-      500
+  if (isPlatformRole(roleName)) {
+    if (institutionId) {
+      throw new AppError("Platform roles cannot be assigned to an institution", 400);
+    }
+    const roleId = await prisma.$transaction((tx) =>
+      ensurePlatformSystemRole(tx, roleName as (typeof PLATFORM_ROLES)[number])
     );
+    return prisma.role.findUniqueOrThrow({ where: { id: roleId } });
   }
 
   if (institutionId) {
@@ -693,9 +698,11 @@ export async function createUser(
    *
    * The browser cannot override this.
    */
-  const targetInstitutionId = isSuperAdmin(actor)
-    ? input.institutionId ?? null
-    : await requireActorInstitution(actor);
+  const targetInstitutionId = isPlatformRole(input.role)
+    ? null
+    : isSuperAdmin(actor)
+      ? input.institutionId ?? null
+      : await requireActorInstitution(actor);
 
   if (input.role === "STUDENT") {
     throw new AppError(
@@ -733,18 +740,12 @@ export async function createUser(
       );
     }
 
-    if (
-      input.role === "SUPER_ADMIN" &&
-      targetInstitutionId !== null
-    ) {
-      throw new AppError(
-        "SUPER_ADMIN must be a platform-level user",
-        400
-      );
+    if (isPlatformRole(input.role) && input.institutionId) {
+      throw new AppError("Platform roles cannot be assigned to an institution", 400);
     }
 
     if (
-      input.role !== "SUPER_ADMIN" &&
+      !isPlatformRole(input.role) &&
       !targetInstitutionId
     ) {
       throw new AppError(
@@ -759,14 +760,8 @@ export async function createUser(
     );
   }
 
-  if (
-    input.role === "SUPER_ADMIN" &&
-    targetInstitutionId
-  ) {
-    throw new AppError(
-      "SUPER_ADMIN cannot be assigned to an institution",
-      400
-    );
+  if (isPlatformRole(input.role) && targetInstitutionId) {
+    throw new AppError("Platform roles cannot be assigned to an institution", 400);
   }
 
   if (targetInstitutionId) {
@@ -1053,14 +1048,11 @@ export async function updateUser(
     );
   }
 
-  if (
-    input.role === "SUPER_ADMIN" &&
-    existing.institutionId !== null
-  ) {
-    throw new AppError(
-      "SUPER_ADMIN must be platform-level",
-      400
-    );
+  if (input.role === "SUPER_ADMIN" && existing.institutionId !== null) {
+    throw new AppError("SUPER_ADMIN must be platform-level", 400);
+  }
+  if (input.role === "CMS" && existing.institutionId !== null) {
+    throw new AppError("Create a dedicated platform-scoped CMS user; tenant users cannot be converted into platform users", 400);
   }
 
   // STUDENT accounts have mandatory StudentProfile + StudentEnrollment
@@ -1164,11 +1156,10 @@ export async function updateUser(
       );
     }
 
-    const role =
-      await getRoleForUser(
-        input.role,
-        existing.institutionId
-      );
+    const targetRoleInstitutionId = isPlatformRole(input.role)
+      ? null
+      : existing.institutionId;
+    const role = await getRoleForUser(input.role, targetRoleInstitutionId);
 
     if (input.role === "HOD" && currentRole?.name !== "HOD" && (!input.departmentIds || input.departmentIds.length !== 1)) {
       throw new AppError("Changing a user to HOD requires exactly one department assignment", 400);
@@ -1179,10 +1170,10 @@ export async function updateUser(
 
     await validateDepartmentIds(
       input.departmentIds,
-      existing.institutionId,
+      targetRoleInstitutionId,
       input.role,
     );
-    await validateCampusIds(input.campusIds, existing.institutionId, input.role);
+    await validateCampusIds(input.campusIds, targetRoleInstitutionId, input.role);
 
     await prisma.$transaction(
       async (tx) => {
@@ -1191,6 +1182,7 @@ export async function updateUser(
             id,
           },
           data: {
+            ...(input.role ? { institutionId: targetRoleInstitutionId } : {}),
             ...(input.firstName !==
             undefined
               ? {
@@ -1276,11 +1268,11 @@ export async function updateUser(
         await syncDepartmentAccess(
           tx,
           id,
-          existing.institutionId,
+          targetRoleInstitutionId,
           resolvedTargetRoleName,
           input.departmentIds,
         );
-        await syncCampusAccess(tx, id, existing.institutionId, resolvedTargetRoleName, input.campusIds);
+        await syncCampusAccess(tx, id, targetRoleInstitutionId, resolvedTargetRoleName, input.campusIds);
 
         if (input.isActive === false || requestedPasswordHash !== undefined) {
           await tx.refreshToken.updateMany({

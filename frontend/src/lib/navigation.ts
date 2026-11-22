@@ -26,7 +26,7 @@ const TENANT_FEATURE_BY_ROUTE: Array<[RegExp, string]> = [
   [/^\/(chairman|director|dean|registrar|hod|faculty|student)\/course-registration(\/|$)|^\/course-registration(\/|$)/, "registration"],
   [/^\/(chairman|director|dean|registrar|hod|faculty|student|accounts|hr|admissions|examination|placements|management|it|library)\/reports(\/|$)|^\/reports(\/|$)/, "reports"],
   [/^\/(chairman|director|dean|hod|management|registrar)\/intelligence(\/|$)|^\/intelligence(\/|$)/, "intelligence"],
-  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)|^\/site-content(\/|$)/, "cms"],
+  [/^\/(admin\/)?events-gallery(\/|$)|^\/(chairman|director|management|dean|registrar|hod|faculty|student|parent)\/events-gallery(\/|$)/, "cms"],
   [/^\/((director|dean|hod|faculty|student)\/)?examinations?(\/|$)/, "exams"],
   [/^\/examination(\/|$)/, "exams"],
   [/^\/((director|dean|hod|faculty|student)\/)?obe(\/|$)/, "obe"],
@@ -240,9 +240,9 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
     label: "Website CMS",
     href: "/site-content",
     icon: "✦",
-    roles: ["SUPER_ADMIN", "INSTITUTION_ADMIN", "CMS"],
+    roles: ["SUPER_ADMIN", "CMS"],
     permissions: ["site.manage"],
-    group: "Website",
+    group: "Platform",
     activeMatch: "nested",
   },
 
@@ -1765,22 +1765,6 @@ export const ROLE_NAVIGATION: NavigationItem[] = [
   },
   {
     label: "Notices",
-    href: "/site-content/notices",
-    icon: "◌",
-    roles: ["CMS"],
-    group: "Institution",
-    activeMatch: "nested",
-  },
-  {
-    label: "Notifications",
-    href: "/site-content/notifications",
-    icon: "◉",
-    roles: ["CMS"],
-    group: "Institution",
-    activeMatch: "nested",
-  },
-  {
-    label: "Notices",
     href: "/student/notices",
     icon: "◌",
     roles: ["STUDENT"],
@@ -2329,6 +2313,10 @@ export function canAccessRoute(
   const currentQuery = new URLSearchParams(rawQuery || "");
 
   const activeRole = getPrimaryRole(roles);
+
+  // The platform CMS workspace owns only the public website editor. These
+  // legacy URLs still point at tenant-scoped notices/notifications modules.
+  if (normalizedPath.startsWith("/site-content/")) return false;
 
   const permissionSet = new Set(permissions);
   // Tenant entitlement checks run before namespace checks so role-owned routes

@@ -569,7 +569,7 @@ export default function SuperAdminPage() {
   ) {
     event.preventDefault();
 
-    if (userForm.role !== "SUPER_ADMIN" && !userForm.institutionId) {
+    if (!["SUPER_ADMIN", "CMS"].includes(userForm.role) && !userForm.institutionId) {
       setError("An institution is required for this role.");
       return;
     }
@@ -1614,7 +1614,7 @@ export default function SuperAdminPage() {
                       ...current,
                       role: event.target.value,
                       institutionId:
-                        event.target.value === "SUPER_ADMIN"
+                        ["SUPER_ADMIN", "CMS"].includes(event.target.value)
                           ? ""
                           : current.institutionId,
                     }))
@@ -1637,10 +1637,11 @@ export default function SuperAdminPage() {
                         event.target.value,
                     }))
                   }
+                  disabled={["SUPER_ADMIN", "CMS"].includes(userForm.role)}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
                 >
                   <option value="">
-                    {userForm.role === "SUPER_ADMIN"
+                    {["SUPER_ADMIN", "CMS"].includes(userForm.role)
                       ? "Platform scope"
                       : "Select institution"}
                   </option>
@@ -1675,12 +1676,7 @@ export default function SuperAdminPage() {
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                Super Admin accounts remain platform-level and should
-                not be assigned to an institution. Institution roles
-                must be assigned to their tenant. The Website CMS
-                Manager role is intentionally limited to website content
-                management and must be explicitly created or assigned by
-                a Super Admin. It does not grant ERP administration access.
+                Super Admin and CMS accounts are platform-level and must not be assigned to an institution. CMS managers receive website-content access only, with no institution ERP permissions. Institution Admin accounts must be assigned to their tenant.
               </div>
 
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
@@ -1698,7 +1694,7 @@ export default function SuperAdminPage() {
                   type="submit"
                   disabled={
                     saving ||
-                    (userForm.role !== "SUPER_ADMIN" &&
+                    (!["SUPER_ADMIN", "CMS"].includes(userForm.role) &&
                       !userForm.institutionId)
                   }
                   className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"

@@ -51,12 +51,12 @@ BEGIN
     );
   END IF;
 
+  DELETE FROM "role_permissions" WHERE "roleId" = platform_cms_role_id;
+
   INSERT INTO "role_permissions" ("roleId", "permissionId", "createdAt")
-  SELECT DISTINCT platform_cms_role_id, rp."permissionId", CURRENT_TIMESTAMP
-  FROM "role_permissions" rp
-  INNER JOIN "roles" legacy_role ON legacy_role."id" = rp."roleId"
-  WHERE legacy_role."name" = 'CMS'
-    AND legacy_role."institutionId" IS NOT NULL
+  SELECT platform_cms_role_id, p."id", CURRENT_TIMESTAMP
+  FROM "permissions" p
+  WHERE p."key" IN ('site.manage')
   ON CONFLICT ("roleId", "permissionId") DO NOTHING;
 
   -- Dedicated CMS-only accounts become platform-scoped accounts.

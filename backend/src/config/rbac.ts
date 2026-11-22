@@ -357,14 +357,14 @@ export type SystemRoleName =
  */
 export const PLATFORM_ROLES = [
   "SUPER_ADMIN",
+  "CMS",
 ] as const;
 
 /**
  * Roles that are institution scoped.
  */
 export const INSTITUTION_ROLES = SYSTEM_ROLE_NAMES.filter(
-  (role) =>
-    role !== "SUPER_ADMIN"
+  (role) => !PLATFORM_ROLES.includes(role as (typeof PLATFORM_ROLES)[number])
 ) as readonly SystemRoleName[];
 
 /**
@@ -401,10 +401,9 @@ export function isSupportedRole(
 export function isPlatformRole(
   role: string
 ): boolean {
-  return (
-    normalizeRoleName(
-      role
-    ) === "SUPER_ADMIN"
+  const normalized = normalizeRoleName(role);
+  return Boolean(
+    normalized && PLATFORM_ROLES.includes(normalized as (typeof PLATFORM_ROLES)[number])
   );
 }
 
@@ -1155,8 +1154,6 @@ export const ROLE_PERMISSIONS: Record<
   ],
 
   CMS: [
-    ...EVENTS_READ,
-    "events.manage",
     "site.manage",
   ],
 
@@ -1347,6 +1344,7 @@ export function getRolePermissions(
   // Notices are a scoped communication capability for every non-student role.
   // Services must still constrain create/update operations to the actor's scope.
   if (normalized === "STUDENT") return [...basePermissions, "notices.read", "notifications.read"];
+  if (normalized === "CMS") return [...basePermissions];
   return [...new Set<PermissionKey>([...basePermissions, "notices.read", "notices.manage", "notifications.read"])];
 }
 

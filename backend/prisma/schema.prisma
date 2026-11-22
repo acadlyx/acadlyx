@@ -2094,9 +2094,9 @@ model Notification {
 
 
 model FileAsset {
-  id            String      @id @default(uuid())
-  institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
   ownerId       String?
   provider      String
   publicId      String
@@ -2163,6 +2163,19 @@ model SiteContent {
   @@unique([institutionId])
   @@index([institutionId, updatedAt])
   @@map("site_contents")
+}
+
+/// The ACADLYX public website is a platform asset, not tenant content.
+model PlatformSiteContent {
+  id          String   @id @default("platform")
+  content     Json
+  version     Int      @default(1)
+  publishedAt DateTime @default(now())
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("platform_site_contents")
 }
 
 

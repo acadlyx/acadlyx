@@ -13,6 +13,7 @@ import { recordAuditLog } from "./audit.service";
 import {
   getCanonicalRoleNames,
   getEffectivePermissions,
+  isPlatformRole,
 } from "../config/rbac";
 import {
   assertNotLocked,
@@ -55,7 +56,7 @@ type RoleBinding = {
 /**
  * Resolve the tenant from the current database state.
  *
- * SUPER_ADMIN is platform-wide.
+ * Platform roles (SUPER_ADMIN and CMS) are platform-wide.
  *
  * All other users must resolve to exactly one institution. For legacy
  * accounts where user.institutionId is missing but an institution-scoped
@@ -68,27 +69,25 @@ async function resolveEffectiveInstitution(
   },
   userRoles: RoleBinding[]
 ): Promise<string | null> {
-  const hasSuperAdmin = userRoles.some(
-    (binding) => binding.role.name === "SUPER_ADMIN"
+  const hasPlatformRole = userRoles.some(
+    (binding) => isPlatformRole(binding.role.name)
   );
 
-  if (hasSuperAdmin) {
+  if (hasPlatformRole) {
     if (user.institutionId !== null) {
       throw new AppError(
-        "SUPER_ADMIN must be a platform-level account",
+        "Platform-scoped users must have institutionId = null",
         403
       );
     }
 
     const hasInstitutionScopedRole = userRoles.some(
-      (binding) =>
-        binding.role.name !== "SUPER_ADMIN" &&
-        binding.role.institutionId !== null
+      (binding) => !isPlatformRole(binding.role.name)
     );
 
     if (hasInstitutionScopedRole) {
       throw new AppError(
-        "SUPER_ADMIN cannot also be bound to an institution-scoped role",
+        "Platform-scoped users cannot also be bound to institution-scoped roles",
         403
       );
     }

@@ -308,6 +308,88 @@ export async function storeFile(input: {
 }
 
 
+export type StoredPlatformFile = Omit<StoredFile, "institutionId"> & { institutionId: null };
+
+/** Upload media owned by the platform CMS, without attaching it to a tenant. */
+export async function storePlatformFile(input: {
+  module: string;
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+  ownerId?: string;
+  visibility?: "public" | "private";
+  resourceType?: "image" | "video" | "raw" | "auto";
+}): Promise<StoredPlatformFile> {
+  const safeModule = input.module.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+  const safeOwner = input.ownerId ? "/" + input.ownerId : "";
+  const storageInput: StorageUploadInput = {
+    buffer: input.buffer,
+    filename: input.filename,
+    mimeType: input.mimeType,
+    folder: "acadlyx/platform/" + safeModule + safeOwner,
+    visibility: input.visibility ?? "private",
+    resourceType: input.resourceType ?? "auto",
+  };
+  assertSafeFile(storageInput);
+  const allowed = MODULE_MIME_ALLOWLIST[input.module];
+  if (!allowed) throw new AppError("Unsupported storage module", 400);
+  validateAllowedMime(input.mimeType, allowed);
+  assertUploadContentMatchesMime(input.buffer, input.mimeType);
+
+  let uploaded: StorageObject;
+  try {
+    uploaded = await provider().upload(storageInput);
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : "File upload failed", 502);
+  }
+
+  let created;
+  try {
+    created = await prisma.fileAsset.create({
+      data: {
+        provider: uploaded.provider,
+        publicId: uploaded.publicId,
+        url: uploaded.secureUrl,
+        resourceType: uploaded.resourceType,
+        size: uploaded.bytes,
+        mimeType: uploaded.mimeType,
+        folder: uploaded.folder,
+        institutionId: null,
+        ownerId: input.ownerId ?? null,
+        module: input.module,
+        referenceId: null,
+        visibility: uploaded.visibility,
+        originalName: input.filename,
+      },
+    });
+  } catch (error) {
+    try {
+      await provider().delete({ publicId: uploaded.publicId, resourceType: uploaded.resourceType });
+    } catch {
+      // Provider orphan cleanup is retried through storage reconciliation.
+    }
+    throw error;
+  }
+
+  return {
+    id: created.id,
+    provider: created.provider,
+    publicId: created.publicId,
+    url: created.url,
+    secureUrl: created.url,
+    resourceType: created.resourceType,
+    size: created.size,
+    mimeType: created.mimeType,
+    folder: created.folder,
+    institutionId: null,
+    ownerId: created.ownerId,
+    module: created.module,
+    referenceId: created.referenceId,
+    visibility: created.visibility as "public" | "private",
+    originalName: created.originalName,
+  };
+}
+
 export async function storeFileFromPath(input: {
   institutionId: string;
   module: string;

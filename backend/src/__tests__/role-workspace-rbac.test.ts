@@ -6,6 +6,10 @@ import {
   SYSTEM_ROLE_NAMES,
   normalizeRoleName,
   ROLE_PERMISSIONS,
+  PLATFORM_ROLES,
+  INSTITUTION_ROLES,
+  isPlatformRole,
+  getRolePermissions,
 } from "../config/rbac";
 import { getEffectiveWorkspaceRole } from "../services/accessScope.service";
 
@@ -59,4 +63,25 @@ test("people import department scope follows the active workspace, not a seconda
   );
   assert.match(source, /getEffectiveWorkspaceRole\(actor\) === "HOD"/);
   assert.doesNotMatch(source, /getCanonicalRoleNames/);
+});
+
+
+test("CMS is a platform-scoped role rather than an institution role", () => {
+  assert.ok(PLATFORM_ROLES.includes("CMS"));
+  assert.equal(INSTITUTION_ROLES.includes("CMS"), false);
+  assert.equal(isPlatformRole("CMS"), true);
+  assert.equal(isPlatformRole("SUPER_ADMIN"), true);
+  assert.equal(isPlatformRole("INSTITUTION_ADMIN"), false);
+  assert.deepEqual(ROLE_PERMISSIONS.CMS, ["site.manage"]);
+  assert.deepEqual(getRolePermissions("CMS"), ["site.manage"]);
+});
+
+
+test("platform website CMS route is not gated by tenant CMS entitlement", () => {
+  const routes = fs.readFileSync(path.resolve(process.cwd(), "src/routes/siteContent.routes.ts"), "utf8");
+  const service = fs.readFileSync(path.resolve(process.cwd(), "src/services/siteContent.service.ts"), "utf8");
+  assert.doesNotMatch(routes, /requireFeature\("cms"\)/);
+  assert.match(service, /platformSiteContent\.findUnique/);
+  assert.match(service, /platformSiteContent\.upsert/);
+  assert.match(service, /actor\.institutionId !== null/);
 });

@@ -8,6 +8,7 @@ import {
   PermissionKey,
   isPlatformPermission,
   normalizeRoleName,
+  isPlatformRole,
   PERMISSION_DEPENDENCIES,
 } from "../config/rbac";
 
@@ -54,14 +55,11 @@ export function authorize(
     const user =
       req.user;
 
-    const hasPlatformRole = user.roles.some(
-      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
-    );
+    const hasPlatformRole = user.roles.some(isPlatformRole);
 
     /*
      * Institutional permissions require a tenant context.
-     * SUPER_ADMIN is the only platform role that may operate without
-     * an institutionId at this middleware boundary.
+     * Platform roles may operate without an institutionId at this middleware boundary.
      *
      * Narrower department/program/course/student ownership remains the
      * responsibility of the service/resource authorization layer.
@@ -189,9 +187,7 @@ export function authorizeRoles(
       return;
     }
 
-    const hasPlatformRole = req.user.roles.some(
-      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
-    );
+    const hasPlatformRole = req.user.roles.some(isPlatformRole);
 
     if (!hasPlatformRole && !req.user.institutionId) {
       next(
@@ -264,9 +260,7 @@ export function authorizeAnyPermission(
           )
       );
 
-    const hasPlatformRole = req.user.roles.some(
-      (role) => normalizeRoleName(role) === "SUPER_ADMIN"
-    );
+    const hasPlatformRole = req.user.roles.some(isPlatformRole);
 
     if (!hasPlatformRole && !req.user.institutionId) {
       next(

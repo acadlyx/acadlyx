@@ -240,129 +240,66 @@ function mergeDefaults(
 
 function assertCanManageSiteContent(actor: AuthenticatedUser): void {
   const activeRole = getEffectiveWorkspaceRole(actor);
-  const isPlatformAdmin = activeRole === "SUPER_ADMIN";
-  const isActiveCmsManager = activeRole === "CMS" && actor.permissions.includes("site.manage");
-
-  if (!isPlatformAdmin && !isActiveCmsManager) {
-    throw new AppError("Website content management requires the active CMS or Super Admin workspace",403);
+  const hasPlatformCmsRole = actor.roles.some((role) => role === "SUPER_ADMIN" || role === "CMS");
+  if (
+    actor.institutionId !== null ||
+    !hasPlatformCmsRole ||
+    !["SUPER_ADMIN", "CMS"].includes(activeRole) ||
+    !actor.permissions.includes("site.manage")
+  ) {
+    throw new AppError("Platform-scoped CMS access is required", 403);
   }
 }
 
-export async function getPublicSiteContent(
-  institutionId: string,
-) {
-  const existing =
-    await prisma.siteContent.findUnique({
-      where: {
-        institutionId,
-      },
-      select: {
-        institutionId: true,
-        content: true,
-        version: true,
-        publishedAt: true,
-        updatedAt: true,
-      },
-    });
-
+function platformContent(existing: { content: unknown; version: number; publishedAt: Date; updatedAt: Date; updatedById: string | null } | null) {
   if (!existing) {
     return {
-      institutionId,
-      content: DEFAULT_SITE_CONTENT,
+      content: mergeDefaults(DEFAULT_SITE_CONTENT),
       version: 0,
       publishedAt: null,
       updatedAt: null,
-    };
-  }
-
-  return {
-    ...existing,
-    content: mergeDefaults(
-      existing.content,
-    ),
-  };
-}
-
-export async function getSiteContent(
-  institutionId: string,
-  actor: AuthenticatedUser,
-) {
-  assertCanManageSiteContent(actor);
-
-  if (
-    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
-    actor.institutionId !== institutionId
-  ) {
-    throw new AppError(
-      "You are not allowed to access website content for another institution",
-      403,
-    );
-  }
-
-  const existing =
-    await prisma.siteContent.findUnique({
-      where: {
-        institutionId,
-      },
-    });
-
-  if (!existing) {
-    return {
-      institutionId,
-      content: DEFAULT_SITE_CONTENT,
-      version: 0,
-      publishedAt: null,
       updatedById: null,
     };
   }
-
-  return {
-    ...existing,
-    content: mergeDefaults(
-      existing.content,
-    ),
-  };
+  return { ...existing, content: mergeDefaults(existing.content) };
 }
 
-export async function updateSiteContent(
-  institutionId: string,
-  actor: AuthenticatedUser,
-  content: unknown,
-) {
+/** Public reads always serve the platform-owned ACADLYX website content. */
+export async function getPublicSiteContent() {
+  const existing = await prisma.platformSiteContent.findUnique({
+    where: { id: "platform" },
+    select: { content: true, version: true, publishedAt: true, updatedAt: true, updatedById: true },
+  });
+  return platformContent(existing);
+}
+
+/** Read the singleton public website document from the platform CMS workspace. */
+export async function getSiteContent(actor: AuthenticatedUser) {
   assertCanManageSiteContent(actor);
+  const existing = await prisma.platformSiteContent.findUnique({
+    where: { id: "platform" },
+  });
+  return platformContent(existing);
+}
 
-  if (
-    getEffectiveWorkspaceRole(actor) !== "SUPER_ADMIN" &&
-    actor.institutionId !== institutionId
-  ) {
-    throw new AppError(
-      "You are not allowed to manage website content for another institution",
-      403,
-    );
-  }
-
-  const normalized =
-    mergeDefaults(content);
-
-  return prisma.siteContent.upsert({
-    where: {
-      institutionId,
-    },
-
+/** Publish platform website content without requiring a tenant or tenant entitlement. */
+export async function updateSiteContent(actor: AuthenticatedUser, content: unknown) {
+  assertCanManageSiteContent(actor);
+  const normalized = mergeDefaults(content);
+  const saved = await prisma.platformSiteContent.upsert({
+    where: { id: "platform" },
     update: {
       content: normalized as object,
-      version: {
-        increment: 1,
-      },
+      version: { increment: 1 },
       updatedById: actor.id,
       publishedAt: new Date(),
     },
-
     create: {
-      institutionId,
+      id: "platform",
       content: normalized as object,
       updatedById: actor.id,
       publishedAt: new Date(),
     },
   });
+  return platformContent(saved);
 }
