@@ -189,16 +189,11 @@ export default function HrPage() {
         <DataExportActions type="leave-requests" compact />
         <section className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
-              Human Resources
-            </p>
+            
             <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
               HR Management
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-              Live employee records for this institution — every row here is a real
-              user account with an employment profile.
-            </p>
+            
           </div>
           {userPermissions.includes("hr.manage") ? (
             <button
