@@ -31,7 +31,8 @@
   --acadlyx-muted: #5b534a;
   --acadlyx-subtle: #746b61;
   --acadlyx-on-primary: #ffffff;
-  --acadlyx-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --acadlyx-font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, ui-sans-serif, system-ui, sans-serif;
+  --acadlyx-font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 
   --acadlyx-radius-sm: 8px;
   --acadlyx-radius-md: 10px;
@@ -39,9 +40,9 @@
   --acadlyx-radius-xl: 14px;
   --acadlyx-radius-2xl: 16px;
 
-  --acadlyx-shadow-sm: 0 2px 10px rgba(54, 45, 35, 0.055);
-  --acadlyx-shadow-md: 0 8px 24px rgba(54, 45, 35, 0.075);
-  --acadlyx-shadow-lg: 0 16px 40px rgba(54, 45, 35, 0.12);
+  --acadlyx-shadow-sm: 0 1px 2px rgba(54, 45, 35, 0.045);
+  --acadlyx-shadow-md: 0 6px 18px rgba(54, 45, 35, 0.055);
+  --acadlyx-shadow-lg: 0 12px 30px rgba(54, 45, 35, 0.09);
 }
 
 html {
@@ -150,10 +151,8 @@ button:disabled {
   }
 
   .acadlyx-input:focus {
-    border-color: #60a5fa;
-    box-shadow:
-      0 0 0 3px
-      rgba(96, 165, 250, 0.14);
+    border-color: var(--acadlyx-primary);
+    box-shadow: 0 0 0 3px rgba(49, 92, 74, 0.13);
     outline: none;
   }
 
@@ -169,9 +168,7 @@ button:disabled {
 
   .acadlyx-button-primary:hover {
     background: var(--acadlyx-primary-dark);
-    box-shadow:
-      0 8px 18px
-      rgba(37, 99, 235, 0.18);
+    box-shadow: none;
   }
 
   .acadlyx-button-secondary {
@@ -186,9 +183,9 @@ button:disabled {
   }
 
   .acadlyx-button-secondary:hover {
-    border-color: #bfdbfe;
-    background: #f8fbff;
-    color: #1d4ed8;
+    border-color: var(--acadlyx-border-strong);
+    background: #f3ede3;
+    color: var(--acadlyx-primary-dark);
   }
 
   .acadlyx-button-danger {
@@ -213,9 +210,8 @@ button:disabled {
     align-items: center;
     justify-content: center;
     overflow-y: auto;
-    background: rgba(15, 23, 42, 0.34);
+    background: rgba(37, 34, 30, 0.42);
     padding: 16px;
-    backdrop-filter: blur(3px);
   }
 
   .acadlyx-modal {
@@ -223,8 +219,8 @@ button:disabled {
     max-width: 720px;
     overflow: hidden;
     border: 1px solid var(--acadlyx-border);
-    border-radius: var(--acadlyx-radius-2xl);
-    background: #f8fafc;
+    border-radius: var(--acadlyx-radius-lg);
+    background: var(--acadlyx-surface);
     box-shadow: var(--acadlyx-shadow-lg);
   }
 
@@ -267,11 +263,11 @@ button:disabled {
   }
 
   .acadlyx-table th {
-    background: #f8fafc;
-    color: #665f56;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
+    background: var(--acadlyx-surface-soft);
+    color: #5b534a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.045em;
     text-align: left;
     text-transform: uppercase;
     white-space: nowrap;
@@ -726,19 +722,21 @@ a[class*="bg-white"][class*="text-white"] {
 }
 
 .acadlyx-dashboard-root h1 {
-  font-weight: 850;
-  letter-spacing: -0.03em;
-  line-height: 1.12;
+  font-family: var(--acadlyx-font-display);
+  font-size: clamp(28px, 2.6vw, 38px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 .acadlyx-dashboard-root h2 {
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.22;
 }
 
 .acadlyx-dashboard-root h3 {
-  font-weight: 800;
+  font-weight: 650;
   line-height: 1.25;
 }
 
@@ -787,7 +785,7 @@ a[class*="bg-white"][class*="text-white"] {
   --acadlyx-content-max: 1680px;
   --acadlyx-page-gutter: clamp(14px, 2vw, 32px);
   --acadlyx-page-top: clamp(18px, 2.2vw, 32px);
-  --acadlyx-control-height: 42px;
+  --acadlyx-control-height: 44px;
 }
 
 .acadlyx-app-shell {
@@ -912,7 +910,7 @@ a[class*="bg-white"][class*="text-white"] {
 .acadlyx-button-primary {
   background: var(--acadlyx-primary);
   color: var(--acadlyx-on-primary);
-  box-shadow: 0 5px 14px rgba(49,92,74,.14);
+  box-shadow: none;
 }
 .acadlyx-button-primary:hover { background: var(--acadlyx-primary-dark); }
 .acadlyx-button-secondary {
@@ -1102,3 +1100,22 @@ a[class*="bg-white"][class*="text-white"] {
   transition: none !important;
   scroll-behavior: auto !important;
 }
+
+
+/* Route headers provide hierarchy without enclosing every page title in a card. */
+.acadlyx-route-header{display:flex;min-width:0;flex-direction:column;gap:15px;border-bottom:1px solid var(--acadlyx-border);padding:0 0 22px}
+.acadlyx-route-breadcrumbs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--acadlyx-subtle);font-size:12px;font-weight:550}
+.acadlyx-route-breadcrumb{display:inline-flex;align-items:center;gap:8px}
+.acadlyx-route-breadcrumb-separator{color:#a59a8c}
+.acadlyx-route-breadcrumb-link{color:var(--acadlyx-muted);text-decoration:none}
+.acadlyx-route-breadcrumb-link:hover{color:var(--acadlyx-primary-dark);text-decoration:underline;text-underline-offset:3px}
+.acadlyx-route-header-main{display:flex;min-width:0;align-items:flex-end;justify-content:space-between;gap:20px}
+.acadlyx-route-eyebrow{margin:0 0 7px;color:var(--acadlyx-primary);font-size:10px;font-weight:750;letter-spacing:.1em;line-height:1.5}
+.acadlyx-route-title{margin:0;color:var(--acadlyx-text);font-family:var(--acadlyx-font-display);font-size:clamp(28px,2.7vw,38px);font-weight:600;letter-spacing:-.025em;line-height:1.08}
+.acadlyx-route-description{max-width:68ch;margin:9px 0 0;color:var(--acadlyx-muted);font-size:14px;line-height:1.7}
+.acadlyx-route-actions{display:flex;min-width:0;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
+.acadlyx-card,.acadlyx-section,.acadlyx-table-wrap{box-shadow:none}
+.acadlyx-card,.acadlyx-section{border-radius:var(--acadlyx-radius-lg)}
+.acadlyx-button-primary,.acadlyx-button-secondary,.acadlyx-button-danger,.acadlyx-button{font-weight:650;letter-spacing:0}
+.acadlyx-button-primary:hover,.acadlyx-button-secondary:hover,.acadlyx-button-danger:hover{box-shadow:none;transform:none}
+@media(max-width:767px){.acadlyx-route-header-main{align-items:stretch;flex-direction:column}.acadlyx-route-actions{justify-content:flex-start}}
