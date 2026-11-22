@@ -52,6 +52,6 @@
 #acadlyx-modal-root [data-acadlyx-modal-layer="nested"] { z-index: var(--acadlyx-z-modal-nested); }
 #acadlyx-modal-root [data-acadlyx-modal-layer="critical"] { z-index: var(--acadlyx-z-confirmation); }
 #acadlyx-modal-root [data-acadlyx-modal-layer="toast"] { z-index: var(--acadlyx-z-toast); }
-@media (max-width: 1023px) { .acadlyx-dashboard-main { margin-left: 0; } }
+@media (max-width: 1023px) { .acadlyx-dashboard-main { margin-left: 0; transition: none; } }
 
 .acadlyx-dashboard-sidebar{box-shadow:none!important}.acadlyx-sidebar-item[data-active="true"]{border-radius:8px}.acadlyx-dashboard-header{backdrop-filter:none}

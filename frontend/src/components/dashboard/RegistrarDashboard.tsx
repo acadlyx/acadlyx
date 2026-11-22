@@ -9,6 +9,7 @@ type WorkspaceResponse={success:true;data:{stats?:Record<string,number>}};
 const metrics=[["Students","students"],["Departments","departments"],["Programs","programs"],["Courses","courses"],["Course offerings","offerings"],["Published results","examResults"]] as const;
 const workflows=[
   {label:"Academic masters",href:"/registrar/academic-masters"},
+  {label:"Course registration",href:"/course-registration"},
   {label:"Student records",href:"/registrar/students"},
   {label:"Student promotion",href:"/student-promotion"},
   {label:"Certificates",href:"/certificates"},

@@ -78,7 +78,6 @@ export function hasScopedWorkspaceRole(actor: Pick<AuthenticatedUser, "roles">):
  * a broader or different module. Keep this list aligned with frontend/authority.ts.
  */
 const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
-  "SUPER_ADMIN",
   "CHAIRMAN",
   "DIRECTOR",
   "DEAN",
@@ -88,13 +87,14 @@ const EFFECTIVE_WORKSPACE_ROLE_PRIORITY = [
   "PARENT",
   "PLACEMENT",
   "INSTITUTION_ADMIN",
-  "CMS",
+  "SUPER_ADMIN",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
   "EXAMINATION",
   "LIBRARIAN",
   "IT",
+  "CMS",
   "CLUB_PRESIDENT",
   "STAFF",
   "MANAGEMENT",

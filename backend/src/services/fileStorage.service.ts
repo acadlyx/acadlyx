@@ -53,7 +53,8 @@ export interface StoredFile {
   size: number;
   mimeType: string;
   folder: string;
-  institutionId: string;
+  /** Null for platform-owned assets that are not associated with an institution. */
+  institutionId: string | null;
   ownerId: string | null;
   module: string;
   referenceId: string | null;
