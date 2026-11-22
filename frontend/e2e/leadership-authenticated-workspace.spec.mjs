@@ -157,8 +157,18 @@ test("Dean, Management, Registrar and IT workspaces render across supported view
 
     try {
       await installAuthenticatedSession(page, scenario.role);
-      await page.goto(baseURL + scenario.path, { waitUntil: "networkidle" });
-      await expect(page.getByRole("heading", { name: scenario.heading, exact: true })).toBeVisible();
+      const navigationResponse = await page.goto(baseURL + scenario.path, { waitUntil: "networkidle" });
+      const pageState = {
+        status: navigationResponse?.status() ?? null,
+        url: page.url(),
+        headings: await page.getByRole("heading").allTextContents(),
+        body: (await page.locator("body").innerText()).slice(0, 1600),
+      };
+      console.log(`[workspace-smoke] ${scenario.role}: ${JSON.stringify(pageState)}`);
+      await expect(
+        page.getByRole("heading", { name: scenario.heading, exact: true }),
+        `Expected ${scenario.heading}; observed ${JSON.stringify(pageState)}`,
+      ).toBeVisible();
 
       for (const width of [320, 360, 390, 430, 768, 1024, 1440, 1920]) {
         await page.setViewportSize({ width, height: 900 });
