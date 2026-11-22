@@ -144,10 +144,10 @@ test("placement workspace routes load with scoped authenticated session", async 
 
 test("Dean, Management, Registrar and IT workspaces render across supported viewport sizes", async ({ browser }) => {
   const scenarios = [
-    { role: "DEAN", path: "/dean", heading: "Dean Workspace" },
-    { role: "MANAGEMENT", path: "/management", heading: "Management Workspace" },
-    { role: "REGISTRAR", path: "/registrar", heading: "Registrar Workspace" },
-    { role: "IT", path: "/it", heading: "IT Workspace" },
+    { role: "DEAN", path: "/dean", contentHeading: "Academic performance and quality" },
+    { role: "MANAGEMENT", path: "/management", contentHeading: "Institutional performance" },
+    { role: "REGISTRAR", path: "/registrar", contentHeading: "Student and academic records" },
+    { role: "IT", path: "/it", contentHeading: "Authorized service tools" },
   ];
 
   for (const scenario of scenarios) {
@@ -166,8 +166,8 @@ test("Dean, Management, Registrar and IT workspaces render across supported view
       };
       console.log(`[workspace-smoke] ${scenario.role}: ${JSON.stringify(pageState)}`);
       await expect(
-        page.getByRole("heading", { name: scenario.heading, exact: true }),
-        `Expected ${scenario.heading}; observed ${JSON.stringify(pageState)}`,
+        page.getByRole("heading", { name: scenario.contentHeading, exact: true }),
+        `Expected role-specific content heading ${scenario.contentHeading}; observed ${JSON.stringify(pageState)}`,
       ).toBeVisible();
 
       for (const width of [320, 360, 390, 430, 768, 1024, 1440, 1920]) {
