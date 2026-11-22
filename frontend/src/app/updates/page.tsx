@@ -1,26 +1,54 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { PublicSiteShell, usePublicSiteContent } from "@/components/public/PublicSiteShell";
+
+type UpdateItem = {
+  title: string;
+  description: string;
+  meta?: string;
+  imageUrl?: string;
+  linkUrl?: string;
+};
 
 export default function UpdatesPage() {
   const content = usePublicSiteContent();
-  const page = content.pages.updates;
-  const items = Array.isArray(page.items) ? page.items : [];
+  const page = content.pages.updates || {};
+  const items: UpdateItem[] = Array.isArray(page.items) ? page.items : [];
 
   return (
     <PublicSiteShell>
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">{page.eyebrow}</p>
-        <h1 className="mt-4 max-w-4xl text-4xl font-black tracking-tight text-white sm:text-6xl">{page.title}</h1>
-        <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300">{page.description}</p>
-        {items.length ? <div className="mt-12 grid gap-5 md:grid-cols-2">
-          {items.map((item: { title: string; description: string; meta: string; imageUrl: string; linkUrl: string }, index: number) => <article key={`${item.title}-${index}`} className="overflow-hidden rounded-3xl border border-slate-700 bg-slate-900/70 shadow-xl">
-            {item.imageUrl ? <Image src={item.imageUrl} alt="" width={960} height={480} className="h-52 w-full object-cover" /> : null}
-            <div className="p-6">{item.meta ? <p className="text-xs font-bold uppercase tracking-widest text-blue-300">{item.meta}</p> : null}<h2 className="mt-3 text-xl font-bold text-white">{item.title}</h2><p className="mt-3 text-sm leading-7 text-slate-300">{item.description}</p>{item.linkUrl ? <Link href={item.linkUrl} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex text-sm font-bold text-blue-300 hover:text-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">Read more ↗</Link> : null}</div>
-          </article>)}
-        </div> : <div className="mt-12 rounded-3xl border border-dashed border-slate-600 p-8 text-slate-300">There are no public updates to display yet.</div>}
+      <section className="public-page-section">
+        <header className="public-page-intro">
+          <p className="public-eyebrow">{page.eyebrow || "News and notices"}</p>
+          <h1>{page.title || "ACADLYX updates"}</h1>
+          <p>{page.description || "Published announcements and platform updates."}</p>
+        </header>
+        {items.length ? (
+          <div className="public-editorial-list public-update-list">
+            {items.map((item, index) => (
+              <article key={item.title + "-" + index} className="public-editorial-row">
+                {item.imageUrl ? (
+                  <div className="public-update-media">
+                    <Image src={item.imageUrl} alt="" width={480} height={280} className="public-update-image" />
+                  </div>
+                ) : null}
+                <div className="public-editorial-copy">
+                  {item.meta ? <p className="public-editorial-meta">{item.meta}</p> : null}
+                  <h2>{item.title}</h2>
+                  <p>{item.description}</p>
+                  {item.linkUrl ? (
+                    <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" className="public-editorial-link">
+                      Read update
+                    </a>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="public-empty-message">No public updates have been published.</p>
+        )}
       </section>
     </PublicSiteShell>
   );

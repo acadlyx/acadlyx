@@ -1,4 +1,33 @@
 "use client";
-import Image from "next/image";
+
 import { PublicSiteShell, usePublicSiteContent } from "@/components/public/PublicSiteShell";
-export default function AboutPage(){const c=usePublicSiteContent();const p=c.pages.about;return <PublicSiteShell><section className="mx-auto grid max-w-7xl gap-10 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:py-28"><div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">{p.eyebrow}</p><h1 className="mt-4 text-5xl font-black tracking-tight">{p.title}</h1><p className="mt-6 text-base leading-8 text-slate-600">{p.description}</p></div><div className="overflow-hidden rounded-[32px] border border-slate-900/10 bg-white shadow-2xl">{p.imageUrl?<img src={p.imageUrl} alt={p.title} className="h-full min-h-80 w-full object-cover"/>:<div className="grid min-h-80 place-items-center bg-slate-950"><Image src={c.brand.logoUrl||"/branding/acadlyx-logo.png"} alt={c.brand.siteName} width={100} height={100} className="h-24 w-24 object-contain"/></div>}</div></section></PublicSiteShell>}
+
+export default function AboutPage() {
+  const content = usePublicSiteContent();
+  const page = content.pages.about || {};
+  const title = page.title || "About ACADLYX";
+  const description = page.description || "ACADLYX is an education ERP for coordinating academic, administrative and student-facing work through connected institutional workflows.";
+
+  return (
+    <PublicSiteShell>
+      <section className="public-page-section public-about-layout">
+        <div className="public-page-intro">
+          <p className="public-eyebrow">{page.eyebrow || "The platform"}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        {page.imageUrl ? (
+          <figure className="public-about-image">
+            <img src={page.imageUrl} alt={page.imageAlt || title} />
+          </figure>
+        ) : (
+          <aside className="public-about-note">
+            <span>ACADLYX</span>
+            <p>Education ERP</p>
+            <small>Academic operations · Institutional administration · Student services</small>
+          </aside>
+        )}
+      </section>
+    </PublicSiteShell>
+  );
+}
