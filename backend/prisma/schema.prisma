@@ -145,6 +145,7 @@ model Institution {
   libraryLoanRenewals LibraryLoanRenewal[]
   calendarEvents CalendarEvent[]
   courseRegistrations CourseRegistration[]
+  courseWithdrawalRequests CourseWithdrawalRequest[]
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestInstitution")
   movementRequests StudentMovementRequest[]
   certificates Certificate[]
@@ -314,6 +315,8 @@ model User {
   libraryIssues LibraryIssue[] @relation("LibraryBorrower")
   libraryFines LibraryFine[] @relation("LibraryFineStudent")
   courseRegistrations CourseRegistration[] @relation("RegistrationStudent")
+  courseWithdrawalsRequested CourseWithdrawalRequest[] @relation("CourseWithdrawalStudent")
+  courseWithdrawalsDecided CourseWithdrawalRequest[] @relation("CourseWithdrawalDecider")
   studentEnrollmentRequests StudentEnrollmentRequest[] @relation("EnrollmentRequestStudent")
   enrollmentRequestsRequested StudentEnrollmentRequest[] @relation("EnrollmentRequestRequester")
   enrollmentRequestsDecided StudentEnrollmentRequest[] @relation("EnrollmentRequestDecider")
@@ -588,6 +591,14 @@ model AcademicYear {
   startDate DateTime
   endDate   DateTime
   isCurrent Boolean  @default(false)
+
+  registrationOpensAt          DateTime?
+  registrationClosesAt         DateTime?
+  addDropDeadline               DateTime?
+  withdrawalDeadline            DateTime?
+  exceptionalWithdrawalAllowed  Boolean  @default(false)
+  exceptionalWithdrawalStartsAt DateTime?
+  exceptionalWithdrawalEndsAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -890,6 +901,8 @@ model StudentEnrollmentRequest {
   correctionNote  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  history StudentEnrollmentRequestHistory[]
 
   @@unique([studentId, academicYearId])
   @@index([institutionId, status, createdAt])
@@ -2443,11 +2456,74 @@ model CourseRegistration {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
+  history CourseRegistrationHistory[]
+  withdrawalRequests CourseWithdrawalRequest[]
+
   @@unique([studentId, courseOfferingId])
   @@index([institutionId, status])
   @@index([studentId, status])
   @@index([courseOfferingId])
   @@map("course_registrations")
+}
+
+model CourseRegistrationHistory {
+  id              String             @id @default(uuid())
+  institutionId   String
+  registrationId  String
+  registration    CourseRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  actorId         String
+  action          String
+  previousStatus  String?
+  newStatus       String
+  reason          String?
+  occurredAt      DateTime           @default(now())
+  metadata        Json?
+
+  @@index([institutionId, registrationId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@map("course_registration_history")
+}
+
+model CourseWithdrawalRequest {
+  id              String             @id @default(uuid())
+  institutionId   String
+  institution     Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  registrationId  String
+  registration    CourseRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User               @relation("CourseWithdrawalStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  reason          String
+  status          String             @default("PENDING")
+  requestedAt     DateTime           @default(now())
+  decidedById     String?
+  decidedBy       User?              @relation("CourseWithdrawalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  decisionNote    String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([institutionId, status, requestedAt])
+  @@index([studentId, status])
+  @@index([registrationId, status])
+  @@map("course_withdrawal_requests")
+}
+
+model StudentEnrollmentRequestHistory {
+  id              String                   @id @default(uuid())
+  institutionId   String
+  requestId       String
+  request         StudentEnrollmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actorId         String
+  action          String
+  previousStatus  String?
+  newStatus       String
+  reason          String?
+  occurredAt      DateTime                 @default(now())
+  metadata        Json?
+
+  @@index([institutionId, requestId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@map("student_enrollment_request_history")
 }
 
 model StudentMovementRequest {

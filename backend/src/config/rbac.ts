@@ -282,6 +282,9 @@ export const PERMISSIONS = [
   { key: "registration.submit", module: "registration", description: "Submit course registration" },
   { key: "registration.read", module: "registration", description: "View registrations within scope" },
   { key: "registration.approve", module: "registration", description: "Approve course registrations" },
+  { key: "registration.withdrawal.request", module: "registration", description: "Request withdrawal from an approved course" },
+  { key: "registration.withdrawal.approve", module: "registration", description: "Approve or reject course withdrawal requests within scope" },
+  { key: "registration.withdrawal.override", module: "registration", description: "Perform an exceptional administrative course withdrawal with a recorded reason" },
 
   { key: "promotions.read", module: "promotions", description: "View student movement requests" },
   { key: "promotions.manage", module: "promotions", description: "Create student movement requests" },
@@ -711,6 +714,8 @@ export const ROLE_PERMISSIONS: Record<
 
     "audit.read",
     "lms.read",
+    "registration.withdrawal.approve",
+    "registration.withdrawal.override",
   ],
 
   DEAN: [
@@ -762,6 +767,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "operations.read",
     "lms.read",
+    "registration.withdrawal.approve",
   ],
 
 
@@ -827,6 +833,8 @@ export const ROLE_PERMISSIONS: Record<
 
     "audit.read",
     "lms.read",
+    "registration.withdrawal.approve",
+    "registration.withdrawal.override",
   ],
 
   HOD: [
@@ -896,6 +904,7 @@ export const ROLE_PERMISSIONS: Record<
 
     "operations.read",
     "maintenance.raise",
+    "registration.withdrawal.approve",
   ],
 
   FACULTY: [
@@ -1200,6 +1209,7 @@ export const ROLE_PERMISSIONS: Record<
     "lms.attempt",
 
     "maintenance.raise",
+    "registration.withdrawal.request",
   ],
 
   PARENT: [

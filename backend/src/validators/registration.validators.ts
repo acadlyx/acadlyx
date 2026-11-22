@@ -21,6 +21,7 @@ export const registrationListQuery = z.object({
   courseId: z.string().uuid().optional(),
   facultyId: z.string().uuid().optional(),
   courseType: z.enum(["core","elective"]).optional(),
+  search: z.string().trim().max(100).optional(),
 });
 
 export const registerSchema = z.object({
@@ -57,6 +58,19 @@ export const dropSchema = z.object({
   reason: optionalText(500),
 });
 
+export const withdrawalRequestSchema = z.object({
+  reason: z.string().trim().min(5).max(500),
+});
+
+export const withdrawalDecisionSchema = z.object({
+  decision: z.enum(["APPROVED", "REJECTED"]),
+  decisionNote: optionalText(500),
+}).superRefine((value, ctx) => {
+  if (value.decision === "REJECTED" && !value.decisionNote) {
+    ctx.addIssue({ code: "custom", path: ["decisionNote"], message: "A rejection reason is required" });
+  }
+});
+
 export const bulkAssignCoursesSchema = z.object({
   studentIds: z.array(z.string().uuid()).min(1).max(500),
   courseOfferingIds: z.array(z.string().uuid()).min(1).max(100),
@@ -72,6 +86,7 @@ export const availableOfferingsQuery = z.object({
   ...pageQuery,
   semesterId: z.string().uuid().optional(),
   electivesOnly: z.enum(["true", "false"]).optional(),
+  search: z.string().trim().max(100).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

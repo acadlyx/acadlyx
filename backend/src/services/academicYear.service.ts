@@ -46,11 +46,24 @@ export async function getAcademicYearById(institutionId: string, id: string) {
 }
 
 
+function validateAcademicYearPolicy(input: {
+  startDate: Date; endDate: Date; registrationOpensAt?: Date | null; registrationClosesAt?: Date | null;
+  addDropDeadline?: Date | null; withdrawalDeadline?: Date | null;
+  exceptionalWithdrawalStartsAt?: Date | null; exceptionalWithdrawalEndsAt?: Date | null;
+}) {
+  if (input.registrationOpensAt && input.registrationClosesAt && input.registrationClosesAt < input.registrationOpensAt) throw new AppError("Registration close must be on or after registration opening", 400);
+  if (input.addDropDeadline && input.registrationOpensAt && input.addDropDeadline < input.registrationOpensAt) throw new AppError("Add/drop deadline cannot precede registration opening", 400);
+  if (input.addDropDeadline && input.registrationClosesAt && input.addDropDeadline > input.registrationClosesAt) throw new AppError("Add/drop deadline cannot follow registration closing", 400);
+  if (input.withdrawalDeadline && (input.withdrawalDeadline < input.startDate || input.withdrawalDeadline > input.endDate)) throw new AppError("Withdrawal deadline must fall inside the academic year", 400);
+  if (input.exceptionalWithdrawalStartsAt && input.exceptionalWithdrawalEndsAt && input.exceptionalWithdrawalEndsAt < input.exceptionalWithdrawalStartsAt) throw new AppError("Exceptional withdrawal window is invalid", 400);
+}
+
 export async function createAcademicYear(
   institutionId: string,
   input: CreateAcademicYearInput
 ) {
   const name = input.name.trim();
+  validateAcademicYearPolicy(input);
 
   if (input.endDate && input.startDate >= input.endDate) {
     throw new AppError(
@@ -97,6 +110,7 @@ export async function updateAcademicYear(
   const current = await getAcademicYearById(institutionId, id);
   const nextStartDate = input.startDate ?? current.startDate;
   const nextEndDate = input.endDate ?? current.endDate;
+  validateAcademicYearPolicy({ ...current, ...input, startDate: nextStartDate, endDate: nextEndDate });
 
   if (nextStartDate >= nextEndDate) {
     throw new AppError(
