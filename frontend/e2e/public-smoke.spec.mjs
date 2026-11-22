@@ -23,7 +23,7 @@ test("public route family fits the supported viewport matrix", async ({ page }, 
       }));
       expect(
         dimensions.document,
-        \`\${route.path} should not overflow horizontally at \${width}px\`,
+        `${route} should not overflow horizontally at ${width}px`,
       ).toBeLessThanOrEqual(dimensions.viewport + 1);
 
       if (route === "/" && width === 1440) {
@@ -113,5 +113,5 @@ test("real login error flow remains usable after the public redesign", async ({ 
   expect(pageErrors, "Browser runtime exceptions").toEqual([]);
   const unexpectedHttpFailures = httpFailures.filter(({ status, url }) => !(url.includes("/api/v1/auth/login") && [400, 401, 422].includes(status)));
   expect(unexpectedHttpFailures, "Unexpected failed HTTP responses").toEqual([]);
-  expect(consoleErrors, \`Browser console errors; HTTP failures: \${JSON.stringify(httpFailures)}\`).toEqual([]);
+  expect(consoleErrors, `Browser console errors; HTTP failures: ${JSON.stringify(httpFailures)}`).toEqual([]);
 });
