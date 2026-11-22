@@ -28,11 +28,11 @@ export default function StaffPage() {
       subtitle="Institutional staff operations"
       allowedRoles={["STAFF"]}
     >
-      <main className="mx-auto max-w-7xl space-y-6">
+      <main className="acadlyx-content-standard space-y-6">
         <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">Staff</p>
+          
           <h1 className="mt-2 text-3xl font-black text-slate-950">Staff Workspace</h1>
-          <p className="mt-2 text-sm text-slate-500">A dedicated workspace for the authenticated staff role.</p>
+          
         </section>
         {error ? (
           <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>
