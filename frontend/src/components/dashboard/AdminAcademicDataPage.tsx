@@ -21,7 +21,7 @@ type ModuleKey =
   | "campuses";
 
 type Row = Record<string, unknown> & { id?: string };
-type FieldType = "text" | "number" | "date" | "checkbox" | "entity";
+type FieldType = "text" | "number" | "date" | "datetime-local" | "checkbox" | "entity";
 
 type Field = {
   key: string;
@@ -34,6 +34,7 @@ type Field = {
   source?: LookupSource;
   dependsOn?: string[];
   autoGenerate?: boolean;
+  nullable?: boolean;
 };
 
 type LookupSource = "campuses" | "departments" | "programs" | "years" | "semesters" | "sections" | "courses" | "faculty";
@@ -84,11 +85,18 @@ const CONFIG: Record<ModuleKey, ModuleConfig> = {
   "academic-years": {
     title: "Academic Years",
     endpoint: "/academic-years",
-    columns: ["name", "startDate", "endDate", "isCurrent"],
+    columns: ["name", "startDate", "endDate", "registrationOpensAt", "registrationClosesAt", "addDropDeadline", "withdrawalDeadline", "isCurrent"],
     fields: [
       { key: "name", label: "Academic year", type: "text", required: true, placeholder: "2026–27" },
       { key: "startDate", label: "Start date", type: "date", required: true },
       { key: "endDate", label: "End date", type: "date", required: true },
+      { key: "registrationOpensAt", label: "Registration opens", type: "datetime-local", nullable: true },
+      { key: "registrationClosesAt", label: "Registration closes", type: "datetime-local", nullable: true },
+      { key: "addDropDeadline", label: "Add/drop deadline", type: "datetime-local", nullable: true },
+      { key: "withdrawalDeadline", label: "Normal withdrawal deadline", type: "datetime-local", nullable: true },
+      { key: "exceptionalWithdrawalAllowed", label: "Allow exceptional withdrawal requests", type: "checkbox" },
+      { key: "exceptionalWithdrawalStartsAt", label: "Exceptional withdrawal opens", type: "datetime-local", nullable: true },
+      { key: "exceptionalWithdrawalEndsAt", label: "Exceptional withdrawal closes", type: "datetime-local", nullable: true },
       { key: "isCurrent", label: "Current year", type: "checkbox" },
     ],
   },
@@ -220,7 +228,10 @@ function initialForm(module: ModuleKey, lookupData: Record<LookupSource, Row[]>)
   if (module === "campuses") form.isActive = true;
   if (module === "departments") form.isActive = true;
   if (module === "programs") form.isActive = true;
-  if (module === "academic-years") form.isCurrent = false;
+  if (module === "academic-years") {
+    form.isCurrent = false;
+    form.exceptionalWithdrawalAllowed = false;
+  }
   if (module === "semesters") form.isActive = true;
   if (module === "sections") form.isActive = true;
   if (module === "courses") form.isActive = true;
@@ -237,6 +248,10 @@ function valueForField(row: Row | null, field: Field): string | boolean {
   const raw = row[field.key];
   if (field.type === "checkbox") return Boolean(raw);
   if (field.type === "date" && raw) return String(raw).slice(0, 10);
+  if (field.type === "datetime-local" && raw) {
+    const parsed = new Date(String(raw));
+    return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  }
   if (field.type === "entity") return relationId(raw);
   return raw === null || raw === undefined ? "" : String(raw);
 }
@@ -403,8 +418,16 @@ export default function AdminAcademicDataPage({ module }: { module: ModuleKey })
       for (const field of config.fields) {
         if (editingRow && field.update === false) continue;
         const value = form[field.key];
-        if (value === undefined || value === "") continue;
-        payload[field.key] = field.type === "number" ? Number(value) : value;
+        if (value === undefined) continue;
+        if (value === "" || value === null) {
+          if (editingRow && field.nullable) payload[field.key] = null;
+          continue;
+        }
+        payload[field.key] = field.type === "number"
+          ? Number(value)
+          : field.type === "datetime-local"
+            ? new Date(String(value)).toISOString()
+            : value;
       }
 
       const method = editingRow ? "PATCH" : "POST";

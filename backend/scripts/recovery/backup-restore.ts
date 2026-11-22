@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { stat, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { performance } from "node:perf_hooks";
 import { PrismaClient } from "@prisma/client";
 
@@ -30,7 +31,70 @@ let restored: PrismaClient | null = null;
 let institutionId: string | null = null;
 
 function pg(command: string, args: string[]): void {
-  execFileSync(command, args, { env: pgEnv, stdio: "pipe" });
+  const clientContainer = process.env.ACADLYX_RECOVERY_PG_CONTAINER;
+  if (!clientContainer) {
+    execFileSync(command, args, { env: pgEnv, stdio: "pipe" });
+    return;
+  }
+
+  // Use the matching postgres:16 service image's bundled client binaries.
+  // This avoids runner/PGDG client version drift when restoring a PG16 dump.
+  const containerArgs = [...args];
+  let restoreContainerPath: string | undefined;
+
+  if (command === "pg_dump") {
+    const fileIndex = containerArgs.indexOf("--file");
+    if (fileIndex < 0 || !containerArgs[fileIndex + 1]) {
+      throw new Error("pg_dump must specify --file for the recovery rehearsal");
+    }
+    // pg_dump writes inside the service container; the artifact is copied
+    // back below after the command finishes.
+  } else if (command === "pg_restore") {
+    const sourcePath = [...containerArgs].reverse().find((arg) =>
+      !arg.startsWith("-") && /\.(?:dump|backup|sql)$/i.test(arg)
+    );
+    if (!sourcePath) {
+      throw new Error("pg_restore must specify the backup artifact to restore");
+    }
+    restoreContainerPath = `/tmp/${basename(sourcePath)}`;
+    execFileSync("docker", ["cp", sourcePath, `${clientContainer}:${restoreContainerPath}`], {
+      env: process.env,
+      stdio: "pipe",
+    });
+    const sourceIndex = containerArgs.lastIndexOf(sourcePath);
+    containerArgs[sourceIndex] = restoreContainerPath;
+  }
+
+  execFileSync(
+    "docker",
+    [
+      "exec",
+      "--env", `PGHOST=${pgEnv.PGHOST}`,
+      "--env", `PGPORT=${pgEnv.PGPORT}`,
+      "--env", `PGUSER=${pgEnv.PGUSER}`,
+      "--env", `PGPASSWORD=${pgEnv.PGPASSWORD}`,
+      clientContainer,
+      command,
+      ...containerArgs,
+    ],
+    { env: process.env, stdio: "pipe" }
+  );
+
+  if (command === "pg_dump") {
+    const fileIndex = containerArgs.indexOf("--file");
+    const containerPath = containerArgs[fileIndex + 1];
+    execFileSync("docker", ["cp", `${clientContainer}:${containerPath}`, containerPath], {
+      env: process.env,
+      stdio: "pipe",
+    });
+  }
+
+  if (restoreContainerPath) {
+    execFileSync("docker", ["exec", clientContainer, "rm", "-f", restoreContainerPath], {
+      env: process.env,
+      stdio: "pipe",
+    });
+  }
 }
 
 async function cleanupSource(): Promise<void> {

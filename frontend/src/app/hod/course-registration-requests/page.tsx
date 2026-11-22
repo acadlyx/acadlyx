@@ -3,10 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { authedFetch } from "@/lib/auth";
-import { bulkDecideRegistrations, decideRegistration, listRegistrations, Registration } from "@/lib/registrationApi";
+import {
+  bulkDecideRegistrations,
+  decideRegistration,
+  listRegistrations,
+  listWithdrawalRequests,
+  decideWithdrawalRequest,
+  Registration,
+  CourseWithdrawalRequest,
+} from "@/lib/registrationApi";
 
 export default function HODCourseRegistrationRequestsPage() {
   const [items,setItems]=useState<Registration[]>([]);
+  const [withdrawals,setWithdrawals]=useState<CourseWithdrawalRequest[]>([]);
   const [status,setStatus]=useState<"REQUESTED"|"APPROVED"|"REJECTED"|"NEEDS_CORRECTION"|"DROPPED">("REQUESTED");
   const [search,setSearch]=useState("");
   const [programId,setProgramId]=useState(""); const [academicYearId,setAcademicYearId]=useState(""); const [semesterId,setSemesterId]=useState(""); const [sectionId,setSectionId]=useState(""); const [courseId,setCourseId]=useState(""); const [facultyId,setFacultyId]=useState(""); const [courseType,setCourseType]=useState("");
@@ -16,7 +25,13 @@ export default function HODCourseRegistrationRequestsPage() {
   const [error,setError]=useState("");
   const [result,setResult]=useState<{processed:number;skipped:number}|null>(null);
 
-  const load=useCallback(async()=>{try{const r=await listRegistrations({status,search:search||undefined,programId:programId||undefined,academicYearId:academicYearId||undefined,semesterId:semesterId||undefined,sectionId:sectionId||undefined,courseId:courseId||undefined,facultyId:facultyId||undefined,courseType:courseType as any});setItems(r.items);setSelected([]);}catch(e){setError(e instanceof Error?e.message:"Unable to load registration requests.");}},[status,search,programId,academicYearId,semesterId,sectionId,courseId,facultyId,courseType]);
+  const load=useCallback(async()=>{try{
+    const [r,w]=await Promise.all([
+      listRegistrations({status,search:search||undefined,programId:programId||undefined,academicYearId:academicYearId||undefined,semesterId:semesterId||undefined,sectionId:sectionId||undefined,courseId:courseId||undefined,facultyId:facultyId||undefined,courseType:courseType as any}),
+      listWithdrawalRequests()
+    ]);
+    setItems(r.items);setWithdrawals(w);setSelected([]);
+  }catch(e){setError(e instanceof Error?e.message:"Unable to load registration requests.");}},[status,search,programId,academicYearId,semesterId,sectionId,courseId,facultyId,courseType]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{ Promise.all([authedFetch<any>("/programs?pageSize=100"),authedFetch<any>("/academic-years?pageSize=100"),authedFetch<any>("/semesters?pageSize=100"),authedFetch<any>("/sections?pageSize=100"),authedFetch<any>("/courses?pageSize=100"),authedFetch<any>("/faculty?pageSize=100")]).then(([p,y,m,se,c,f])=>{setPrograms(p.data??[]);setYears(y.data??[]);setSemesters(m.data??[]);setSections(se.data??[]);setCourses(c.data??[]);setFaculty(f.data??[]);}).catch(()=>{}); },[]);
 
@@ -27,6 +42,14 @@ export default function HODCourseRegistrationRequestsPage() {
     setBusy(true);setError("");setResult(null);
     try{if(ids.length===1)await decideRegistration(ids[0],decision,remarks);else {const r=await bulkDecideRegistrations(ids,decision,remarks);setResult({processed:r.processed,skipped:r.skipped});}await load();}catch(e){setError(e instanceof Error?e.message:"Unable to process registrations.");}finally{setBusy(false);}
   }
+  async function decideWithdrawal(id:string, decision:"APPROVED"|"REJECTED"){
+    const decisionNote=decision==="REJECTED" ? window.prompt("Reason for rejecting this withdrawal request:")?.trim() : undefined;
+    if(decision==="REJECTED"&&!decisionNote)return;
+    setBusy(true);setError("");
+    try{await decideWithdrawalRequest(id,decision,decisionNote);await load();}
+    catch(e){setError(e instanceof Error?e.message:"Unable to decide withdrawal request.");}
+    finally{setBusy(false);}
+  }
   const all=items.length>0&&selected.length===items.length;
   return <DashboardShell title="Course Registration Requests" subtitle="Department-scoped HOD review and bulk approval" allowedRoles={["HOD"]}>
     <div className="space-y-5">
@@ -34,6 +57,27 @@ export default function HODCourseRegistrationRequestsPage() {
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm flex flex-wrap gap-3">
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search student…" className="min-w-[240px] flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"/><select value={programId} onChange={e=>setProgramId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Program</option>{programs.map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select><select value={academicYearId} onChange={e=>setAcademicYearId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Academic Year</option>{years.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select value={semesterId} onChange={e=>setSemesterId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Semester</option>{semesters.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select value={sectionId} onChange={e=>setSectionId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Section</option>{sections.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><select value={courseId} onChange={e=>setCourseId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Course</option>{courses.map(x=><option key={x.id} value={x.id}>{x.code} — {x.name}</option>)}</select><select value={facultyId} onChange={e=>setFacultyId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Faculty</option>{faculty.map(x=><option key={x.id||x.userId} value={x.id||x.userId}>{x.firstName} {x.lastName}</option>)}</select><select value={courseType} onChange={e=>setCourseType(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="">Course Type</option><option value="core">Core</option><option value="elective">Elective</option></select>
         <select value={status} onChange={e=>setStatus(e.target.value as typeof status)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option value="REQUESTED">Pending</option><option value="NEEDS_CORRECTION">Needs Correction</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select>
+      </section>
+      <section className="overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-sm">
+        <div className="border-b border-amber-100 p-4">
+          <h2 className="font-bold text-slate-900">Pending course withdrawal requests</h2>
+          <p className="mt-1 text-xs text-slate-500">Approved courses stay active until you approve a formal withdrawal.</p>
+        </div>
+        {withdrawals.length===0 ? <p className="p-5 text-sm text-slate-500">No pending withdrawal requests in your department scope.</p> :
+          <div className="divide-y divide-slate-100">
+            {withdrawals.map((request)=>(
+              <div key={request.id} className="flex flex-wrap items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">{request.student.firstName} {request.student.lastName} · {request.registration.courseOffering.course.code}</p>
+                  <p className="mt-1 text-sm text-slate-600">{request.reason}</p>
+                  <p className="mt-1 text-xs text-slate-400">Requested {new Date(request.requestedAt).toLocaleString()}</p>
+                </div>
+                <button type="button" disabled={busy} onClick={()=>void decideWithdrawal(request.id,"APPROVED")} className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">Approve withdrawal</button>
+                <button type="button" disabled={busy} onClick={()=>void decideWithdrawal(request.id,"REJECTED")} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-40">Reject</button>
+              </div>
+            ))}
+          </div>
+        }
       </section>
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">

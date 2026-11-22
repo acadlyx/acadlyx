@@ -243,7 +243,10 @@ jobs:
 
   browser-smoke:
     name: Desktop and mobile public/login browser smoke
-    runs-on: ubuntu-latest
+    # Playwright 1.55 in this workflow does not support ubuntu-26.04,
+    # which ubuntu-latest currently resolves to. Keep the browser runner on
+    # the supported Ubuntu 24.04 image until the Playwright stack is upgraded.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -380,10 +383,13 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - name: Install PostgreSQL client tools
+      - name: Verify PostgreSQL 16 service client tools
+        env:
+          ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
+          test -n "$ACADLYX_RECOVERY_PG_CONTAINER"
+          docker exec "$ACADLYX_RECOVERY_PG_CONTAINER" pg_dump --version
+          docker exec "$ACADLYX_RECOVERY_PG_CONTAINER" pg_restore --version
       - name: Install
         run: npm ci
       - name: Prisma generate
@@ -391,6 +397,8 @@ jobs:
       - name: Apply migrations
         run: npx prisma migrate deploy
       - name: Run backup, restore, and integrity reconciliation
+        env:
+          ACADLYX_RECOVERY_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: npm run test:backup-restore
       - name: Preserve recovery evidence
         if: always()

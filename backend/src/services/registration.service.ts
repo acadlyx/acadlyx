@@ -16,6 +16,15 @@ import {
   OfferingCapacityInput,
   RegisterInput,
 } from "../validators/registration.validators";
+import {
+  REGISTRATION_SEAT_RESERVING_STATUSES,
+  canStudentCancelRegistration,
+  canStudentResubmitRegistration,
+  canTransitionRegistrationState,
+  isRegistrationAllowed,
+  isAddDropAllowed,
+  isWithdrawalRequestAllowed,
+} from "../utils/registrationPolicy";
 
 type Meta = { ipAddress?: string; userAgent?: string };
 
@@ -41,10 +50,30 @@ const include = {
       course: {
         select: { id: true, code: true, name: true, credits: true, departmentId: true },
       },
-      semester: { select: { id: true, name: true } },
+      semester: { select: {
+        id: true,
+        name: true,
+        academicYear: { select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+        addDropDeadline: true,
+        withdrawalDeadline: true,
+        exceptionalWithdrawalAllowed: true,
+        exceptionalWithdrawalStartsAt: true,
+        exceptionalWithdrawalEndsAt: true,
+      } },
+      } },
       section: { select: { id: true, name: true, capacity: true } },
       faculty: { select: { id: true, firstName: true, lastName: true } },
     },
+  },
+  withdrawalRequests: {
+    where: { status: "PENDING" },
+    select: { id: true, status: true, reason: true, requestedAt: true },
   },
 } satisfies Prisma.CourseRegistrationInclude;
 
@@ -59,11 +88,26 @@ function seatLimit(offering: {
 
 async function activeEnrollment(institutionId: string, studentId: string) {
   const enrollment = await prisma.studentEnrollment.findFirst({
-    where: { institutionId, userId: studentId, status: "ACTIVE" },
+    where: {
+      institutionId,
+      userId: studentId,
+      status: "ACTIVE",
+      academicYear: { isCurrent: true },
+    },
     orderBy: { enrolledAt: "desc" },
     include: {
       program: { select: { id: true, name: true, departmentId: true } },
-      academicYear: { select: { id: true, name: true } },
+      academicYear: { select: {
+        id: true,
+        name: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+        addDropDeadline: true,
+        withdrawalDeadline: true,
+        exceptionalWithdrawalAllowed: true,
+        exceptionalWithdrawalStartsAt: true,
+        exceptionalWithdrawalEndsAt: true,
+      } },
       semester: { select: { id: true, name: true } },
       section: { select: { id: true, name: true } },
     },
@@ -103,18 +147,18 @@ export async function listAvailableOfferings(
     isActive: true,
     ...(semesterId ? { semesterId } : {}),
     ...(enrollment.sectionId ? { sectionId: enrollment.sectionId } : {}),
-    course: { departmentId: enrollment.program.departmentId },
-    ...(filters.electivesOnly ? { isElective: true } : {}),
-    ...(filters.search
-      ? {
-          course: {
+    course: {
+      departmentId: enrollment.program.departmentId,
+      ...(filters.search
+        ? {
             OR: [
               { name: { contains: filters.search, mode: "insensitive" } },
               { code: { contains: filters.search, mode: "insensitive" } },
             ],
-          },
-        }
-      : {}),
+          }
+        : {}),
+    },
+    ...(filters.electivesOnly ? { isElective: true } : {}),
   };
 
   const [offerings, total, existing] = await Promise.all([
@@ -126,10 +170,30 @@ export async function listAvailableOfferings(
         registrationOpen: true,
         isElective: true,
         course: { select: { id: true, code: true, name: true, credits: true } },
-        semester: { select: { id: true, name: true } },
+        semester: { select: {
+          id: true,
+          name: true,
+          academicYear: { select: {
+        id: true,
+        name: true,
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+        addDropDeadline: true,
+        withdrawalDeadline: true,
+        exceptionalWithdrawalAllowed: true,
+        exceptionalWithdrawalStartsAt: true,
+        exceptionalWithdrawalEndsAt: true,
+      } },
+        } },
         section: { select: { id: true, name: true, capacity: true } },
         faculty: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { registrations: { where: { status: "APPROVED" } } } },
+        _count: {
+          select: {
+            registrations: {
+              where: { status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] } },
+            },
+          },
+        },
       },
       orderBy: { course: { code: "asc" } },
       skip: pagination.skip,
@@ -140,13 +204,19 @@ export async function listAvailableOfferings(
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        ...(enrollment.semesterId ? { courseOffering: { semesterId: enrollment.semesterId } } : {}),
       },
-      select: { courseOfferingId: true, status: true },
+      orderBy: { updatedAt: "desc" },
+      select: { status: true, courseOffering: { select: { courseId: true } } },
     }),
   ]);
 
-  const held = new Map(existing.map((row) => [row.courseOfferingId, row.status]));
+  // Keep historical decisions visible: dropped/rejected courses must not
+  // silently reappear as unattempted offerings in the same semester.
+  const held = new Map<string, string>();
+  for (const row of existing) {
+    if (!held.has(row.courseOffering.courseId)) held.set(row.courseOffering.courseId, row.status);
+  }
 
   return {
     total,
@@ -161,11 +231,11 @@ export async function listAvailableOfferings(
         section: offering.section,
         faculty: offering.faculty,
         isElective: offering.isElective,
-        registrationOpen: offering.registrationOpen,
+        registrationOpen: isRegistrationAllowed(new Date(), enrollment.academicYear, offering.registrationOpen),
         capacity: limit,
         seatsTaken: taken,
         seatsLeft: limit === null ? null : Math.max(0, limit - taken),
-        myStatus: held.get(offering.id) ?? null,
+        myStatus: held.get(offering.course.id) ?? null,
       };
     }),
   };
@@ -182,7 +252,7 @@ export async function getMyRegistrationSummary(
   });
 
   const active = rows.filter((row) =>
-    ["REQUESTED", "APPROVED"].includes(row.status)
+    REGISTRATION_SEAT_RESERVING_STATUSES.includes(row.status as "REQUESTED" | "APPROVED")
   );
   const credits = active.reduce(
     (sum, row) => sum + row.courseOffering.course.credits,
@@ -228,9 +298,42 @@ export async function register(
   });
   if (!student) throw new AppError("Student not found in this institution", 404);
 
-  const enrollment = await activeEnrollment(institutionId, studentId);
+  const { registration, previousState } = await prisma.$transaction(async (tx) => {
+    // Serialize seat reservations for this offering. All paths that reserve,
+    // approve, assign or change capacity use this same row lock.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id"
+      FROM "course_offerings"
+      WHERE "id" = ${input.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    // Serialize each student's semester credit checks across different offerings.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" = ${studentId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
 
-  const registration = await prisma.$transaction(async (tx) => {
+    const enrollment = await tx.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: studentId,
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: { enrolledAt: "desc" },
+      select: {
+        id: true,
+        academicYearId: true,
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    if (!enrollment) throw new AppError("No active current-year enrollment found for this student", 422);
+
     const offering = await tx.courseOffering.findFirst({
       where: { id: input.courseOfferingId, institutionId, isActive: true },
       select: {
@@ -246,12 +349,26 @@ export async function register(
     if (studentId !== actor.id) {
       await assertApproverScope(institutionId, actor, offering.course.departmentId);
     }
-    if (!offering.registrationOpen) {
-      throw new AppError("Registration is closed for this offering", 409);
+    const registrationPolicy = await tx.academicYear.findFirst({
+      where: { id: enrollment.academicYearId, institutionId, isCurrent: true },
+      select: {
+        registrationOpensAt: true,
+        registrationClosesAt: true,
+        addDropDeadline: true,
+        withdrawalDeadline: true,
+        exceptionalWithdrawalAllowed: true,
+        exceptionalWithdrawalStartsAt: true,
+        exceptionalWithdrawalEndsAt: true,
+      },
+    });
+    if (!registrationPolicy) {
+      throw new AppError("The student's academic year is no longer current", 409);
+    }
+    const actionTime = new Date();
+    if (!isRegistrationAllowed(actionTime, registrationPolicy, offering.registrationOpen)) {
+      throw new AppError("Registration is outside the institution's configured registration window or the offering is manually closed", 409);
     }
 
-    /* A student may only register inside the semester they are enrolled
-       in — cross-semester registration corrupts attendance and results. */
     if (!enrollment.semesterId || offering.semesterId !== enrollment.semesterId) {
       throw new AppError("This offering belongs to a different semester than your enrollment", 422);
     }
@@ -270,17 +387,24 @@ export async function register(
         },
       },
     });
-    if (existing && ["REQUESTED", "APPROVED"].includes(existing.status)) {
-      throw new AppError("Already registered for this course offering", 409);
+
+    if (existing && (!canStudentResubmitRegistration(existing.status) || !canTransitionRegistrationState(existing.status, "REQUESTED"))) {
+      if (["REQUESTED", "APPROVED"].includes(existing.status)) {
+        throw new AppError("Already registered for this course offering", 409);
+      }
+      throw new AppError(
+        "This course has a previous registration decision. Contact the authorised academic office for a permitted reopening; the historical record cannot be reused.",
+        409
+      );
     }
 
-    /* Duplicate course guard: the same course must not be taken twice in
-       one semester through two different sections. */
+    // A course can be attempted only once per semester, even if its previous
+    // offering-specific record was rejected or dropped.
     const sameCourse = await tx.courseRegistration.findFirst({
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        ...(existing ? { id: { not: existing.id } } : {}),
         courseOffering: {
           courseId: offering.course.id,
           semesterId: offering.semesterId,
@@ -289,17 +413,14 @@ export async function register(
       select: { id: true },
     });
     if (sameCourse) {
-      throw new AppError(
-        `Already registered for ${offering.course.code} this semester`,
-        409
-      );
+      throw new AppError(`A previous registration already exists for ${offering.course.code} this semester`, 409);
     }
 
     const active = await tx.courseRegistration.findMany({
       where: {
         institutionId,
         studentId,
-        status: { in: ["REQUESTED", "APPROVED"] },
+        status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
         courseOffering: { semesterId: offering.semesterId },
       },
       select: { courseOffering: { select: { course: { select: { credits: true } } } } },
@@ -317,40 +438,34 @@ export async function register(
 
     const limit = seatLimit(offering);
     if (limit !== null) {
-      const taken = await tx.courseRegistration.count({
+      const reserved = await tx.courseRegistration.count({
         where: {
           courseOfferingId: offering.id,
-          status: { in: ["REQUESTED", "APPROVED"] },
+          status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
         },
       });
-      if (taken >= limit) {
-        throw new AppError("This course offering is full", 409);
-      }
+      if (reserved >= limit) throw new AppError("This course offering is full", 409);
     }
 
-    if (existing) {
-      /* Re-registering after a drop reuses the row the unique index owns. */
-      return tx.courseRegistration.update({
-        where: { id: existing.id },
-        data: {
-          status: "REQUESTED",
-          decidedById: null,
-          decidedAt: null,
-          remarks: null,
-        },
-        include,
-      });
-    }
+    const saved = existing
+      ? await tx.courseRegistration.update({
+          where: { id: existing.id },
+          // Preserve the previous reviewer, decision timestamp and correction
+          // remarks. The audit log below records this new attempt separately.
+          data: { status: "REQUESTED" },
+          include,
+        })
+      : await tx.courseRegistration.create({
+          data: {
+            institutionId,
+            studentId,
+            courseOfferingId: offering.id,
+            status: "REQUESTED",
+          },
+          include,
+        });
 
-    return tx.courseRegistration.create({
-      data: {
-        institutionId,
-        studentId,
-        courseOfferingId: offering.id,
-        status: "REQUESTED",
-      },
-      include,
-    });
+    return { registration: saved, previousState: existing?.status ?? null };
   });
 
   const departmentId = registration.courseOffering.course.departmentId;
@@ -360,10 +475,15 @@ export async function register(
   await recordAuditLog({
     institutionId,
     userId: actor.id,
-    action: "registration.request",
+    action: previousState ? "registration.correction_resubmit" : "registration.request",
     entityType: "CourseRegistration",
     entityId: registration.id,
-    metadata: { studentId, courseOfferingId: input.courseOfferingId },
+    metadata: {
+      studentId,
+      courseOfferingId: input.courseOfferingId,
+      previousState,
+      newState: "REQUESTED",
+    },
     ...meta,
   });
 
@@ -383,34 +503,75 @@ export async function drop(
   });
   if (!existing) throw new AppError("Registration not found", 404);
 
-  if (
-    existing.studentId !== actor.id &&
-    !actor.permissions.includes("registration.approve")
-  ) {
-    throw new AppError("You may only drop your own registrations", 403);
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT" || existing.studentId !== actor.id) {
+    throw new AppError("Only the student in the active Student workspace may cancel their own pending request", 403);
   }
-  if (!["REQUESTED", "APPROVED"].includes(existing.status)) {
-    throw new AppError("This registration is no longer active", 422);
+  if (!canStudentCancelRegistration(existing.status)) {
+    throw new AppError(
+      "Only a pending course registration may be cancelled directly. Approved courses require the institution's formal withdrawal process.",
+      409
+    );
+  }
+  if (!isAddDropAllowed(
+    new Date(),
+    existing.courseOffering.semester.academicYear,
+    existing.courseOffering.registrationOpen
+  )) {
+    throw new AppError("The institution's add/drop deadline has passed. Contact the academic office for an authorised exception.", 409);
   }
 
-  const dropped = await prisma.courseRegistration.update({
-    where: { id },
-    data: {
-      status: "DROPPED",
-      decidedById: actor.id,
-      decidedAt: new Date(),
-      remarks: reason ?? null,
-    },
-    include,
+  const dropped = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${existing.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const fresh = await tx.courseRegistration.findFirst({
+      where: { id, institutionId, studentId: actor.id },
+      include,
+    });
+    if (!fresh || fresh.status !== "REQUESTED") {
+      throw new AppError("The registration is no longer pending and cannot be cancelled", 409);
+    }
+    if (!isAddDropAllowed(new Date(), fresh.courseOffering.semester.academicYear, fresh.courseOffering.registrationOpen)) {
+      throw new AppError("The institution's add/drop deadline passed before the cancellation was committed", 409);
+    }
+
+    const changed = await tx.courseRegistration.updateMany({
+      where: {
+        id,
+        institutionId,
+        studentId: actor.id,
+        status: "REQUESTED",
+      },
+      data: {
+        status: "DROPPED",
+        decidedById: actor.id,
+        decidedAt: new Date(),
+        remarks: reason ?? null,
+      },
+    });
+    if (changed.count !== 1) {
+      throw new AppError("This registration changed while you were cancelling it. Refresh and review its current status.", 409);
+    }
+    const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
+    if (!saved) throw new AppError("Registration not found", 404);
+    return saved;
   });
 
   await recordAuditLog({
     institutionId,
     userId: actor.id,
-    action: "registration.drop",
+    action: "registration.pending_cancel",
     entityType: "CourseRegistration",
     entityId: id,
-    metadata: { studentId: existing.studentId, reason },
+    metadata: {
+      studentId: existing.studentId,
+      previousState: "REQUESTED",
+      newState: "DROPPED",
+      reason: reason ?? null,
+    },
     ...meta,
   });
 
@@ -430,8 +591,8 @@ export async function decide(
     include,
   });
   if (!existing) throw new AppError("Registration not found", 404);
-  if (existing.status !== "REQUESTED") {
-    throw new AppError("Only pending registrations can be decided", 422);
+  if (!canTransitionRegistrationState(existing.status, decision)) {
+    throw new AppError("This registration state does not permit the requested decision", 409);
   }
   await assertApproverScope(
     institutionId,
@@ -439,51 +600,93 @@ export async function decide(
     existing.courseOffering.course.departmentId
   );
 
-  const enrollment = await activeEnrollment(institutionId, existing.studentId);
-  if (
-    enrollment.semesterId !== existing.courseOffering.semester.id ||
-    enrollment.sectionId !== existing.courseOffering.section.id ||
-    enrollment.program.departmentId !== existing.courseOffering.course.departmentId
-  ) {
-    throw new AppError("The student's current academic enrollment no longer matches this course offering", 422);
-  }
-
   const updated = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${existing.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" = ${existing.studentId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const currentEnrollment = await tx.studentEnrollment.findFirst({
+      where: {
+        institutionId,
+        userId: existing.studentId,
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: { enrolledAt: "desc" },
+      select: {
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    if (
+      !currentEnrollment ||
+      currentEnrollment.semesterId !== existing.courseOffering.semester.id ||
+      currentEnrollment.sectionId !== existing.courseOffering.section.id ||
+      currentEnrollment.program.departmentId !== existing.courseOffering.course.departmentId
+    ) {
+      throw new AppError("The student's current academic enrollment no longer matches this course offering", 422);
+    }
+
     if (decision === "APPROVED") {
-      const offering = await tx.courseOffering.findUniqueOrThrow({
-        where: { id: existing.courseOfferingId },
-        select: {
-          capacity: true,
-          section: { select: { capacity: true } },
-        },
+      const offering = await tx.courseOffering.findFirst({
+        where: { id: existing.courseOfferingId, institutionId },
+        select: { capacity: true, section: { select: { capacity: true } } },
       });
+      if (!offering) throw new AppError("Course offering not found", 404);
       const limit = seatLimit(offering);
       if (limit !== null) {
-        const approved = await tx.courseRegistration.count({
+        // REQUESTED already reserves this seat. Approval changes the state,
+        // not the number of seats reserved.
+        const reserved = await tx.courseRegistration.count({
           where: {
             courseOfferingId: existing.courseOfferingId,
-            status: "APPROVED",
+            status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
           },
         });
-        if (approved >= limit) {
-          throw new AppError("Course offering is already full", 409);
-        }
+        if (reserved > limit) throw new AppError("Course offering has exceeded its configured capacity", 409);
       }
     }
 
-    return tx.courseRegistration.update({
-      where: { id },
+    const changed = await tx.courseRegistration.updateMany({
+      where: { id, institutionId, status: "REQUESTED" },
       data: {
         status: decision,
         decidedById: actor.id,
         decidedAt: new Date(),
         remarks: remarks ?? null,
       },
-      include,
     });
+    if (changed.count !== 1) {
+      throw new AppError("This registration has already been decided by another action", 409);
+    }
+
+    const saved = await tx.courseRegistration.findFirst({ where: { id, institutionId }, include });
+    if (!saved) throw new AppError("Registration not found", 404);
+    return saved;
   });
 
-  await notifyUser(institutionId, existing.studentId, decision === "APPROVED" ? "Course registration approved" : decision === "REJECTED" ? "Course registration rejected" : "Course registration needs correction", decision === "APPROVED" ? "Your course registration was approved." : (remarks ?? "Please review and update your course registration."), "/student/course-registration");
+  await notifyUser(
+    institutionId,
+    existing.studentId,
+    decision === "APPROVED"
+      ? "Course registration approved"
+      : decision === "REJECTED"
+        ? "Course registration rejected"
+        : "Course registration needs correction",
+    decision === "APPROVED"
+      ? "Your course registration was approved."
+      : (remarks ?? "Please review and update your course registration."),
+    "/student/course-registration"
+  );
 
   await recordAuditLog({
     institutionId,
@@ -491,14 +694,17 @@ export async function decide(
     action: `registration.${decision.toLowerCase()}`,
     entityType: "CourseRegistration",
     entityId: id,
-    metadata: { studentId: existing.studentId, remarks },
+    metadata: {
+      studentId: existing.studentId,
+      previousState: "REQUESTED",
+      newState: decision,
+      remarks: remarks ?? null,
+    },
     ...meta,
   });
 
   return updated;
 }
-
-
 
 export async function bulkRegister(
   institutionId: string,
@@ -537,18 +743,22 @@ export async function bulkDecideRegistrations(
     throw new AppError("The active workspace cannot decide course registrations", 403);
   }
   const unique = [...new Set(ids)];
-  const results: { id: string; status: "APPROVED" | "SKIPPED"; reason?: string }[] = [];
+  const results: {
+    id: string;
+    status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED";
+    reason?: string;
+  }[] = [];
   for (const id of unique) {
     try {
       await decide(institutionId, actor, id, decision, remarks, meta);
-      results.push({ id, status: "APPROVED" });
+      results.push({ id, status: decision });
     } catch (error) {
       results.push({ id, status: "SKIPPED", reason: error instanceof Error ? error.message : "Unable to process request" });
     }
   }
   return {
     requested: unique.length,
-    processed: results.filter((r) => r.status === "APPROVED").length,
+    processed: results.filter((r) => r.status !== "SKIPPED").length,
     skipped: results.filter((r) => r.status === "SKIPPED").length,
     results,
   };
@@ -708,7 +918,11 @@ export async function bulkAssignCourses(
         firstName: true,
         lastName: true,
         studentEnrollments: {
-          where: { institutionId, status: "ACTIVE" },
+          where: {
+            institutionId,
+            status: "ACTIVE",
+            academicYear: { isCurrent: true },
+          },
           orderBy: { enrolledAt: "desc" },
           take: 1,
           select: {
@@ -733,6 +947,7 @@ export async function bulkAssignCourses(
         semesterId: true,
         sectionId: true,
         capacity: true,
+        registrationOpen: true,
         course: {
           select: {
             id: true,
@@ -741,6 +956,15 @@ export async function bulkAssignCourses(
             departmentId: true,
           },
         },
+        semester: { select: { academicYear: { select: {
+          registrationOpensAt: true,
+          registrationClosesAt: true,
+          addDropDeadline: true,
+          withdrawalDeadline: true,
+          exceptionalWithdrawalAllowed: true,
+          exceptionalWithdrawalStartsAt: true,
+          exceptionalWithdrawalEndsAt: true,
+        } } } },
         section: { select: { capacity: true } },
       },
     }),
@@ -758,47 +982,92 @@ export async function bulkAssignCourses(
   }
 
   const studentById = new Map(students.map((student) => [student.id, student]));
-  const offeringById = new Map(offerings.map((offering) => [offering.id, offering]));
-
-  for (const studentId of studentIds) {
-    const student = studentById.get(studentId)!;
-    const enrollment = student.studentEnrollments[0];
-
-    if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
-      throw new AppError(
-        `${student.firstName} ${student.lastName} has no active semester/section enrollment`,
-        422
-      );
-    }
-
-    for (const courseOfferingId of courseOfferingIds) {
-      const offering = offeringById.get(courseOfferingId)!;
-
-      if (
-        enrollment.semesterId !== offering.semesterId ||
-        enrollment.sectionId !== offering.sectionId
-      ) {
-        throw new AppError(
-          `${student.firstName} ${student.lastName} is not enrolled in the semester/section for ${offering.course.code}`,
-          422
-        );
-      }
-
-      if (enrollment.program?.departmentId !== offering.course.departmentId) {
-        throw new AppError(
-          `${student.firstName} ${student.lastName} is outside the department scope of ${offering.course.code}`,
-          403
-        );
-      }
-    }
-  }
 
   const results = await prisma.$transaction(async (tx) => {
+    // Lock offerings in deterministic order to prevent overbooking and
+    // deadlocks across concurrent bulk assignments.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "institutionId" = ${institutionId}
+        AND "id" IN (${Prisma.join(courseOfferingIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
+    // Match the student-row lock used by self-service registration so
+    // bulk assignment cannot race an individual semester credit check.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "institutionId" = ${institutionId}
+        AND "id" IN (${Prisma.join(studentIds)})
+      ORDER BY "id"
+      FOR UPDATE
+    `);
+    const currentEnrollments = await tx.studentEnrollment.findMany({
+      where: {
+        institutionId,
+        userId: { in: studentIds },
+        status: "ACTIVE",
+        academicYear: { isCurrent: true },
+      },
+      orderBy: [{ userId: "asc" }, { enrolledAt: "desc" }],
+      select: {
+        userId: true,
+        semesterId: true,
+        sectionId: true,
+        program: { select: { departmentId: true } },
+      },
+    });
+    const enrollmentByStudent = new Map<string, (typeof currentEnrollments)[number]>();
+    for (const enrollment of currentEnrollments) {
+      if (!enrollmentByStudent.has(enrollment.userId)) enrollmentByStudent.set(enrollment.userId, enrollment);
+    }
+    const freshOfferings = await tx.courseOffering.findMany({
+      where: { institutionId, id: { in: courseOfferingIds }, isActive: true },
+      select: {
+        id: true,
+        semesterId: true,
+        sectionId: true,
+        capacity: true,
+        registrationOpen: true,
+        course: { select: { id: true, code: true, credits: true, departmentId: true } },
+        semester: { select: { academicYear: { select: {
+          registrationOpensAt: true,
+          registrationClosesAt: true,
+          addDropDeadline: true,
+          withdrawalDeadline: true,
+          exceptionalWithdrawalAllowed: true,
+          exceptionalWithdrawalStartsAt: true,
+          exceptionalWithdrawalEndsAt: true,
+        } } } },
+        section: { select: { capacity: true } },
+      },
+    });
+    if (freshOfferings.length !== courseOfferingIds.length) {
+      throw new AppError("One or more course offerings changed or became inactive during assignment", 409);
+    }
+    const offeringById = new Map(freshOfferings.map((offering) => [offering.id, offering]));
+    const assignmentTime = new Date();
     const assigned: Prisma.CourseRegistrationGetPayload<{ include: typeof include }>[] = [];
 
     for (const studentId of studentIds) {
       for (const courseOfferingId of courseOfferingIds) {
         const offering = offeringById.get(courseOfferingId)!;
+        if (!isRegistrationAllowed(assignmentTime, offering.semester.academicYear, offering.registrationOpen)) {
+          throw new AppError(`Registration is not open for ${offering.course.code} under the institution's academic-year policy.`, 409);
+        }
+        const enrollment = enrollmentByStudent.get(studentId);
+        if (!enrollment || !enrollment.semesterId || !enrollment.sectionId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} has no active current-year semester/section enrollment`, 422);
+        }
+        if (enrollment.semesterId !== offering.semesterId || enrollment.sectionId !== offering.sectionId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} is not enrolled in the semester/section for ${offering.course.code}`, 422);
+        }
+        if (enrollment.program.departmentId !== offering.course.departmentId) {
+          const student = studentById.get(studentId)!;
+          throw new AppError(`${student.firstName} ${student.lastName} is outside the department scope of ${offering.course.code}`, 403);
+        }
 
         const existing = await tx.courseRegistration.findUnique({
           where: {
@@ -814,12 +1083,17 @@ export async function bulkAssignCourses(
           assigned.push(existing);
           continue;
         }
+        if (existing && existing.status !== "REQUESTED") {
+          throw new AppError(
+            `Cannot bulk-assign ${offering.course.code}: the student's historical registration is ${existing.status}. Use an authorised reopening workflow instead.`,
+            409
+          );
+        }
 
         const duplicateCourse = await tx.courseRegistration.findFirst({
           where: {
             institutionId,
             studentId,
-            status: { in: ["REQUESTED", "APPROVED"] },
             id: existing ? { not: existing.id } : undefined,
             courseOffering: {
               courseId: offering.course.id,
@@ -840,7 +1114,7 @@ export async function bulkAssignCourses(
           where: {
             institutionId,
             studentId,
-            status: { in: ["REQUESTED", "APPROVED"] },
+            status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
             id: existing ? { not: existing.id } : undefined,
             courseOffering: { semesterId: offering.semesterId },
           },
@@ -865,15 +1139,15 @@ export async function bulkAssignCourses(
 
         const limit = seatLimit(offering);
         if (limit !== null) {
-          const approvedCount = await tx.courseRegistration.count({
+          const reservedCount = await tx.courseRegistration.count({
             where: {
               courseOfferingId,
-              status: "APPROVED",
+              status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
               ...(existing ? { id: { not: existing.id } } : {}),
             },
           });
 
-          if (approvedCount >= limit) {
+          if (reservedCount >= limit) {
             throw new AppError(
               `Course offering ${offering.course.code} is already full`,
               409
@@ -882,16 +1156,21 @@ export async function bulkAssignCourses(
         }
 
         const saved = existing
-          ? await tx.courseRegistration.update({
-              where: { id: existing.id },
-              data: {
-                status: "APPROVED",
-                decidedById: actor.id,
-                decidedAt: new Date(),
-                remarks: "Assigned and approved by HOD",
-              },
-              include,
-            })
+          ? await (async () => {
+              const changed = await tx.courseRegistration.updateMany({
+                where: { id: existing.id, institutionId, status: "REQUESTED" },
+                data: {
+                  status: "APPROVED",
+                  decidedById: actor.id,
+                  decidedAt: new Date(),
+                  remarks: "Assigned and approved by HOD",
+                },
+              });
+              if (changed.count !== 1) throw new AppError("Registration changed during bulk assignment", 409);
+              const refreshed = await tx.courseRegistration.findFirst({ where: { id: existing.id, institutionId }, include });
+              if (!refreshed) throw new AppError("Registration not found after assignment", 404);
+              return refreshed;
+            })()
           : await tx.courseRegistration.create({
               data: {
                 institutionId,
@@ -947,33 +1226,58 @@ export async function updateOfferingCapacity(
   if (!offering) throw new AppError("Course offering not found", 404);
   await assertApproverScope(institutionId, actor, offering.course.departmentId);
 
-  if (input.capacity !== undefined && input.capacity !== null) {
-    const approved = await prisma.courseRegistration.count({
-      where: { courseOfferingId, status: "APPROVED" },
-    });
-    if (input.capacity < approved) {
-      throw new AppError(
-        `${approved} students are already approved; capacity cannot be lower`,
-        422
-      );
-    }
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
 
-  const updated = await prisma.courseOffering.update({
-    where: { id: courseOfferingId },
-    data: {
-      ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
-      ...(input.registrationOpen !== undefined
-        ? { registrationOpen: input.registrationOpen }
-        : {}),
-      ...(input.isElective !== undefined ? { isElective: input.isElective } : {}),
-    },
-    select: {
-      id: true,
-      capacity: true,
-      registrationOpen: true,
-      isElective: true,
-    },
+    const fresh = await tx.courseOffering.findFirst({
+      where: { id: courseOfferingId, institutionId },
+      select: {
+        id: true,
+        capacity: true,
+        section: { select: { capacity: true } },
+      },
+    });
+    if (!fresh) throw new AppError("Course offering not found", 404);
+
+    const effectiveLimit = input.capacity !== undefined
+      ? (input.capacity ?? fresh.section.capacity)
+      : (fresh.capacity ?? fresh.section.capacity);
+
+    if (effectiveLimit !== null) {
+      const reserved = await tx.courseRegistration.count({
+        where: {
+          courseOfferingId,
+          institutionId,
+          status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
+        },
+      });
+      if (effectiveLimit < reserved) {
+        throw new AppError(
+          `${reserved} pending/approved registrations already reserve seats; capacity cannot be reduced below this number.`,
+          422
+        );
+      }
+    }
+
+    return tx.courseOffering.update({
+      where: { id: courseOfferingId },
+      data: {
+        ...(input.capacity !== undefined ? { capacity: input.capacity } : {}),
+        ...(input.registrationOpen !== undefined ? { registrationOpen: input.registrationOpen } : {}),
+        ...(input.isElective !== undefined ? { isElective: input.isElective } : {}),
+      },
+      select: {
+        id: true,
+        capacity: true,
+        registrationOpen: true,
+        isElective: true,
+      },
+    });
   });
 
   await recordAuditLog({
@@ -987,4 +1291,241 @@ export async function updateOfferingCapacity(
   });
 
   return updated;
+}
+
+
+export async function requestWithdrawal(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  registrationId: string,
+  reason: string,
+  meta: Meta
+) {
+  if (getEffectiveWorkspaceRole(actor) !== "STUDENT") {
+    throw new AppError("Only the active Student workspace may request course withdrawal", 403);
+  }
+  const existing = await prisma.courseRegistration.findFirst({
+    where: { id: registrationId, institutionId, studentId: actor.id },
+    include,
+  });
+  if (!existing) throw new AppError("Registration not found", 404);
+  if (existing.status !== "APPROVED") {
+    throw new AppError("Only an approved course registration can enter the withdrawal workflow", 409);
+  }
+  if (!isWithdrawalRequestAllowed(new Date(), existing.courseOffering.semester.academicYear)) {
+    throw new AppError("The institution's normal or exceptional withdrawal window is not open", 409);
+  }
+
+  const request = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_registrations"
+      WHERE "id" = ${registrationId} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const fresh = await tx.courseRegistration.findFirst({
+      where: { id: registrationId, institutionId, studentId: actor.id },
+      include,
+    });
+    if (!fresh || fresh.status !== "APPROVED") {
+      throw new AppError("The approved registration changed before the withdrawal request was recorded", 409);
+    }
+    if (!isWithdrawalRequestAllowed(new Date(), fresh.courseOffering.semester.academicYear)) {
+      throw new AppError("The institution's withdrawal window closed before the request was committed", 409);
+    }
+    const pending = await tx.courseWithdrawalRequest.findFirst({
+      where: { institutionId, registrationId, status: "PENDING" },
+      select: { id: true },
+    });
+    if (pending) throw new AppError("A withdrawal request is already pending for this course", 409);
+    const latest = await tx.courseWithdrawalRequest.findFirst({
+      where: { institutionId, registrationId },
+      orderBy: { attemptNumber: "desc" },
+      select: { attemptNumber: true },
+    });
+    return tx.courseWithdrawalRequest.create({
+      data: {
+        institutionId,
+        registrationId,
+        studentId: actor.id,
+        attemptNumber: (latest?.attemptNumber ?? 0) + 1,
+        reason: reason.trim(),
+        status: "PENDING",
+      },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+        registration: { include },
+      },
+    });
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: "registration.withdrawal.request",
+    entityType: "CourseWithdrawalRequest",
+    entityId: request.id,
+    metadata: {
+      registrationId,
+      previousRegistrationState: "APPROVED",
+      requestState: "PENDING",
+      reason: reason.trim(),
+      attemptNumber: request.attemptNumber,
+    },
+    ...meta,
+  });
+  const reviewers = await prisma.employeeProfile.findMany({
+    where: {
+      institutionId,
+      departmentId: existing.courseOffering.course.departmentId,
+      status: "ACTIVE",
+      user: { userRoles: { some: { role: { name: { in: ["HOD", "DEAN"] }, institutionId } } } },
+    },
+    select: { userId: true },
+  });
+  await Promise.all(
+    Array.from(new Set(reviewers.map((reviewer) => reviewer.userId))).map((userId) =>
+      notifyUser(
+        institutionId,
+        userId,
+        "Course withdrawal awaiting review",
+        `${existing.student.firstName} ${existing.student.lastName} submitted a formal withdrawal request for ${existing.courseOffering.course.code}.`,
+        "/hod/course-registration-requests"
+      )
+    )
+  );
+  await notifyUser(
+    institutionId,
+    actor.id,
+    "Withdrawal request submitted",
+    "Your course remains active until an authorised academic reviewer decides the withdrawal request.",
+    "/student/course-registration"
+  );
+  return request;
+}
+
+export async function listWithdrawalRequests(
+  institutionId: string,
+  actor: AuthenticatedUser
+) {
+  const where: Prisma.CourseWithdrawalRequestWhereInput = {
+    institutionId,
+    status: "PENDING",
+  };
+  if (!isInstitutionWide(actor)) {
+    const role = getEffectiveWorkspaceRole(actor);
+    let departmentIds: string[] = [];
+    if (role === "DIRECTOR" && isDirectorScoped(actor)) {
+      departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
+    } else if (role === "DEAN" || role === "HOD") {
+      departmentIds = await getManagedDepartmentIds(institutionId, actor.id);
+    } else {
+      throw new AppError("Course withdrawal requests are not available for this workspace", 403);
+    }
+    where.registration = {
+      courseOffering: {
+        course: { departmentId: { in: departmentIds.length ? departmentIds : ["__NO_AUTHORIZED_SCOPE__"] } },
+      },
+    };
+  }
+  return prisma.courseWithdrawalRequest.findMany({
+    where,
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      registration: { include },
+    },
+    orderBy: { requestedAt: "asc" },
+  });
+}
+
+export async function decideWithdrawal(
+  institutionId: string,
+  actor: AuthenticatedUser,
+  requestId: string,
+  decision: "APPROVED" | "REJECTED",
+  decisionNote: string | undefined,
+  meta: Meta
+) {
+  const existing = await prisma.courseWithdrawalRequest.findFirst({
+    where: { id: requestId, institutionId },
+    include: {
+      student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      registration: { include },
+    },
+  });
+  if (!existing) throw new AppError("Withdrawal request not found", 404);
+  if (existing.status !== "PENDING") throw new AppError("Only pending withdrawal requests can be decided", 409);
+  await assertApproverScope(institutionId, actor, existing.registration.courseOffering.course.departmentId);
+
+  const decidedAt = new Date();
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_offerings"
+      WHERE "id" = ${existing.registration.courseOfferingId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "course_registrations"
+      WHERE "id" = ${existing.registrationId}
+        AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+    const changed = await tx.courseWithdrawalRequest.updateMany({
+      where: { id: requestId, institutionId, status: "PENDING" },
+      data: { status: decision, decidedById: actor.id, decidedAt, decisionNote: decisionNote ?? null },
+    });
+    if (changed.count !== 1) throw new AppError("This withdrawal request has already been decided", 409);
+
+    if (decision === "APPROVED") {
+      const registrationChanged = await tx.courseRegistration.updateMany({
+        where: { id: existing.registrationId, institutionId, studentId: existing.studentId, status: "APPROVED" },
+        data: {
+          status: "WITHDRAWN",
+          decidedById: actor.id,
+          decidedAt,
+          remarks: decisionNote ?? "Formal course withdrawal approved",
+        },
+      });
+      if (registrationChanged.count !== 1) {
+        throw new AppError("The course registration is no longer approved; withdrawal was not applied", 409);
+      }
+    }
+    const refreshed = await tx.courseWithdrawalRequest.findFirst({
+      where: { id: requestId, institutionId },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+        registration: { include },
+      },
+    });
+    if (!refreshed) throw new AppError("Withdrawal request not found after decision", 404);
+    return refreshed;
+  });
+
+  await recordAuditLog({
+    institutionId,
+    userId: actor.id,
+    action: `registration.withdrawal.${decision.toLowerCase()}`,
+    entityType: "CourseWithdrawalRequest",
+    entityId: requestId,
+    metadata: {
+      registrationId: existing.registrationId,
+      previousRegistrationState: "APPROVED",
+      newRegistrationState: decision === "APPROVED" ? "WITHDRAWN" : "APPROVED",
+      previousRequestState: "PENDING",
+      newRequestState: decision,
+      studentId: existing.studentId,
+      decisionNote: decisionNote ?? null,
+    },
+    ...meta,
+  });
+  await notifyUser(
+    institutionId,
+    existing.studentId,
+    decision === "APPROVED" ? "Course withdrawal approved" : "Course withdrawal rejected",
+    decision === "APPROVED"
+      ? `Your withdrawal from ${existing.registration.courseOffering.course.code} has been approved.`
+      : `Your withdrawal request was rejected: ${decisionNote ?? "Please contact the academic office."}`,
+    "/student/course-registration"
+  );
+  return result;
 }

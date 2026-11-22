@@ -7,6 +7,7 @@ export const REGISTRATION_STATUSES = [
   "REJECTED",
   "NEEDS_CORRECTION",
   "DROPPED",
+  "WITHDRAWN",
 ] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
@@ -37,10 +38,27 @@ export interface Registration {
     registrationOpen: boolean;
     isElective: boolean;
     course: { id: string; code: string; name: string; credits: number };
-    semester: { id: string; name: string };
+    semester: {
+      id: string;
+      name: string;
+      academicYear: {
+        id: string;
+        name: string;
+        startDate: string;
+        endDate: string;
+        registrationOpensAt: string | null;
+        registrationClosesAt: string | null;
+        addDropDeadline: string | null;
+        withdrawalDeadline: string | null;
+        exceptionalWithdrawalAllowed: boolean;
+        exceptionalWithdrawalStartsAt: string | null;
+        exceptionalWithdrawalEndsAt: string | null;
+      };
+    };
     section: { id: string; name: string; capacity: number | null };
     faculty: { id: string; firstName: string; lastName: string } | null;
   };
+  withdrawalRequests: Array<{ id: string; status: "PENDING"; reason: string; requestedAt: string }>;
 }
 
 export interface EnrollmentContext {
@@ -115,12 +133,12 @@ export async function bulkDecideRegistrations(
   registrationIds: string[],
   decision: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION",
   remarks?: string
-): Promise<{ requested: number; processed: number; skipped: number; results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }> }> {
+): Promise<{ requested: number; processed: number; skipped: number; results: Array<{ id: string; status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED"; reason?: string }> }> {
   const res = await authedFetch<Envelope<{
     requested: number;
     processed: number;
     skipped: number;
-    results: Array<{ id: string; status: "APPROVED" | "SKIPPED"; reason?: string }>;
+    results: Array<{ id: string; status: "APPROVED" | "REJECTED" | "NEEDS_CORRECTION" | "SKIPPED"; reason?: string }>;
   }>>("/registrations/bulk-decision", {
     method: "POST",
     body: JSON.stringify({ registrationIds, decision, remarks }),
@@ -199,5 +217,39 @@ export async function updateOfferingCapacity(
     method: "PATCH",
     body: JSON.stringify(input),
   });
+  return res.data;
+}
+
+export interface CourseWithdrawalRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reason: string;
+  requestedAt: string;
+  student: { id: string; firstName: string; lastName: string; email: string };
+  registration: Registration;
+}
+
+export async function requestWithdrawalForRegistration(registrationId: string, reason: string): Promise<CourseWithdrawalRequest> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest>>(
+    `/registrations/${registrationId}/withdrawal-request`,
+    { method: "POST", body: JSON.stringify({ reason }) }
+  );
+  return res.data;
+}
+
+export async function listWithdrawalRequests(): Promise<CourseWithdrawalRequest[]> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest[]>>("/registrations/withdrawal-requests");
+  return res.data;
+}
+
+export async function decideWithdrawalRequest(
+  requestId: string,
+  decision: "APPROVED" | "REJECTED",
+  decisionNote?: string
+): Promise<CourseWithdrawalRequest> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest>>(
+    `/registrations/withdrawal-requests/${requestId}/decision`,
+    { method: "POST", body: JSON.stringify({ decision, decisionNote }) }
+  );
   return res.data;
 }

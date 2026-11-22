@@ -34,6 +34,7 @@ const STATUS_STYLES: Record<RegistrationStatus, string> = {
   REJECTED: "bg-red-100 text-red-700",
   NEEDS_CORRECTION: "bg-orange-100 text-orange-700",
   DROPPED: "bg-slate-100 text-slate-600",
+  WITHDRAWN: "bg-slate-100 text-slate-700",
 };
 
 export default function CourseRegistrationPage() {
@@ -410,6 +411,7 @@ export default function CourseRegistrationPage() {
                 <option value="REJECTED">Rejected</option>
                 <option value="NEEDS_CORRECTION">Needs correction</option>
                 <option value="DROPPED">Dropped</option>
+                <option value="WITHDRAWN">Withdrawn</option>
               </select>
               <p className="text-sm text-slate-500">
                 {Object.entries(queueSummary)

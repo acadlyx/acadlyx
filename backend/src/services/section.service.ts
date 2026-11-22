@@ -1,4 +1,8 @@
 import { Prisma } from "@prisma/client";
+import {
+  REGISTRATION_SEAT_RESERVING_STATUSES,
+  hasCapacityForReservations,
+} from "../utils/registrationPolicy";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { PaginationParams } from "../utils/pagination";
@@ -135,7 +139,57 @@ export async function updateSection(
     }
   }
 
-  return prisma.section.update({ where: { id }, data: input, include });
+  return prisma.$transaction(async (tx) => {
+    // Capacity edits must serialize against course registrations for every
+    // offering in this section. Registration mutations lock these offerings.
+    await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "sections"
+      WHERE "id" = ${id} AND "institutionId" = ${institutionId}
+      FOR UPDATE
+    `);
+
+    const offerings = await tx.courseOffering.findMany({
+      where: { institutionId, sectionId: id, isActive: true },
+      select: { id: true, capacity: true },
+      orderBy: { id: "asc" },
+    });
+
+    if (input.capacity !== undefined && offerings.length) {
+      const offeringIds = offerings.map((offering) => offering.id);
+      await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "course_offerings"
+        WHERE "institutionId" = ${institutionId}
+          AND "id" IN (${Prisma.join(offeringIds)})
+        ORDER BY "id"
+        FOR UPDATE
+      `);
+
+      for (const offering of offerings) {
+        const effectiveCapacity = offering.capacity === null
+          ? input.capacity
+          : Math.min(offering.capacity, input.capacity);
+        const reserved = await tx.courseRegistration.count({
+          where: {
+            institutionId,
+            courseOfferingId: offering.id,
+            status: { in: [...REGISTRATION_SEAT_RESERVING_STATUSES] },
+          },
+        });
+        if (!hasCapacityForReservations(effectiveCapacity, reserved)) {
+          throw new AppError(
+            `Section capacity cannot be reduced: offering ${offering.id} already has ${reserved} pending/approved seat reservations.`,
+            409
+          );
+        }
+      }
+    }
+
+    return tx.section.update({
+      where: { id },
+      data: input,
+      include,
+    });
+  });
 }
 
 /** Soft delete — preserves history for any CourseOffering referencing this section. */

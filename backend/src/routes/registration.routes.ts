@@ -20,6 +20,8 @@ import {
   availableOfferingsQuery,
   decideRegistrationSchema,
   dropSchema,
+  withdrawalRequestSchema,
+  withdrawalDecisionSchema,
   offeringCapacitySchema,
   bulkAssignCoursesSchema,
   bulkDecisionSchema,
@@ -201,6 +203,54 @@ router.post(
         requireAuthenticatedUser(req),
         req.params.id,
         req.body.reason,
+        auditMeta(req)
+      )
+    )
+  )
+);
+
+router.get(
+  "/withdrawal-requests",
+  authorize("registration.approve"),
+  asyncHandler(async (req, res) =>
+    sendOk(res, await service.listWithdrawalRequests(requireInstitution(req), requireAuthenticatedUser(req)))
+  )
+);
+
+router.post(
+  "/:id/withdrawal-request",
+  authorize("registration.submit"),
+  validateParams(idParams),
+  validateBody(withdrawalRequestSchema),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await service.requestWithdrawal(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+        req.body.reason,
+        auditMeta(req)
+      ),
+      201
+    )
+  )
+);
+
+router.post(
+  "/withdrawal-requests/:id/decision",
+  authorize("registration.approve"),
+  validateParams(idParams),
+  validateBody(withdrawalDecisionSchema),
+  asyncHandler(async (req, res) =>
+    sendOk(
+      res,
+      await service.decideWithdrawal(
+        requireInstitution(req),
+        requireAuthenticatedUser(req),
+        req.params.id,
+        req.body.decision,
+        req.body.decisionNote,
         auditMeta(req)
       )
     )

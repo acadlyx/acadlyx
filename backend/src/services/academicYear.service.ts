@@ -7,6 +7,43 @@ import {
   UpdateAcademicYearInput,
 } from "../validators/academicYear.validators";
 
+function validateRegistrationCalendar(settings: {
+  startDate?: Date;
+  endDate?: Date;
+  registrationOpensAt?: Date | null;
+  registrationClosesAt?: Date | null;
+  addDropDeadline?: Date | null;
+  withdrawalDeadline?: Date | null;
+  exceptionalWithdrawalAllowed?: boolean;
+  exceptionalWithdrawalStartsAt?: Date | null;
+  exceptionalWithdrawalEndsAt?: Date | null;
+}) {
+  const { startDate, endDate, registrationOpensAt: opens, registrationClosesAt: closes, addDropDeadline, withdrawalDeadline, exceptionalWithdrawalAllowed, exceptionalWithdrawalStartsAt: exceptionalStart, exceptionalWithdrawalEndsAt: exceptionalEnd } = settings;
+  if (opens && startDate && opens < startDate) throw new AppError("Registration cannot open before the academic year starts", 400);
+  if (closes && endDate && closes > endDate) throw new AppError("Registration cannot close after the academic year ends", 400);
+  if (addDropDeadline && endDate && addDropDeadline > endDate) throw new AppError("Add/drop deadline cannot be after the academic year ends", 400);
+  if (withdrawalDeadline && startDate && withdrawalDeadline < startDate) throw new AppError("Withdrawal deadline cannot precede the academic year start", 400);
+  if (withdrawalDeadline && endDate && withdrawalDeadline > endDate) throw new AppError("Withdrawal deadline cannot be after the academic year ends", 400);
+  if (opens && closes && opens >= closes) {
+    throw new AppError("Registration close must be after registration opening", 400);
+  }
+  if (addDropDeadline && opens && addDropDeadline < opens) {
+    throw new AppError("Add/drop deadline cannot precede registration opening", 400);
+  }
+  if (withdrawalDeadline && addDropDeadline && withdrawalDeadline < addDropDeadline) {
+    throw new AppError("Withdrawal deadline cannot precede add/drop deadline", 400);
+  }
+  if (exceptionalWithdrawalAllowed && (!exceptionalStart || !exceptionalEnd)) {
+    throw new AppError("Exceptional withdrawal requires both opening and closing dates", 400);
+  }
+  if (exceptionalStart && exceptionalEnd && exceptionalStart >= exceptionalEnd) {
+    throw new AppError("Exceptional withdrawal close must be after opening", 400);
+  }
+  if (withdrawalDeadline && exceptionalStart && exceptionalStart <= withdrawalDeadline) {
+    throw new AppError("Exceptional withdrawal must open after the normal withdrawal deadline", 400);
+  }
+}
+
 export interface ListFilters extends PaginationParams {
   search?: string;
 }
@@ -51,6 +88,7 @@ export async function createAcademicYear(
   input: CreateAcademicYearInput
 ) {
   const name = input.name.trim();
+  validateRegistrationCalendar(input);
 
   if (input.endDate && input.startDate >= input.endDate) {
     throw new AppError(
@@ -97,6 +135,8 @@ export async function updateAcademicYear(
   const current = await getAcademicYearById(institutionId, id);
   const nextStartDate = input.startDate ?? current.startDate;
   const nextEndDate = input.endDate ?? current.endDate;
+
+  validateRegistrationCalendar({ ...current, ...input });
 
   if (nextStartDate >= nextEndDate) {
     throw new AppError(

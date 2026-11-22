@@ -60,10 +60,8 @@ const DASHBOARD_PRIORITY = [
   "STUDENT",
   "PARENT",
   "PLACEMENT",
-  "SUPER_ADMIN",
   "INSTITUTION_ADMIN",
-  "MANAGEMENT",
-  "REGISTRAR",
+  "SUPER_ADMIN",
   "ACCOUNTS",
   "HR",
   "ADMISSIONS",
@@ -73,6 +71,8 @@ const DASHBOARD_PRIORITY = [
   "CMS",
   "CLUB_PRESIDENT",
   "STAFF",
+  "MANAGEMENT",
+  "REGISTRAR",
 ] as const;
 
 export function normalizeRole(
