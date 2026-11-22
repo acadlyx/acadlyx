@@ -6,6 +6,7 @@ on:
       - production-upgrade-2026-09-20
       - stabilization-platform-2026-10-09
       - chairman-director-enterprise-workspaces-2026-10-11
+      - website-anti-ai-design-overhaul-2026-11-23
   pull_request:
     branches:
       - production-upgrade-2026-09-20
