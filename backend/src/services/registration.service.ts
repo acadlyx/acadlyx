@@ -68,6 +68,16 @@ const include = {
           },
         },
       },
+      withdrawalRequests: {
+        select: {
+          id: true,
+          reason: true,
+          status: true,
+          requestedAt: true,
+          decisionNote: true,
+        },
+        orderBy: { requestedAt: "desc" },
+      },
       section: { select: { id: true, name: true, capacity: true } },
       faculty: { select: { id: true, firstName: true, lastName: true } },
     },
@@ -1015,7 +1025,9 @@ export async function listWithdrawalRequests(institutionId: string, actor: Authe
   const activeRole = getEffectiveWorkspaceRole(actor);
   let departmentIds: string[] | null = null;
   if (!isInstitutionWide(actor)) {
-    if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
+    if (activeRole === "REGISTRAR") {
+      departmentIds = null;
+    } else if (activeRole === "DIRECTOR" && isDirectorScoped(actor)) {
       departmentIds = await getDirectorDepartmentIds(institutionId, actor.id);
     } else if (activeRole === "HOD" || activeRole === "DEAN") {
       departmentIds = await getManagedDepartmentIds(institutionId, actor.id);

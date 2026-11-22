@@ -36,6 +36,7 @@ import {
   registerForOffering,
   bulkRegisterForOfferings,
   dropRegistration,
+  requestCourseWithdrawal,
 } from "@/lib/registrationApi";
 import {
   LeaveBalance,
@@ -705,35 +706,82 @@ function RegistrationView() {
   const [mine, setMine] = useState<MyRegistrationSummary | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const [available, current] = await Promise.all([
-        listAvailableOfferings({}),
+        listAvailableOfferings({ page, search: search || undefined }),
         getMyRegistrations(),
       ]);
       setOfferings(available.items);
+      setTotalPages(available.meta.totalPages);
       setMine(current);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "We could not load your course registration information.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [page, search]);
 
   useEffect(() => { void load(); }, [load]);
 
   const toggle = (id: string) =>
     setSelected((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
 
+  function canCancelPending(item: MyRegistrationSummary["items"][number]): boolean {
+    const policy = item.courseOffering.semester.academicYear;
+    const now = Date.now();
+    const deadline = policy.addDropDeadline ?? policy.registrationClosesAt;
+    return Boolean(
+      item.courseOffering.registrationOpen &&
+      deadline &&
+      now <= new Date(deadline).getTime() &&
+      (!policy.registrationOpensAt || now >= new Date(policy.registrationOpensAt).getTime())
+    );
+  }
+
+  function canRequestWithdrawal(item: MyRegistrationSummary["items"][number]): boolean {
+    const policy = item.courseOffering.semester.academicYear;
+    const now = Date.now();
+    const normal = Boolean(
+      policy.withdrawalDeadline &&
+      now >= new Date(policy.startDate).getTime() &&
+      now <= new Date(policy.withdrawalDeadline).getTime()
+    );
+    const exceptional = Boolean(
+      policy.exceptionalWithdrawalAllowed &&
+      policy.exceptionalWithdrawalStartsAt &&
+      policy.exceptionalWithdrawalEndsAt &&
+      now >= new Date(policy.exceptionalWithdrawalStartsAt).getTime() &&
+      now <= new Date(policy.exceptionalWithdrawalEndsAt).getTime()
+    );
+    return normal || exceptional;
+  }
+
   async function submit() {
-    if (!selected.length) return;
+    if (!selected.length || busy) return;
     setBusy(true);
     setError("");
     try {
       const result = await bulkRegisterForOfferings(selected);
-      const skipped = result.skipped > 0;
       setSelected([]);
-      if (skipped) setError("Some selected courses could not be submitted. Review their current status and eligibility.");
+      if (result.skipped > 0) {
+        const reasons = result.results
+          .filter((entry) => entry.status === "SKIPPED")
+          .map((entry) => entry.reason)
+          .filter((reason): reason is string => Boolean(reason));
+        setError(reasons.length
+          ? `Some courses were not submitted: ${reasons.slice(0, 3).join("; ")}`
+          : "Some selected courses could not be submitted. Review their current status and eligibility.");
+      }
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Registration could not be submitted.");
@@ -742,20 +790,43 @@ function RegistrationView() {
     }
   }
 
-  async function drop(id: string) {
+  async function cancelPending(id: string) {
+    if (busy || !window.confirm("Cancel this pending course registration request?")) return;
     setBusy(true);
     setError("");
     try {
       await dropRegistration(id);
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Registration could not be dropped.");
+      setError(reason instanceof Error ? reason.message : "Registration request could not be cancelled.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (!mine) return <Empty>Loading your registration…</Empty>;
+  async function requestWithdrawal(id: string) {
+    const reason = window.prompt("Reason for requesting course withdrawal (minimum 5 characters):")?.trim();
+    if (!reason || reason.length < 5 || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await requestCourseWithdrawal(id, reason);
+      await load();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Withdrawal request could not be submitted.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!mine) {
+    return loading
+      ? <Empty>Loading your registration…</Empty>
+      : <div className="space-y-3">
+          <ErrorBox message={error || "Your registration information could not be loaded."} />
+          <button type="button" disabled={loading} onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold disabled:opacity-40">Retry</button>
+        </div>;
+  }
 
   const selectedCredits = offerings.filter((o) => selected.includes(o.id)).reduce((sum, o) => sum + o.course.credits, 0);
 
@@ -764,12 +835,8 @@ function RegistrationView() {
       {error ? <ErrorBox message={error} /> : null}
 
       <Card title="Academic context">
-        <p className="text-sm text-slate-600">
-          Course registration is available only for your active academic enrollment and eligible course offerings.
-        </p>
-        <p className="mt-2 text-sm font-semibold text-slate-900">
-          Current credits: {mine.registeredCredits} · Selected: {selectedCredits} · Limit: {mine.maxCredits}
-        </p>
+        <p className="text-sm text-slate-600">Course registration is available only for your active academic enrollment and eligible course offerings.</p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">Current credits: {mine.registeredCredits} · Selected: {selectedCredits} · Limit: {mine.maxCredits}</p>
       </Card>
 
       <Card title="My registrations">
@@ -778,25 +845,56 @@ function RegistrationView() {
           getKey={(item) => item.id}
           label="registrations"
           empty={<Empty>You have no course registrations yet.</Empty>}
-          renderItem={(item) => (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
-              <div>
-                <p className="font-semibold">{item.courseOffering.course.name}</p>
-                <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
-                {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
+          renderItem={(item) => {
+            const pendingWithdrawal = item.withdrawalRequests.some((request) => request.status === "PENDING");
+            const canCancel = item.status === "REQUESTED" && canCancelPending(item);
+            const canWithdraw = item.status === "APPROVED" && !pendingWithdrawal && canRequestWithdrawal(item);
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 p-4">
+                <div>
+                  <p className="font-semibold">{item.courseOffering.course.name}</p>
+                  <p className="text-xs text-slate-500">{item.courseOffering.course.code} · {item.courseOffering.course.credits} credit(s) · {item.status.replaceAll("_", " ")}</p>
+                  {item.remarks ? <p className="mt-1 text-xs text-red-600">{item.remarks}</p> : null}
+                  {pendingWithdrawal ? <p className="mt-1 text-xs text-amber-700">Withdrawal request is awaiting academic review.</p> : null}
+                </div>
+                {canCancel ? (
+                  <button type="button" disabled={busy} onClick={() => void cancelPending(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40">
+                    {busy ? "Working…" : "Cancel request"}
+                  </button>
+                ) : canWithdraw ? (
+                  <button type="button" disabled={busy} onClick={() => void requestWithdrawal(item.id)} className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-40">
+                    {busy ? "Working…" : "Request withdrawal"}
+                  </button>
+                ) : item.status === "REQUESTED" ? (
+                  <span className="text-xs text-slate-500">The add/drop window is closed.</span>
+                ) : item.status === "APPROVED" && !pendingWithdrawal ? (
+                  <span className="text-xs text-slate-500">The withdrawal window is closed.</span>
+                ) : null}
               </div>
-              {item.status === "REQUESTED" || item.status === "APPROVED" ? (
-                <button type="button" disabled={busy} onClick={() => void drop(item.id)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">
-                  {busy ? "Working…" : "Drop"}
-                </button>
-              ) : null}
-            </div>
-          )}
+            );
+          }}
         />
       </Card>
 
       <Card title="Eligible courses">
-        {offerings.length === 0 ? <Empty>No eligible courses are currently open for registration.</Empty> : (
+        <form
+          role="search"
+          className="mb-4 flex flex-wrap gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSelected([]);
+            setPage(1);
+            setSearch(searchInput.trim());
+          }}
+        >
+          <input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search course name or code…" aria-label="Search eligible courses by name or code" className="min-w-[220px] flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          <button type="submit" disabled={loading || busy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold disabled:opacity-40">Search</button>
+          {(search || searchInput) ? <button type="button" disabled={loading || busy} onClick={() => { setSearchInput(""); setSearch(""); setSelected([]); setPage(1); }} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold disabled:opacity-40">Clear</button> : null}
+        </form>
+        {loading ? <p className="mb-3 text-xs text-slate-500">Updating eligible courses…</p> : null}
+        {offerings.length === 0 ? (
+          <Empty>{search ? `No courses match “${search}”.` : "No eligible courses are currently open for registration."}</Empty>
+        ) : (
           <>
             <ExpandableList
               items={offerings}
@@ -808,7 +906,7 @@ function RegistrationView() {
                 const checked = selected.includes(item.id);
                 return (
                   <label className={`flex cursor-pointer items-center gap-3 rounded-2xl bg-slate-50 p-4 ${held ? "opacity-70" : ""}`}>
-                    <input type="checkbox" checked={checked} disabled={held || item.seatsLeft === 0 || !item.registrationOpen || busy} onChange={() => toggle(item.id)} className="h-4 w-4" />
+                    <input type="checkbox" checked={checked} disabled={held || item.seatsLeft === 0 || !item.registrationOpen || busy || loading} onChange={() => toggle(item.id)} className="h-4 w-4" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold">{item.course.name}</span>
                       <span className="mt-1 block text-xs text-slate-500">{item.course.code} · {item.course.credits} credit(s) · {item.seatsLeft === null ? "Capacity open" : `${item.seatsLeft} seat(s) available`}</span>
@@ -819,13 +917,16 @@ function RegistrationView() {
               }}
             />
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm">
-                <span className="font-bold">{selected.length}</span> course(s) selected · <span className="font-bold">{selectedCredits}</span> credits
-              </div>
-              <button type="button" disabled={!selected.length || busy} onClick={() => void submit()} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
-                {busy ? "Submitting…" : "Submit Registration"}
-              </button>
+              <div className="text-sm"><span className="font-bold">{selected.length}</span> course(s) selected · <span className="font-bold">{selectedCredits}</span> credits</div>
+              <button type="button" disabled={!selected.length || busy || loading} onClick={() => void submit()} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Submitting…" : "Submit Registration"}</button>
             </div>
+            {totalPages > 1 ? (
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                <button type="button" disabled={loading || busy || page <= 1} onClick={() => { setSelected([]); setPage((current) => Math.max(1,current-1)); }} className="rounded-xl border border-slate-200 px-3 py-2 font-semibold disabled:opacity-40">Previous</button>
+                <span className="text-slate-600">Page {page} of {totalPages}</span>
+                <button type="button" disabled={loading || busy || page >= totalPages} onClick={() => { setSelected([]); setPage((current) => Math.min(totalPages,current+1)); }} className="rounded-xl border border-slate-200 px-3 py-2 font-semibold disabled:opacity-40">Next</button>
+              </div>
+            ) : null}
           </>
         )}
       </Card>

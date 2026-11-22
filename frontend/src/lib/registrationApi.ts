@@ -7,6 +7,7 @@ export const REGISTRATION_STATUSES = [
   "REJECTED",
   "NEEDS_CORRECTION",
   "DROPPED",
+  "WITHDRAWN",
 ] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number];
 
@@ -37,7 +38,28 @@ export interface Registration {
     registrationOpen: boolean;
     isElective: boolean;
     course: { id: string; code: string; name: string; credits: number };
-    semester: { id: string; name: string };
+    semester: {
+      id: string;
+      name: string;
+      academicYear: {
+        startDate: string;
+        endDate: string;
+        registrationOpensAt: string | null;
+        registrationClosesAt: string | null;
+        addDropDeadline: string | null;
+        withdrawalDeadline: string | null;
+        exceptionalWithdrawalAllowed: boolean;
+        exceptionalWithdrawalStartsAt: string | null;
+        exceptionalWithdrawalEndsAt: string | null;
+      };
+    };
+    withdrawalRequests: Array<{
+      id: string;
+      reason: string;
+      status: "PENDING" | "APPROVED" | "REJECTED";
+      requestedAt: string;
+      decisionNote: string | null;
+    }>;
     section: { id: string; name: string; capacity: number | null };
     faculty: { id: string; firstName: string; lastName: string } | null;
   };
@@ -173,6 +195,48 @@ export async function listRegistrations(params: {
     PagedEnvelope<Registration> & { summary: Record<string, number> }
   >(`/registrations${buildQuery(params as Record<string, string | number | undefined>)}`);
   return { items: res.data, summary: res.summary ?? {}, meta: res.meta };
+}
+
+export interface CourseWithdrawalRequest {
+  id: string;
+  institutionId: string;
+  registrationId: string;
+  studentId: string;
+  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  requestedAt: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  student: { id: string; firstName: string; lastName: string; email: string };
+  registration: Registration;
+}
+
+export async function requestCourseWithdrawal(
+  registrationId: string,
+  reason: string
+): Promise<CourseWithdrawalRequest> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest>>(
+    `/registrations/${registrationId}/withdrawal-request`,
+    { method: "POST", body: JSON.stringify({ reason }) }
+  );
+  return res.data;
+}
+
+export async function listWithdrawalRequests(): Promise<CourseWithdrawalRequest[]> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest[]>>("/registrations/withdrawal-requests");
+  return res.data;
+}
+
+export async function decideWithdrawalRequest(
+  id: string,
+  decision: "APPROVED" | "REJECTED",
+  decisionNote?: string
+): Promise<CourseWithdrawalRequest> {
+  const res = await authedFetch<Envelope<CourseWithdrawalRequest>>(
+    `/registrations/withdrawal-requests/${id}/decision`,
+    { method: "POST", body: JSON.stringify({ decision, decisionNote }) }
+  );
+  return res.data;
 }
 
 export async function updateOfferingCapacity(
