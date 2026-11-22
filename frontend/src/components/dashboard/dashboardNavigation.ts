@@ -101,12 +101,10 @@ export const WORKSPACE_META: Record<
   },
 
   CHAIRMAN: {
-    label: "Chairman / Management",
-    title: "Management Workspace",
-    subtitle:
-      "Institution-wide oversight and strategic visibility",
-    eyebrow:
-      "Management oversight",
+    label: "Chairman",
+    title: "Chairman Workspace",
+    subtitle: "Institution-wide governance, oversight and strategic decisions",
+    eyebrow: "Chairman oversight",
     home: HOME_BY_ROLE.CHAIRMAN,
   },
 
@@ -121,10 +119,8 @@ export const WORKSPACE_META: Record<
   DIRECTOR: {
     label: "Director",
     title: "Director Workspace",
-    subtitle:
-      "Institution-wide academic and operational oversight",
-    eyebrow:
-      "Institution leadership",
+    subtitle: "Campus operations and academic delivery within your assigned campus scope",
+    eyebrow: "Campus leadership",
     home: HOME_BY_ROLE.DIRECTOR,
   },
 

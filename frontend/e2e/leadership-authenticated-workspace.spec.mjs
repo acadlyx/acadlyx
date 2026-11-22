@@ -140,3 +140,47 @@ test("placement workspace routes load with scoped authenticated session", async 
   }
   expect(pageErrors, "placement pages should not throw browser exceptions").toEqual([]);
 });
+
+
+test("Dean, Management, Registrar and IT workspaces render across supported viewport sizes", async ({ browser }) => {
+  const scenarios = [
+    { role: "DEAN", path: "/dean", heading: "Dean Workspace" },
+    { role: "MANAGEMENT", path: "/management", heading: "Management Workspace" },
+    { role: "REGISTRAR", path: "/registrar", heading: "Registrar Workspace" },
+    { role: "IT", path: "/it", heading: "IT Workspace" },
+  ];
+
+  for (const scenario of scenarios) {
+    const page = await browser.newPage();
+    const pageErrors = [];
+    page.on("pageerror", error => pageErrors.push(error.message));
+
+    try {
+      await installAuthenticatedSession(page, scenario.role);
+      await page.goto(baseURL + scenario.path, { waitUntil: "networkidle" });
+      await expect(page.getByRole("heading", { name: scenario.heading, exact: true })).toBeVisible();
+
+      for (const width of [320, 360, 390, 430, 768, 1024, 1440, 1920]) {
+        await page.setViewportSize({ width, height: 900 });
+        const dimensions = await page.evaluate(() => ({
+          viewport: window.innerWidth,
+          document: document.documentElement.scrollWidth,
+        }));
+        expect(
+          dimensions.document,
+          `${scenario.role} workspace overflow at ${width}px`,
+        ).toBeLessThanOrEqual(dimensions.viewport + 1);
+      }
+
+      if (scenario.role !== "IT") {
+        await expect(page.getByText("Not reported").first()).toBeVisible();
+      } else {
+        await expect(page.getByRole("link", { name: "Overview", exact: true }).first()).toBeVisible();
+      }
+
+      expect(pageErrors, `${scenario.role} workspace runtime exceptions`).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }
+});
