@@ -7,7 +7,7 @@ export function PageContainer({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={\`acadlyx-page-container \${className}\`}>{children}</div>;
+  return <div className={"acadlyx-page-container " + className}>{children}</div>;
 }
 
 export function PageHeader({
@@ -98,7 +98,7 @@ export function Button({
       {...props}
       disabled={loading || props.disabled}
       aria-busy={loading || undefined}
-      className={\`acadlyx-button acadlyx-button-\${variant} \${className}\`}
+      className={"acadlyx-button acadlyx-button-" + variant + " " + className}
     >
       {loading ? <span className="acadlyx-button-spinner" aria-hidden="true" /> : null}
       {children}
@@ -118,7 +118,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={\`acadlyx-card acadlyx-section-card \${className}\`}>
+    <section className={"acadlyx-card acadlyx-section-card " + className}>
       {title || action ? (
         <header className="acadlyx-card-header">
           {title ? <h2>{title}</h2> : <span aria-hidden="true" />}

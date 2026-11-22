@@ -21,7 +21,7 @@ export function RecommendationCard({ recommendations }: RecommendationCardProps)
     <ul className="divide-y divide-slate-200 border-y border-slate-200">
       {visibleRecommendations.map((recommendation, index) => (
         <li
-          key={\`\${recommendation}-\${index}\`}
+          key={recommendation + "-" + index}
           className="border-l-2 border-emerald-700 py-3 pl-4 text-sm leading-6 text-slate-700"
         >
           {recommendation}
