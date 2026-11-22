@@ -77,7 +77,11 @@ test(
 
       // This executes the real PostgreSQL outbox consumer and registered
       // placement notification handler; no mocked API response is involved.
-      await drainDomainEventOutbox(1);
+      const [firstDrain, concurrentDrain] = await Promise.all([
+        drainDomainEventOutbox(1),
+        drainDomainEventOutbox(1),
+      ]);
+      assert.equal(firstDrain.claimed + concurrentDrain.claimed, 1, "Concurrent outbox drains must not claim the same event.");
 
       const persistedEvent = await prisma.domainEventOutbox.findUnique({
         where: { id: event.id },

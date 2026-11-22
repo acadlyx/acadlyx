@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto";
 import { prisma } from "../lib/prisma";
+import { logger } from "../utils/logger";
 
 export interface DomainEvent<T = Record<string, unknown>> {
   name: string;
@@ -29,6 +31,7 @@ export interface OutboxDrainResult {
 }
 
 async function claimOutboxEvent() {
+  const lockToken = randomUUID();
   const rows = await prisma.$queryRaw<Array<{
     id: string;
     institutionId: string | null;
@@ -37,23 +40,37 @@ async function claimOutboxEvent() {
     payload: unknown;
     occurredAt: Date;
     attempts: number;
+    lockToken: string;
   }>>`
     UPDATE "domain_event_outbox"
     SET "attempts" = "attempts" + 1,
-        "lastAttemptAt" = CURRENT_TIMESTAMP
+        "lastAttemptAt" = CURRENT_TIMESTAMP,
+        "lockedAt" = CURRENT_TIMESTAMP,
+        "lockToken" = ${lockToken}
     WHERE "id" = (
       SELECT "id"
       FROM "domain_event_outbox"
       WHERE "processedAt" IS NULL
         AND "attempts" < 10
         AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= CURRENT_TIMESTAMP)
+        AND ("lockedAt" IS NULL OR "lockedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes')
       ORDER BY "nextAttemptAt" NULLS FIRST, "createdAt" ASC
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     )
-    RETURNING "id", "institutionId", "actorId", "name", "payload", "occurredAt", "attempts";
+    RETURNING "id", "institutionId", "actorId", "name", "payload", "occurredAt", "attempts", "lockToken";
   `;
   return rows[0] ?? null;
+}
+
+export async function dispatchDomainEvent(event: DomainEvent): Promise<void> {
+  const listeners = [
+    ...(handlers.get(event.name) ?? []),
+    ...(handlers.get("*") ?? []),
+  ];
+  for (const handler of listeners) {
+    await handler(event);
+  }
 }
 
 export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainResult> {
@@ -75,28 +92,29 @@ export async function drainDomainEventOutbox(limit = 25): Promise<OutboxDrainRes
       payload: (row.payload ?? {}) as Record<string, unknown>,
     };
 
-    const listeners = [
-      ...(handlers.get(event.name) ?? []),
-      ...(handlers.get("*") ?? []),
-    ];
-
     try {
-      for (const handler of listeners) {
-        await handler(event);
-      }
-      await prisma.domainEventOutbox.update({
-        where: { id: row.id },
-        data: { processedAt: new Date(), lastError: null, nextAttemptAt: null },
+      await dispatchDomainEvent(event);
+      const acknowledged = await prisma.domainEventOutbox.updateMany({
+        where: { id: row.id, lockToken: row.lockToken, processedAt: null },
+        data: {
+          processedAt: new Date(),
+          lastError: null,
+          nextAttemptAt: null,
+          lockedAt: null,
+          lockToken: null,
+        },
       });
-      processed += 1;
+      if (acknowledged.count > 0) processed += 1;
     } catch (error) {
       failed += 1;
       const delayMs = Math.min(15 * 60_000, 5_000 * (2 ** Math.min(Math.max(row.attempts - 1, 0), 8)));
-      await prisma.domainEventOutbox.update({
-        where: { id: row.id },
+      await prisma.domainEventOutbox.updateMany({
+        where: { id: row.id, lockToken: row.lockToken, processedAt: null },
         data: {
           lastError: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
           nextAttemptAt: row.attempts < 10 ? new Date(Date.now() + delayMs) : null,
+          lockedAt: null,
+          lockToken: null,
         },
       }).catch(() => undefined);
     }
@@ -129,18 +147,14 @@ export function publishDomainEvent<T extends Record<string, unknown>>(
       payload: event.payload as object,
       occurredAt: new Date(event.occurredAt),
     },
-  }).catch(() => {
-    // The outbox must never break the originating business request.
+  }).catch((error) => {
+    logger.error("Failed to persist domain event to outbox", {
+      name: event.name,
+      institutionId: event.institutionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   });
 
-  const listeners = [
-    ...(handlers.get(name) ?? []),
-    ...(handlers.get("*") ?? []),
-  ];
-
-  for (const handler of listeners) {
-    Promise.resolve(handler(event)).catch(() => {
-      // Domain automation is deliberately isolated from the business request.
-    });
-  }
+  // The durable outbox is the single delivery path. Dispatching here as well
+  // would notify subscribers immediately and then again when the outbox drains.
 }
