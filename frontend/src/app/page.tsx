@@ -77,7 +77,7 @@ export default function HomePage() {
               ))}
             </ol>
             <p className="public-home-index-footnote">
-              Workspace access is determined by the user's assigned role and institutional permissions.
+              Workspace access is determined by the user&apos;s assigned role and institutional permissions.
             </p>
           </aside>
         </section>

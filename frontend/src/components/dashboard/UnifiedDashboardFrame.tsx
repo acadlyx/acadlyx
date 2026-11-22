@@ -100,6 +100,7 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
     if (!mobile) return;
 
     const previousOverflow = document.body.style.overflow;
+    const trigger = mobileTriggerRef.current;
     document.body.style.overflow = "hidden";
     const focusableSelector = 'a[href]:not([aria-disabled="true"]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -144,7 +145,7 @@ export function UnifiedDashboardFrame({ children, navigation = [], title, subtit
       window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown, true);
-      if (mobileTriggerRef.current?.isConnected) mobileTriggerRef.current.focus();
+      if (trigger?.isConnected) trigger.focus();
     };
   }, [mobile]);
 
