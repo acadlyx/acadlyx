@@ -29,9 +29,14 @@ async function createActiveStudentEnrollment(institutionId: string, userId: stri
 }
 
 async function drainPlacementEvents() {
-  // The production path is asynchronous; integration tests explicitly drain
-  // the real outbox consumer rather than expecting a DB insert to be delivery.
-  await drainDomainEventOutbox(100);
+  // The production path is asynchronous; drain bounded batches until all
+  // currently eligible outbox work is caught up. A single global batch can
+  // otherwise be consumed by older events from parallel integration tests.
+  for (let batch = 0; batch < 20; batch += 1) {
+    const result = await drainDomainEventOutbox(100);
+    if (result.claimed < 100) return;
+  }
+  throw new Error("Placement integration event queue did not drain within 2,000 claims.");
 }
 
 test("placement visit is visible only to its explicitly targeted student and omits private staff notes", {
