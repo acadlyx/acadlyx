@@ -22,7 +22,6 @@ import {
   canStudentResubmitRegistration,
   canTransitionRegistrationState,
   isRegistrationAllowed,
-  isAddDropAllowed,
   isStudentCancellationAllowed,
   isWithdrawalRequestAllowed,
 } from "../utils/registrationPolicy";
