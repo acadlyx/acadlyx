@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate";
-import { authorize } from "../middleware/authorize";
+import { authorize, authorizeAnyPermission } from "../middleware/authorize";
 import { requireFeature } from "../middleware/requireFeature";
 import {
   validateBody,
@@ -192,7 +192,7 @@ router.post(
 
 router.post(
   "/:id/drop",
-  authorize("registration.submit"),
+  authorizeAnyPermission("registration.submit", "registration.withdrawal.override"),
   validateParams(idParams),
   validateBody(dropSchema),
   asyncHandler(async (req, res) =>
@@ -211,7 +211,7 @@ router.post(
 
 router.get(
   "/withdrawal-requests",
-  authorize("registration.approve"),
+  authorize("registration.withdrawal.approve"),
   asyncHandler(async (req, res) =>
     sendOk(res, await service.listWithdrawalRequests(requireInstitution(req), requireAuthenticatedUser(req)))
   )
@@ -219,7 +219,7 @@ router.get(
 
 router.post(
   "/:id/withdrawal-request",
-  authorize("registration.submit"),
+  authorize("registration.withdrawal.request"),
   validateParams(idParams),
   validateBody(withdrawalRequestSchema),
   asyncHandler(async (req, res) =>
@@ -239,7 +239,7 @@ router.post(
 
 router.post(
   "/withdrawal-requests/:id/decision",
-  authorize("registration.approve"),
+  authorize("registration.withdrawal.approve"),
   validateParams(idParams),
   validateBody(withdrawalDecisionSchema),
   asyncHandler(async (req, res) =>

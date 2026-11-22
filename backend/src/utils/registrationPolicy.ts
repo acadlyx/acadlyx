@@ -55,6 +55,21 @@ export function isAddDropAllowed(
   return policy.addDropDeadline ? now <= policy.addDropDeadline : manualOpen;
 }
 
+/**
+ * Student cancellation fails closed until the registration window is open.
+ * An explicit add/drop deadline is authoritative; otherwise both the manual
+ * offering flag and a configured registration close are required.
+ */
+export function isStudentCancellationAllowed(
+  now: Date,
+  policy: Pick<RegistrationCalendar, "registrationOpensAt" | "registrationClosesAt" | "addDropDeadline">,
+  offeringOpen: boolean
+): boolean {
+  if (policy.registrationOpensAt && now < policy.registrationOpensAt) return false;
+  if (policy.addDropDeadline) return now <= policy.addDropDeadline;
+  return Boolean(offeringOpen && policy.registrationClosesAt && now <= policy.registrationClosesAt);
+}
+
 export function isWithdrawalRequestAllowed(
   now: Date,
   policy: Pick<RegistrationCalendar, "startDate" | "withdrawalDeadline" | "exceptionalWithdrawalAllowed" | "exceptionalWithdrawalStartsAt" | "exceptionalWithdrawalEndsAt">
@@ -77,7 +92,7 @@ export function isWithdrawalRequestAllowed(
 export const REGISTRATION_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
   REQUESTED: ["APPROVED", "REJECTED", "NEEDS_CORRECTION", "DROPPED"],
   NEEDS_CORRECTION: ["REQUESTED"],
-  APPROVED: ["WITHDRAWN"],
+  APPROVED: ["WITHDRAWN", "DROPPED"],
   REJECTED: [],
   DROPPED: [],
   WITHDRAWN: [],
