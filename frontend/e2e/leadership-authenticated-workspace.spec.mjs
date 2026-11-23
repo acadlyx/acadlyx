@@ -68,7 +68,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
   await installAuthenticatedSession(page, "DIRECTOR");
 
   await page.goto(baseURL + "/director", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Director", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Director Dashboard", exact: true })).toBeVisible();
 
   // Exercise the shared mobile workspace drawer and its keyboard lifecycle.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -110,7 +110,7 @@ test("authenticated Director workspace handles failed metrics, retry, refresh an
 test("authenticated Chairman workspace keeps institution-wide navigation role-owned", async ({ page }) => {
   await installAuthenticatedSession(page, "CHAIRMAN");
   await page.goto(baseURL + "/chairman", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: "Chairman", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chairman Dashboard", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Reports/i }).first()).toHaveAttribute("href", "/chairman/reports");
   await expect(page.getByRole("link", { name: /Students/i }).first()).toHaveAttribute("href", "/chairman/students");
   await expect(page.locator('a[href="/chairman/fees"]')).toHaveCount(1);
@@ -157,18 +157,8 @@ test("Dean, Management, Registrar and IT workspaces render across supported view
 
     try {
       await installAuthenticatedSession(page, scenario.role);
-      const navigationResponse = await page.goto(baseURL + scenario.path, { waitUntil: "networkidle" });
-      const pageState = {
-        status: navigationResponse?.status() ?? null,
-        url: page.url(),
-        headings: await page.getByRole("heading").allTextContents(),
-        body: (await page.locator("body").innerText()).slice(0, 1600),
-      };
-      console.log(`[workspace-smoke] ${scenario.role}: ${JSON.stringify(pageState)}`);
-      await expect(
-        page.getByRole("heading", { name: scenario.contentHeading, exact: true }),
-        `Expected role-specific content heading ${scenario.contentHeading}; observed ${JSON.stringify(pageState)}`,
-      ).toBeVisible();
+      await page.goto(baseURL + scenario.path, { waitUntil: "networkidle" });
+      await expect(page.getByRole("heading", { name: scenario.contentHeading, exact: true })).toBeVisible();
 
       for (const width of [320, 360, 390, 430, 768, 1024, 1440, 1920]) {
         await page.setViewportSize({ width, height: 900 });

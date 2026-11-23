@@ -189,7 +189,7 @@ export default function FacultyDashboardPage() {
     >
       <div className="w-full pb-10">
         <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="acadlyx-content-standard flex items-center justify-between gap-4 py-4">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">
                 {faculty.firstName}{" "}
@@ -220,23 +220,12 @@ export default function FacultyDashboardPage() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-          <section className="mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-              Teaching workspace
-            </p>
-
-            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-              Faculty Dashboard
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {todaysClassCount} class
-              {todaysClassCount !== 1
-                ? "es"
-                : ""}{" "}
-              today
-            </p>
+        <div className="acadlyx-content-dashboard space-y-6 py-6">
+          <section className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Faculty Dashboard</h1>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">
+              {todaysClassCount} class{todaysClassCount !== 1 ? "es" : ""} today
+            </span>
           </section>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

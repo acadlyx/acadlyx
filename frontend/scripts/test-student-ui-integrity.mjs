@@ -22,7 +22,11 @@ const departmentValidator = read("../backend/src/validators/department.validator
 
 assert.match(sharedHeader, /acadlyx-route-header/, "shared page headings should use the open editorial header layout");
 assert.match(sharedHeader, /acadlyx-route-title/, "shared page titles should use the semantic route title token");
-assert.match(sharedHeader, /acadlyx-route-description/, "shared page descriptions should use the bounded reading-width token");
+assert.doesNotMatch(sharedHeader, /acadlyx-route-description/, "page headings must not render descriptive subtitles");
+assert.doesNotMatch(sharedHeader, /acadlyx-route-eyebrow/, "page headings must not render eyebrow labels");
+const dashboardFrame = read("src/components/dashboard/UnifiedDashboardFrame.tsx");
+assert.match(dashboardFrame, /<span className="acadlyx-shell-title truncate">ACADLYX<\/span>/, "the application shell should retain platform branding");
+assert.doesNotMatch(dashboardFrame, /<h1[^>]*acadlyx-shell-title/, "the application shell must not duplicate the route page title");
 assert.match(selfService, /DashboardPageHeader/);
 assert.match(examinations, /DashboardPageHeader/);
 for (const module of ["library", "registration", "leave"]) {

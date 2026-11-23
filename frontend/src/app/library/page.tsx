@@ -372,7 +372,7 @@ export default function LibraryPage() {
   if (state === "loading") {
     return (
       <DashboardShell title="Library" subtitle="Catalogue and circulation">
-        <div className="p-8 text-sm text-slate-500">Loading library…</div>
+        <main className="acadlyx-content-standard space-y-5"><h1 className="acadlyx-page-title">Library</h1><div className="p-8 text-sm text-slate-500">Loading library…</div></main>
       </DashboardShell>
     );
   }
@@ -380,9 +380,9 @@ export default function LibraryPage() {
   if (state === "error") {
     return (
       <DashboardShell title="Library" subtitle="Catalogue and circulation">
-        <div className="m-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        <div className="acadlyx-content-standard space-y-5"><h1 className="acadlyx-page-title">Library</h1><div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
           {errorMessage}
-        </div>
+        </div></div>
       </DashboardShell>
     );
   }
@@ -396,7 +396,7 @@ export default function LibraryPage() {
 
   return (
     <DashboardShell title="Library" subtitle="Catalogue, circulation and fines">
-      <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <main className="acadlyx-content-standard space-y-6"><h1 className="acadlyx-page-title">Library</h1>
         {summary && (
           <section className="grid grid-cols-2 gap-4 lg:grid-cols-6">
             {(

@@ -104,7 +104,7 @@ export default function InstitutionalCmsPage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <SectionTitle title="Workspace-specific copy" description="Set titles, subtitles, descriptions and empty states per role without changing application code." />
+          <SectionTitle title="Workspace-specific copy" description="Manage workspace titles and supporting interface messages per role without changing application code." />
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {roles.map((role) => {
               const value = data.workspaces?.[role] || {};
@@ -112,7 +112,7 @@ export default function InstitutionalCmsPage() {
                 <article key={role} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">{role}</h3>
                   <div className="mt-4 space-y-3">
-                    {["title", "subtitle", "welcome", "description", "emptyState"].map((key) => (
+                    {["title", "welcome", "emptyState"].map((key) => (
                       <Field key={key} label={humanize(key)} value={String(value[key] ?? "")} onChange={(v) => set(`workspaces.${role}.${key}`, v)} />
                     ))}
                   </div>

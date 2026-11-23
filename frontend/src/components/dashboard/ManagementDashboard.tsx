@@ -33,12 +33,11 @@ export function ManagementDashboard(){
   useEffect(()=>{void loadWorkspace();},[loadWorkspace]);
 
   return <DashboardShell title="Management Workspace" subtitle="Institution-wide performance, governance and decision support" allowedRoles={["MANAGEMENT"]}>
-    <main className="mx-auto w-full max-w-7xl space-y-6">
+    <main className="acadlyx-content-dashboard space-y-6">
       <header className="border-b border-slate-200 pb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#315c4a]">Institutional governance</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Institutional performance</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review the institution-level indicators available to your account and move directly to the operational or reporting workflow.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Institutional performance</h1>
       </header>
+      <div role="note" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">Review the institution-level indicators available to your account and move directly to the operational or reporting workflow.</div>
       {error?<section role="alert" className="flex flex-wrap items-center justify-between gap-3 border-y border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
         <p className="min-w-0 flex-1">{error}</p><button type="button" onClick={()=>void loadWorkspace()} disabled={loading} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-800 disabled:opacity-50">Retry</button>
       </section>:null}

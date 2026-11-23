@@ -117,6 +117,9 @@ export function PlacementDashboard() {
             <button onClick={() => void load()} className="min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-bold text-slate-800 sm:w-auto" disabled={loading}>Refresh</button>
           </div>
         </section>
+        <div role="note" className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+          {isStudent ? "Your placement opportunities and application history are scoped to your own student record. Eligibility and application actions are enforced by the server." : "This workspace is connected to the institutional placement opportunity and application records. Every application transition is server-authorized and audited."}
+        </div>
 
         {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 

@@ -130,22 +130,12 @@ export function AdminPortal() {
       subtitle="People, academic structure and institutional operations"
       allowedRoles={["INSTITUTION_ADMIN"]}
     >
-    <div className="mx-auto w-full max-w-[1500px] space-y-5 pb-10">
-      <section className="relative overflow-hidden rounded-xl bg-[#244638] p-6 text-white shadow-none sm:p-9">
-        <div className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-[#315c4a]/10" />
-
+    <div className="acadlyx-content-dashboard space-y-5 pb-10">
+      <section className="relative overflow-hidden rounded-xl border border-[#315c4a] bg-[#244638] p-6 text-white shadow-none sm:p-8">
         <div className="relative">
-          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#dce9df]">
-            Institution command center
-          </p>
-
-          <h1 className="mt-4 max-w-4xl text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="max-w-4xl text-2xl font-semibold tracking-tight sm:text-3xl">
             Your institution workspace, organized by responsibility.
           </h1>
-
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">
-            Use the sections below to access authorized administrative functions without leaving your workspace.
-          </p>
 
           <div className="mt-6 flex flex-wrap gap-2.5">
             <span className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white/90">
@@ -193,7 +183,7 @@ export function AdminPortal() {
               ([label, key]) => (
                 <div
                   key={key}
-                  className="relative overflow-hidden border-b border-r border-slate-200 bg-white px-4 py-5"
+                  className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm"
                 >
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
                     {label}
@@ -206,7 +196,9 @@ export function AdminPortal() {
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key]) ? "Institution-scoped records" : "Not reported"}
+                    {typeof data?.stats[key] === "number" && Number.isFinite(data.stats[key])
+                      ? "Institution-scoped records"
+                      : "Not reported"}
                   </p>
                 </div>
               ),

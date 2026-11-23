@@ -42,7 +42,7 @@ export async function getProfilePhotos(userIds: string[]): Promise<Map<string, P
   });
 
   for (const file of files) {
-    // Profile photos are institution-scoped; do not resolve platform-owned assets here.
+    // Profile photos are institution-scoped; skip platform-owned assets.
     if (!file.ownerId || !file.institutionId || result.has(file.ownerId)) continue;
     const delivery = await getFileDelivery(file.id, file.institutionId);
     result.set(file.ownerId, {
