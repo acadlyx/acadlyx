@@ -4,18 +4,137 @@ import { PublicSiteShell } from "@/components/public/PublicSiteShell";
 import { publicMetadata } from "@/lib/seo/metadata";
 import { getPublishedProductPage } from "@/lib/publicSiteContent";
 
-export const metadata = publicMetadata({ title: "ACADLYX | Education ERP & Institutional Intelligence Platform", description: "ACADLYX is an integrated Education ERP and Institutional Intelligence Platform that helps colleges and universities manage admissions, academics, attendance, examinations, fees, faculty, placements and institutional operations.", path: "/" });
+export const metadata = publicMetadata({
+  title: "ACADLYX | Education ERP & Institutional Intelligence Platform",
+  description:
+    "ACADLYX is an integrated Education ERP and Institutional Intelligence Platform that helps colleges and universities manage admissions, academics, attendance, examinations, fees, faculty, placements and institutional operations.",
+  path: "/",
+});
 
-const capabilities = [["Student information", "A connected student record across the institutional lifecycle."], ["Admissions", "Structured application and admission operations for institutional teams."], ["Academic management", "Programmes, courses, delivery and academic records in context."], ["Attendance & examinations", "Academic activity, assessment workflows and results managed with appropriate controls."], ["Fees & finance", "Fee structures, student finance and payment operations in the same environment."], ["People & operations", "Faculty, HR, library, placements, communication and documentation workflows."]];
+const capabilities = [
+  ["Student information", "A connected student record across the institutional lifecycle."],
+  ["Admissions", "Application review, admission decisions and enrolment handled in one workflow."],
+  ["Academic management", "Programmes, courses, timetables and academic records managed together."],
+  ["Attendance and examinations", "Attendance, assessments, examination schedules and results with the right controls."],
+  ["Fees and finance", "Fee structures, collections, concessions and financial operations in one place."],
+  ["People and operations", "Faculty, HR, library, placements, communication and institutional services."],
+];
 
-export default async function HomePage() { const cms = await getPublishedProductPage(); const media = cms?.media?.filter((item) => item.url) || []; return <PublicSiteShell>
-  <section className="home-hero"><div className="public-container home-hero-grid"><div className="home-hero-copy"><p className="home-kicker">ACADLYX · EDUCATION ERP</p><h1>One platform. Every part of your institution.</h1><p>ACADLYX brings academic management, institutional operations and intelligent decision-making together in one connected education platform.</p><Link href="/about-acadlyx" className="public-button home-primary-action">Learn More About ACADLYX</Link></div><PlatformMap /></div></section>
-  <section className="home-section home-challenge" aria-labelledby="challenge-title"><div className="public-container home-editorial-grid"><h2 id="challenge-title">Institutional work is rarely contained in one place.</h2><div><p>When departments rely on disconnected systems, routine work becomes harder to coordinate. Student information fragments, manual handoffs multiply, and leaders are left assembling a view of the institution after the fact.</p><p>ACADLYX is designed around the relationships between academic, administrative and operational work—not a collection of isolated tools.</p></div></div></section>
-  <section className="home-section home-approach" aria-labelledby="approach-title"><div className="public-container"><div className="home-section-heading"><h2 id="approach-title">A shared operational picture.</h2><p>Information stays with the work, while each person sees only what their responsibility requires.</p></div><div className="institution-map" role="img" aria-label="ACADLYX connects students, faculty, academic departments, administration, finance and institutional leadership"><span>Students</span><span>Faculty</span><span>Academic departments</span><strong>ACADLYX</strong><span>Administration</span><span>Finance</span><span>Leadership</span></div></div></section>
-  <section className="home-section home-capabilities" aria-labelledby="capabilities-title"><div className="public-container"><div className="home-capabilities-intro"><h2 id="capabilities-title">The work of an institution, connected.</h2><p>ACADLYX brings established institutional workflows into a single Education ERP and Institutional Management Platform.</p></div><ol className="capability-ledger">{capabilities.map(([title, description], index) => <li key={title}><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{title}</h3><p>{description}</p></div></li>)}</ol></div></section>
-  <section className="home-section home-intelligence" aria-labelledby="intelligence-title"><div className="public-container home-intelligence-layout"><div><p className="home-kicker">INSTITUTIONAL INTELLIGENCE</p><h2 id="intelligence-title">More than administration software.</h2></div><div><p>A conventional system records activity. An institutional intelligence platform helps the institution understand it: connected data, role-aware reporting and operational visibility can support more informed decisions.</p><p>ACADLYX keeps the information close to the academic and operational work that produces it.</p></div></div></section>
-  <section className="home-section home-experience" aria-labelledby="experience-title"><div className="public-container home-experience-layout"><div><h2 id="experience-title">The product experience, in its own words.</h2><p>Published product views, screenshots and explanatory media are managed by the ACADLYX Website CMS. They appear here only when an authorized editor has supplied them.</p></div>{media[0] ? <figure className="home-cms-media"><Image src={media[0].url} alt={media[0].alt || "ACADLYX product interface"} width={1200} height={760} sizes="(max-width: 820px) 100vw, 55vw" />{media[0].caption ? <figcaption>{media[0].caption}</figcaption> : null}</figure> : <div className="home-experience-placeholder"><span>ACADLYX</span><p>Product media is maintained through the CMS.</p></div>}</div></section>
-  <section className="home-closing"><div className="public-container"><h2>Bring your institution&apos;s operations together.</h2><p>Discover how ACADLYX connects the different dimensions of institutional management.</p><Link href="/about-acadlyx" className="public-button home-primary-action">Learn More About ACADLYX</Link></div></section>
-</PublicSiteShell>; }
+export default async function HomePage() {
+  const cms = await getPublishedProductPage();
+  const media = cms?.media?.filter((item) => item.url) || [];
 
-function PlatformMap() { return <div className="hero-platform-map" aria-label="Illustration of connected ACADLYX platform capabilities"><div className="hero-platform-map-label">INSTITUTIONAL OPERATIONS</div><div className="hero-platform-map-core">ACADLYX</div><div className="hero-platform-map-row"><span>Academics</span><span>People</span><span>Finance</span></div><div className="hero-platform-map-row"><span>Admissions</span><span>Learning</span><span>Reporting</span></div><p>One operational foundation, shaped around the institution.</p></div>; }
+  return (
+    <PublicSiteShell>
+      <section className="home-hero">
+        <div className="public-container home-hero-copy">
+          <h1>Software for the way institutions actually work.</h1>
+          <p>
+            ACADLYX brings student records, academic processes, finance and
+            institutional operations into one connected education platform.
+          </p>
+          <Link href="/about-acadlyx" className="public-button home-primary-action">
+            Learn More About ACADLYX
+          </Link>
+        </div>
+      </section>
+
+      <section className="home-section home-challenge" aria-labelledby="challenge-title">
+        <div className="public-container home-editorial-grid">
+          <h2 id="challenge-title">Institutional work crosses departments every day.</h2>
+          <div>
+            <p>
+              A student record touches admissions, academics, examinations,
+              accounts and administration. When those teams work in separate
+              systems, people spend time reconciling information instead of
+              moving the work forward.
+            </p>
+            <p>
+              ACADLYX keeps those connected processes in the same operational
+              environment, with access shaped by each person’s role.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-section home-capabilities" aria-labelledby="capabilities-title">
+        <div className="public-container">
+          <div className="home-capabilities-intro">
+            <h2 id="capabilities-title">The systems an institution depends on.</h2>
+            <p>
+              From a student’s first application to academic records and
+              financial operations, the work stays connected without treating
+              every department as if it does the same job.
+            </p>
+          </div>
+          <ul className="capability-ledger">
+            {capabilities.map(([title, description]) => (
+              <li key={title}>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="home-section home-intelligence" aria-labelledby="intelligence-title">
+        <div className="public-container home-intelligence-layout">
+          <h2 id="intelligence-title">A clearer view of the institution.</h2>
+          <div>
+            <p>
+              Operational information is useful when it can be understood in
+              context. ACADLYX brings records and reporting closer to the
+              processes that create them, helping authorized teams review
+              activity and make informed decisions.
+            </p>
+            <p>
+              Each workspace is organized around the responsibilities of the
+              people who use it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {media.length > 0 ? (
+        <section className="home-section home-experience" aria-labelledby="experience-title">
+          <div className="public-container">
+            <div className="home-experience-layout">
+              <div>
+                <h2 id="experience-title">Inside ACADLYX.</h2>
+                <p>
+                  A look at the product, published by the ACADLYX team.
+                </p>
+              </div>
+              <figure className="home-cms-media">
+                <Image
+                  src={media[0].url}
+                  alt={media[0].alt || "ACADLYX product interface"}
+                  width={1200}
+                  height={760}
+                  sizes="(max-width: 820px) 100vw, 55vw"
+                />
+                {media[0].caption ? <figcaption>{media[0].caption}</figcaption> : null}
+              </figure>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="home-closing">
+        <div className="public-container">
+          <h2>See how ACADLYX fits your institution.</h2>
+          <p>
+            Explore the platform, its workflows and the teams it brings
+            together.
+          </p>
+          <Link href="/about-acadlyx" className="public-button home-primary-action">
+            Learn More About ACADLYX
+          </Link>
+        </div>
+      </section>
+    </PublicSiteShell>
+  );
+}
