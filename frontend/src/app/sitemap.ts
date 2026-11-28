@@ -1,4 +1,15 @@
 import type { MetadataRoute } from "next";
 import { absoluteUrl } from "@/lib/seo/config";
-const routes = ["", "/about", "/about-acadlyx", "/platform", "/solutions", "/modules", "/features", "/education-erp", "/college-management-system", "/student-management", "/admission-management", "/attendance-management", "/examination-management", "/fee-management", "/obe-management", "/institutional-intelligence", "/resources", "/contact", "/request-demo"];
-export default function sitemap(): MetadataRoute.Sitemap { const lastModified = new Date("2026-11-28T00:00:00.000Z"); return routes.map((path) => ({ url: absoluteUrl(path), lastModified, changeFrequency: "monthly", priority: path === "" ? 1 : path === "/request-demo" || path === "/contact" ? 0.6 : 0.8 })); }
+
+/** The public site has a homepage and one CMS-managed product information page. */
+const routes = ["", "/about-acadlyx"];
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const lastModified = new Date();
+  return routes.map((path) => ({
+    url: absoluteUrl(path),
+    lastModified,
+    changeFrequency: "weekly",
+    priority: path === "" ? 1 : 0.8,
+  }));
+}

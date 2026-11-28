@@ -18,21 +18,45 @@ export type ProductPageContent = {
   media?: Array<{ url: string; alt: string; caption?: string }>;
 };
 
-type PublicCmsResponse = { data?: { content?: { productPage?: ProductPageContent } } };
+export type PublishedSiteContent = {
+  brand?: { siteName?: string; logoUrl?: string };
+  hero?: {
+    title?: string;
+    description?: string;
+    dashboardImageUrl?: string;
+    dashboardCaption?: string;
+  };
+  sections?: {
+    capabilitiesTitle?: string;
+    capabilitiesDescription?: string;
+    features?: Array<{ title?: string; text?: string }>;
+    rolesTitle?: string;
+    rolesDescription?: string;
+  };
+  footer?: { text?: string };
+  productPage?: ProductPageContent;
+};
 
-/** Read only the published platform document. No editor credentials reach the public route. */
-export async function getPublishedProductPage(): Promise<ProductPageContent | null> {
+type PublicCmsResponse = {
+  data?: { content?: PublishedSiteContent };
+};
+
+export async function getPublishedSiteContent(): Promise<PublishedSiteContent | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/v1/site-content/public`, {
       next: { revalidate: 60 },
       headers: { Accept: "application/json" },
     });
     if (!response.ok) return null;
-    const payload = await response.json() as PublicCmsResponse;
-    const page = payload.data?.content?.productPage;
-    if (!page || !page.title || !Array.isArray(page.sections)) return null;
-    return page;
+    const payload = (await response.json()) as PublicCmsResponse;
+    return payload.data?.content ?? null;
   } catch {
     return null;
   }
+}
+
+export async function getPublishedProductPage(): Promise<ProductPageContent | null> {
+  const page = (await getPublishedSiteContent())?.productPage;
+  if (!page || !page.title?.trim() || !Array.isArray(page.sections)) return null;
+  return page;
 }

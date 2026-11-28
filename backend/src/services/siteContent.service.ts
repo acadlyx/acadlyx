@@ -54,13 +54,13 @@ const DEFAULT_SITE_CONTENT = {
 
   hero: {
     eyebrow: "EDUCATION ERP & INSTITUTIONAL OPERATIONS",
-    title: "Admissions, academics and finance in one institutional workspace.",
+    title: "Admissions, academics and finance, connected to the student record.",
     description:
-      "ACADLYX connects enrolment, academic delivery, fees and payments, examinations, learning, library and placements through role-scoped institutional workflows.",
-    primaryCtaLabel: "Sign in to ACADLYX",
-    primaryCtaHref: "/login",
-    secondaryCtaLabel: "About the platform",
-    secondaryCtaHref: "/about",
+      "ACADLYX connects student information with admissions, academic delivery, attendance, examinations and finance. Each team works with the records and tasks that belong to its responsibility.",
+    primaryCtaLabel: "Learn More About ACADLYX",
+    primaryCtaHref: "/about-acadlyx",
+    secondaryCtaLabel: "",
+    secondaryCtaHref: "",
     dashboardImageUrl: "",
     dashboardCaption:
       "A connected view of institutional operations.",
@@ -89,54 +89,22 @@ const DEFAULT_SITE_CONTENT = {
 
     capabilitiesEyebrow: "CAPABILITIES",
     capabilitiesTitle:
-      "Operational workflows connected across the institution.",
+      "The work that keeps an institution running.",
     capabilitiesDescription:
-      "Each capability is designed around a real institutional workflow, with permissions and data boundaries built into the experience.",
+      "Admissions, academic delivery, attendance, examinations and finance rely on the same student and institutional records. The workflows below describe where ACADLYX supports that work.",
 
     features: [
-      {
-        eyebrow: "PEOPLE",
-        title: "Student & faculty management",
-        text:
-          "Keep institutional people, profiles, enrollment and academic relationships organized in one system.",
-      },
-      {
-        eyebrow: "ACADEMICS",
-        title: "Academic operations",
-        text:
-          "Connect programs, departments, courses, sections, timetable, assessments and academic records.",
-      },
-      {
-        eyebrow: "ATTENDANCE",
-        title: "Attendance intelligence",
-        text:
-          "Capture attendance and make the information useful to students, faculty and institutional leadership.",
-      },
-      {
-        eyebrow: "EXAMINATIONS",
-        title: "Examinations & results",
-        text:
-          "Manage examination workflows, marks, results and academic outcomes through controlled workspaces.",
-      },
-      {
-        eyebrow: "FINANCE",
-        title: "Fees & payments",
-        text:
-          "Bring invoices, fee structures, payments and student financial records into the same operational platform.",
-      },
-      {
-        eyebrow: "INTELLIGENCE",
-        title: "Institutional insights",
-        text:
-          "Give leadership meaningful operational visibility without exposing information outside the user's scope.",
-      },
+      { eyebrow: "", title: "Admissions and enrolment", text: "Review applications, record admission decisions and carry student information into the academic record." },
+      { eyebrow: "", title: "Academic operations", text: "Manage programmes, courses, sections, timetables and the records used by academic departments and faculty." },
+      { eyebrow: "", title: "Attendance and examinations", text: "Keep attendance, assessments, examination schedules and results connected to the student’s academic journey." },
+      { eyebrow: "", title: "Fees and finance", text: "Coordinate fee structures, collections, concessions and the supporting work of finance teams." },
     ],
 
     rolesEyebrow: "WORKSPACES",
     rolesTitle:
-      "A different experience for every responsibility.",
+      "One institution, distinct responsibilities.",
     rolesDescription:
-      "ACADLYX adapts the application around the role, permissions and institutional scope of each user.",
+      "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires.",
 
     roles: [
       "Super Admin",
@@ -177,15 +145,14 @@ const DEFAULT_SITE_CONTENT = {
       title: "About ACADLYX | Education ERP & Institutional Intelligence",
       description: "Learn how ACADLYX connects academic management, institutional operations and institutional intelligence for colleges and universities.",
     },
-    title: "ACADLYX, in context.",
-    introduction: "An institutional operating platform for the academic, administrative and decision-making work that needs to stay connected.",
+    title: "How ACADLYX connects institutional work.",
+    introduction: "ACADLYX is an Education ERP for colleges and universities. It connects student records with the academic, administrative and financial work that takes place around them.",
     media: [],
     sections: [
-      { id: "vision", visible: true, title: "A clearer operational foundation.", body: "ACADLYX is built for colleges, universities and educational groups that need their people, academic activity and operational information to work together without flattening the responsibilities between them.", imageUrl: "", imageAlt: "", layout: "statement" },
-      { id: "problems", visible: true, title: "The work behind the institution.", body: "Admissions, student records, teaching activity, attendance, examinations, finance and communication are connected in practice. When their information is separated, teams spend time rebuilding context instead of acting on it.", imageUrl: "", imageAlt: "", layout: "split" },
-      { id: "capabilities", visible: true, title: "Connected capabilities.", body: "The platform supports student information, admissions, academic management, attendance, examinations, fees and finance, faculty and HR, library, learning management, outcome-based education, placements, communication, documentation and institutional analytics.", imageUrl: "", imageAlt: "", layout: "statement" },
-      { id: "intelligence", visible: true, title: "Institutional intelligence.", body: "ACADLYX brings reporting and operational visibility closer to the work that creates the underlying information, helping institutional leadership and teams develop a more complete picture of performance and activity.", imageUrl: "", imageAlt: "", layout: "split" },
-      { id: "philosophy", visible: true, title: "Designed around responsibility.", body: "The platform is role-aware by design. Its workspaces, access controls and information boundaries reflect the fact that an institution depends on many different responsibilities working together, without every user needing every record.", imageUrl: "", imageAlt: "", layout: "statement" },
+      { id: "student-record", visible: true, title: "The student record.", body: "An applicant record becomes the student profile used by academic departments, faculty, finance and student services. Keeping those records connected reduces duplicate entry and makes each handoff easier to follow.", imageUrl: "", imageAlt: "", layout: "statement" },
+      { id: "academic-work", visible: true, title: "Academic work, from programme to result.", body: "Programme structures, course offerings, sections, timetables, attendance, assessments and examination results belong to the same academic record. ACADLYX gives the relevant academic roles a place to manage that work.", imageUrl: "", imageAlt: "", layout: "split" },
+      { id: "finance", visible: true, title: "Fees and financial operations.", body: "Fee structures, invoices, collections, concessions, payments and refunds are part of the institution’s student and finance records. Access remains limited to the roles authorised to work with financial information.", imageUrl: "", imageAlt: "", layout: "statement" },
+      { id: "workspaces", visible: true, title: "Workspaces shaped by responsibility.", body: "Students, parents, faculty, academic departments, administrators and institutional leadership do not need the same information. Role-based workspaces and permissions separate their tasks while keeping the institution’s records connected.", imageUrl: "", imageAlt: "", layout: "split" },
     ],
   },
 };

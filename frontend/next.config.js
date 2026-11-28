@@ -7,6 +7,19 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["react", "react-dom"],
   },
+  async redirects() {
+    const cmsManagedRoutes = [
+      "/about", "/platform", "/solutions", "/modules", "/features",
+      "/education-erp", "/college-management-system", "/student-management",
+      "/admission-management", "/attendance-management", "/examination-management",
+      "/fee-management", "/obe-management", "/institutional-intelligence", "/resources",
+    ];
+    return cmsManagedRoutes.map((source) => ({
+      source,
+      destination: "/about-acadlyx",
+      permanent: true,
+    }));
+  },
   async headers() {
     return [
       {

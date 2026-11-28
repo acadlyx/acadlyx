@@ -39,8 +39,9 @@
 .public-site h2,
 .public-site h3 {
   color: #202923;
-  font-family: var(--acadlyx-font-sans);
-  letter-spacing: -0.025em;
+  font-family: var(--acadlyx-font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 .public-site p {
   color: #56625a;

@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PublicSiteShell } from "@/components/public/PublicSiteShell";
 import { publicMetadata } from "@/lib/seo/metadata";
-import { getPublishedProductPage } from "@/lib/publicSiteContent";
+import { getPublishedSiteContent } from "@/lib/publicSiteContent";
 
 export const metadata = publicMetadata({
   title: "ACADLYX | Education ERP for Colleges and Universities",
@@ -11,66 +11,79 @@ export const metadata = publicMetadata({
   path: "/",
 });
 
-const institutionalWork = [
+const fallbackFeatures = [
   {
     title: "Admissions and enrolment",
-    description:
-      "Review applications, record admission decisions and carry student information into the institution’s academic records.",
+    text: "Review applications, record admission decisions and carry student information into the academic record.",
   },
   {
     title: "Academic operations",
-    description:
-      "Manage programmes, courses, sections, timetables and the records used by academic departments and faculty.",
+    text: "Manage programmes, courses, sections, timetables and the records used by academic departments and faculty.",
   },
   {
     title: "Attendance and examinations",
-    description:
-      "Keep attendance, assessments, examination schedules and results connected to the student’s academic journey.",
+    text: "Keep attendance, assessments, examination schedules and results connected to the student’s academic journey.",
   },
   {
-    title: "Fees and institutional services",
-    description:
-      "Coordinate fee structures, collections, concessions and the supporting work of finance and administrative teams.",
+    title: "Fees and finance",
+    text: "Coordinate fee structures, collections, concessions and the supporting work of finance teams.",
   },
 ];
 
 export default async function HomePage() {
-  const cms = await getPublishedProductPage();
-  const featuredMedia = cms?.media?.find((item) => Boolean(item.url));
+  const content = await getPublishedSiteContent();
+  const hero = content?.hero;
+  const sections = content?.sections;
+
+  const features =
+    sections?.features?.filter(
+      (feature) => feature.title?.trim() && feature.text?.trim(),
+    ) ?? [];
+  const visibleFeatures = features.length > 0 ? features : fallbackFeatures;
+
+  const media = content?.productPage?.media?.find((item) => item.url?.trim());
+  const heroImageUrl = hero?.dashboardImageUrl?.trim() || media?.url || "";
+  const heroImageAlt =
+    media?.url === heroImageUrl && media.alt?.trim()
+      ? media.alt
+      : "ACADLYX product interface";
+  const heroCaption =
+    hero?.dashboardCaption?.trim() ||
+    (media?.url === heroImageUrl ? media.caption?.trim() : "") ||
+    "";
 
   return (
     <PublicSiteShell>
       <section className="ac-home-hero" aria-labelledby="home-title">
         <div
-          className={`public-container ac-home-hero-layout ${featuredMedia ? "" : "ac-home-hero-layout--text-only"}`}
+          className={`public-container ac-home-hero-layout ${heroImageUrl ? "" : "ac-home-hero-layout--text-only"}`}
         >
           <div className="ac-home-hero-copy">
             <h1 id="home-title">
-              Admissions, academics and finance, connected to the student record.
+              {hero?.title?.trim() ||
+                "Admissions, academics and finance, connected to the student record."}
             </h1>
             <p>
-              ACADLYX is an Education ERP for colleges and universities. It
-              connects student information with the academic, administrative
-              and financial workflows used across an institution.
+              {hero?.description?.trim() ||
+                "ACADLYX is an Education ERP for colleges and universities. It connects student information with the academic, administrative and financial workflows used across an institution."}
             </p>
             <Link href="/about-acadlyx" className="public-button ac-home-action">
-              Learn more about ACADLYX
+              Learn More About ACADLYX
             </Link>
           </div>
 
-          {featuredMedia ? (
+          {heroImageUrl ? (
             <figure className="ac-home-media">
               <Image
-                src={featuredMedia.url}
-                alt={featuredMedia.alt?.trim() || "ACADLYX product interface"}
+                src={heroImageUrl}
+                alt={heroImageAlt}
                 width={1440}
                 height={960}
                 sizes="(max-width: 820px) 100vw, 48vw"
                 priority
+                unoptimized
               />
-              {featuredMedia.caption?.trim() ? (
-                <figcaption>{featuredMedia.caption}</figcaption>
-              ) : null}
+              {heroCaption ? <figcaption>{heroCaption}</figcaption> : null}
             </figure>
           ) : null}
         </div>
@@ -79,43 +92,40 @@ export default async function HomePage() {
       <section className="ac-home-workflow" aria-labelledby="workflow-title">
         <div className="public-container ac-home-workflow-layout">
           <div className="ac-home-section-intro">
-            <h2 id="workflow-title">Institutional work moves across teams.</h2>
+            <h2 id="workflow-title">
+              {sections?.capabilitiesTitle?.trim() ||
+                "The work that keeps an institution running."}
+            </h2>
             <p>
-              A student’s journey touches admissions, academic departments,
-              faculty, examinations and finance. ACADLYX keeps the related
-              records and processes in one system instead of making each team
-              reconstruct the same information.
+              {sections?.capabilitiesDescription?.trim() ||
+                "Admissions, student records, teaching activity, attendance, examinations and finance depend on the same institutional information. ACADLYX keeps those workflows in context."}
             </p>
           </div>
 
           <dl className="ac-home-workflow-list">
-            {institutionalWork.map((item) => (
-              <div key={item.title}>
-                <dt>{item.title}</dt>
-                <dd>{item.description}</dd>
+            {visibleFeatures.map((feature, index) => (
+              <div key={feature.title || index}>
+                <dt>{feature.title}</dt>
+                <dd>{feature.text}</dd>
               </div>
             ))}
           </dl>
         </div>
       </section>
 
-      <section className="ac-home-responsibility" aria-labelledby="responsibility-title">
+      <section
+        className="ac-home-responsibility"
+        aria-labelledby="responsibility-title"
+      >
         <div className="public-container ac-home-responsibility-layout">
           <h2 id="responsibility-title">
-            Shared institutional information. Role-appropriate access.
+            {sections?.rolesTitle?.trim() ||
+              "One institution, distinct responsibilities."}
           </h2>
-          <div>
-            <p>
-              Students, faculty, academic departments, administration,
-              leadership and finance teams do not need the same workspace.
-              ACADLYX organises work around each role and applies permissions
-              to the information and actions available to that user.
-            </p>
-            <p>
-              The result is one institutional system with clear responsibility
-              across the people who use it.
-            </p>
-          </div>
+          <p>
+            {sections?.rolesDescription?.trim() ||
+              "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires."}
+          </p>
         </div>
       </section>
     </PublicSiteShell>

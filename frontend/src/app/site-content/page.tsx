@@ -13,7 +13,7 @@ type CmsProductSection = { id: string; visible: boolean; title: string; body: st
 type CmsProductPage = { seo: { title: string; description: string }; title: string; introduction: string; sections: CmsProductSection[]; media: Array<{ url: string; alt: string; caption: string }> };
 type CmsSections = {
   statsEyebrow: string; statsTitle: string; statsDescription: string; stats: string[];
-  capabilitiesEyebrow: string; capabilitiesTitle: string; capabilitiesDescription: string; features: string[];
+  capabilitiesEyebrow: string; capabilitiesTitle: string; capabilitiesDescription: string; features: Array<{ eyebrow: string; title: string; text: string }>;
   rolesEyebrow: string; rolesTitle: string; rolesDescription: string; roles: string[];
   ctaEyebrow: string; ctaTitle: string; ctaDescription: string; ctaLabel: string; ctaHref: string;
 };
@@ -43,10 +43,10 @@ const fallback: CmsData = {
     updates: { eyebrow: "", title: "", description: "", items: [] },
     contact: { eyebrow: "", title: "", description: "", imageUrl: "" },
   },
-  hero: { eyebrow: "", title: "", description: "", primaryCtaLabel: "Login", primaryCtaHref: "/", secondaryCtaLabel: "", secondaryCtaHref: "", dashboardImageUrl: "", dashboardCaption: "" },
+  hero: { eyebrow: "", title: "Admissions, academics and finance, connected to the student record.", description: "ACADLYX is an Education ERP for colleges and universities. It connects student information with the academic, administrative and financial workflows used across an institution.", primaryCtaLabel: "Learn More About ACADLYX", primaryCtaHref: "/about-acadlyx", secondaryCtaLabel: "", secondaryCtaHref: "", dashboardImageUrl: "", dashboardCaption: "" },
   sections: {
     statsEyebrow: "", statsTitle: "", statsDescription: "", stats: [],
-    capabilitiesEyebrow: "", capabilitiesTitle: "", capabilitiesDescription: "", features: [],
+    capabilitiesEyebrow: "", capabilitiesTitle: "The work that keeps an institution running.", capabilitiesDescription: "Admissions, student records, teaching activity, attendance, examinations and finance depend on the same institutional information. ACADLYX keeps those workflows in context.", features: [{ eyebrow: "", title: "Admissions and enrolment", text: "Review applications, record admission decisions and carry student information into the academic record." }, { eyebrow: "", title: "Academic operations", text: "Manage programmes, courses, sections, timetables and the records used by academic departments and faculty." }, { eyebrow: "", title: "Attendance and examinations", text: "Keep attendance, assessments, examination schedules and results connected to the student’s academic journey." }, { eyebrow: "", title: "Fees and finance", text: "Coordinate fee structures, collections, concessions and the supporting work of finance teams." }],
     rolesEyebrow: "", rolesTitle: "", rolesDescription: "", roles: [],
     ctaEyebrow: "", ctaTitle: "", ctaDescription: "", ctaLabel: "Login", ctaHref: "/",
   },
@@ -136,6 +136,7 @@ export default function SiteContentPage() {
             <div className="space-y-4">
               
               <Field label="Title" value={data.hero.title} onChange={(v) => set("hero.title", v)} />
+              <TextArea label="Introduction" value={data.hero.description} onChange={(v) => set("hero.description", v)} />
               
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Primary CTA label" value={data.hero.primaryCtaLabel} onChange={(v) => set("hero.primaryCtaLabel", v)} />
@@ -173,8 +174,8 @@ export default function SiteContentPage() {
 
         <Card title="Platform sections">
           <div className="space-y-6">
-            <TextGroup prefix="sections.stats" title="Stats" data={data.sections} set={set} />
-            <TextGroup prefix="sections.capabilities" title="Capabilities" data={data.sections} set={set} />
+            <TextGroup prefix="sections.capabilities" title="Homepage capabilities" data={data.sections} set={set} />
+            <FeatureListEditor items={data.sections.features} set={set} />
             <TextGroup prefix="sections.roles" title="Workspaces" data={data.sections} set={set} />
             <TextGroup prefix="sections.cta" title="Final CTA" data={data.sections} set={set} />
           </div>
@@ -196,7 +197,7 @@ export default function SiteContentPage() {
 }
 
 function Header({ busy, save, message }: { busy: boolean; save: () => void; message: string }) {
-  return <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-black">100% CMS-driven external site</h1>{message ? <p className="mt-3 text-sm font-bold text-blue-700">{message}</p> : null}</div><button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button></div>;
+  return <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-black">Public website content</h1>{message ? <p className="mt-3 text-sm font-bold text-blue-700">{message}</p> : null}</div><button onClick={save} disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{busy ? "Publishing…" : "Save & publish"}</button></div>;
 }
 
 function PageEditor({ title, data, set, upload, imageKey }: { title: string; data: CmsPage; set: (key: string, value: string) => void; upload?: (event: ChangeEvent<HTMLInputElement>) => void; imageKey?: string }) {
@@ -222,6 +223,28 @@ function TextGroup({ prefix, title, data, set }: { prefix: string; title: string
   const key = prefix.split(".").pop();
   const source = data as unknown as Record<string, string | string[]>;
   return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Title", "Description"].map((label) => { const actual = label === "Title" ? `${key}Title` : `${key}Description`; const value = typeof source[actual] === "string" ? source[actual] : ""; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
+}
+
+
+function FeatureListEditor({ items, set }: { items: Array<{ eyebrow: string; title: string; text: string }>; set: (path: string, value: unknown) => void }) {
+  return (
+    <div className="space-y-4 border-t border-slate-200 pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-900">Institutional workflows</h3>
+        <button type="button" onClick={() => set("sections.features", [...items, { eyebrow: "", title: "", text: "" }])} className="text-sm font-semibold text-emerald-800 underline underline-offset-4">Add workflow</button>
+      </div>
+      {items.map((item, index) => (
+        <article key={index} className="grid gap-3 border-b border-slate-200 pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-slate-500">Workflow {index + 1}</span>
+            <button type="button" onClick={() => set("sections.features", items.filter((_, itemIndex) => itemIndex !== index))} className="text-xs font-semibold text-red-700 underline underline-offset-4">Remove</button>
+          </div>
+          <Field label="Workflow name" value={item.title} onChange={(value) => set(`sections.features.${index}.title`, value)} />
+          <TextArea label="What this workflow does" value={item.text} onChange={(value) => set(`sections.features.${index}.text`, value)} />
+        </article>
+      ))}
+    </div>
+  );
 }
 
 function ProductPageEditor({ data, set, upload }: { data: CmsProductPage; set: (path: string, value: unknown) => void; upload: (event: ChangeEvent<HTMLInputElement>, path: string) => Promise<void> }) {
