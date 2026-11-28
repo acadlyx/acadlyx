@@ -107,9 +107,9 @@ const DEFAULT_SITE_CONTENT = {
 
     rolesEyebrow: "WORKSPACES",
     rolesTitle:
-      "One institution, distinct responsibilities.",
+      "A student record, shared across the right teams.",
     rolesDescription:
-      "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires.",
+      "Students, faculty, academic departments, administration, leadership and finance each work with different parts of the student record. ACADLYX gives each role a separate workspace and limits access to the information and actions their work requires.",
 
     roles: [
       "Super Admin",
@@ -217,6 +217,125 @@ function mergeRecord(
   return result;
 }
 
+
+const LEGACY_DEFAULT_FEATURES = [
+  { eyebrow: "PEOPLE", title: "Student & faculty management", text: "Keep institutional people, profiles, enrollment and academic relationships organized in one system." },
+  { eyebrow: "ACADEMICS", title: "Academic operations", text: "Connect programs, departments, courses, sections, timetable, assessments and academic records." },
+  { eyebrow: "ATTENDANCE", title: "Attendance intelligence", text: "Capture attendance and make the information useful to students, faculty and institutional leadership." },
+  { eyebrow: "EXAMINATIONS", title: "Examinations & results", text: "Manage examination workflows, marks, results and academic outcomes through controlled workspaces." },
+  { eyebrow: "FINANCE", title: "Fees & payments", text: "Bring invoices, fee structures, payments and student financial records into the same operational platform." },
+  { eyebrow: "INTELLIGENCE", title: "Institutional insights", text: "Give leadership meaningful operational visibility without exposing information outside the user's scope." },
+];
+
+const LEGACY_DEFAULT_PRODUCT_SECTIONS = [
+  { id: "vision", title: "A clearer operational foundation.", body: "ACADLYX is built for colleges, universities and educational groups that need their people, academic activity and operational information to work together without flattening the responsibilities between them." },
+  { id: "problems", title: "The work behind the institution.", body: "Admissions, student records, teaching activity, attendance, examinations, finance and communication are connected in practice. When their information is separated, teams spend time rebuilding context instead of acting on it." },
+  { id: "capabilities", title: "Connected capabilities.", body: "The platform supports student information, admissions, academic management, attendance, examinations, fees and finance, faculty and HR, library, learning management, outcome-based education, placements, communication, documentation and institutional analytics." },
+  { id: "intelligence", title: "Institutional intelligence.", body: "ACADLYX brings reporting and operational visibility closer to the work that creates the underlying information, helping institutional leadership and teams develop a more complete picture of performance and activity." },
+  { id: "philosophy", title: "Designed around responsibility.", body: "The platform is role-aware by design. Its workspaces, access controls and information boundaries reflect the fact that an institution depends on many different responsibilities working together, without every user needing every record." },
+];
+
+function migrateLegacyDefaults(content: JsonRecord): JsonRecord {
+  const next = clone(content);
+  const hero = isRecord(next.hero) ? { ...next.hero } : {};
+  const sections = isRecord(next.sections) ? { ...next.sections } : {};
+  const productPage = isRecord(next.productPage) ? { ...next.productPage } : {};
+  const productSeo = isRecord(productPage.seo) ? { ...productPage.seo } : {};
+  const footer = isRecord(next.footer) ? { ...next.footer } : {};
+
+  if (hero.title === "Admissions, academics and finance in one institutional workspace.") {
+    hero.title = DEFAULT_SITE_CONTENT.hero.title;
+  }
+  if (hero.description === "ACADLYX connects enrolment, academic delivery, fees and payments, examinations, learning, library and placements through role-scoped institutional workflows.") {
+    hero.description = DEFAULT_SITE_CONTENT.hero.description;
+  }
+  if (hero.primaryCtaLabel === "Sign in to ACADLYX") {
+    hero.primaryCtaLabel = "Learn More About ACADLYX";
+  }
+  if (hero.primaryCtaHref === "/login") {
+    hero.primaryCtaHref = "/about-acadlyx";
+  }
+  if (hero.secondaryCtaLabel === "About the platform") {
+    hero.secondaryCtaLabel = "";
+  }
+  if (hero.secondaryCtaHref === "/about") {
+    hero.secondaryCtaHref = "";
+  }
+
+  if (sections.capabilitiesTitle === "Operational workflows connected across the institution.") {
+    sections.capabilitiesTitle = DEFAULT_SITE_CONTENT.sections.capabilitiesTitle;
+  }
+  if (sections.capabilitiesDescription === "Each capability is designed around a real institutional workflow, with permissions and data boundaries built into the experience.") {
+    sections.capabilitiesDescription = DEFAULT_SITE_CONTENT.sections.capabilitiesDescription;
+  }
+  if (
+    Array.isArray(sections.features) &&
+    sections.features.length === LEGACY_DEFAULT_FEATURES.length &&
+    sections.features.every((value, index) => {
+      const item = value;
+      const legacy = LEGACY_DEFAULT_FEATURES[index];
+      return isRecord(item) &&
+        item.eyebrow === legacy.eyebrow &&
+        item.title === legacy.title &&
+        item.text === legacy.text;
+    })
+  ) {
+    sections.features = clone(DEFAULT_SITE_CONTENT.sections.features);
+  }
+  if (sections.rolesTitle === "A different experience for every responsibility.") {
+    sections.rolesTitle = DEFAULT_SITE_CONTENT.sections.rolesTitle;
+  }
+  if (sections.rolesDescription === "ACADLYX adapts the application around the role, permissions and institutional scope of each user.") {
+    sections.rolesDescription = DEFAULT_SITE_CONTENT.sections.rolesDescription;
+  }
+  if (sections.rolesTitle === "One institution, distinct responsibilities.") {
+    sections.rolesTitle = DEFAULT_SITE_CONTENT.sections.rolesTitle;
+  }
+  if (sections.rolesDescription === "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires.") {
+    sections.rolesDescription = DEFAULT_SITE_CONTENT.sections.rolesDescription;
+  }
+
+  if (productPage.title === "ACADLYX, in context.") {
+    productPage.title = DEFAULT_SITE_CONTENT.productPage.title;
+  }
+  if (productPage.introduction === "An institutional operating platform for the academic, administrative and decision-making work that needs to stay connected.") {
+    productPage.introduction = DEFAULT_SITE_CONTENT.productPage.introduction;
+  }
+  if (
+    Array.isArray(productPage.sections) &&
+    productPage.sections.length === LEGACY_DEFAULT_PRODUCT_SECTIONS.length &&
+    productPage.sections.every((value, index) => {
+      const item = value;
+      const legacy = LEGACY_DEFAULT_PRODUCT_SECTIONS[index];
+      return isRecord(item) &&
+        item.id === legacy.id &&
+        item.title === legacy.title &&
+        item.body === legacy.body &&
+        item.visible === true &&
+        (!item.imageUrl || item.imageUrl === "") &&
+        (!item.imageAlt || item.imageAlt === "");
+    })
+  ) {
+    productPage.sections = clone(DEFAULT_SITE_CONTENT.productPage.sections);
+  }
+  if (productSeo.title === "About ACADLYX | Education ERP & Institutional Intelligence") {
+    productSeo.title = DEFAULT_SITE_CONTENT.productPage.seo.title;
+  }
+  if (productSeo.description === "Learn how ACADLYX connects academic management, institutional operations and institutional intelligence for colleges and universities.") {
+    productSeo.description = DEFAULT_SITE_CONTENT.productPage.seo.description;
+  }
+
+  if (footer.text === "Education ERP & institutional operations platform.") {
+    footer.text = DEFAULT_SITE_CONTENT.footer.text;
+  }
+
+  next.hero = hero;
+  next.sections = sections;
+  next.productPage = { ...productPage, seo: productSeo };
+  next.footer = footer;
+  return next;
+}
+
 function mergeDefaults(
   content: unknown,
 ) {
@@ -226,7 +345,7 @@ function mergeDefaults(
 
   return mergeRecord(
     DEFAULT_SITE_CONTENT,
-    content,
+    migrateLegacyDefaults(content),
   );
 }
 

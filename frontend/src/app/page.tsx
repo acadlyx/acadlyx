@@ -121,11 +121,11 @@ export default async function HomePage() {
         <div className="public-container ac-home-responsibility-layout">
           <h2 id="responsibility-title">
             {sections?.rolesTitle?.trim() ||
-              "One institution, distinct responsibilities."}
+              "A student record, shared across the right teams."}
           </h2>
           <p>
             {sections?.rolesDescription?.trim() ||
-              "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires."}
+              "Students, faculty, academic departments, administration, leadership and finance each work with different parts of the student record. ACADLYX gives each role a separate workspace and limits access to the information and actions their work requires."}
           </p>
         </div>
       </section>

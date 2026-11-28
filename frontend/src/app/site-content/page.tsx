@@ -87,9 +87,9 @@ const fallback: CmsData = {
         text: "Coordinate fee structures, collections, concessions and the supporting work of finance teams.",
       },
     ],
-    rolesTitle: "One institution, distinct responsibilities.",
+    rolesTitle: "A student record, shared across the right teams.",
     rolesDescription:
-      "Students, faculty, academic departments, administration, leadership and finance teams work from different responsibilities. ACADLYX organises their workspaces around those roles and limits access to the information and actions each role requires.",
+      "Students, faculty, academic departments, administration, leadership and finance each work with different parts of the student record. ACADLYX gives each role a separate workspace and limits access to the information and actions their work requires.",
   },
   productPage: {
     seo: {

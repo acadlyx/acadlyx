@@ -13,6 +13,7 @@ const nextConfig = {
       "/education-erp", "/college-management-system", "/student-management",
       "/admission-management", "/attendance-management", "/examination-management",
       "/fee-management", "/obe-management", "/institutional-intelligence", "/resources",
+      "/contact", "/request-demo",
     ];
     return cmsManagedRoutes.map((source) => ({
       source,
