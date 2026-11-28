@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main className="public-site"><section className="public-page-hero"><div className="public-container"><h1>Page not found.</h1><p>The page you requested is not available. Return to the ACADLYX public website.</p><div className="public-actions"><Link href="/" className="public-button">Go to ACADLYX</Link></div></div></section></main>; }

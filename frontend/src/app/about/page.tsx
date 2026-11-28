@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
 import { InfoGrid, PublicPage } from "@/components/public/PublicPage";
-export const metadata: Metadata = { title: "About ACADLYX", description: "Learn about ACADLYX and its approach to institutional technology." };
+import { publicMetadata } from "@/lib/seo/metadata";
+export const metadata = publicMetadata({ title: "About ACADLYX", description: "Learn about ACADLYX and its approach to institutional technology.", path: "/about" });
 export default function AboutPage() { return <PublicPage title="Institutional technology should make work clearer." intro="ACADLYX gives educational institutions a coherent digital foundation for the work that matters every day."><InfoGrid items={[{ title: "ACADLYX", text: "ACADLYX is an Education ERP and Institutional Intelligence Platform that connects academic, administrative and people operations." }, { id: "vision", title: "Our vision", text: "To help institutions work with better continuity between the decisions they make and the information they rely on." }, { title: "Our mission", text: "To build practical, dependable technology that respects the complexity of education without making it harder to manage." }, { title: "Our philosophy", text: "The strongest institutional systems are a shared operational language for people, processes and records." }]} /></PublicPage>; }

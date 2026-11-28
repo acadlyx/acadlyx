@@ -31,6 +31,16 @@ const PUBLIC_EXACT_ROUTES = new Set([
   "/modules",
   "/resources",
   "/request-demo",
+  "/features",
+  "/education-erp",
+  "/college-management-system",
+  "/student-management",
+  "/admission-management",
+  "/attendance-management",
+  "/examination-management",
+  "/fee-management",
+  "/obe-management",
+  "/institutional-intelligence",
 ]);
 
 function isPublicRoute(pathname: string): boolean {

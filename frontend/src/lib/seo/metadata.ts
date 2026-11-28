@@ -1,0 +1,3 @@
+import type { Metadata } from "next";
+import { absoluteUrl, siteConfig } from "./config";
+export function publicMetadata({ title, description, path }: { title: string; description: string; path: string }): Metadata { const fullTitle = title === siteConfig.title ? title : `${title} | ACADLYX`; return { title: { absolute: fullTitle }, description, keywords: [...siteConfig.keywords], alternates: { canonical: path }, openGraph: { type: "website", url: absoluteUrl(path), siteName: siteConfig.name, title: fullTitle, description, images: [{ url: absoluteUrl("/branding/acadlyx-logo.png"), width: 512, height: 512, alt: "ACADLYX" }] }, twitter: { card: "summary", title: fullTitle, description, images: [absoluteUrl("/branding/acadlyx-logo.png")] } }; }

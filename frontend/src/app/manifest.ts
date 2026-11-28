@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function manifest(): MetadataRoute.Manifest { return { name: "ACADLYX", short_name: "ACADLYX", description: "Education ERP & Institutional Intelligence Platform", start_url: "/", display: "standalone", background_color: "#ffffff", theme_color: "#126243", icons: [{ src: "/branding/acadlyx-logo.png", sizes: "512x512", type: "image/png" }] }; }

@@ -1,0 +1,4 @@
+import { absoluteUrl, siteConfig } from "./config";
+export const organizationSchema = { "@context": "https://schema.org", "@type": "Organization", "@id": `${siteConfig.url}/#organization`, name: siteConfig.company, brand: { "@type": "Brand", name: siteConfig.name }, url: siteConfig.url };
+export const websiteSchema = { "@context": "https://schema.org", "@type": "WebSite", "@id": `${siteConfig.url}/#website`, name: siteConfig.name, url: siteConfig.url, publisher: { "@id": `${siteConfig.url}/#organization` } };
+export const softwareSchema = { "@context": "https://schema.org", "@type": "SoftwareApplication", "@id": `${siteConfig.url}/#software`, name: siteConfig.name, applicationCategory: "EducationalApplication", operatingSystem: "Web", url: siteConfig.url, description: siteConfig.description, author: { "@id": `${siteConfig.url}/#organization` }, image: absoluteUrl("/branding/acadlyx-logo.png") };
