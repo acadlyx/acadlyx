@@ -19,6 +19,7 @@ export type ProductPageContent = {
 };
 
 export type PublishedSiteContent = {
+  seo?: { title?: string; description?: string };
   brand?: { siteName?: string; logoUrl?: string };
   hero?: {
     title?: string;
@@ -37,9 +38,7 @@ export type PublishedSiteContent = {
   productPage?: ProductPageContent;
 };
 
-type PublicCmsResponse = {
-  data?: { content?: PublishedSiteContent };
-};
+type PublicCmsResponse = { data?: { content?: PublishedSiteContent } };
 
 export async function getPublishedSiteContent(): Promise<PublishedSiteContent | null> {
   try {

@@ -4,12 +4,18 @@ import { PublicSiteShell } from "@/components/public/PublicSiteShell";
 import { publicMetadata } from "@/lib/seo/metadata";
 import { getPublishedSiteContent } from "@/lib/publicSiteContent";
 
-export const metadata = publicMetadata({
-  title: "ACADLYX | Education ERP for Colleges and Universities",
-  description:
-    "ACADLYX connects student information with admissions, academic, examination, finance and institutional workflows in one role-based Education ERP.",
-  path: "/",
-});
+export async function generateMetadata() {
+  const content = await getPublishedSiteContent();
+  return publicMetadata({
+    title:
+      content?.seo?.title?.trim() ||
+      "ACADLYX | Education ERP for Colleges and Universities",
+    description:
+      content?.seo?.description?.trim() ||
+      "ACADLYX connects student information with admissions, academic, examination, finance and institutional workflows in one role-based Education ERP.",
+    path: "/",
+  });
+}
 
 const fallbackFeatures = [
   {
@@ -34,12 +40,12 @@ export default async function HomePage() {
   const content = await getPublishedSiteContent();
   const hero = content?.hero;
   const sections = content?.sections;
-
-  const features =
+  const configuredFeatures =
     sections?.features?.filter(
       (feature) => feature.title?.trim() && feature.text?.trim(),
     ) ?? [];
-  const visibleFeatures = features.length > 0 ? features : fallbackFeatures;
+  const features =
+    configuredFeatures.length > 0 ? configuredFeatures : fallbackFeatures;
 
   const media = content?.productPage?.media?.find((item) => item.url?.trim());
   const heroImageUrl = hero?.dashboardImageUrl?.trim() || media?.url || "";
@@ -55,9 +61,7 @@ export default async function HomePage() {
   return (
     <PublicSiteShell>
       <section className="ac-home-hero" aria-labelledby="home-title">
-        <div
-          className={`public-container ac-home-hero-layout ${heroImageUrl ? "" : "ac-home-hero-layout--text-only"}`}
-        >
+        <div className={`public-container ac-home-hero-layout ${heroImageUrl ? "" : "ac-home-hero-layout--text-only"}`}>
           <div className="ac-home-hero-copy">
             <h1 id="home-title">
               {hero?.title?.trim() ||
@@ -103,7 +107,7 @@ export default async function HomePage() {
           </div>
 
           <dl className="ac-home-workflow-list">
-            {visibleFeatures.map((feature, index) => (
+            {features.map((feature, index) => (
               <div key={feature.title || index}>
                 <dt>{feature.title}</dt>
                 <dd>{feature.text}</dd>
@@ -113,10 +117,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section
-        className="ac-home-responsibility"
-        aria-labelledby="responsibility-title"
-      >
+      <section className="ac-home-responsibility" aria-labelledby="responsibility-title">
         <div className="public-container ac-home-responsibility-layout">
           <h2 id="responsibility-title">
             {sections?.rolesTitle?.trim() ||

@@ -11,6 +11,11 @@ const DEFAULT_SITE_CONTENT = {
     faviconUrl: "",
   },
 
+  seo: {
+    title: "ACADLYX | Education ERP for Colleges and Universities",
+    description: "ACADLYX connects student information with admissions, academic, examination, finance and institutional workflows in one role-based Education ERP.",
+  },
+
   pages: {
     about: {
       eyebrow: "ABOUT ACADLYX",
