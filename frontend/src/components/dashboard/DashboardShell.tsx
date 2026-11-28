@@ -194,17 +194,8 @@ export function DashboardShell({ title, subtitle, children, allowedRoles, forceS
 
   if (!user) {
     return (
-      <div role="status" aria-live="polite" className="min-h-[40vh] animate-pulse p-6 sm:p-8">
-        <span className="sr-only">Loading your secure workspace…</span>
-        <div className="mx-auto max-w-7xl space-y-5">
-          <div className="h-8 w-56 rounded-xl bg-slate-200" />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[1, 2, 3, 4].map((item) => (
-              <div key={item} className="h-28 rounded-2xl bg-slate-100" />
-            ))}
-          </div>
-          <div className="h-64 rounded-2xl bg-slate-100" />
-        </div>
+      <div role="status" aria-live="polite" className="sr-only">
+        Loading your secure workspace…
       </div>
     );
   }
