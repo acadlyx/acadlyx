@@ -2,23 +2,176 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
-type NavItem = { label: string; href: string; children: { label: string; href: string }[] };
-const navigation: NavItem[] = [
-  { label: "Platform", href: "/platform", children: [["Platform overview", "/platform"], ["Institutional management", "/platform#institutional-management"], ["Academic management", "/platform#academic-management"], ["Administration", "/platform#administration"], ["Analytics & intelligence", "/platform#analytics"], ["Platform security", "/platform#security"]].map(([label, href]) => ({ label, href })) },
-  { label: "Solutions", href: "/solutions", children: [["Universities", "/solutions#universities"], ["Colleges", "/solutions#colleges"], ["Educational institutions", "/solutions#institutions"], ["Administrators", "/solutions#administrators"], ["Faculty", "/solutions#faculty"], ["Students", "/solutions#students"], ["Parents", "/solutions#parents"]].map(([label, href]) => ({ label, href })) },
-  { label: "Modules", href: "/modules", children: [["Admissions", "/modules#admissions"], ["Student information system", "/modules#student-information"], ["Academics", "/modules#academics"], ["Attendance", "/modules#attendance"], ["Examination", "/modules#examination"], ["Fees & finance", "/modules#finance"], ["Human resources", "/modules#human-resources"], ["Library", "/modules#library"], ["Placement", "/modules#placement"], ["Learning management", "/modules#learning"], ["Communication", "/modules#communication"], ["Reports & analytics", "/modules#reports"]].map(([label, href]) => ({ label, href })) },
-  { label: "Resources", href: "/resources", children: [["Documentation", "/resources#documentation"], ["Help center", "/resources#help-center"], ["FAQs", "/resources#faqs"], ["Updates", "/resources#updates"]].map(([label, href]) => ({ label, href })) },
-  { label: "About us", href: "/about", children: [["About ACADLYX", "/about"], ["Our vision", "/about#vision"], ["Contact us", "/contact"]].map(([label, href]) => ({ label, href })) },
+const navigation = [
+  { label: "Platform", href: "/platform" },
+  { label: "Solutions", href: "/solutions" },
+  { label: "Modules", href: "/modules" },
+  { label: "About", href: "/about" },
 ];
-function MenuIcon({ close = false }: { close?: boolean }) { return <span className={close ? "public-menu-icon is-close" : "public-menu-icon"} aria-hidden="true"><i /><i /><i /></span>; }
+
 export function PublicSiteShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname() || "/"; const [openMenu, setOpenMenu] = useState<string | null>(null); const [mobileOpen, setMobileOpen] = useState(false); const [mobileSection, setMobileSection] = useState<string | null>(null); const navRef = useRef<HTMLElement>(null);
-  useEffect(() => { setOpenMenu(null); setMobileOpen(false); }, [pathname]);
-  useEffect(() => { const outside = (e: MouseEvent) => { if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenMenu(null); }; const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpenMenu(null); setMobileOpen(false); } }; document.addEventListener("mousedown", outside); window.addEventListener("keydown", escape); return () => { document.removeEventListener("mousedown", outside); window.removeEventListener("keydown", escape); }; }, []);
-  useEffect(() => { document.body.style.overflow = mobileOpen ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [mobileOpen]);
-  return <main className="public-site"><header className="public-site-header"><div className="public-container public-site-header-inner"><Link href="/" className="public-site-brand" aria-label="ACADLYX home"><Image src="/branding/acadlyx-logo.png" alt="" width={38} height={38} priority /><span>ACADLYX</span></Link><nav className="public-desktop-nav" aria-label="Primary navigation" ref={navRef}>{navigation.map((item) => <div className="public-nav-group" key={item.label}><button type="button" className={pathname === item.href ? "is-active" : ""} aria-expanded={openMenu === item.label} aria-haspopup="menu" onClick={() => setOpenMenu(openMenu === item.label ? null : item.label)}>{item.label}<span className="public-chevron" aria-hidden="true" /></button>{openMenu === item.label ? <div className="public-dropdown" role="menu">{item.children.map((child) => <Link role="menuitem" href={child.href} key={child.href} onClick={() => setOpenMenu(null)}>{child.label}</Link>)}</div> : null}</div>)}</nav><div className="public-header-actions"><Link href="/contact" className="public-contact-sales">Contact sales</Link><Link href="/login" className="public-sign-in">Sign in</Link><Link href="/request-demo" className="public-button public-button-small">Request a demo</Link><button type="button" className="public-mobile-toggle" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}><MenuIcon close={mobileOpen} /></button></div></div>{mobileOpen ? <div className="public-mobile-panel"><nav aria-label="Mobile navigation">{navigation.map((item) => <div className="public-mobile-group" key={item.label}><button type="button" aria-expanded={mobileSection === item.label} onClick={() => setMobileSection(mobileSection === item.label ? null : item.label)}>{item.label}<span className="public-chevron" /></button>{mobileSection === item.label ? <div>{item.children.map((child) => <Link href={child.href} key={child.href} onClick={() => setMobileOpen(false)}>{child.label}</Link>)}</div> : null}</div>)}</nav><div className="public-mobile-actions"><Link href="/login" onClick={() => setMobileOpen(false)} className="public-button public-button-quiet">Sign in</Link><Link href="/request-demo" onClick={() => setMobileOpen(false)} className="public-button">Request a demo</Link></div></div> : null}</header>{children}<footer className="public-footer"><div className="public-container public-footer-grid"><div className="public-footer-brand"><Link href="/" className="public-site-brand"><Image src="/branding/acadlyx-logo.png" alt="" width={36} height={36} /><span>ACADLYX</span></Link><p>Connected operations and institutional intelligence for education.</p></div><FooterColumn title="Platform" links={[["Platform overview", "/platform"], ["Institutional management", "/platform#institutional-management"], ["Academic management", "/platform#academic-management"], ["Administration", "/platform#administration"], ["Analytics", "/platform#analytics"]]} /><FooterColumn title="Solutions" links={[["Universities", "/solutions#universities"], ["Colleges", "/solutions#colleges"], ["Administrators", "/solutions#administrators"], ["Faculty", "/solutions#faculty"], ["Students", "/solutions#students"], ["Parents", "/solutions#parents"]]} /><FooterColumn title="Resources" links={[["Documentation", "/resources#documentation"], ["Help center", "/resources#help-center"], ["FAQs", "/resources#faqs"], ["Contact us", "/contact"]]} /><FooterColumn title="Get started" links={[["Request a demo", "/request-demo"], ["Contact sales", "/contact"], ["Sign in", "/login"]]} /></div><div className="public-container public-footer-bottom"><span>© {new Date().getFullYear()} ACADLYX. All rights reserved.</span><div><span>Privacy policy</span><span>Terms and conditions</span></div></div></footer></main>;
+  const pathname = usePathname() || "/";
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
+  return (
+    <main className="public-site">
+      <header className="public-site-header">
+        <div className="public-container public-site-header-inner">
+          <Link href="/" className="public-site-brand" aria-label="ACADLYX home">
+            <Image src="/branding/acadlyx-logo.png" alt="" width={38} height={38} priority />
+            <span>ACADLYX</span>
+          </Link>
+
+          <nav className="public-desktop-nav" aria-label="Primary navigation">
+            {navigation.map((item) => (
+              <Link
+                href={item.href}
+                key={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="public-header-actions">
+            <Link href="/login" className="public-sign-in">Sign in</Link>
+            <Link href="/request-demo" className="public-button public-button-small">
+              Request a demo
+            </Link>
+            <button
+              type="button"
+              className="public-mobile-toggle"
+              aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+              aria-expanded={mobileOpen}
+              aria-controls="public-mobile-navigation"
+              onClick={() => setMobileOpen((open) => !open)}
+            >
+              <MenuIcon close={mobileOpen} />
+            </button>
+          </div>
+        </div>
+
+        {mobileOpen ? (
+          <div className="public-mobile-panel" id="public-mobile-navigation">
+            <nav className="public-mobile-nav" aria-label="Mobile navigation">
+              {navigation.map((item) => (
+                <Link
+                  href={item.href}
+                  key={item.href}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="public-mobile-actions">
+              <Link
+                href="/request-demo"
+                onClick={() => setMobileOpen(false)}
+                className="public-button"
+              >
+                Request a demo
+              </Link>
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="public-mobile-sign-in"
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
+        ) : null}
+      </header>
+
+      {children}
+
+      <footer className="public-footer">
+        <div className="public-container public-footer-grid">
+          <div className="public-footer-brand">
+            <Link href="/" className="public-site-brand" aria-label="ACADLYX home">
+              <Image src="/branding/acadlyx-logo.png" alt="" width={36} height={36} />
+              <span>ACADLYX</span>
+            </Link>
+            <p>Connected operations and institutional intelligence for education.</p>
+          </div>
+
+          <FooterColumn
+            title="Explore"
+            links={[
+              ["Platform", "/platform"],
+              ["Solutions", "/solutions"],
+              ["Modules", "/modules"],
+              ["About ACADLYX", "/about"],
+            ]}
+          />
+
+          <FooterColumn
+            title="Company"
+            links={[
+              ["Resources", "/resources"],
+              ["Contact", "/contact"],
+              ["Sign in", "/login"],
+            ]}
+          />
+        </div>
+
+        <div className="public-container public-footer-bottom">
+          <span>© {new Date().getFullYear()} ACADLYX. All rights reserved.</span>
+        </div>
+      </footer>
+    </main>
+  );
 }
-function FooterColumn({ title, links }: { title: string; links: [string, string][] }) { return <div className="public-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</div>; }
+
+function MenuIcon({ close = false }: { close?: boolean }) {
+  return (
+    <span className={close ? "public-menu-icon is-close" : "public-menu-icon"} aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
+function FooterColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: [string, string][];
+}) {
+  return (
+    <div className="public-footer-column">
+      <h2>{title}</h2>
+      {links.map(([label, href]) => (
+        <Link key={href} href={href}>{label}</Link>
+      ))}
+    </div>
+  );
+}
