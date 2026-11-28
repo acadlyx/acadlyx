@@ -26,6 +26,11 @@ const PUBLIC_EXACT_ROUTES = new Set([
   "/contact",
   "/team",
   "/updates",
+  "/platform",
+  "/solutions",
+  "/modules",
+  "/resources",
+  "/request-demo",
 ]);
 
 function isPublicRoute(pathname: string): boolean {

@@ -1,32 +1,5 @@
-"use client";
-
-import { PublicSiteShell, usePublicSiteContent } from "@/components/public/PublicSiteShell";
-
-export default function ContactPage() {
-  const content = usePublicSiteContent();
-  const page = content.pages.contact || {};
-  const details = [
-    { label: "Email", value: content.contact.email },
-    { label: "Phone", value: content.contact.phone },
-    { label: "Address", value: content.contact.address },
-    { label: "Website", value: content.contact.website },
-  ];
-
-  return (
-    <PublicSiteShell>
-      <section className="public-page-section">
-        <header className="public-page-intro">
-          <h1>{page.title || "Contact the ACADLYX team"}</h1>
-        </header>
-        <dl className="public-contact-list">
-          {details.map((detail) => (
-            <div className="public-contact-row" key={detail.label}>
-              <dt>{detail.label}</dt>
-              <dd>{detail.value || "Not published"}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-    </PublicSiteShell>
-  );
-}
+import type { Metadata } from "next";
+import { PublicPage } from "@/components/public/PublicPage";
+import { EnquiryForm } from "@/components/public/EnquiryForm";
+export const metadata: Metadata = { title: "Contact sales | ACADLYX", description: "Contact the ACADLYX team about institutional technology and product demonstrations." };
+export default function ContactPage() { return <PublicPage title="Talk to the ACADLYX team." intro="Tell us what your institution is working towards and we will direct your enquiry appropriately."><section className="public-page-section public-section-soft"><div className="public-container public-form-layout"><div><h2>Contact sales</h2><p>For product, partnership and implementation conversations, send us a message.</p><p className="public-contact-note">Contact details are published by the institution when available. No public sales address is configured in this deployment.</p></div><EnquiryForm /></div></section></PublicPage>; }
