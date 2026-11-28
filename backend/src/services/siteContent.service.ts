@@ -228,11 +228,11 @@ const LEGACY_DEFAULT_FEATURES = [
 ];
 
 const LEGACY_DEFAULT_PRODUCT_SECTIONS = [
-  { id: "vision", title: "A clearer operational foundation.", body: "ACADLYX is built for colleges, universities and educational groups that need their people, academic activity and operational information to work together without flattening the responsibilities between them." },
-  { id: "problems", title: "The work behind the institution.", body: "Admissions, student records, teaching activity, attendance, examinations, finance and communication are connected in practice. When their information is separated, teams spend time rebuilding context instead of acting on it." },
-  { id: "capabilities", title: "Connected capabilities.", body: "The platform supports student information, admissions, academic management, attendance, examinations, fees and finance, faculty and HR, library, learning management, outcome-based education, placements, communication, documentation and institutional analytics." },
-  { id: "intelligence", title: "Institutional intelligence.", body: "ACADLYX brings reporting and operational visibility closer to the work that creates the underlying information, helping institutional leadership and teams develop a more complete picture of performance and activity." },
-  { id: "philosophy", title: "Designed around responsibility.", body: "The platform is role-aware by design. Its workspaces, access controls and information boundaries reflect the fact that an institution depends on many different responsibilities working together, without every user needing every record." },
+  { id: "vision", title: "A clearer operational foundation.", body: "ACADLYX is built for colleges, universities and educational groups that need their people, academic activity and operational information to work together without flattening the responsibilities between them.", layout: "statement" },
+  { id: "problems", title: "The work behind the institution.", body: "Admissions, student records, teaching activity, attendance, examinations, finance and communication are connected in practice. When their information is separated, teams spend time rebuilding context instead of acting on it.", layout: "split" },
+  { id: "capabilities", title: "Connected capabilities.", body: "The platform supports student information, admissions, academic management, attendance, examinations, fees and finance, faculty and HR, library, learning management, outcome-based education, placements, communication, documentation and institutional analytics.", layout: "statement" },
+  { id: "intelligence", title: "Institutional intelligence.", body: "ACADLYX brings reporting and operational visibility closer to the work that creates the underlying information, helping institutional leadership and teams develop a more complete picture of performance and activity.", layout: "split" },
+  { id: "philosophy", title: "Designed around responsibility.", body: "The platform is role-aware by design. Its workspaces, access controls and information boundaries reflect the fact that an institution depends on many different responsibilities working together, without every user needing every record.", layout: "statement" },
 ];
 
 function migrateLegacyDefaults(content: JsonRecord): JsonRecord {
@@ -311,6 +311,7 @@ function migrateLegacyDefaults(content: JsonRecord): JsonRecord {
         item.id === legacy.id &&
         item.title === legacy.title &&
         item.body === legacy.body &&
+        item.layout === legacy.layout &&
         item.visible === true &&
         (!item.imageUrl || item.imageUrl === "") &&
         (!item.imageAlt || item.imageAlt === "");
