@@ -67,7 +67,6 @@ export function PublicSiteShell({ children }: { children: ReactNode }) {
               className="public-mobile-toggle"
               aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
               aria-expanded={mobileOpen}
-              aria-controls="public-mobile-navigation"
               onClick={() => setMobileOpen((open) => !open)}
             >
               <MenuIcon close={mobileOpen} />
