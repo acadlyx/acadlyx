@@ -28,6 +28,7 @@ type CmsData = {
     title: string;
     description: string;
     dashboardImageUrl: string;
+    dashboardImageAlt: string;
     dashboardCaption: string;
     [key: string]: unknown;
   };
@@ -59,6 +60,7 @@ const fallback: CmsData = {
     description:
       "ACADLYX is an Education ERP for colleges and universities. It connects student information with the academic, administrative and financial workflows used across an institution.",
     dashboardImageUrl: "",
+    dashboardImageAlt: "",
     dashboardCaption: "",
   },
   sections: {
@@ -190,6 +192,7 @@ function normalizeContent(value: unknown): CmsData {
       title: asText(hero.title, fallback.hero.title),
       description: asText(hero.description, fallback.hero.description),
       dashboardImageUrl: asText(hero.dashboardImageUrl),
+      dashboardImageAlt: asText(hero.dashboardImageAlt),
       dashboardCaption: asText(hero.dashboardCaption),
     },
     sections: {
@@ -401,6 +404,13 @@ export default function SiteContentPage() {
                 value={data.hero.dashboardImageUrl}
                 onChange={(value) => set("hero.dashboardImageUrl", value)}
                 upload={(event) => upload(event, "hero.dashboardImageUrl")}
+              />
+            </div>
+            <div className="mt-4">
+              <Field
+                label="Image alternative text"
+                value={data.hero.dashboardImageAlt}
+                onChange={(value) => set("hero.dashboardImageAlt", value)}
               />
             </div>
             <div className="mt-4">

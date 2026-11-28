@@ -25,6 +25,7 @@ export type PublishedSiteContent = {
     title?: string;
     description?: string;
     dashboardImageUrl?: string;
+    dashboardImageAlt?: string;
     dashboardCaption?: string;
   };
   sections?: {

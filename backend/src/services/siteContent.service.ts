@@ -67,6 +67,7 @@ const DEFAULT_SITE_CONTENT = {
     secondaryCtaLabel: "",
     secondaryCtaHref: "",
     dashboardImageUrl: "",
+    dashboardImageAlt: "",
     dashboardCaption:
       "A connected view of institutional operations.",
   },

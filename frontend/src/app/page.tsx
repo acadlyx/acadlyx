@@ -50,9 +50,11 @@ export default async function HomePage() {
   const media = content?.productPage?.media?.find((item) => item.url?.trim());
   const heroImageUrl = hero?.dashboardImageUrl?.trim() || media?.url || "";
   const heroImageAlt =
-    media?.url === heroImageUrl && media.alt?.trim()
-      ? media.alt
-      : "ACADLYX product interface";
+    hero?.dashboardImageUrl?.trim() === heroImageUrl && hero.dashboardImageAlt?.trim()
+      ? hero.dashboardImageAlt
+      : media?.url === heroImageUrl && media.alt?.trim()
+        ? media.alt
+        : "ACADLYX product interface";
   const heroCaption =
     hero?.dashboardCaption?.trim() ||
     (media?.url === heroImageUrl ? media.caption?.trim() : "") ||
