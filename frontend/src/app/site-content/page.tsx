@@ -9,6 +9,8 @@ type CmsPage = { eyebrow: string; title: string; description: string; imageUrl?:
 type CmsTeamPage = CmsPage & { members: CmsTeamMember[] };
 type CmsCollectionItem = { title: string; description: string; meta: string; imageUrl: string; linkUrl: string };
 type CmsCollectionPage = CmsPage & { items: CmsCollectionItem[] };
+type CmsProductSection = { id: string; visible: boolean; title: string; body: string; imageUrl: string; imageAlt: string; layout: "statement" | "split" };
+type CmsProductPage = { seo: { title: string; description: string }; title: string; introduction: string; sections: CmsProductSection[]; media: Array<{ url: string; alt: string; caption: string }> };
 type CmsSections = {
   statsEyebrow: string; statsTitle: string; statsDescription: string; stats: string[];
   capabilitiesEyebrow: string; capabilitiesTitle: string; capabilitiesDescription: string; features: string[];
@@ -28,6 +30,7 @@ type CmsData = {
   sections: CmsSections;
   contact: { email: string; phone: string; address: string; website: string };
   footer: { text: string };
+  productPage: CmsProductPage;
 };
 
 const fallback: CmsData = {
@@ -49,6 +52,7 @@ const fallback: CmsData = {
   },
   contact: { email: "", phone: "", address: "", website: "" },
   footer: { text: "" },
+  productPage: { seo: { title: "", description: "" }, title: "", introduction: "", sections: [], media: [] },
 };
 export default function SiteContentPage() {
   const [data, setData] = useState<CmsData>(fallback);
@@ -176,6 +180,8 @@ export default function SiteContentPage() {
           </div>
         </Card>
 
+        <ProductPageEditor data={data.productPage} set={set} upload={upload} />
+
         <Card title="Public contact & footer">
           <div className="grid gap-4 lg:grid-cols-2">
             {(["email", "phone", "address", "website"] as Array<keyof CmsData["contact"]>).map((key) => <Field key={key} label={humanize(key)} value={data.contact[key]} onChange={(v) => set(`contact.${key}`, v)} />)}
@@ -216,6 +222,13 @@ function TextGroup({ prefix, title, data, set }: { prefix: string; title: string
   const key = prefix.split(".").pop();
   const source = data as unknown as Record<string, string | string[]>;
   return <div className="border-t border-slate-100 pt-5"><h3 className="text-sm font-black">{title}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{["Title", "Description"].map((label) => { const actual = label === "Title" ? `${key}Title` : `${key}Description`; const value = typeof source[actual] === "string" ? source[actual] : ""; return <div key={actual} className={label === "Description" ? "lg:col-span-2" : ""}>{label === "Description" ? <TextArea label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} /> : <Field label={label} value={value} onChange={(v) => set(`${prefix}${label}`, v)} />}</div>; })}</div></div>;
+}
+
+function ProductPageEditor({ data, set, upload }: { data: CmsProductPage; set: (path: string, value: unknown) => void; upload: (event: ChangeEvent<HTMLInputElement>, path: string) => Promise<void> }) {
+  const sections = data.sections || [];
+  const update = (index: number, key: keyof CmsProductSection, value: string | boolean) => set(`productPage.sections.${index}.${key}`, value);
+  const move = (index: number, direction: -1 | 1) => { const next = [...sections]; const target = index + direction; if (!next[target]) return; [next[index], next[target]] = [next[target], next[index]]; set("productPage.sections", next); };
+  return <Card title="About ACADLYX product page"><p className="mb-5 text-sm text-slate-500">Published content for <code>/about-acadlyx</code>. Editors control its SEO, ordering, visibility, copy and media.</p><div className="grid gap-4 lg:grid-cols-2"><Field label="Page title" value={data.title} onChange={(v) => set("productPage.title", v)} /><TextArea label="Introduction" value={data.introduction} onChange={(v) => set("productPage.introduction", v)} /><Field label="SEO title" value={data.seo.title} onChange={(v) => set("productPage.seo.title", v)} /><TextArea label="SEO description" value={data.seo.description} onChange={(v) => set("productPage.seo.description", v)} /></div><div className="mt-6 space-y-4">{sections.map((section, index) => <article key={section.id || index} className="rounded-2xl border border-slate-200 bg-slate-50 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><b className="text-sm">Section {index + 1}</b><div className="flex gap-2"><button type="button" onClick={() => move(index, -1)} className="rounded-lg border px-2 py-1 text-xs" disabled={index === 0}>Up</button><button type="button" onClick={() => move(index, 1)} className="rounded-lg border px-2 py-1 text-xs" disabled={index === sections.length - 1}>Down</button><button type="button" onClick={() => set("productPage.sections", sections.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700">Remove</button></div></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><Field label="Section ID" value={section.id} onChange={(v) => update(index, "id", v)} /><label className="flex items-center gap-2 self-end text-sm font-bold"><input type="checkbox" checked={section.visible} onChange={(e) => update(index, "visible", e.target.checked)} /> Visible publicly</label><Field label="Heading" value={section.title} onChange={(v) => update(index, "title", v)} /><label className="block"><span className="text-xs font-black text-slate-600">Layout</span><select value={section.layout} onChange={(e) => update(index, "layout", e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="statement">Statement</option><option value="split">Split</option></select></label><div className="lg:col-span-2"><TextArea label="Section content" value={section.body} onChange={(v) => update(index, "body", v)} /></div><ImageField label="Image" value={section.imageUrl} onChange={(v) => update(index, "imageUrl", v)} upload={(event) => upload(event, `productPage.sections.${index}.imageUrl`)} /><Field label="Image alt text" value={section.imageAlt} onChange={(v) => update(index, "imageAlt", v)} /></div></article>)}</div><button type="button" onClick={() => set("productPage.sections", [...sections, { id: `section-${sections.length + 1}`, visible: true, title: "", body: "", imageUrl: "", imageAlt: "", layout: "statement" }])} className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold">Add section</button><div className="mt-6 border-t pt-5"><h3 className="text-sm font-black">Homepage product media</h3><p className="mt-1 text-sm text-slate-500">Use only genuine ACADLYX product screenshots or approved product media.</p>{(data.media || []).map((media, index) => <div key={index} className="mt-4 grid gap-4 rounded-xl border p-4 lg:grid-cols-3"><ImageField label="Screenshot" value={media.url} onChange={(v) => set(`productPage.media.${index}.url`, v)} upload={(event) => upload(event, `productPage.media.${index}.url`)} /><Field label="Alt text" value={media.alt} onChange={(v) => set(`productPage.media.${index}.alt`, v)} /><Field label="Caption" value={media.caption} onChange={(v) => set(`productPage.media.${index}.caption`, v)} /></div>)}<button type="button" onClick={() => set("productPage.media", [...(data.media || []), { url: "", alt: "", caption: "" }])} className="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold">Add product media</button></div></Card>;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-black text-slate-950">{title}</h2><div className="mt-5">{children}</div></section>; }

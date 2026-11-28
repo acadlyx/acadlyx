@@ -7,6 +7,7 @@ import { DashboardShell } from "./DashboardShell";
 const OUTSIDE_DASHBOARD = [
   /^\/$/,
   /^\/about(?:\/|$)/,
+  /^\/about-acadlyx(?:\/|$)/,
   /^\/partners(?:\/|$)/,
   /^\/team(?:\/|$)/,
   /^\/updates(?:\/|$)/,
