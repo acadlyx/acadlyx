@@ -168,6 +168,26 @@ const DEFAULT_SITE_CONTENT = {
     text:
       "Education ERP & institutional operations platform.",
   },
+
+  // Platform-owned, ordered content for /about-acadlyx. This lives in the
+  // existing JSON CMS document so editors can publish changes without a code
+  // release or a tenant-specific content record.
+  productPage: {
+    seo: {
+      title: "About ACADLYX | Education ERP & Institutional Intelligence",
+      description: "Learn how ACADLYX connects academic management, institutional operations and institutional intelligence for colleges and universities.",
+    },
+    title: "ACADLYX, in context.",
+    introduction: "An institutional operating platform for the academic, administrative and decision-making work that needs to stay connected.",
+    media: [],
+    sections: [
+      { id: "vision", visible: true, title: "A clearer operational foundation.", body: "ACADLYX is built for colleges, universities and educational groups that need their people, academic activity and operational information to work together without flattening the responsibilities between them.", imageUrl: "", imageAlt: "", layout: "statement" },
+      { id: "problems", visible: true, title: "The work behind the institution.", body: "Admissions, student records, teaching activity, attendance, examinations, finance and communication are connected in practice. When their information is separated, teams spend time rebuilding context instead of acting on it.", imageUrl: "", imageAlt: "", layout: "split" },
+      { id: "capabilities", visible: true, title: "Connected capabilities.", body: "The platform supports student information, admissions, academic management, attendance, examinations, fees and finance, faculty and HR, library, learning management, outcome-based education, placements, communication, documentation and institutional analytics.", imageUrl: "", imageAlt: "", layout: "statement" },
+      { id: "intelligence", visible: true, title: "Institutional intelligence.", body: "ACADLYX brings reporting and operational visibility closer to the work that creates the underlying information, helping institutional leadership and teams develop a more complete picture of performance and activity.", imageUrl: "", imageAlt: "", layout: "split" },
+      { id: "philosophy", visible: true, title: "Designed around responsibility.", body: "The platform is role-aware by design. Its workspaces, access controls and information boundaries reflect the fact that an institution depends on many different responsibilities working together, without every user needing every record.", imageUrl: "", imageAlt: "", layout: "statement" },
+    ],
+  },
 };
 
 type JsonRecord = Record<string, unknown>;
